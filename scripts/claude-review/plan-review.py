@@ -9,12 +9,12 @@ PR?", then "can reviews benefit from the past reviews in some way?"; asked to bu
 Mode, from the newest record a previous review left (a hidden block at the very end of a summary review
 posted by github-actions[bot]; post-review.py escapes comment markers in everything the model writes, so
 the model's text can't plant one). The record trusts the repository's writers, as everything here does:
-a same-repo pull request's own workflows can post as github-actions[bot] too. So a pull request's files
-that run in CI or deploys, or set what CI enforces, are reviewed in full on every run, whatever its record says (`is_reviewer_path`: workflows,
-scripts/, functions/src/scripts/, the deploy code, tools/, every package.json and vitest config, and the
-root lint, type, duplication, size and Lighthouse configs). pnpm-lock.yaml is left out, too large to
-re-read on every push; it and every other file a forged record marks as reviewed rely on the trust model
-above. Other sensitive paths (`is_sensitive`: auth, sessions, migrations, deploys) no longer force a
+a same-repo pull request's own workflows can post as github-actions[bot] too. So a pull request's CI and
+deploy machinery is reviewed in full on every run, whatever its record says. `is_reviewer_path` lists
+exactly what that means: workflows, scripts/, functions/src/scripts/, the deploy code, tools/, every
+package.json and vitest, Playwright and Vite config at any depth, and the root lint, type, duplication,
+size and Lighthouse configs. Everything else CI runs (application code, tests, pnpm-lock.yaml) is not on
+the list and, like any file a forged record marks as reviewed, relies on the trust model above. Other sensitive paths (`is_sensitive`: auth, sessions, migrations, deploys) no longer force a
 full Opus review on every push: that cost $1-2.20 a push, $17.67 of the first three days' $62 (owner,
 2026-11-14, of the reviewer's cost: "That is WAY more than it should be. Not worth it.", then agreeing to
 Sonnet only, a low turn cap, and only new commits after the first review: "Ok I'm good with that").
@@ -52,8 +52,9 @@ SENSITIVE_WORDS = re.compile(r"(^|[/_.-])(auth|oauth|session|sessions|logto|migr
 REVIEWER_PATHS = (".github/", ".claude/settings.json", ".cursor/", ".husky/", "scripts/", "functions/src/scripts/", "functions/src/deploy/",
                   "tools/", "wrangler.jsonc", "pnpm-workspace.yaml", "eslint.config.js", "tsconfig.base.json", ".jscpd.json", ".size-limit.json",
                   "lighthouserc.json", ".nvmrc")
-# Every package's own copy: `pnpm` runs each package.json's scripts, and each vitest config holds coverage floors.
-REVIEWER_NAMES = re.compile(r"(^|/)(package\.json|vitest(\.[a-z]+)?\.config\.[a-z]+)$")
+# Every package's own copy: `pnpm` runs each package.json's scripts, each vitest config holds coverage floors,
+# Playwright's starts the e2e server and Vite's plugins run on every build.
+REVIEWER_NAMES = re.compile(r"(^|/)(package\.json|(vitest|playwright|vite)(\.[a-z]+)?\.config\.[a-z]+)$")
 SONNET = "claude-sonnet-5-5"
 
 
@@ -77,7 +78,7 @@ def is_sensitive(path: str) -> bool:
 
 
 def is_reviewer_path(path: str) -> bool:
-    """Files that run in CI or deploys or set what CI enforces: REVIEWER_PATHS, or REVIEWER_NAMES at any depth."""
+    """CI and deploy machinery (the docstring's list): REVIEWER_PATHS, or REVIEWER_NAMES at any depth."""
     return path.startswith(REVIEWER_PATHS) or bool(REVIEWER_NAMES.search(path))
 
 
