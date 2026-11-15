@@ -12,8 +12,8 @@ the model's text can't plant one). The record trusts the repository's writers, a
 a same-repo pull request's own workflows can post as github-actions[bot] too. So a pull request's CI and
 deploy machinery is reviewed in full on every run, whatever its record says. `is_reviewer_path` lists
 exactly what that means: workflows, scripts/, functions/src/scripts/, the deploy code, tools/, every
-package.json and vitest, Playwright and Vite config at any depth, and the root lint, type, duplication,
-size and Lighthouse configs. Everything else CI runs (application code, tests, pnpm-lock.yaml) is not on
+package.json, tsconfig and `*.config.*` file at any depth, and the root duplication, size and Lighthouse
+configs. Everything else CI runs (application code, tests, pnpm-lock.yaml) is not on
 the list and, like any file a forged record marks as reviewed, relies on the trust model above. Other sensitive paths (`is_sensitive`: auth, sessions, migrations, deploys) no longer force a
 full Opus review on every push: that cost $1-2.20 a push, $17.67 of the first three days' $62 (owner,
 2026-11-14, of the reviewer's cost: "That is WAY more than it should be. Not worth it.", then agreeing to
@@ -52,9 +52,9 @@ SENSITIVE_WORDS = re.compile(r"(^|[/_.-])(auth|oauth|session|sessions|logto|migr
 REVIEWER_PATHS = (".github/", ".claude/settings.json", ".cursor/", ".husky/", "scripts/", "functions/src/scripts/", "functions/src/deploy/",
                   "tools/", "wrangler.jsonc", "pnpm-workspace.yaml", "eslint.config.js", "tsconfig.base.json", ".jscpd.json", ".size-limit.json",
                   "lighthouserc.json", ".nvmrc")
-# Every package's own copy: `pnpm` runs each package.json's scripts, each vitest config holds coverage floors,
-# Playwright's starts the e2e server and Vite's plugins run on every build.
-REVIEWER_NAMES = re.compile(r"(^|/)(package\.json|(vitest|playwright|vite)(\.[a-z]+)?\.config\.[a-z]+)$")
+# At any depth: `pnpm` runs each package.json's scripts, and every `*.config.*` (vitest, Playwright, Vite,
+# PostCSS, ESLint, Drizzle) and tsconfig is loaded or run by a build, a test run or a deploy.
+REVIEWER_NAMES = re.compile(r"(^|/)(package\.json|tsconfig[a-z.]*\.json|[a-z.-]+\.config\.[a-z]+)$")
 SONNET = "claude-sonnet-5-5"
 
 
