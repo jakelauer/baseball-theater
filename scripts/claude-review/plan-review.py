@@ -193,13 +193,19 @@ def main() -> int:
         elif not (git_ok("cat-file", "-e", f"{record.get('head')}^{{commit}}") and git_ok("merge-base", "--is-ancestor", record["head"], head)):
             why = "the last reviewed commit is no longer in this branch's history"
         else:
-            since = sorted(p for p in set(files) | set(record.get("files", {})) if files.get(p, "deleted") != record.get("files", {}).get(p, "deleted"))
-            # A same-repo workflow can forge a record, so the reviewer's own paths never skip.
-            since = sorted(set(since) | {p for p in pr_paths if is_reviewer_path(p)})
+            changed = sorted(p for p in set(files) | set(record.get("files", {})) if files.get(p, "deleted") != record.get("files", {}).get(p, "deleted"))
+            # A same-repo workflow can forge a record, so CI and deploy machinery never skips.
+            machinery = sorted({p for p in pr_paths if is_reviewer_path(p)} - set(changed))
+            since = sorted(changed + machinery)
+            at = record["head"][:7]
             if not since:
-                mode, why, reviewed = "unchanged", f"no file changed since the review of {record['head'][:7]}", []
+                mode, why, reviewed = "unchanged", f"no file changed since the review of {at}", []
             else:
-                mode, why, reviewed = "incremental", f"{len(since)} file(s) changed since the review of {record['head'][:7]}", since
+                # The reason counts only what changed; CI and deploy files re-read anyway are named apart.
+                why = f"{len(changed)} file(s) changed since the review of {at}"
+                if machinery:
+                    why += f", plus {len(machinery)} CI or deploy file(s) always re-reviewed"
+                mode, reviewed = "incremental", since
 
     if mode == "incremental":
         patch = git("diff", record["head"], head, "--", *reviewed)
