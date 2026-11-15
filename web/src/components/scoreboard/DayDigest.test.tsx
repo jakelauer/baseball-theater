@@ -46,6 +46,7 @@ const SCHEDULE: ScheduleDayPayload = {
 const DIGEST: DayDigestPayload = {
 	date: "2024-07-04",
 	items: dayDigest([read<DigestGame>("game-744834.json"), read<DigestGame>("game-745001.json")]),
+	windowMode: "cache",
 };
 
 /** Answers the schedule and the digest; the dev account's settings when asked. */

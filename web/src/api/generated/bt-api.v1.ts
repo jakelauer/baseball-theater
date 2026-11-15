@@ -339,6 +339,11 @@ export interface components {
             date: string;
             /** @description Best first; empty on a day with no videos yet. */
             items: components["schemas"]["DigestItem"][];
+            /**
+             * @description `active` while the day or any of its games is in the live window, so the browser re-asks on the live cadence (`freshnessPolicy`, #61); `cache` once all of them are out of it.
+             * @enum {string}
+             */
+            windowMode: "active" | "cache";
         };
         /** @description The game a digest clip comes from, enough for the player's "Go to game: NYY @ BOS, Sep 21" link. */
         DigestClipGame: {

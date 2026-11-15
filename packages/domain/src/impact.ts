@@ -42,6 +42,12 @@ function winProbabilitySwing(m: AtBatMetrics): number | null
 	return added.length ? Math.max(...added.map(Math.abs)) : null;
 }
 
+/** One game's clips with that game's play context; at-bat indexes only mean something within one game. */
+export type ImpactClipGroup = {
+	highlights: readonly MediaHighlight[];
+	context: ImpactPlayContext | undefined;
+};
+
 /**
  * The Videos room's impact order (S98; owner, 2026-10-30, "Yes" to ranking by win probability).
  * A clip whose play MLB measured ranks by how much that play swung the chance of winning, larger
@@ -51,21 +57,36 @@ function winProbabilitySwing(m: AtBatMetrics): number | null
  */
 export function rankHighlightsByImpact(highlights: MediaHighlight[], context?: ImpactPlayContext): MediaHighlight[]
 {
-	const atBatOfPitch = context ? atBatIndexByPitch(context.plays) : new Map<string, number>();
-	const metricsByAtBat = new Map((context?.playMetrics?.atBats ?? []).map((m) => [m.atBatIndex, m]));
+	return rankHighlightGroupsByImpact([{
+		highlights,
+		context,
+	}]);
+}
 
-	const scored = highlights.map((h) =>
+/**
+ * The same impact order across several games' clips at once (the day digest, S71; #61): each
+ * clip is measured against its own game's plays and metrics, then all are ranked together, so a
+ * day's order agrees with each game's Videos room. `rankHighlightsByImpact` is this with one game.
+ */
+export function rankHighlightGroupsByImpact(groups: readonly ImpactClipGroup[]): MediaHighlight[]
+{
+	const scored = groups.flatMap(({ highlights, context }) =>
 	{
-		const atBat = h.playId == null ? undefined : atBatOfPitch.get(h.playId);
-		const metrics = atBat == null ? undefined : metricsByAtBat.get(atBat);
-		const swing = metrics ? winProbabilitySwing(metrics) : null;
-		return {
-			h,
-			swing,
-			keyMoment: swing != null && metrics!.keyMoment ? 1 : 0,
-			leadChange: swing != null && metrics!.leadChange ? 1 : 0,
-			keywords: keywordScore(h),
-		};
+		const atBatOfPitch = context ? atBatIndexByPitch(context.plays) : new Map<string, number>();
+		const metricsByAtBat = new Map((context?.playMetrics?.atBats ?? []).map((m) => [m.atBatIndex, m]));
+		return highlights.map((h) =>
+		{
+			const atBat = h.playId == null ? undefined : atBatOfPitch.get(h.playId);
+			const metrics = atBat == null ? undefined : metricsByAtBat.get(atBat);
+			const swing = metrics ? winProbabilitySwing(metrics) : null;
+			return {
+				h,
+				swing,
+				keyMoment: swing != null && metrics!.keyMoment ? 1 : 0,
+				leadChange: swing != null && metrics!.leadChange ? 1 : 0,
+				keywords: keywordScore(h),
+			};
+		});
 	});
 
 	scored.sort((a, b) =>

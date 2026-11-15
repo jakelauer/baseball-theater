@@ -86,9 +86,11 @@ function sendError(status: number, body: ApiErrorResponse): Response
 }
 
 /**
- * Sets a schedule, schedule month or game response's edge-cache header (S47, ADR-021) from the
- * stored entity's window and last change, judged at ingest's clock. The month route (S124) passes
- * a stand-in entity: `windowMode: "cache"` and the month's last change.
+ * Sets a schedule, schedule month, game or day digest response's edge-cache header (S47, ADR-021)
+ * from the stored entity's window and last change, judged at ingest's clock. Two routes pass a
+ * stand-in entity: the month route (S124) `windowMode: "cache"` and the month's last change, and
+ * the digest route (#61) `digestFreshness`, live while the day or any game is, last changed when
+ * the latest of them did.
  */
 function withCacheControl(response: Response, entity: Parameters<typeof edgeCacheControl>[0], ctx: ApiContext): Response
 {
@@ -238,9 +240,10 @@ export const API_ROUTER: readonly RouteEntry[] = [
 					hint: "YYYY-MM-DD",
 				});
 			}
-			const { day, digest } = await getDayDigest(ctx.ingest, date);
-			// The digest is cached as long as its day (S71): live while the day is in its window.
-			return withCacheControl(sendJson(200, "GET /api/v1/digest", digest), day, ctx);
+			const { freshness, digest } = await getDayDigest(ctx.ingest, date);
+			// The digest is cached by the graduated rule (S71, #61): not while the day or a game is live,
+			// then by how long since the latest of them changed.
+			return withCacheControl(sendJson(200, "GET /api/v1/digest", digest), freshness, ctx);
 		},
 	},
 	{

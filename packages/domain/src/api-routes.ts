@@ -57,6 +57,11 @@ export interface DayDigestResponse {
 	date: string;
 	/** Best first; empty on a day with no videos yet. */
 	items: DigestItem[];
+	/**
+	 * `active` while the day or any of its games is in the live window, so the browser re-asks on
+	 * the live cadence (`freshnessPolicy`, #61); `cache` once all of them are out of it.
+	 */
+	windowMode: "active" | "cache";
 }
 
 /**
