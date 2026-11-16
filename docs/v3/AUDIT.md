@@ -18610,3 +18610,18 @@ S139 AC 8 rewritten to answer Claude's review of PR #65 (comment 4590830376): an
 **What changed, and the owner's answer**
 
 Design intake made due only by PR #64, which added ?node-id= to the Figma Source link in 22 ratified amendments; no frame, decision or requirement changed. Owner, 2026-11-16, asked whether it needed a design intake: "we can skip it. The links PR is not a good reason"
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-16T21:04:53Z` |
+| HEAD at capture | `fe59fda` (tree clean) |
+| Change | `fe59fda` — S123 checkpoint (parked for ratification): favorite-team mark becomes an off-day ✕ (owner) |
+
+**What changed, and the owner's answer**
+
+The owner's off-day mark (2026-11-16) rewrote S123 AC 1, S136 AC 3 (plus its Gap, Impact and notes) and S125 AC 2, and FEATURES' Calendar date picker row, in the owner's words. Asked whether that needs a backlog review, the owner answered: "skipped"
