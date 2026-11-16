@@ -12,12 +12,12 @@
 
 Assembled, in this order and around the stories, into BACKLOG.md.
 
-- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 116 KB
+- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 118 KB
   - `127–145` Verify-script contract
   - `146–159` Story status
-  - `160–508` Backlog reviews
-  - `509–528` Doc parity reviews
-  - `529–533` Goal command for multiple stories
+  - `160–516` Backlog reviews
+  - `517–536` Doc parity reviews
+  - `537–541` Goal command for multiple stories
   - Rules, by number:
     - `10–10` 1. Acceptance criteria map to commands, tests, or file invariants (exit codes / assertions).
     - `11–11` 2. Vague phrases (“works correctly”, “handles errors gracefully”) are forbidden until rewrit…
@@ -50,8 +50,8 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `55–80` Later themes (not yet story-sliced)
 - [05 Gap map (doc → story)](<backlog/frame/05 Gap map (doc → story).md>) — 9 KB
   - `1–44` Gap map (doc → story)
-- [06 Baseline history](<backlog/frame/06 Baseline history.md>) — 47 KB
-  - `1–131` Baseline history
+- [06 Baseline history](<backlog/frame/06 Baseline history.md>) — 48 KB
+  - `1–132` Baseline history
 
 ## Product and architecture docs
 
@@ -405,7 +405,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `47–432` Every grader, sorted
   - `433–449` Graders edited after their story shipped
   - `450–514` Re-verified at shipping commits
-- [LOOP.md — Loop-ready automation guide](LOOP.md) — 28 KB
+- [LOOP.md — Loop-ready automation guide](LOOP.md) — 29 KB
   - `5–19` Checklist status
   - `20–32` 1 — Baseline
   - `33–53` 2 — Verify
@@ -413,10 +413,10 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `58–67` 4 — Backlog
   - `68–75` 5 — Boundaries
   - `76–79` 6 — Pilot (do this next, watched)
-  - `80–143` 7 — Reviewer pass
-    - `114–143` Review-class checklist
-  - `144–153` 8 — Scale → loop
-  - `154–158` Habit
+  - `80–144` 7 — Reviewer pass
+    - `114–144` Review-class checklist
+  - `145–154` 8 — Scale → loop
+  - `155–159` Habit
 - [ORIGIN.md — Baseball Theater v3 — Origin](ORIGIN.md) — 4 KB
 - [SAVANT-DATA.md — Baseball Savant data](SAVANT-DATA.md) — 8 KB
   - `10–15` Terms of use

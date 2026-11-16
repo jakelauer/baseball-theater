@@ -18475,3 +18475,123 @@ S135 AC 1 and AC 4 (and S133 AC 1 wording) were rewritten to answer Claude's rev
 **What changed, and the owner's answer**
 
 Owner, 2026-11-13, asked "The S139/S130 change: a backlog review after #56 merges, or a logged skip?": "for your first question, skip it". The change: S139 re-scoped from views to season phases with includePhases (owner, 2026-11-13), the view rules moved to S130 (turn cap 12 -> 16), S129, S137, S138 and S140 re-pointed at S130, ADR-021 amended for standings (30-day cap), and the World Series box from the day after the Series ("option a"); commits 9cbc539, 966f7cd and 65f9463 on backlog/s139-phases (PR #56).
+
+---
+
+## 2026-11-16 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-16T19:54:58Z` |
+| HEAD at review | `af098ea` (tree dirty) |
+| Trigger | S135's acceptance criteria rewritten (49e184e), since 5dd6d69 |
+| Stories `done` since last review | — |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Fresh-context review at `af098ea` (`scripts/review-debt.sh`: S135's acceptance criteria rewritten, `49e184e`). Scope of check 2b: the next 3 `todo` stories (S143, S136, S125) and every story inserted or rewritten since the 2026-11-10 evening review under logged skips (S123 note, S129, S130, S131, S132, S133, S135, S137, S138, S139, S140, S141, S142, S145, S146). Two read-only subagents each took a slice of the checklist (standings: S129/S130/S137–S140; deploy, footer, play link, calendar, sign-in: S123/S141–S143/S145/S146); the coordinator took S131–S135, S136, S125 and verified the slices' key claims at HEAD before amending. No story `done` since the last review (S124 is still the last). Code since `5acc927`: #47 release label, docs-only deploy skip, per-preview databases (#49), the S117 copy fix, site polish (#58), digest ranking (#62).
+
+**Check 1: coverage**
+
+1. The 2026-11-10 parity review's queue: S129 AC 1's FEATURES clause was answered by `fbe0aab` (skip logged); the offline age marker is in S141 AC 1 ("the offline footer that names the saved copy's time and age"). The 2026-11-11 parity review queued nothing. No new ADR (ADR-021's standings amendment came with S139's logged re-scope), no new workspace package (`packages/`: domain, mlb-api, ports). No uncovered FEATURES item found.
+
+**Check 2: ground truth at HEAD (`af098ea`)**
+
+2. **S143.** Depends on S116 (`done`). Every named path exists (`functions/src/worker-app.ts`, `services/accounts.ts`, `handlers/api.ts`, `adapters/fixtures/auth.ts`, `adapters/logto/identity.ts`, `services/account-deletion.ts`, `worker.workerd.test.ts`, `vitest.workers.config.ts`, `deploy/bootstrap.test.ts`, `web/src/session/SessionProvider.tsx`, `AuthClient.ts`, `token.ts`, `web/src/layout/AppHeader.tsx`, `web/src/pages/settings/AccountData.tsx`, `packages/domain/src/api-routes.ts`, `wrangler.jsonc`). `logtoSignIn` still at `worker-app.ts:181`; `SessionProvider.tsx:126` still returns false for a production build without Logto. Since #58 `signIn()` is `Promise<boolean>` and `SignInButton` (AppHeader.tsx:29) shows "Signing in…": the mock's `signIn` answers false once done, compatible with AC 5/6. AC 7's grep phrases still present, so it can fail red-first. Line drift only (`SignInConfigResponse` :168, header button :29). Commands `api:spec`, `api:breaking`, `api:types` exist.
+3. **S136.** Depends on S124 (`done`). `listGameCounts` at `postgres/repos.ts:95`, `memory/repos.ts:85`, `ports/src/repositories.ts:21`; `scoreboard-rows.ts:30` `favorite`; `schedule-month.test.ts` 2024-07 case (:183-201); `CACHE_LIFETIME_CAP_MS` 48h; contract case (j) at :234; `web/src/api/codegen.test.ts`, `generated.types.test.ts` exist. None of these files changed since `5acc927`. Holds.
+4. **S125.** Depends on S124, S81 (`done`), S136 (`todo`); Design S123 `blocked`. `DateControl.tsx`, `routes.tsx` (`/games/:date` one element, :83), `layout/variant.ts`, `api/scoreboardDate.ts`, `settings/store.ts` unchanged since `5acc927`. `@mantine/dates` absent from `web/package.json` (AC 4 adds it). `vite build` entry now 162.70 kB gz (L5 200 KB): note updated.
+
+**Check 2b: review-class checklist (LOOP.md §7, items 1–25)**
+
+5. **S135 AC 1, items 3, 13, 14: broken.** `buildInfo` keeps any milestone title (`version.test.ts` "keeps a milestone name with spaces, trimmed"); nothing forces `vX.Y.Z`. Input: a build labelled `v3.2`: `knownRelease` = `v3.2`, AC 3 records it, the next load's `parseReleaseVersion` rejects the record (first visit), so the next real release's pointer never shows, and `compareReleaseVersions` is fed an unparseable value. **Amended:** `knownRelease` is null for anything `parseReleaseVersion` rejects; tests `v3.2`, `Next release`.
+6. **S135 AC 4, item 18.** Already true at HEAD since #47 (`version.test.ts` covers release, `unreleased`, `dev`). **Amended:** AC 4 says it is kept, not built; turn cap wording. Note (agent's reading): staging's label is the next unpublished milestone while the change log lists approved notes, so staging can show the pointer before the change log has the release; production can't (S131 AC 4). Held: items 11 (`release` vs `knownRelease` distinct), 15 (own key, not the snooze key), 10 (`depends_on` S131, S134, S81 matches the line), 21 (staging/production are different origins, no shared storage).
+7. **S131 AC 2 / S132 AC 1, items 11, 17, 18.** `currentRelease` was "which release is this build" and `current` "the release this server is"; since #47 the build's release is the milestone, so on staging the rail reads `v3.2.0` while `currentRelease` is `v3.1.0`. **Amended** to name what each is; S132 note. `verify-S131.sh` checks only the export name (line 96), unaffected.
+8. **S139 AC 8, items 6, 11: broken.** The HTTP adapter labels standings `windowMode: "active"` (`http/mlb.ts:239`) and `edgeCacheControl` answers `no-store` unless `cache` (`cache-control.ts:26`); the fixture client says `cache`, so route tests pass while production caches nothing (`?date=2026-09-05`). **Amended:** `edgeCacheControl` gains the ladder argument and is given `windowMode: "cache"`; a test with `active` tables.
+9. **S139 AC 8, items 3, 5, 12.** (a) MLB answering `records: []` for 2026-09-05 would be kept 30 days: an empty table now gets the floor (except AC 4's intended empties). (b) A calendar cached 2026-10-28T20:00Z before game 5 ends holds `champion: null` for most of 10-29: calendars kept only for the floor from `regularSeasonEndDate` through the day after `lastGameDate`, with a test. **Amended.**
+10. **S139 AC 2/4/5, items 7, 11.** On `?date=2027-02-19` a dated regular-season table plus AC 4's team list made four requests against AC 5's cap of three. **Amended:** a spring day's `regularSeason` asks MLB nothing of its own (it is AC 4's list). Also item 3/12: a calendar missing a regular-season date counts as none; a season with no postseason day has `playoffs: null` (tests). Item 14: new recordings must be in `bundled.ts` and `bundled.test.ts`'s guard (today `raw/standings-\d{4}-(?:final|spring)`). Item 18: AC 3 now asserts top-level fields (S140's `champion`) are identical across `includePhases`; S140 AC 2 tests it too if S139 shipped first.
+11. **S130 AC 1, items 11, 12.** "2027-03-24, 2027-03-25 (the regular season opens first)" read as both days; 03-24 is spring's last day. Split. "Never the clock … same answer" fails on first-game mornings, whose rule reads the answer: exception stated. **Amended.** S129, S137, S138: items 10, 11, 18 applied, nothing broke (S138 `depends_on` S130; S137 waits on S123/S129 `blocked`). ADR-021's amendment (ARCHITECTURE ~1194: 48h → 7d → 30d, edge only) agrees with AC 8. db-reviewer list: not applicable (AC 8 forbids any standings table; none exists).
+12. **S146, items 4, 9, 16, 17, 18, 20, 24.** (a) `deploy-bootstrap.ts` imports `functions/src/deploy/bootstrap.ts` (Worker config, secrets): an edit to it alone was recorded by nobody, so `check` said `unchanged`. (b) `BT_RELEASE` (#47) changes the output with no file change. (c) A `force` run: no `workflow_dispatch` trigger, `changes` answers `code=false` on a passed head, staging's `if:` requires `push` (deploy.yml:277-279). (d) A job `permissions:` block with only `actions: read` drops `build-release.sh`'s and the preview comment's scopes. (e) The "still serves" comment named `GITHUB_SHA`, the test merge. (f) `wrangler.jsonc:95` ("Every push to stage that changes code …") becomes untrue outside the fence. **Amended** each; `wrangler.jsonc` joins the fence, Goal condition and `/goal`; turn cap 12 → 14 with its assumption. **Open (owner):** after S146 a test-only push leaves staging on the older commit, and CLAUDE.md's release Prepare step (2) requires `ci-changes.sh push <served> <release>` → `code=false`, so that release can't be prepared; recorded in S146's note (priority 118, not near).
+13. **S145 AC 2, items 9, 11, 19.** It allowed "the test id" to change, but `HideScoresRooms.test.tsx:245-251` (outside the fence) finds cards by `video-card` with name `Play <title>`; and "Three existing tests … The tests above are new" contradicted itself. **Amended.** Note's `VideoCard.tsx:74` → :75.
+14. **S123 AC 2, item 18.** Its note said AC 2's list names `consistentWeeks`; it didn't. **Amended.**
+15. **S141, S142, S143, S133, S134, S136, S125:** items 9–12, 14, 18, 19 applied; nothing broke (S142: `FooterMeta` still called by Scoreboard/Game/Standings pages, no catch-all route, `/settings` is `SignedInOnly`; S133's version-line bullet matches #47; S136/S125 as in check 2).
+
+**Check 3: prioritization**
+
+16. No reorder. S143 (73) and S136 (74) are startable and unchanged in cost; S125 waits on S123's ratification; S144/S145 need an owner session; S139/S140 (76) stay the next startable after S136, and spring 2027 (2027-02-19) makes them time-bound, still ahead. S146 (118) grew (turn cap 14) and now carries an owner question, which its low priority absorbs. S135's AC 4 shrank to a check (#47 did it). Nothing obsolete or quietly done beyond that. Current baseline: As of moved to 2026-11-16 (no story landed; #47, docs-only deploy skip, #58, #62 named; this review's amendments listed); the replaced line went to Baseline history.
+
+**Duplication sweep (ADR-025):** no story `done` since the last review. Non-story code since `5acc927`: #62's ranking lives in `packages/domain/src/digest.ts` / `impact.ts` (the service and web only call it); #47's label is one function (`buildInfo`) reused by `vite.config.ts`; S135 AC 1 now derives `knownRelease` from it rather than a second reader. None found.
+
+**Personal-data sweep (ADR-028):** S143's shared test account lives in staging's database; per-preview Neon branches (#49) copy staging, which holds no fan's data (deploy.yml header, S114 AC 9). S135's key stays labeled `none` in `STORAGE_KEYS`. S146 records file hashes and a release label only. S139 stores nothing (cache only). No new log lines with personal fields in the stories checked. None found.
+
+**Questions for the owner (non-blocking):** (1) S146: should the release rule's Prepare step also accept a later `stage` commit when the input check against staging's record prints `unchanged`? (2) Still open from earlier: ADR-014's "Freshness is visible" row; a fourth change log kind (S131).
+
+**Verdict: `amended`.** No owner question blocks the next story (S143).
+
+---
+
+## 2026-11-16 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-16T19:58:20Z` |
+| HEAD at review | `6f7b5ec` (tree dirty) |
+| Trigger | ARCHITECTURE.md, FEATURES.md, VISUAL-DESIGN.md changed; S146 (pillar-cited) ACs changed |
+| Stories `done` since last review | none |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+**1. Citation honesty** (scope: S146, named by `pnpm parity:debt`, plus the next 3 `todo` stories by priority per INDEX.md: S143, S136, S125)
+- **S146 — Pillar: Delightful (approved by owner 2026-11-11: "delightful").** Re-checked because its ACs changed since the last parity review (d803a85, 5659e7a, 8ecca2f on 2026-11-11 after 9b7c2ee; 6f7b5ec today). `git diff 9b7c2ee HEAD -- docs/v3/backlog/stories/S146.md` touches the frontmatter (turn cap 12 -> 14, `wrangler.jsonc` in the fence), AC 1-4, notes, turn cap and goal line only: the **Gap** and **Impact** lines are unchanged, and the Source line is unchanged. Every AC change makes the story do what the approved reason says ("deploys run only when what they build from changed") more faithfully: more of what the build reads is recorded (deploy-script imports, `web/index.html`, config imports, `BT_RELEASE`), the record dies with its preview Worker, a `force` run covers a change that is not a file (a rotated secret), and AC 3 now keeps the docs-only gate rather than replacing it (narrower). None adds a purpose the approval didn't cover, so it is not a re-scope; the approval holds. Still no feature applies: FEATURES.md line 8 says it "does not describe frameworks, repos, or deploy targets", and no FEATURES/INTENT/ARCHITECTURE line names `ci-changes`, the path list or "push to stage" (grep: no hits), so nothing goes stale when it ships. The release-rule consequence (a test-only push leaves staging on an older commit) is already open with the owner from today's backlog review (its question 1) and lives in CLAUDE.md, outside both docs; S146 is priority 118, not next.
+- **S143 — Feature: Modern membership.** FEATURES line 236 ("Signing in on staging": a mock sign-in as one shared test account) is S143's Gap/Impact; note unchanged since 9b7c2ee (`git log 9b7c2ee..HEAD` on it: none). Holds.
+- **S136 — Feature: Calendar date picker.** FEATURES line 101 quotes the owner, 2026-11-09, on the API returning the teams that played each day; note unchanged since 9b7c2ee. Holds.
+- **S125 — Feature: Calendar date picker.** Same row (calendar, year switching, typed date, games per day, dimmed days, future dates); 6f7b5ec added two note lines only (bundle size), no Gap/Impact/Source change. Holds.
+- **Open questions:** none. `grep -rl 'Source:\*\* Open' docs/v3/backlog/stories/` finds no story. No story note added or removed since 9b7c2ee, no `**Source:**` line changed.
+
+**2. Doc reflects reality**
+- **FEATURES Standings row (changed in 9cbc539, 966f7cd, 65f9463).** Each new clause quotes the owner, 2026-11-13: `includePhases` / phases not views (S139 Source: Feature: Standings), the new season's empty regular-season table on spring's first day, the playoffs choice ending "a week after the last world series game ends", and the World Series box from the day after the Series with its link only while the playoffs view is offered ("option a"). Checked against S130 AC 1 (playoffs opens first through day 6 after `lastGameDate`, offered but not first on day 7, gone from day 8) and AC 4 (box link only on a day AC 1 offers `playoffs`), and S140 AC 2 (`champion` from `wonOn`): they agree. The row's "from then the regular season opens first again, the playoffs view can still be chosen until a week after the last playoff game" reads oddly but matches S130's one overlap day (day 7). How long the box stays is not claimed by FEATURES; S130/S140 notes leave it to S129's ratification (the agent's proposal, until spring training's first game), so no conflict.
+- **ARCHITECTURE ADR-021 amendment (standings: graduated lifetime, 30-day cap, edge only; owner 2026-11-13 quoted).** No FEATURES or INTENT line states a 48h cap (grep "48h|48 h": no hits); FEATURES line 30 says only that freshness comes from BT's data layer. No conflict.
+- **VISUAL-DESIGN changes (2863971, PR #58).** Header without the wordmark on desktop (owner 2026-11-12 quoted), hover 0.3s/0.4s on Material's curve (owner 2026-11-12 quoted) with reduced motion honored, `MediaHighlight.renditions` for the quality picker. FEATURES and INTENT say nothing about the header wordmark or hover timing (grep "wordmark|hover|160ms": no hits); INTENT line 67's "no logos" is the existing brand rule, unchanged. No conflict.
+- **Shipped but not in FEATURES (amended).** PR #58 (2863971, from the owner's site-polish list, issue #38, 2026-11-12, "One PR for everything") shipped fan-visible behavior FEATURES did not describe: (a) the video player's quality picker, actions (copy link, direct link, download, share) and larger desktop size; (b) Plays opening with no at-bat expanded. Recorded in the owner's words quoted in issue #38: the Game -> Videos / highlights row and the Game -> Plays + pitch detail row (the latter's existing "By default, it should show the most recent inning" is about which inning, not which play, so no conflict). The rest of #38 is visual polish already in VISUAL-DESIGN or below FEATURES' level (digest order/gold, tab widths, account menu, favorite-team naming); not added.
+- **#62 (795f054, digest ranking).** Fixes the digest to rank by each game's plays, which is what FEATURES line 162 already says ("ranked by the existing per-game impact rule applied across the day"). No change needed.
+- **"Fetched … ago" / ADR-014 "Freshness is visible" / VISUAL-DESIGN D9** (VISUAL-DESIGN lines 227, 292; ARCHITECTURE line 918): already open with the owner from today's backlog review (its question 2); FEATURES and INTENT carry no such line, so nothing for this review to edit. Not re-asked.
+- **Change log fourth kind:** still open in FEATURES' Update / change log UX row ("still open"), already asked (today's question 3). Not re-asked.
+
+**3. Coverage for the backlog review**
+
+For the next backlog review:
+1. FEATURES' Videos row now names the player's quality picker, actions row and larger desktop size, and the Plays row that no at-bat opens by default. Both shipped in PR #58 with no story: confirm no story or ratified design contradicts them (in particular the game-rooms/game-shell Videos and Plays frames and S145's play link on the meta line, which touches the same player) and that they need no story.
+2. No FEATURES item found that no story serves among the rows checked (Standings: S128-S130, S137-S140; Calendar date picker: S124, S125, S136; Modern membership staging sign-in: S143).
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-16T20:00:11Z` |
+| HEAD at capture | `7f1310d` (tree clean) |
+| Change | `7f1310d` — S139: put AC 4's counting-client test back beside its sentence |
+
+**What changed, and the owner's answer**
+
+S139 AC 4 reworded to answer the pre-PR review of this branch (a spliced sentence; what it checks is unchanged). Owner, 2026-11-07, asked whether an AC rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-16T20:02:26Z` |
+| HEAD at capture | `bede58b` (tree clean) |
+| Change | `bede58b` — S139 AC 8: an empty playoffs table with no clinched team is not "nothing yet" |
+
+**What changed, and the owner's answer**
+
+S139 AC 8 rewritten to answer Claude's review of PR #65 (comment 4590830376): an empty playoffs table with no clinched team joins the floor rule's exceptions. Owner, 2026-11-07, asked whether an AC rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
