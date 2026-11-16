@@ -6157,6 +6157,8 @@ Reuse `shipping_commit` and `reverify_at` from `scripts/lib/reverify.sh` and the
 
 - **Owner's review of the A7 draft, 2026-11-10 (not a ratification):** *"Remove the inning/status text from the bottom right. Move the bottom team's text to the right. Remove the WIN PROB text from the top left. The bottom team should always be the home team. Top team should not be bold/gold."* The draft (Figma section W) is redrawn with these before the owner is asked to ratify it: no inning or status text at the bottom right and no "WIN PROB" label at the top left; the bottom team is always the home team, with its text on the right; the top team is neither bold nor gold.
 
+- **2026-11-16 redraw (owner, 2026-11-16: *"you should redraw anything that has un-redrawn changes"*):** section W (`scoreboard-slot-winprob-mobile` / `-medium` / `-desktop` / `-hidden-mobile`) redrawn to the 2026-11-10 review: no `WIN PROB` label and no inning or status text; the away team at the top right and the home team at the bottom right, both in the same muted style; the line rises toward the away team. A7 records the review under Decisions; still a draft, parked for ratification, with open questions 1–3 (Hide Scores, the scheduled row, the default Status slot's scheduled row) unanswered. ACs and grader unchanged.
+
 **Reuse check** (ADR-025): before writing code, search the ratified scoreboard frames (`scoreboard-*`, the slot occupants) and the Settings frames; a design story writes no code for what this story needs; record what was reused, or why nothing fit, in the story's ledger notes.
 
 **Turn cap:** 12 — assumes frames drafted from the ratified scoreboard rows and one owner session to ratify; waiting on the owner parks the story rather than spending turns.
