@@ -18565,3 +18565,18 @@ Fresh-context review at `af098ea` (`scripts/review-debt.sh`: S135's acceptance c
 For the next backlog review:
 1. FEATURES' Videos row now names the player's quality picker, actions row and larger desktop size, and the Plays row that no at-bat opens by default. Both shipped in PR #58 with no story: confirm no story or ratified design contradicts them (in particular the game-rooms/game-shell Videos and Plays frames and S145's play link on the meta line, which touches the same player) and that they need no story.
 2. No FEATURES item found that no story serves among the rows checked (Standings: S128-S130, S137-S140; Calendar date picker: S124, S125, S136; Modern membership staging sign-in: S143).
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-16T20:00:11Z` |
+| HEAD at capture | `7f1310d` (tree clean) |
+| Change | `7f1310d` — S139: put AC 4's counting-client test back beside its sentence |
+
+**What changed, and the owner's answer**
+
+S139 AC 4 reworded to answer the pre-PR review of this branch (a spliced sentence; what it checks is unchanged). Owner, 2026-11-07, asked whether an AC rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
