@@ -256,8 +256,10 @@ Ordered by **Priority** (execution order). Story IDs (`S1`…`S30`) are stable l
 | 80 | [S133](#s133--design-the-change-log-page-and-the-update-notices) | Design: change log + update notices | `blocked` |
 | 81 | [S75](#s75--hide-scores-in-the-game-rooms-and-the-recap-video-title) | Hide Scores in the rooms | `done` |
 | 81 | [S134](#s134--the-change-log-page-lists-each-releases-approved-notes) | Change log page | `todo` |
+| 81 | [S147](#s147--design-a-live-marker-replaces-the-fetched--ago-label) | Design: Live marker | `todo` |
 | 82 | [S71](#s71--day-highlights-digest-best-of-date) | Day highlights digest | `done` |
 | 82 | [S135](#s135--the-update-notice-links-to-the-change-log-after-updating-a-pointer-at-the-menu-says-the-update-is-complete-and-where-the-change-log-is-then-goes) | Update notice and after-update pointer | `todo` |
+| 82 | [S148](#s148--the-fetched--ago-label-goes-and-a-page-with-a-live-connection-shows-a-blinking-live-marker) | Live marker replaces "Fetched" | `todo` |
 | 83 | [S45](#s45--api-runs-as-a-worker-on-the-local-workers-runtime) | Worker entry + local Workers runtime + Workers tests | `done` |
 | 83 | [S141](#s141--design-the-site-footer-and-its-list-of-links) | Design: site footer | `todo` |
 | 84 | [S142](#s142--every-page-ends-in-the-site-footer-of-approved-links) | Site footer of links | `todo` |
@@ -7570,7 +7572,7 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 1. A ratified amendment draws each of these at mobile, medium and desktop, from the owner's answers of 2026-11-10 (quoted here and in FEATURES' Site footer row):
     - **The footer.** Just links (owner, 2026-11-10, asked about the footer's policy text, contact and copyright name: *"just links - the story for this just needs to require a ratified list of links and destinations before it can be completed."*): its columns, each column's heading and each link's words. That nothing else is in it, a copyright line included, is the agent's reading of *"just links"*, which the owner confirms when the draft is shown. The amendment says how the columns fold at mobile width.
     - **Where it shows.** Every kind of page the shell draws: the scoreboard, a game page with its rooms, Standings, search, Settings and the change log. The amendment says whether it shows in the installed app (ADR-023), and where it sits on a page shorter than the screen.
-    - **What goes.** The "Fetched … ago" line, from every page (owner, 2026-11-10: *"just get rid of the fetched label"*). The amendment says what happens to the rest of what the ratified footers carry: the "baseball.theater" mark, the recap's "Source: MLB" (game-rooms A2), and the offline footer that names the saved copy's time and age (shell-scoreboard A1, game-rooms A1), whose banner already says both.
+    - **What goes.** The "Fetched … ago" line, from every page (owner, 2026-11-10: *"just get rid of the fetched label"*). The amendment says where the Live marker that replaces it sits in the footer (owner, 2026-11-16: *"Remove the fetch label and replace it with a red dot and Live at the bottom of any page that has an active websocket, with the red dot glowing and slowly blinking"*; drawn by S147, shell-scoreboard A13), and what happens to the rest of what the ratified footers carry: the "baseball.theater" mark, the recap's "Source: MLB" (game-rooms A2), and the offline footer that names the saved copy's time and age (shell-scoreboard A1, game-rooms A1), whose banner already says both.
 2. **The list of links and destinations is ratified.** The amendment's `## Decisions` holds every link: its words and its destination (a BT page (built, or not built yet and allowed by **No dead links** below), such as Settings' data section (S79) or the change log (S134); an outside address; or an email link), and for the link to the fan's data, where it goes for a signed-in fan and for a signed-out visitor. The owner ratifies the list, quoted (owner, 2026-11-10: *"just links - the story for this just needs to require a ratified list of links and destinations before it can be completed."*), and FEATURES' Site footer row records it in the owner's words in the same change set. A link to a page BT doesn't have (a privacy policy, a user agreement, an about page) is in the list only if this story's change set slices that page as its own story; the footer stories draw and build no page of text. Information on how the site is made is deferred (owner, 2026-11-10: *"just defer this whole idea"*) and isn't in the list. **No dead links:** for every BT page in the list that isn't built when the list is ratified (the change log until S134 is `done`; any page sliced here), the same change set either names that page's story on S142's **Depends on** line, or records in the list that the page's own story adds its link to the footer and adds that to the story's acceptance criteria, so S142 never ships a link to a route BT doesn't serve (added by the 2026-11-10 evening backlog review).
 3. The owner ratified it in the session it was shown (quoted), recorded the way the other amendments are. In the same change set, VISUAL-DESIGN.md's footer line (today `**Footer:** optional, quiet — copyright / report a problem. Not a second nav, not headlines.`, which the footer's columns of links contradict) is rewritten to describe the ratified footer and links the amendment, and its quiet-meta line (today `Quiet meta: date, window mode, last fetched (D9).`) no longer lists "last fetched" unless the amendment keeps an age somewhere (the grader checks the old footer line is gone, the new one names the amendment, and the quiet-meta line matches the amendment).
 4. This file's S141 **Status** (story heading and top table) is `done`.
@@ -7627,7 +7629,7 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 **Acceptance criteria** (checks `scripts/verify-S142.sh` performs)
 
 1. **One footer.** One component in `web/src/layout/` draws S141's footer, and the shell (`web/src/layout/AppShellLayout.tsx`) draws it on every page S141 says, so no page draws its own. Its columns, headings and links are S141's. (RTL: the footer on the scoreboard, a game page, Standings, Settings and a page with no data of its own; each link's destination).
-2. **The fetched line goes.** No page S141 names shows "Fetched … ago": `FooterMeta` and its three calls are removed, or changed to what S141 draws in their place. `fetchedAgo` (`packages/domain/src/fetched-ago.ts`) and its test are removed if nothing calls it any more, and kept if S141 keeps an age anywhere (the offline footer) (RTL on each of the three pages; grep for callers).
+2. **The fetched line goes, and the Live marker stays.** No page S141 names shows "Fetched … ago": `FooterMeta` and its three calls are removed, or changed to what S141 draws in their place (S148 may already have removed the label). `fetchedAgo` (`packages/domain/src/fetched-ago.ts`) and its test are removed if nothing calls it any more, and kept if S141 keeps an age anywhere (the offline footer). If S148 has shipped, its Live marker still shows, where S141 places it, on a page with an open live WebSocket (owner, 2026-11-16: *"Remove the fetch label and replace it with a red dot and Live at the bottom of any page that has an active websocket, with the red dot glowing and slowly blinking"*) (RTL on each of the three pages, and on a live game page with its socket open; grep for callers).
 3. **The links.** Each link's words and destination are those of S141's ratified list, word for word (S141 AC 2); a link to a BT page goes to that page's route, an outside one opens that address. This story builds no page of text: a destination BT doesn't have is its own story, sliced by S141, and is either on this story's **Depends on** line or linked later by its own story, as S141's list says (S141 AC 2); no link goes to a route `web/src/routes.tsx` doesn't serve (RTL: each link's words and destination, and each BT link's path matched by a route other than a catch-all).
 4. **Nothing beyond the list.** The footer draws only S141's links, headings and columns: no copyright line or other text unless S141's ratified amendment has it (owner, 2026-11-10: *"just links - the story for this just needs to require a ratified list of links and destinations before it can be completed."*).
 5. **The data link.** The footer's link to the fan's data goes where S141 says: for a signed-in fan to Settings' data section (S79), for a signed-out visitor to what S141 draws (RTL for each).
@@ -7865,6 +7867,98 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 
 ```text
 /goal docs/v3/BACKLOG.md S146. Work item 0 first: if scripts/verify-S146.sh is missing, write it per the Verify-script contract, run it against current HEAD, and show the nonzero exit before writing any product code. Then: scripts/verify-S146.sh exits 0, pnpm verify exits 0, no files outside functions/src/deploy/, functions/package.json, package.json, web/vite.config.ts, .github/workflows/deploy.yml, README.md, wrangler.jsonc, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified except creating scripts/verify-S146.sh, or stop after 14 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
+```
+
+**Status:** `todo`
+
+### S147 — Design: a Live marker replaces the "Fetched … ago" label
+
+**Gap:** Every ratified footer reads "Fetched {age} · baseball.theater" (the `footer-meta` component; game-shell A3, game-rooms A4, shell-scoreboard A4), ADR-014 listed that label as how freshness is made visible, and VISUAL-DESIGN D9 asked for readable freshness. The owner wants the label gone and a live marker in its place (owner, 2026-11-16: *"Remove the fetch label and replace it with a red dot and Live at the bottom of any page that has an active websocket, with the red dot glowing and slowly blinking"*). A draft, shell-scoreboard [A13](../../visual/shell-scoreboard/amendments/A13.md), draws it (Figma section AB, 2026-11-16), but nothing is ratified, so S148 can't build it without designing in code (rule 18).
+
+**Impact:** Before S147, nothing approved showed what replaces the "Fetched … ago" label. S147 impact: the owner approves how the Live marker looks, blinks and where it sits before S148 builds it.
+
+**Source:** Feature: Live marker
+
+**Gates (rule 18):** S148 — it names S147 on its `**Design:**` line.
+
+**Depends on:** nothing.
+
+**Scope files:** `docs/v3/visual/shell-scoreboard/amendments/`, `docs/v3/VISUAL-DESIGN.md`, `docs/v3/BACKLOG.md`, `docs/v3/backlog/`, `docs/v3/AUDIT.md`, `docs/v3/audit.jsonl`, `docs/v3/INDEX.md`, `CHANGELOG.md`
+
+**Work**
+
+0. Write `scripts/verify-S147.sh` meeting the [Verify-script contract](#verify-script-contract). Run it against current HEAD and show the nonzero exit **before** building (rule 9).
+
+**Acceptance criteria** (checks `scripts/verify-S147.sh` performs)
+
+1. A ratified amendment to the shell-scoreboard surface (A13, now a draft) draws, at mobile and desktop (medium is the mobile footer at medium width, which the amendment says): the Live marker, a red dot and the word "Live" (owner, 2026-11-16: *"a red dot and Live"*), with the dot's glow and slow blink as two states of one component and how long a blink takes, and what it does with reduced motion; a page with an open live WebSocket ending in it (*"at the bottom of any page that has an active websocket"*); and a page without one, whose footer has no "Fetched … ago" (*"Remove the fetch label"*). It says which pages open a live WebSocket today, what the marker does while the socket reconnects or has fallen back to polling, and where the marker goes once S141's footer of links replaces the footer line.
+2. Its open questions are answered by the owner (quoted in the amendment), and the frames are redrawn to the answers before ratifying.
+3. The owner ratified it in the session it was shown (quoted), recorded the way the other amendments are, with its PNGs exported and hashed in its manifest.
+4. This file's S147 **Status** (story heading and top table) is `done`.
+
+**Notes:**
+
+- **2026-11-16, drafted with the story.** The draft's two open questions: whether the scoreboard (which polls every 15 seconds and opens no WebSocket) shows the marker, and whether a red "Live" at the foot is clear beside the game top bar's green "● LIVE" (the game is in progress).
+- **Already done in the change set that added this story:** ADR-014's "Freshness is visible" row and VISUAL-DESIGN D9 say the label is replaced by the Live marker, citing the draft (owner's words quoted). If the ratified amendment differs from the draft, this story updates D9 to match.
+
+**Reuse check** (ADR-025): before drawing, read the ratified `footer-meta` component, the game top bar's `live-indicator` (its green dot), A1's offline footer, and VISUAL-DESIGN's red and motion tokens; a design story writes no code; record what was reused, or why nothing fit, in the story's ledger notes.
+
+**Turn cap:** 8 — assumes one small component in two states, four frames, one owner session to answer the draft's questions and one to ratify; waiting on the owner parks the story rather than spending turns.
+
+**Goal condition:** scripts/verify-S147.sh exits 0, pnpm verify exits 0, no files outside docs/v3/visual/shell-scoreboard/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified, or stop after 8 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
+
+**`/goal` command**
+
+```text
+/goal docs/v3/BACKLOG.md S147. Work item 0 first: if scripts/verify-S147.sh is missing, write it per the Verify-script contract, run it against current HEAD, and show the nonzero exit before writing any product code. Then: scripts/verify-S147.sh exits 0, pnpm verify exits 0, no files outside docs/v3/visual/shell-scoreboard/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified except creating scripts/verify-S147.sh, or stop after 8 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
+```
+
+**Status:** `todo`
+
+### S148 — The "Fetched … ago" label goes, and a page with a live connection shows a blinking Live marker
+
+**Gap:** The scoreboard, a game page and Standings each end in `FooterMeta` (`web/src/layout/FooterMeta.tsx`), which reads "Fetched {age} · baseball.theater" from `fetchedAgo` (`packages/domain/src/fetched-ago.ts`). The owner wants that label gone and a live marker instead (owner, 2026-11-16: *"Remove the fetch label and replace it with a red dot and Live at the bottom of any page that has an active websocket, with the red dot glowing and slowly blinking"*). A game page's live stream (`useLiveGame`, `web/src/api/live.ts`; `LiveGameStream`, `web/src/api/live-stream.ts`) tells the page only whether the game is in its window, not whether its socket is open, so nothing can show the marker today.
+
+**Impact:** Before S148, three pages ended in "Fetched 12s ago · baseball.theater", which said little to a fan. S148 impact: that label is gone, and a page that is receiving live updates says so with a glowing, slowly blinking red dot and "Live".
+
+**Source:** Feature: Live marker
+
+**Design:** S147 — build to the approved frames. This story may only move to `doing` once every design story named here is `done` (rule 18; `pnpm backlog:check` enforces it).
+
+**Depends on:** **S81** (design capture).
+
+**Scope files:** `web/src/`, `web/vitest.config.ts`, `packages/domain/`, `docs/v3/BACKLOG.md`, `docs/v3/backlog/`, `docs/v3/AUDIT.md`, `docs/v3/audit.jsonl`, `docs/v3/INDEX.md`, `CHANGELOG.md`, `e2e/design/`, `docs/v3/design-checks/`
+
+**Work**
+
+0. Write `scripts/verify-S148.sh` meeting the [Verify-script contract](#verify-script-contract). Run it against current HEAD and show the nonzero exit **before** building (rule 9).
+
+**Acceptance criteria** (checks `scripts/verify-S148.sh` performs)
+
+1. **The label goes.** No page shows "Fetched … ago": the scoreboard, a game page and Standings end in what S147's ratified amendment draws in its place (RTL on each of the three pages). `fetchedAgo` and its test are removed if nothing calls it any more (grep for callers). The offline footer ("Offline · saved … ago", shell-scoreboard A1, game-rooms A1) is not this label and stays as ratified.
+2. **Whether the socket is open.** `LiveGameStream` reports when its socket opens and when it stops being open (closed, reconnecting, fallen back to polling, stopped), and `useLiveGame` returns that state to the page, so the page knows whether pushes are arriving rather than only whether the game is in its window. Unit tests with a fake socket and fake timers: open → shown; a close, each reconnect wait and the polling fallback → not shown; reopened → shown; unmount → not shown.
+3. **The marker.** One component in `web/src/layout/` draws S147's Live marker (the red dot and "Live", the dot's glow, and its slow blink between the ratified states at the ratified speed), and a page shows it, where S147 places it, exactly while AC 2's state says its socket is open, never on a page that opens no WebSocket (RTL: a live game page with the socket open shows it; with it closed, on the scoreboard and on Standings it doesn't).
+4. **Reduced motion.** Under `prefers-reduced-motion: reduce` the dot glows but doesn't blink, as S147 says (a test of the component's styles or class under a mocked media query).
+5. Files this story adds or edits don't call `useMediaQuery`, `hiddenFrom` or `visibleFrom` outside `web/src/layout/` (grep).
+6. Design match (rule 22): for each ratified frame this story builds (desktop captured at 1200px, owner 2026-10-28: *"Capture at 1200px"*), `pnpm design:capture S148` saves the built page to `docs/v3/design-checks/S148/<frame>.png` from `e2e/design/S148.spec.ts`; the grader checks each file exists at its pairing's width. The story parks `blocked` with its captures committed until the owner says each pair matches, recorded with `scripts/audit.sh story S148 --design-match -`.
+7. This file's S148 **Status** (story heading and top table) is `done`.
+
+**Notes:**
+
+- **Nothing here breaks a law.** "FooterMeta renders Fetched {age} · baseball.theater" is S60's AC 4, which `docs/v3/LAWS.md` lists as pinned (it proved S60 at its own commit), not as a law. Check that table again before removing, in case it has changed.
+- **S142 builds the footer of links later, or earlier.** If S142 has shipped first, the line this story changes lives in S142's footer; if not, it is `FooterMeta`. Either way the marker sits where S147 says, and S142 keeps it (S142 AC 2).
+- **Other stories' captures.** `e2e/design/helpers.ts` freezes the clock so "Fetched … ago" doesn't move between runs; earlier stories' committed captures stay as they are (their proof at their own commits). A blinking dot would make captures differ run to run: the capture spec emulates reduced motion, so the dot is steady.
+
+**Reuse check** (ADR-025): before writing code, read `FooterMeta` and its callers, `fetchedAgo`, `useLiveGame` and `LiveGameStream` (and `live-stream.test.ts`'s fake socket), and the game top bar's green `live-indicator`, and reuse what fits (the stream's own states rather than a second socket watcher); record the reuse check in the story's ledger notes.
+
+**Turn cap:** 12 — assumes one socket-state callback on the stream with its tests, one marker component with its blink and reduced-motion styles, three pages' footers changed, RTL tests, and the rule 22 design match.
+
+**Goal condition:** scripts/verify-S148.sh exits 0, pnpm verify exits 0, no files outside web/src/, web/vitest.config.ts, packages/domain/, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, e2e/design/, docs/v3/design-checks/ are modified, no files under scripts/ or test/ are modified, or stop after 12 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
+
+**`/goal` command**
+
+```text
+/goal docs/v3/BACKLOG.md S148. Work item 0 first: if scripts/verify-S148.sh is missing, write it per the Verify-script contract, run it against current HEAD, and show the nonzero exit before writing any product code. Then: scripts/verify-S148.sh exits 0, pnpm verify exits 0, no files outside web/src/, web/vitest.config.ts, packages/domain/, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, e2e/design/, docs/v3/design-checks/ are modified, no files under scripts/ or test/ are modified except creating scripts/verify-S148.sh, or stop after 12 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
 ```
 
 **Status:** `todo`

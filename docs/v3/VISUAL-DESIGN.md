@@ -41,7 +41,7 @@ If a visual choice doesn’t serve one of these, cut it.
 | D6 | **Insight is visible product** | G2, G4 | Impact order and inning notes are modules with rank/label — not a wall of equal rows |
 | D7 | **Respect attention** | G5 | Live updates patch in place; motion is rare; presentation settings (spoilers, emphasis, entry room, …) are obeyed |
 | D8 | **Patronage is power, not a lock screen** | G3 | Free experience is complete; paid depth is extra, not a greyed-out homepage |
-| D9 | **Honest about data** | FEATURES principle 6 | Freshness and source are readable; we don’t costume ourselves as MLB.com |
+| D9 | **Honest about data** | FEATURES principle 6 | Freshness and source are readable; we don’t costume ourselves as MLB.com. Freshness is shown by a Live marker (a glowing, slowly blinking red dot and "Live") at the foot of any page with an open live WebSocket, not by a "Fetched … ago" label (owner, 2026-11-16: *"Remove the fetch label and replace it with a red dot and Live at the bottom of any page that has an active websocket, with the red dot glowing and slowly blinking"*; shell-scoreboard [A13](./visual/shell-scoreboard/amendments/A13.md), draft) |
 | D10 | **Three host pairings** | G5 | **mobile** (compact status, no box on Live) · **medium** (standalone) · **desktop** (medium + nav rail). Design mobile first. Do not invent a fourth pairing |
 | D11 | **Presentation is personal** | Settings | Views read settings they care about (sort, default tab, hide scores, game-row slot, collapse non-favorites, …). Don’t invent a second store between settings and the view |
 
