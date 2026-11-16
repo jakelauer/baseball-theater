@@ -12,12 +12,12 @@
 
 Assembled, in this order and around the stories, into BACKLOG.md.
 
-- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 116 KB
+- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 118 KB
   - `127–145` Verify-script contract
   - `146–159` Story status
-  - `160–508` Backlog reviews
-  - `509–528` Doc parity reviews
-  - `529–533` Goal command for multiple stories
+  - `160–516` Backlog reviews
+  - `517–536` Doc parity reviews
+  - `537–541` Goal command for multiple stories
   - Rules, by number:
     - `10–10` 1. Acceptance criteria map to commands, tests, or file invariants (exit codes / assertions).
     - `11–11` 2. Vague phrases (“works correctly”, “handles errors gracefully”) are forbidden until rewrit…
@@ -50,8 +50,8 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `55–80` Later themes (not yet story-sliced)
 - [05 Gap map (doc → story)](<backlog/frame/05 Gap map (doc → story).md>) — 9 KB
   - `1–44` Gap map (doc → story)
-- [06 Baseline history](<backlog/frame/06 Baseline history.md>) — 47 KB
-  - `1–131` Baseline history
+- [06 Baseline history](<backlog/frame/06 Baseline history.md>) — 48 KB
+  - `1–132` Baseline history
 
 ## Product and architecture docs
 
