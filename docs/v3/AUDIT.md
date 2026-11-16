@@ -18580,3 +18580,18 @@ For the next backlog review:
 **What changed, and the owner's answer**
 
 S139 AC 4 reworded to answer the pre-PR review of this branch (a spliced sentence; what it checks is unchanged). Owner, 2026-11-07, asked whether an AC rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-16T20:02:26Z` |
+| HEAD at capture | `bede58b` (tree clean) |
+| Change | `bede58b` — S139 AC 8: an empty playoffs table with no clinched team is not "nothing yet" |
+
+**What changed, and the owner's answer**
+
+S139 AC 8 rewritten to answer Claude's review of PR #65 (comment 4590830376): an empty playoffs table with no clinched team joins the floor rule's exceptions. Owner, 2026-11-07, asked whether an AC rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
