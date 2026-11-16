@@ -18595,3 +18595,18 @@ S139 AC 4 reworded to answer the pre-PR review of this branch (a spliced sentenc
 **What changed, and the owner's answer**
 
 S139 AC 8 rewritten to answer Claude's review of PR #65 (comment 4590830376): an empty playoffs table with no clinched team joins the floor rule's exceptions. Owner, 2026-11-07, asked whether an AC rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-16T20:08:21Z` |
+| HEAD at capture | `a867e1e` (tree clean) |
+| Change | `a867e1e` — Merge pull request #64 from jakelauer/docs/figma-page-links |
+
+**What changed, and the owner's answer**
+
+Design intake made due only by PR #64, which added ?node-id= to the Figma Source link in 22 ratified amendments; no frame, decision or requirement changed. Owner, 2026-11-16, asked whether it needed a design intake: "we can skip it. The links PR is not a good reason"
