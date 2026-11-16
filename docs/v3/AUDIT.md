@@ -18528,3 +18528,40 @@ Fresh-context review at `af098ea` (`scripts/review-debt.sh`: S135's acceptance c
 **Questions for the owner (non-blocking):** (1) S146: should the release rule's Prepare step also accept a later `stage` commit when the input check against staging's record prints `unchanged`? (2) Still open from earlier: ADR-014's "Freshness is visible" row; a fourth change log kind (S131).
 
 **Verdict: `amended`.** No owner question blocks the next story (S143).
+
+---
+
+## 2026-11-16 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-16T19:58:20Z` |
+| HEAD at review | `6f7b5ec` (tree dirty) |
+| Trigger | ARCHITECTURE.md, FEATURES.md, VISUAL-DESIGN.md changed; S146 (pillar-cited) ACs changed |
+| Stories `done` since last review | none |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+**1. Citation honesty** (scope: S146, named by `pnpm parity:debt`, plus the next 3 `todo` stories by priority per INDEX.md: S143, S136, S125)
+- **S146 — Pillar: Delightful (approved by owner 2026-11-11: "delightful").** Re-checked because its ACs changed since the last parity review (d803a85, 5659e7a, 8ecca2f on 2026-11-11 after 9b7c2ee; 6f7b5ec today). `git diff 9b7c2ee HEAD -- docs/v3/backlog/stories/S146.md` touches the frontmatter (turn cap 12 -> 14, `wrangler.jsonc` in the fence), AC 1-4, notes, turn cap and goal line only: the **Gap** and **Impact** lines are unchanged, and the Source line is unchanged. Every AC change makes the story do what the approved reason says ("deploys run only when what they build from changed") more faithfully: more of what the build reads is recorded (deploy-script imports, `web/index.html`, config imports, `BT_RELEASE`), the record dies with its preview Worker, a `force` run covers a change that is not a file (a rotated secret), and AC 3 now keeps the docs-only gate rather than replacing it (narrower). None adds a purpose the approval didn't cover, so it is not a re-scope; the approval holds. Still no feature applies: FEATURES.md line 8 says it "does not describe frameworks, repos, or deploy targets", and no FEATURES/INTENT/ARCHITECTURE line names `ci-changes`, the path list or "push to stage" (grep: no hits), so nothing goes stale when it ships. The release-rule consequence (a test-only push leaves staging on an older commit) is already open with the owner from today's backlog review (its question 1) and lives in CLAUDE.md, outside both docs; S146 is priority 118, not next.
+- **S143 — Feature: Modern membership.** FEATURES line 236 ("Signing in on staging": a mock sign-in as one shared test account) is S143's Gap/Impact; note unchanged since 9b7c2ee (`git log 9b7c2ee..HEAD` on it: none). Holds.
+- **S136 — Feature: Calendar date picker.** FEATURES line 101 quotes the owner, 2026-11-09, on the API returning the teams that played each day; note unchanged since 9b7c2ee. Holds.
+- **S125 — Feature: Calendar date picker.** Same row (calendar, year switching, typed date, games per day, dimmed days, future dates); 6f7b5ec added two note lines only (bundle size), no Gap/Impact/Source change. Holds.
+- **Open questions:** none. `grep -rl 'Source:\*\* Open' docs/v3/backlog/stories/` finds no story. No story note added or removed since 9b7c2ee, no `**Source:**` line changed.
+
+**2. Doc reflects reality**
+- **FEATURES Standings row (changed in 9cbc539, 966f7cd, 65f9463).** Each new clause quotes the owner, 2026-11-13: `includePhases` / phases not views (S139 Source: Feature: Standings), the new season's empty regular-season table on spring's first day, the playoffs choice ending "a week after the last world series game ends", and the World Series box from the day after the Series with its link only while the playoffs view is offered ("option a"). Checked against S130 AC 1 (playoffs opens first through day 6 after `lastGameDate`, offered but not first on day 7, gone from day 8) and AC 4 (box link only on a day AC 1 offers `playoffs`), and S140 AC 2 (`champion` from `wonOn`): they agree. The row's "from then the regular season opens first again, the playoffs view can still be chosen until a week after the last playoff game" reads oddly but matches S130's one overlap day (day 7). How long the box stays is not claimed by FEATURES; S130/S140 notes leave it to S129's ratification (the agent's proposal, until spring training's first game), so no conflict.
+- **ARCHITECTURE ADR-021 amendment (standings: graduated lifetime, 30-day cap, edge only; owner 2026-11-13 quoted).** No FEATURES or INTENT line states a 48h cap (grep "48h|48 h": no hits); FEATURES line 30 says only that freshness comes from BT's data layer. No conflict.
+- **VISUAL-DESIGN changes (2863971, PR #58).** Header without the wordmark on desktop (owner 2026-11-12 quoted), hover 0.3s/0.4s on Material's curve (owner 2026-11-12 quoted) with reduced motion honored, `MediaHighlight.renditions` for the quality picker. FEATURES and INTENT say nothing about the header wordmark or hover timing (grep "wordmark|hover|160ms": no hits); INTENT line 67's "no logos" is the existing brand rule, unchanged. No conflict.
+- **Shipped but not in FEATURES (amended).** PR #58 (2863971, from the owner's site-polish list, issue #38, 2026-11-12, "One PR for everything") shipped fan-visible behavior FEATURES did not describe: (a) the video player's quality picker, actions (copy link, direct link, download, share) and larger desktop size; (b) Plays opening with no at-bat expanded. Recorded in the owner's words quoted in issue #38: the Game -> Videos / highlights row and the Game -> Plays + pitch detail row (the latter's existing "By default, it should show the most recent inning" is about which inning, not which play, so no conflict). The rest of #38 is visual polish already in VISUAL-DESIGN or below FEATURES' level (digest order/gold, tab widths, account menu, favorite-team naming); not added.
+- **#62 (795f054, digest ranking).** Fixes the digest to rank by each game's plays, which is what FEATURES line 162 already says ("ranked by the existing per-game impact rule applied across the day"). No change needed.
+- **"Fetched … ago" / ADR-014 "Freshness is visible" / VISUAL-DESIGN D9** (VISUAL-DESIGN lines 227, 292; ARCHITECTURE line 918): already open with the owner from today's backlog review (its question 2); FEATURES and INTENT carry no such line, so nothing for this review to edit. Not re-asked.
+- **Change log fourth kind:** still open in FEATURES' Update / change log UX row ("still open"), already asked (today's question 3). Not re-asked.
+
+**3. Coverage for the backlog review**
+
+For the next backlog review:
+1. FEATURES' Videos row now names the player's quality picker, actions row and larger desktop size, and the Plays row that no at-bat opens by default. Both shipped in PR #58 with no story: confirm no story or ratified design contradicts them (in particular the game-rooms/game-shell Videos and Plays frames and S145's play link on the meta line, which touches the same player) and that they need no story.
+2. No FEATURES item found that no story serves among the rows checked (Standings: S128-S130, S137-S140; Calendar date picker: S124, S125, S136; Modern membership staging sign-in: S143).
