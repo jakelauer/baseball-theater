@@ -29,6 +29,14 @@
 # ## Frames must name AC 1's newly drawn parts, and the amendment must state what AC 1 says
 # it states (Esc, the URL and Back, Today, the arrows' ends, the slide's duration, the
 # short-screen height, months past next year and unknown months).
+#
+# Updated before shipping (2026-11-16, the owner's off-day mark): the owner replaced the
+# corner mark on days a favorite plays with a tiny ✕ on days the favorites don't ("show a
+# tiny red X icon in the same spot for days the favorite team does NOT play ... If >1 team
+# plays but not all, show a yellow x. Hovering over a day with an X shows a tooltip showing
+# "Off day: " ..."), and AC 1 was rewritten in those words. The required `favorite` state
+# becomes `offday`, and ## Frames must also name the "Off day" tooltip and the yellow ✕.
+# Both only tighten.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -37,7 +45,7 @@ cd "$(dirname "$0")/.."
 source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "shell-scoreboard has its next free amendments/A<N>.md (new in S123) headed '(S123)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames"
-check 2 "frames at mobile, medium and desktop (PNGs at the ratified scoreboard frame's width): calendar closed and open, the favorite-team mark, an invalid typed date and one before 1901-04-18, a month loading its counts and one whose counts failed, an off-season month, and the earliest bound (April 1901), plus the short-screen sheet at mobile; no year, decade or earliest-decade view — named <screen>[-<state>]-<pairing>.png and listed in ## Frames (every frame listed there exists as one of its own), which also covers the date field, weekday row, per-day game count (bold day, count at 50%), dimmed-but-pickable no-game days, the native month and year pickers, the favorite-team mark, the six week rows, the mobile ✕, Today, future dates pickable and nothing before 1901-04-18; and the amendment states Esc, the URL and Back, Today off-season, the arrows' ends, the slide's duration, the short-screen height, a month past next year (month_too_late) and an unknown month (null counts)"
+check 2 "frames at mobile, medium and desktop (PNGs at the ratified scoreboard frame's width): calendar closed and open, the favorite teams' off-day ✕ (red, yellow) and its "Off day:" tooltip, an invalid typed date and one before 1901-04-18, a month loading its counts and one whose counts failed, an off-season month, and the earliest bound (April 1901), plus the short-screen sheet at mobile; no year, decade or earliest-decade view — named <screen>[-<state>]-<pairing>.png and listed in ## Frames (every frame listed there exists as one of its own), which also covers the date field, weekday row, per-day game count (bold day, count at 50%), dimmed-but-pickable no-game days, the native month and year pickers, the favorite-team mark, the six week rows, the mobile ✕, Today, future dates pickable and nothing before 1901-04-18; and the amendment states Esc, the URL and Back, Today off-season, the arrows' ends, the slide's duration, the short-screen height, a month past next year (month_too_late) and an unknown month (null counts)"
 check 3 "the amendment's ## Components section says which parts are @mantine/dates (the month grid, DateInput with its own drop-down off, renderDay for the count and the favorite-team mark, DatesProvider's consistentWeeks), which are native (the month and year pickers) and which are custom"
 check 4 "the amendment's ## Ratification names who ratified, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left"
 check 5 "no sealed file in shell-scoreboard changed (RATIFIED.md manifest still verifies; RATIFIED.md, ratified frames and every other amendment untouched by S123; every amendment's sealed frames present and unchanged)"
@@ -123,7 +131,7 @@ png_ok() {
 	[ "$w" = "$want" ] || { echo "${w}px wide, not ${want}px"; return 1; }
 }
 
-STATES="closed open favorite invalid tooearly loading failed offseason earliest"
+STATES="closed open offday invalid tooearly loading failed offseason earliest"
 # Drawn at mobile only: the short-screen sheet (AC 1, Height) is a phone rule.
 MOBILE_ONLY="short"
 # Views AC 1 now rules out (native month and year pickers instead; owner, 2026-11-09).
@@ -228,7 +236,7 @@ else
 	done
 	# AC 1's parts are drawn, so ## Frames (what each export shows) names them, not prose elsewhere.
 	for term in "date field" "weekday" "game count" "dimmed" "pickable" "future" "1901-04-18" \
-		"gm" "50%" "bold" "favorite" "native" "six week rows" "✕" "Today"; do
+		"gm" "50%" "bold" "favorite" "Off day" "yellow" "native" "six week rows" "✕" "Today"; do
 		echo "$frames_table" | grep -qiF "$term" || bad 2 "## Frames never mentions '$term'"
 	done
 	# What AC 1 says the amendment states in words, wherever in it.
