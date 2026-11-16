@@ -190,6 +190,30 @@ describe("review-debt.sh: drafts never make a design intake due", () =>
 		expect(run.stdout).toContain("design intake review is due");
 	}, TIMEOUT);
 
+	it("a ratified amendment whose only change is its Source: link: not due", () =>
+	{
+		reviewed({
+			[AMENDMENT]: `${RATIFIED}\nSource: https://www.figma.com/design/f\n`,
+		});
+		write(AMENDMENT, `${RATIFIED}\nSource: https://www.figma.com/design/f?node-id=1-2\n`);
+		commit("link only");
+		const run = debt();
+		expect(run.status, run.stdout).toBe(0);
+		expect(run.stdout).toContain("not due");
+	}, TIMEOUT);
+
+	it("a ratified amendment whose Source: link and another line change: intake due", () =>
+	{
+		reviewed({
+			[AMENDMENT]: `${RATIFIED}\nSource: https://www.figma.com/design/f\n`,
+		});
+		write(AMENDMENT, `${RATIFIED}\nSource: https://www.figma.com/design/f?node-id=1-2\nThe bar is gold.\n`);
+		commit("link and a rule");
+		const run = debt();
+		expect(run.status, run.stdout).toBe(1);
+		expect(run.stdout).toContain("A2.md added or changed");
+	}, TIMEOUT);
+
 	it("a surface's RATIFIED.md added: intake due", () =>
 	{
 		reviewed();

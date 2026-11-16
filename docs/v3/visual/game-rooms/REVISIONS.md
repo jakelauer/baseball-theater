@@ -2,11 +2,11 @@
 
 ## Source
 
-https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF
+https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF?node-id=635-22628 — the Game — Live, Box & Recap page; the Plays frames are on the [Game — Plays page](https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF?node-id=635-22629) (link updated 2026-11-16, when the file was split into pages).
 
 Version: 2026-10-12 — live file as edited and exported in the S37 session (the Plugin API cannot save a named version; no named version was taken).
 
-Exports are 1× PNG renders of the frames with the same names. Frame node IDs: `live-mobile` `5:1470`, `live-medium` `230:2050`, `live-desktop` `230:2616` (both instances of the `live-game` component `230:2049`), `box-mobile` `190:2876`, `box-medium` `235:2521`, `box-desktop` `235:2906`, `plays-mobile` `235:2430`, `plays-medium` `235:2815`, `plays-desktop` `235:3086`, `recap-mobile` `190:3032`, `recap-medium` `235:2722`, `recap-desktop` `235:3050`.
+Exports are 1× PNG renders of the frames with the same names. Frame node IDs: `live-mobile` `5:1470`, `live-medium` `230:2050`, `live-desktop` `230:2616` (both instances of the `live-game` component `230:2049`), `box-mobile` `190:2876`, `box-medium` `235:2521`, `box-desktop` `235:2906`, `plays-mobile` `500:4737`, `plays-medium` `500:5048`, `plays-desktop` `500:5445` (the frames by those names today; the 2026-10-12 nodes `235:2430`, `235:2815` and `235:3086` no longer exist, updated 2026-11-16), `recap-mobile` `190:3032`, `recap-medium` `235:2722`, `recap-desktop` `235:3050`.
 
 ## Revisions
 

@@ -64,10 +64,22 @@ is_draft()
   grep -qiE '\*\*Draft|not (yet )?ratified' <<<"$text" && ! grep -qE '^Ratified by:[[:space:]]*[^[:space:]]' <<<"$text"
 }
 
+# An edit to a ratified amendment that changes only its `Source:` line (the Figma link) changes
+# no frame, decision or requirement, so it never makes an intake due (owner, 2026-11-16, asked
+# whether review-debt.sh should ignore edits that only change an amendment's Source: link: "Yes").
+# A file added or deleted since the base, or any other changed line, still counts.
+source_only()
+{
+  git cat-file -e "$base:$1" 2>/dev/null && git cat-file -e "HEAD:$1" 2>/dev/null || return 1
+  local changed
+  changed="$(git diff -U0 "$base" HEAD -- "$1" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ')"
+  [ -n "$changed" ] && ! grep -qvE '^[+-]Source:' <<<"$changed"
+}
+
 while IFS= read -r path; do
   [ -z "$path" ] && continue
   case "$path" in
-    */amendments/*) is_draft "$path" && continue ;;
+    */amendments/*) is_draft "$path" && continue; source_only "$path" && continue ;;
   esac
   intake+=("${path} added or changed")
 done < <(git diff --name-only "$base" HEAD -- 'docs/v3/visual/*/RATIFIED.md' 'docs/v3/visual/*/amendments/*.md')

@@ -2,7 +2,7 @@
 
 ## Source
 
-https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF
+https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF?node-id=635-22627 — the Game — Videos & player page (link updated 2026-11-16, when the file was split into pages).
 
 Version: 2026-10-10 — live file as edited and exported in the S36 session (the Plugin API cannot save a named version; no named version was taken).
 
