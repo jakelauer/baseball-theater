@@ -19,6 +19,14 @@
 # (design-reference.ts would then stop A7 governing that frame). Every change only tightens.
 # Ratifying also renames the Figma section and A9's Source line; the "awaiting ratification" check
 # below fails until both lines in A9 drop it.
+#
+# Updated before shipping (2026-11-16, rule 7), to AC 1 as rewritten on 2026-11-10 (the label became
+# the three views): check 2 now requires a frame set per state AC 1 draws (spring training, its empty
+# first morning, the blank regular season, the playoffs list, the World Series box with and without
+# its link, the off-season with only the regular season), each at all three pairings, and ## Frames
+# naming the switch, the hidden games-behind column, the "as of" line and the box instead of "label",
+# which AC 1 no longer asks for; check 8 is new: the amendment answers every AC 1 bullet in words.
+# Shown red on HEAD before the redrawn amendment was written. Every other check is unchanged.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -27,12 +35,13 @@ cd "$(dirname "$0")/.."
 source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "standings-search-settings has its next free amendments/A<N>.md (new in S129) headed '(S129)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames"
-check 2 "frames standings-spring-{mobile,medium,desktop}.png (real PNGs at the ratified standings frame's width) listed in ## Frames, which names the spring training label; every frame ## Frames names exists as one of its own; any final-table frames come as all three pairings"
+check 2 "frames standings-spring-{mobile,medium,desktop}.png (real PNGs at the ratified standings frame's width) listed in ## Frames, which names each view AC 1 draws, with a frame set per state at every pairing; every frame ## Frames names exists as one of its own; any final-table frames come as all three pairings"
 check 3 "the amendment says whether the off-season final table (phase \"final\") is marked: a quoted owner decision in ## Decisions; if it is marked, FEATURES' Standings row (changed by S129) records it"
 check 4 "the amendment's ## Ratification names Jake Lauer, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left"
 check 5 "no sealed file in standings-search-settings changed or deleted (RATIFIED.md manifest verifies; RATIFIED.md, ratified frames and every other amendment untouched by S129; every amendment's sealed frames present and unchanged)"
 check 6 "S129 changes no file outside its fence (scripts/verify-S129.sh aside)"
 check 7 "backlog Status is done (story heading and Story status table)"
+check 8 "the amendment answers every AC 1 bullet in words: the view switch (and whether it shows with the regular season alone), the hidden games-behind column, the regular season before its first game, the playoffs list, the 'Standings as of' line, the World Series box (how long it stays, reduced motion), the heading and browser tab title, the off-season's final table, the first spring morning, full width on mobile, loading/empty/error"
 
 V="docs/v3/visual"
 S="standings-search-settings"
@@ -249,9 +258,18 @@ else
 			echo "$own" | grep -qxF "standings-final-$p.png" || bad 2 "final-table frames drawn, but standings-final-$p.png missing"
 		done
 	fi
-	# AC 1's label is drawn, so ## Frames (what each export shows) names it.
-	for term in "spring training" "label"; do
+	# AC 1's views are drawn, so ## Frames (what each export shows) names each of them.
+	for term in "spring training" "switch" "games-behind" "as of" "World Series" "playoffs" "full width"; do
 		echo "$frames_table" | grep -qiF "$term" || bad 2 "## Frames never mentions '$term'"
+	done
+	# Every state AC 1 draws has its own frame at every pairing (2026-11-16): spring training, its first
+	# morning with nothing to show, the regular season before its first game, the playoffs list, the
+	# World Series box with its link and without it, and the off-season with only the regular season.
+	for st in spring spring-empty regular-blank playoffs-champion regular-champion offseason; do
+		for p in $PAIRINGS; do
+			echo "$own" | grep -qxF "standings-$st-$p.png" || bad 2 "frame standings-$st-$p.png (AC 1's states) is not one of this amendment's frames"
+			echo "$frames_table" | grep -qF "\`standings-$st-$p.png\`" || bad 2 "standings-$st-$p.png not in ## Frames"
+		done
 	done
 
 	# --- Check 3: the off-season final table ---------------------------------------
@@ -310,6 +328,16 @@ else
 	grep -qiE 'pending Q[0-9]+' "$A" && bad 4 "the amendment still has text pending an open question"
 	grep -qi 'awaiting ratification' "$A" && bad 4 "the amendment still says awaiting ratification"
 	grep -qF 'will be a 1×' "$A" && bad 4 "## Frames still says the exports will be made"
+fi
+
+# --- Check 8: every AC 1 bullet answered in words ---------------------------------
+if [ -n "$A" ]; then
+	for term in "view switch" "regular season alone" "games-behind" "before its first game" "no numbers" "Standings as of March 2, 2027" \
+		"World Series box" "reduced motion" "how long" "browser tab" "final table" "first day of spring training" "opening day" "full width" "Loading"; do
+		grep -qiF -- "$term" "$A" || bad 8 "$A never mentions '$term' (AC 1)"
+	done
+else
+	bad 8 "$S: no amendment, so AC 1 is not answered"
 fi
 
 # --- Check 5: sealed files untouched -------------------------------------------------
