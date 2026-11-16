@@ -51,6 +51,9 @@ e2e/playwright-report/
 # Design-match pairs laid out for the owner (pnpm design:review); delete a story's folder after the verdict
 .designreview/
 
+# What waits on the owner (designs in review and their questions), written on request; local notes, never committed
+.pending/
+
 # Obsidian window/pane layout for the docs/v3 vault: changes every time the vault is opened
 docs/v3/.obsidian/workspace.json
 # The Obsidian Bases view of the backlog: Obsidian rewrites it on open; `pnpm backlog:build` seeds a default when it is missing
