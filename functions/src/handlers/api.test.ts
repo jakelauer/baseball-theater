@@ -15,10 +15,15 @@ import {
 	InMemorySettingsRepository,
 } from "../adapters/memory/repos.js";
 import { handleApiRequest } from "./api.js";
+import { edgeCacheControl } from "./cache-control.js";
 import { ingestScheduleDay } from "../services/ingest.js";
 
-/** A server over the fixtures; `now` fixes the ingest clock (S111's default date reads it). */
-async function withServer(run: (base: string) => Promise<void>, now?: () => Date): Promise<void>
+/**
+ * A server over the fixtures; `now` fixes the ingest clock (S111's default date reads it), and
+ * `prepare` may change what is stored before the server starts.
+ */
+async function withServer(run: (base: string) => Promise<void>, now?: () => Date, prepare?: (repos: { schedules: InMemoryScheduleRepository;
+	games: InMemoryGameRepository; }) => Promise<void>): Promise<void>
 {
 	const schedules = new InMemoryScheduleRepository();
 	const games = new InMemoryGameRepository();
@@ -34,6 +39,10 @@ async function withServer(run: (base: string) => Promise<void>, now?: () => Date
 		},
 	};
 	await ingestScheduleDay(ingest, "2024-07-04");
+	await prepare?.({
+		schedules,
+		games,
+	});
 
 	const auth = createDevAuth();
 	const settings = new InMemorySettingsRepository();
@@ -188,6 +197,45 @@ describe("handleApiRequest", () =>
 
 			expect((await fetch(`${base}/api/v1/digest`)).status).toBe(400);
 			expect((await fetch(`${base}/api/v1/digest?date=July`)).status).toBe(400);
+		});
+	});
+
+	it("caches the day digest by the latest change of the day and its games (#61)", async () =>
+	{
+		const now = new Date("2026-11-15T12:00:00Z");
+		const gameChanged = "2026-11-15T11:00:00.000Z";
+		await withServer(async (base) =>
+		{
+			const response = await fetch(`${base}/api/v1/digest?date=2024-07-04`);
+			expect(response.status).toBe(200);
+			// One hour since the game changed, not two years since the day did.
+			expect(response.headers.get("cache-control")).toBe(edgeCacheControl({
+				windowMode: "cache",
+				lastChangedAt: gameChanged,
+			}, now));
+			expect(((await response.json()) as DayDigestResponse).windowMode).toBe("cache");
+		}, () => now, async ({ schedules, games }) =>
+		{
+			// The day and its games settled long ago, out of the window; then one game changed an hour ago.
+			const day = (await schedules.getByDate("2024-07-04"))!;
+			await schedules.upsert({
+				...day,
+				version: day.version + 1,
+				windowMode: "cache",
+				lastChangedAt: "2024-07-05T06:00:00.000Z",
+				fetchedAt: now.toISOString(),
+			});
+			for (const [index, { gamePk }] of day.games.entries())
+			{
+				const game = (await games.getByPk(gamePk))!;
+				await games.upsert({
+					...game,
+					version: game.version + 1,
+					windowMode: "cache",
+					lastChangedAt: index === 0 ? gameChanged : "2024-07-05T06:00:00.000Z",
+					fetchedAt: now.toISOString(),
+				});
+			}
 		});
 	});
 });

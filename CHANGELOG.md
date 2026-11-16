@@ -14,6 +14,20 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## The day's top highlights lead with the plays that mattered, and keep up during games
+
+- **Before, the day's "Best of" highlights could open with an interview: on October 28, the World Series clincher,
+  it listed Aaron Ashby's interview first because nothing told it which clips were the game's big plays, so it fell
+  back to alphabetical order. It also never updated while games were on, and a highlight posted after a game ended
+  could take up to two days to show up. Now it ranks each clip by how much its play swung the game, the same order
+  as that game's Videos room, with interviews, recaps and any clip whose play MLB didn't measure after the plays
+  it did. While any game that day is live it
+  refreshes as often as the scores do, and once the day is over it is kept for as long as the day and its games
+  have gone unchanged.** Details: fixes #61. `dayDigest` ranks with each game's plays and play metrics
+  (`rankHighlightGroupsByImpact` in `@bt/domain`, which `rankHighlightsByImpact` now calls). The digest response
+  carries `windowMode`, so the browser uses the same `freshnessPolicy` as the scoreboard. The edge cache follows
+  `digestFreshness`: live while the day or any game is, and timed from the latest of their changes.
+
 ## The site answers your pointer, and the video player does more
 
 - **Before, little on the site reacted when you hovered it, only part of a game card opened the game, the logo did

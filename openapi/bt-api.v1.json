@@ -251,9 +251,14 @@
 						"description": "Best first; empty on a day with no videos yet.",
 						"items": { "$ref": "#/components/schemas/DigestItem" },
 						"type": "array"
+					},
+					"windowMode": {
+						"description": "`active` while the day or any of its games is in the live window, so the browser re-asks on the live cadence (`freshnessPolicy`, #61); `cache` once all of them are out of it.",
+						"enum": ["active", "cache"],
+						"type": "string"
 					}
 				},
-				"required": ["date", "items"],
+				"required": ["date", "items", "windowMode"],
 				"type": "object"
 			},
 			"DigestClipGame": {
