@@ -250,6 +250,25 @@ describe("isGameInActiveWindow reads the schedule's own start time", () =>
 		const { gameDate: _drop, ...noStart } = lateGame;
 		expect(isGameInActiveWindow(noStart, during)).toBe(false);
 	});
+
+	it("reads startTime first and ignores a date-only gameDate (#71)", () =>
+	{
+		// The mappers' shape: `gameDate` is the official date alone, first pitch is `startTime`.
+		const night = {
+			officialDate: "2024-07-04",
+			gameDate: "2024-07-04",
+			startTime: "2024-07-04T23:05:00Z",
+			status: {
+				codedGameState: "S",
+			} as ScheduleGameSummary["status"],
+		};
+		expect(isGameInActiveWindow(night, new Date("2024-07-04T21:10:00Z"))).toBe(true);
+		expect(isGameInActiveWindow(night, new Date("2024-07-04T20:55:00Z"))).toBe(false);
+		// Without startTime the bare date is not midnight: the 17:00Z assumption applies.
+		const { startTime: _drop, ...dateOnly } = night;
+		expect(isGameInActiveWindow(dateOnly, new Date("2024-07-04T16:00:00Z"))).toBe(true);
+		expect(isGameInActiveWindow(dateOnly, new Date("2024-07-03T23:00:00Z"))).toBe(false);
+	});
 });
 
 describe("scheduleWindowMode (S122)", () =>

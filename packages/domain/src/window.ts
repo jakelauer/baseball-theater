@@ -57,16 +57,27 @@ export function normalizeStatusCode(code: string | undefined | null): GameStatus
 	return "U";
 }
 
+/** A bare `YYYY-MM-DD`: a date with no time of day, so no first-pitch instant. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * Whether a game should be in the active ingest window at `now`.
  * A game in progress (`I`) or delayed (`D`) is always in it, whatever the
  * clock says: a delay can outlast the trail, and only a poll sees it resume.
  * Otherwise the window is lead hours before first pitch to trail hours after
- * (after the assumed end, for a final game), using officialDate + rough day
- * bounds when precise start/end are unknown.
+ * (after the assumed end, for a final game).
+ *
+ * First pitch is `startTime` (the ISO instant `mapScheduleGame` and `mapLiveFeed`
+ * set). Both mappers set `gameDate` to the official date alone, so `gameDate` /
+ * `gameDateTime` count only when they carry a time of day: read as an instant, a
+ * bare date is midnight UTC, which opened a night game's window hours early and
+ * closed its trail before it went final (#71). With no instant at all (a snapshot
+ * stored before `startTime` existed), fall back to a mid-afternoon assumption on
+ * the official date — a floor, not the normal path.
  */
 export function isGameInActiveWindow(
 	game: Pick<ScheduleGameSummary, "officialDate" | "status"> & {
+		startTime?: string | null;
 		gameDate?: string | null;
 		gameDateTime?: string | null;
 	},
@@ -77,10 +88,7 @@ export function isGameInActiveWindow(
 	const code = normalizeStatusCode(game.status.codedGameState);
 	if (isLiveStatus(code) || KEEP_POLLING_CODES.has(code)) return true;
 
-	// `ScheduleGameSummary` carries the real first pitch as `gameDate`;
-	// `gameDateTime` is accepted as an alias. Without either, fall back to a
-	// mid-afternoon assumption — that fallback is a floor, not the normal path.
-	const startedAt = game.gameDate ?? game.gameDateTime;
+	const startedAt = [game.startTime, game.gameDate, game.gameDateTime].find((value) => value && !DATE_ONLY.test(value));
 	const start = startedAt
 		? new Date(startedAt)
 		: new Date(`${game.officialDate}T17:00:00.000Z`);

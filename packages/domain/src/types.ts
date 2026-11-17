@@ -208,6 +208,12 @@ export type GameSnapshot = {
 	gamePk: number;
 	gameDate: string; // YYYY-MM-DD (schedule date)
 	officialDate: string;
+	/**
+	 * First pitch as an ISO instant, from the live feed's `gameData.datetime.dateTime`. The
+	 * active window is measured from it (`isGameInActiveWindow`, #71); absent on snapshots
+	 * stored before it existed, which fall back to a mid-afternoon assumption.
+	 */
+	startTime?: string;
 	status: {
 		abstractGameState: string;
 		codedGameState: GameStatusCode | string;
