@@ -1595,7 +1595,7 @@ _TBD_ — at least: ingestion lag, upstream error rate, refresh-on-read rate, pe
 **Monorepo (pnpm workspaces):**
 
 ```text
-baseball-theater-v3/
+baseball-theater/
   packages/
     domain/          # types, pure logic (no Cloudflare / Postgres / Logto imports)
     ports/           # interfaces only
@@ -1624,7 +1624,7 @@ baseball-theater-v3/
 
 **Assumptions:**
 
-- New codebase under `baseball-theater-v3` (this workspace)
+- New codebase under `baseball-theater` (this workspace; `baseball-theater-v3` until the repository was renamed on 2026-11-16)
 - No requirement to import v2 packages
 
 ---

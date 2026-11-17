@@ -18618,8 +18618,68 @@ Design intake made due only by PR #64, which added ?node-id= to the Figma Source
 | | |
 |---|---|
 | Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
-| Captured (UTC) | `2026-11-17T00:10:09Z` |
-| HEAD at capture | `3105ef0` (tree clean) |
+| Captured (UTC) | `2026-11-17T00:26:44Z` |
+| HEAD at capture | `741f691` (tree clean) |
+| Change | `741f691` — S146: the release rule's input check, spelled out (pre-PR review) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
+
+---
+
+## 2026-11-16 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:26:44Z` |
+| HEAD at capture | `741f691` (tree dirty) |
+| Change | `741f691` — S146: the release rule's input check, spelled out (pre-PR review) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:36:41Z` |
+| HEAD at capture | `0396a14` (tree dirty) |
+| Change | `261f1fe` — Rename the workspace to baseball-theater; delete branches once merged (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
+
+---
+
+## 2026-11-16 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:36:41Z` |
+| HEAD at capture | `0396a14` (tree dirty) |
+| Change | `261f1fe` — Rename the workspace to baseball-theater; delete branches once merged (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:44:15Z` |
+| HEAD at capture | `5ab0b42` (tree dirty) |
 | Change | `3105ef0` — Frame note: ADR-014's "Fetched … ago" question marked answered (S147/S148) |
 
 **What changed, and the owner's answer**
@@ -18633,8 +18693,8 @@ Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the rev
 | | |
 |---|---|
 | Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
-| Captured (UTC) | `2026-11-17T00:10:10Z` |
-| HEAD at capture | `3105ef0` (tree dirty) |
+| Captured (UTC) | `2026-11-17T00:44:15Z` |
+| HEAD at capture | `5ab0b42` (tree dirty) |
 | Change | `3105ef0` — Frame note: ADR-014's "Fetched … ago" question marked answered (S147/S148) |
 
 **What changed, and the owner's answer**
