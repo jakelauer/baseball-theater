@@ -509,8 +509,9 @@ Open stories, in order (`doing`, then `todo`, then `blocked`; by priority within
 | 82 | [S135](backlog/stories/S135.md) Update notice and after-update pointer | `todo` | S131, S134, S81 | S133 |
 | 82 | [S148](backlog/stories/S148.md) Live marker replaces "Fetched" | `todo` | S81 | S147 |
 | 83 | [S141](backlog/stories/S141.md) Design: site footer | `todo` | — | — |
-| 83 | [S149](backlog/stories/S149.md) Live scoreboard (day hub) | `todo` | S148 | — |
+| 83 | [S150](backlog/stories/S150.md) One stored state per game | `todo` | — | — |
 | 84 | [S142](backlog/stories/S142.md) Site footer of links | `todo` | S81 | S141 |
+| 84 | [S149](backlog/stories/S149.md) Live scoreboard (day hub) | `todo` | S150 | — |
 | 89 | [S127](backlog/stories/S127.md) Design: play link in Search's player | `todo` | — | — |
 | 90 | [S5](backlog/stories/S5.md) Search page queries highlights fixture | `todo` | S70, S61, S68, S81 | S34, S56 |
 | 91 | [S72](backlog/stories/S72.md) Search chips: date / team / tag | `todo` | S5, S69, S81 | S34 |
