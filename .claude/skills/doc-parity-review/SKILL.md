@@ -28,7 +28,7 @@ Do not start a story while it is due. Run it with **fresh context** (a separate 
 You may edit **only**:
 
 - `docs/v3/FEATURES.md` and `docs/v3/INTENT.md`
-- the `**Source:**` line of story notes in `docs/v3/backlog/stories/`, plus `docs/v3/BACKLOG.md` via `pnpm backlog:build`
+- the `**Source:**` line of story notes in `docs/v3/backlog/stories/<status>/`, plus `docs/v3/BACKLOG.md` via `pnpm backlog:build`
 - `docs/v3/AUDIT.md`, via `scripts/audit.sh parity` only
 
 And only to **record a decision the owner has already made**: their words in this session, a story they asked for, or a commit or ledger entry that records their call. Cite it in the finding. Never write product intent yourself.
