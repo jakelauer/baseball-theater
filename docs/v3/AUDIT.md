@@ -18625,3 +18625,33 @@ Design intake made due only by PR #64, which added ?node-id= to the Figma Source
 **What changed, and the owner's answer**
 
 The owner's off-day mark (2026-11-16) rewrote S123 AC 1, S136 AC 3 (plus its Gap, Impact and notes) and S125 AC 2, and FEATURES' Calendar date picker row, in the owner's words. Asked whether that needs a backlog review, the owner answered: "skipped"
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:10:11Z` |
+| HEAD at capture | `028f758` (tree clean) |
+| Change | `028f758` — S123 checkpoint (parked for ratification): owner's Back and tap-and-hold answers |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
+
+---
+
+## 2026-11-16 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:10:12Z` |
+| HEAD at capture | `028f758` (tree dirty) |
+| Change | `028f758` — S123 checkpoint (parked for ratification): owner's Back and tap-and-hold answers |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
