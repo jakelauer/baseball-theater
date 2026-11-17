@@ -4,13 +4,14 @@ Ratified by: Jake Lauer (product owner)
 Date: 2026-10-14
 Source version: 2026-10-14 — live Figma file as edited and exported in the S31–S34 design session (the Plugin API cannot save a named version; no named version was taken).
 Go-ahead: "Ok - I want to ratify all 4 designs"
+Re-sealed: 2026-11-16 — DESIGN.md and REVISIONS.md re-hashed after their Figma source link was pointed at the page that now holds this surface; no frame, decision or requirement changed. Owner, asked whether to update the stale links and re-hash: "If the links are stale, yes"
 
 The files below are sealed. Any change is a ratified amendment under `amendments/` (BACKLOG rule 18), never an edit.
 
 ## Manifest
 
-adda40caf1091bcd35ca901b205dd107fe8dd7bd803f1962517a51bc9e9df4bb  DESIGN.md
-0762bc779abe8ed7c05e7984cd6f07b175203570611c3f4619513c73e9124337  REVISIONS.md
+f790116a0190c56e3d6dcfc2f203404e7a7a1f230a0de791970b46867865dcf3  DESIGN.md
+8179ffaa71bd8a173e3b83271d7c38912c923d02d8757697136624c1e1a5ff73  REVISIONS.md
 2b078b7af80f6ca10b3e601f29027fd3212b94bfc4a9376e02df808e6736a203  game-hidden-score-mobile.png
 d9de0092c3a856eec012184438b35788f569a7af2956aeb3bf00fdc56b421136  game-phase-final-mobile.png
 91783698cef1d915ddd99077d4f82cfeea513960f5c67cdc8f31c1dc15dc8123  game-phase-live-mobile.png

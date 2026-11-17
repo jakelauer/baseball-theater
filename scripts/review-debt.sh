@@ -14,6 +14,7 @@
 # Detects the drift events that leave a trace in committed history:
 #   - a surface ratified or a ratified amendment landed     → design intake review
 #     (an amendment still marked as a draft never counts; see is_draft below)
+#     (nor does an amendment edit that only changes the URL on its Source: line; see source_only)
 #   - ARCHITECTURE.md changed (an ADR accepted or changed)  → design intake if the diff
 #     names a frontend ADR (003, 008, 014, 016, 020–026), else backlog review
 #   - a new workspace package appeared
@@ -64,10 +65,25 @@ is_draft()
   grep -qiE '\*\*Draft|not (yet )?ratified' <<<"$text" && ! grep -qE '^Ratified by:[[:space:]]*[^[:space:]]' <<<"$text"
 }
 
+# An edit to a ratified amendment that changes only the URL on its `Source:` line changes no
+# frame, decision or requirement, so it never makes an intake due (owner, 2026-11-16, asked
+# whether review-debt.sh should ignore edits that only change an amendment's Source: link: "Yes").
+# The whole file is compared at the base and at HEAD with each `Source:` line's URLs masked, so
+# other text on that line (some name their frames there) and every other line still count, as
+# does a file added or deleted since the base. Only amendments: a re-sealed DESIGN.md, REVISIONS.md
+# or RATIFIED.md still makes an intake due.
+mask_source_links() { sed -E '/^Source:/s#https?://[^[:space:])]+#<link>#g' <<<"$1"; }
+source_only()
+{
+  local before after
+  before="$(git show "$base:$1" 2>/dev/null)" && after="$(git show "HEAD:$1" 2>/dev/null)" || return 1
+  [ "$before" != "$after" ] && [ "$(mask_source_links "$before")" = "$(mask_source_links "$after")" ]
+}
+
 while IFS= read -r path; do
   [ -z "$path" ] && continue
   case "$path" in
-    */amendments/*) is_draft "$path" && continue ;;
+    */amendments/*) is_draft "$path" && continue; source_only "$path" && continue ;;
   esac
   intake+=("${path} added or changed")
 done < <(git diff --name-only "$base" HEAD -- 'docs/v3/visual/*/RATIFIED.md' 'docs/v3/visual/*/amendments/*.md')

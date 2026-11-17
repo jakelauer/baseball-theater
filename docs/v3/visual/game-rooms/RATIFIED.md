@@ -4,13 +4,14 @@ Ratified by: Jake Lauer (product owner)
 Date: 2026-10-14
 Source version: 2026-10-14 — live Figma file as edited and exported in the S31–S34 design session (the Plugin API cannot save a named version; no named version was taken).
 Go-ahead: "Ok - I want to ratify all 4 designs"
+Re-sealed: 2026-11-16 — DESIGN.md and REVISIONS.md re-hashed after their Figma source link was pointed at the page that now holds this surface, and REVISIONS.md's three Plays frame IDs, whose nodes no longer exist, were updated; no frame, decision or requirement changed. Owner, asked whether to update the stale links and re-hash: "If the links are stale, yes"
 
 The files below are sealed. Any change is a ratified amendment under `amendments/` (BACKLOG rule 18), never an edit.
 
 ## Manifest
 
-f071bc54db3462073d17dacd6473f30d89356c6c9f996a80609865817d0a72f6  DESIGN.md
-fd705eb8b54f9f0f46bacecf82f4247f3a9282fbcd73cd3fac3f33d7cd8978b4  REVISIONS.md
+2065d0eb2898164bb86a673bf9425e521f1d09f6586fd76a3276a8875bcb5808  DESIGN.md
+0570924dca5be6bb3c08fb98194096fe6e8c793f4f6bf90953ab6f31b268bb8f  REVISIONS.md
 1f3c417376835bfff10bb2d2a8ba74199fb86aab3626388695d72de9ba842b07  box-desktop.png
 cf3e9ca7d9d97d982f2e64ddcf938d0280f73be1945e852c0bd39c46e3d59276  box-medium.png
 928788fa8792534803dbe51a380f1ec99b553b1276c91fe22b58a3078a39ba2e  box-mobile.png
