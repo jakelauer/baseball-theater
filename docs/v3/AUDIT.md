@@ -18745,3 +18745,33 @@ Owner, 2026-11-16: "do the reviews if they have been triggered by the normal rec
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; these (design intake and doc parity) come from the owner-directed S149 change, so they are skipped.
+
+---
+
+## 2026-11-17 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T22:14:05Z` |
+| HEAD at capture | `63dcc7f` (tree clean) |
+| Change | `63dcc7f` — S150: each game's state stored once, fed by one switch; S149's day hub only reads it (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". These are change-triggered (S150 inserted, S147/S148/S149 rewritten, ADR-020 amendment, FEATURES Live marker row); the story count is 0 of 6. Note on b6f0a65: its body said "design intake and doc parity", but the entries it recorded were backlog and parity skips.
+
+---
+
+## 2026-11-17 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T22:14:05Z` |
+| HEAD at capture | `63dcc7f` (tree dirty) |
+| Change | `63dcc7f` — S150: each game's state stored once, fed by one switch; S149's day hub only reads it (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". These are change-triggered (S150 inserted, S147/S148/S149 rewritten, ADR-020 amendment, FEATURES Live marker row); the story count is 0 of 6. Note on b6f0a65: its body said "design intake and doc parity", but the entries it recorded were backlog and parity skips.
