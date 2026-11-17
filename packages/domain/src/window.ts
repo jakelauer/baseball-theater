@@ -29,9 +29,16 @@ export const DEFAULT_CADENCE: CadenceParams = {
 
 // Only a game actually in progress is live. Pre-game warm-up (`P`) is not: the
 // Live room stays hidden (VISUAL-DESIGN §5 room presence), and ingest polls it
-// through the lead window. MLB codes a delay `I` (`IR` "Delayed: Rain", `IO`
-// "Delayed", per `/api/v1/gameStatus`), so a delayed game is in progress here and
-// stays polled however long the delay runs (#72).
+// through the lead window. MLB codes an in-game delay `I` (`IR` "Delayed: Rain",
+// `IO` "Delayed", per `/api/v1/gameStatus`), so it is in progress here and stays
+// polled however long it runs (#72). A delay before first pitch is `P` ("Delayed
+// Start", `PR`…`PO`): not live, and windowed by the clock only, so a start delayed
+// past the trail drops out until a schedule read sees the game go `I`.
+//
+// The owner's 2026-10-19 answer, "Delay should not show the live tab", was about
+// postponed games (`D`), which stay pregame and out of the window; delays (`I`)
+// show Live (owner, 2026-11-17: "Yes, a rain delay should show the live tab. I think
+// my response was intended to be about games that were postponed due to rain.").
 const LIVE_CODES = new Set(["I"]);
 
 // MLB's `D` is a postponement (`DR` "Postponed: Rain", `DO` "Postponed", `DI`

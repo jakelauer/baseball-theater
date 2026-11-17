@@ -4,8 +4,10 @@
  * the game leaves its window. Fixture 745001 is a game in progress, so it is always in
  * its window.
  */
-import type { GameSnapshot } from "@bt/domain";
-import { DEFAULT_CADENCE, isGameInActiveWindow } from "@bt/domain";
+import type { GameSnapshot, ScheduleDay } from "@bt/domain";
+import {
+	DEFAULT_CADENCE, isGameInActiveWindow, stampVersion,
+} from "@bt/domain";
 import {
 	describe, expect, it, vi,
 } from "vitest";
@@ -255,15 +257,74 @@ describe("ensureIngestRunning reads MLB's dates, not the UTC date (#73)", () =>
 		expect(fetchSchedule.mock.calls.map(([date]) => date).sort()).toEqual([EVENING, "2026-09-06"]);
 	});
 
-	it("skips the day before once its stored day is settled and out of window", async () =>
+	it("run minute by minute past the last trail, the day before is re-stored as cache, then skipped", async () =>
 	{
 		const { deps, fetchSchedule } = counted();
 		const ensure = vi.fn(async (_gamePk: number) => undefined);
-		await ensureIngestRunning(deps, ensure, new Date("2026-09-06T05:00:00Z"));
+		// 823094's trail ends 08:40Z (01:40Z + 4h assumed end + 3h).
+		for (let t = Date.parse("2026-09-06T05:00:00Z"); t <= Date.parse("2026-09-06T12:00:00Z"); t += 60_000)
+		{
+			await ensureIngestRunning(deps, ensure, new Date(t));
+		}
+		expect((await deps.schedules.getByDate(EVENING))?.windowMode).toBe("cache");
 		fetchSchedule.mockClear();
-		// 15:00Z: every 2026-09-05 game is final and past its trail.
+		// 15:00Z: every 2026-09-05 game is final and past its trail, and the stored day says so.
 		expect(await ensureIngestRunning(deps, ensure, new Date("2026-09-06T15:00:00Z"))).toEqual([]);
 		expect(fetchSchedule.mock.calls.map(([date]) => date)).toEqual(["2026-09-06"]);
+	}, 30_000); // 421 cron runs: about 2 s locally, more on a CI runner under coverage.
+
+	it("a stored day before that is settled but still has a game in its trail is fetched again", async () =>
+	{
+		const { deps, fetchSchedule } = counted();
+		const recorded = await new FixtureMlbStatsClient().fetchSchedule(EVENING);
+		// Every game final, stored as cache: only 823094's trail (to 08:40Z) keeps the day in play.
+		await deps.schedules.upsert(stampVersion<ScheduleDay>(null, {
+			...recorded,
+			windowMode: "cache",
+		}, "2026-09-06T04:00:00Z"));
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		const ensured = await ensureIngestRunning(deps, ensure, new Date("2026-09-06T05:00:00Z"));
+		expect(fetchSchedule.mock.calls.map(([date]) => date)).toContain(EVENING);
+		expect(ensured).toContain(LATEST);
+	});
+
+	it("a failed day-before fetch still refreshes today, and the next run retries it", async () =>
+	{
+		const { deps, fetchSchedule } = counted();
+		const real = new FixtureMlbStatsClient();
+		fetchSchedule.mockImplementation(async (date: string) =>
+		{
+			if (date === EVENING) throw new Error("MLB down");
+			return real.fetchSchedule(date);
+		});
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		const now = new Date("2026-09-06T05:00:00Z");
+		expect(await ensureIngestRunning(deps, ensure, now)).toEqual([]);
+		expect((await deps.schedules.getByDate("2026-09-06"))?.fetchedAt).toBe(now.toISOString());
+		fetchSchedule.mockImplementation((date: string) => real.fetchSchedule(date));
+		expect(await ensureIngestRunning(deps, ensure, new Date(now.getTime() + 60_000))).toContain(LATEST);
+	});
+
+	it("a game listed on both dates (a suspended game resumed) is ensured once", async () =>
+	{
+		const { deps, fetchSchedule } = counted();
+		const recorded = await new FixtureMlbStatsClient().fetchSchedule(EVENING);
+		const resumed = {
+			...recorded.games[0]!,
+			status: {
+				abstractGameState: "Live",
+				codedGameState: "I",
+				detailedState: "In Progress",
+			},
+		};
+		fetchSchedule.mockImplementation(async (date: string) => ({
+			...recorded,
+			date,
+			games: [resumed],
+		}));
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		expect(await ensureIngestRunning(deps, ensure, new Date("2026-09-06T18:00:00Z"))).toEqual([resumed.gamePk]);
+		expect(ensure).toHaveBeenCalledTimes(1);
 	});
 });
 
