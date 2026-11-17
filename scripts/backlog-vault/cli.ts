@@ -207,7 +207,9 @@ async function writeNotes(current: Map<string, string>, wanted: Map<string, stri
 		const path = join(dir, "stories", folder.name);
 		if ((await readdir(path).catch(() => [] as string[])).join() === ".DS_Store")
 		{
-			await rm(join(path, ".DS_Store"));
+			await rm(join(path, ".DS_Store"), {
+				force: true,
+			});
 		}
 		await rmdir(path).catch(() => undefined);
 	}

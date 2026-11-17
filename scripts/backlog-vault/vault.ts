@@ -55,17 +55,17 @@ export function renderStory(story: Story): string
 }
 
 /**
- * Where a story's note lives: `stories/<status>/S<N>.md`, the folder named by its frontmatter
- * `status` (owner, 2026-11-17: "I would like the backlog folder organization to put stories into
- * folders by state if possible (and if obsidian won't break). the flat list is getting huge.").
- * The frontmatter stays the source of truth; `pnpm backlog:build` moves the note to match it.
- */
-/**
  * Every status a story may have, so each names a folder. The build refuses any other value
  * (assemble.ts readStoryNote), so a typo like `dnoe` fails instead of making a folder.
  */
 export const STORY_STATUSES: readonly string[] = ["todo", "doing", "blocked", "done", "superseded"];
 
+/**
+ * Where a story's note lives: `stories/<status>/S<N>.md`, the folder named by its frontmatter
+ * `status` (owner, 2026-11-17: "I would like the backlog folder organization to put stories into
+ * folders by state if possible (and if obsidian won't break). the flat list is getting huge.").
+ * The frontmatter stays the source of truth; `pnpm backlog:build` moves the note to match it.
+ */
 export function storyNotePath(id: string, status: string): string
 {
 	return `stories/${status}/${id}.md`;
