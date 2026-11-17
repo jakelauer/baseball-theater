@@ -334,7 +334,7 @@ This section keeps only the *forward-looking* scheduling state: what is due next
 - **S130 AC 2:** an empty spring answer (the first spring morning, `divisions: []`) draws S129's empty-spring frame with the switch, not `StandingsPage`'s generic empty state; its morning note rewritten. **S129:** the mobile full-width bullet overrides A7 at mobile and records it in FEATURES. **S139:** the earlier morning note marked superseded.
 - **S132 AC 2:** `?after=` removed (no caller since the owner took the addition off the update notice); title, Gap, Impact and AC 5 follow. **S135:** title and Impact no longer promise an addition; **Depends on** names S131 instead of S132. **S133:** Impact, the retired-version note and the turn cap's assumption follow the evening answers.
 - **Done by the doc parity review of 2026-11-10:** FEATURES' Standings row has the mobile full-width exception, and its Update / change log UX row says the API serves no "what's new since" form (S132 AC 2).
-- **Unanswered, with the owner:** how long the playoffs choice and the World Series box stay after the Series (S139 AC 1, S140 AC 2); a fourth change log kind (S131); **new:** ~~whether ADR-014's "Freshness is visible" row (ARCHITECTURE.md, the `fetchedAt` / D9 line) is amended now that "Fetched … ago" goes from every page~~ (answered 2026-11-16: the row is amended and a Live marker replaces the label, S147/S148).
+- **Unanswered, with the owner:** how long the playoffs choice and the World Series box stay after the Series (S139 AC 1, S140 AC 2); a fourth change log kind (S131); **new:** ~~whether ADR-014's "Freshness is visible" row (ARCHITECTURE.md, the `fetchedAt` / D9 line) is amended now that "Fetched … ago" goes from every page~~ (answered 2026-11-16: the row is amended and a Live marker replaces the label, S147/S148). **New (2026-11-16), A13's draft (S147):** whether the polling scoreboard shows the Live marker, and whether a red "Live" at the foot is clear next to the top bar's green "● LIVE".
 - **Next 3 by priority:** S143, S136, S125 (S125 waits on S123's ratification). Startable now: S143, S136, S139, S140; S144 needs an owner session.
 
 **Earlier review:** 2026-11-10 at HEAD `3ce55d3`, verdict **`amended`**. **Trigger: drift** — S143 inserted outside a review. S143's fence gained `packages/domain/src/api-routes.ts`, AC 7's grep was made red-first, AC 5 and AC 6 tightened; see [AUDIT](./AUDIT.md).
@@ -7883,7 +7883,7 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 
 **Depends on:** nothing.
 
-**Scope files:** `docs/v3/visual/shell-scoreboard/amendments/`, `docs/v3/VISUAL-DESIGN.md`, `docs/v3/BACKLOG.md`, `docs/v3/backlog/`, `docs/v3/AUDIT.md`, `docs/v3/audit.jsonl`, `docs/v3/INDEX.md`, `CHANGELOG.md`
+**Scope files:** `docs/v3/visual/shell-scoreboard/amendments/`, `docs/v3/VISUAL-DESIGN.md`, `docs/v3/FEATURES.md`, `docs/v3/ARCHITECTURE.md`, `docs/v3/BACKLOG.md`, `docs/v3/backlog/`, `docs/v3/AUDIT.md`, `docs/v3/audit.jsonl`, `docs/v3/INDEX.md`, `CHANGELOG.md`
 
 **Work**
 
@@ -7900,17 +7900,19 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 
 - **2026-11-16, drafted with the story.** The draft's two open questions: whether the scoreboard (which polls every 15 seconds and opens no WebSocket) shows the marker, and whether a red "Live" at the foot is clear beside the game top bar's green "● LIVE" (the game is in progress).
 - **Already done in the change set that added this story:** ADR-014's "Freshness is visible" row and VISUAL-DESIGN D9 say the label is replaced by the Live marker, citing the draft (owner's words quoted). If the ratified amendment differs from the draft, this story updates D9 to match.
+- **Fence for the answers** (pre-PR review, 2026-11-16): FEATURES and ARCHITECTURE are in the fence so an answer that changes where the marker shows (A13's question 1: the polling scoreboard) updates the Live marker row and ADR-014's row in the same change.
+- **VISUAL-DESIGN's other mentions of the label:** "Meta (venue, date, fetched-at)" in the type table and "Quiet meta: date, window mode, last fetched (D9)" in the footer list still name it; S147 rewrites both to the ratified marker when it ratifies A13.
 
 **Reuse check** (ADR-025): before drawing, read the ratified `footer-meta` component, the game top bar's `live-indicator` (its green dot), A1's offline footer, and VISUAL-DESIGN's red and motion tokens; a design story writes no code; record what was reused, or why nothing fit, in the story's ledger notes.
 
 **Turn cap:** 8 — assumes one small component in two states, four frames, one owner session to answer the draft's questions and one to ratify; waiting on the owner parks the story rather than spending turns.
 
-**Goal condition:** scripts/verify-S147.sh exits 0, pnpm verify exits 0, no files outside docs/v3/visual/shell-scoreboard/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified, or stop after 8 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
+**Goal condition:** scripts/verify-S147.sh exits 0, pnpm verify exits 0, no files outside docs/v3/visual/shell-scoreboard/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/FEATURES.md, docs/v3/ARCHITECTURE.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified, or stop after 8 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
 
 **`/goal` command**
 
 ```text
-/goal docs/v3/BACKLOG.md S147. Work item 0 first: if scripts/verify-S147.sh is missing, write it per the Verify-script contract, run it against current HEAD, and show the nonzero exit before writing any product code. Then: scripts/verify-S147.sh exits 0, pnpm verify exits 0, no files outside docs/v3/visual/shell-scoreboard/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified except creating scripts/verify-S147.sh, or stop after 8 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
+/goal docs/v3/BACKLOG.md S147. Work item 0 first: if scripts/verify-S147.sh is missing, write it per the Verify-script contract, run it against current HEAD, and show the nonzero exit before writing any product code. Then: scripts/verify-S147.sh exits 0, pnpm verify exits 0, no files outside docs/v3/visual/shell-scoreboard/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/FEATURES.md, docs/v3/ARCHITECTURE.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified except creating scripts/verify-S147.sh, or stop after 8 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
 ```
 
 **Status:** `todo`
