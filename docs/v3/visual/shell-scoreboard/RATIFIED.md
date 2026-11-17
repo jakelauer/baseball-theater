@@ -4,13 +4,14 @@ Ratified by: Jake Lauer (product owner)
 Date: 2026-10-14
 Source version: 2026-10-14 — live Figma file as edited and exported in the S31–S34 design session (the Plugin API cannot save a named version; no named version was taken).
 Go-ahead: "Ok - I want to ratify all 4 designs"
+Re-sealed: 2026-11-16 — DESIGN.md and REVISIONS.md re-hashed after their Figma source link was pointed at the page that now holds this surface; no frame, decision or requirement changed. Owner, asked whether to update the stale links and re-hash: "If the links are stale, yes"
 
 The files below are sealed. Any change is a ratified amendment under `amendments/` (BACKLOG rule 18), never an edit.
 
 ## Manifest
 
-55db082935e05efc65ad7be13eb4e20804e501415c194ad71fe1b3ba16d56724  DESIGN.md
-48fdcdfd138cea4baddbece48b7d7e6cb51a12eef16f0a4fc532cc671a0e1ccd  REVISIONS.md
+3b76a0130b185b41d1f430873bc1de17a35d3cec29e98e80443c8fb42a8c77a9  DESIGN.md
+6382b2c5cde16111fe0a6d87a2ee8ea098ae3dd01454ab7d07b62a5e249daa49  REVISIONS.md
 32e756f104e11f87d5f31bf1dc5b98cc7a5acb7bddb037edd204e1b0009f6e21  scoreboard-collapsed-desktop.png
 5053f9126ae511297533f4716ca7fcc7c7d661847dc5fca79caebf9ef70ce31c  scoreboard-collapsed-medium.png
 7c5ae73bf7286469a2629f16973eb1eab2a19b256b66c23977518f7e1097561f  scoreboard-collapsed-mobile.png
