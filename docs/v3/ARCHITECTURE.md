@@ -1180,6 +1180,8 @@ Calls between objects retry on errors flagged `retryable`. Every deploy restarts
 
 **Why:** expected peak is hundreds of viewers per game, far inside one hub's capacity; the split keeps MLB polling independent of viewer fan-out; within Workers Paid included usage (~$0 extra).
 
+**Amended 2026-11-16 (owner): the scoreboard gets a live connection too.** Owner, told the scoreboard only re-fetched its day: *"the scoreboard should have a live connection"*; asked when it connects: *"While a game is live"* (only on a day with a game in its live window, the rule game pages use); asked whether through one socket per day or one per live game: *"One socket per day"*. So a third object, `day-hub:${date}`, holds the scoreboard's viewers for one date: each in-window game's ingest object, after writing Postgres, also publishes to its date's day hub (registered by the same lease as a game hub), and the day hub pushes that day's scoreboard over one hibernated, one-way WebSocket. Versioned and applied only if newer (ADR-022); recovery as for a game hub. S149 builds it.
+
 ### ADR-021 — Graduated cache freshness (accepted 2026-10-18)
 
 **Narrows** ADR-002's open "TTL / when refresh-on-read fires".
