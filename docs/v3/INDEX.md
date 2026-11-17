@@ -55,7 +55,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
 
 ## Product and architecture docs
 
-- [ARCHITECTURE.md — Baseball Theater v3 — Architecture](ARCHITECTURE.md) — 135 KB
+- [ARCHITECTURE.md — Baseball Theater v3 — Architecture](ARCHITECTURE.md) — 136 KB
   - `14–33` Architecture principles
   - `34–88` 1. Foundational data topology (accepted direction)
     - `40–48` Two modes
@@ -82,7 +82,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `439–480` Research notes (feasibility — 2026)
   - `481–496` Lessons from v2 (problems to solve or consciously accept)
   - `497–527` Target picture (partial)
-  - `528–1375` Major decision records
+  - `528–1377` Major decision records
     - `532–537` ADR-001 — Clean slate (accepted)
     - `538–556` ADR-002 — Data-access topology for schedule & game details (accepted)
     - `557–579` ADR-003 — Client delivery (accepted)
@@ -102,47 +102,47 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `1061–1097` ADR-017 — Platform: Cloudflare Workers + Neon Postgres (accepted 2026-10-18)
     - `1098–1124` ADR-018 — Storage: all BT data in Postgres (accepted 2026-10-18)
     - `1125–1144` ADR-019 — Identity: Logto behind identity ports (accepted 2026-10-18)
-    - `1145–1182` ADR-020 — Live delivery & cadence: Durable Objects (accepted 2026-10-18)
-    - `1183–1197` ADR-021 — Graduated cache freshness (accepted 2026-10-18)
-    - `1198–1220` ADR-022 — Idempotent updates (accepted 2026-10-18)
-    - `1221–1247` ADR-023 — Web client: SPA + installable PWA (accepted 2026-10-19)
-    - `1248–1259` ADR-024 — Client state: simple, direct, followable (accepted 2026-10-19)
-    - `1260–1276` ADR-025 — Code that stays understandable: comments and one implementation (accepted 2026-10-19)
-    - `1277–1306` ADR-026 — Performance budgets and test coverage (accepted 2026-10-19)
-    - `1307–1316` ADR-027 — Settings live on the account (accepted 2026-10-19)
-    - `1317–1358` ADR-028 — Personal data: one inventory, and deletion reaches all of it (accepted 2026-10-23)
-    - `1359–1375` ADR-029 — Highlight search asks MLB on every query, for now (accepted 2026-11-02)
-  - `1376–1446` 4. Impact curation pipeline
-    - `1381–1395` Mental model
-    - `1396–1402` Why not rank in the browser
-    - `1403–1416` Heuristic bootstrap (Phase A)
-    - `1417–1423` Model / agent layer (Phase B–D)
-    - `1424–1437` Storage sketch
-    - `1438–1446` Open design knobs
-  - `1447–1530` 5. Inning insight feed & game package
-    - `1452–1475` Pipeline
-    - `1476–1488` Insight item (sketch)
-    - `1489–1503` Game package (sketch)
-    - `1504–1509` Triggering vs polling
-    - `1510–1521` Cost intuition (Meter A)
-    - `1522–1530` Open design knobs
-  - `1531–1590` System contexts (to flesh out)
-    - `1533–1536` Clients
-    - `1537–1540` Application / API layer
-    - `1541–1558` Data ingestion & cache
-    - `1559–1567` Enrichment & AI
-    - `1568–1574` Identity, billing, entitlements
-    - `1575–1578` Media playback
-    - `1579–1582` Observability & ops
-    - `1583–1590` Security baseline
-  - `1591–1631` Repo & package shape
-  - `1632–1655` BT store shapes
-  - `1656–1708` 6. Developer experience, testing & delivery
-    - `1660–1670` Local development
-    - `1671–1681` Testing
-    - `1682–1689` Lint & commit hooks
-    - `1690–1708` GitHub Actions
-  - `1709–1721` Open architecture questions
+    - `1145–1184` ADR-020 — Live delivery & cadence: Durable Objects (accepted 2026-10-18)
+    - `1185–1199` ADR-021 — Graduated cache freshness (accepted 2026-10-18)
+    - `1200–1222` ADR-022 — Idempotent updates (accepted 2026-10-18)
+    - `1223–1249` ADR-023 — Web client: SPA + installable PWA (accepted 2026-10-19)
+    - `1250–1261` ADR-024 — Client state: simple, direct, followable (accepted 2026-10-19)
+    - `1262–1278` ADR-025 — Code that stays understandable: comments and one implementation (accepted 2026-10-19)
+    - `1279–1308` ADR-026 — Performance budgets and test coverage (accepted 2026-10-19)
+    - `1309–1318` ADR-027 — Settings live on the account (accepted 2026-10-19)
+    - `1319–1360` ADR-028 — Personal data: one inventory, and deletion reaches all of it (accepted 2026-10-23)
+    - `1361–1377` ADR-029 — Highlight search asks MLB on every query, for now (accepted 2026-11-02)
+  - `1378–1448` 4. Impact curation pipeline
+    - `1383–1397` Mental model
+    - `1398–1404` Why not rank in the browser
+    - `1405–1418` Heuristic bootstrap (Phase A)
+    - `1419–1425` Model / agent layer (Phase B–D)
+    - `1426–1439` Storage sketch
+    - `1440–1448` Open design knobs
+  - `1449–1532` 5. Inning insight feed & game package
+    - `1454–1477` Pipeline
+    - `1478–1490` Insight item (sketch)
+    - `1491–1505` Game package (sketch)
+    - `1506–1511` Triggering vs polling
+    - `1512–1523` Cost intuition (Meter A)
+    - `1524–1532` Open design knobs
+  - `1533–1592` System contexts (to flesh out)
+    - `1535–1538` Clients
+    - `1539–1542` Application / API layer
+    - `1543–1560` Data ingestion & cache
+    - `1561–1569` Enrichment & AI
+    - `1570–1576` Identity, billing, entitlements
+    - `1577–1580` Media playback
+    - `1581–1584` Observability & ops
+    - `1585–1592` Security baseline
+  - `1593–1633` Repo & package shape
+  - `1634–1657` BT store shapes
+  - `1658–1710` 6. Developer experience, testing & delivery
+    - `1662–1672` Local development
+    - `1673–1683` Testing
+    - `1684–1691` Lint & commit hooks
+    - `1692–1710` GitHub Actions
+  - `1711–1723` Open architecture questions
 - [CHATGPT-LOGO-BACKLOG.md — MLB Team Identifier Design Tracker](CHATGPT-LOGO-BACKLOG.md) — 25 KB
   - `3–22` Purpose
   - `23–35` Priority Order
@@ -509,7 +509,9 @@ Open stories, in order (`doing`, then `todo`, then `blocked`; by priority within
 | 82 | [S135](backlog/stories/todo/S135.md) Update notice and after-update pointer | `todo` | S131, S134, S81 | S133 |
 | 82 | [S148](backlog/stories/todo/S148.md) Live marker replaces "Fetched" | `todo` | S81 | S147 |
 | 83 | [S141](backlog/stories/todo/S141.md) Design: site footer | `todo` | — | — |
+| 83 | [S150](backlog/stories/todo/S150.md) One stored state per game | `todo` | — | — |
 | 84 | [S142](backlog/stories/todo/S142.md) Site footer of links | `todo` | S81 | S141 |
+| 84 | [S149](backlog/stories/todo/S149.md) Live scoreboard (day hub) | `todo` | S150 | — |
 | 89 | [S127](backlog/stories/todo/S127.md) Design: play link in Search's player | `todo` | — | — |
 | 90 | [S5](backlog/stories/todo/S5.md) Search page queries highlights fixture | `todo` | S70, S61, S68, S81 | S34, S56 |
 | 91 | [S72](backlog/stories/todo/S72.md) Search chips: date / team / tag | `todo` | S5, S69, S81 | S34 |
