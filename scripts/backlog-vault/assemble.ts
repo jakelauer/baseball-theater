@@ -10,7 +10,9 @@ import {
 import { parseLedger, storiesDoneSince } from "./ledger.ts";
 import type { SourceDocs } from "./source.ts";
 import { sourceProblems } from "./source.ts";
-import { renderNotes } from "./vault.ts";
+import {
+	renderNotes, STORY_NOTE_KEY, STORY_STATUSES,
+} from "./vault.ts";
 
 export class VaultAssembleError extends Error
 {
@@ -74,9 +76,10 @@ function readStoryNote(path: string, content: string): StoryNote
 		throw fail("frontmatter 'priority' must be an integer");
 	}
 	const status = text("status");
-	if (!/^[a-z]+$/.test(status))
+	// The status names the note's folder (vault.ts storyNotePath), so an unknown one is refused rather than made into a folder.
+	if (!STORY_STATUSES.includes(status))
 	{
-		throw fail(`frontmatter 'status' must be a lowercase word, got '${status}'`);
+		throw fail(`frontmatter 'status' must be one of ${STORY_STATUSES.join(", ")}, got '${status}'`);
 	}
 
 	const body = content.slice(match[0].length).replace(/^\n+/, "").replace(/\s+$/, "");
@@ -189,11 +192,20 @@ export function reviewDebtLine(audit: string): string
 export function assembleBacklog(files: Map<string, string>, audit?: string): string
 {
 	const stories = new Map<string, StoryNote>();
+	// Story notes sit in status folders (vault.ts storyNotePath), so two copies of one ID can
+	// coexist on disk (a note copied rather than moved); refuse rather than pick one.
+	const pathById = new Map<string, string>();
 	for (const [path, content] of files)
 	{
-		if (/^stories\/S\d+\.md$/.test(path))
+		if (STORY_NOTE_KEY.test(path))
 		{
 			const note = readStoryNote(path, content);
+			const other = pathById.get(note.id);
+			if (other !== undefined)
+			{
+				throw new VaultAssembleError(`two notes share the ID ${note.id}: ${other} and ${path} — keep one`);
+			}
+			pathById.set(note.id, path);
 			stories.set(note.id, note);
 		}
 	}

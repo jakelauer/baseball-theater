@@ -22,6 +22,8 @@
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=lib/story-notes.sh
+. scripts/lib/story-notes.sh
 
 LEDGER="${BT_AUDIT_LEDGER:-docs/v3/AUDIT.md}"
 STORIES="docs/v3/backlog/stories"
@@ -43,15 +45,8 @@ while IFS= read -r doc; do
   [ -n "$doc" ] && reasons+=("${doc} changed")
 done < <(git diff --name-only "$base" HEAD -- "${DOCS[@]}")
 
-while IFS=$'\t' read -r change path; do
-  [ -z "$path" ] && continue
-  id="$(basename "$path" .md)"
-  case "$change" in
-    A) reasons+=("${id} added") ;;
-    D) reasons+=("${id} removed") ;;
-  esac
-done < <(git diff --name-status --diff-filter=AD "$base" HEAD -- "$STORIES")
-
+# Notes are matched by story ID, not path (scripts/lib/story-notes.sh): a note moving to its new
+# status folder is neither an addition nor a removal, and an edit made with a move still counts.
 # A note's body is everything after its frontmatter; status/priority flips live in the frontmatter.
 body() { git show "$1:$2" 2>/dev/null | awk 'n >= 2 { print } /^---$/ { n++ }'; }
 # What a story is for: its **Gap:** and **Impact:** paragraphs and its **Acceptance criteria** list.
@@ -59,11 +54,14 @@ purpose() {
   awk '/^\*\*(Gap|Impact):\*\*/ { print; next }
     /^\*\*Acceptance criteria\*\*/ { on = 1; next } on && /^\*\*/ { on = 0 } on && NF { print }'
 }
-while IFS= read -r path; do
-  [ -z "$path" ] && continue
-  id="$(basename "$path" .md)"
-  before="$(body "$base" "$path")"
-  after="$(body HEAD "$path")"
+while IFS=$'\t' read -r change id before_path after_path; do
+  [ -z "$id" ] && continue
+  case "$change" in
+    A) reasons+=("${id} added"); continue ;;
+    D) reasons+=("${id} removed"); continue ;;
+  esac
+  before="$(body "$base" "$before_path")"
+  after="$(body HEAD "$after_path")"
   if [ "$(grep '^\*\*Source:\*\*' <<<"$before")" != "$(grep '^\*\*Source:\*\*' <<<"$after")" ]; then
     reasons+=("${id}'s **Source:** changed")
   fi
@@ -71,7 +69,7 @@ while IFS= read -r path; do
     [ "$(purpose <<<"$before")" != "$(purpose <<<"$after")" ]; then
     reasons+=("${id}'s Gap, Impact or acceptance criteria changed, and it cites a pillar")
   fi
-done < <(git diff --name-only --diff-filter=M "$base" HEAD -- "$STORIES")
+done < <(story_changes "$base" HEAD "$STORIES")
 
 # Stories completed since the newest parity entry, by ledger order (re-verifications don't count).
 done_since="$("${LEDGER_CLI[@]}" done-since parity)" || { echo "could not read ${LEDGER}" >&2; exit 2; }

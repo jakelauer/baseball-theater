@@ -30,6 +30,8 @@
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=lib/story-notes.sh
+. scripts/lib/story-notes.sh
 
 LEDGER="${BT_AUDIT_LEDGER:-docs/v3/AUDIT.md}"
 STORIES="docs/v3/backlog/stories"
@@ -104,24 +106,22 @@ if [ "$(git show "$base:package.json" 2>/dev/null | grep '"verify":')" != "$(git
   reasons+=("pnpm verify itself changed")
 fi
 
-while IFS=$'\t' read -r change path; do
-  [ -z "$path" ] && continue
-  id="$(basename "$path" .md)"
-  case "$change" in
-    A) reasons+=("${id} inserted outside a review") ;;
-    D) reasons+=("${id} removed outside a review") ;;
-  esac
-done < <(git diff --name-status --diff-filter=AD "$base" HEAD -- "$STORIES")
-
+# Notes are matched by story ID, not path (scripts/lib/story-notes.sh): a note moving to its new
+# status folder is neither an insertion nor a removal, and an edit made with a move still counts.
 # The numbered list (and its nested bullets) under **Acceptance criteria**.
 acs() { git show "$1:$2" 2>/dev/null | awk '/^\*\*Acceptance criteria\*\*/ { on = 1; next } on && /^\*\*/ { on = 0 } on && NF { print }'; }
 prio() { git show "$1:$2" 2>/dev/null | grep -m1 '^priority:'; }
-while IFS= read -r path; do
-  [ -z "$path" ] && continue
-  id="$(basename "$path" .md)"
-  [ "$(prio "$base" "$path")" != "$(prio HEAD "$path")" ] && reasons+=("${id} re-prioritized outside a review")
-  [ "$(acs "$base" "$path")" != "$(acs HEAD "$path")" ] && reasons+=("${id}'s acceptance criteria rewritten")
-done < <(git diff --name-only --diff-filter=M "$base" HEAD -- "$STORIES")
+while IFS=$'\t' read -r change id before after; do
+  [ -z "$id" ] && continue
+  case "$change" in
+    A) reasons+=("${id} inserted outside a review") ;;
+    D) reasons+=("${id} removed outside a review") ;;
+    M)
+      [ "$(prio "$base" "$before")" != "$(prio HEAD "$after")" ] && reasons+=("${id} re-prioritized outside a review")
+      [ "$(acs "$base" "$before")" != "$(acs HEAD "$after")" ] && reasons+=("${id}'s acceptance criteria rewritten")
+      ;;
+  esac
+done < <(story_changes "$base" HEAD "$STORIES")
 
 # Stories completed since the newest backlog review (`## … — backlog review (\`verdict\`)`; answers
 # and skip entries don't reset it), by ledger order (re-verifications don't count).

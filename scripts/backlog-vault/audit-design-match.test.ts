@@ -7,7 +7,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-	chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
+	chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -83,6 +83,16 @@ describe("audit.sh story --design-match (rule 22)", () =>
 		expect(run.status).toBe(2);
 		expect(String(run.stderr)).toMatch(/--design-match/);
 		expect(readFileSync(env.BT_AUDIT_LEDGER!, "utf8")).toBe(before);
+	});
+
+	it("finds the note in its status folder (stories/<status>/S<N>.md), not only flat", () =>
+	{
+		const env = world(true);
+		mkdirSync(join(env.BT_AUDIT_STORIES!, "doing"));
+		renameSync(join(env.BT_AUDIT_STORIES!, "S900.md"), join(env.BT_AUDIT_STORIES!, "doing/S900.md"));
+		const run = audit(env, []);
+		expect(run.status).toBe(2);
+		expect(String(run.stderr)).toMatch(/--design-match/);
 	});
 
 	it("records each frame and capture with their SHA-256 and quotes the owner", () =>
