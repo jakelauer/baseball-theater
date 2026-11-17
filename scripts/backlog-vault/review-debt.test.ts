@@ -70,6 +70,9 @@ function reviewed(files: Record<string, string> = {}): void
 		recursive: true,
 	});
 	copyFileSync(join(SCRIPTS, "review-debt.sh"), join(repo, "scripts/review-debt.sh"));
+	copyFileSync(join(SCRIPTS, "parity-debt.sh"), join(repo, "scripts/parity-debt.sh"));
+	mkdirSync(join(repo, "scripts/lib"));
+	copyFileSync(join(SCRIPTS, "lib/story-notes.sh"), join(repo, "scripts/lib/story-notes.sh"));
 	// Every module cli.ts may import; tests are left out.
 	for (const name of readdirSync(VAULT).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts")))
 	{
@@ -79,19 +82,19 @@ function reviewed(files: Record<string, string> = {}): void
 	symlinkSync(join(ROOT, "node_modules"), join(repo, "node_modules"));
 	write(".gitignore", "node_modules\n");
 	write("package.json", "{\"type\":\"module\",\"scripts\":{\"verify\":\"x\"}}\n");
-	write("docs/v3/AUDIT.md", `# Ledger\n\n${LEDGER_MARKER}\n\n## 2026-11-01 — backlog review (\`continue\`)\n`);
+	write("docs/v3/AUDIT.md", `# Ledger\n\n${LEDGER_MARKER}\n\n## 2026-11-01 — backlog review (\`continue\`)\n\n## 2026-11-01 — doc parity review (\`continue\`)\n`);
 	for (const [path, text] of Object.entries(files)) write(path, text);
 	commit("base: a backlog review");
 }
 
-function debt(): { status: number | null;
+function debt(script = "review-debt.sh"): { status: number | null;
 	stdout: string }
 {
 	const env = {
 		...process.env,
 	};
 	delete env.BT_AUDIT_LEDGER;
-	const run = spawnSync("bash", [join(repo, "scripts/review-debt.sh")], {
+	const run = spawnSync("bash", [join(repo, "scripts", script)], {
 		cwd: repo,
 		encoding: "utf8",
 		env,
@@ -258,5 +261,86 @@ describe("review-debt.sh: drafts and Source-link-only edits never make a design 
 		const run = debt();
 		expect(run.status, run.stdout).toBe(1);
 		expect(run.stdout).toContain("RATIFIED.md added or changed");
+	}, TIMEOUT);
+});
+
+/** A story note as `pnpm backlog:build` writes it, enough for the debt scripts' checks. */
+function note(status: string, { ac = "1. It works.", source = "Feature: Standings" } = {}): string
+{
+	return `---\nid: S7\npriority: 3\nstatus: ${status}\n---\n\n**Gap:** none.\n\n**Source:** ${source}\n\n**Acceptance criteria**\n\n${ac}\n\n**Turn cap:** 5\n`;
+}
+
+const STORIES = "docs/v3/backlog/stories";
+
+/** `git mv`, as `pnpm backlog:build` moves a note: into its status folder, made if missing. */
+function move(from: string, to: string): void
+{
+	mkdirSync(dirname(join(repo, to)), {
+		recursive: true,
+	});
+	git("mv", from, to);
+}
+
+/**
+ * Story notes sit in status folders and move when their status changes (owner, 2026-11-17: "I would
+ * like the backlog folder organization to put stories into folders by state"). Both debt scripts
+ * match notes by story ID, so a move alone is not a story added or removed, while an edit made with
+ * a move still counts, including from a base that still had the flat layout.
+ */
+describe.each(["review-debt.sh", "parity-debt.sh"])("%s: story notes moved between status folders", (script) =>
+{
+	const dueFor = script === "review-debt.sh" ? "S7's acceptance criteria rewritten" : "S7's **Source:** changed";
+	const edited = script === "review-debt.sh" ? note("done", {
+		ac: "1. It works twice.",
+	}) : note("done", {
+		source: "Feature: Scoreboard",
+	});
+
+	it("a pure status move (todo → done): not due", () =>
+	{
+		reviewed({
+			[`${STORIES}/todo/S7.md`]: note("todo"),
+		});
+		move(`${STORIES}/todo/S7.md`, `${STORIES}/done/S7.md`);
+		write(`${STORIES}/done/S7.md`, note("done"));
+		commit("S7 done");
+		const run = debt(script);
+		expect(run.status, run.stdout).toBe(0);
+		expect(run.stdout).toContain("not due");
+	}, TIMEOUT);
+
+	it("a move from the flat layout (base before status folders): not due", () =>
+	{
+		reviewed({
+			[`${STORIES}/S7.md`]: note("todo"),
+		});
+		move(`${STORIES}/S7.md`, `${STORIES}/todo/S7.md`);
+		commit("status folders");
+		const run = debt(script);
+		expect(run.status, run.stdout).toBe(0);
+	}, TIMEOUT);
+
+	it("a move with an edit is an edit, not an add or remove: due", () =>
+	{
+		reviewed({
+			[`${STORIES}/todo/S7.md`]: note("todo"),
+		});
+		move(`${STORIES}/todo/S7.md`, `${STORIES}/done/S7.md`);
+		write(`${STORIES}/done/S7.md`, edited);
+		commit("S7 done, rewritten");
+		const run = debt(script);
+		expect(run.status, run.stdout).toBe(1);
+		expect(run.stdout).toContain(dueFor);
+		expect(run.stdout).not.toMatch(/S7 (inserted|removed|added)/);
+	}, TIMEOUT);
+
+	it("a story really added: due", () =>
+	{
+		reviewed();
+		write(`${STORIES}/todo/S7.md`, note("todo"));
+		commit("S7 added");
+		const run = debt(script);
+		expect(run.status, run.stdout).toBe(1);
+		expect(run.stdout).toMatch(/S7 (inserted outside a review|added)/);
 	}, TIMEOUT);
 });

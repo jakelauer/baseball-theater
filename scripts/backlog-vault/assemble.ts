@@ -10,7 +10,7 @@ import {
 import { parseLedger, storiesDoneSince } from "./ledger.ts";
 import type { SourceDocs } from "./source.ts";
 import { sourceProblems } from "./source.ts";
-import { renderNotes } from "./vault.ts";
+import { renderNotes, STORY_NOTE_KEY } from "./vault.ts";
 
 export class VaultAssembleError extends Error
 {
@@ -189,11 +189,20 @@ export function reviewDebtLine(audit: string): string
 export function assembleBacklog(files: Map<string, string>, audit?: string): string
 {
 	const stories = new Map<string, StoryNote>();
+	// Story notes sit in status folders (vault.ts storyNotePath), so two copies of one ID can
+	// coexist on disk (a note copied rather than moved); refuse rather than pick one.
+	const pathById = new Map<string, string>();
 	for (const [path, content] of files)
 	{
-		if (/^stories\/S\d+\.md$/.test(path))
+		if (STORY_NOTE_KEY.test(path))
 		{
 			const note = readStoryNote(path, content);
+			const other = pathById.get(note.id);
+			if (other !== undefined)
+			{
+				throw new VaultAssembleError(`two notes share the ID ${note.id}: ${other} and ${path} — keep one`);
+			}
+			pathById.set(note.id, path);
 			stories.set(note.id, note);
 		}
 	}

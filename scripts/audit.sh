@@ -207,7 +207,10 @@ if [ "$MODE" = "story" ]; then
 
   # Rule 22: a UI story (a `design:` list in its note) is done only on the owner's
   # verdict on its captures. A story whose match AC says "none" is exempt.
-  NOTE="${STORIES_DIR}/${ID}.md"
+  # The note sits in its status folder (`stories/<status>/S<N>.md`, scripts/backlog-vault/vault.ts
+  # storyNotePath), which moves as the story is finished, so it is found by name; a flat
+  # `stories/S<N>.md` (the layout before 2026-11-17, and the tests' BT_AUDIT_STORIES) is found too.
+  NOTE="$(find "$STORIES_DIR" -maxdepth 2 -type f -name "${ID}.md" 2>/dev/null | sort | head -n 1)"
   needs_match=0
   if [ -f "$NOTE" ] && awk '/^---$/{n++;next} n==1' "$NOTE" | grep -qE '^design:$' &&
     ! grep -qF 'Design match (rule 22): none' "$NOTE"; then

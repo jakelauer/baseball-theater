@@ -43,14 +43,14 @@ describe("assembleBacklog", () =>
 
 	it("writes a status edit into both the table row and the section's Status line", () =>
 	{
-		const out = assembleBacklog(edit(notesFor(FIXTURE), "stories/S1.md", (c) => c.replace("status: done", "status: blocked")), AUDIT);
+		const out = assembleBacklog(edit(notesFor(FIXTURE), "stories/done/S1.md", (c) => c.replace("status: done", "status: blocked")), AUDIT);
 		expect(out).toContain("| 2 | [S1](#s1--domain-window-helpers-fully-tested-pilot) | Domain window helpers *(pilot)* | `blocked` |");
 		expect(out).toMatch(/stop after 8 turns\.\n\n\*\*Status:\*\* `blocked`/);
 	});
 
 	it("re-sorts the status table on a priority change", () =>
 	{
-		const out = assembleBacklog(edit(notesFor(FIXTURE), "stories/S9.md", (c) => c.replace("priority: 1\n", "priority: 3\n")), AUDIT);
+		const out = assembleBacklog(edit(notesFor(FIXTURE), "stories/todo/S9.md", (c) => c.replace("priority: 1\n", "priority: 3\n")), AUDIT);
 		expect(out.split("\n").filter((l) => /^\| \d+ \| \[S/.test(l)).map((r) => r.slice(0, 11))).toEqual(["| 2 | [S1](", "| 3 | [S9]("]);
 	});
 
@@ -58,21 +58,21 @@ describe("assembleBacklog", () =>
 	{
 		const files = notesFor(FIXTURE);
 		const missing = new Map(files);
-		missing.delete("stories/S9.md");
+		missing.delete("stories/todo/S9.md");
 		expect(() => assembleBacklog(missing, AUDIT)).toThrow(VaultAssembleError);
 		expect(() => assembleBacklog(missing, AUDIT)).toThrow(/embeds S9, which has no story note/);
 
 		const framePath = [...files.keys()].find((p) => (files.get(p) ?? "").includes("![[S9]]")) ?? "";
 		expect(() => assembleBacklog(edit(files, framePath, (c) => c.replace("![[S9]]\n", "")), AUDIT)).toThrow(/not embedded in any frame note: S9/);
 
-		expect(() => assembleBacklog(edit(files, "stories/S9.md", (c) => c.replace("id: S9", "id: S8")), AUDIT)).toThrow(/id 'S8' does not match the file name/);
+		expect(() => assembleBacklog(edit(files, "stories/todo/S9.md", (c) => c.replace("id: S9", "id: S8")), AUDIT)).toThrow(/id 'S8' does not match the file name/);
 	});
 
 	it("rejects a Status line or story heading written into a note body", () =>
 	{
 		const files = notesFor(FIXTURE);
-		expect(() => assembleBacklog(edit(files, "stories/S9.md", (c) => `${c}\n**Status:** \`todo\`\n`), AUDIT)).toThrow(/must not contain "\*\*Status:\*\* `todo`"/);
-		expect(() => assembleBacklog(edit(files, "stories/S9.md", (c) => `${c}\n### S9 — Again\n`), AUDIT)).toThrow(/must not contain "### S9 — Again"/);
+		expect(() => assembleBacklog(edit(files, "stories/todo/S9.md", (c) => `${c}\n**Status:** \`todo\`\n`), AUDIT)).toThrow(/must not contain "\*\*Status:\*\* `todo`"/);
+		expect(() => assembleBacklog(edit(files, "stories/todo/S9.md", (c) => `${c}\n### S9 — Again\n`), AUDIT)).toThrow(/must not contain "### S9 — Again"/);
 	});
 });
 
@@ -81,14 +81,41 @@ describe("buildFromNotes", () =>
 	it("accepts Obsidian-style frontmatter and normalizes it without changing BACKLOG.md", () =>
 	{
 		const files = notesFor(FIXTURE);
-		const obsidian = edit(files, "stories/S9.md", (c) => c
+		const obsidian = edit(files, "stories/todo/S9.md", (c) => c
 			.replace("depends_on:\n  - \"[[S1]]\"", "depends_on: [ '[[S1]]' ]")
 			.replace("title: Align `pnpm dev` with emulator story (document + smoke)", "title: 'Align `pnpm dev` with emulator story (document + smoke)'"));
-		expect(obsidian.get("stories/S9.md")).not.toBe(files.get("stories/S9.md"));
+		expect(obsidian.get("stories/todo/S9.md")).not.toBe(files.get("stories/todo/S9.md"));
 
 		const built = buildFromNotes(obsidian, AUDIT);
 		expect(built.backlog).toBe(FIXTURE);
-		expect(built.notes.get("stories/S9.md")).toBe(files.get("stories/S9.md"));
+		expect(built.notes.get("stories/todo/S9.md")).toBe(files.get("stories/todo/S9.md"));
+	});
+
+	it("puts each note in the folder its status names, moving a note whose status changed or that sits flat", () =>
+	{
+		const files = notesFor(FIXTURE);
+		expect([...files.keys()].filter((p) => p.startsWith("stories/")).sort()).toEqual(["stories/done/S1.md", "stories/todo/S9.md"]);
+
+		const flipped = edit(files, "stories/todo/S9.md", (c) => c.replace("status: todo", "status: done"));
+		const built = buildFromNotes(flipped, AUDIT);
+		expect(built.notes.has("stories/todo/S9.md")).toBe(false);
+		expect(built.notes.get("stories/done/S9.md")).toContain("status: done");
+
+		// The flat layout from before 2026-11-17 still reads, so build can move it.
+		const flat = new Map(files);
+		flat.delete("stories/todo/S9.md");
+		flat.set("stories/S9.md", files.get("stories/todo/S9.md") ?? "");
+		const fromFlat = buildFromNotes(flat, AUDIT);
+		expect(fromFlat.backlog).toBe(FIXTURE);
+		expect(fromFlat.notes.get("stories/todo/S9.md")).toBe(files.get("stories/todo/S9.md"));
+	});
+
+	it("rejects two notes that share an ID, naming both", () =>
+	{
+		const files = notesFor(FIXTURE);
+		const twice = new Map(files);
+		twice.set("stories/done/S9.md", files.get("stories/todo/S9.md") ?? "");
+		expect(() => buildFromNotes(twice, AUDIT)).toThrow(/two notes share the ID S9: stories\/todo\/S9\.md and stories\/done\/S9\.md/);
 	});
 
 	it("checks every story's Source line when given FEATURES.md and INTENT.md (rule 19)", () =>
@@ -97,21 +124,21 @@ describe("buildFromNotes", () =>
 			features: "## Carry / cut from v2\n\n| v2 capability | Verdict |\n|---|---|\n| Standings | **Carry** |\n",
 			intent: "## Pillars\n\n- **Dependable** — Fans can count on it.\n",
 		};
-		const withSource = (line: string) => edit(notesFor(FIXTURE), "stories/S9.md", (c) => c.replace("**Depends on:** S1", `**Depends on:** S1\n\n**Source:** ${line}`));
-		const s1 = (files: Map<string, string>) => edit(files, "stories/S1.md", (c) => c.replace("**Goal condition:**", "**Source:** Feature: Standings\n\n**Goal condition:**"));
+		const withSource = (line: string) => edit(notesFor(FIXTURE), "stories/todo/S9.md", (c) => c.replace("**Depends on:** S1", `**Depends on:** S1\n\n**Source:** ${line}`));
+		const s1 = (files: Map<string, string>) => edit(files, "stories/done/S1.md", (c) => c.replace("**Goal condition:**", "**Source:** Feature: Standings\n\n**Goal condition:**"));
 
 		expect(() => buildFromNotes(notesFor(FIXTURE), AUDIT, docs)).toThrow(/S1 has no \*\*Source:\*\* line/);
-		expect(buildFromNotes(s1(withSource("Feature: Standings")), AUDIT, docs).notes.get("stories/S9.md")).toContain("source: feature");
+		expect(buildFromNotes(s1(withSource("Feature: Standings")), AUDIT, docs).notes.get("stories/todo/S9.md")).toContain("source: feature");
 		expect(() => buildFromNotes(s1(withSource("Feature: Team pages")), AUDIT, docs)).toThrow(/cites "Team pages", which is not a feature/);
 		expect(() => buildFromNotes(s1(withSource("Pillar: Dependable — keeps games loading.")), AUDIT, docs)).toThrow(/without the owner's approval/);
-		expect(buildFromNotes(s1(withSource("Pillar: Dependable — keeps games loading. Approved by owner 2026-10-09: \"yes\"")), AUDIT, docs).notes.get("stories/S9.md"))
+		expect(buildFromNotes(s1(withSource("Pillar: Dependable — keeps games loading. Approved by owner 2026-10-09: \"yes\"")), AUDIT, docs).notes.get("stories/todo/S9.md"))
 			.toContain("source: pillar");
 	});
 
 	it("overwrites edits to derived fields from the body", () =>
 	{
-		const built = buildFromNotes(edit(notesFor(FIXTURE), "stories/S9.md", (c) => c.replace("turn_cap: 10", "turn_cap: 99")), AUDIT);
-		expect(built.notes.get("stories/S9.md")).toContain("turn_cap: 10");
+		const built = buildFromNotes(edit(notesFor(FIXTURE), "stories/todo/S9.md", (c) => c.replace("turn_cap: 10", "turn_cap: 99")), AUDIT);
+		expect(built.notes.get("stories/todo/S9.md")).toContain("turn_cap: 10");
 	});
 });
 
@@ -155,7 +182,7 @@ describe("generated lines", () =>
 
 	it("reads an open Source line from the notes into the Next line", () =>
 	{
-		const files = edit(notesFor(FIXTURE), "stories/S9.md", (c) => c.replace("**Depends on:** S1", "**Depends on:** S1\n\n**Source:** Open: why? Raised 2026-10-09."));
+		const files = edit(notesFor(FIXTURE), "stories/todo/S9.md", (c) => c.replace("**Depends on:** S1", "**Depends on:** S1\n\n**Source:** Open: why? Raised 2026-10-09."));
 		expect(assembleBacklog(files, AUDIT)).toContain("Skipped, waiting on the owner to say why (rule 19): S9.");
 	});
 
@@ -169,7 +196,7 @@ describe("generated lines", () =>
 
 	it("follows the notes: a status flip moves the Next line", () =>
 	{
-		const out = assembleBacklog(edit(notesFor(FIXTURE), "stories/S9.md", (c) => c.replace("status: todo", "status: doing")), AUDIT);
+		const out = assembleBacklog(edit(notesFor(FIXTURE), "stories/todo/S9.md", (c) => c.replace("status: todo", "status: doing")), AUDIT);
 		expect(out).toContain("**Next (generated):** **1 / S9** in progress (`doing`)");
 	});
 

@@ -53,7 +53,7 @@ pnpm lint
 
 Still run **`pnpm verify`** before marking a goal/story complete.
 
-When finishing a backlog story, also set `status: done` in its note `docs/v3/backlog/stories/<ID>.md` and run `pnpm backlog:build` (which regenerates `docs/v3/BACKLOG.md`), then commit the note and `BACKLOG.md` with the code. Verify alone is not enough if the backlog is stale — and `pnpm verify` itself runs `pnpm backlog:check`, so notes edited without a build fail it.
+When finishing a backlog story, also set `status: done` in its note `docs/v3/backlog/stories/<status>/<ID>.md` and run `pnpm backlog:build` (which regenerates `docs/v3/BACKLOG.md` and moves the note into `stories/done/`), then commit the note and `BACKLOG.md` with the code. Verify alone is not enough if the backlog is stale — and `pnpm verify` itself runs `pnpm backlog:check`, so notes edited without a build fail it.
 
 ## Capture the run (required to call a story done)
 

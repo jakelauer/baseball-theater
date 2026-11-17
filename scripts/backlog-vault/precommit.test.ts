@@ -36,7 +36,9 @@ function write(path: string, content: string)
 
 const read = (path: string) => readFileSync(join(repo, path), "utf8");
 const stagedFile = (path: string) => git("show", `:${path}`);
-const S9 = `${NOTES_DIR}/stories/S9.md`;
+const S9 = `${NOTES_DIR}/stories/todo/S9.md`;
+/** Where S9's note belongs once its status is `doing` (vault.ts storyNotePath). */
+const S9_DOING = `${NOTES_DIR}/stories/doing/S9.md`;
 
 beforeEach(() =>
 {
@@ -94,13 +96,17 @@ describe("runPrecommit", () =>
 		const result = runPrecommit(repo);
 
 		expect(result.ok).toBe(true);
-		// The docs index lists each story's status, so it moves with S9 too.
-		expect(result.restaged).toEqual([BACKLOG, DOC_INDEX]);
-		expect(stagedFile(DOC_INDEX)).toContain("[S9](backlog/stories/S9.md) Align `pnpm dev` | `doing` |");
+		// The new status moves S9's note into stories/doing/; the docs index lists each story's status, so it moves with S9 too.
+		expect(result.restaged).toEqual([S9, S9_DOING, BACKLOG, DOC_INDEX]);
+		expect(git("ls-files", "--", S9)).toBe("");
+		expect(stagedFile(S9_DOING)).toContain("status: doing");
+		expect(stagedFile(S9_DOING)).not.toContain("UNSTAGED");
+		expect(stagedFile(DOC_INDEX)).toContain("[S9](backlog/stories/doing/S9.md) Align `pnpm dev` | `doing` |");
 		expect(stagedFile(DOC_INDEX)).not.toContain("UNSTAGED");
 		expect(stagedFile(BACKLOG)).toContain("| 1 | [S9](#s9--align-pnpm-dev-with-emulator-story-document--smoke) | Align `pnpm dev` | `doing` |");
 		expect(stagedFile(BACKLOG)).not.toContain("UNSTAGED");
 		expect(read(framePath)).toContain("UNSTAGED FRAME EDIT");
+		// The old copy on disk carries an unstaged edit, so it is left for its author rather than deleted.
 		expect(read(S9)).toContain("UNSTAGED");
 		// BACKLOG.md on disk still matched the old staged copy, so it is updated too.
 		expect(read(BACKLOG)).toBe(stagedFile(BACKLOG));
@@ -117,7 +123,7 @@ describe("runPrecommit", () =>
 			ok: true,
 			restaged: [S9],
 		});
-		expect(stagedFile(S9)).toBe(notesFor(FIXTURE).get("stories/S9.md"));
+		expect(stagedFile(S9)).toBe(notesFor(FIXTURE).get("stories/todo/S9.md"));
 		expect(read(S9)).toBe(stagedFile(S9));
 	});
 

@@ -9,12 +9,13 @@
 
 import { execFileSync } from "node:child_process";
 import {
-	readFileSync, rmSync, writeFileSync,
+	mkdirSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { buildFromNotes } from "./assemble.ts";
 import { docIndexFor, isIndexedDoc } from "./doc-index.ts";
 import { parseLedger, renderLedgerIndex } from "./ledger.ts";
+import { isNoteKey } from "./vault.ts";
 
 export const NOTES_DIR = "docs/v3/backlog";
 export const BACKLOG = "docs/v3/BACKLOG.md";
@@ -94,6 +95,10 @@ function restage(repo: string, path: string, before: string | undefined, content
 	git(repo, ["update-index", "--add", "--cacheinfo", `100644,${blob},${path}`]);
 	if (onDisk === before)
 	{
+		// A story note moved by its status may land in a folder that doesn't exist yet (vault.ts storyNotePath).
+		mkdirSync(dirname(join(repo, path)), {
+			recursive: true,
+		});
 		writeFileSync(join(repo, path), content);
 	}
 }
@@ -115,7 +120,7 @@ export function runPrecommit(repo: string): PrecommitResult
 	{
 		const key = path.slice(NOTES_DIR.length + 1);
 		const content = staged(repo, path);
-		if (/^(stories|frame)\/[^/]+\.md$/.test(key) && content !== undefined)
+		if (isNoteKey(key) && content !== undefined)
 		{
 			notes.set(key, content);
 		}
