@@ -417,6 +417,10 @@
 						"items": { "$ref": "#/components/schemas/RelatedArticle" },
 						"type": "array"
 					},
+					"startTime": {
+						"description": "First pitch as an ISO instant, from the live feed's `gameData.datetime.dateTime`. The active window is measured from it (`isGameInActiveWindow`, #71); absent on snapshots stored before it existed, which fall back to a mid-afternoon assumption.",
+						"type": "string"
+					},
 					"status": {
 						"additionalProperties": false,
 						"properties": {

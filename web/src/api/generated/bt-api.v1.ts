@@ -426,6 +426,8 @@ export interface components {
             recap?: components["schemas"]["GameRecap"];
             /** @description mlb.com stories about the game (S94); absent, like `videoPlayRefs`, when the source failed or had none. */
             relatedArticles?: components["schemas"]["RelatedArticle"][];
+            /** @description First pitch as an ISO instant, from the live feed's `gameData.datetime.dateTime`. The active window is measured from it (`isGameInActiveWindow`, #71); absent on snapshots stored before it existed, which fall back to a mid-afternoon assumption. */
+            startTime?: string;
             status: {
                 abstractGameState: string;
                 codedGameState: components["schemas"]["GameStatusCode"] | string;

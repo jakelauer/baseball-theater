@@ -16,10 +16,13 @@ export const DEFAULT_ROOM: Room = "videos";
  * MLB's `codedGameState` mapped to a BT phase — the one answer to "is this game
  * live?" (ADR-025). Built on the same status sets the ingest window uses
  * (`isLiveStatus` / `isFinalStatus`), so the room tabs and the poller can never
- * disagree. Only an in-progress game (`I`) is live: warm-up (`P`) and delays
- * (`D`) show no Live room (owner, 2026-10-19), and a cancelled game (`C`)
- * counts as final. Unknown codes are pre-game. Ingest keeps polling delays
- * separately (`isGameInActiveWindow`).
+ * disagree. Only an in-progress game (`I`) is live, and MLB codes a delay `I`
+ * too, so a delayed game shows Live. Warm-up (`P`) and a postponed game (`D`,
+ * #72) show no Live room, and a cancelled game (`C`) counts as final. Unknown
+ * codes are pre-game. The owner's 2026-10-19 "Delay should not show the live tab"
+ * was about postponed games (`D`), which stay pregame and out of the window; delays
+ * (`I`) show Live (owner, 2026-11-17: "Yes, a rain delay should show the live tab.
+ * I think my response was intended to be about games that were postponed due to rain.").
  */
 export function gamePhase(codedGameState: string): GamePhase
 {
