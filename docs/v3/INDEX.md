@@ -55,7 +55,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
 
 ## Product and architecture docs
 
-- [ARCHITECTURE.md — Baseball Theater v3 — Architecture](ARCHITECTURE.md) — 134 KB
+- [ARCHITECTURE.md — Baseball Theater v3 — Architecture](ARCHITECTURE.md) — 135 KB
   - `14–33` Architecture principles
   - `34–88` 1. Foundational data topology (accepted direction)
     - `40–48` Two modes
@@ -377,19 +377,19 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `2167–2170` System Consistency
   - `2171–2174` Originality
   - `2175–2221` Small-Size Test
-- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 61 KB
+- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 62 KB
   - `12–19` North star
   - `20–34` Principles (product)
   - `35–46` Scope legend
   - `47–81` Carry / cut from v2 (working table)
     - `76–81` Dropped (summary)
-  - `82–259` New product themes
-    - `106–259` Theme detail
-  - `260–276` Build checklist (working — not a “feel” gate)
-  - `277–305` Patronage & access (product-level)
-    - `289–305` Tiers (carry from v2)
-  - `306–316` Success signals
-  - `317–324` Open product questions
+  - `82–260` New product themes
+    - `107–260` Theme detail
+  - `261–277` Build checklist (working — not a “feel” gate)
+  - `278–306` Patronage & access (product-level)
+    - `290–306` Tiers (carry from v2)
+  - `307–317` Success signals
+  - `318–325` Open product questions
 - [FIGMA-EXPLORATION.md — FIGMA-EXPLORATION.md](FIGMA-EXPLORATION.md) — 19 KB
   - `161–164` Verdict
   - `165–167` Fails
@@ -444,7 +444,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `97–109` Checkpoint — go / no-go for V3
     - `110–159` V3 — Story files become the source
     - `160–162` V4 — *(optional)* Slim `BACKLOG.md`
-- [VISUAL-DESIGN.md — Baseball Theater v3 — Visual Design](VISUAL-DESIGN.md) — 48 KB
+- [VISUAL-DESIGN.md — Baseball Theater v3 — Visual Design](VISUAL-DESIGN.md) — 49 KB
   - `16–29` North star (visual)
   - `30–75` 1. Design goals
     - `50–60` Hard bans
@@ -505,7 +505,9 @@ Open stories, in order (`doing`, then `todo`, then `blocked`; by priority within
 | 77 | [S138](backlog/stories/S138.md) Standings date picker | `todo` | S125, S130, S81 | S137 |
 | 79 | [S132](backlog/stories/S132.md) Release notes API | `todo` | S131 | — |
 | 81 | [S134](backlog/stories/S134.md) Change log page | `todo` | S132, S81 | S133 |
+| 81 | [S147](backlog/stories/S147.md) Design: Live marker | `todo` | — | — |
 | 82 | [S135](backlog/stories/S135.md) Update notice and after-update pointer | `todo` | S131, S134, S81 | S133 |
+| 82 | [S148](backlog/stories/S148.md) Live marker replaces "Fetched" | `todo` | S81 | S147 |
 | 83 | [S141](backlog/stories/S141.md) Design: site footer | `todo` | — | — |
 | 84 | [S142](backlog/stories/S142.md) Site footer of links | `todo` | S81 | S141 |
 | 89 | [S127](backlog/stories/S127.md) Design: play link in Search's player | `todo` | — | — |
