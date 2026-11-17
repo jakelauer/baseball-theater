@@ -3,6 +3,8 @@
  * draft design never makes one due (owner, 2026-11-10: "So I would just avoid doing any design
  * reviews on draft designs.") is enforced only there, so these cases keep `pnpm verify` red if
  * its draft filter is deleted, inverted, matches too broadly, or misjudges a deleted amendment.
+ * An amendment edit that only changes the URL on its `Source:` line doesn't make one due either
+ * (owner, 2026-11-16: "Yes"); the cases below also break if that exemption grows past the URL.
  * Runs the real script in a throwaway git repository.
  */
 import { spawnSync } from "node:child_process";
@@ -113,7 +115,7 @@ afterEach(() =>
 	});
 });
 
-describe("review-debt.sh: drafts never make a design intake due", () =>
+describe("review-debt.sh: drafts and Source-link-only edits never make a design intake due", () =>
 {
 	it("a draft amendment added after the review: not due", () =>
 	{
@@ -209,6 +211,40 @@ describe("review-debt.sh: drafts never make a design intake due", () =>
 		});
 		write(AMENDMENT, `${RATIFIED}\nSource: https://www.figma.com/design/f?node-id=1-2\nThe bar is gold.\n`);
 		commit("link and a rule");
+		const run = debt();
+		expect(run.status, run.stdout).toBe(1);
+		expect(run.stdout).toContain("A2.md added or changed");
+	}, TIMEOUT);
+
+	it("a ratified amendment whose Source: line names a different frame: intake due", () =>
+	{
+		reviewed({
+			[AMENDMENT]: `${RATIFIED}\nSource: https://www.figma.com/design/f — frames \`a-mobile\` and \`a-desktop\`\n`,
+		});
+		write(AMENDMENT, `${RATIFIED}\nSource: https://www.figma.com/design/f — frames \`a-mobile\`, \`a-medium\` and \`a-desktop\`\n`);
+		commit("another frame");
+		const run = debt();
+		expect(run.status, run.stdout).toBe(1);
+		expect(run.stdout).toContain("A2.md added or changed");
+	}, TIMEOUT);
+
+	it("a ratified amendment whose Source: link changes and a line starting \"-- \" goes: intake due", () =>
+	{
+		reviewed({
+			[AMENDMENT]: `${RATIFIED}\nSource: https://www.figma.com/design/f\n-- the bar is gold\n`,
+		});
+		write(AMENDMENT, `${RATIFIED}\nSource: https://www.figma.com/design/f?node-id=1-2\n`);
+		commit("link and a dash line");
+		const run = debt();
+		expect(run.status, run.stdout).toBe(1);
+		expect(run.stdout).toContain("A2.md added or changed");
+	}, TIMEOUT);
+
+	it("a ratified amendment added holding only a Source: line: intake due", () =>
+	{
+		reviewed();
+		write(AMENDMENT, "Source: https://www.figma.com/design/f\n");
+		commit("source only, new");
 		const run = debt();
 		expect(run.status, run.stdout).toBe(1);
 		expect(run.stdout).toContain("A2.md added or changed");
