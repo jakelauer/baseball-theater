@@ -197,13 +197,19 @@ async function writeNotes(current: Map<string, string>, wanted: Map<string, stri
 	{
 		await writeFile(join(dir, "Backlog.base"), BACKLOG_BASE);
 	}
-	// A status folder emptied by a move goes too, so Obsidian's file tree shows only live ones (rmdir refuses a non-empty one).
+	// A status folder emptied by a move goes too, so Obsidian's file tree shows only live ones. One holding
+	// nothing but macOS Finder's .DS_Store counts as empty; anything else keeps it (rmdir refuses a non-empty one).
 	const folders = await readdir(join(dir, "stories"), {
 		withFileTypes: true,
 	}).catch(() => []);
 	for (const folder of folders.filter((entry) => entry.isDirectory()))
 	{
-		await rmdir(join(dir, "stories", folder.name)).catch(() => undefined);
+		const path = join(dir, "stories", folder.name);
+		if ((await readdir(path).catch(() => [] as string[])).join() === ".DS_Store")
+		{
+			await rm(join(path, ".DS_Store"));
+		}
+		await rmdir(path).catch(() => undefined);
 	}
 }
 

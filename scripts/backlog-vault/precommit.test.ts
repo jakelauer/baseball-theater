@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
-	mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
+	existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -10,7 +10,9 @@ import {
 import {
 	AUDIT, FIXTURE, notesFor,
 } from "./fixture.ts";
+import { buildFromNotes } from "./assemble.ts";
 import { docIndexFor } from "./doc-index.ts";
+import { isNoteKey } from "./vault.ts";
 import { parseLedger, renderLedgerIndex } from "./ledger.ts";
 import {
 	AUDIT as AUDIT_PATH, AUDIT_INDEX, BACKLOG, DOC_INDEX, NOTES_DIR, runPrecommit,
@@ -39,6 +41,26 @@ const stagedFile = (path: string) => git("show", `:${path}`);
 const S9 = `${NOTES_DIR}/stories/todo/S9.md`;
 /** Where S9's note belongs once its status is `doing` (vault.ts storyNotePath). */
 const S9_DOING = `${NOTES_DIR}/stories/doing/S9.md`;
+
+/** The story and frame notes in the working tree, keyed as the build keys them, as `pnpm backlog:build` reads them. */
+function workingNotes(): Map<string, string>
+{
+	const notes = new Map<string, string>();
+	for (const sub of ["stories", "frame"])
+	{
+		for (const name of readdirSync(join(repo, NOTES_DIR, sub), {
+			recursive: true,
+		}) as string[])
+		{
+			const key = `${sub}/${name}`;
+			if (isNoteKey(key))
+			{
+				notes.set(key, read(`${NOTES_DIR}/${key}`));
+			}
+		}
+	}
+	return notes;
+}
 
 beforeEach(() =>
 {
@@ -106,10 +128,43 @@ describe("runPrecommit", () =>
 		expect(stagedFile(BACKLOG)).toContain("| 1 | [S9](#s9--align-pnpm-dev-with-emulator-story-document--smoke) | Align `pnpm dev` | `doing` |");
 		expect(stagedFile(BACKLOG)).not.toContain("UNSTAGED");
 		expect(read(framePath)).toContain("UNSTAGED FRAME EDIT");
-		// The old copy on disk carries an unstaged edit, so it is left for its author rather than deleted.
-		expect(read(S9)).toContain("UNSTAGED");
+		// The working copy carries an unstaged edit, so it moves with the note rather than staying behind as a second S9.
+		expect(existsSync(join(repo, S9))).toBe(false);
+		expect(existsSync(join(repo, dirname(S9)))).toBe(false);
+		expect(read(S9_DOING)).toContain("UNSTAGED");
+		expect(read(S9_DOING)).toContain("status: doing");
+		expect(git("diff", "--name-status", "--", `${NOTES_DIR}/stories`).trim()).toBe(`M\t${S9_DOING}`);
+		// So the working tree still builds: one note per ID, each in its status folder.
+		const built = buildFromNotes(workingNotes(), AUDIT);
+		expect([...built.notes.keys()].filter((k) => k.startsWith("stories/")).sort()).toEqual(["stories/doing/S9.md", "stories/done/S1.md"]);
 		// BACKLOG.md on disk still matched the old staged copy, so it is updated too.
 		expect(read(BACKLOG)).toBe(stagedFile(BACKLOG));
+	});
+
+	it("moves a note whose staged status changed and removes the emptied folder", () =>
+	{
+		write(S9, read(S9).replace("status: todo", "status: doing"));
+		git("add", S9);
+
+		expect(runPrecommit(repo).ok).toBe(true);
+
+		expect(existsSync(join(repo, S9))).toBe(false);
+		expect(existsSync(join(repo, dirname(S9)))).toBe(false);
+		expect(read(S9_DOING)).toBe(stagedFile(S9_DOING));
+		expect(git("diff", "--name-status", "--", `${NOTES_DIR}/stories`).trim()).toBe("");
+		expect(() => buildFromNotes(workingNotes(), AUDIT)).not.toThrow();
+	});
+
+	it("refuses two staged notes with one ID, saying how to stage a move", () =>
+	{
+		write(S9_DOING, read(S9).replace("status: todo", "status: doing"));
+		git("add", S9_DOING);
+
+		const result = runPrecommit(repo);
+
+		expect(result.ok).toBe(false);
+		expect(result.message).toMatch(/two notes share the ID S9/);
+		expect(result.message).toContain("git add -A docs/v3/backlog/stories");
 	});
 
 	it("normalizes an Obsidian-style staged note in the index and on disk", () =>

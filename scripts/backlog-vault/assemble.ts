@@ -10,7 +10,9 @@ import {
 import { parseLedger, storiesDoneSince } from "./ledger.ts";
 import type { SourceDocs } from "./source.ts";
 import { sourceProblems } from "./source.ts";
-import { renderNotes, STORY_NOTE_KEY } from "./vault.ts";
+import {
+	renderNotes, STORY_NOTE_KEY, STORY_STATUSES,
+} from "./vault.ts";
 
 export class VaultAssembleError extends Error
 {
@@ -74,9 +76,10 @@ function readStoryNote(path: string, content: string): StoryNote
 		throw fail("frontmatter 'priority' must be an integer");
 	}
 	const status = text("status");
-	if (!/^[a-z]+$/.test(status))
+	// The status names the note's folder (vault.ts storyNotePath), so an unknown one is refused rather than made into a folder.
+	if (!STORY_STATUSES.includes(status))
 	{
-		throw fail(`frontmatter 'status' must be a lowercase word, got '${status}'`);
+		throw fail(`frontmatter 'status' must be one of ${STORY_STATUSES.join(", ")}, got '${status}'`);
 	}
 
 	const body = content.slice(match[0].length).replace(/^\n+/, "").replace(/\s+$/, "");

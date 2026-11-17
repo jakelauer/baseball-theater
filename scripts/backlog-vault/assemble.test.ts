@@ -110,6 +110,12 @@ describe("buildFromNotes", () =>
 		expect(fromFlat.notes.get("stories/todo/S9.md")).toBe(files.get("stories/todo/S9.md"));
 	});
 
+	it("rejects a status outside the known set, rather than making a folder for it", () =>
+	{
+		const typo = edit(notesFor(FIXTURE), "stories/todo/S9.md", (c) => c.replace("status: todo", "status: dnoe"));
+		expect(() => buildFromNotes(typo, AUDIT)).toThrow(/'status' must be one of todo, doing, blocked, done, superseded, got 'dnoe'/);
+	});
+
 	it("rejects two notes that share an ID, naming both", () =>
 	{
 		const files = notesFor(FIXTURE);

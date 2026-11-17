@@ -9,13 +9,13 @@
 
 import { execFileSync } from "node:child_process";
 import {
-	mkdirSync, readFileSync, rmSync, writeFileSync,
+	mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { buildFromNotes } from "./assemble.ts";
 import { docIndexFor, isIndexedDoc } from "./doc-index.ts";
 import { parseLedger, renderLedgerIndex } from "./ledger.ts";
-import { isNoteKey } from "./vault.ts";
+import { isNoteKey, STORY_NOTE_KEY } from "./vault.ts";
 
 export const NOTES_DIR = "docs/v3/backlog";
 export const BACKLOG = "docs/v3/BACKLOG.md";
@@ -78,6 +78,55 @@ function working(repo: string, path: string): string | undefined
 	}
 }
 
+/** A status folder emptied by a move goes too; a folder still holding anything stays (rmdir refuses it). */
+function removeFolderIfEmpty(repo: string, path: string)
+{
+	try
+	{
+		rmdirSync(dirname(join(repo, path)));
+	}
+	catch
+	{
+		// Not empty, or already gone.
+	}
+}
+
+/**
+ * A story note whose staged status moved it (`stories/todo/S5.md` → `stories/doing/S5.md`) but whose
+ * working copy also holds unstaged edits: rename the working file to the new path, so the edits stay
+ * on the one note (a modification of the new path) instead of leaving a second copy of the ID behind
+ * at the old path, which every later build would refuse. A working copy equal to the staged one is
+ * left to `restage`, which removes it and writes the built note at the new path.
+ */
+function moveEditedNotes(repo: string, notes: Map<string, string>, built: Map<string, string>)
+{
+	const newKeyById = new Map<string, string>();
+	for (const key of built.keys())
+	{
+		const id = STORY_NOTE_KEY.exec(key)?.[2];
+		if (id !== undefined && !notes.has(key))
+		{
+			newKeyById.set(id, key);
+		}
+	}
+	for (const [key, before] of notes)
+	{
+		const id = STORY_NOTE_KEY.exec(key)?.[2];
+		const to = id === undefined || built.has(key) ? undefined : newKeyById.get(id);
+		const from = `${NOTES_DIR}/${key}`;
+		const onDisk = working(repo, from);
+		if (to === undefined || onDisk === undefined || onDisk === before || working(repo, `${NOTES_DIR}/${to}`) !== undefined)
+		{
+			continue;
+		}
+		mkdirSync(dirname(join(repo, NOTES_DIR, to)), {
+			recursive: true,
+		});
+		renameSync(join(repo, from), join(repo, NOTES_DIR, to));
+		removeFolderIfEmpty(repo, from);
+	}
+}
+
 /** Stage `content` at `path` (or remove it when undefined); mirror to disk only if disk still equals the old staged copy. */
 function restage(repo: string, path: string, before: string | undefined, content: string | undefined)
 {
@@ -88,6 +137,7 @@ function restage(repo: string, path: string, before: string | undefined, content
 		if (onDisk !== undefined && onDisk === before)
 		{
 			rmSync(join(repo, path));
+			removeFolderIfEmpty(repo, path);
 		}
 		return;
 	}
@@ -144,9 +194,12 @@ export function runPrecommit(repo: string): PrecommitResult
 	}
 	catch (error)
 	{
+		const why = (error as Error).message;
+		// Usually a note moved on disk with only one side of the move staged (the new path, not the old one's removal).
+		const hint = why.includes("two notes share the ID") ? " (if you moved a note, stage both sides of the move: git add -A docs/v3/backlog/stories)" : "";
 		return {
 			ok: false,
-			message: `the staged backlog notes do not build: ${(error as Error).message}`,
+			message: `the staged backlog notes do not build: ${why}${hint}`,
 			restaged: [],
 		};
 	}
@@ -164,6 +217,7 @@ export function runPrecommit(repo: string): PrecommitResult
 		};
 	}
 
+	moveEditedNotes(repo, notes, built.notes);
 	const restaged: string[] = [];
 	for (const key of new Set([...notes.keys(), ...built.notes.keys()]))
 	{

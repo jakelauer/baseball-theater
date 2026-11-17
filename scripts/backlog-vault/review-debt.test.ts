@@ -334,6 +334,57 @@ describe.each(["review-debt.sh", "parity-debt.sh"])("%s: story notes moved betwe
 		expect(run.stdout).not.toMatch(/S7 (inserted|removed|added)/);
 	}, TIMEOUT);
 
+	it("a story really removed: due", () =>
+	{
+		reviewed({
+			[`${STORIES}/todo/S7.md`]: note("todo"),
+		});
+		git("rm", "-q", `${STORIES}/todo/S7.md`);
+		commit("S7 dropped");
+		const run = debt(script);
+		expect(run.status, run.stdout).toBe(1);
+		expect(run.stdout).toMatch(/S7 (removed outside a review|removed)/);
+	}, TIMEOUT);
+
+	it("a priority change made with a move: a re-prioritization for the backlog review, nothing for parity", () =>
+	{
+		reviewed({
+			[`${STORIES}/todo/S7.md`]: note("todo"),
+		});
+		move(`${STORIES}/todo/S7.md`, `${STORIES}/blocked/S7.md`);
+		write(`${STORIES}/blocked/S7.md`, note("blocked").replace("priority: 3", "priority: 9"));
+		commit("S7 blocked and moved down");
+		const run = debt(script);
+		if (script === "review-debt.sh")
+		{
+			expect(run.status, run.stdout).toBe(1);
+			expect(run.stdout).toContain("S7 re-prioritized outside a review");
+		}
+		else
+		{
+			expect(run.status, run.stdout).toBe(0);
+		}
+		expect(run.stdout).not.toMatch(/S7 (inserted|removed|added)/);
+	}, TIMEOUT);
+
+	it("an ID whose note sits in another folder with different text: compared as one story, edited", () =>
+	{
+		reviewed({
+			[`${STORIES}/done/S7.md`]: note("done"),
+		});
+		git("rm", "-q", `${STORIES}/done/S7.md`);
+		write(`${STORIES}/todo/S7.md`, script === "review-debt.sh" ? note("todo", {
+			ac: "1. Something else entirely.",
+		}) : note("todo", {
+			source: "Feature: Scoreboard",
+		}));
+		commit("S7 reopened as different work");
+		const run = debt(script);
+		expect(run.status, run.stdout).toBe(1);
+		expect(run.stdout).toContain(dueFor);
+		expect(run.stdout).not.toMatch(/S7 (inserted|removed|added)/);
+	}, TIMEOUT);
+
 	it("a story really added: due", () =>
 	{
 		reviewed();

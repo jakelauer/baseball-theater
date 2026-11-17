@@ -60,6 +60,12 @@ export function renderStory(story: Story): string
  * folders by state if possible (and if obsidian won't break). the flat list is getting huge.").
  * The frontmatter stays the source of truth; `pnpm backlog:build` moves the note to match it.
  */
+/**
+ * Every status a story may have, so each names a folder. The build refuses any other value
+ * (assemble.ts readStoryNote), so a typo like `dnoe` fails instead of making a folder.
+ */
+export const STORY_STATUSES: readonly string[] = ["todo", "doing", "blocked", "done", "superseded"];
+
 export function storyNotePath(id: string, status: string): string
 {
 	return `stories/${status}/${id}.md`;
@@ -80,8 +86,8 @@ export function isNoteKey(key: string): boolean
 
 /**
  * Obsidian Bases views over the story notes. Written once if missing; yours to edit after.
- * Paths are relative to the vault root, docs/v3. The filter matches on the path rather than
- * `file.inFolder`, so notes in every status subfolder are included.
+ * Paths are relative to the vault root, docs/v3. The filter is a path prefix, which covers every
+ * status folder under backlog/stories/ whether or not `file.inFolder` would include subfolders.
  */
 export const BACKLOG_BASE = `filters:
   and:
