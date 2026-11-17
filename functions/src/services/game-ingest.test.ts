@@ -160,6 +160,22 @@ describe("GameIngest", () =>
 		expect(published).toHaveLength(1);
 	});
 
+	it("a postponed game (`D`) stops its ingest on the next poll, whatever the clock (#72)", async () =>
+	{
+		const { ingest, storage } = setup((game) => ({
+			...game,
+			status: {
+				abstractGameState: "Final",
+				detailedState: "Postponed: Rain",
+				codedGameState: "D",
+			},
+		}));
+		await ingest.ensureRunning(745001, T0);
+		await ingest.alarm(T0);
+		expect(storage.alarmAt).toBeNull();
+		expect(storage.armed).toEqual([T0.getTime()]);
+	});
+
 	it("a failed MLB call writes nothing and keeps the cadence", async () =>
 	{
 		const {
@@ -188,6 +204,66 @@ describe("ensureIngestRunning", () =>
 		expect(await deps.schedules.getByDate("2024-07-04")).not.toBeNull();
 		ensure.mockRejectedValueOnce(new Error("object busy"));
 		expect(await ensureIngestRunning(deps, ensure, now)).toEqual(inWindow.slice(1));
+	});
+});
+
+describe("ensureIngestRunning reads MLB's dates, not the UTC date (#73)", () =>
+{
+	// The recorded 2026-09-05 slate runs to a 01:40Z (6:40 PM PDT) first pitch, on the next UTC day.
+	const EVENING = "2026-09-05";
+	const LATEST = 823094;
+
+	function counted()
+	{
+		const { deps } = setup();
+		const real = new FixtureMlbStatsClient();
+		const fetchSchedule = vi.fn((date: string) => real.fetchSchedule(date));
+		deps.mlb.fetchSchedule = fetchSchedule;
+		return {
+			deps,
+			fetchSchedule,
+		};
+	}
+
+	async function expectedInWindow(now: Date): Promise<number[]>
+	{
+		const day = await new FixtureMlbStatsClient().fetchSchedule(EVENING);
+		return day.games.filter((g) => isGameInActiveWindow(g, now)).map((g) => g.gamePk);
+	}
+
+	it("at 01:00Z (9 PM EDT) the evening's in-window games are ensured and its stored day refreshed", async () =>
+	{
+		const now = new Date("2026-09-06T01:00:00Z");
+		const { deps, fetchSchedule } = counted();
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		const ensured = await ensureIngestRunning(deps, ensure, now);
+		expect(ensured).toContain(LATEST);
+		expect(ensured).toEqual(await expectedInWindow(now));
+		expect(fetchSchedule.mock.calls.map(([date]) => date)).toContain(EVENING);
+		const stored = await deps.schedules.getByDate(EVENING);
+		expect(stored?.fetchedAt).toBe(now.toISOString());
+		expect(stored?.windowMode).toBe("active");
+	});
+
+	it("after US midnight (05:00Z) the day before's game still in its trail stays ensured", async () =>
+	{
+		const now = new Date("2026-09-06T05:00:00Z");
+		const { deps, fetchSchedule } = counted();
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		const ensured = await ensureIngestRunning(deps, ensure, now);
+		expect(ensured).toContain(LATEST);
+		expect(fetchSchedule.mock.calls.map(([date]) => date).sort()).toEqual([EVENING, "2026-09-06"]);
+	});
+
+	it("skips the day before once its stored day is settled and out of window", async () =>
+	{
+		const { deps, fetchSchedule } = counted();
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		await ensureIngestRunning(deps, ensure, new Date("2026-09-06T05:00:00Z"));
+		fetchSchedule.mockClear();
+		// 15:00Z: every 2026-09-05 game is final and past its trail.
+		expect(await ensureIngestRunning(deps, ensure, new Date("2026-09-06T15:00:00Z"))).toEqual([]);
+		expect(fetchSchedule.mock.calls.map(([date]) => date)).toEqual(["2026-09-06"]);
 	});
 });
 

@@ -35,7 +35,7 @@ describe("isLiveStatus", () =>
 		expect(isLiveStatus("I")).toBe(true);
 	});
 
-	it("treats pre-game warm-up and delays as not live (no Live tab)", () =>
+	it("treats pre-game warm-up and postponements (`D`, #72) as not live (no Live tab)", () =>
 	{
 		expect(isLiveStatus("P")).toBe(false);
 		expect(isLiveStatus("D")).toBe(false);
@@ -98,12 +98,32 @@ describe("isGameInActiveWindow", () =>
 		).toBe(true);
 	});
 
-	it("keeps polling a delayed game past the trail, though it is not live", () =>
+	it("keeps polling a delayed game past the trail: MLB codes a delay `I` (#72)", () =>
 	{
-		const farFromStart = new Date("2024-07-10T09:00:00.000Z");
-		expect(
-			isGameInActiveWindow(game("D", "2024-07-04T23:05:00.000Z"), farFromStart),
-		).toBe(true);
+		const delayed = {
+			...game("I", "2024-07-04T23:05:00.000Z"),
+			status: {
+				abstractGameState: "Live",
+				codedGameState: "I",
+				detailedState: "Delayed: Rain",
+			},
+		};
+		expect(isGameInActiveWindow(delayed, new Date("2024-07-05T09:00:00.000Z"))).toBe(true);
+	});
+
+	it("drops a postponed game (`D`) before, during and after its scheduled time (#72)", () =>
+	{
+		const postponed = {
+			...game("D", "2024-07-04T23:05:00.000Z"),
+			status: {
+				abstractGameState: "Final",
+				codedGameState: "D",
+				detailedState: "Postponed: Rain",
+			},
+		};
+		expect(isGameInActiveWindow(postponed, new Date("2024-07-04T21:30:00.000Z"))).toBe(false);
+		expect(isGameInActiveWindow(postponed, new Date("2024-07-04T23:30:00.000Z"))).toBe(false);
+		expect(isGameInActiveWindow(postponed, new Date("2024-07-05T09:00:00.000Z"))).toBe(false);
 	});
 
 	it("keeps a final game in the window while inside the trail", () =>
@@ -209,11 +229,33 @@ describe("isGameInActiveWindow", () =>
 		);
 	});
 
-	it("returns false when the start time cannot be parsed", () =>
+	it("skips a start time that cannot be parsed and falls back to the official date", () =>
 	{
-		expect(
-			isGameInActiveWindow(game("S", "not-a-date"), new Date("2024-07-04T22:00:00.000Z")),
-		).toBe(false);
+		// Fallback 17:00Z: in at 16:00Z, out at 22:00Z.
+		expect(isGameInActiveWindow(game("S", "not-a-date"), new Date("2024-07-04T16:00:00.000Z"))).toBe(true);
+		expect(isGameInActiveWindow(game("S", "not-a-date"), new Date("2024-07-04T22:00:00.000Z"))).toBe(false);
+	});
+
+	it("an unparseable startTime doesn't mask a valid ISO gameDate", () =>
+	{
+		const placeholder = {
+			officialDate: "2024-07-04",
+			startTime: "TBD",
+			gameDate: "2024-07-04T23:05:00Z",
+			status: {
+				codedGameState: "S",
+			} as ScheduleGameSummary["status"],
+		};
+		expect(isGameInActiveWindow(placeholder, new Date("2024-07-04T21:10:00Z"))).toBe(true);
+		expect(isGameInActiveWindow(placeholder, new Date("2024-07-04T20:55:00Z"))).toBe(false);
+	});
+
+	it("returns false when the official date itself cannot be parsed", () =>
+	{
+		expect(isGameInActiveWindow({
+			...game("S"),
+			officialDate: "unknown",
+		}, new Date("2024-07-04T16:00:00.000Z"))).toBe(false);
 	});
 
 	it("treats an unknown status code as scheduled for windowing", () =>

@@ -5,7 +5,7 @@ export type GameStatusCode =
   | "F" // final
   | "O" // game over
   | "C" // cancelled
-  | "D" // delayed
+  | "D" // postponed (MLB codes a delay `I`, not `D`; #72)
   | "U"; // unknown
 
 export type AbstractTeam = {
