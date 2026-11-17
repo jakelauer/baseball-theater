@@ -18610,3 +18610,33 @@ S139 AC 8 rewritten to answer Claude's review of PR #65 (comment 4590830376): an
 **What changed, and the owner's answer**
 
 Design intake made due only by PR #64, which added ?node-id= to the Figma Source link in 22 ratified amendments; no frame, decision or requirement changed. Owner, 2026-11-16, asked whether it needed a design intake: "we can skip it. The links PR is not a good reason"
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:10:09Z` |
+| HEAD at capture | `3105ef0` (tree clean) |
+| Change | `3105ef0` — Frame note: ADR-014's "Fetched … ago" question marked answered (S147/S148) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
+
+---
+
+## 2026-11-16 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:10:10Z` |
+| HEAD at capture | `3105ef0` (tree dirty) |
+| Change | `3105ef0` — Frame note: ADR-014's "Fetched … ago" question marked answered (S147/S148) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
