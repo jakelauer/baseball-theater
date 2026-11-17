@@ -18640,3 +18640,33 @@ Owner, 2026-11-16: "do the reviews if they have been triggered by the normal rec
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:36:41Z` |
+| HEAD at capture | `0396a14` (tree dirty) |
+| Change | `261f1fe` — Rename the workspace to baseball-theater; delete branches once merged (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
+
+---
+
+## 2026-11-16 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:36:41Z` |
+| HEAD at capture | `0396a14` (tree dirty) |
+| Change | `261f1fe` — Rename the workspace to baseball-theater; delete branches once merged (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
