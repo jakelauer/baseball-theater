@@ -1180,6 +1180,8 @@ Calls between objects retry on errors flagged `retryable`. Every deploy restarts
 
 **Why:** expected peak is hundreds of viewers per game, far inside one hub's capacity; the split keeps MLB polling independent of viewer fan-out; within Workers Paid included usage (~$0 extra).
 
+**Amended 2026-11-16 (owner): the scoreboard gets a live connection too.** Owner, told the scoreboard only re-fetched its day: *"the scoreboard should have a live connection"*; asked when it connects: *"While a game is live"* (only on a day with a game in its live window, from 2 hours before first pitch to 3 hours after the game, the rule game pages use); asked whether through one socket per day or one per live game: *"One socket per day"*. So a third object, `day-hub:${date}`, holds the scoreboard's viewers for one date: the day hub leases from each in-window game's ingest object of its date (re-checked on renewal, so later games join), on a game's update the day hub reads its day (the stored day joined to each game's one stored state, which a single switch feeds from the live feed while the game is in its window and from MLB's schedule otherwise, S150) and pushes that day's scoreboard over one hibernated, one-way WebSocket. Versioned and applied only if newer (ADR-022); recovery as for a game hub. S150 and S149 build it.
+
 ### ADR-021 — Graduated cache freshness (accepted 2026-10-18)
 
 **Narrows** ADR-002's open "TTL / when refresh-on-read fires".

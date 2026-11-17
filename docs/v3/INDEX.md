@@ -4,7 +4,7 @@
 
 **Start here, then open only what you need.** Each entry links to the text itself; for a large doc, the numbers are the line range of each section, so read just that range (e.g. the Read tool's offset and limit) instead of the whole file. Nothing below summarises a doc, so starting here loses nothing.
 
-- **A story:** its note, `backlog/stories/S<N>.md` (linked below). The note holds the story's whole text — Gap, Impact, Source, ACs, `/goal` line — and its status, priority and dependencies in frontmatter. [BACKLOG.md](BACKLOG.md) (~1 MB) is generated from the notes for graders and tools; don't open it whole.
+- **A story:** its note, `backlog/stories/<status>/S<N>.md` (linked below; the folder follows its status). The note holds the story's whole text — Gap, Impact, Source, ACs, `/goal` line — and its status, priority and dependencies in frontmatter. [BACKLOG.md](BACKLOG.md) (~1 MB) is generated from the notes for graders and tools; don't open it whole.
 - **The ledger:** [audit.jsonl](audit.jsonl), one JSON line per entry with the line it starts at in [AUDIT.md](AUDIT.md) (~1 MB); read only that entry.
 - **The backlog's rules and scheduling:** the frame notes below, by rule number or section.
 
@@ -12,7 +12,7 @@
 
 Assembled, in this order and around the stories, into BACKLOG.md.
 
-- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 119 KB
+- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 120 KB
   - `127–145` Verify-script contract
   - `146–159` Story status
   - `160–516` Backlog reviews
@@ -23,7 +23,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `11–11` 2. Vague phrases (“works correctly”, “handles errors gracefully”) are forbidden until rewrit…
     - `12–12` 3. Done means scripts/verify-<ID>.sh exits 0 and pnpm verify exits 0 and Status is done in t…
     - `13–13` 4. Prefer the smallest story that moves the carried product loop forward.
-    - `14–14` 5. When starting a story, set status: doing in its note (docs/v3/backlog/stories/<ID>.md) an…
+    - `14–14` 5. When starting a story, set status: doing in its note (docs/v3/backlog/stories/<status>/<I…
     - `15–15` 6. Do not start the next story/goal until the finished story is committed (clean git status…
     - `16–16` 7. First work item is always the grader — a commit-time proof of this story, not a law (see…
     - `17–17` 8. Each story has a copy-paste /goal command.
@@ -55,7 +55,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
 
 ## Product and architecture docs
 
-- [ARCHITECTURE.md — Baseball Theater v3 — Architecture](ARCHITECTURE.md) — 135 KB
+- [ARCHITECTURE.md — Baseball Theater v3 — Architecture](ARCHITECTURE.md) — 136 KB
   - `14–33` Architecture principles
   - `34–88` 1. Foundational data topology (accepted direction)
     - `40–48` Two modes
@@ -82,7 +82,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `439–480` Research notes (feasibility — 2026)
   - `481–496` Lessons from v2 (problems to solve or consciously accept)
   - `497–527` Target picture (partial)
-  - `528–1375` Major decision records
+  - `528–1377` Major decision records
     - `532–537` ADR-001 — Clean slate (accepted)
     - `538–556` ADR-002 — Data-access topology for schedule & game details (accepted)
     - `557–579` ADR-003 — Client delivery (accepted)
@@ -102,47 +102,47 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `1061–1097` ADR-017 — Platform: Cloudflare Workers + Neon Postgres (accepted 2026-10-18)
     - `1098–1124` ADR-018 — Storage: all BT data in Postgres (accepted 2026-10-18)
     - `1125–1144` ADR-019 — Identity: Logto behind identity ports (accepted 2026-10-18)
-    - `1145–1182` ADR-020 — Live delivery & cadence: Durable Objects (accepted 2026-10-18)
-    - `1183–1197` ADR-021 — Graduated cache freshness (accepted 2026-10-18)
-    - `1198–1220` ADR-022 — Idempotent updates (accepted 2026-10-18)
-    - `1221–1247` ADR-023 — Web client: SPA + installable PWA (accepted 2026-10-19)
-    - `1248–1259` ADR-024 — Client state: simple, direct, followable (accepted 2026-10-19)
-    - `1260–1276` ADR-025 — Code that stays understandable: comments and one implementation (accepted 2026-10-19)
-    - `1277–1306` ADR-026 — Performance budgets and test coverage (accepted 2026-10-19)
-    - `1307–1316` ADR-027 — Settings live on the account (accepted 2026-10-19)
-    - `1317–1358` ADR-028 — Personal data: one inventory, and deletion reaches all of it (accepted 2026-10-23)
-    - `1359–1375` ADR-029 — Highlight search asks MLB on every query, for now (accepted 2026-11-02)
-  - `1376–1446` 4. Impact curation pipeline
-    - `1381–1395` Mental model
-    - `1396–1402` Why not rank in the browser
-    - `1403–1416` Heuristic bootstrap (Phase A)
-    - `1417–1423` Model / agent layer (Phase B–D)
-    - `1424–1437` Storage sketch
-    - `1438–1446` Open design knobs
-  - `1447–1530` 5. Inning insight feed & game package
-    - `1452–1475` Pipeline
-    - `1476–1488` Insight item (sketch)
-    - `1489–1503` Game package (sketch)
-    - `1504–1509` Triggering vs polling
-    - `1510–1521` Cost intuition (Meter A)
-    - `1522–1530` Open design knobs
-  - `1531–1590` System contexts (to flesh out)
-    - `1533–1536` Clients
-    - `1537–1540` Application / API layer
-    - `1541–1558` Data ingestion & cache
-    - `1559–1567` Enrichment & AI
-    - `1568–1574` Identity, billing, entitlements
-    - `1575–1578` Media playback
-    - `1579–1582` Observability & ops
-    - `1583–1590` Security baseline
-  - `1591–1631` Repo & package shape
-  - `1632–1655` BT store shapes
-  - `1656–1708` 6. Developer experience, testing & delivery
-    - `1660–1670` Local development
-    - `1671–1681` Testing
-    - `1682–1689` Lint & commit hooks
-    - `1690–1708` GitHub Actions
-  - `1709–1721` Open architecture questions
+    - `1145–1184` ADR-020 — Live delivery & cadence: Durable Objects (accepted 2026-10-18)
+    - `1185–1199` ADR-021 — Graduated cache freshness (accepted 2026-10-18)
+    - `1200–1222` ADR-022 — Idempotent updates (accepted 2026-10-18)
+    - `1223–1249` ADR-023 — Web client: SPA + installable PWA (accepted 2026-10-19)
+    - `1250–1261` ADR-024 — Client state: simple, direct, followable (accepted 2026-10-19)
+    - `1262–1278` ADR-025 — Code that stays understandable: comments and one implementation (accepted 2026-10-19)
+    - `1279–1308` ADR-026 — Performance budgets and test coverage (accepted 2026-10-19)
+    - `1309–1318` ADR-027 — Settings live on the account (accepted 2026-10-19)
+    - `1319–1360` ADR-028 — Personal data: one inventory, and deletion reaches all of it (accepted 2026-10-23)
+    - `1361–1377` ADR-029 — Highlight search asks MLB on every query, for now (accepted 2026-11-02)
+  - `1378–1448` 4. Impact curation pipeline
+    - `1383–1397` Mental model
+    - `1398–1404` Why not rank in the browser
+    - `1405–1418` Heuristic bootstrap (Phase A)
+    - `1419–1425` Model / agent layer (Phase B–D)
+    - `1426–1439` Storage sketch
+    - `1440–1448` Open design knobs
+  - `1449–1532` 5. Inning insight feed & game package
+    - `1454–1477` Pipeline
+    - `1478–1490` Insight item (sketch)
+    - `1491–1505` Game package (sketch)
+    - `1506–1511` Triggering vs polling
+    - `1512–1523` Cost intuition (Meter A)
+    - `1524–1532` Open design knobs
+  - `1533–1592` System contexts (to flesh out)
+    - `1535–1538` Clients
+    - `1539–1542` Application / API layer
+    - `1543–1560` Data ingestion & cache
+    - `1561–1569` Enrichment & AI
+    - `1570–1576` Identity, billing, entitlements
+    - `1577–1580` Media playback
+    - `1581–1584` Observability & ops
+    - `1585–1592` Security baseline
+  - `1593–1633` Repo & package shape
+  - `1634–1657` BT store shapes
+  - `1658–1710` 6. Developer experience, testing & delivery
+    - `1662–1672` Local development
+    - `1673–1683` Testing
+    - `1684–1691` Lint & commit hooks
+    - `1692–1710` GitHub Actions
+  - `1711–1723` Open architecture questions
 - [CHATGPT-LOGO-BACKLOG.md — MLB Team Identifier Design Tracker](CHATGPT-LOGO-BACKLOG.md) — 25 KB
   - `3–22` Purpose
   - `23–35` Priority Order
@@ -435,7 +435,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `194–283` 2026-09-13 — V3 completed
   - `284–337` 2026-09-14 — V3 re-verified
   - `338–388` 2026-09-14 — V3 re-verified
-- [VAULT-MIGRATION.md — Backlog → Obsidian vault migration](VAULT-MIGRATION.md) — 18 KB
+- [VAULT-MIGRATION.md — Backlog → Obsidian vault migration](VAULT-MIGRATION.md) — 19 KB
   - `9–18` Status
   - `19–29` Invariants (every stage)
   - `30–162` Rules
@@ -493,45 +493,47 @@ Open stories, in order (`doing`, then `todo`, then `blocked`; by priority within
 
 | Priority | Story | Status | Depends on | Design |
 |---|---|---|---|---|
-| 73 | [S143](backlog/stories/S143.md) Mock sign-in on staging | `todo` | S116 | — |
-| 74 | [S136](backlog/stories/S136.md) Teams per day in the month counts | `todo` | S124 | — |
-| 74 | [S125](backlog/stories/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
-| 75 | [S144](backlog/stories/S144.md) Design: play link on the meta line | `todo` | — | — |
-| 75 | [S145](backlog/stories/S145.md) Play link on the meta line | `todo` | S97, S81 | S144 |
-| 76 | [S139](backlog/stories/S139.md) Standings by season phase in the API | `todo` | S128 | — |
-| 76 | [S140](backlog/stories/S140.md) World Series winner in standings | `todo` | S128 | — |
-| 77 | [S130](backlog/stories/S130.md) Standings views | `todo` | S128, S139, S140, S81 | S129 |
-| 77 | [S137](backlog/stories/S137.md) Design: Standings date picker | `todo` | S123, S129 | — |
-| 77 | [S138](backlog/stories/S138.md) Standings date picker | `todo` | S125, S130, S81 | S137 |
-| 79 | [S132](backlog/stories/S132.md) Release notes API | `todo` | S131 | — |
-| 81 | [S134](backlog/stories/S134.md) Change log page | `todo` | S132, S81 | S133 |
-| 81 | [S147](backlog/stories/S147.md) Design: Live marker | `todo` | — | — |
-| 82 | [S135](backlog/stories/S135.md) Update notice and after-update pointer | `todo` | S131, S134, S81 | S133 |
-| 82 | [S148](backlog/stories/S148.md) Live marker replaces "Fetched" | `todo` | S81 | S147 |
-| 83 | [S141](backlog/stories/S141.md) Design: site footer | `todo` | — | — |
-| 84 | [S142](backlog/stories/S142.md) Site footer of links | `todo` | S81 | S141 |
-| 89 | [S127](backlog/stories/S127.md) Design: play link in Search's player | `todo` | — | — |
-| 90 | [S5](backlog/stories/S5.md) Search page queries highlights fixture | `todo` | S70, S61, S68, S81 | S34, S56 |
-| 91 | [S72](backlog/stories/S72.md) Search chips: date / team / tag | `todo` | S5, S69, S81 | S34 |
-| 94 | [S74](backlog/stories/S74.md) Offline reading + prefetch | `todo` | S73, S68, S75, S76, S81 | S55, S57 |
-| 104 | [S108](backlog/stories/S108.md) Win-probability slot | `todo` | S93, S106, S67, S68, S81 | S107 |
-| 105 | [S99](backlog/stories/S99.md) Ingest player of the game | `todo` | — | — |
-| 106 | [S100](backlog/stories/S100.md) Ingest strike-zone rule settings | `todo` | — | — |
-| 107 | [S101](backlog/stories/S101.md) Ingest game uniforms | `todo` | — | — |
-| 108 | [S102](backlog/stories/S102.md) Standings division names | `todo` | — | — |
-| 109 | [S103](backlog/stories/S103.md) Ingest Savant game feed | `todo` | S48 | — |
-| 110 | [S104](backlog/stories/S104.md) Ingest pitcher season averages | `todo` | S103 | — |
-| 111 | [S105](backlog/stories/S105.md) Ingest venue field drawings | `todo` | S103 | — |
-| 115 | [S90](backlog/stories/S90.md) Next-pitch model (train + evaluate) | `todo` | S63 | — |
-| 116 | [S92](backlog/stories/S92.md) Design: next-pitch odds (owner-ratified) | `todo` | S64 | — |
-| 117 | [S91](backlog/stories/S91.md) Next-pitch odds in Live (paid) | `todo` | S90, S64 | S92 |
-| 118 | [S146](backlog/stories/S146.md) Skip deploys with unchanged build inputs | `todo` | — | — |
-| 72 | [S123](backlog/stories/S123.md) Design: calendar date picker | `blocked` | — | — |
-| 76 | [S129](backlog/stories/S129.md) Design: Standings views | `blocked` | — | — |
-| 78 | [S131](backlog/stories/S131.md) Approved release notes | `blocked` | — | — |
-| 80 | [S133](backlog/stories/S133.md) Design: change log + update notices | `blocked` | — | — |
-| 103 | [S107](backlog/stories/S107.md) Design: win-probability slot | `blocked` | S67, S68 | — |
+| 73 | [S143](backlog/stories/todo/S143.md) Mock sign-in on staging | `todo` | S116 | — |
+| 74 | [S136](backlog/stories/todo/S136.md) Teams per day in the month counts | `todo` | S124 | — |
+| 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
+| 75 | [S144](backlog/stories/todo/S144.md) Design: play link on the meta line | `todo` | — | — |
+| 75 | [S145](backlog/stories/todo/S145.md) Play link on the meta line | `todo` | S97, S81 | S144 |
+| 76 | [S139](backlog/stories/todo/S139.md) Standings by season phase in the API | `todo` | S128 | — |
+| 76 | [S140](backlog/stories/todo/S140.md) World Series winner in standings | `todo` | S128 | — |
+| 77 | [S130](backlog/stories/todo/S130.md) Standings views | `todo` | S128, S139, S140, S81 | S129 |
+| 77 | [S137](backlog/stories/todo/S137.md) Design: Standings date picker | `todo` | S123, S129 | — |
+| 77 | [S138](backlog/stories/todo/S138.md) Standings date picker | `todo` | S125, S130, S81 | S137 |
+| 79 | [S132](backlog/stories/todo/S132.md) Release notes API | `todo` | S131 | — |
+| 81 | [S134](backlog/stories/todo/S134.md) Change log page | `todo` | S132, S81 | S133 |
+| 81 | [S147](backlog/stories/todo/S147.md) Design: Live marker | `todo` | — | — |
+| 82 | [S135](backlog/stories/todo/S135.md) Update notice and after-update pointer | `todo` | S131, S134, S81 | S133 |
+| 82 | [S148](backlog/stories/todo/S148.md) Live marker replaces "Fetched" | `todo` | S81 | S147 |
+| 83 | [S141](backlog/stories/todo/S141.md) Design: site footer | `todo` | — | — |
+| 83 | [S150](backlog/stories/todo/S150.md) One stored state per game | `todo` | — | — |
+| 84 | [S142](backlog/stories/todo/S142.md) Site footer of links | `todo` | S81 | S141 |
+| 84 | [S149](backlog/stories/todo/S149.md) Live scoreboard (day hub) | `todo` | S150 | — |
+| 89 | [S127](backlog/stories/todo/S127.md) Design: play link in Search's player | `todo` | — | — |
+| 90 | [S5](backlog/stories/todo/S5.md) Search page queries highlights fixture | `todo` | S70, S61, S68, S81 | S34, S56 |
+| 91 | [S72](backlog/stories/todo/S72.md) Search chips: date / team / tag | `todo` | S5, S69, S81 | S34 |
+| 94 | [S74](backlog/stories/todo/S74.md) Offline reading + prefetch | `todo` | S73, S68, S75, S76, S81 | S55, S57 |
+| 104 | [S108](backlog/stories/todo/S108.md) Win-probability slot | `todo` | S93, S106, S67, S68, S81 | S107 |
+| 105 | [S99](backlog/stories/todo/S99.md) Ingest player of the game | `todo` | — | — |
+| 106 | [S100](backlog/stories/todo/S100.md) Ingest strike-zone rule settings | `todo` | — | — |
+| 107 | [S101](backlog/stories/todo/S101.md) Ingest game uniforms | `todo` | — | — |
+| 108 | [S102](backlog/stories/todo/S102.md) Standings division names | `todo` | — | — |
+| 109 | [S103](backlog/stories/todo/S103.md) Ingest Savant game feed | `todo` | S48 | — |
+| 110 | [S104](backlog/stories/todo/S104.md) Ingest pitcher season averages | `todo` | S103 | — |
+| 111 | [S105](backlog/stories/todo/S105.md) Ingest venue field drawings | `todo` | S103 | — |
+| 115 | [S90](backlog/stories/todo/S90.md) Next-pitch model (train + evaluate) | `todo` | S63 | — |
+| 116 | [S92](backlog/stories/todo/S92.md) Design: next-pitch odds (owner-ratified) | `todo` | S64 | — |
+| 117 | [S91](backlog/stories/todo/S91.md) Next-pitch odds in Live (paid) | `todo` | S90, S64 | S92 |
+| 118 | [S146](backlog/stories/todo/S146.md) Skip deploys with unchanged build inputs | `todo` | — | — |
+| 72 | [S123](backlog/stories/blocked/S123.md) Design: calendar date picker | `blocked` | — | — |
+| 76 | [S129](backlog/stories/blocked/S129.md) Design: Standings views | `blocked` | — | — |
+| 78 | [S131](backlog/stories/blocked/S131.md) Approved release notes | `blocked` | — | — |
+| 80 | [S133](backlog/stories/blocked/S133.md) Design: change log + update notices | `blocked` | — | — |
+| 103 | [S107](backlog/stories/blocked/S107.md) Design: win-probability slot | `blocked` | S67, S68 | — |
 
-**`done`** (108): [S1](backlog/stories/S1.md), [S11](backlog/stories/S11.md), [S12](backlog/stories/S12.md), [S23](backlog/stories/S23.md), [S21](backlog/stories/S21.md), [S13](backlog/stories/S13.md), [S14](backlog/stories/S14.md), [S16](backlog/stories/S16.md), [S17](backlog/stories/S17.md), [S22](backlog/stories/S22.md), [S15](backlog/stories/S15.md), [S30](backlog/stories/S30.md), [S24](backlog/stories/S24.md), [S26](backlog/stories/S26.md), [S27](backlog/stories/S27.md), [S25](backlog/stories/S25.md), [S29](backlog/stories/S29.md), [S35](backlog/stories/S35.md), [S36](backlog/stories/S36.md), [S37](backlog/stories/S37.md), [S38](backlog/stories/S38.md), [S31](backlog/stories/S31.md), [S32](backlog/stories/S32.md), [S33](backlog/stories/S33.md), [S34](backlog/stories/S34.md), [S39](backlog/stories/S39.md), [S40](backlog/stories/S40.md), [S43](backlog/stories/S43.md), [S42](backlog/stories/S42.md), [S52](backlog/stories/S52.md), [S53](backlog/stories/S53.md), [S54](backlog/stories/S54.md), [S55](backlog/stories/S55.md), [S56](backlog/stories/S56.md), [S57](backlog/stories/S57.md), [S58](backlog/stories/S58.md), [S44](backlog/stories/S44.md), [S49](backlog/stories/S49.md), [S46](backlog/stories/S46.md), [S8](backlog/stories/S8.md), [S59](backlog/stories/S59.md), [S76](backlog/stories/S76.md), [S77](backlog/stories/S77.md), [S6](backlog/stories/S6.md), [S80](backlog/stories/S80.md), [S78](backlog/stories/S78.md), [S81](backlog/stories/S81.md), [S83](backlog/stories/S83.md), [S84](backlog/stories/S84.md), [S85](backlog/stories/S85.md), [S86](backlog/stories/S86.md), [S87](backlog/stories/S87.md), [S79](backlog/stories/S79.md), [S82](backlog/stories/S82.md), [S60](backlog/stories/S60.md), [S62](backlog/stories/S62.md), [S88](backlog/stories/S88.md), [S61](backlog/stories/S61.md), [S2](backlog/stories/S2.md), [S3](backlog/stories/S3.md), [S64](backlog/stories/S64.md), [S10](backlog/stories/S10.md), [S63](backlog/stories/S63.md), [S41](backlog/stories/S41.md), [S65](backlog/stories/S65.md), [S66](backlog/stories/S66.md), [S128](backlog/stories/S128.md), [S67](backlog/stories/S67.md), [S68](backlog/stories/S68.md), [S126](backlog/stories/S126.md), [S69](backlog/stories/S69.md), [S122](backlog/stories/S122.md), [S70](backlog/stories/S70.md), [S117](backlog/stories/S117.md), [S109](backlog/stories/S109.md), [S124](backlog/stories/S124.md), [S20](backlog/stories/S20.md), [S110](backlog/stories/S110.md), [S111](backlog/stories/S111.md), [S51](backlog/stories/S51.md), [S112](backlog/stories/S112.md), [S113](backlog/stories/S113.md), [S114](backlog/stories/S114.md), [S118](backlog/stories/S118.md), [S119](backlog/stories/S119.md), [S120](backlog/stories/S120.md), [S121](backlog/stories/S121.md), [S93](backlog/stories/S93.md), [S116](backlog/stories/S116.md), [S75](backlog/stories/S75.md), [S71](backlog/stories/S71.md), [S45](backlog/stories/S45.md), [S47](backlog/stories/S47.md), [S48](backlog/stories/S48.md), [S18](backlog/stories/S18.md), [S19](backlog/stories/S19.md), [S4](backlog/stories/S4.md), [S73](backlog/stories/S73.md), [S28](backlog/stories/S28.md), [S50](backlog/stories/S50.md), [S94](backlog/stories/S94.md), [S95](backlog/stories/S95.md), [S96](backlog/stories/S96.md), [S97](backlog/stories/S97.md), [S98](backlog/stories/S98.md), [S106](backlog/stories/S106.md), [S89](backlog/stories/S89.md), [S115](backlog/stories/S115.md)
+**`done`** (108): [S1](backlog/stories/done/S1.md), [S11](backlog/stories/done/S11.md), [S12](backlog/stories/done/S12.md), [S23](backlog/stories/done/S23.md), [S21](backlog/stories/done/S21.md), [S13](backlog/stories/done/S13.md), [S14](backlog/stories/done/S14.md), [S16](backlog/stories/done/S16.md), [S17](backlog/stories/done/S17.md), [S22](backlog/stories/done/S22.md), [S15](backlog/stories/done/S15.md), [S30](backlog/stories/done/S30.md), [S24](backlog/stories/done/S24.md), [S26](backlog/stories/done/S26.md), [S27](backlog/stories/done/S27.md), [S25](backlog/stories/done/S25.md), [S29](backlog/stories/done/S29.md), [S35](backlog/stories/done/S35.md), [S36](backlog/stories/done/S36.md), [S37](backlog/stories/done/S37.md), [S38](backlog/stories/done/S38.md), [S31](backlog/stories/done/S31.md), [S32](backlog/stories/done/S32.md), [S33](backlog/stories/done/S33.md), [S34](backlog/stories/done/S34.md), [S39](backlog/stories/done/S39.md), [S40](backlog/stories/done/S40.md), [S43](backlog/stories/done/S43.md), [S42](backlog/stories/done/S42.md), [S52](backlog/stories/done/S52.md), [S53](backlog/stories/done/S53.md), [S54](backlog/stories/done/S54.md), [S55](backlog/stories/done/S55.md), [S56](backlog/stories/done/S56.md), [S57](backlog/stories/done/S57.md), [S58](backlog/stories/done/S58.md), [S44](backlog/stories/done/S44.md), [S49](backlog/stories/done/S49.md), [S46](backlog/stories/done/S46.md), [S8](backlog/stories/done/S8.md), [S59](backlog/stories/done/S59.md), [S76](backlog/stories/done/S76.md), [S77](backlog/stories/done/S77.md), [S6](backlog/stories/done/S6.md), [S80](backlog/stories/done/S80.md), [S78](backlog/stories/done/S78.md), [S81](backlog/stories/done/S81.md), [S83](backlog/stories/done/S83.md), [S84](backlog/stories/done/S84.md), [S85](backlog/stories/done/S85.md), [S86](backlog/stories/done/S86.md), [S87](backlog/stories/done/S87.md), [S79](backlog/stories/done/S79.md), [S82](backlog/stories/done/S82.md), [S60](backlog/stories/done/S60.md), [S62](backlog/stories/done/S62.md), [S88](backlog/stories/done/S88.md), [S61](backlog/stories/done/S61.md), [S2](backlog/stories/done/S2.md), [S3](backlog/stories/done/S3.md), [S64](backlog/stories/done/S64.md), [S10](backlog/stories/done/S10.md), [S63](backlog/stories/done/S63.md), [S41](backlog/stories/done/S41.md), [S65](backlog/stories/done/S65.md), [S66](backlog/stories/done/S66.md), [S128](backlog/stories/done/S128.md), [S67](backlog/stories/done/S67.md), [S68](backlog/stories/done/S68.md), [S126](backlog/stories/done/S126.md), [S69](backlog/stories/done/S69.md), [S122](backlog/stories/done/S122.md), [S70](backlog/stories/done/S70.md), [S117](backlog/stories/done/S117.md), [S109](backlog/stories/done/S109.md), [S124](backlog/stories/done/S124.md), [S20](backlog/stories/done/S20.md), [S110](backlog/stories/done/S110.md), [S111](backlog/stories/done/S111.md), [S51](backlog/stories/done/S51.md), [S112](backlog/stories/done/S112.md), [S113](backlog/stories/done/S113.md), [S114](backlog/stories/done/S114.md), [S118](backlog/stories/done/S118.md), [S119](backlog/stories/done/S119.md), [S120](backlog/stories/done/S120.md), [S121](backlog/stories/done/S121.md), [S93](backlog/stories/done/S93.md), [S116](backlog/stories/done/S116.md), [S75](backlog/stories/done/S75.md), [S71](backlog/stories/done/S71.md), [S45](backlog/stories/done/S45.md), [S47](backlog/stories/done/S47.md), [S48](backlog/stories/done/S48.md), [S18](backlog/stories/done/S18.md), [S19](backlog/stories/done/S19.md), [S4](backlog/stories/done/S4.md), [S73](backlog/stories/done/S73.md), [S28](backlog/stories/done/S28.md), [S50](backlog/stories/done/S50.md), [S94](backlog/stories/done/S94.md), [S95](backlog/stories/done/S95.md), [S96](backlog/stories/done/S96.md), [S97](backlog/stories/done/S97.md), [S98](backlog/stories/done/S98.md), [S106](backlog/stories/done/S106.md), [S89](backlog/stories/done/S89.md), [S115](backlog/stories/done/S115.md)
 
-**`superseded`** (2): [S7](backlog/stories/S7.md), [S9](backlog/stories/S9.md)
+**`superseded`** (2): [S7](backlog/stories/superseded/S7.md), [S9](backlog/stories/superseded/S9.md)

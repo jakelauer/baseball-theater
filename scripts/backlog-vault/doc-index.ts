@@ -16,6 +16,7 @@
 
 import type { Story } from "./parse.ts";
 import { parseBacklog } from "./parse.ts";
+import { storyNotePath } from "./vault.ts";
 
 /** A doc the index lists: its path relative to docs/v3/ and its text. */
 export interface IndexedDoc
@@ -188,7 +189,8 @@ const OPEN = ["doing", "todo", "blocked"];
 /** The stories by status: open ones with what they wait on, the rest as linked ID lists. */
 function storyLines(stories: Story[]): string[]
 {
-	const link = (s: Story) => `[${s.id}](backlog/stories/${s.id}.md)`;
+	// The note's real path: its status folder, the one rule for it (vault.ts storyNotePath).
+	const link = (s: Story) => `[${s.id}](backlog/${storyNotePath(s.id, s.status)})`;
 	const open = stories.filter((s) => OPEN.includes(s.status))
 		.sort((a, b) => OPEN.indexOf(a.status) - OPEN.indexOf(b.status) || a.priority - b.priority);
 	const out = [
@@ -221,7 +223,8 @@ export function renderDocIndex(input: { docs: IndexedDoc[];
 		+ "line range of each section, so read just that range (e.g. the Read tool's offset and limit) instead of the whole file. "
 		+ "Nothing below summarises a doc, so starting here loses nothing.",
 		"",
-		"- **A story:** its note, `backlog/stories/S<N>.md` (linked below). The note holds the story's whole text — Gap, Impact, "
+		"- **A story:** its note, `backlog/stories/<status>/S<N>.md` (linked below; the folder follows "
+		+ "its status). The note holds the story's whole text — Gap, Impact, "
 		+ "Source, ACs, `/goal` line — and its status, priority and dependencies in frontmatter. [BACKLOG.md](BACKLOG.md) (~"
 		+ "1 MB) is generated from the notes for graders and tools; don't open it whole.",
 		"- **The ledger:** [audit.jsonl](audit.jsonl), one JSON line per entry with the line it starts at in "

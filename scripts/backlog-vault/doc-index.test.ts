@@ -143,9 +143,9 @@ describe("renderDocIndex", () =>
 		});
 		const rows = index.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Priority"));
 		expect(rows.map((r) => /\[(S\d+)\]/.exec(r)?.[1])).toEqual(["S5", "S4", "S2", "S3"]);
-		expect(index).toContain("| 5 | [S2](backlog/stories/S2.md) S2 table title | `todo` | S1 | S9 |");
-		expect(index).toContain("**`done`** (1): [S1](backlog/stories/S1.md)");
-		expect(index).toContain("**`superseded`** (1): [S6](backlog/stories/S6.md)");
+		expect(index).toContain("| 5 | [S2](backlog/stories/todo/S2.md) S2 table title | `todo` | S1 | S9 |");
+		expect(index).toContain("**`done`** (1): [S1](backlog/stories/done/S1.md)");
+		expect(index).toContain("**`superseded`** (1): [S6](backlog/stories/superseded/S6.md)");
 	});
 });
 

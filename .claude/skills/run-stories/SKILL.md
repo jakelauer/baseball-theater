@@ -38,7 +38,7 @@ Check in this order:
 - every `design:` story is `done` (rule 18);
 - it is not a story this run held (`docs/v3/LOOP.md` §7 step 3, "Exit"): its note on the current branch still reads `todo`, but its work sits on its own unpushed branch, so it is never picked again.
 
-Read both lists from the note's frontmatter in `docs/v3/backlog/stories/S<N>.md`. The generated **Next** line in `BACKLOG.md` checks designs only, not `depends_on`, so don't rely on it alone. `superseded` stories are skipped.
+Read both lists from the note's frontmatter in `docs/v3/backlog/stories/<status>/S<N>.md` (the folder is its status; `docs/v3/INDEX.md` links to it). The generated **Next** line in `BACKLOG.md` checks designs only, not `depends_on`, so don't rely on it alone. `superseded` stories are skipped.
 
 Find it from the **Stories** section of `docs/v3/INDEX.md` (open stories with their `depends_on` and design lists, then the `done` ones) or the notes' frontmatter; nothing else is needed to choose.
 
