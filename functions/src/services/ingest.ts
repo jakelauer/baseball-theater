@@ -293,9 +293,10 @@ export async function refreshTodaysWindow(
 		{
 			await refresh(dayBefore);
 		}
-		catch
+		catch (error)
 		{
-			// Today is already in hand; the next cron run asks for the day before again.
+			// Today is already in hand. A skipped day before is retried by the next cron run, a minute later.
+			console.warn(`refreshTodaysWindow: day before ${dayBefore} not refreshed; retrying next run`, error);
 		}
 	}
 	// One entry per gamePk: in window if either day's copy is, else skipped once.

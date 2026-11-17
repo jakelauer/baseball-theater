@@ -22,6 +22,7 @@ import {
 	ensureIngestRunning, GameIngest, gameIngestName,
 } from "./game-ingest.js";
 import type { IngestDeps } from "./ingest.js";
+import { refreshTodaysWindow } from "./ingest.js";
 
 const T0 = new Date("2026-10-30T12:00:00Z");
 
@@ -271,7 +272,7 @@ describe("ensureIngestRunning reads MLB's dates, not the UTC date (#73)", () =>
 		// 15:00Z: every 2026-09-05 game is final and past its trail, and the stored day says so.
 		expect(await ensureIngestRunning(deps, ensure, new Date("2026-09-06T15:00:00Z"))).toEqual([]);
 		expect(fetchSchedule.mock.calls.map(([date]) => date)).toEqual(["2026-09-06"]);
-	}, 30_000); // 421 cron runs: about 2 s locally, more on a CI runner under coverage.
+	}); // 421 cron runs: well under a second, within the default timeout even under coverage.
 
 	it("a stored day before that is settled but still has a game in its trail is fetched again", async () =>
 	{
@@ -317,14 +318,29 @@ describe("ensureIngestRunning reads MLB's dates, not the UTC date (#73)", () =>
 				detailedState: "In Progress",
 			},
 		};
+		const now = new Date("2026-09-06T18:00:00Z");
+		// Both copies in window: ensured once.
 		fetchSchedule.mockImplementation(async (date: string) => ({
 			...recorded,
 			date,
 			games: [resumed],
 		}));
 		const ensure = vi.fn(async (_gamePk: number) => undefined);
-		expect(await ensureIngestRunning(deps, ensure, new Date("2026-09-06T18:00:00Z"))).toEqual([resumed.gamePk]);
+		expect(await ensureIngestRunning(deps, ensure, now)).toEqual([resumed.gamePk]);
 		expect(ensure).toHaveBeenCalledTimes(1);
+
+		// Today's copy in window, the day before's (the suspended original, final, its
+		// trail long over) out: active once, and never also counted as skipped.
+		const original = recorded.games[0]!;
+		expect(isGameInActiveWindow(original, now)).toBe(false);
+		fetchSchedule.mockImplementation(async (date: string) => ({
+			...recorded,
+			date,
+			games: [date === EVENING ? original : resumed],
+		}));
+		const { active, skipped } = await refreshTodaysWindow(deps, now);
+		expect(active.map((g) => g.gamePk)).toEqual([resumed.gamePk]);
+		expect(skipped).not.toContain(resumed.gamePk);
 	});
 });
 
