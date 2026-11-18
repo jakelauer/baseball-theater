@@ -18790,3 +18790,18 @@ Owner, 2026-11-16: "do the reviews if they have been triggered by the normal rec
 **What changed, and the owner's answer**
 
 Owner, 2026-11-07, on acceptance criteria rewritten to answer a pull request's review: "This shouldn't even trigger a question. Always skip." S150 AC 6 rewritten for Claude's review of #76 (served windowMode).
+
+---
+
+## 2026-11-18 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T21:38:37Z` |
+| HEAD at capture | `4210072` (tree clean) |
+| Change | `4210072` — Backlog: fix pre-PR review findings on bugs in the backlog order |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-18, asked whether bugs in the backlog order and the /run-stories → /run-backlog rename (0dfd5be, 4210072) need a backlog review: "No, log a skip (Recommended)".
