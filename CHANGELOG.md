@@ -14,6 +14,14 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## A game paused for a replay review still looks live
+
+- **Before, whenever a manager challenged a call or the umpires reviewed one, a live game looked as if it hadn't
+  started: its Live tab and the scoreboard's inning disappeared until the review ended, and a review late in a long
+  game could stop its live updates. Now a game under review stays live, with its Live tab, its inning and its
+  updates.** Details: B74, fixes #74. MLB codes a manager challenge `M` and an umpire review `N`; `isLiveStatus`
+  in `@bt/domain` now counts both as in progress, and `normalizeStatusCode` maps them to `I`.
+
 ## The day's top highlights lead with the plays that mattered, and keep up during games
 
 - **Before, the day's "Best of" highlights could open with an interview: on October 28, the World Series clincher,
