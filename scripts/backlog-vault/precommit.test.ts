@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
-	existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync,
+	existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -12,7 +12,7 @@ import {
 } from "./fixture.ts";
 import { buildFromNotes } from "./assemble.ts";
 import { docIndexFor } from "./doc-index.ts";
-import { isNoteKey } from "./vault.ts";
+import { readNotes } from "./notes-dir.ts";
 import { parseLedger, renderLedgerIndex } from "./ledger.ts";
 import {
 	AUDIT as AUDIT_PATH, AUDIT_INDEX, BACKLOG, DOC_INDEX, NOTES_DIR, runPrecommit,
@@ -42,25 +42,13 @@ const S9 = `${NOTES_DIR}/stories/todo/S9.md`;
 /** Where S9's note belongs once its status is `doing` (vault.ts storyNotePath). */
 const S9_DOING = `${NOTES_DIR}/stories/doing/S9.md`;
 
-/** The story and frame notes in the working tree, keyed as the build keys them, as `pnpm backlog:build` reads them. */
-function workingNotes(): Map<string, string>
-{
-	const notes = new Map<string, string>();
-	for (const sub of ["stories", "frame"])
-	{
-		for (const name of readdirSync(join(repo, NOTES_DIR, sub), {
-			recursive: true,
-		}) as string[])
-		{
-			const key = `${sub}/${name}`;
-			if (isNoteKey(key))
-			{
-				notes.set(key, read(`${NOTES_DIR}/${key}`));
-			}
-		}
-	}
-	return notes;
-}
+/** Where a bug note for issue #74 sits while `todo`, and once `doing` (vault.ts bugNotePath). */
+const B74 = `${NOTES_DIR}/bugs/todo/B74.md`;
+const B74_DOING = `${NOTES_DIR}/bugs/doing/B74.md`;
+const bugNote = (status: string) => `---\nid: B74\nissue: 74\ntitle: A bug\npriority: 3\nstatus: ${status}\n---\n\nhttps://github.com/o/r/issues/74\n`;
+
+/** The notes in the working tree, read as `pnpm backlog:build` reads them (notes-dir.ts readNotes). */
+const workingNotes = () => readNotes(join(repo, NOTES_DIR));
 
 beforeEach(() =>
 {
@@ -107,7 +95,7 @@ describe("runPrecommit", () =>
 		});
 	});
 
-	it("builds from the index: unstaged edits neither leak into the commit nor get clobbered", () =>
+	it("builds from the index: unstaged edits neither leak into the commit nor get clobbered", async () =>
 	{
 		write(S9, read(S9).replace("status: todo", "status: doing"));
 		git("add", S9);
@@ -135,13 +123,13 @@ describe("runPrecommit", () =>
 		expect(read(S9_DOING)).toContain("status: doing");
 		expect(git("diff", "--name-status", "--", `${NOTES_DIR}/stories`).trim()).toBe(`M\t${S9_DOING}`);
 		// So the working tree still builds: one note per ID, each in its status folder.
-		const built = buildFromNotes(workingNotes(), AUDIT);
+		const built = buildFromNotes(await workingNotes(), AUDIT);
 		expect([...built.notes.keys()].filter((k) => k.startsWith("stories/")).sort()).toEqual(["stories/doing/S9.md", "stories/done/S1.md"]);
 		// BACKLOG.md on disk still matched the old staged copy, so it is updated too.
 		expect(read(BACKLOG)).toBe(stagedFile(BACKLOG));
 	});
 
-	it("moves a note whose staged status changed and removes the emptied folder", () =>
+	it("moves a note whose staged status changed and removes the emptied folder", async () =>
 	{
 		write(S9, read(S9).replace("status: todo", "status: doing"));
 		git("add", S9);
@@ -152,7 +140,7 @@ describe("runPrecommit", () =>
 		expect(existsSync(join(repo, dirname(S9)))).toBe(false);
 		expect(read(S9_DOING)).toBe(stagedFile(S9_DOING));
 		expect(git("diff", "--name-status", "--", `${NOTES_DIR}/stories`).trim()).toBe("");
-		expect(() => buildFromNotes(workingNotes(), AUDIT)).not.toThrow();
+		expect(buildFromNotes(await workingNotes(), AUDIT).notes.size).toBeGreaterThan(0);
 	});
 
 	it("refuses two staged notes with one ID, saying how to stage a move", () =>
@@ -234,5 +222,63 @@ describe("runPrecommit", () =>
 
 		expect(result.ok).toBe(false);
 		expect(result.message).toMatch(/do not build: .*id 'S8' does not match/);
+	});
+
+	it("lists a newly staged bug note in the docs index", () =>
+	{
+		write(B74, bugNote("todo"));
+		git("add", B74);
+
+		const result = runPrecommit(repo);
+
+		expect(result.ok).toBe(true);
+		expect(result.restaged).toContain(DOC_INDEX);
+		expect(stagedFile(DOC_INDEX)).toContain("[B74](backlog/bugs/todo/B74.md)");
+	});
+
+	it("moves a bug note whose staged status changed, carrying its unstaged edit to the new path", async () =>
+	{
+		write(B74, bugNote("todo"));
+		git("add", B74);
+		git("commit", "-qm", "B74 filed");
+		write(B74, bugNote("doing"));
+		git("add", B74);
+		write(B74, `${bugNote("doing")}UNSTAGED\n`);
+
+		expect(runPrecommit(repo).ok).toBe(true);
+
+		expect(git("ls-files", "--", B74)).toBe("");
+		expect(existsSync(join(repo, B74))).toBe(false);
+		expect(existsSync(join(repo, dirname(B74)))).toBe(false);
+		expect(stagedFile(B74_DOING)).toBe(bugNote("doing"));
+		expect(read(B74_DOING)).toBe(`${bugNote("doing")}UNSTAGED\n`);
+		expect(git("diff", "--name-status", "--", `${NOTES_DIR}/bugs`).trim()).toBe(`M\t${B74_DOING}`);
+		// So the working tree still builds: one note per ID, each in its status folder.
+		const built = buildFromNotes(await workingNotes(), AUDIT);
+		expect([...built.notes.keys()].filter((k) => k.startsWith("bugs/"))).toEqual(["bugs/doing/B74.md"]);
+	});
+
+	it("refuses two staged bug notes with one ID, saying how to stage a move", () =>
+	{
+		write(B74, bugNote("todo"));
+		write(B74_DOING, bugNote("doing"));
+		git("add", B74, B74_DOING);
+
+		const result = runPrecommit(repo);
+
+		expect(result.ok).toBe(false);
+		expect(result.message).toMatch(/two notes share the ID B74/);
+		expect(result.message).toContain("docs/v3/backlog/bugs");
+	});
+
+	it("refuses a staged .md under bugs/ that isn't named like a bug note", () =>
+	{
+		write(`${NOTES_DIR}/bugs/todo/b74.md`, bugNote("todo"));
+		git("add", `${NOTES_DIR}/bugs/todo/b74.md`);
+
+		const result = runPrecommit(repo);
+
+		expect(result.ok).toBe(false);
+		expect(result.message).toContain("bugs/todo/b74.md: not a bug note's name");
 	});
 });
