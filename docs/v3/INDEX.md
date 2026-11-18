@@ -490,7 +490,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
 
 ## Stories and bugs
 
-Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priority within each):
+Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priority within each, a bug before a story at equal priority):
 
 | Priority | Story or bug | Status | Depends on | Design |
 |---|---|---|---|---|

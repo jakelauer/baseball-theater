@@ -126,7 +126,7 @@ Record the decision in this file's status table, in its own commit.
 
 - `pnpm backlog:build` — read the notes, rewrite them canonically (derived fields refreshed), write `docs/v3/BACKLOG.md`.
 - `pnpm backlog:check` — the same in memory; exit 1 naming each file that `build` would change.
-- `pnpm backlog:import` — recovery only: regenerate the notes from `BACKLOG.md` (how V3 creates them).
+- `pnpm backlog:import` — recovery only: regenerate the notes from `BACKLOG.md` (how V3 creates them). `BACKLOG.md` holds no bugs, so import keeps the bug notes already in `bugs/`, each moved to its status folder.
 - `pnpm test:backlog` — the `scripts/backlog-vault` vitest suite.
 - All accept `--dir <notes dir>` and `--backlog <file>` so graders and tests work on temp copies.
 

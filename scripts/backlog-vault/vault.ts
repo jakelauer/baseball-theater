@@ -93,10 +93,14 @@ export function noteId(key: string): string | undefined
 	return STORY_NOTE_KEY.exec(key)?.[2] ?? BUG_NOTE_KEY.exec(key)?.[2];
 }
 
-/** True for the note keys the build reads: story and bug notes (flat or in a status folder) and frame notes. */
+/**
+ * True for the note keys the build reads: story notes (flat or in a status folder), frame notes, and every
+ * `.md` under `bugs/`. A misnamed or misfiled bug note (`bugs/todo/b74.md`, `bugs/Todo/B74.md`) is read too,
+ * so the build refuses it (bugs.ts readBugNotes) rather than dropping it and leaving the bug out of the order.
+ */
 export function isNoteKey(key: string): boolean
 {
-	return noteId(key) !== undefined || /^frame\/[^/]+\.md$/.test(key);
+	return STORY_NOTE_KEY.test(key) || /^bugs\/.+\.md$/.test(key) || /^frame\/[^/]+\.md$/.test(key);
 }
 
 /**

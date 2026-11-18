@@ -5,7 +5,9 @@ import {
 } from "vitest";
 import { parseBacklog } from "./parse.ts";
 import type { Story } from "./parse.ts";
-import { renderNotes, renderStory } from "./vault.ts";
+import {
+	isNoteKey, noteId, renderNotes, renderStory,
+} from "./vault.ts";
 
 const story: Story = {
 	id: "S26",
@@ -78,5 +80,27 @@ describe("renderNotes", () =>
 				expect(content).not.toMatch(/^### S\d+ —|^\*\*Status:\*\*/m);
 			}
 		}
+	});
+});
+
+describe("noteId and isNoteKey", () =>
+{
+	it("give a bug note's ID, flat or in a status folder, and no ID for a key that only looks like one", () =>
+	{
+		expect(noteId("bugs/todo/B74.md")).toBe("B74");
+		expect(noteId("bugs/B74.md")).toBe("B74");
+		for (const key of ["bugs/todo/S5.md", "stories/todo/B74.md", "bugs/a/b/B74.md"])
+		{
+			expect(noteId(key), key).toBeUndefined();
+		}
+	});
+
+	it("read every .md under bugs/, so the build refuses a misnamed one instead of dropping it, and no other file", () =>
+	{
+		expect(isNoteKey("bugs/todo/B74.md")).toBe(true);
+		expect(isNoteKey("bugs/a/b/B74.md")).toBe(true);
+		expect(isNoteKey("bugs/todo/S5.md")).toBe(true);
+		expect(isNoteKey("bugs/todo/.DS_Store")).toBe(false);
+		expect(isNoteKey("stories/todo/B74.md")).toBe(false);
 	});
 });

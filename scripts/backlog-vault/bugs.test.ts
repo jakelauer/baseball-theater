@@ -44,6 +44,43 @@ describe("readBugNote", () =>
 		}))).toThrow(/'status' must be one of/);
 		expect(() => readBugNote("bugs/todo/B74.md", "no frontmatter")).toThrow(BugNoteError);
 	});
+
+	it("refuses an issue number written as a string, an infinite priority and a missing title", () =>
+	{
+		expect(() => readBugNote("bugs/todo/B74.md", note({
+			...B74,
+			issue: "\"74\"",
+		}))).toThrow(/'issue' must be the issue number in the ID \(74\)/);
+		expect(() => readBugNote("bugs/todo/B74.md", note({
+			...B74,
+			priority: ".inf",
+		}))).toThrow(/'priority' must be a number/);
+		const untitled = Object.fromEntries(Object.entries(B74).filter(([key]) => key !== "title"));
+		expect(() => readBugNote("bugs/todo/B74.md", note(untitled))).toThrow(/'title' must be a non-empty string/);
+	});
+
+	it("names the note when its frontmatter is not valid YAML", () =>
+	{
+		expect(() => readBugNote("bugs/todo/B74.md", "---\nid: [\n---\n")).toThrow(/^bugs\/todo\/B74\.md: frontmatter is not valid YAML/);
+	});
+
+	it("refuses a frontmatter key a bug note doesn't take", () =>
+	{
+		expect(() => readBugNote("bugs/todo/B74.md", note({
+			...B74,
+			depends_on: "S5",
+		}))).toThrow(/takes only id, issue, title, priority, status; remove depends_on/);
+	});
+
+	it("accepts Obsidian's own properties, which its property editor adds", () =>
+	{
+		expect(readBugNote("bugs/todo/B74.md", note({
+			...B74,
+			tags: "[bug]",
+			aliases: "[]",
+			cssclasses: "[]",
+		}))).toEqual(B74);
+	});
 });
 
 describe("placeBugNotes", () =>
@@ -56,6 +93,14 @@ describe("placeBugNotes", () =>
 		});
 		expect([...placeBugNotes(new Map([["bugs/todo/B74.md", done]]))]).toEqual([["bugs/done/B74.md", done]]);
 		expect(() => placeBugNotes(new Map([["bugs/todo/B74.md", note(B74)], ["bugs/done/B74.md", done]]))).toThrow(/two notes share the ID B74/);
+	});
+
+	it("refuses any .md under bugs/ that isn't named bugs/<status>/B<issue>.md, so a new bug can't silently miss the order", () =>
+	{
+		for (const path of ["bugs/todo/b74.md", "bugs/B74 title.md", "bugs/Todo/B74.md", "bugs/todo/x/B74.md"])
+		{
+			expect(() => placeBugNotes(new Map([[path, note(B74)]])), path).toThrow(new RegExp(`^${path.replace(/[.]/g, "\\.")}: not a bug note's name`));
+		}
 	});
 });
 

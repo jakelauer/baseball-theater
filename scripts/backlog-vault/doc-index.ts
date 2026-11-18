@@ -191,6 +191,7 @@ const OPEN = ["doing", "todo", "blocked"];
 /** One row of the open-work table: a story or a bug, which share one priority scale. */
 interface OpenRow
 {
+	kind: "bug" | "story";
 	priority: number;
 	status: string;
 	cells: string;
@@ -206,18 +207,22 @@ function workLines(stories: Story[], bugs: Bug[]): string[]
 	const link = (s: Story) => `[${s.id}](backlog/${storyNotePath(s.id, s.status)})`;
 	const bugLink = (b: Bug) => `[${b.id}](backlog/${bugNotePath(b.id, b.status)})`;
 	const cell = (text: string) => text.replace(/\|/g, "\\|");
+	// At equal priority a bug goes first (.claude/skills/run-backlog/SKILL.md, step 3): it is broken behaviour already shipped.
+	const rank = (row: OpenRow) => (row.kind === "bug" ? 0 : 1);
 	const rows: OpenRow[] = [
 		...stories.filter((s) => OPEN.includes(s.status)).map((s) => ({
+			kind: "story" as const,
 			priority: s.priority,
 			status: s.status,
 			cells: `${link(s)} ${cell(s.tableTitle)} | \`${s.status}\` | ${s.dependsOn.join(", ") || "—"} | ${s.design.join(", ") || "—"}`,
 		})),
 		...bugs.filter((b) => OPEN.includes(b.status)).map((b) => ({
+			kind: "bug" as const,
 			priority: b.priority,
 			status: b.status,
 			cells: `${bugLink(b)} Bug #${b.issue}: ${cell(b.title)} | \`${b.status}\` | — | —`,
 		})),
-	].sort((a, b) => OPEN.indexOf(a.status) - OPEN.indexOf(b.status) || a.priority - b.priority);
+	].sort((a, b) => OPEN.indexOf(a.status) - OPEN.indexOf(b.status) || a.priority - b.priority || rank(a) - rank(b));
 	const out = [
 		"| Priority | Story or bug | Status | Depends on | Design |",
 		"|---|---|---|---|---|",
@@ -276,7 +281,7 @@ export function renderDocIndex(input: { docs: IndexedDoc[];
 		"",
 		"## Stories and bugs",
 		"",
-		"Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priority within each):",
+		"Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priority within each, a bug before a story at equal priority):",
 		"",
 		...workLines(input.stories, input.bugs ?? []),
 	].join("\n").replace(/\n+$/, "\n");

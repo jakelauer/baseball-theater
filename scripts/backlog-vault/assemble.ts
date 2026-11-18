@@ -304,3 +304,13 @@ export function buildFromNotes(files: Map<string, string>, audit?: string, docs?
 		notes: new Map([...renderNotes(parsed), ...placeBugNotes(files)]),
 	};
 }
+
+/**
+ * What `pnpm backlog:import` writes: the notes regenerated from BACKLOG.md. BACKLOG.md holds no bugs
+ * (bugs.ts), so the bug notes already in `current` are kept, each moved to the folder its status names;
+ * without them import would delete every bug note.
+ */
+export function importNotes(markdown: string, current: Map<string, string>): Map<string, string>
+{
+	return new Map([...renderNotes(parseBacklog(markdown)), ...placeBugNotes(current)]);
+}

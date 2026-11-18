@@ -24,6 +24,12 @@ import {
 /** A bug note's statuses: the story ones, so a bug moves through the same folders (`superseded` for a duplicate or a non-bug). */
 export const BUG_STATUSES = STORY_STATUSES;
 
+/** The frontmatter keys a bug note takes. */
+const BUG_KEYS = ["id", "issue", "title", "priority", "status"];
+
+/** Obsidian's own properties, which its property editor adds on an ordinary edit; accepted and ignored, so editing a note in the vault never breaks the build. */
+const OBSIDIAN_KEYS = ["tags", "aliases", "cssclasses"];
+
 export interface Bug
 {
 	id: string;
@@ -46,7 +52,23 @@ export function readBugNote(path: string, content: string): Bug
 	{
 		throw fail("missing frontmatter");
 	}
-	const fields = (parse(match[1] ?? "") ?? {}) as Record<string, unknown>;
+	let data: unknown;
+	try
+	{
+		data = parse(match[1] ?? "");
+	}
+	catch (error)
+	{
+		throw fail(`frontmatter is not valid YAML: ${(error as Error).message}`);
+	}
+	const fields = (data ?? {}) as Record<string, unknown>;
+	// A note orders work and nothing more: a key such as `depends_on` would look honoured and isn't, so it is
+	// refused. Obsidian's own properties are the one exception (OBSIDIAN_KEYS).
+	const extra = Object.keys(fields).filter((key) => !BUG_KEYS.includes(key) && !OBSIDIAN_KEYS.includes(key));
+	if (extra.length > 0)
+	{
+		throw fail(`frontmatter takes only ${BUG_KEYS.join(", ")}; remove ${extra.join(", ")}`);
+	}
 	const text = (key: string): string =>
 	{
 		const value = fields[key];
@@ -86,7 +108,7 @@ export function readBugNote(path: string, content: string): Bug
 	};
 }
 
-/** Every bug note in `files`, parsed. Refuses two notes with one ID (a note copied rather than moved). */
+/** Every bug note in `files`, parsed. Refuses a misnamed note under `bugs/` and two notes with one ID (a note copied rather than moved). */
 export function readBugNotes(files: Map<string, string>): { bug: Bug;
 	path: string;
 	content: string }[]
@@ -97,9 +119,14 @@ export function readBugNotes(files: Map<string, string>): { bug: Bug;
 		content: string }[] = [];
 	for (const [path, content] of files)
 	{
-		if (!BUG_NOTE_KEY.test(path))
+		if (!path.startsWith("bugs/"))
 		{
 			continue;
+		}
+		// Every .md under bugs/ reaches here (vault.ts isNoteKey), so a misnamed one stops the build instead of silently missing the order.
+		if (!BUG_NOTE_KEY.test(path))
+		{
+			throw new BugNoteError(`${path}: not a bug note's name — a bug note is bugs/<status>/B<issue>.md`);
 		}
 		const bug = readBugNote(path, content);
 		const other = seen.get(bug.id);
