@@ -15,7 +15,7 @@ import { dirname, join } from "node:path";
 import { buildFromNotes } from "./assemble.ts";
 import { docIndexFor, isIndexedDoc } from "./doc-index.ts";
 import { parseLedger, renderLedgerIndex } from "./ledger.ts";
-import { isNoteKey, STORY_NOTE_KEY } from "./vault.ts";
+import { isNoteKey, noteId } from "./vault.ts";
 
 export const NOTES_DIR = "docs/v3/backlog";
 export const BACKLOG = "docs/v3/BACKLOG.md";
@@ -92,7 +92,7 @@ function removeFolderIfEmpty(repo: string, path: string)
 }
 
 /**
- * A story note whose staged status moved it (`stories/todo/S5.md` → `stories/doing/S5.md`) but whose
+ * A story or bug note whose staged status moved it (`stories/todo/S5.md` → `stories/doing/S5.md`) but whose
  * working copy also holds unstaged edits: rename the working file to the new path, so the edits stay
  * on the one note (a modification of the new path) instead of leaving a second copy of the ID behind
  * at the old path, which every later build would refuse. A working copy equal to the staged one is
@@ -103,7 +103,7 @@ function moveEditedNotes(repo: string, notes: Map<string, string>, built: Map<st
 	const newKeyById = new Map<string, string>();
 	for (const key of built.keys())
 	{
-		const id = STORY_NOTE_KEY.exec(key)?.[2];
+		const id = noteId(key);
 		if (id !== undefined && !notes.has(key))
 		{
 			newKeyById.set(id, key);
@@ -111,7 +111,7 @@ function moveEditedNotes(repo: string, notes: Map<string, string>, built: Map<st
 	}
 	for (const [key, before] of notes)
 	{
-		const id = STORY_NOTE_KEY.exec(key)?.[2];
+		const id = noteId(key);
 		const to = id === undefined || built.has(key) ? undefined : newKeyById.get(id);
 		const from = `${NOTES_DIR}/${key}`;
 		const onDisk = working(repo, from);
@@ -166,7 +166,7 @@ export function runPrecommit(repo: string): PrecommitResult
 	}
 
 	const notes = new Map<string, string>();
-	for (const path of paths(git(repo, ["ls-files", "-z", "--cached", "--", `${NOTES_DIR}/stories`, `${NOTES_DIR}/frame`])))
+	for (const path of paths(git(repo, ["ls-files", "-z", "--cached", "--", `${NOTES_DIR}/stories`, `${NOTES_DIR}/bugs`, `${NOTES_DIR}/frame`])))
 	{
 		const key = path.slice(NOTES_DIR.length + 1);
 		const content = staged(repo, path);
@@ -196,7 +196,7 @@ export function runPrecommit(repo: string): PrecommitResult
 	{
 		const why = (error as Error).message;
 		// Usually a note moved on disk with only one side of the move staged (the new path, not the old one's removal).
-		const hint = why.includes("two notes share the ID") ? " (if you moved a note, stage both sides of the move: git add -A docs/v3/backlog/stories)" : "";
+		const hint = why.includes("two notes share the ID") ? " (if you moved a note, stage both sides of the move: git add -A docs/v3/backlog/stories docs/v3/backlog/bugs)" : "";
 		return {
 			ok: false,
 			message: `the staged backlog notes do not build: ${why}${hint}`,

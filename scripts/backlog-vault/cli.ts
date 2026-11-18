@@ -36,7 +36,7 @@ import { parseBacklog } from "./parse.ts";
 import { runPrecommit } from "./precommit.ts";
 import type { SourceDocs } from "./source.ts";
 import {
-	BACKLOG_BASE, isNoteKey, renderNotes, STORY_NOTE_KEY,
+	BACKLOG_BASE, isNoteKey, noteId, renderNotes,
 } from "./vault.ts";
 
 const repoRoot = resolve(import.meta.dirname, "../..");
@@ -119,14 +119,14 @@ async function exists(path: string): Promise<boolean>
 }
 
 /**
- * Story and frame notes on disk, keyed like the rendered map (`stories/done/S1.md`, `frame/00 ….md`).
- * `stories/` is read recursively so a note in any folder is seen, including a flat `stories/S1.md`
- * from before the status folders, which build then moves (vault.ts storyNotePath).
+ * Story, bug and frame notes on disk, keyed like the rendered map (`stories/done/S1.md`, `bugs/todo/B74.md`,
+ * `frame/00 ….md`). `stories/` and `bugs/` are read recursively so a note in any folder is seen, including
+ * a flat `stories/S1.md` from before the status folders, which build then moves (vault.ts storyNotePath).
  */
 async function readNotes(): Promise<Map<string, string>>
 {
 	const files = new Map<string, string>();
-	for (const sub of ["stories", "frame"])
+	for (const sub of ["stories", "bugs", "frame"])
 	{
 		const names = await readdir(join(dir, sub), {
 			recursive: true,
@@ -144,7 +144,7 @@ async function readNotes(): Promise<Map<string, string>>
 }
 
 /**
- * Story notes not in the folder their frontmatter `status` names (or a flat note from the old
+ * Story and bug notes not in the folder their frontmatter `status` names (or a flat note from the old
  * layout), as messages naming where each belongs. Read from what build would write, so the
  * rule lives in one place (vault.ts storyNotePath).
  */
@@ -153,7 +153,7 @@ function misplacedNotes(notes: Map<string, string>, built: Map<string, string>):
 	const builtById = new Map<string, string>();
 	for (const key of built.keys())
 	{
-		const id = STORY_NOTE_KEY.exec(key)?.[2];
+		const id = noteId(key);
 		if (id !== undefined)
 		{
 			builtById.set(id, key);
@@ -162,7 +162,7 @@ function misplacedNotes(notes: Map<string, string>, built: Map<string, string>):
 	const problems: string[] = [];
 	for (const key of notes.keys())
 	{
-		const id = STORY_NOTE_KEY.exec(key)?.[2];
+		const id = noteId(key);
 		const wanted = id === undefined ? undefined : builtById.get(id);
 		if (wanted !== undefined && wanted !== key)
 		{
@@ -172,7 +172,7 @@ function misplacedNotes(notes: Map<string, string>, built: Map<string, string>):
 	return problems;
 }
 
-/** Write `wanted`, removing story/frame notes it no longer contains (a renamed frame heading, a removed story, a note its status moved). */
+/** Write `wanted`, removing story/bug/frame notes it no longer contains (a renamed frame heading, a removed story, a note its status moved). */
 async function writeNotes(current: Map<string, string>, wanted: Map<string, string>)
 {
 	for (const path of current.keys())
@@ -199,19 +199,22 @@ async function writeNotes(current: Map<string, string>, wanted: Map<string, stri
 	}
 	// A status folder emptied by a move goes too, so Obsidian's file tree shows only live ones. One holding
 	// nothing but macOS Finder's .DS_Store counts as empty; anything else keeps it (rmdir refuses a non-empty one).
-	const folders = await readdir(join(dir, "stories"), {
-		withFileTypes: true,
-	}).catch(() => []);
-	for (const folder of folders.filter((entry) => entry.isDirectory()))
+	for (const sub of ["stories", "bugs"])
 	{
-		const path = join(dir, "stories", folder.name);
-		if ((await readdir(path).catch(() => [] as string[])).join() === ".DS_Store")
+		const folders = await readdir(join(dir, sub), {
+			withFileTypes: true,
+		}).catch(() => []);
+		for (const folder of folders.filter((entry) => entry.isDirectory()))
 		{
-			await rm(join(path, ".DS_Store"), {
-				force: true,
-			});
+			const path = join(dir, sub, folder.name);
+			if ((await readdir(path).catch(() => [] as string[])).join() === ".DS_Store")
+			{
+				await rm(join(path, ".DS_Store"), {
+					force: true,
+				});
+			}
+			await rmdir(path).catch(() => undefined);
 		}
-		await rmdir(path).catch(() => undefined);
 	}
 }
 
@@ -265,7 +268,7 @@ async function check()
 	if (stale.length > 0)
 	{
 		const misplaced = values["backlog-only"] ? [] : misplacedNotes(notes, built.notes);
-		const moves = misplaced.length === 0 ? "" : `\nStory notes in the wrong folder (pnpm backlog:build moves them):\n  ${misplaced.join("\n  ")}`;
+		const moves = misplaced.length === 0 ? "" : `\nNotes in the wrong folder (pnpm backlog:build moves them):\n  ${misplaced.join("\n  ")}`;
 		console.error(`backlog: out of date — run pnpm backlog:build. Would change:\n  ${stale.join("\n  ")}${moves}`);
 		process.exitCode = 1;
 		return;

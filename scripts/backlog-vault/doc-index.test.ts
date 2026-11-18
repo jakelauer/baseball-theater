@@ -147,6 +147,27 @@ describe("renderDocIndex", () =>
 		expect(index).toContain("**`done`** (1): [S1](backlog/stories/done/S1.md)");
 		expect(index).toContain("**`superseded`** (1): [S6](backlog/stories/superseded/S6.md)");
 	});
+
+	it("puts open bugs in the same table as the stories, in one priority order, and lists the rest as bugs by status", () =>
+	{
+		const bug = (id: string, status: string, priority: number) => ({
+			id,
+			issue: Number(id.slice(1)),
+			title: `${id} | title`,
+			priority,
+			status,
+		});
+		const index = renderDocIndex({
+			docs: [],
+			frame: [],
+			stories: [story("S2", "todo", 5), story("S4", "todo", 2), story("S5", "doing", 9)],
+			bugs: [bug("B74", "todo", 4.5), bug("B80", "doing", 1), bug("B71", "done", 0), bug("B9", "blocked", 0)],
+		});
+		const rows = index.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Priority"));
+		expect(rows.map((r) => /\[([SB]\d+)\]/.exec(r)?.[1])).toEqual(["B80", "S5", "S4", "B74", "S2", "B9"]);
+		expect(index).toContain("| 4.5 | [B74](backlog/bugs/todo/B74.md) Bug #74: B74 \\| title | `todo` | — | — |");
+		expect(index).toContain("**Bugs `done`** (1): [B71](backlog/bugs/done/B71.md)");
+	});
 });
 
 describe("isIndexedDoc", () =>

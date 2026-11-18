@@ -309,6 +309,22 @@ describe.each(["review-debt.sh", "parity-debt.sh"])("%s: story notes moved betwe
 		expect(run.stdout).toContain("not due");
 	}, TIMEOUT);
 
+	it("a bug note added, re-prioritized and moved to done: not due (bugs skip the backlog review)", () =>
+	{
+		reviewed({
+			[`${STORIES}/todo/S7.md`]: note("todo"),
+		});
+		const bug = (status: string, priority: number) => `---\nid: B74\nissue: 74\ntitle: A bug\npriority: ${priority}\nstatus: ${status}\n---\n\nhttps://github.com/o/r/issues/74\n`;
+		write("docs/v3/backlog/bugs/todo/B74.md", bug("todo", 3));
+		commit("B74 filed");
+		move("docs/v3/backlog/bugs/todo/B74.md", "docs/v3/backlog/bugs/done/B74.md");
+		write("docs/v3/backlog/bugs/done/B74.md", bug("done", 1));
+		commit("B74 fixed");
+		const run = debt(script);
+		expect(run.status, run.stdout).toBe(0);
+		expect(run.stdout).toContain("not due");
+	}, TIMEOUT);
+
 	it("a move from the flat layout (base before status folders): not due", () =>
 	{
 		reviewed({

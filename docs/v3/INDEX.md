@@ -5,6 +5,7 @@
 **Start here, then open only what you need.** Each entry links to the text itself; for a large doc, the numbers are the line range of each section, so read just that range (e.g. the Read tool's offset and limit) instead of the whole file. Nothing below summarises a doc, so starting here loses nothing.
 
 - **A story:** its note, `backlog/stories/<status>/S<N>.md` (linked below; the folder follows its status). The note holds the story's whole text — Gap, Impact, Source, ACs, `/goal` line — and its status, priority and dependencies in frontmatter. [BACKLOG.md](BACKLOG.md) (~1 MB) is generated from the notes for graders and tools; don't open it whole.
+- **A bug:** its GitHub issue holds the symptoms and cause; its note, `backlog/bugs/<status>/B<issue>.md`, holds only its priority and status, so bugs and stories are worked in one order (the table below).
 - **The ledger:** [audit.jsonl](audit.jsonl), one JSON line per entry with the line it starts at in [AUDIT.md](AUDIT.md) (~1 MB); read only that entry.
 - **The backlog's rules and scheduling:** the frame notes below, by rule number or section.
 
@@ -438,12 +439,12 @@ Assembled, in this order and around the stories, into BACKLOG.md.
 - [VAULT-MIGRATION.md — Backlog → Obsidian vault migration](VAULT-MIGRATION.md) — 19 KB
   - `9–18` Status
   - `19–29` Invariants (every stage)
-  - `30–162` Rules
+  - `30–163` Rules
     - `40–74` V1 — Generated read-only vault
     - `75–96` V2 — Byte-identical round trip
     - `97–109` Checkpoint — go / no-go for V3
-    - `110–159` V3 — Story files become the source
-    - `160–162` V4 — *(optional)* Slim `BACKLOG.md`
+    - `110–160` V3 — Story files become the source
+    - `161–163` V4 — *(optional)* Slim `BACKLOG.md`
 - [VISUAL-DESIGN.md — Baseball Theater v3 — Visual Design](VISUAL-DESIGN.md) — 49 KB
   - `16–29` North star (visual)
   - `30–75` 1. Design goals
@@ -487,12 +488,13 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `621–648` 9. Open decisions
   - `649–657` 10. How to use this doc
 
-## Stories
+## Stories and bugs
 
-Open stories, in order (`doing`, then `todo`, then `blocked`; by priority within each):
+Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priority within each):
 
-| Priority | Story | Status | Depends on | Design |
+| Priority | Story or bug | Status | Depends on | Design |
 |---|---|---|---|---|
+| 72.5 | [B74](backlog/bugs/todo/B74.md) Bug #74: Manager challenges and umpire reviews make a live game look not started | `todo` | — | — |
 | 73 | [S143](backlog/stories/todo/S143.md) Mock sign-in on staging | `todo` | S116 | — |
 | 74 | [S136](backlog/stories/todo/S136.md) Teams per day in the month counts | `todo` | S124 | — |
 | 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |

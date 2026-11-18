@@ -3,6 +3,7 @@
  * Pure: path → content in, markdown + canonical notes out.
  */
 
+import { placeBugNotes } from "./bugs.ts";
 import { parse as parseYaml } from "yaml";
 import {
 	GENERATED_LINES, parseBacklog, STATUS_TABLE_MARKER, storyIds,
@@ -280,7 +281,7 @@ export function assembleBacklog(files: Map<string, string>, audit?: string): str
 	}).join("\n");
 }
 
-/** What `pnpm backlog:build` writes: BACKLOG.md, and every note in canonical form with derived fields refreshed. */
+/** What `pnpm backlog:build` writes: BACKLOG.md, and every note in canonical form with derived fields refreshed (bug notes as written, in their status folder). */
 export interface BuiltBacklog
 {
 	backlog: string;
@@ -297,8 +298,9 @@ export function buildFromNotes(files: Map<string, string>, audit?: string, docs?
 	{
 		throw new VaultAssembleError(`stories without a valid reason to exist:\n- ${problems.join("\n- ")}`);
 	}
+	// Bug notes never enter BACKLOG.md (bugs.ts); build only moves each to the folder its status names.
 	return {
 		backlog,
-		notes: renderNotes(parsed),
+		notes: new Map([...renderNotes(parsed), ...placeBugNotes(files)]),
 	};
 }
