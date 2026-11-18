@@ -1,6 +1,6 @@
 ## Current baseline
 
-**As of:** 2026-11-18 — no story landed (the last is **S124**). The video player's Download button is removed (owner, 2026-11-12: *"Remove the download button for now, but make a story to do the service worker in the future"*). Added: **S151** (download a video through the service worker).
+**As of:** 2026-11-18 — no story landed (the last is **S124**). The video player's Download button is removed (owner, 2026-11-12: *"Remove the download button for now, but make a story to do the service worker in the future"*). Added: **S151** (download a video through the service worker). Earlier **As of** lines, newest first: [Baseline history](#baseline-history).
 
 | Area | State |
 |------|-------|

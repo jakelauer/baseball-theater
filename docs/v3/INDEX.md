@@ -13,11 +13,11 @@
 Assembled, in this order and around the stories, into BACKLOG.md.
 
 - [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 120 KB
-  - `127–145` Verify-script contract
-  - `146–159` Story status
-  - `160–516` Backlog reviews
-  - `517–536` Doc parity reviews
-  - `537–541` Goal command for multiple stories
+  - `129–147` Verify-script contract
+  - `148–161` Story status
+  - `162–518` Backlog reviews
+  - `519–538` Doc parity reviews
+  - `539–543` Goal command for multiple stories
   - Rules, by number:
     - `10–10` 1. Acceptance criteria map to commands, tests, or file invariants (exit codes / assertions).
     - `11–11` 2. Vague phrases (“works correctly”, “handles errors gracefully”) are forbidden until rewrit…
@@ -36,11 +36,11 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `41–48` 15. Every story states its Impact, right after Gap, in plain language.
     - `50–58` 16. A done story updates CHANGELOG.md in the same commit as its code (or its ledger entry, fo…
     - `60–68` 17. The Current baseline moves with the story list.
-    - `70–96` 18. UI is designed before it is built, and the product owner ratifies the design.
-    - `98–118` 19. Every story says what it is for (owner, 2026-10-09).
-    - `120–120` 20. Every story has a Reuse check section (ADR-025, owner, 2026-10-19: "I would prefer that a…
-    - `121–121` 21. Coverage floors ratchet up, never down (ADR-026; owner, 2026-10-19: ratchet).
-    - `123–123` 22. A UI story is checked against its ratified frames by the owner's eye (ADR-026, amended 20…
+    - `70–98` 18. UI is designed before it is built, and the product owner ratifies the design.
+    - `100–120` 19. Every story says what it is for (owner, 2026-10-09).
+    - `122–122` 20. Every story has a Reuse check section (ADR-025, owner, 2026-10-19: "I would prefer that a…
+    - `123–123` 21. Coverage floors ratchet up, never down (ADR-026; owner, 2026-10-19: ratchet).
+    - `125–125` 22. A UI story is checked against its ratified frames by the owner's eye (ADR-026, amended 20…
 - [01 Current baseline](<backlog/frame/01 Current baseline.md>) — 36 KB
   - `1–43` Current baseline
 - [02 Stories](<backlog/frame/02 Stories.md>) — 2 KB

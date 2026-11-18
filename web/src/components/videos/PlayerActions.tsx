@@ -72,11 +72,11 @@ export function QualityPicker({
  * The player's palette of clickables (owner, 2026-11-12: "video player needs a palette of
  * helpful clickables (copy link, direct link, download, share)"), less Download for now (owner,
  * 2026-11-12: "Remove the download button for now, but make a story to do the service worker in
- * the future"; S151). BT has no page of its own
- * for a single clip (public playback catalogs are out of scope), so every action works on the
- * clip's own video file: `fileUrl` (`fileQuality`: the MP4 playing, or the same cut's MP4
- * while an HLS stream plays, since a playlist is not something to save, open or send). Only
- * when MLB gave no MP4 of that cut do Copy link, Direct link and Share fall back to the stream.
+ * the future"; S151). BT has no page of its own for a single clip (public playback catalogs
+ * are out of scope), so every action works on the clip's own video file: `fileUrl`
+ * (`fileQuality`: the MP4 playing, or the same cut's MP4 while an HLS stream plays, since a
+ * playlist is not something to save, open or send). Only when MLB gave no MP4 of that cut do
+ * Copy link, Direct link and Share fall back to the stream.
  *
  * - **Copy link** puts that URL on the clipboard and reads "Copied" for two seconds, or
  *   "Couldn't copy" when the browser has no clipboard or refuses the write.
