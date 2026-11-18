@@ -182,10 +182,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** How this deployment signs fans in: its Logto tenant's address and the web app's ID, or `logto: null` where it offers no Logto sign-in (local dev, previews, and staging until its own tenant exists). */
+        /** How this deployment signs fans in: its Logto tenant's address and the web app's ID, or `logto: null` where it offers no Logto sign-in; and `mock: true` where it signs in as one shared test account instead (staging). Where both say no, it offers no sign-in (previews, and local dev, which signs in as `dev:`). */
         get: operations["getSignInConfig"];
         put?: never;
-        /** Finishes a sign-in: takes the ID token Logto's hosted sign-in gave the web app (checked against the tenant's keys, issuer, the app's ID and expiry), finds or creates the BT account linked to it, and answers with BT's own session token, sent from then on as `Authorization: Bearer <token>`. */
+        /** Finishes a sign-in: takes the ID token Logto's hosted sign-in gave the web app (checked against the tenant's keys, issuer, the app's ID and expiry), or, where `GET /api/v1/sign-in` answers `mock: true`, the mock sign-in credential, finds or creates the BT account linked to it, and answers with BT's own session token, sent from then on as `Authorization: Bearer <token>`. */
         post: operations["signIn"];
         delete?: never;
         options?: never;
@@ -744,7 +744,7 @@ export interface components {
         };
         /** @description The signed-in user's settings document (ADR-027); the house defaults until they first save. */
         SettingsResponse: components["schemas"]["AccountSettings"];
-        /** @description How this deployment signs fans in (S116; ADR-019): its Logto tenant's address and the web app's ID, read from the Worker's `vars` (`LOGTO_ENDPOINT`, `LOGTO_APP_ID`) so the web app keeps no second copy. `logto` is null where the Worker offers no Logto sign-in: local dev (which signs in as `dev:`), previews, and staging until its own tenant exists. */
+        /** @description How this deployment signs fans in (S116, S143; ADR-019). `logto` is its Logto tenant's address and the web app's ID, read from the Worker's `vars` (`LOGTO_ENDPOINT`, `LOGTO_APP_ID`) so the web app keeps no second copy; null where the Worker offers no Logto sign-in. `mock` is true only where the Worker signs in with the shared test account instead (staging, `BT_MOCK_SIGN_IN`). Where both say no, the deployment offers no sign-in at all: previews, and local dev, which signs in as `dev:` without asking. */
         SignInConfigResponse: {
             logto: {
                 /** @description The single-page app's ID, the ID token's audience. */
@@ -752,8 +752,10 @@ export interface components {
                 /** @description The tenant's address, e.g. `https://auth.baseball.theater`. */
                 endpoint: string;
             } | null;
+            /** @description Whether `POST /api/v1/sign-in` takes  {@link  MOCK_SIGN_IN_CREDENTIAL }  for the shared test account (staging only, S143). */
+            mock: boolean;
         };
-        /** @description A sign-in hand-off: the ID token Logto's hosted sign-in gave the web app, sent once. */
+        /** @description A sign-in hand-off, sent once: the ID token Logto's hosted sign-in gave the web app, or, where `GET /api/v1/sign-in` answers `mock: true` (staging, S143), `MOCK_SIGN_IN_CREDENTIAL`. */
         SignInRequest: {
             idToken: string;
         };
@@ -1423,7 +1425,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
-            /** @description `sign_in_refused`: the ID token doesn't verify, is malformed, has expired, is for another app or tenant, or carries no email. */
+            /** @description `sign_in_refused`: the ID token doesn't verify, is malformed, has expired, is for another app or tenant, or carries no email; or, where the mock sign-in is offered, it isn't the mock credential. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1432,7 +1434,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
-            /** @description `sign_in_unavailable`: this deployment offers no Logto sign-in. */
+            /** @description `sign_in_unavailable`: this deployment offers no provider sign-in (neither Logto nor the mock). */
             404: {
                 headers: {
                     [name: string]: unknown;

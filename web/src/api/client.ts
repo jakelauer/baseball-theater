@@ -231,15 +231,19 @@ export async function fetchAccountDeleted(): Promise<boolean>
 	return result.response.status === 401 && result.error?.error === "account_deleted";
 }
 
-/** How this deployment signs fans in (S116): its Logto tenant and app, or `logto: null` where it offers no Logto sign-in. */
+/**
+ * How this deployment signs fans in (S116, S143): its Logto tenant and app, or `logto: null`, and
+ * whether it offers staging's mock sign-in. Read through `signInWay.ts`, once per page load.
+ */
 export async function fetchSignInConfig()
 {
 	return unwrap(await api.GET("/api/v1/sign-in"));
 }
 
 /**
- * Hands Logto's ID token to BT, once per sign-in (S116), and answers with BT's own session
- * token. A refused token (401) or a deployment without Logto (404) throws, as any failure does.
+ * Hands Logto's ID token (or, on staging, the mock credential, S143) to BT, once per sign-in
+ * (S116), and answers with BT's own session token. A refused token (401) or a deployment without
+ * sign-in (404) throws, as any failure does.
  */
 export async function exchangeIdToken(idToken: string): Promise<string>
 {

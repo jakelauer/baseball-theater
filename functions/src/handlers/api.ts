@@ -383,9 +383,11 @@ export const API_ROUTER: readonly RouteEntry[] = [
 		route: "GET /api/v1/sign-in",
 		handle: async (_url, _params, ctx) =>
 		{
-			// The web app reads its Logto tenant and app ID from here, so it keeps no copy of its own (S116).
+			// The web app reads its Logto tenant and app ID from here, so it keeps no copy of its own (S116),
+			// and whether staging's mock sign-in is offered instead (S143).
 			const response = sendJson(200, "GET /api/v1/sign-in", {
 				logto: ctx.auth.logto?.config ?? null,
+				mock: ctx.auth.mock !== undefined,
 			});
 			response.headers.set("Cache-Control", "no-store");
 			return response;

@@ -5,8 +5,8 @@
  * (`src/scripts/deploy-logto.ts`) runs it in the `production-logto` job only, after the
  * `production` job, through production's one machine-to-machine app. It is a job of its own so
  * production's environment deployment status reflects only the Worker deploy, which the Release
- * order step reads to allow a rollback re-run (Claude's review of PR #51). Staging has none, so its tenant's few addresses are entered once
- * by hand (README).
+ * order step reads to allow a rollback re-run (Claude's review of PR #51). Staging has no tenant (it signs in with the mock, S143); were it to
+ * get one, its few addresses are entered once by hand (README).
  *
  * Two settings, each read first and written only when it differs, so a second run changes
  * nothing:

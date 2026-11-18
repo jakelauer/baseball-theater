@@ -14,6 +14,19 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## You can sign in on the staging site, and test sites without sign-in hide the button
+
+- **Before, nobody could sign in on the staging site: its Sign in button did nothing, so nothing that needs an
+  account (Settings, favorites, deleting your account) could be tried there before a release. Now Sign in on staging
+  signs you straight in, with no emailed code and no page change, as one shared test account, and everything an
+  account does works as it will on the real site. On a pull request's test site, which offers no sign-in at all, the
+  button is gone instead of doing nothing.** Details: S143. A mock `IdentityProvider` (`functions/src/adapters/mock/`)
+  accepts one fixed credential (`MOCK_SIGN_IN_CREDENTIAL`) for the account `tester@stage.baseball.theater` and goes
+  through the same `signIn` and `POST /api/v1/sign-in` as Logto; it is wired only where `BT_MOCK_SIGN_IN` is `"1"`
+  and no Logto tenant is named (`LOGTO_ENDPOINT` or `LOGTO_APP_ID`; `env.staging` alone). `GET /api/v1/sign-in` gains `mock`, and the web app reads that answer
+  once per page load (`web/src/session/signInWay.ts`) for both the header and the sign-in, loading Logto's SDK only
+  when a Logto sign-in or sign-out starts, never on page load.
+
 ## A deploy stops when the database's setup doesn't match the code
 
 - **Before, a site's database could quietly end up set up differently from the code it runs: a change tried out
