@@ -2,7 +2,7 @@ import {
 	Button, Group, Menu,
 } from "@mantine/core";
 import {
-	IconCheck, IconCopy, IconDownload, IconExternalLink, IconSettings, IconShare, IconX,
+	IconCheck, IconCopy, IconExternalLink, IconSettings, IconShare, IconX,
 } from "@tabler/icons-react";
 import type { VideoQuality } from "@bt/domain";
 import type { ReactNode } from "react";
@@ -20,8 +20,7 @@ function ActionButton({
 	component?: "a";
 	href?: string;
 	target?: string;
-	rel?: string;
-	download?: string | boolean; })
+	rel?: string; })
 {
 	return (
 		<Button variant="subtle" color="gray" size="compact-sm" c="var(--bt-light)" leftSection={icon} {...rest}>
@@ -71,7 +70,9 @@ export function QualityPicker({
 
 /**
  * The player's palette of clickables (owner, 2026-11-12: "video player needs a palette of
- * helpful clickables (copy link, direct link, download, share)"). BT has no page of its own
+ * helpful clickables (copy link, direct link, download, share)"), less Download for now (owner,
+ * 2026-11-12: "Remove the download button for now, but make a story to do the service worker in
+ * the future"; S151). BT has no page of its own
  * for a single clip (public playback catalogs are out of scope), so every action works on the
  * clip's own video file: `fileUrl` (`fileQuality`: the MP4 playing, or the same cut's MP4
  * while an HLS stream plays, since a playlist is not something to save, open or send). Only
@@ -80,9 +81,9 @@ export function QualityPicker({
  * - **Copy link** puts that URL on the clipboard and reads "Copied" for two seconds, or
  *   "Couldn't copy" when the browser has no clipboard or refuses the write.
  * - **Direct link** opens the file in a new tab.
- * - **Download** links the MP4 with `download`; MLB's files are on another origin, where a
- *   browser may open the file instead of saving it, so it opens in a new tab and never leaves
- *   the page. With no MP4 there is no Download.
+ * - **Download** isn't offered yet: a browser ignores `download` on another site's file and just
+ *   opens it, which is Direct link again. S151 saves it through the service worker instead;
+ *   until then Direct link opens the file, where the browser's own save works.
  * - **Share** opens the device's share sheet with the title and URL where the browser has one
  *   (`navigator.share`), and copies the link where it doesn't, with Copy link's answer.
  */
@@ -138,11 +139,6 @@ export function PlayerActions({
 			<ActionButton icon={<IconExternalLink size={14} />} component="a" href={link} target="_blank" rel="noopener noreferrer">
 				Direct link
 			</ActionButton>
-			{fileUrl ? (
-				<ActionButton icon={<IconDownload size={14} />} component="a" href={fileUrl} download target="_blank" rel="noopener noreferrer">
-					Download
-				</ActionButton>
-			) : null}
 			<ActionButton icon={<IconShare size={14} />} onClick={share}>
 				Share
 			</ActionButton>

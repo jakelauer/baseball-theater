@@ -48,10 +48,10 @@ Assembled, in this order and around the stories, into BACKLOG.md.
 - [04 Live data plane — ADR-002 ingest + client freshness](<backlog/frame/04 Live data plane — ADR-002 ingest + client freshness.md>) — 10 KB
   - `1–80` Live data plane — ADR-002 ingest + client freshness
     - `55–80` Later themes (not yet story-sliced)
-- [05 Gap map (doc → story)](<backlog/frame/05 Gap map (doc → story).md>) — 9 KB
-  - `1–44` Gap map (doc → story)
+- [05 Gap map (doc → story)](<backlog/frame/05 Gap map (doc → story).md>) — 10 KB
+  - `1–45` Gap map (doc → story)
 - [06 Baseline history](<backlog/frame/06 Baseline history.md>) — 48 KB
-  - `1–132` Baseline history
+  - `1–133` Baseline history
 
 ## Product and architecture docs
 
@@ -377,7 +377,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `2167–2170` System Consistency
   - `2171–2174` Originality
   - `2175–2221` Small-Size Test
-- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 62 KB
+- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 63 KB
   - `12–19` North star
   - `20–34` Principles (product)
   - `35–46` Scope legend
@@ -528,6 +528,7 @@ Open stories, in order (`doing`, then `todo`, then `blocked`; by priority within
 | 116 | [S92](backlog/stories/todo/S92.md) Design: next-pitch odds (owner-ratified) | `todo` | S64 | — |
 | 117 | [S91](backlog/stories/todo/S91.md) Next-pitch odds in Live (paid) | `todo` | S90, S64 | S92 |
 | 118 | [S146](backlog/stories/todo/S146.md) Skip deploys with unchanged build inputs | `todo` | — | — |
+| 119 | [S151](backlog/stories/todo/S151.md) Video download via service worker | `todo` | S73 | — |
 | 72 | [S123](backlog/stories/blocked/S123.md) Design: calendar date picker | `blocked` | — | — |
 | 76 | [S129](backlog/stories/blocked/S129.md) Design: Standings views | `blocked` | — | — |
 | 78 | [S131](backlog/stories/blocked/S131.md) Approved release notes | `blocked` | — | — |

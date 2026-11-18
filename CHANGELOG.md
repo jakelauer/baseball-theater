@@ -14,6 +14,14 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## The video player's Download button is gone for now
+
+- **Before, the player's Download button didn't download: browsers open another site's video file instead of
+  saving it, so it did the same as Direct link. Now there's no Download button; Direct link opens the video, where
+  your browser's own save works, until a real download arrives.** Details: owner, 2026-11-12 ("Remove the download
+  button for now, but make a story to do the service worker in the future"); `PlayerActions`
+  (`web/src/components/videos`); S151 saves the file through the app's service worker.
+
 ## The day's top highlights lead with the plays that mattered, and keep up during games
 
 - **Before, the day's "Best of" highlights could open with an interview: on October 28, the World Series clincher,
