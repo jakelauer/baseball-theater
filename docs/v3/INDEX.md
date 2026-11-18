@@ -495,6 +495,8 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | Priority | Story or bug | Status | Depends on | Design |
 |---|---|---|---|---|
 | 72.5 | [B74](backlog/bugs/todo/B74.md) Bug #74: Manager challenges and umpire reviews make a live game look not started | `todo` | — | — |
+| 72.8 | [B40](backlog/bugs/todo/B40.md) Bug #40: Review-debt base can land on a merge commit and hide drift | `todo` | — | — |
+| 72.9 | [B48](backlog/bugs/todo/B48.md) Bug #48: Deploys don't check that a database's applied migrations match the code's | `todo` | — | — |
 | 73 | [S143](backlog/stories/todo/S143.md) Mock sign-in on staging | `todo` | S116 | — |
 | 74 | [S136](backlog/stories/todo/S136.md) Teams per day in the month counts | `todo` | S124 | — |
 | 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
