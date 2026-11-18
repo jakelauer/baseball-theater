@@ -14,6 +14,16 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## Plan checks no longer miss changes after branches are merged
+
+- **Before, when two lines of work were merged together, the check that says when the plan is due for another
+  review could start counting from the merge instead of from the last review, so a change to a story's
+  requirements made on the other line went unseen and a review that was due read as not due. Now it counts from
+  the review itself, so those changes are caught and the plan gets the review it needs.** Details: B40, fixes #40.
+  `ledgerBase` in `scripts/backlog-vault/ledger.ts` now returns the commit that added the newest review, answers or
+  skip entry (its ledger holds it, none of its parents' do) instead of comparing each commit with the one before it
+  in date order.
+
 ## A game paused for a replay review still looks live
 
 - **Before, whenever a manager challenged a call or the umpires reviewed one, a live game looked as if it hadn't
