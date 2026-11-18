@@ -14,6 +14,21 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## A deploy stops when the database's setup doesn't match the code
+
+- **Before, a site's database could quietly end up set up differently from the code it runs: a change tried out
+  on a pull request's preview could linger in it, or a change could be skipped because a newer one had already run.
+  The deploy carried on, and the site could then break in ways that were hard to trace. Now every deploy (preview,
+  staging and production) checks the database before and after updating it and stops, before the new version goes
+  live, naming each change that doesn't match. Rolling production back to an earlier release still works, with a
+  warning, and so does a pull request's preview built before a newer change reached staging.** Details: B48, fixes #48. `migrateDatabaseAt` in `functions/src/adapters/postgres/migrate.ts` (what
+  `pnpm db:migrate` runs) compares `drizzle.__drizzle_migrations` (created_at, hash) with the committed migrations
+  (`migrationDrift`) before migrating, so a drifted database fails before any DDL, and again after. A database only
+  ahead of the code (newer migrations, as after a rollback) passes with a warning where `BT_MIGRATIONS_MAY_BE_AHEAD=1`,
+  which the production and preview deploys set (a preview's database is reset from staging, ahead of a pull
+  request built before `stage` gained a newer migration) and staging's never does; every other difference fails everywhere. The readers it uses moved there
+  from the baseball-data copy, which shares them.
+
 ## Plan checks no longer miss changes after branches are merged
 
 - **Before, when two lines of work were merged together, the check that says when the plan is due for another

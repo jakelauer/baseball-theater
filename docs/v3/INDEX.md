@@ -494,7 +494,6 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 
 | Priority | Story or bug | Status | Depends on | Design |
 |---|---|---|---|---|
-| 72.9 | [B48](backlog/bugs/todo/B48.md) Bug #48: Deploys don't check that a database's applied migrations match the code's | `todo` | — | — |
 | 73 | [S143](backlog/stories/todo/S143.md) Mock sign-in on staging | `todo` | S116 | — |
 | 74 | [S136](backlog/stories/todo/S136.md) Teams per day in the month counts | `todo` | S124 | — |
 | 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
@@ -540,4 +539,4 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 
 **`superseded`** (2): [S7](backlog/stories/superseded/S7.md), [S9](backlog/stories/superseded/S9.md)
 
-**Bugs `done`** (2): [B40](backlog/bugs/done/B40.md), [B74](backlog/bugs/done/B74.md)
+**Bugs `done`** (3): [B40](backlog/bugs/done/B40.md), [B48](backlog/bugs/done/B48.md), [B74](backlog/bugs/done/B74.md)
