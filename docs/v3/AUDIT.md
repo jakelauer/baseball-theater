@@ -19096,3 +19096,18 @@ export const label = game.abbreviation + " @ ";  333ms
 ```
 
 </details>
+
+---
+
+## 2026-11-18 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-19T01:56:09Z` |
+| HEAD at capture | `1cb42a7` (tree clean) |
+| Change | `1cb42a7` — S139: standings answer spring training, the regular season and the playoffs at once |
+
+**What changed, and the owner's answer**
+
+S139 AC 8 was tightened to answer the S139 pre-PR review (an answer whose season is not over yet is kept the floor in its postseason window and 48 hours before it, and one built while MLB could not give a calendar the floor). CLAUDE.md: a story's acceptance criteria rewritten to answer a review are always skipped, without asking (owner, 2026-11-07, asked whether an AC rewrite answering a review needed a backlog review: "This shouldn't even trigger a question. Always skip.").
