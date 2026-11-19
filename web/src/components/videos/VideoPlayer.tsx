@@ -102,7 +102,7 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
  *
  * Under the progress row sit the quality picker (`QualityPicker`, the clip's
  * `videoQualities` this browser can play, starting on `playbackUrl`'s) and the palette of
- * actions (`PlayerActions`: copy link, direct link, download, share), both on the quality
+ * actions (`PlayerActions`: copy link, direct link, share; Download waits for S151), both on the quality
  * being played. Switching quality keeps the place in the clip, and plays on only if the
  * reader wants it playing (`wantsPlay`); only the first source autoplays.
  */

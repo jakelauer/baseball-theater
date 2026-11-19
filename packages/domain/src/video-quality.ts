@@ -116,7 +116,7 @@ function isPortrait(quality: VideoQuality): boolean
 }
 
 /**
- * The clip as a file, for the player's Download, Copy link, Direct link and Share (owner,
+ * The clip as a file, for the player's Copy link, Direct link and Share, and Download once S151 adds it (owner,
  * 2026-11-12: "copy link, direct link, download, share"): the quality playing when it is an
  * MP4, else the sharpest MP4 of the same cut (portrait for a portrait stream, landscape
  * otherwise), since an HLS playlist is not a file anyone can save or open on its own.
