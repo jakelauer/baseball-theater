@@ -7,21 +7,25 @@
  * token (`token.ts`). The server answers 401 when there is no valid session,
  * which reads as signed out.
  *
- * Signing in is Logto's wherever the deployment offers it (S116): the `AuthClient`
- * (the one module that loads Logto's SDK, imported on demand so it stays out of
- * the first download) goes to Logto's hosted sign-in, and the callback route hands
- * the ID token to BT for BT's own session token. Locally it stays the dev sign-in.
+ * How it signs in is the deployment's (`signInWay.ts`, asked once per page load): Logto
+ * where it names a tenant (S116; the `AuthClient`, the one module that loads Logto's SDK,
+ * imported only when a sign-in, its callback or a sign-out first asks for it, goes to Logto's
+ * hosted sign-in, and the callback route hands the ID token to BT for BT's own session
+ * token); staging's mock, which trades the fixed mock credential for a session
+ * as the shared test account with no navigation (S143); none on previews; and the dev
+ * sign-in locally.
  */
 import { useQueryClient } from "@tanstack/react-query";
 import {
 	useEffect, useState, type ReactNode,
 } from "react";
-import { signOutReturnUri } from "@bt/domain";
+import { MOCK_SIGN_IN_CREDENTIAL, signOutReturnUri } from "@bt/domain";
 import { exchangeIdToken, fetchMe } from "../api/client.js";
-import type { AuthClient } from "./AuthClient.js";
 import {
-	ACCOUNT_QUERY_KEY, DEV_SIGN_IN_TOKEN, SessionContext, SIGNED_OUT, type Session, type SessionState,
+	ACCOUNT_QUERY_KEY, DEV_SIGN_IN_TOKEN, SessionContext, SIGNED_OUT, type Session, type SessionState, type SignInOffer,
 } from "./session.js";
+import type { SignInWay, SignInWayLoader } from "./signInWay.js";
+import { deployedSignInWay } from "./signInWay.js";
 import {
 	clearPersonalData, readStored, writeStored,
 } from "../storage/storage.js";
@@ -61,19 +65,11 @@ async function loadSession(): Promise<SessionState | null>
 	return next;
 }
 
-/**
- * This deployment's `AuthClient`, or null where it offers no Logto sign-in. A production
- * build asks the Worker (`AuthClient.ts`); a development build signs in as `dev:` and never
- * loads Logto's SDK. Tests pass their own.
- */
-export type AuthClientLoader = () => Promise<AuthClient | null>;
-
-const deployedAuthClient: AuthClientLoader = async () =>
+/** Whether a way to sign in shows "Sign in": every way but `none` (previews, S143 AC 6). */
+function offerOf(way: SignInWay): SignInOffer
 {
-	if (!import.meta.env.PROD) return null;
-	const { loadAuthClient } = await import("./AuthClient.js");
-	return loadAuthClient();
-};
+	return way.kind === "none" ? "none" : "offered";
+}
 
 /**
  * Each callback URL's hand-off, so the ID token goes to BT once even when the callback
@@ -81,14 +77,35 @@ const deployedAuthClient: AuthClientLoader = async () =>
  */
 const handOffs = new Map<string, Promise<string>>();
 
-export function SessionProvider({ children, authClient = deployedAuthClient }: { children: ReactNode;
-	authClient?: AuthClientLoader; })
+export function SessionProvider({ children, signInWay = deployedSignInWay }: { children: ReactNode;
+	/** How this page signs in (`signInWay.ts`); tests pass a stand-in. */
+	signInWay?: SignInWayLoader; })
 {
 	const queryClient = useQueryClient();
 	// With no stored token there is nothing to ask the server, so start signed out.
 	const [state, setState] = useState<SessionState>(() => (getSessionToken() ? {
 		status: "loading",
 	} : SIGNED_OUT));
+
+	const [signInOffer, setSignInOffer] = useState<SignInOffer>("loading");
+
+	// The deployment's answer, once per page load (the loader keeps it): "Sign in" waits for it so it
+	// never flashes on a preview, and shows when the question fails, so a fan always has a way in.
+	useEffect(() =>
+	{
+		let current = true;
+		signInWay().then((way) =>
+		{
+			if (current) setSignInOffer(offerOf(way));
+		}, () =>
+		{
+			if (current) setSignInOffer("offered");
+		});
+		return () =>
+		{
+			current = false;
+		};
+	}, [signInWay]);
 
 	useEffect(() =>
 	{
@@ -111,24 +128,41 @@ export function SessionProvider({ children, authClient = deployedAuthClient }: {
 		if (next) setState(next);
 	}
 
+	/** Keeps `token` as the session's, shows its account, and refreshes the account's server data. */
+	async function keepSession(token: string): Promise<void>
+	{
+		setSessionToken(token);
+		await applySession();
+		await queryClient.invalidateQueries({
+			queryKey: ACCOUNT_QUERY_KEY,
+		});
+	}
+
 	const session: Session = {
 		...state,
+		signInOffer,
 		async signIn()
 		{
-			const client = await authClient();
-			if (client)
+			// A click after a failed question asks again (the loader doesn't remember a failure).
+			const way = await signInWay();
+			setSignInOffer(offerOf(way));
+			if (way.kind === "logto")
 			{
+				// Logto's SDK arrives first: if it can't, nothing is stored and the click can be retried.
+				const client = await way.client();
 				// The callback returns here once Logto is done (`finishSignIn`).
 				writeStored("bt.signInReturnTo", `${location.pathname}${location.search}`);
 				await client.signIn();
 				return true;
 			}
-			if (import.meta.env.PROD) return false;
-			setSessionToken(DEV_SIGN_IN_TOKEN);
-			await applySession();
-			await queryClient.invalidateQueries({
-				queryKey: ACCOUNT_QUERY_KEY,
-			});
+			// Staging (S143): the mock credential traded for an ordinary BT session, on this page.
+			if (way.kind === "mock")
+			{
+				await keepSession(await exchangeIdToken(MOCK_SIGN_IN_CREDENTIAL));
+				return false;
+			}
+			if (way.kind === "none") return false;
+			await keepSession(DEV_SIGN_IN_TOKEN);
 			return false;
 		},
 		finishSignIn(callbackUrl)
@@ -138,13 +172,10 @@ export function SessionProvider({ children, authClient = deployedAuthClient }: {
 			{
 				handOff = (async () =>
 				{
-					const client = await authClient();
-					if (!client) throw new Error("this deployment offers no Logto sign-in");
-					setSessionToken(await exchangeIdToken(await client.finishSignIn(callbackUrl)));
-					await applySession();
-					await queryClient.invalidateQueries({
-						queryKey: ACCOUNT_QUERY_KEY,
-					});
+					const way = await signInWay();
+					if (way.kind !== "logto") throw new Error("this deployment offers no Logto sign-in");
+					const client = await way.client();
+					await keepSession(await exchangeIdToken(await client.finishSignIn(callbackUrl)));
 					const returnTo = readStored("bt.signInReturnTo") ?? "/";
 					writeStored("bt.signInReturnTo", null);
 					return returnTo;
@@ -163,7 +194,11 @@ export function SessionProvider({ children, authClient = deployedAuthClient }: {
 				queryKey: ACCOUNT_QUERY_KEY,
 			});
 			// Then Logto's own session, where Logto signed in: a navigation, back to this page when Logto accepts it.
-			void authClient().then((client) => client?.signOut(signOutReturnUri(location.origin, location.pathname))).catch(() =>
+			// The mock and dev sign-ins have no session but BT's.
+			void signInWay().then(async (way) =>
+			{
+				if (way.kind === "logto") await (await way.client()).signOut(signOutReturnUri(location.origin, location.pathname));
+			}).catch(() =>
 			{
 				// BT's session is already over; a Logto session left behind only skips the email on the next sign-in, which asks for a fresh code anyway.
 			});

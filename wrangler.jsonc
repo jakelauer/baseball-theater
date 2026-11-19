@@ -58,11 +58,14 @@
 	// The Durable Object `migrations` stay top-level. Every deployed env serves live MLB and names
 	// its own address as BT_APP_ORIGIN; BT_SESSION_KEY is a Worker secret that every deploy pushes
 	// from GitHub secrets (`--secrets-file`), never a var. None sets BT_LOCAL, so none accepts a
-	// `dev:` sign-in (S114 AC 7). Sign-in is Logto (S116), offered only where an env's vars name
-	// a tenant (LOGTO_ENDPOINT, LOGTO_APP_ID): production's own tenant, never shared with another
-	// env. Previews offer no sign-in (owner, 2026-11-07: "Yes", to previews without sign-in), and
-	// staging none until its own Logto tenant exists (owner, 2026-11-06: "We will use a staging
-	// one or a fake shim"); its vars are then added to env.staging, never production's.
+	// `dev:` sign-in (S114 AC 7). Production signs in through Logto (S116), offered only where an
+	// env's vars name a tenant (LOGTO_ENDPOINT, LOGTO_APP_ID): production's own tenant, never shared
+	// with another env. Staging signs in with the mock test account instead (S143; BT_MOCK_SIGN_IN
+	// in env.staging's vars and nowhere else; owner, 2026-11-06: "We will use a staging one or a
+	// fake shim"): every Sign in there is one shared test account, and no Logto var may sit beside
+	// it (the Worker turns the mock off wherever LOGTO_ENDPOINT or LOGTO_APP_ID is set). Previews
+	// offer no sign-in at all (owner, 2026-11-07: "Yes", to previews without sign-in), so their
+	// header shows no Sign in.
 	"env": {
 		// One Worker per pull request (`baseball-theater-pr-<N>` on workers.dev, its name and
 		// BT_APP_ORIGIN set at deploy time) on its own Neon branch, `preview-pr-<N>`, a copy of
@@ -112,10 +115,11 @@
 			],
 			"vars": {
 				"BT_USE_LIVE_MLB": "1",
-				"BT_APP_ORIGIN": "https://stage.baseball.theater"
+				"BT_APP_ORIGIN": "https://stage.baseball.theater",
+				"BT_MOCK_SIGN_IN": "1"
 			}
 		},
-		// Every push to main, at next.baseball.theater until the owner's DNS cutover (S119; owner,
+		// Every published GitHub Release (S121), at next.baseball.theater until the owner's DNS cutover (S119; owner,
 		// 2026-11-07: "Do the temporary address"): baseball.theater still points at the Elastic
 		// Beanstalk (v2) site, and a deploy that claimed it would replace that DNS record at once.
 		// Cutting over is the owner's step: set this route and BT_APP_ORIGIN to baseball.theater

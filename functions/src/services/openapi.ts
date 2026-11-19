@@ -229,18 +229,18 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 	},
 	"GET /api/v1/sign-in": {
 		operationId: "getSignInConfig",
-		summary: "How this deployment signs fans in: its Logto tenant's address and the web app's ID, or `logto: null` where it offers no Logto sign-in (local dev, previews, and staging until its own tenant exists).",
+		summary: "How this deployment signs fans in: its Logto tenant's address and the web app's ID, or `logto: null` where it offers no Logto sign-in; and `mock: true` where it signs in as one shared test account instead (staging). Where both say no, it offers no sign-in (previews, and local dev, which signs in as `dev:`).",
 		parameters: [],
 		errors: {},
 	},
 	"POST /api/v1/sign-in": {
 		operationId: "signIn",
-		summary: "Finishes a sign-in: takes the ID token Logto's hosted sign-in gave the web app (checked against the tenant's keys, issuer, the app's ID and expiry), finds or creates the BT account linked to it, and answers with BT's own session token, sent from then on as `Authorization: Bearer <token>`.",
+		summary: "Finishes a sign-in: takes the ID token Logto's hosted sign-in gave the web app (checked against the tenant's keys, issuer, the app's ID and expiry), or, where `GET /api/v1/sign-in` answers `mock: true`, the mock sign-in credential, finds or creates the BT account linked to it, and answers with BT's own session token, sent from then on as `Authorization: Bearer <token>`.",
 		parameters: [],
 		errors: {
 			400: "The body is not JSON with a non-empty `idToken`.",
-			401: "`sign_in_refused`: the ID token doesn't verify, is malformed, has expired, is for another app or tenant, or carries no email.",
-			404: "`sign_in_unavailable`: this deployment offers no Logto sign-in.",
+			401: "`sign_in_refused`: the ID token doesn't verify, is malformed, has expired, is for another app or tenant, or carries no email; or, where the mock sign-in is offered, it isn't the mock credential.",
+			404: "`sign_in_unavailable`: this deployment offers no provider sign-in (neither Logto nor the mock).",
 			503: "`sign_in_failed`: BT couldn't finish the sign-in for a reason of its own (the tenant's keys couldn't be fetched, or its database or session key failed); the token wasn't refused, so trying again later may succeed.",
 		},
 	},

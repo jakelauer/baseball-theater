@@ -18850,3 +18850,91 @@ S151 acceptance criteria rewritten in 8759fc1 to answer the pre-PR review and ch
 **What changed, and the owner's answer**
 
 Owner, 2026-11-18, asked whether bugs in the backlog order and the /run-stories → /run-backlog rename (0dfd5be, 4210072) need a backlog review: "No, log a skip (Recommended)".
+
+---
+
+## 2026-11-18 — S143 completed
+
+**Mock sign-in on staging**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-18T23:53:25Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `346537b` (tree dirty) |
+| Grader | `scripts/verify-S143.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: a mock IdentityProvider under functions/src/adapters/ signs in with one exported fixed credential (not dev:) as provider "mock", one fixed subject, a fixed email on stage.baseball.theater, emailVerified true and authTime from an injected clock; any other credential (another string, empty, dev:test-user) throws CredentialRefusedError (tests 'S143 AC 1')
+check 2 PASS: one exported function in functions/src/worker-app.ts wires the mock only where BT_MOCK_SIGN_IN is "1" and neither LOGTO_ENDPOINT nor LOGTO_APP_ID is set; wrangler.jsonc sets BT_MOCK_SIGN_IN in env.staging's vars only, and env.staging names no LOGTO_* var; dev: sign-in still gated on BT_LOCAL (tests 'S143 AC 2')
+check 3 PASS: GET /api/v1/sign-in answers mock true/false beside logto; POST with the mock credential answers 200 { token } through signIn where wired, 401 sign_in_refused where another provider is wired, 404 where none is (tests 'S143 AC 3'); the spec carries mock and is up to date (pnpm api:spec), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it again
+check 4 PASS: in workerd, with BT_MOCK_SIGN_IN=1 and no BT_LOCAL: the mock signs in, /me answers the test account, settings save and read back, a second sign-in finds the same uid and settings, deletion works with no Logto admin and the next sign-in makes a new account with house defaults; without the var the mock is refused; Bearer dev:test-user refused either way (workerd tests 'S143 AC 4')
+check 5 PASS: web: where the Worker says mock: true, Sign in (and Settings' Sign in again) hands the mock credential to POST /api/v1/sign-in, keeps the token and shows the account with no navigation and no Logto SDK; sign-out returns to signed out with no Logto sign-out; the deployed loader with mock: true never imports AuthClient.ts (RTL tests 'S143 AC 5')
+check 6 PASS: web: the header shows no Sign in where a production build's Worker answers logto: null and mock: false, shows it for Logto, the mock and a dev build, hides it while the answer loads, shows it when the request fails (a click asks again); one read of the answer per page load serves header and sign-in (RTL tests 'S143 AC 6')
+check 7 PASS: none of wrangler.jsonc, README.md, worker-app.ts, accounts.ts, openapi.ts, api-routes.ts, openapi/bt-api.v1.json, web/src/api/generated/ says 'until its own', 'tenant of its own' or 'own tenant's once it exists'; wrangler.jsonc, WorkerEnv's comment and README say staging signs in with the mock test account and previews have none
+check 8 PASS: backlog Status is done (story heading and Story status table)
+check 9 PASS: the story changed nothing outside its fence (functions/src/, functions/vitest*.config.ts, openapi/, packages/domain/src/api-routes.ts, web/src/, web/vitest.config.ts, wrangler.jsonc, README.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, scripts/verify-S143.sh)
+```
+
+**9/9 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S143 check results ---
+check 1 PASS: a mock IdentityProvider under functions/src/adapters/ signs in with one exported fixed credential (not dev:) as provider "mock", one fixed subject, a fixed email on stage.baseball.theater, emailVerified true and authTime from an injected clock; any other credential (another string, empty, dev:test-user) throws CredentialRefusedError (tests 'S143 AC 1')
+check 2 PASS: one exported function in functions/src/worker-app.ts wires the mock only where BT_MOCK_SIGN_IN is "1" and neither LOGTO_ENDPOINT nor LOGTO_APP_ID is set; wrangler.jsonc sets BT_MOCK_SIGN_IN in env.staging's vars only, and env.staging names no LOGTO_* var; dev: sign-in still gated on BT_LOCAL (tests 'S143 AC 2')
+check 3 PASS: GET /api/v1/sign-in answers mock true/false beside logto; POST with the mock credential answers 200 { token } through signIn where wired, 401 sign_in_refused where another provider is wired, 404 where none is (tests 'S143 AC 3'); the spec carries mock and is up to date (pnpm api:spec), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it again
+check 4 PASS: in workerd, with BT_MOCK_SIGN_IN=1 and no BT_LOCAL: the mock signs in, /me answers the test account, settings save and read back, a second sign-in finds the same uid and settings, deletion works with no Logto admin and the next sign-in makes a new account with house defaults; without the var the mock is refused; Bearer dev:test-user refused either way (workerd tests 'S143 AC 4')
+check 5 PASS: web: where the Worker says mock: true, Sign in (and Settings' Sign in again) hands the mock credential to POST /api/v1/sign-in, keeps the token and shows the account with no navigation and no Logto SDK; sign-out returns to signed out with no Logto sign-out; the deployed loader with mock: true never imports AuthClient.ts (RTL tests 'S143 AC 5')
+check 6 PASS: web: the header shows no Sign in where a production build's Worker answers logto: null and mock: false, shows it for Logto, the mock and a dev build, hides it while the answer loads, shows it when the request fails (a click asks again); one read of the answer per page load serves header and sign-in (RTL tests 'S143 AC 6')
+check 7 PASS: none of wrangler.jsonc, README.md, worker-app.ts, accounts.ts, openapi.ts, api-routes.ts, openapi/bt-api.v1.json, web/src/api/generated/ says 'until its own', 'tenant of its own' or 'own tenant's once it exists'; wrangler.jsonc, WorkerEnv's comment and README say staging signs in with the mock test account and previews have none
+check 8 PASS: backlog Status is done (story heading and Story status table)
+check 9 PASS: the story changed nothing outside its fence (functions/src/, functions/vitest*.config.ts, openapi/, packages/domain/src/api-routes.ts, web/src/, web/vitest.config.ts, wrangler.jsonc, README.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, scripts/verify-S143.sh)
+--- verify-S143: 9/9 checks passed ---
+verify-S143: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 10ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 39ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 39ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 49ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 47ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 705ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  343ms
+   ✓ jscpd duplication gate (.jscpd.json) > fails when a 30-line block is copied into a second file  361ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 588ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  563ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  15:55:38
+   Duration  1.47s (transform 71ms, setup 0ms, collect 3.43s, tests 1.63s, environment 1ms, prepare 459ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162795,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>

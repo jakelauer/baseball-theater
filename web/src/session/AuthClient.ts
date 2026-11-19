@@ -17,15 +17,16 @@
  *   account deletion clear them with everything else (ADR-028). The ID token is forgotten as soon
  *   as BT has it.
  *
- * The SDK is loaded only on a deployed site that offers Logto (`SessionProvider` imports this
- * module on demand), so it stays out of the first download (ADR-026).
+ * The SDK is loaded only on a deployed site that offers Logto, and there only when a sign-in, its
+ * callback or a sign-out first asks for the client (`signInWay.ts`'s `client()` imports this
+ * module), never on page load, so it stays out of the first download (ADR-026) and out of
+ * staging's mock sign-in and previews entirely (S143).
  */
 import type { LogtoConfig, SignInOptions } from "@logto/browser";
 import {
 	BaseClient, generateCodeChallenge, generateCodeVerifier, generateState, Prompt, UserScope,
 } from "@logto/browser";
-import { SIGN_IN_CALLBACK_PATH } from "@bt/domain";
-import { fetchSignInConfig } from "../api/client.js";
+import { logtoAppUris } from "@bt/domain";
 import type { StorageKey } from "../storage/storage.js";
 import { readStored, writeStored } from "../storage/storage.js";
 
@@ -117,15 +118,20 @@ export const createLogtoSdk: LogtoSdkFactory = (config, storage) => new BaseClie
 	generateState,
 });
 
-/** An `AuthClient` for `target`, its callback on `origin` (`SIGN_IN_CALLBACK_PATH`). */
+/**
+ * An `AuthClient` for `target`, its callback on `origin`: the one address `logtoAppUris` builds,
+ * the same the deploy registers with Logto (ADR-025), so the two can't drift apart.
+ */
 export function createAuthClient(target: LogtoTarget, origin: string, makeSdk: LogtoSdkFactory = createLogtoSdk): AuthClient
 {
 	const sdk = makeSdk(logtoConfig(target), logtoStorage);
+	const [redirectUri] = logtoAppUris(origin).redirectUris;
+	if (!redirectUri) throw new Error("logtoAppUris named no sign-in callback");
 	return {
 		async signIn()
 		{
 			await sdk.signIn({
-				redirectUri: `${origin}${SIGN_IN_CALLBACK_PATH}`,
+				redirectUri,
 				// Always a fresh emailed code, never Logto's remembered session (ADR-028's recent sign-in).
 				prompt: Prompt.Login,
 				// `max_age` makes OIDC put `auth_time` in the ID token; BT's deletion reads that, not when it issued its own session (S120).
@@ -146,21 +152,4 @@ export function createAuthClient(target: LogtoTarget, origin: string, makeSdk: L
 			await sdk.signOut(returnUrl);
 		},
 	};
-}
-
-let loaded: Promise<AuthClient | null> | undefined;
-
-/**
- * This deployment's `AuthClient`, or null where it offers no Logto sign-in. The tenant and app
- * come from the Worker (`GET /api/v1/sign-in`), so the web app keeps no copy of them; asked once
- * per page load. A failed ask isn't remembered, so the next sign-in tries again.
- */
-export function loadAuthClient(): Promise<AuthClient | null>
-{
-	loaded ??= fetchSignInConfig().then(({ logto }) => (logto ? createAuthClient(logto, location.origin) : null)).catch((error: unknown) =>
-	{
-		loaded = undefined;
-		throw error;
-	});
-	return loaded;
 }

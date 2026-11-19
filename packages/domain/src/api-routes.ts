@@ -160,10 +160,12 @@ export function toMeResponse(user: UserProfile): MeResponse
 }
 
 /**
- * How this deployment signs fans in (S116; ADR-019): its Logto tenant's address and the web
- * app's ID, read from the Worker's `vars` (`LOGTO_ENDPOINT`, `LOGTO_APP_ID`) so the web app keeps
- * no second copy. `logto` is null where the Worker offers no Logto sign-in: local dev (which signs
- * in as `dev:`), previews, and staging until its own tenant exists.
+ * How this deployment signs fans in (S116, S143; ADR-019). `logto` is its Logto tenant's address
+ * and the web app's ID, read from the Worker's `vars` (`LOGTO_ENDPOINT`, `LOGTO_APP_ID`) so the web
+ * app keeps no second copy; null where the Worker offers no Logto sign-in. `mock` is true only
+ * where the Worker signs in with the shared test account instead (staging, `BT_MOCK_SIGN_IN`). Where
+ * both say no, the deployment offers no sign-in at all: previews, and local dev, which signs in as
+ * `dev:` without asking.
  */
 export interface SignInConfigResponse {
 	logto: {
@@ -172,9 +174,23 @@ export interface SignInConfigResponse {
 		/** The single-page app's ID, the ID token's audience. */
 		appId: string;
 	} | null;
+	/** Whether `POST /api/v1/sign-in` takes {@link MOCK_SIGN_IN_CREDENTIAL} for the shared test account (staging only, S143). */
+	mock: boolean;
 }
 
-/** A sign-in hand-off: the ID token Logto's hosted sign-in gave the web app, sent once. */
+/**
+ * The one credential the mock sign-in accepts (S143): sent as `idToken` to `POST /api/v1/sign-in`
+ * where `GET /api/v1/sign-in` answers `mock: true`, it signs in as staging's one shared test account.
+ * Not a secret: it means nothing where the mock isn't wired (production and previews refuse it, as
+ * any token Logto can't verify), and staging holds no fan's data. Not a `dev:` token, which only
+ * local dev accepts.
+ */
+export const MOCK_SIGN_IN_CREDENTIAL = "bt-mock-sign-in";
+
+/**
+ * A sign-in hand-off, sent once: the ID token Logto's hosted sign-in gave the web app, or, where
+ * `GET /api/v1/sign-in` answers `mock: true` (staging, S143), `MOCK_SIGN_IN_CREDENTIAL`.
+ */
 export interface SignInRequest {
 	idToken: string;
 }

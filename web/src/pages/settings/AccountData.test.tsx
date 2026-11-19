@@ -128,6 +128,7 @@ function signedIn(): Session
 		account: DEV_ACCOUNT as never,
 		signIn: vi.fn(async () => false),
 		finishSignIn: vi.fn(() => Promise.resolve("/")),
+		signInOffer: "offered",
 		signOut: vi.fn(),
 	};
 }
@@ -203,6 +204,7 @@ describe("Account ways in (A4 settings-data-*)", () =>
 			status: "signedOut",
 			signIn: vi.fn(async () => false),
 			finishSignIn: vi.fn(),
+			signInOffer: "offered",
 			signOut: vi.fn(),
 		});
 		expect(screen.queryByRole("button", {
@@ -343,6 +345,75 @@ describe("re-sign-in (A4 settings-delete-reauth-mobile)", () =>
 			name: "Sign in again",
 		}));
 		expect(session.signIn).toHaveBeenCalledOnce();
+	});
+});
+
+describe("re-sign-in that stays on the page (S143: staging's mock)", () =>
+{
+	/** Opens the dialog for a session whose `signIn` is `signIn`, asks to delete, and is refused for a stale sign-in. */
+	async function refusedForReauth(signIn: Session["signIn"])
+	{
+		stubApi({
+			del: "reauth",
+		});
+		const session = {
+			...signedIn(),
+			signIn: vi.fn(signIn),
+		};
+		renderData("mobile", session);
+		const dialog = within(await openDelete());
+		await userEvent.type(dialog.getByLabelText("Confirmation phrase"), ACCOUNT_DELETION_PHRASE);
+		await userEvent.click(dialog.getByRole("button", {
+			name: "Delete account",
+		}));
+		expect(await screen.findByText("Sign in again to delete")).toBeInTheDocument();
+		return session;
+	}
+
+	it("S143: a sign-in that stays on the page brings the confirmation back, the phrase kept", async () =>
+	{
+		const session = await refusedForReauth(async () => false);
+		await userEvent.click(screen.getByRole("button", {
+			name: "Sign in again",
+		}));
+		expect(await screen.findByText("Delete your account")).toBeInTheDocument();
+		expect(screen.getByLabelText("Confirmation phrase")).toHaveValue(ACCOUNT_DELETION_PHRASE);
+		expect(session.signIn).toHaveBeenCalledOnce();
+	});
+
+	it("S143: a sign-in that leaves the page (Logto) or fails keeps the prompt", async () =>
+	{
+		for (const signIn of [async () => true, async () => Promise.reject(new Error("chunk failed"))])
+		{
+			await refusedForReauth(signIn);
+			await userEvent.click(screen.getByRole("button", {
+				name: "Sign in again",
+			}));
+			await act(async () => await Promise.resolve());
+			expect(screen.getByText("Sign in again to delete")).toBeInTheDocument();
+			expect(screen.getByRole("button", {
+				name: "Sign in again",
+			})).toBeEnabled();
+			cleanup();
+		}
+	});
+
+	it("S143: Sign in again is unavailable while the sign-in is under way, so a second click can't start a second one", async () =>
+	{
+		let finish: ((leaving: boolean) => void) | undefined;
+		const session = await refusedForReauth(() => new Promise<boolean>((resolve) =>
+		{
+			finish = resolve;
+		}));
+		const again = screen.getByRole("button", {
+			name: "Sign in again",
+		});
+		await userEvent.click(again);
+		expect(again).toBeDisabled();
+		await userEvent.click(again);
+		expect(session.signIn).toHaveBeenCalledOnce();
+		await act(async () => finish!(false));
+		expect(await screen.findByText("Delete your account")).toBeInTheDocument();
 	});
 });
 

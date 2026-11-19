@@ -433,7 +433,7 @@ refuses and says to deploy staging first, and never creates a branch itself.
 A local target (`localhost`, compose.yaml's `postgres`) is always allowed; a hosted one only when
 `NEON_API_KEY` and `NEON_PROJECT_ID` show it is a Neon branch other than production's.
 
-### Sign-in (Logto)
+### Sign-in (Logto, and staging's mock)
 
 Fans sign in with Logto (ADR-019, S116): Logto's hosted page emails a one-time code, and Baseball
 Theater has no sign-in screen of its own. The web app reads each env's tenant and app from the
@@ -450,10 +450,19 @@ Worker (`GET /api/v1/sign-in`), which reads them from that env's `vars` in `wran
   differs, so a repeat deploy changes nothing, and the DNS cutover (above) moves the addresses with
   the origin. Its ID and secret are the GitHub secrets `LOGTO_S2S_APP_ID` and `LOGTO_S2S_SECRET`,
   which only the `production` job reads and pushes as Worker secrets.
-- **Staging** has no sign-in until it has a staging tenant of its own (owner, 2026-11-06: "We will use
-  a staging one or a fake shim"); it never uses production's tenant, so a fan's real account never
-  works there. Its accounts are test accounts in staging's own database.
-- **Previews** offer no sign-in (owner, 2026-11-07: "Yes", to previews without sign-in); staging is
+- **Staging** signs in with the mock test account (S143; owner, 2026-11-06: "We will use a staging
+  one or a fake shim"): `BT_MOCK_SIGN_IN` is `"1"` in `env.staging`'s `vars` and nowhere else, and
+  the Worker wires the mock only where its vars name no Logto tenant (neither `LOGTO_ENDPOINT` nor
+  `LOGTO_APP_ID`). "Sign in" there signs straight in, with no
+  emailed code and no page change, as one shared test account (`tester@stage.baseball.theater`):
+  the web app hands the fixed mock credential to `POST /api/v1/sign-in`, which issues an ordinary BT
+  session through the same sign-in Logto's tokens go through, so Settings, favorites and account
+  deletion all work as in production. Everyone who signs in on staging is that same account; deleting
+  it means the next sign-in starts a new one with default settings. Staging never uses production's
+  tenant, so a fan's real account never works there; its accounts are test accounts in staging's own
+  database. Patreon linking is not mocked.
+- **Previews** have no sign-in at all (owner, 2026-11-07: "Yes", to previews without sign-in): the
+  Worker answers `logto: null` and `mock: false`, so the header shows no "Sign in" button. Staging is
   where sign-in is tested.
 
 **What stays manual, in Logto's console** (the owner's, once):
@@ -470,8 +479,9 @@ Worker (`GET /api/v1/sign-in`), which reads them from that env's `vars` in `wran
    (Logto's "Logto Management API access" role, scope `all`); copy its app ID and secret into the
    GitHub secrets `LOGTO_S2S_APP_ID` and `LOGTO_S2S_SECRET` (repository or `production` environment).
 4. The hosted page's branding (logo, colors), if wanted.
-5. **When a staging tenant exists:** its own single-page app; add its `LOGTO_ENDPOINT` and
-   `LOGTO_APP_ID` to `env.staging`'s `vars` (never production's values). Staging has no
+5. **If staging ever moves from the mock to a Logto tenant:** its own single-page app; add its
+   `LOGTO_ENDPOINT` and `LOGTO_APP_ID` to `env.staging`'s `vars` (never production's values) and
+   remove `BT_MOCK_SIGN_IN` (the mock is off wherever `LOGTO_ENDPOINT` or `LOGTO_APP_ID` is set anyway). Staging has no
    machine-to-machine app (the plan includes one, production's), so enter its redirect URI
    `https://stage.baseball.theater/sign-in/callback` and sign-out URIs `https://stage.baseball.theater/`
    and `https://stage.baseball.theater/settings` once by hand in its console. Without an admin there, a
