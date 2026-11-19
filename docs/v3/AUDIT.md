@@ -19339,3 +19339,46 @@ Design intake review of shell-scoreboard A13 (Live marker, ratified 2026-11-19 a
 **For the parity review.** FEATURES.md:103 (Live marker): the story list "— S147 (design), S148, S150, S149" sits mid-row before "Shown the draft, the owner moved it…"; move it to the end. FEATURES.md:102 (Site footer) doesn't say "baseball.theater" goes from every footer. FEATURES Installable app `Design:` bullet (:221) names an offline state without saying its footer line is gone (optional).
 
 **Owner question.** May an agent update the Figma `live-marker` component description (658:21788), which still reads "A13 (draft): the Live marker — a red dot and "Live" …", to A13's ratified wording, with no drawing change?
+
+---
+
+## 2026-11-19 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-19T19:09:48Z` |
+| HEAD at review | `03264f6` (tree dirty) |
+| Trigger | ARCHITECTURE.md, FEATURES.md, VISUAL-DESIGN.md changed (S147 checkpoints c6e3383, 4c94350; A13 intake 03264f6) |
+| Stories `done` since last review | S147 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Scope: the product-doc changes since 48dcf31 (c6e3383 and 4c94350 on FEATURES' Live marker row, VISUAL-DESIGN D9 and the Meta type row, ARCHITECTURE ADR-014's freshness row), read with the A13 design intake (03264f6); the stories they touch (S147, S148, S149, S150, S141, S142, S74); and the next 3 `todo` stories by priority (S125, S145, S130). The game-shell A6 change set (S144, S145's design) was reviewed on `story/S144`, which isn't an ancestor of this branch; it is not reviewed again here.
+
+**1. Citation honesty**
+- S147, S148, S149, S150 cite "Feature: Live marker" (FEATURES:103). The row describes the marker replacing "Fetched … ago" (S147 draws it, S148 builds it), the scoreboard's day socket (S149) and one stored state per game behind one source switch (S150). Each story's Gap/Impact matches the clause it serves. Holds.
+- S141, S142 cite "Feature: Site footer" (FEATURES:102): a footer of links ratified before it is built, with "Fetched … ago" gone. Matches both Gaps. Holds.
+- S74 cites "Feature: PWA / installability" (FEATURES:70), which says offline reading is at launch; its Gap is ADR-023's offline reading, marked with its age. Holds.
+- S125 cites "Feature: Calendar date picker" (FEATURES:101): calendar from the scoreboard's date, typed dates, year switching, game counts. These are S125's Impact word for word. Holds.
+- S145 cites "Feature: Video play links" (FEATURES:98): "'Play' in red replaces 'Highlight'; a clip with no play keeps 'Highlight'" with the owner's 2026-11-10 quote. This is S145's Gap. Holds.
+- S130 cites "Feature: Standings" (FEATURES:65): spring training, regular season and playoffs, "as of" a past day, and the World Series winner. This matches S130's Impact. Holds.
+- Pillar citations: one open story cites a pillar (S146, "Pillar: Delightful"). Its Gap, Impact and ACs did not change since 48dcf31 (`pnpm parity:debt` named no such change), so it is out of scope here.
+- Open questions: no open, blocked or todo story has an `Open:` Source (grep of `**Source:**` over stories/todo and stories/blocked: every line is Feature or Pillar).
+
+**2. Doc reflects reality**
+- ADR-014 freshness row (ARCHITECTURE:918) now says A13 was "ratified 2026-11-19 ... built by S148". This agrees with shell-scoreboard A13's ratification record (A13:55–58) and with FEATURES:103. No conflict.
+- VISUAL-DESIGN D9 (:44) gives "Live Data · Active" centred in a darker strip at the top of the footer, and "no footer reads 'baseball.theater'". This agrees with A13:34 and :39 and with FEATURES:103. The Meta type row (:227) dropped "fetched-at", which is consistent. D9 cites "FEATURES principle 6" (FEATURES:29, "we don't pretend to be MLB"), which is unchanged and consistent.
+- VISUAL-DESIGN :292 "Quiet meta: date, window mode, last fetched (D9)" still names a fetched age. Left alone, as the intake directed: S141 AC 3 owns it.
+- Finding (amended): FEATURES:103, the Live marker row, had its story list "— S147 (design), S148, S150, S149" in the middle of the row, running into "Shown the draft, the owner moved it…". The list now ends the row, as every other row's does. No wording changed.
+- Finding (amended): FEATURES:102, the Site footer row, said only that "Fetched … ago" goes. Ratified A13 (A13:6, :34, :39) and FEATURES:103 also remove "baseball.theater" from every footer. The row now records that, quoting the owner (2026-11-19: "baseball.theater is supposed to be removed, which I've asked for twice"; ratification answer recorded in 4c94350 and A13:58).
+- Finding (amended): the FEATURES Installable app (PWA) Design bullet (:221) listed an "offline state" without saying that its footer line goes. It now says so, quoting the owner (2026-11-19, asked whether to drop the "Offline · saved …" footer line: "yes"; A13:43; 4c94350's message). The User-visible bullet's "marked with their age" still holds, because the offline banner carries the age (A13:43; S74 AC 2).
+- Relics: none found. INTENT has no Fetched/footer statement (grep of "fetched" and "baseball.theater" over INTENT, FEATURES, VISUAL-DESIGN: the only remaining hits are VISUAL-DESIGN:292, which is S141's, and FEATURES:322, the cutover domain, which is unrelated).
+
+**3. Coverage**
+No feature was added in this review, and every FEATURES row touched has stories: Site footer is served by S141 and S142, Live marker by S147–S150, Installable app's offline state by S74.
+
+**For the next backlog review**
+- Does S142 (or S141's AC 1, whose notes at S141:68 already record it) have a checkable AC that no footer reads "baseball.theater"? FEATURES' Site footer row now says so, but S142's ACs (S142:50) speak only of "Fetched … ago".
+- S74 AC 2 and its 2026-11-19 intake note (S74:66) drop the offline footer line. Confirm that an AC, and not only a note, forbids "Offline · saved …" in the footer, since FEATURES' Installable app Design bullet now states it.
