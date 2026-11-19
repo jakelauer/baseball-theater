@@ -19137,3 +19137,50 @@ Owner's answers, 2026-11-19, to the game-shell A6 design intake review's questio
    Applied: S127 AC 1 draws a "More from game →" pill then the inning pill, no "Go to:" label, separator question removed; AC 3 says it opens /game/:gamePk/videos (the /game/:gamePk/:tab route). gamePk: -1 left as the amendment's question (no note settles it for the player). S153's "Not Search's player" note follows. FEATURES' Video play links row still says "Go to: Game →  •  At-Bat →": left for the doc parity review.
 
 Still open (not answered): whether Search should load each result's game when MLB's search lacks the play id or inning (S153's notes).
+
+---
+
+## 2026-11-19 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-19T18:46:37Z` |
+| HEAD at review | `f5c03c1` (tree dirty) |
+| Trigger | S153 added (2026-11-19 design intake review of game-shell A6, ff01df2) |
+| Stories `done` since last review | S144 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+**Scope.** S153 (named by `pnpm parity:debt`), plus the next 3 `todo` stories by priority in `docs/v3/INDEX.md`: S125 (74), S145 (75), S139 (76; S140 ties at 76 and was read too). No `doing` story. No story cites `Open:` (`grep -rln "Source:\*\* Open" docs/v3/backlog/stories/` empty). The only pillar-cited open story is S146 (priority 118), outside this scope and not changed since the last review.
+
+**1. Citation honesty**
+
+- **S153** (Feature: Video play links). The Gap and Impact deliver game-shell A6's inning pill on Search's result rows, opening the play. Before this review the cited row didn't describe that: it still said a card, list row and the player show `Play · Top 6th →`, then that "Play" in red replaces "Highlight" (S144 designs it, S145 builds it), and said nothing of Search's results. So the citation pointed at the right feature, but the row described a superseded plan. **Amended** (below). After the edit the row describes the pill on Search's results and names S153 as its builder, so the citation holds.
+- **S145** (Feature: Video play links). Same stale row: its Gap and ACs build A6's date-then-pill meta line, its spoken name (`Open play - Top of 6th inning`) and the pill in the player. Fixed by the same amendment; the citation holds now.
+- **S125** (Feature: Calendar date picker). FEATURES:101 quotes the same 2026-11-07 owner words the Gap quotes (calendar, year switching, typed date, game counts) and names S123/S124. Holds.
+- **S139 / S140** (Feature: Standings). FEATURES:65 records the owner's `includePhases` words and the World Series box and names S139 and S140. Holds.
+
+**2. Doc reflects reality**
+
+- FEATURES' Video play links row (FEATURES:98) contradicted decisions the owner had already made and recorded:
+  - game-shell A6 ratified 2026-11-19 (owner: "the one in figma looks good"; S144's ledger entry at AUDIT line 18981, `docs/v3/visual/game-shell/amendments/A6.md`). It replaces A5's `Play · Top 6th →` and the 2026-11-10 red "Play" with the date followed by a `Top 6 →` pill, on cards, list rows, the game's floating player and Search's results. The owner's words on S144's draft are quoted in S145's Gap and S144's note.
+  - The owner's answers to the A6 intake, 2026-11-19 (ledger entry "backlog review answers (2026-11-19)", f5c03c1; applied in fb4c508): "all players always"; "\"Open play - Top of 6th inning\""; "Change Game -> to a pill as well, but change the label to \"More from game ->\" and link to the videos tab of that game, and remove the \"Go to:\" label". The row still said Search's player gets `Go to: Game →  •  At-Bat →`.
+- **Edit (FEATURES:98, owner's words only).**
+  - S96's ratification and S97's shipped `Play · Top 6th →` are kept as history.
+  - The 2026-11-10 red-"Play" decision, the 2026-11-19 S144-draft decisions and A6's ratification are recorded, each in the owner's quoted words.
+  - The row says what A6 draws, with the clip with no play keeping `Highlight · <date>`, and gives the pill's spoken name.
+  - S145 and S153 are named as the builders, and the row says neither has shipped.
+  - It records "all players always" (the day digest's and stage player included).
+  - Search's player: the 2026-11-07 `At-Bat →` plan is kept as superseded, and the planned `More from game →` pill (opening the game's Videos tab) is described, followed by the inning pill with no "Go to:" label.
+  - S127 is described as an unratified draft that designs those players, and the row says no story builds them yet.
+- The Current baseline frame note's "the Video play links row says so" (`docs/v3/backlog/frame/01 Current baseline.md:3`) is true as of this edit. No other FEATURES/INTENT/VISUAL-DESIGN/ARCHITECTURE text names `Top 6th`, `At-Bat →` or `Go to: Game` (grep).
+- No relic found in the rows read. The Game → Videos row (FEATURES:59) only points to Video play links and still holds.
+
+**3. Coverage — For the next backlog review**
+
+1. **The inning pill in the scoreboard day digest's player and the stage-mode player** ("all players always"): FEATURES now records it, S127 (draft) designs it, and no story builds it. As S127's Gates line says, the intake that runs when S127 is ratified must slice it; confirm that nothing builds these players before then.
+2. **Search's floating player's `More from game →` pill plus the inning pill**: designed by S127 (draft), and no build story. Same as item 1.
+3. **Frame note `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md:179`**: "Parity review due: S153 inserted; FEATURES' Video play links row still describes `Play · Top 6th →` and `At-Bat →`" is stale after this review. It is outside the parity write scope; the backlog review should clear it.
+4. Still open with the owner from the A6 intake (not a parity question): whether Search should load each result's game when MLB's search lacks the play id or inning (S153's notes, "Data source unverified").
