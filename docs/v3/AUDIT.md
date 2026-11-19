@@ -18893,3 +18893,85 @@ export const label = game.abbreviation + " @ ";  563ms
 ```
 
 </details>
+
+---
+
+## 2026-11-18 — S136 completed
+
+**Teams per day in the month counts**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T00:30:42Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `86e4b2f` (tree dirty) |
+| Grader | `scripts/verify-S136.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: each month day gains teamIds (away and home team IDs of every stored game, each once, ascending; [] for a stored day with none; null exactly when count is null), read by listGameCounts in one query (repository contract on PGlite and memory: doubleheader lists each team once, empty day []; route: unknown day count null and teamIds null; 2024-07 one listGameCounts call, no getByDate)
+check 2 PASS: a day S124's fill stores answers with its teamIds in the same response, with still one schedule request for the range and no game request
+check 3 PASS: one named, tested domain function answers whether a day's teamIds include a favorite: false for null, [], no favorites, and a day with no teamIds at all
+check 4 PASS: one named, tested domain function answers a month's game state: games (a day above 0), none (at least one day, all 0), unknown (a null day with none above 0, or no days)
+check 5 PASS: the OpenAPI spec carries teamIds (pnpm api:spec up to date), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it so fetchScheduleMonth's result carries teamIds
+check 6 PASS: backlog Status is done (story heading and Story status table), and the story stays inside its scope files
+```
+
+**6/6 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S136 check results ---
+check 1 PASS: each month day gains teamIds (away and home team IDs of every stored game, each once, ascending; [] for a stored day with none; null exactly when count is null), read by listGameCounts in one query (repository contract on PGlite and memory: doubleheader lists each team once, empty day []; route: unknown day count null and teamIds null; 2024-07 one listGameCounts call, no getByDate)
+check 2 PASS: a day S124's fill stores answers with its teamIds in the same response, with still one schedule request for the range and no game request
+check 3 PASS: one named, tested domain function answers whether a day's teamIds include a favorite: false for null, [], no favorites, and a day with no teamIds at all
+check 4 PASS: one named, tested domain function answers a month's game state: games (a day above 0), none (at least one day, all 0), unknown (a null day with none above 0, or no days)
+check 5 PASS: the OpenAPI spec carries teamIds (pnpm api:spec up to date), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it so fetchScheduleMonth's result carries teamIds
+check 6 PASS: backlog Status is done (story heading and Story status table), and the story stays inside its scope files
+--- verify-S136: 6/6 checks passed ---
+verify-S136: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 135ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 8ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 26ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 31ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 24ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 28ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 606ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  315ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 367ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  352ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  16:32:40
+   Duration  1.12s (transform 62ms, setup 0ms, collect 2.94s, tests 1.22s, environment 1ms, prepare 455ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162798,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>

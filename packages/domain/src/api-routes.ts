@@ -35,13 +35,16 @@ export type GameSnapshotResponse = GameSnapshot;
 export type StandingsResponse = StandingsSnapshot;
 
 /**
- * Games per day for one month (S124), from BT's stored schedule days, for S125's calendar date
- * picker: one entry per day of the month, in order.
+ * Games per day for one month (S124) and the teams playing each day (S136), from BT's stored
+ * schedule days, for S125's calendar date picker: one entry per day of the month, in order.
  */
 export interface ScheduleMonthResponse {
 	/** The month, `YYYY-MM`. */
 	month: string;
-	/** Every day of the month, first to last; `count` is null for a day BT holds no schedule for. */
+	/**
+	 * Every day of the month, first to last; `count` and `teamIds` are null for a day BT holds no
+	 * schedule for.
+	 */
 	days: ScheduleDayCount[];
 }
 

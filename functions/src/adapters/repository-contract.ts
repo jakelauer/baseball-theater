@@ -219,9 +219,9 @@ export function describePersonalDataStoreContract(label: string, subject: Person
 
 /**
  * Case (j), the schedule repository's month read (S124): `listGameCounts` returns each stored day
- * in the range, both ends included, in date order, as its game count and its stamps exactly as
- * stored, and leaves out days outside the range or never stored. `makeDay` builds a stored day
- * with `gameCount` games.
+ * in the range, both ends included, in date order, as its game count, its teams' IDs (S136) and
+ * its stamps exactly as stored, and leaves out days outside the range or never stored. `makeDay`
+ * builds a stored day with `gameCount` games.
  */
 export function describeScheduleCountsContract(
 	label: string,
@@ -231,7 +231,7 @@ export function describeScheduleCountsContract(
 {
 	describe(`${label} — repository contract`, () =>
 	{
-		it("(j) listGameCounts gives each stored day in the range, in order, with its game count and stamps", async () =>
+		it("(j) listGameCounts gives each stored day in the range, in order, with its game count, teams and stamps", async () =>
 		{
 			const repo = create();
 			const days = [
@@ -245,17 +245,76 @@ export function describeScheduleCountsContract(
 				{
 					date: "2024-07-04",
 					gameCount: 2,
+					// The fixture day's two games: 121 at 120, 147 at 111.
+					teamIds: [111, 120, 121, 147],
 					fetchedAt: days[2]!.fetchedAt,
 					lastChangedAt: days[2]!.lastChangedAt,
 				},
 				{
 					date: "2024-07-06",
 					gameCount: 0,
+					teamIds: [],
 					fetchedAt: days[0]!.fetchedAt,
 					lastChangedAt: days[0]!.lastChangedAt,
 				},
 			]);
 			expect(await repo.listGameCounts("1999-01-01", "1999-01-31")).toEqual([]);
+		});
+
+		it("(j) S136 AC 1 teams: each day lists its games' away and home team IDs once each, ascending, from the same read; a doubleheader's teams once, an empty day []", async () =>
+		{
+			const repo = create();
+			const doubleheader = await makeDay("2024-07-04", 2, "2024-07-07T00:00:01.000Z");
+			const [first, second] = doubleheader.games;
+			// Game two of a doubleheader: the first game's teams again, under its own gamePk.
+			doubleheader.games = [first!, second!, {
+				...first!,
+				gamePk: first!.gamePk + 1,
+			}];
+			await repo.upsert(doubleheader);
+			await repo.upsert(await makeDay("2024-07-05", 0, "2024-07-07T00:00:02.000Z"));
+			const tallies = await repo.listGameCounts("2024-07-01", "2024-07-31");
+			// The fixture day's games are 121 at 120 and 147 at 111; game two repeats 121 at 120.
+			expect(tallies.map((day) => [day.date, day.gameCount, day.teamIds])).toEqual([
+				["2024-07-04", 3, [111, 120, 121, 147]],
+				["2024-07-05", 0, []],
+			]);
+		});
+
+		it("(j) S136 AC 1 teams: a stored game whose team ID isn't a number (null, or a string) adds no team, never 0 or NaN", async () =>
+		{
+			const repo = create();
+			const day = await makeDay("2024-07-04", 2, "2024-07-07T00:00:01.000Z");
+			const [first, second] = day.games;
+			// The stored document is whatever was written; its type can't vouch for a hand-edited or
+			// older row, so the read holds only what is a real team ID.
+			day.games = [
+				{
+					...first!,
+					teams: {
+						away: {
+							...first!.teams.away,
+							id: null as unknown as number,
+						},
+						home: first!.teams.home,
+					},
+				},
+				{
+					...second!,
+					teams: {
+						away: second!.teams.away,
+						home: {
+							...second!.teams.home,
+							id: "111" as unknown as number,
+						},
+					},
+				},
+			];
+			await repo.upsert(day);
+			// The fixture day's games are 121 at 120 and 147 at 111; 121 and 111 are the bad IDs here.
+			expect((await repo.listGameCounts("2024-07-04", "2024-07-04")).map((d) => [d.gameCount, d.teamIds])).toEqual([
+				[2, [120, 147]],
+			]);
 		});
 	});
 }
