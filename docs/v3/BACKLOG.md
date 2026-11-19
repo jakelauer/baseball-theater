@@ -233,7 +233,7 @@ Ordered by **Priority** (execution order). Story IDs (`S1`…`S30`) are stable l
 | 74 | [S136](#s136--the-months-game-counts-also-name-the-teams-playing-each-day) | Teams per day in the month counts | `done` |
 | 74 | [S125](#s125--the-scoreboards-calendar-date-picker) | Calendar date picker | `todo` |
 | 75 | [S111](#s111--the-scoreboard-opens-on-today-or-on-the-seasons-final-day-in-the-off-season) | Scoreboard opens on the right day | `done` |
-| 75 | [S144](#s144--design-a-videos-play-link-moves-onto-its-meta-line-as-a-red-play) | Design: play link on the meta line | `todo` |
+| 75 | [S144](#s144--design-a-videos-play-link-moves-onto-its-meta-line-as-a-red-play) | Design: play link on the meta line | `blocked` |
 | 75 | [S145](#s145--a-videos-meta-line-says-play-in-red-and-links-to-its-play) | Play link on the meta line | `todo` |
 | 76 | [S139](#s139--standings-answers-spring-training-the-regular-season-and-the-playoffs-at-once) | Standings by season phase in the API | `todo` |
 | 76 | [S140](#s140--standings-names-the-world-series-winner) | World Series winner in standings | `todo` |
@@ -300,7 +300,7 @@ Ordered by **Priority** (execution order). Story IDs (`S1`…`S30`) are stable l
 | 117 | [S91](#s91--next-pitch-odds-in-the-live-room-paid-tier) | Next-pitch odds in Live (paid) | `todo` |
 | 118 | [S146](#s146--a-deploy-is-skipped-when-nothing-its-build-reads-has-changed-decided-from-recorded-input-hashes) | Skip deploys with unchanged build inputs | `todo` |
 
-**Next (generated):** **75 / S144** — the lowest **Priority** `todo` story not waiting on a design. Skipped, waiting on design (rule 18): S125.
+**Next (generated):** **76 / S139** — the lowest **Priority** `todo` story not waiting on a design. Skipped, waiting on design (rule 18): S125, S145.
 
 **Before starting it:** confirm no [backlog review](#backlog-reviews) is due — the review-debt line in that section counts stories, but a drift event makes one due regardless.
 
@@ -7770,7 +7770,7 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 /goal docs/v3/BACKLOG.md S144. Work item 0 first: if scripts/verify-S144.sh is missing, write it per the Verify-script contract, run it against current HEAD, and show the nonzero exit before writing any product code. Then: scripts/verify-S144.sh exits 0, pnpm verify exits 0, no files outside docs/v3/visual/game-shell/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified except creating scripts/verify-S144.sh, or stop after 8 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
 ```
 
-**Status:** `todo`
+**Status:** `blocked`
 
 ### S145 — A video's meta line says "Play" in red and links to its play
 
