@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Grader for BACKLOG story S144 — design amendment: a video's play link becomes an
-# inning pill ("Top 6th") after the date on the card's meta line, in the floating player
+# inning pill ("Top 6 →") after the date on the card's meta line, in the floating player
 # and on Search's results (owner, 2026-11-19; rule 18; S145 builds the cards and player).
 # Contract: docs/v3/BACKLOG.md#verify-script-contract
 # No network. No writes outside /tmp. Does its own checking (never `pnpm verify`).
@@ -105,7 +105,7 @@ else
 	done
 	echo "$frames_table" | grep -qiE 'no play' || bad 2 "## Frames does not say the frames show a clip with no play"
 	for f in game-videos-grid-playmeta-mobile.png game-videos-list-playmeta-mobile.png video-player-dialog-playmeta-mobile.png search-playmeta-mobile.png; do
-		echo "$frames_table" | grep -F "\`$f\`" | grep -qE '(Top|Bot) [0-9]+(st|nd|rd|th)' || bad 2 "$f's ## Frames row does not show the inning pill (Top/Bot <inning>)"
+		echo "$frames_table" | grep -F "\`$f\`" | grep -qE '(Top|Bot) [0-9]+ →' || bad 2 "$f's ## Frames row does not show the inning pill (Top/Bot <number> →, no ordinal)"
 	done
 
 	# --- Check 3: the decisions AC 1 asks the amendment to make ------------------------
