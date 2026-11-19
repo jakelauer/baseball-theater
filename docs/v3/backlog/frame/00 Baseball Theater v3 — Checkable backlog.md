@@ -84,7 +84,9 @@
     from ratified designs and amendments, through a backlog review, and cite them. A UI story that
     finds its surface needs a screen or state the ratified design doesn't show stops and reports
     rather than designing it in code. Non-UI stories (API, ingest, cache, tooling) carry no
-    `**Design:**` line and are not gated.
+    `**Design:**` line and are not gated. One exception: **S151** restores the video player's Download
+    button with no design story, as PR #58 built the owner's 2026-11-12 polish list (#38) without stories or
+    designs (owner, 2026-11-12, asked whether S151 needs a design first: *"Same exception applies"*).
     **Waiting on the owner does not stall the loop** (added by the 2026-09-14 review; extended to the
     Figma-revision stories S35–S38 on 2026-10-08): a design or Figma-revision story waiting on the
     owner is *parked* — `status: blocked`, `pnpm backlog:build`, and a checkpoint commit of the
