@@ -8096,7 +8096,9 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 
 **Depends on:** **S142** (the site footer these pages' links join).
 
-**Scope files:** `web/src/`, `web/vitest.config.ts`, `docs/v3/BACKLOG.md`, `docs/v3/backlog/`, `docs/v3/AUDIT.md`, `docs/v3/audit.jsonl`, `docs/v3/INDEX.md`, `CHANGELOG.md`
+**Design:** S133 — the three pages follow the change log page's layout (owner, 2026-11-19, asked whether they get their own design or reuse the change log page's layout: chose "Reuse change log layout (Recommended)"). This story may only move to `doing` once every design story named here is `done` (rule 18; `pnpm backlog:check` enforces it).
+
+**Scope files:** `web/src/`, `web/vitest.config.ts`, `docs/v3/BACKLOG.md`, `docs/v3/backlog/`, `docs/v3/AUDIT.md`, `docs/v3/audit.jsonl`, `docs/v3/INDEX.md`, `CHANGELOG.md`, `e2e/design/`, `docs/v3/design-checks/`
 
 **Work**
 
@@ -8108,11 +8110,12 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 2. **Approved words, committed.** Each page's text is committed beside its page as the owner approved it, and this note quotes the owner's approval of each page's text in the session it was shown (`**Approved:**` lines under Notes, one per page, each quoting the owner). The grader compares each rendered page's text with its committed text. Until all three are approved this story parks `blocked`; it never ships a placeholder that reads as a policy (S141 notes: *"The policies are legal text"*).
 3. **The privacy policy matches the product.** The Privacy policy page names every kind of personal data BT stores, taken from the personal-data inventory (`packages/ports/src/personal-data.ts`; ADR-028), so the policy and the product don't disagree (grader: each inventory entry's kind appears in the committed text).
 4. **The footer links them.** The site footer (S142's `SiteFooter`) gains the About, Privacy policy and Terms of use links where S141's ratified list puts them, with those words and those paths, so S142 ships no link to a route BT doesn't serve (S141 AC 2, **No dead links**) (RTL on the footer: each link's words and `href`).
-5. This file's S154 **Status** (story heading and top table) is `done`.
+5. Design match (rule 22): S154 draws no frames of its own; each page follows the change log page's ratified frames (S133). For each of those frames (desktop captured at 1200px, owner 2026-10-28: *"Capture at 1200px"*), `pnpm design:capture S154` saves each of the three pages at that frame's width to `docs/v3/design-checks/S154/<page>-<frame>.png` from `e2e/design/S154.spec.ts`; the grader checks each file exists at its pairing's width. The story parks `blocked` with its captures committed until the owner says each page matches the change log layout, recorded with `scripts/audit.sh story S154 --design-match -`.
+6. This file's S154 **Status** (story heading and top table) is `done`.
 
 **Notes:**
 
-- **Open questions for the owner** (asked with S141's ratification, 2026-11-19): (a) who writes the three pages' text: the agent drafts each for the owner to read and approve, or the owner (or someone the owner names) supplies it; (b) the pages' layout is not drawn anywhere: should they follow the change log page's layout once S133's frames are ratified, or get a design story of their own (rule 18: no screen is designed in code). This story doesn't move to `doing` until both are answered and quoted here; if (b) is a design story, it is sliced and named on a `**Design:**` line first.
+- **Open questions for the owner** (asked with S141's ratification, 2026-11-19): (a) who writes the three pages' text: the agent drafts each for the owner to read and approve, or the owner (or someone the owner names) supplies it; (b) answered: the pages follow the change log page's layout (S133's frames), as the **Design:** line quotes. This story doesn't move to `doing` until (a) is answered and quoted here.
 - The policies are legal text. An agent's draft is only a draft; whether it is good enough to publish is the owner's call (S141 notes).
 - Sliced by S141 (shell-scoreboard A14) from the owner's answer of 2026-11-19 above. S141's draft list puts About in the "Baseball Theater" column and Privacy policy and Terms of use in a "Legal" column beside "Your data"; S141's ratification settles the final list.
 
@@ -8120,12 +8123,12 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 
 **Turn cap:** 12 — assumes three short pages of text in the shell, their footer links, RTL tests, and one owner session to approve the words; waiting on the owner parks the story rather than spending turns.
 
-**Goal condition:** scripts/verify-S154.sh exits 0, pnpm verify exits 0, no files outside web/src/, web/vitest.config.ts, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified, or stop after 12 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
+**Goal condition:** scripts/verify-S154.sh exits 0, pnpm verify exits 0, no files outside web/src/, web/vitest.config.ts, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, e2e/design/, docs/v3/design-checks/ are modified, no files under scripts/ or test/ are modified, or stop after 12 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
 
 **`/goal` command**
 
 ```text
-/goal docs/v3/BACKLOG.md S154. Work item 0 first: if scripts/verify-S154.sh is missing, write it per the Verify-script contract, run it against current HEAD, and show the nonzero exit before writing any product code. Then: scripts/verify-S154.sh exits 0, pnpm verify exits 0, no files outside web/src/, web/vitest.config.ts, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified except creating scripts/verify-S154.sh, or stop after 12 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
+/goal docs/v3/BACKLOG.md S154. Work item 0 first: if scripts/verify-S154.sh is missing, write it per the Verify-script contract, run it against current HEAD, and show the nonzero exit before writing any product code. Then: scripts/verify-S154.sh exits 0, pnpm verify exits 0, no files outside web/src/, web/vitest.config.ts, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, e2e/design/, docs/v3/design-checks/ are modified, no files under scripts/ or test/ are modified except creating scripts/verify-S154.sh, or stop after 12 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
 ```
 
 **Status:** `todo`
