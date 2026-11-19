@@ -10,8 +10,8 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "shell-scoreboard A14 headed '(S141)' draws the footer at mobile, medium and desktop, on a game page, a short page, in the installed app and offline, and decides its columns, how they fold at mobile, that nothing but links is in it, every kind of page it shows on, the installed app, a short page, the 'Fetched' line gone, the Live marker at the start of the bottom line before 'baseball.theater' (agreeing with A13), the mark, the recap's 'Source: MLB', the offline footer and the other surfaces' frames"
-check 2 "A14's ## Decisions holds the list of links (column, words, destination: a BT path, an https address or a mailto), the data link for a signed-in fan and a signed-out visitor, no 'how the site is made' link, and no dead links (each unbuilt BT path's story is on S142's Depends on, or that story's ACs add the link); FEATURES' Site footer row records the ratified list with the owner's words"
+check 1 "shell-scoreboard A14 headed '(S141)' draws the footer at mobile, medium and desktop, on a game page, a short page, in the installed app, offline and signed out, and decides its columns, how they fold at mobile, its copyright line and that nothing else is in it, every kind of page it shows on, the installed app, a short page right after the content (A13), the 'Fetched' line gone, A13's Live strip at the top of the footer, 'baseball.theater' gone from every footer, the recap's 'Source: MLB', the offline footer line gone and the other surfaces' frames"
+check 2 "A14's ## Decisions holds the list of links (column, words, destination: a BT path, an https address or a mailto), with About, Privacy policy and Terms of use built by one story, one 'Support & Community' link to r/BaseballTheater and no Contact or Report a problem, the data link for a signed-in fan and a signed-out visitor, no 'how the site is made' link, and no dead links (each unbuilt BT path's story is on S142's Depends on, or that story's ACs add the link); FEATURES' Site footer row records the ratified list with the owner's words"
 check 3 "every open question in A14 is answered by the owner, quoted"
 check 4 "A14's ratification record names who ratified, the date and quotes the owner's go-ahead; its ## Manifest hashes exactly its own PNGs; VISUAL-DESIGN's old footer line is gone, the new one names A14, and the quiet-meta line no longer lists 'last fetched'"
 check 5 "backlog Status is done (story heading and Story status table)"
@@ -28,6 +28,25 @@ ROUTES="web/src/routes.tsx"
 S142=$(ls docs/v3/backlog/stories/*/S142.md 2>/dev/null | head -1)
 # The commit S141 started from (HEAD when its grader was written).
 BASE=6c8bcb0
+
+# Files S141's own commits changed: the non-merge commits on its first-parent line since BASE,
+# plus the working tree while it is unshipped. A merge of the branch it is stacked on
+# (story/S147, 2026-11-19) brings that story's files in; they are not S141's changes
+# (rule 7 update, 2026-11-19: before it, checks 6 and 7 blamed S141 for S147's A13 and
+# ARCHITECTURE.md edits).
+own_changed_files() {
+	local tip c
+	tip="$(story_tip S141)"
+	{
+		for c in $(git rev-list --first-parent --no-merges "$BASE..${tip:-HEAD}"); do
+			git diff-tree --no-commit-id --name-only -r "$c"
+		done
+		if [ -z "$tip" ]; then
+			git diff --name-only HEAD
+			git ls-files --others --exclude-standard
+		fi
+	} | sort -u
+}
 
 # Lines of section "## <name>" in a file.
 section() {
@@ -58,7 +77,7 @@ link_rows() {
 	section "$A" Decisions | awk '/^\| Column \| Link \| Destination \|/{f=1;next} f && /^\|/{print;next} f{f=0}' | grep -vE '^\| *-+ *\|'
 }
 
-FRAMES="site-footer-mobile.png site-footer-medium.png site-footer-desktop.png site-footer-game-mobile.png site-footer-short-desktop.png site-footer-standalone-mobile.png site-footer-offline-mobile.png"
+FRAMES="site-footer-mobile.png site-footer-medium.png site-footer-desktop.png site-footer-game-mobile.png site-footer-short-desktop.png site-footer-standalone-mobile.png site-footer-offline-mobile.png site-footer-signed-out-mobile.png"
 
 if ! grep -qE '^# A14 .*\(S141\)$' "$A" 2>/dev/null; then
 	bad 1 "no $A headed (S141)"
@@ -87,16 +106,25 @@ else
 	for w in mobile medium desktop; do
 		row "site-footer-$w.png" | grep -qF "| $w |" || bad 1 "site-footer-$w.png is not paired with $w"
 	done
-	for l in "Columns" "Mobile" "Nothing else" "Where it shows" "Installed app" "Short page" "Fetched" "Live marker" "Mark" "Source: MLB" "Offline" "Other surfaces" "Your data"; do
+	for l in "Columns" "Mobile" "Copyright" "Nothing else" "Where it shows" "Installed app" "Short page" "Fetched" "Live marker" "Mark" "Source: MLB" "Offline" "Other surfaces" "Your data"; do
 		[ -n "$(decision "$l")" ] || bad 1 "## Decisions has no '- **$l:**' bullet"
 	done
 	decision "Mobile" | grep -qiE 'stack|one column|two columns|side by side' || bad 1 "Mobile: does not say how the columns fold"
-	decision "Nothing else" | grep -qiE 'no copyright' || bad 1 "Nothing else: does not say there is no copyright line"
+	# The owner's answer of 2026-11-19 ("It should have a copyright") replaced the reading of
+	# "just links" as no copyright line (rule 7 update).
+	decision "Copyright" | grep -qF '© {year} Baseball Theater' || bad 1 "Copyright: does not draw the '© {year} Baseball Theater' line"
+	decision "Copyright" | grep -qF 'It should have a copyright' || bad 1 "Copyright: does not quote the owner's answer"
+	decision "Nothing else" | grep -qiE 'no copyright' && bad 1 "Nothing else: still says there is no copyright line"
+	row site-footer-mobile.png | grep -qF '© 2026 Baseball Theater' || bad 1 "the mobile footer frame does not draw the copyright line"
 	for p in scoreboard "game page" Standings Search Settings "change log"; do
 		decision "Where it shows" | grep -qiF "$p" || bad 1 "Where it shows: does not name the $p"
 	done
 	decision "Installed app" | grep -qiE 'shows|does not show|hidden' || bad 1 "Installed app: does not say whether it shows"
-	decision "Short page" | grep -qiE 'bottom of the (screen|window)' || bad 1 "Short page: does not say it sits at the bottom of the screen"
+	# Owner, 2026-11-19, asked whether to pin a short page's footer to the screen's bottom or follow
+	# A13's placement right after the content: "A13" (rule 7 update).
+	decision "Short page" | grep -qiE 'right after the content' || bad 1 "Short page: does not put the footer right after the content (A13)"
+	decision "Short page" | grep -qiE 'sits at the bottom of the (screen|window)' && bad 1 "Short page: still pins the footer to the bottom of the screen"
+	row site-footer-short-desktop.png | grep -qiE 'bottom of the screen' && bad 1 "site-footer-short-desktop still sits at the bottom of the screen"
 	decision "Fetched" | grep -qiE 'every page' && decision "Fetched" | grep -qiE 'no age' ||
 		bad 1 "Fetched: does not say the line goes from every page and no age is shown"
 	# The marker sits alone in A13's strip at the very top of the footer, with no "baseball.theater"
@@ -112,15 +140,20 @@ else
 			bad 1 "A13's Site footer decision no longer puts the strip at the top of the site footer, so A14 and A13 disagree"
 	fi
 	row site-footer-mobile.png | grep -qF 'Live Data · Active' || bad 1 "the mobile footer frame does not open with the 'Live Data · Active' strip"
-	decision "Mark" | grep -qF 'baseball.theater' || bad 1 "Mark: does not say what happens to 'baseball.theater'"
+	# Owner, 2026-11-19, of A13: "baseball.theater is supposed to be removed, which I've asked for
+	# twice." No footer keeps it (rule 7 update).
+	decision "Mark" | grep -qF 'baseball.theater' && decision "Mark" | grep -qiE 'removed from every footer' ||
+		bad 1 "Mark: does not remove 'baseball.theater' from every footer"
+	grep -qiE "reads \"baseball\.theater\"|\"baseball\.theater\" alone" "$A" && bad 1 "$A still draws a 'baseball.theater' bottom line"
 	decision "Source: MLB" | grep -qiE 'recap' || bad 1 "Source: MLB: does not say what happens to the recap's source line"
 	off=$(decision "Offline")
 	echo "$off" | grep -qiE 'banner' || bad 1 "Offline: does not weigh the banner that already names the saved copy's time and age"
 	# The verdict is the decision's first clause (up to its first ': ' or '. '); later sentences
 	# may quote what another draft did. Keep-words are tested first, so "kept, no longer …" is a keep.
 	off_verdict=$(echo "$off" | head -1 | sed -E 's/(: |\. ).*//')
+	# Owner, 2026-11-19, asked whether to drop it: "yes" (rule 7 update: a keep no longer passes).
 	if echo "$off_verdict" | grep -qiE 'stays|kept|keeps'; then
-		row site-footer-offline-mobile.png | grep -qF 'Offline · saved' || bad 1 "Offline keeps the 'saved … ago' line, but its frame does not draw it"
+		bad 1 "Offline keeps the 'saved … ago' line, which the owner dropped"
 	elif echo "$off_verdict" | grep -qiE 'no longer|goes|dropped|removed'; then
 		row site-footer-offline-mobile.png | grep -qF 'Offline · saved' && bad 1 "Offline drops the 'saved … ago' line, but its frame still draws it"
 	else
@@ -169,6 +202,21 @@ else
 		esac
 	done <<< "$rows"
 	[ "$data_rows" = 1 ] || bad 2 "the list has no single 'Your data' link"
+	# Owner, 2026-11-19: Contact and Report a problem "Replace both with a link that goes to
+	# https://www.reddit.com/r/BaseballTheater/ and is labelled "Support & Community""; the
+	# privacy, terms and about pages: "add one story for all of them together, not one each"
+	# (rule 7 update).
+	echo "$rows" | grep -E '^\| [^|]+\| Support & Community \|' | grep -qF 'https://www.reddit.com/r/BaseballTheater/' ||
+		bad 2 "the list has no 'Support & Community' link to https://www.reddit.com/r/BaseballTheater/"
+	echo "$rows" | grep -qE '^\| [^|]+\| (Contact|Report a problem) \|' && bad 2 "the list still holds Contact or Report a problem"
+	page_stories=""
+	for w in "About" "Privacy policy" "Terms of use"; do
+		pr=$(echo "$rows" | grep -E "^\| [^|]+\| $w \|")
+		[ -n "$pr" ] || { bad 2 "the list has no '$w' link"; continue; }
+		page_stories="$page_stories $(echo "$pr" | grep -oE 'S[0-9]+' | head -1)"
+	done
+	[ "$(echo "$page_stories" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l | tr -d ' ')" = 1 ] ||
+		bad 2 "About, Privacy policy and Terms of use are not all built by one story:$page_stories"
 	yd=$(decision "Your data")
 	echo "$yd" | grep -qiE 'signed-in' && echo "$yd" | grep -qiE 'signed-out' ||
 		bad 2 "Your data: does not say where it goes for a signed-in fan and for a signed-out visitor"
@@ -189,7 +237,7 @@ else
 		[ "$qs" -gt 0 ] || bad 3 "## Open questions is neither 'None.' nor a numbered list"
 		while IFS= read -r q; do
 			[ -z "$q" ] && continue
-			echo "$q" | grep -qE '\*\*Answered [0-9]{4}-[0-9]{2}-[0-9]{2}:\*\* \*"[^"]+"\*' ||
+			echo "$q" | grep -qE '\*\*Answered [0-9]{4}-[0-9]{2}-[0-9]{2}:\*\* \*".+"\*' ||
 				bad 3 "unanswered or unquoted: $(echo "$q" | cut -c1-60)…"
 		done <<< "$(echo "$oq" | grep -E '^[0-9]+\. ')"
 	fi
@@ -231,7 +279,7 @@ awk '/^### S141 —/{f=1;next} /^### S[0-9]/{f=0} f' docs/v3/BACKLOG.md |
 # --- Check 6: sealed files untouched ------------------------------------------------------
 # core.quotepath=false: git otherwise prints a name with a non-ASCII character quoted
 # and escaped, so it would never match a fence prefix (bug #87).
-changed=$(GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.quotepath GIT_CONFIG_VALUE_0=false story_changed_files S141 "$BASE" .)
+changed=$(GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.quotepath GIT_CONFIG_VALUE_0=false own_changed_files)
 for s in shell-scoreboard game-shell game-rooms standings-search-settings; do
 	RAT="$V/$s/RATIFIED.md"
 	if [ -f "$RAT" ]; then
@@ -251,7 +299,7 @@ for s in shell-scoreboard game-shell game-rooms standings-search-settings; do
 	printf '%s\n' "$changed" | grep -qxF "$RAT" && bad 6 "S141 changed $RAT"
 	for a in "$V/$s/amendments"/A[0-9]*.md; do
 		[ "$a" = "$A" ] && continue
-		# A13 is S147's draft, not sealed until it is ratified; S141 still leaves it to S147.
+		# A13 is S147's (ratified 2026-11-19); S141 never edits it.
 		printf '%s\n' "$changed" | grep -qxF "$a" && bad 6 "S141 changed another amendment, $a"
 		while IFS= read -r line; do
 			[ -z "$line" ] && continue
