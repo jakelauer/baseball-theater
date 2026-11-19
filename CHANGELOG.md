@@ -14,6 +14,17 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## The month's game counts also say which teams play each day
+
+- **Before, the month answer behind the coming calendar said how many games each day has but not who plays, so the
+  calendar couldn't mark the days your favorite teams play without asking about every day separately. Now the same
+  single request also lists the teams playing each day, so the calendar can mark those days, and it can tell a month
+  with no games (the off-season) from one Baseball Theater simply doesn't know yet.** Nothing on screen uses it yet:
+  the calendar date picker comes next. Details: **S136** — each day of `GET /api/v1/schedule/month/:month` gains
+  `teamIds` (read by the same `ScheduleRepository.listGameCounts` query, `jsonb_path_query_array` in Postgres,
+  de-duplicated and sorted by `distinctTeamIds`; `null` exactly when `count` is), plus `dayHasFavoriteTeam` and
+  `monthGamesState` in `packages/domain/src/schedule-month.ts` for the calendar to call.
+
 ## You can sign in on the staging site, and test sites without sign-in hide the button
 
 - **Before, nobody could sign in on the staging site: its Sign in button did nothing, so nothing that needs an

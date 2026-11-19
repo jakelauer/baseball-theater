@@ -148,7 +148,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The number of games on each day of one month, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, distinct from a day with no games (`0`). */
+        /** The number of games on each day of one month, and the teams playing it, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null` and `teamIds: null`, distinct from a day with no games (`0` and `[]`). */
         get: operations["getScheduleMonth"];
         put?: never;
         post?: never;
@@ -655,12 +655,14 @@ export interface components {
             /** @enum {string} */
             windowMode: "active" | "cache";
         };
-        /** @description A day of the month view: its date and its number of games. */
+        /** @description A day of the month view: its date, its number of games and the teams playing it (S136). */
         ScheduleDayCount: {
             /** @description How many games the day has; `0` for a stored day with none. `null` when BT holds no schedule for the day (a past day nothing has stored, or one MLB couldn't be asked for), so a client can tell "no games" from "not known". */
             count: number | null;
             /** @description The day, `YYYY-MM-DD`. */
             date: string;
+            /** @description The MLB team IDs playing that day (away and home of every game counted in `count`, each once, ascending; S136), so a client can mark the days a fan's favorites play without one request per day. `[]` for a stored day with no games; `null` exactly when `count` is. Every team is sent, not "a favorite plays", because favorites are personal and the month answer is one shared, cached response (ADR-021). */
+            teamIds: number[] | null;
         };
         ScheduleDayResponse: components["schemas"]["ScheduleDay"];
         ScheduleGameSummary: {
@@ -708,9 +710,9 @@ export interface components {
             };
             strikes: number | null;
         };
-        /** @description Games per day for one month (S124), from BT's stored schedule days, for S125's calendar date picker: one entry per day of the month, in order. */
+        /** @description Games per day for one month (S124) and the teams playing each day (S136), from BT's stored schedule days, for S125's calendar date picker: one entry per day of the month, in order. */
         ScheduleMonthResponse: {
-            /** @description Every day of the month, first to last; `count` is null for a day BT holds no schedule for. */
+            /** @description Every day of the month, first to last; `count` and `teamIds` are null for a day BT holds no schedule for. */
             days: components["schemas"]["ScheduleDayCount"][];
             /** @description The month, `YYYY-MM`. */
             month: string;
