@@ -99,16 +99,19 @@ else
 	decision "Short page" | grep -qiE 'bottom of the (screen|window)' || bad 1 "Short page: does not say it sits at the bottom of the screen"
 	decision "Fetched" | grep -qiE 'every page' && decision "Fetched" | grep -qiE 'no age' ||
 		bad 1 "Fetched: does not say the line goes from every page and no age is shown"
-	# The marker sits first on the bottom line, before the mark — never after it (A13's Site footer).
+	# The marker sits alone in A13's strip at the very top of the footer, with no "baseball.theater"
+	# beside it (owner, 2026-11-19: "S147 didn't yet remove the baseball theater link, and the live
+	# data bar still shows under the footer"; A13's Site footer).
 	lm=$(decision "Live marker")
-	echo "$lm" | grep -qF '● Live · baseball.theater' || bad 1 "Live marker: the bottom line is not '● Live · baseball.theater'"
-	echo "$lm" | grep -qF 'baseball.theater · ● Live' && bad 1 "Live marker: puts the marker after the mark"
+	echo "$lm" | grep -qF 'Live Data · Active' || bad 1 "Live marker: does not draw A13's 'Live Data · Active' strip"
+	echo "$lm" | grep -qiE 'top of the (site )?footer' || bad 1 "Live marker: does not put the strip at the top of the footer"
+	echo "$lm" | grep -qF '● Live · baseball.theater' && bad 1 "Live marker: still puts 'baseball.theater' beside the marker"
 	echo "$lm" | grep -qF 'A13' || bad 1 "Live marker: does not name A13"
 	if [ -f "$A13" ]; then
-		decision_in "$A13" "Site footer" | grep -qiE "start of .*bottom line.*(in front of|before) the \"baseball.theater\"" ||
-			bad 1 "A13's Site footer decision no longer puts the marker at the start of the bottom line, so A14 and A13 disagree"
+		decision_in "$A13" "Site footer" | grep -qiE "very top of that footer" ||
+			bad 1 "A13's Site footer decision no longer puts the strip at the top of the site footer, so A14 and A13 disagree"
 	fi
-	row site-footer-mobile.png | grep -qF '● Live · baseball.theater' || bad 1 "the mobile footer frame's bottom line is not '● Live · baseball.theater'"
+	row site-footer-mobile.png | grep -qF 'Live Data · Active' || bad 1 "the mobile footer frame does not open with the 'Live Data · Active' strip"
 	decision "Mark" | grep -qF 'baseball.theater' || bad 1 "Mark: does not say what happens to 'baseball.theater'"
 	decision "Source: MLB" | grep -qiE 'recap' || bad 1 "Source: MLB: does not say what happens to the recap's source line"
 	off=$(decision "Offline")
