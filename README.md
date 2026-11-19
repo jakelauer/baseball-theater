@@ -161,8 +161,31 @@ when the owner says so (S114, S121).
    made by hand on 2026-11-02 with `npx wrangler hyperdrive create bt-production`). The tables come
    from `pnpm db:migrate`, which every deploy runs against its own database before the new Worker
    takes traffic. It applies every committed migration the database hasn't had, and running it again
-   changes nothing, so the first deploy creates the tables and later ones apply only what's new. To
-   run it yourself (to check a database, say): `BT_DATABASE_URL="<connection string>" pnpm db:migrate`.
+   changes nothing, so the first deploy creates the tables and later ones apply only what's new. It
+   also stops the deploy, before any migration runs and before the new Worker goes live, when the
+   database's migrations differ from the code's (#48): one the database ran that the code doesn't have,
+   or one the code has that the database skipped. A database only ahead of the code (newer migrations)
+   passes with a warning on production (a rollback) and on a preview, whose database is reset from
+   staging, which is ahead of a pull request built before `stage` gained a newer migration (a re-run, or
+   no push since); staging stays strict. To fix a stopped deploy:
+    - **Production:** stop and ask the owner; never reset or edit it by hand.
+    - **Staging, newer migrations only:** if `stage`'s newest code commit has them (a newer deploy
+      migrated it, then failed or was cancelled), re-run its Deploy run; otherwise they came from no
+      commit on `stage` (a preview before #42, a reverted migration): treat them as a migration the code
+      doesn't have, below.
+    - **Staging, a migration the code doesn't have:** tear down the previews' Neon branches, delete the
+      `staging` branch and deploy again, which recreates it schema-only (never reset it from production,
+      which copies fans' data); or undo that migration's changes by hand and then delete its row from
+      `drizzle.__drizzle_migrations`. Never delete the row alone: its tables stay, and the same
+      migration later fails "already exists".
+    - **Staging, one it never ran:** apply that file's SQL and its row by hand, or recreate the branch
+      as above.
+    - **A preview:** if staging's own deploy fails the same way, fix staging first (above), then push
+      again; else if the pull request's own migration is older than staging's newest, merge `stage` into
+      it and regenerate the migration so it is newer; otherwise push again (a re-run reuses the same
+      merge).
+
+    To run it yourself (to check a database, say): `BT_DATABASE_URL="<connection string>" pnpm db:migrate`.
 
 **Restoring a backup** (a Neon point-in-time restore or branch reset): restore, then deploy
 again (re-run the last production deploy in GitHub Actions). Every deploy runs
@@ -279,6 +302,10 @@ automatically 2. Mirror"):
   and 2 both yes"). Production goes back but `main` does not: the mirror job fails red on purpose
   ("main … is not an ancestor"), because `main` never moves backwards; the next forward release
   fast-forwards it again. No rollback undoes a migration, which is another reason they stay additive.
+  So a rollback over a release that added one finds production's database ahead of the code: its
+  migrate step passes with a warning naming the newer migrations (production's and previews' set
+  `BT_MIGRATIONS_MAY_BE_AHEAD=1`), while staging still refuses (#48). On a forward release that warning
+  means something is wrong: stop and ask the owner.
 - **Production's address until the cutover** (S119; owner, 2026-11-07: "Do the temporary address").
   `baseball.theater` still points at the Elastic Beanstalk (v2) site, and that DNS change, not
   publishing a release, is the real release gate. So production's Worker serves at
@@ -303,7 +330,8 @@ the env's Neon branch (production's default branch, or `staging`, created schema
 a preview's `preview-pr-<number>`, made from `staging` or reset from it), finds its Hyperdrive config
 by name (`bt-production`, `bt-staging`, or a preview's `bt-preview-pr-<number>`, whose origin is
 rewritten every deploy) or creates it, and writes the Worker config with that config's id; then `pnpm db:migrate` and
-`pnpm db:reapply-deletions` run on that database; then `wrangler deploy` pushes the Worker and every
+`pnpm db:reapply-deletions` run on that database (the migrate step stops the deploy when the
+database's migrations differ from the code's, as above); then `wrangler deploy` pushes the Worker and every
 Worker secret from GitHub secrets (`--secrets-file`), so none is ever set by hand with
 `wrangler secret put`. Every deployed env serves live MLB, names its own address as `BT_APP_ORIGIN`,
 and refuses `dev:` sign-in (no `BT_LOCAL`); production signs in through Logto (S116, below), and
