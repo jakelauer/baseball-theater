@@ -19382,3 +19382,33 @@ No feature was added in this review, and every FEATURES row touched has stories:
 **For the next backlog review**
 - Does S142 (or S141's AC 1, whose notes at S141:68 already record it) have a checkable AC that no footer reads "baseball.theater"? FEATURES' Site footer row now says so, but S142's ACs (S142:50) speak only of "Fetched … ago".
 - S74 AC 2 and its 2026-11-19 intake note (S74:66) drop the offline footer line. Confirm that an AC, and not only a note, forbids "Offline · saved …" in the footer, since FEATURES' Installable app Design bullet now states it.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-19T23:53:09Z` |
+| HEAD at capture | `1b5f7b5` (tree dirty) |
+| Change | `fcbe48a` — S141 checkpoint (parked for ratification): the owner's six answers applied to the site footer (A14) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19, asked through /pending whether the S141 and S154 backlog changes the owner directed (S141's acceptance criteria rewritten to the footer answers, the new S154) need a review or a skip: chose "Skip (Recommended)".
+
+---
+
+## 2026-11-19 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-19T23:53:09Z` |
+| HEAD at capture | `1b5f7b5` (tree dirty) |
+| Change | `fcbe48a` — S141 checkpoint (parked for ratification): the owner's six answers applied to the site footer (A14) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19, asked through /pending whether the S141 and S154 backlog changes the owner directed (S141's acceptance criteria rewritten to the footer answers, the new S154) need a review or a skip: chose "Skip (Recommended)".
