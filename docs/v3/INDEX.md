@@ -378,7 +378,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `2167–2170` System Consistency
   - `2171–2174` Originality
   - `2175–2221` Small-Size Test
-- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 62 KB
+- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 63 KB
   - `12–19` North star
   - `20–34` Principles (product)
   - `35–46` Scope legend
