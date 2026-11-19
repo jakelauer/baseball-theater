@@ -41,7 +41,7 @@ If a visual choice doesn’t serve one of these, cut it.
 | D6 | **Insight is visible product** | G2, G4 | Impact order and inning notes are modules with rank/label — not a wall of equal rows |
 | D7 | **Respect attention** | G5 | Live updates patch in place; motion is rare; presentation settings (spoilers, emphasis, entry room, …) are obeyed |
 | D8 | **Patronage is power, not a lock screen** | G3 | Free experience is complete; paid depth is extra, not a greyed-out homepage |
-| D9 | **Honest about data** | FEATURES principle 6 | Freshness and source are readable; we don’t costume ourselves as MLB.com. Freshness is shown by a Live marker (a glowing, slowly blinking red dot and "Live") at the foot of any page with an open live WebSocket, not by a "Fetched … ago" label (owner, 2026-11-16: *"Remove the fetch label and replace it with a red dot and Live at the bottom of any page that has an active websocket, with the red dot glowing and slowly blinking"*; shell-scoreboard [A13](./visual/shell-scoreboard/amendments/A13.md), draft) |
+| D9 | **Honest about data** | FEATURES principle 6 | Freshness and source are readable; we don’t costume ourselves as MLB.com. Freshness is shown by a Live marker (a glowing, slowly blinking red dot and "Live Data · Active", centred in a slightly darker strip at the top of the footer) on any page with an open live WebSocket, not by a "Fetched … ago" label, and no footer reads "baseball.theater" (owner, 2026-11-16: *"Remove the fetch label and replace it with a red dot and Live at the bottom of any page that has an active websocket, with the red dot glowing and slowly blinking"*; 2026-11-19: *"baseball.theater is supposed to be removed"*; shell-scoreboard [A13](./visual/shell-scoreboard/amendments/A13.md), ratified 2026-11-19) |
 | D10 | **Three host pairings** | G5 | **mobile** (compact status, no box on Live) · **medium** (standalone) · **desktop** (medium + nav rail). Design mobile first. Do not invent a fourth pairing |
 | D11 | **Presentation is personal** | Settings | Views read settings they care about (sort, default tab, hide scores, game-row slot, collapse non-favorites, …). Don’t invent a second store between settings and the view |
 
@@ -224,7 +224,7 @@ Stay on Mantine’s type scale. Opinionated uses:
 | Page title | `Title` order 2 |
 | Score (revealed) | Extra-large, heavy, tabular (`fw={700}`, `size="xl"` or larger) |
 | Matchup | **Abbr** first for glance (NYY @ BOS); **city + name** as secondary (`New York Yankees at Boston Red Sox`) |
-| Meta (venue, date, fetched-at) | `sm`, muted |
+| Meta (venue, date) | `sm`, muted; the Live marker's words (A13) are 11px IBM Plex Sans Medium, primary text |
 | Tables (box, standings) | Tabular nums (`font-variant-numeric: tabular-nums`) |
 | Recap / insight prose | Body size, roomier line-height; recap *title* is document title, not a homepage headline |
 

@@ -19209,3 +19209,85 @@ export const label = game.abbreviation + " @ ";  372ms
 ```
 
 </details>
+
+---
+
+## 2026-11-19 — S147 completed
+
+**Design: Live marker**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T18:53:29Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `292cfc9` (tree dirty) |
+| Grader | `scripts/verify-S147.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: shell-scoreboard A13 headed '(S147)' names what it adds/overrides/repeals, quotes the owner's 2026-11-16 words, draws the marker's two blink states, a live game page and the live scoreboard ending in it, and a page with no socket and no 'Fetched', at mobile and desktop, and says the blink's length, reduced motion, which pages open a socket, reconnecting and polling fallback, medium, and the marker's place in S141's footer of links
+check 2 PASS: every open question in A13 is answered by the owner, quoted
+check 3 PASS: A13's ratification record names who ratified, the date and quotes the owner's in-session go-ahead; its ## Manifest hashes exactly its own PNGs; D9 and the type table's meta row describe the ratified marker
+check 4 PASS: backlog Status is done (story heading and Story status table)
+check 5 PASS: no sealed shell-scoreboard file changed (RATIFIED.md and A1–A12 with their manifests)
+check 6 PASS: S147 changed no file outside its fence (plus creating scripts/verify-S147.sh)
+```
+
+**6/6 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S147 check results ---
+check 1 PASS: shell-scoreboard A13 headed '(S147)' names what it adds/overrides/repeals, quotes the owner's 2026-11-16 words, draws the marker's two blink states, a live game page and the live scoreboard ending in it, and a page with no socket and no 'Fetched', at mobile and desktop, and says the blink's length, reduced motion, which pages open a socket, reconnecting and polling fallback, medium, and the marker's place in S141's footer of links
+check 2 PASS: every open question in A13 is answered by the owner, quoted
+check 3 PASS: A13's ratification record names who ratified, the date and quotes the owner's in-session go-ahead; its ## Manifest hashes exactly its own PNGs; D9 and the type table's meta row describe the ratified marker
+check 4 PASS: backlog Status is done (story heading and Story status table)
+check 5 PASS: no sealed shell-scoreboard file changed (RATIFIED.md and A1–A12 with their manifests)
+check 6 PASS: S147 changed no file outside its fence (plus creating scripts/verify-S147.sh)
+--- verify-S147: 6/6 checks passed ---
+verify-S147: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 131ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 7ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 19ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 23ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 24ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 23ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 578ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  310ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 353ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  337ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  10:55:07
+   Duration  1.08s (transform 88ms, setup 0ms, collect 2.86s, tests 1.16s, environment 1ms, prepare 380ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162821,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
