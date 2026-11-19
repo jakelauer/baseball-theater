@@ -13,12 +13,12 @@
 
 Assembled, in this order and around the stories, into BACKLOG.md.
 
-- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 120 KB
+- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 122 KB
   - `127–145` Verify-script contract
   - `146–159` Story status
-  - `160–516` Backlog reviews
-  - `517–536` Doc parity reviews
-  - `537–541` Goal command for multiple stories
+  - `160–524` Backlog reviews
+  - `525–544` Doc parity reviews
+  - `545–549` Goal command for multiple stories
   - Rules, by number:
     - `10–10` 1. Acceptance criteria map to commands, tests, or file invariants (exit codes / assertions).
     - `11–11` 2. Vague phrases (“works correctly”, “handles errors gracefully”) are forbidden until rewrit…
@@ -513,6 +513,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 89 | [S127](backlog/stories/todo/S127.md) Design: play link in Search's player | `todo` | — | — |
 | 90 | [S5](backlog/stories/todo/S5.md) Search page queries highlights fixture | `todo` | S70, S61, S68, S81 | S34, S56 |
 | 91 | [S72](backlog/stories/todo/S72.md) Search chips: date / team / tag | `todo` | S5, S69, S81 | S34 |
+| 91 | [S153](backlog/stories/todo/S153.md) Inning pill on Search's results | `todo` | S5, S145, S81 | S144, S34, S56 |
 | 94 | [S74](backlog/stories/todo/S74.md) Offline reading + prefetch | `todo` | S73, S68, S75, S76, S81 | S55, S57 |
 | 104 | [S108](backlog/stories/todo/S108.md) Win-probability slot | `todo` | S93, S106, S67, S68, S81 | S107 |
 | 105 | [S99](backlog/stories/todo/S99.md) Ingest player of the game | `todo` | — | — |

@@ -19059,3 +19059,52 @@ export const label = game.abbreviation + " @ ";  389ms
 ```
 
 </details>
+
+---
+
+## 2026-11-19 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-19T18:40:40Z` |
+| HEAD at review | `3153b39` (tree dirty) |
+| Trigger | design intake: game-shell A6 ratified (S144); S127, S144, S145 acceptance criteria rewritten |
+| Stories `done` since last review | S144 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Design intake review of game-shell A6 (the inning pill, ratified 2026-11-19, S144), with check 2b on S127, S144 and S145, whose acceptance criteria were rewritten since `ee64d0d`. Two independent design-intake reviewers (read-only, HEAD `3153b39`), merged by the merger, who checked each disputed claim against the source.
+
+**Inventory (game-shell A6).** 11 frames: `game-videos-{grid,list}-playmeta-{mobile,medium,desktop}`, `video-player-dialog-playmeta-{mobile,medium}`, `search-playmeta-{mobile,medium,desktop}`. Two shared Figma components: `play-inning-pill` (724:10189) and `video-meta` (724:10197, Play yes/no). States: date muted then pill; no play `Kind · date`; pill alone with no date; a play wins over any kind; Search no-play `Highlight · date` in primary colour. Described, not drawn: pill hover fill `raised-current` with no zoom, focus card then pill, ≥24×24 tap area, the date plays the clip, Hide Scores unchanged. Data: cards and player via `Video.playId` + `atBatOfPlay` (owned); Search rows need a play id and inning no route returns (missing).
+
+**Ownership map:** owned 9, re-scoped 6 (all in S145), unowned 3 (Search's rows, Search's route data, Search's player build). Search's rows and data -> new S153; Search's player stays with S127's own intake (S127 is not ratified).
+
+**Amendments.**
+- **S145** (grader not yet written): AC 1 adds A6's other kinds (`video`-kind and recap with a play read date + pill; play + date, no kind). AC 3 rewritten to behaviour: the pill navigates without `onPlay`, the title and the date each call `onPlay`, `pill.closest("button") === null`, `pill.closest(".bt-zoom-host") === null` (`web/src/styles.css`'s `.bt-zoom-host:hover .bt-zoom img` would otherwise zoom the still), button then pill in tab order, hit area ≥24×24, hover rule `var(--bt-raised-current)`; layout left to the builder. AC 4 names S97 AC 2's `VideoPlayLinks.test.tsx:127-140` (expects `conineLabel`, built at :45 as `Play · … →`) as moved, checks kept, and `e2e/design/S97.spec.ts:63,71,88`; Search goes to S153 and S127's intake. New AC 5: one `PlayInningPill.tsx` used by `VideoCard` and `PlayerDialog`, one shared meta line, one domain label taking `{ halfInning, inning }` that replaces `atBatInningLabel` and that `PlaysPanel.tsx`'s private `inningTag` (`web/src/components/pitch/PlaysPanel.tsx:51-54`, the same `Top 3` / `Bot 7`, found by the merger's grep) calls; fence gains that one file. AC 6 (design match) names the eight non-Search frames. Notes "Why the link sat outside the button" and "One label" corrected. Cap 8 -> 10.
+- **S153 inserted** (priority 91, after S5, beside S72; Source: Feature: Video play links; Design S144, S34, S56; depends S5, S145, S81): the route returns `playId` / `halfInning` / `inning` from S5's recording; rows reuse S145's pill and meta line; pill navigates without opening the player; no-play or `gamePk: -1` rows keep `Highlight · date` in `--bt-light`; Hide Scores unchanged; design match on `search-playmeta-*` judging only the meta line.
+- **S5:** AC 8 adds that the search request asks MLB for `mediaPlayback { guid playInfo { inning inningHalf gamePk } }` beside `ClipDetails.id` so the recording carries them, without parsing them, and carries on if MLB omits them. The 2026-11-19 note now points at S153; a note cites `playInfo.teams` for AC 8's team-field check.
+- **S127:** AC 2's "(A6)" now says standings-search-settings A6 (game-shell A6 is a different amendment); AC 1 names `play-inning-pill` (724:10189), asks what a `gamePk: -1` clip shows and whether the `•` stays; Gates and Builds-after lines point Search's rows at S153; reuse check adds game-shell A6.
+- **S144:** done and frozen; its AC 1's "It names the red" is a superseded draft leftover, recorded here only.
+
+**Disagreements and resolutions.**
+1. `atBatInningLabel`'s callers. Reviewer 1: its only non-test caller is `playLink.ts:22`, so the new function replaces it. Reviewer 2: it "stays for its other callers". Checked: `grep -rn atBatInningLabel packages web functions` finds only `inning.ts:44`, `playLink.ts:22` and `video-play-context.test.ts:26-30`. Reviewer 1 is right; S145 AC 5 replaces it. The merger also found `PlaysPanel.tsx:51-54`'s `inningTag`, a second spelling of the same label, folded into AC 5.
+2. The play id field. Reviewer 1: `ClipDetails.id`. Reviewer 2: `MediaPlayback.guid`. Checked: BT's content feed reads `guid` as a video's `playId` (`packages/domain/src/types.ts:123`, `packages/mlb-api/src/parse.ts:708`); `ClipDetails.id` is the search hit's own id, unverified as a play id. S5 asks for both; S153 AC 1 takes the field that equals a `PitchEvent.playId`, expected `guid`.
+3. Where Search's data lands. Reviewer 1: S5 returns `playId` / `halfInning` / `inning`. Reviewer 2: a new story parses them from S5's recording. Resolved: S5 only asks for them (one request field, no parse, no stop), S153 parses and returns them, so S5 isn't held by a pill-only field and no re-recording is needed.
+4. Who builds Search's player. Reviewer 1: the new story, designed by S127. Reviewer 2: S127's own intake. Resolved for reviewer 2: S127 isn't ratified, and gating S153 on it would hold Search's rows behind an unratified design.
+5. S145 card layout. Reviewer 1: the meta line beside the button is wrong; Reviewer 2: reuse `.bt-above-card-link`. Resolved (coordinator's direction): AC 3 states the behaviour (date plays, pill outside button and `.bt-zoom-host`, tab order); the note offers the stretched-card pattern as an option.
+6. Priority of the new story: 90.5 vs 90. Priorities are integers (`pnpm backlog:check`); 91, after S5 (90).
+7. Turn cap of S145: 9 or 10; 10, since AC 5 adds `PlaysPanel.tsx`.
+
+**Check 2 (next 3).** S125 (74): design S123 `blocked`, can't start. S145 (75): depends S97, S81 done; design S144 done; `VideosRoom.test.tsx:79-87`, `VideoPlayLinks.test.tsx:93-140`, `HideScoresRooms.test.tsx:245-251`, `PlaysPanel.tsx:51-54`, `inning.ts:44`, `playLink.ts:22`, `e2e/design/S97.spec.ts` exist at HEAD; `scripts/verify-S145.sh` absent (red-first); fence now covers every AC path. S139 (76): depends S128 done; not re-grounded beyond its AC list.
+**Check 2b.** S145: a test the AC moves but doesn't name (player test, fixed); a premise false at HEAD (`atBatInningLabel`'s callers, fixed); a layout passing the AC but breaking the design (the dead date, the zooming still, fixed); one implementation (pill, meta line, label, `inningTag`, fixed); stale comment (`inning.ts:40-42`, moves with AC 5); a vague grep ("no other file renders a link", tightened to named imports). S127: ambiguous reference ("A6"), an owner quote overtaken by a later answer (the `•`), an undrawn input (`gamePk: -1`). S5: data a frame needs that no route provides. S153: an AC unmeetable on the recording (a "result without play fields" may not exist; the test may strip them), a design frame that doesn't match its own surface (A6's Search frames are pre-A2 copies: "Search Plays & Highlights", "Search games, players…", ACTIVE FILTERS chips, confirmed in `search-playmeta-mobile.png`; listed as expected differences), a Figma overrun (`video-meta` 220 wide in a 188-wide frame at mobile; noted).
+**Check 3.** S145 after S125 (which can't start) is right; S127 (89) before S5 (90) before S153 / S72 (91) holds; nothing obsolete. Duplication sweep: `PlaysPanel.tsx:51-54` `inningTag` duplicates the pill's label (folded into S145 AC 5); `inning.ts:46` and `PlaysPanel.tsx:35` (`Top`/`Bottom`, a different form) checked. Personal-data sweep: S153 adds no store; none found in S144's design-only diff.
+
+**For the parity review:** FEATURES' Video play links row still names `Play · Top 6th →`, red "Play" and S127's `Go to: Game →  •  At-Bat →`; it should describe the inning pill after the date on cards, list rows, Search's results and both players, and Search's player as `Go to: Game →` plus the pill. The Current baseline's "the Video play links row says so" holds only after that. S153 is new and cites Feature: Video play links.
+
+**Owner questions.**
+1. Should the day digest's player (`DayDigest.tsx:109-116`, "Go to game: … →" only) and the stage-mode player (`PlayerHost.tsx:30-33`, no link) also show the pill? No ratified frame draws them; yes needs a design amendment first.
+2. What should a screen reader say for the pill? `Top 6 →` reads "Top 6 right arrow"; until answered S145 uses the visible words.
+3. If MLB's free-text search carries no play id or inning, should S153 fall back to loading each result's game (one extra upstream request per result), or show no pill on Search?
+4. In Search's player, does a `•` stay between `Go to: Game →` and the pill?
