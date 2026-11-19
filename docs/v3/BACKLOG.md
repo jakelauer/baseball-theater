@@ -256,7 +256,7 @@ Ordered by **Priority** (execution order). Story IDs (`S1`…`S30`) are stable l
 | 80 | [S133](#s133--design-the-change-log-page-and-the-update-notices) | Design: change log + update notices | `blocked` |
 | 81 | [S75](#s75--hide-scores-in-the-game-rooms-and-the-recap-video-title) | Hide Scores in the rooms | `done` |
 | 81 | [S134](#s134--the-change-log-page-lists-each-releases-approved-notes) | Change log page | `todo` |
-| 81 | [S147](#s147--design-a-live-marker-replaces-the-fetched--ago-label) | Design: Live marker | `todo` |
+| 81 | [S147](#s147--design-a-live-marker-replaces-the-fetched--ago-label) | Design: Live marker | `blocked` |
 | 82 | [S71](#s71--day-highlights-digest-best-of-date) | Day highlights digest | `done` |
 | 82 | [S135](#s135--the-update-notice-links-to-the-change-log-after-updating-a-pointer-at-the-menu-says-the-update-is-complete-and-where-the-change-log-is-then-goes) | Update notice and after-update pointer | `todo` |
 | 82 | [S148](#s148--the-fetched--ago-label-goes-and-a-page-with-a-live-connection-shows-a-blinking-live-marker) | Live marker replaces "Fetched" | `todo` |
@@ -7908,10 +7908,11 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 - **Q1 answered (2026-11-16):** the scoreboard gets its own live connection while any game on its day is live (*"the scoreboard should have a live connection"*; *"While a game is live"*; *"One socket per day"*; S149 builds it), so the redrawn scoreboard frames show a live game with the marker, and FEATURES' Live marker row and ADR-020 already say so.
 - **Fence for the answers** (pre-PR review, 2026-11-16): FEATURES and ARCHITECTURE are in the fence so an answer that changes where the marker shows (A13's question 1: the polling scoreboard) updates the Live marker row and ADR-014's row in the same change.
 - **VISUAL-DESIGN's other mention of the label:** the type table's "Meta (venue, date, fetched-at)" row still names it; S147 rewrites that row to the ratified marker when it ratifies A13. The footer list's "Quiet meta: date, window mode, last fetched (D9)" line is S141's (S141 AC 3 rewrites it and its grader checks it), so S147 leaves it alone.
+- **2026-11-18, parked for the owner (checkpoint).** A13 redrawn to Q1's answer: the live scoreboard frames (`live-marker-scoreboard-live-*`) end in the marker, new quiet frames (`live-marker-scoreboard-quiet-*`, Sep 20, no game in its window) show the footer with no socket; its `## Decisions` now says the blink's length, reduced motion, which pages open a socket, reconnecting, polling fallback and the marker's place in S141's footer. Still a draft: Q2 (the red footer "Live" beside the top bar's green "● LIVE", and whether it shows before first pitch and after the last out) is open, then ratification. `scripts/verify-S147.sh` is red on checks 1–4 until then (check 1 on the PNGs, exported at ratification). Reuse check: the `footer-meta` line (type, centring), the game top bar's `live-indicator` shape (dot and word; its green not reused, the owner asked for red), VISUAL-DESIGN's `Primary Light` and its reduced-motion rule (live pulse stops); A1's offline footer stays as is.
 
 **Reuse check** (ADR-025): before drawing, read the ratified `footer-meta` component, the game top bar's `live-indicator` (its green dot), A1's offline footer, and VISUAL-DESIGN's red and motion tokens; a design story writes no code; record what was reused, or why nothing fit, in the story's ledger notes.
 
-**Turn cap:** 8 — assumes one small component in two states, four frames, one owner session to answer the draft's questions and one to ratify; waiting on the owner parks the story rather than spending turns.
+**Turn cap:** 8 — assumes one small component in two states, seven exports (six frames and the component set), one owner session to answer the draft's questions and one to ratify; waiting on the owner parks the story rather than spending turns.
 
 **Goal condition:** scripts/verify-S147.sh exits 0, pnpm verify exits 0, no files outside docs/v3/visual/shell-scoreboard/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/FEATURES.md, docs/v3/ARCHITECTURE.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified, or stop after 8 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
 
@@ -7921,7 +7922,7 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 /goal docs/v3/BACKLOG.md S147. Work item 0 first: if scripts/verify-S147.sh is missing, write it per the Verify-script contract, run it against current HEAD, and show the nonzero exit before writing any product code. Then: scripts/verify-S147.sh exits 0, pnpm verify exits 0, no files outside docs/v3/visual/shell-scoreboard/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/FEATURES.md, docs/v3/ARCHITECTURE.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified except creating scripts/verify-S147.sh, or stop after 8 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
 ```
 
-**Status:** `todo`
+**Status:** `blocked`
 
 ### S148 — The "Fetched … ago" label goes, and a page with a live connection shows a blinking Live marker
 
