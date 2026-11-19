@@ -42,6 +42,14 @@ explicitly where that's the case. For what's still ahead, see
   request built before `stage` gained a newer migration) and staging's never does; every other difference fails everywhere. The readers it uses moved there
   from the baseball-data copy, which shares them.
 
+## The video player's Download button is gone for now
+
+- **Before, the player's Download button didn't download: browsers open another site's video file instead of
+  saving it, so it did the same as Direct link. Now there's no Download button; Direct link opens the video, where
+  your browser's own save works, until a real download arrives.** Details: owner, 2026-11-12 ("Remove the download
+  button for now, but make a story to do the service worker in the future"); `PlayerActions`
+  (`web/src/components/videos`); S151 saves the file through the app's service worker.
+
 ## Plan checks no longer miss changes after branches are merged
 
 - **Before, when two lines of work were merged together, the check that says when the plan is due for another
