@@ -18975,3 +18975,87 @@ export const label = game.abbreviation + " @ ";  352ms
 ```
 
 </details>
+
+---
+
+## 2026-11-19 — S144 completed
+
+**Design: inning pill play link**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T18:25:28Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `09a04bc` (tree dirty) |
+| Grader | `scripts/verify-S144.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: game-shell has its next free amendments/A<N>.md headed '(S144)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (the owner's 2026-11-10 words quoted), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames of the Videos room's cards in grid and list at mobile, medium and desktop, the floating player at mobile and medium and Search's results at mobile, medium and desktop, named <screen>[-<state>]-<pairing>.png and listed in ## Frames, which says each shows a clip with a play and one without
+check 3 PASS: ## Decisions says which part of the meta line is the link, what the rest of the line reads, names the pill's colour tokens (its fill and its text, the date's), the link's hover and focus look, the line for another or missing kind and for no date, that a clip with no play keeps 'Highlight · Sep 5, 2026' (recap and condensed keep their word), that the rest of the card is unchanged, how a touch screen chooses the play, and where else the change applies (the player's overlay row, Search)
+check 4 PASS: the amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead
+check 5 PASS: no sealed game-shell file changed (RATIFIED.md's manifest and every earlier amendment's manifest still verify; S144 changed neither RATIFIED.md nor A1–A5)
+check 6 PASS: S144 changed no file outside its fence (docs/v3/visual/game-shell/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, plus creating scripts/verify-S144.sh)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+```
+
+**7/7 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S144 check results ---
+check 1 PASS: game-shell has its next free amendments/A<N>.md headed '(S144)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (the owner's 2026-11-10 words quoted), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames of the Videos room's cards in grid and list at mobile, medium and desktop, the floating player at mobile and medium and Search's results at mobile, medium and desktop, named <screen>[-<state>]-<pairing>.png and listed in ## Frames, which says each shows a clip with a play and one without
+check 3 PASS: ## Decisions says which part of the meta line is the link, what the rest of the line reads, names the pill's colour tokens (its fill and its text, the date's), the link's hover and focus look, the line for another or missing kind and for no date, that a clip with no play keeps 'Highlight · Sep 5, 2026' (recap and condensed keep their word), that the rest of the card is unchanged, how a touch screen chooses the play, and where else the change applies (the player's overlay row, Search)
+check 4 PASS: the amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead
+check 5 PASS: no sealed game-shell file changed (RATIFIED.md's manifest and every earlier amendment's manifest still verify; S144 changed neither RATIFIED.md nor A1–A5)
+check 6 PASS: S144 changed no file outside its fence (docs/v3/visual/game-shell/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, plus creating scripts/verify-S144.sh)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+--- verify-S144: 7/7 checks passed ---
+verify-S144: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 136ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 9ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 25ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 27ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 27ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 30ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 620ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  330ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 406ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  389ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  10:27:15
+   Duration  1.19s (transform 97ms, setup 0ms, collect 2.95s, tests 1.28s, environment 3ms, prepare 594ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162796,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
