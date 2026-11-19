@@ -271,4 +271,105 @@ describe("ledgerBase (where the debt checks measure drift from)", () =>
 		expect(ledgerBase(repo, "AUDIT.md", "parity")).toBe(reviewed);
 		expect(ledgerBase(repo, "missing.md", "backlog")).toBeUndefined();
 	});
+
+	/**
+	 * Two same-day `continue` reviews share one heading, so the commit that added the first
+	 * copy already "holds" the heading. Unless the copies are counted, the base stays on the
+	 * first review and the drift the second review saw counts again (#40's class of wrong base).
+	 */
+	it("counts copies of a repeated heading, so a second same-day review moves the base", () =>
+	{
+		repo = mkdtempSync(join(tmpdir(), "ledger-base-"));
+		git("init", "-q");
+		git("config", "user.email", "test@example.com");
+		git("config", "user.name", "Test");
+		git("config", "core.hooksPath", "/dev/null");
+
+		const review = "## 2026-11-02 — backlog review (`continue`)";
+		commit("first", review);
+		const second = commit("second", review, review);
+		expect(ledgerBase(repo, "AUDIT.md", "backlog")).toBe(second);
+	});
+
+	/**
+	 * #40: `git log -- AUDIT.md` lists a merge before both its parents, by date, so when the
+	 * side without the review touched the ledger later than the review did, the merge was
+	 * taken as the base and `git diff <merge> HEAD` hid drift the review never saw. Each
+	 * commit gets a fixed date so the order is the one that broke it.
+	 */
+	describe("across a merge (#40)", () =>
+	{
+		const old = "## 2026-11-01 — backlog review (`continue`)";
+		const fresh = "## 2026-11-05 — backlog review (`amended`)";
+		/** Commit with a fixed author/committer date (seconds since 2026-11-01). */
+		const dated = (at: number, message: string, write: () => void) =>
+		{
+			write();
+			git("add", "-A");
+			const date = `${1793491200 + at} +0000`;
+			execFileSync("git", ["commit", "-qm", message], {
+				cwd: repo,
+				env: {
+					...process.env,
+					GIT_AUTHOR_DATE: date,
+					GIT_COMMITTER_DATE: date,
+				},
+			});
+			return git("rev-parse", "--short", "HEAD").trim();
+		};
+		const setup = () =>
+		{
+			repo = mkdtempSync(join(tmpdir(), "ledger-base-merge-"));
+			git("init", "-q", "-b", "stage");
+			git("config", "user.email", "test@example.com");
+			git("config", "user.name", "Test");
+			git("config", "core.hooksPath", "/dev/null");
+			dated(0, "old review", () => writeFileSync(join(repo, "AUDIT.md"), ledger(old)));
+		};
+		/** Merge `branch` into the current branch, resolving the ledger to `headings`. */
+		const merge = (at: number, branch: string, ...headings: string[]) =>
+		{
+			try
+			{
+				git("merge", "-q", "--no-ff", "--no-commit", branch);
+			}
+			catch
+			{
+				// The ledger conflicts; it is resolved below, as the run-backlog merge rule says.
+			}
+			return dated(at, `merge ${branch}`, () => writeFileSync(join(repo, "AUDIT.md"), ledger(...headings)));
+		};
+
+		it("is the review commit when a story branch rewrites an AC and then merges a stage carrying a newer review (#40)", () =>
+		{
+			setup();
+			git("switch", "-qc", "story");
+			dated(10, "rewrite an AC", () => writeFileSync(join(repo, "S9.md"), "rewritten AC\n"));
+			git("switch", "-q", "stage");
+			const reviewed = dated(20, "review", () => writeFileSync(join(repo, "AUDIT.md"), ledger(old, fresh)));
+			git("switch", "-q", "story");
+			dated(30, "S9 done", () => writeFileSync(join(repo, "AUDIT.md"), ledger(old, ...completed("S9"))));
+			merge(40, "stage", old, ...completed("S9"), fresh);
+
+			const base = ledgerBase(repo, "AUDIT.md", "backlog");
+			expect(base).toBe(reviewed);
+			expect(git("diff", "--name-only", base ?? "", "HEAD")).toContain("S9.md");
+		});
+
+		it("is the review commit when stage, with drift and a newer ledger commit, is merged into a branch holding the review (#40)", () =>
+		{
+			setup();
+			git("switch", "-qc", "story");
+			const reviewed = dated(20, "review", () => writeFileSync(join(repo, "AUDIT.md"), ledger(old, fresh)));
+			git("switch", "-q", "stage");
+			dated(10, "rewrite an AC", () => writeFileSync(join(repo, "S8.md"), "rewritten AC\n"));
+			dated(30, "S8 done", () => writeFileSync(join(repo, "AUDIT.md"), ledger(old, ...completed("S8"))));
+			git("switch", "-q", "story");
+			merge(40, "stage", old, ...completed("S8"), fresh);
+
+			const base = ledgerBase(repo, "AUDIT.md", "backlog");
+			expect(base).toBe(reviewed);
+			expect(git("diff", "--name-only", base ?? "", "HEAD")).toContain("S8.md");
+		});
+	});
 });

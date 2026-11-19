@@ -271,6 +271,9 @@ function note(status: string, { ac = "1. It works.", source = "Feature: Standing
 }
 
 const STORIES = "docs/v3/backlog/stories";
+const BUGS = "docs/v3/backlog/bugs";
+/** A bug note for issue #74 (bugs.ts): a status and a priority, nothing a debt script reads. */
+const bugNote = (status: string, priority: number) => `---\nid: B74\nissue: 74\ntitle: A bug\npriority: ${priority}\nstatus: ${status}\n---\n\nhttps://github.com/o/r/issues/74\n`;
 
 /** `git mv`, as `pnpm backlog:build` moves a note: into its status folder, made if missing. */
 function move(from: string, to: string): void
@@ -304,6 +307,34 @@ describe.each(["review-debt.sh", "parity-debt.sh"])("%s: story notes moved betwe
 		move(`${STORIES}/todo/S7.md`, `${STORIES}/done/S7.md`);
 		write(`${STORIES}/done/S7.md`, note("done"));
 		commit("S7 done");
+		const run = debt(script);
+		expect(run.status, run.stdout).toBe(0);
+		expect(run.stdout).toContain("not due");
+	}, TIMEOUT);
+
+	it("a bug note in the base, re-prioritized, then moved to done: not due (the debt scripts read story notes only)", () =>
+	{
+		reviewed({
+			[`${STORIES}/todo/S7.md`]: note("todo"),
+			[`${BUGS}/todo/B74.md`]: bugNote("todo", 3),
+		});
+		write(`${BUGS}/todo/B74.md`, bugNote("todo", 1));
+		commit("B74 re-prioritized");
+		move(`${BUGS}/todo/B74.md`, `${BUGS}/done/B74.md`);
+		write(`${BUGS}/done/B74.md`, bugNote("done", 1));
+		commit("B74 fixed");
+		const run = debt(script);
+		expect(run.status, run.stdout).toBe(0);
+		expect(run.stdout).toContain("not due");
+	}, TIMEOUT);
+
+	it("a bug note added: not due (the debt scripts read story notes only)", () =>
+	{
+		reviewed({
+			[`${STORIES}/todo/S7.md`]: note("todo"),
+		});
+		write(`${BUGS}/todo/B74.md`, bugNote("todo", 3));
+		commit("B74 filed");
 		const run = debt(script);
 		expect(run.status, run.stdout).toBe(0);
 		expect(run.stdout).toContain("not due");

@@ -78,10 +78,29 @@ export function storyNotePath(id: string, status: string): string
  */
 export const STORY_NOTE_KEY = /^stories\/(?:([a-z]+)\/)?(S\d+)\.md$/;
 
-/** True for the note keys the build reads: story notes (flat or in a status folder) and frame notes. */
+/** Where a bug's note lives: `bugs/<status>/B<N>.md`, `B` + its GitHub issue number (bugs.ts). */
+export function bugNotePath(id: string, status: string): string
+{
+	return `bugs/${status}/${id}.md`;
+}
+
+/** A bug note's key relative to the notes dir. Groups: 1 the folder (undefined when flat), 2 the ID. */
+export const BUG_NOTE_KEY = /^bugs\/(?:([a-z]+)\/)?(B\d+)\.md$/;
+
+/** The ID of a story or bug note's key (`S5`, `B74`), or undefined for any other key. Story and bug IDs never collide. */
+export function noteId(key: string): string | undefined
+{
+	return STORY_NOTE_KEY.exec(key)?.[2] ?? BUG_NOTE_KEY.exec(key)?.[2];
+}
+
+/**
+ * True for the note keys the build reads: story notes (flat or in a status folder), frame notes, and every
+ * `.md` under `bugs/`. A misnamed or misfiled bug note (`bugs/todo/b74.md`, `bugs/Todo/B74.md`) is read too,
+ * so the build refuses it (bugs.ts readBugNotes) rather than dropping it and leaving the bug out of the order.
+ */
 export function isNoteKey(key: string): boolean
 {
-	return STORY_NOTE_KEY.test(key) || /^frame\/[^/]+\.md$/.test(key);
+	return STORY_NOTE_KEY.test(key) || /^bugs\/.+\.md$/.test(key) || /^frame\/[^/]+\.md$/.test(key);
 }
 
 /**

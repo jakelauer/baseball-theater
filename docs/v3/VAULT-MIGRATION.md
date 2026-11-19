@@ -116,6 +116,7 @@ Record the decision in this file's status table, in its own commit.
 **Note format** (decided at stage start — Obsidian rewrites frontmatter whenever a property is edited, so notes must survive that, and no fact may live in two editable places):
 
 - **Story note** `docs/v3/backlog/stories/<status>/S<N>.md` = YAML frontmatter + the story body. V3 shipped the notes flat in `stories/`; since 2026-11-17 each sits in the folder its frontmatter `status` names, `pnpm backlog:build` moves it when `status` changes, and `pnpm backlog:check` fails on a note in the wrong folder or two notes with one ID (owner, 2026-11-17: "I would like the backlog folder organization to put stories into folders by state if possible (and if obsidian won't break). the flat list is getting huge."). V3's acceptance criteria below keep the flat path they shipped with. The body **omits** the `### S<N> — …` heading and the `**Status:** …` line; the build writes both into `BACKLOG.md` from frontmatter.
+- **Bug note** `docs/v3/backlog/bugs/<status>/B<issue>.md` = frontmatter (`id`, `issue`, `title`, `priority`, `status`) + the issue's link (owner, 2026-11-18: "We need the backlog prioritization to include bugs, not just stories."). The GitHub issue holds the bug itself. The build checks the note (`scripts/backlog-vault/bugs.ts`), moves it into its status folder as for a story, and lists open bugs beside open stories in `INDEX.md`; a bug never enters `BACKLOG.md`, and the debt scripts never count it.
 - **Authoritative frontmatter** (what you edit): `id` (must equal the file name), `title`, `table_title`, `priority`, `status`.
 - **Derived frontmatter** (rewritten by every build; editing it does nothing): `section` and `order` (from where the frame embeds the story), `depends_on`, `prefer_after`, `turn_cap`, `scope_files` (from the body text).
 - **Frame notes** `docs/v3/backlog/frame/NN <heading>.md` = verbatim text; an `![[S<N>]]` line places a story, `![[Backlog.base#All stories]]` places the status table. Adding a story = new story note + one embed line.
@@ -125,7 +126,7 @@ Record the decision in this file's status table, in its own commit.
 
 - `pnpm backlog:build` — read the notes, rewrite them canonically (derived fields refreshed), write `docs/v3/BACKLOG.md`.
 - `pnpm backlog:check` — the same in memory; exit 1 naming each file that `build` would change.
-- `pnpm backlog:import` — recovery only: regenerate the notes from `BACKLOG.md` (how V3 creates them).
+- `pnpm backlog:import` — recovery only: regenerate the notes from `BACKLOG.md` (how V3 creates them). `BACKLOG.md` holds no bugs, so import keeps the bug notes already in `bugs/`, each moved to its status folder.
 - `pnpm test:backlog` — the `scripts/backlog-vault` vitest suite.
 - All accept `--dir <notes dir>` and `--backlog <file>` so graders and tests work on temp copies.
 

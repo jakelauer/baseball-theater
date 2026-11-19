@@ -18835,3 +18835,18 @@ S151 added and the FEATURES Videos row says Download waits for it, in db58c1c, a
 **What changed, and the owner's answer**
 
 S151 acceptance criteria rewritten in 8759fc1 to answer the pre-PR review and change reviews of this pull request (LOOP §7). Skipped under the owner's rule (owner, 2026-11-07, asked whether ACs rewritten to answer a pull request's review need a backlog review: "This shouldn't even trigger a question. Always skip.").
+
+---
+
+## 2026-11-18 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T21:38:37Z` |
+| HEAD at capture | `4210072` (tree clean) |
+| Change | `4210072` — Backlog: fix pre-PR review findings on bugs in the backlog order |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-18, asked whether bugs in the backlog order and the /run-stories → /run-backlog rename (0dfd5be, 4210072) need a backlog review: "No, log a skip (Recommended)".

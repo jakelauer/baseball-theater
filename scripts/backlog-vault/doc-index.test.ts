@@ -7,8 +7,9 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	isIndexedDoc, numberedRules, renderDocIndex, sections,
+	docIndexFor, isIndexedDoc, numberedRules, renderDocIndex, sections,
 } from "./doc-index.ts";
+import { FIXTURE, notesFor } from "./fixture.ts";
 import type { Story } from "./parse.ts";
 
 const story = (id: string, status: string, priority: number, extra: Partial<Story> = {}): Story => ({
@@ -147,6 +148,47 @@ describe("renderDocIndex", () =>
 		expect(index).toContain("**`done`** (1): [S1](backlog/stories/done/S1.md)");
 		expect(index).toContain("**`superseded`** (1): [S6](backlog/stories/superseded/S6.md)");
 	});
+
+	it("puts open bugs in the same table as the stories, in one priority order, and lists the rest as bugs by status", () =>
+	{
+		const bug = (id: string, status: string, priority: number) => ({
+			id,
+			issue: Number(id.slice(1)),
+			title: `${id} | title`,
+			priority,
+			status,
+		});
+		const index = renderDocIndex({
+			docs: [],
+			frame: [],
+			stories: [story("S2", "todo", 5), story("S4", "todo", 2), story("S5", "doing", 9)],
+			bugs: [bug("B74", "todo", 4.5), bug("B80", "doing", 1), bug("B71", "done", 0), bug("B9", "blocked", 0)],
+		});
+		const rows = index.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Priority"));
+		expect(rows.map((r) => /\[([SB]\d+)\]/.exec(r)?.[1])).toEqual(["B80", "S5", "S4", "B74", "S2", "B9"]);
+		expect(index).toContain("| 4.5 | [B74](backlog/bugs/todo/B74.md) Bug #74: B74 \\| title | `todo` | — | — |");
+		expect(index).toContain("**Bugs `done`** (1): [B71](backlog/bugs/done/B71.md)");
+	});
+
+	it("puts a bug before a story of equal priority, and lists closed bugs by issue number", () =>
+	{
+		const bug = (id: string, status: string, priority: number) => ({
+			id,
+			issue: Number(id.slice(1)),
+			title: id,
+			priority,
+			status,
+		});
+		const index = renderDocIndex({
+			docs: [],
+			frame: [],
+			stories: [story("S2", "todo", 5)],
+			bugs: [bug("B74", "todo", 5), bug("B80", "done", 1), bug("B71", "done", 2)],
+		});
+		const rows = index.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Priority"));
+		expect(rows.map((r) => /\[([SB]\d+)\]/.exec(r)?.[1])).toEqual(["B74", "S2"]);
+		expect(index).toContain("**Bugs `done`** (2): [B71](backlog/bugs/done/B71.md), [B80](backlog/bugs/done/B80.md)");
+	});
 });
 
 describe("isIndexedDoc", () =>
@@ -154,5 +196,15 @@ describe("isIndexedDoc", () =>
 	it("takes Markdown directly in docs/v3/, not subfolders or the index itself", () =>
 	{
 		expect(["ARCHITECTURE.md", "INDEX.md", "visual/x/DESIGN.md", "audit.jsonl"].map(isIndexedDoc)).toEqual([true, false, false, false]);
+	});
+});
+
+describe("docIndexFor", () =>
+{
+	it("lists the bug notes among the built notes", () =>
+	{
+		const bugNote = "---\nid: B74\nissue: 74\ntitle: A bug\npriority: 3\nstatus: todo\n---\n\nhttps://github.com/o/r/issues/74\n";
+		const index = docIndexFor(FIXTURE, new Map([...notesFor(FIXTURE), ["bugs/todo/B74.md", bugNote]]), []);
+		expect(index).toContain("| 3 | [B74](backlog/bugs/todo/B74.md) Bug #74: A bug | `todo` | — | — |");
 	});
 });

@@ -39,7 +39,15 @@ export const DEFAULT_CADENCE: CadenceParams = {
 // postponed games (`D`), which stay pregame and out of the window; delays (`I`)
 // show Live (owner, 2026-11-17: "Yes, a rain delay should show the live tab. I think
 // my response was intended to be about games that were postponed due to rain.").
-const LIVE_CODES = new Set(["I"]);
+//
+// A manager challenge (`M`) and an umpire review (`N`) are MLB "Live" codes for a
+// pause inside a game in progress, so they are live like `I` (#74); before, they
+// fell to unknown and the game looked not started for the length of the review.
+const LIVE_CODES = new Set(["I", "M", "N"]);
+
+// MLB codes a game in progress under review that BT's `GameStatusCode` folds into
+// `I` (#74), so a normalized code still reads as in progress.
+const REVIEW_CODES = new Set(["M", "N"]);
 
 // MLB's `D` is a postponement (`DR` "Postponed: Rain", `DO` "Postponed", `DI`
 // "Postponed: Inclement Weather", …), not a delay: the game won't be played on its
@@ -57,10 +65,15 @@ export function isFinalStatus(code: string): boolean
 	return FINAL_CODES.has(code);
 }
 
+/**
+ * MLB's `codedGameState` as one of BT's `GameStatusCode`s: known codes pass through
+ * (uppercased), a challenge or review (`M`/`N`) becomes `I` (#74), anything else `U`.
+ */
 export function normalizeStatusCode(code: string | undefined | null): GameStatusCode
 {
 	if (!code) return "U";
 	const c = code.toUpperCase();
+	if (REVIEW_CODES.has(c)) return "I";
 	if (["S", "P", "I", "F", "O", "C", "D"].includes(c)) return c as GameStatusCode;
 	return "U";
 }
@@ -70,7 +83,7 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Whether a game should be in the active ingest window at `now`.
- * A game in progress (`I`, which includes MLB's delays) is always in it, whatever
+ * A game in progress (`I`, which includes MLB's delays, or a challenge/review `M`/`N`, #74) is always in it, whatever
  * the clock says: a delay can outlast the trail, and only a poll sees it resume.
  * A postponed game (`D`) never is, whatever the clock says (#72). Otherwise the window is lead hours before first pitch to trail hours after
  * (after the assumed end, for a final game).

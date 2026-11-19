@@ -17,7 +17,8 @@ export const DEFAULT_ROOM: Room = "videos";
  * live?" (ADR-025). Built on the same status sets the ingest window uses
  * (`isLiveStatus` / `isFinalStatus`), so the room tabs and the poller can never
  * disagree. Only an in-progress game (`I`) is live, and MLB codes a delay `I`
- * too, so a delayed game shows Live. Warm-up (`P`) and a postponed game (`D`,
+ * too, so a delayed game shows Live; so does one paused for a manager challenge
+ * (`M`) or umpire review (`N`, #74). Warm-up (`P`) and a postponed game (`D`,
  * #72) show no Live room, and a cancelled game (`C`) counts as final. Unknown
  * codes are pre-game. The owner's 2026-10-19 "Delay should not show the live tab"
  * was about postponed games (`D`), which stay pregame and out of the window; delays
