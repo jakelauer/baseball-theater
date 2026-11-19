@@ -19291,3 +19291,51 @@ export const label = game.abbreviation + " @ ";  337ms
 ```
 
 </details>
+
+---
+
+## 2026-11-19 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-19T19:07:01Z` |
+| HEAD at review | `4c94350` (tree dirty) |
+| Trigger | design intake: shell-scoreboard A13 (Live marker), ADR-014 row amended, S148 ACs rewritten |
+| Stories `done` since last review | S147 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Design intake review of shell-scoreboard A13 (Live marker, ratified 2026-11-19 at 4c94350), ADR-014's amended "Freshness is visible" row, and S148's rewritten ACs. Two independent fresh-context reviewers (read-only, Figma tools), merged here; disputed claims checked against source.
+
+**Inventory (shell-scoreboard A13).** Frames: `live-marker-scoreboard-live-*`, `live-marker-scoreboard-quiet-*`, `live-marker-game-*` at mobile and desktop (medium = mobile footer centred, A13:25), plus `live-marker-states`. Components: `live-marker` (set 658:21788; 8px #FF5247 dot with glow, "Live Data · Active" 11px Plex Medium; `Phase=Bright|Dim`), `footer-live-strip` (705:23499/705:23516; black 40% over Dark, 10px above/below), `site-footer` (705:23532; `Live=Off|On` x `Width=Mobile|Wide`; its body is A14's draft, not ratified, A13:13). States: socket open -> strip, 2s eased blink; reduced motion -> Bright, no blink; no socket, reconnecting, polling fallback, offline -> no strip; no footer shows "Fetched … ago", "baseball.theater" or "Offline · saved …". Interactions none; settings only `prefers-reduced-motion`. Data: game socket-open state missing (`useLiveGame` returns `inWindow`, `web/src/api/live.ts:53`; `onopen` only resets failures) -> S148 AC 2; day socket and its open state missing -> S149 AC 5-6. No new domain value: "day has a game in its window" is `scheduleWindowMode` (`packages/domain/src/window.ts:142`); `fetchedAgo` stays (S74's banner).
+
+**Ownership map.** Owned 9 (marker, blink, reduced motion, game strip, game socket state, label removal, "baseball.theater" removal, hidden while reconnecting/polling, day socket state). Unowned 4, now owned: accessible name (A13:33) -> S148 AC 3; design match of `live-marker-scoreboard-live-*` (S148 only if `useLiveDay` exists, S149 had `design: []`) -> S149 AC 8; one footer component tying S148 to S142 (ADR-025) -> S148 AC 3 `SiteFooter`, S142 AC 1; Gap map row -> frame 05. Contradicted/stale, re-scoped: S74 AC 2 still built "Offline · saved {age} · baseball.theater"; S148 AC 1 would delete `fetchedAgo` that S74 AC 2 and its turn cap need; S142 AC 2 tied `fetchedAgo` to an offline footer; S134 note (c) "the footer reads baseball.theater alone"; S141 AC 1 What goes partly settled. Stories re-scoped: S148, S149, S74, S142, S141 (note), S134 (note). None inserted.
+
+**Re-scopes, with evidence.**
+- S148 AC 1: no-socket pages end with no footer line (A13:39), or in S142's footer if it shipped; A14 columns not built; "baseball.theater" checked on the footer element (Settings keeps `support@baseball.theater`, `AccountData.tsx:258`); `FooterMeta` removed, no `fetchedAt` prop; `fetchedAgo` kept (only caller `FooterMeta.tsx:20`; S74 AC 2 `S74.md:50` and turn cap line 71 need it), its comment rewritten; offline check is a grep (no offline UI exists, so the RTL passed vacuously).
+- S148 AC 2 (2b): breaks found: (1) a flag set in `connect()` passes "open -> shown" -> before-`onopen` case; (2) back from polling via `retryNow` (`live-stream.ts:151-159`) untested; (3) `GamePage.tsx:35-38` passes `useLiveGame`'s return to `useGame` as `streaming`, which disables `refetchInterval` (`game.ts:34`) - replacing it with open state would start query polling in every reconnect wait. AC now returns both flags and tests each.
+- S148 AC 3: `SiteFooter` (`web/src/layout/`, replaces `FooterMeta`, `live` prop) is the only strip host and the component S142 grows; dot `aria-hidden`, words accessible; every room of an in-window game (socket is the page's, A13 Which pages); strip spans the content column; `LiveIndicator` "One component for every live marker (S60)" comment rewritten.
+- S148 AC 6: frames named; reduced-motion emulation; `routeWebSocket` as `e2e/design/S19.spec.ts:61`; expected differences: A14 columns, and short-page footer after content (owner, 2026-11-19, asked to pin the footer to the screen's bottom on short pages or follow A13: "A13"). Turn cap 12 -> 14.
+- S149: `design: [S147]`, depends on S81, AC 8 rule-22 match of `live-marker-scoreboard-live-*`, fence +`e2e/design/`, `docs/v3/design-checks/`, turn cap 18 -> 20; AC 5 and AC 6 name `scheduleWindowMode` (ADR-025); AC 6 (2b): "stops re-asking while the socket is open, as game.ts does" contradicted game.ts (in-window flag) -> rewritten; added break: a day loaded before its first game's window never connects (stored `windowMode` "cache", no refetch) -> re-judged each minute, unit test.
+- S74 AC 2: no footer line offline (A13:6, :43, owner "yes"); design gains S147; note.
+- S142 AC 1 grows S148's `SiteFooter`; AC 2 keeps `fetchedAgo` and checks no "baseball.theater"; note: strip first row, socket state via `useState` in `AppShellLayout` + outlet context (ADR-024), placement per owner "A13".
+- S141 note: A13 settles three What-goes items; owner "A13" on placement/alignment; A14 draft on `origin/story/S141` still has a "baseball.theater" bottom line (A14:5, :21, :23, :40) and a pinned short footer, both to be redrawn before ratification; AC 3's VISUAL-DESIGN change set adds the red blink to the motion budget.
+- S134 note (c): Pending Q9 read per A13.
+- Gap map: Live marker row. Current baseline: App shell row names `SiteFooter`.
+
+**Reviewers' disagreements and resolutions.**
+1. Footer component name (`PageFooter` vs `SiteFooter`): `SiteFooter`, matching Figma's `site-footer`; ACs state behaviour (one component, reused by S142).
+2. S148 AC 2: reviewer 2 said it holds (`stop()` nulls `onclose`, unmount test load-bearing); reviewer 1 found three uncovered cases. Checked `GamePage.tsx:35-38` and `game.ts:34`: the `streaming` break is real; reviewer 1's cases added.
+3. VISUAL-DESIGN rows: reviewer 1 read the motion-budget row (:529) and Live row (:457) as contradicting A13 and asked the owner; reviewer 2 queued only :292 for parity. Checked: :457 is the scoreboard card's green indicator (unchanged by A13); :529 lists only the green blink, so it is incomplete, not contradicted; :292 is S141 AC 3's already. Resolved without a question: S141's AC 3 change set (its fence has VISUAL-DESIGN.md) adds the red blink; noted in S148.
+4. Figma frames outside A13 carrying A14's draft columns and `Live=On` strips: reviewer 2 asked the owner (optional). Resolved: the owner directed shared footer components everywhere (A13 One component everywhere, 2026-11-19); S148's note says PNGs are the record, don't build the columns, and A13's text wins over a non-A13 frame (e.g. Box room `Live=Off`).
+5. Marker on every room (reviewer 2 only): applied per A13 Which pages (the socket is the page's; `useLiveGame` runs in `GamePage` for every room).
+6. `scheduleWindowMode` in S149 (reviewer 2 only): verified at `window.ts:142`, applied.
+7. Short-page placement (reviewer 1's owner question 1): answered by the owner this session, "A13"; applied, not re-asked.
+
+**Check 2 (next 3 startable; S125, S145, S130, S137, S138, S132, S134, S135 above S148 wait on designs not done).** S148: `FooterMeta` called from `ScoreboardPage.tsx:116`, `GamePage.tsx:134`, `StandingsPage.tsx:46`; `useLiveGame` returns `inWindow`; S81 done; S147 done; S60 AC 4 pinned, not a law (`LAWS.md:332`); fence covers web/src, e2e/design, design-checks. S141: work on its branch, unmerged; A14 a draft (no intake due). S150: no design dependency; precedes S149 (forced). Check 2b applied to S148, S149, S74, S142, S141, S134: closing-class (fake-open flag), state-coupling (`streaming`), dead/vacuous test (offline RTL), duplication (ADR-025: footer, window mode, `fetchedAgo`), stale-doc (comments of `fetchedAgo`, `LiveIndicator`), clock edge (window opening after load), each recorded above. Check 3: S148 (82) before S141/S150 (83), S142/S149 (84); S74 (94) after S148 fine; no order change. Duplication sweep: only `LiveIndicator` vs the new `LiveMarker` (kept apart, reason recorded). Personal-data sweep: none (no store, field, service, browser key or log line added; files checked: S148, S149, S74, S142 ACs).
+
+**For the parity review.** FEATURES.md:103 (Live marker): the story list "— S147 (design), S148, S150, S149" sits mid-row before "Shown the draft, the owner moved it…"; move it to the end. FEATURES.md:102 (Site footer) doesn't say "baseball.theater" goes from every footer. FEATURES Installable app `Design:` bullet (:221) names an offline state without saying its footer line is gone (optional).
+
+**Owner question.** May an agent update the Figma `live-marker` component description (658:21788), which still reads "A13 (draft): the Live marker — a red dot and "Live" …", to A13's ratified wording, with no drawing change?
