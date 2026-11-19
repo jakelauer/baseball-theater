@@ -510,7 +510,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 83 | [S150](backlog/stories/todo/S150.md) One stored state per game | `todo` | — | — |
 | 84 | [S142](backlog/stories/todo/S142.md) Site footer of links | `todo` | S81 | S141 |
 | 84 | [S149](backlog/stories/todo/S149.md) Live scoreboard (day hub) | `todo` | S150 | — |
-| 89 | [S127](backlog/stories/todo/S127.md) Design: play link in Search's player | `todo` | — | — |
+| 89 | [S127](backlog/stories/todo/S127.md) Design: game and inning pills in the players | `todo` | — | — |
 | 90 | [S5](backlog/stories/todo/S5.md) Search page queries highlights fixture | `todo` | S70, S61, S68, S81 | S34, S56 |
 | 91 | [S72](backlog/stories/todo/S72.md) Search chips: date / team / tag | `todo` | S5, S69, S81 | S34 |
 | 91 | [S153](backlog/stories/todo/S153.md) Inning pill on Search's results | `todo` | S5, S145, S81 | S144, S34, S56 |
