@@ -495,7 +495,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | Priority | Story or bug | Status | Depends on | Design |
 |---|---|---|---|---|
 | 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
-| 75 | [S145](backlog/stories/todo/S145.md) Inspect play pill on cards and player | `todo` | S97, S81 | S144 |
+| 75 | [S145](backlog/stories/todo/S145.md) Inning pill play link on cards and player | `todo` | S97, S81 | S144 |
 | 76 | [S139](backlog/stories/todo/S139.md) Standings by season phase in the API | `todo` | S128 | — |
 | 76 | [S140](backlog/stories/todo/S140.md) World Series winner in standings | `todo` | S128 | — |
 | 77 | [S130](backlog/stories/todo/S130.md) Standings views | `todo` | S128, S139, S140, S81 | S129 |
@@ -527,7 +527,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 117 | [S91](backlog/stories/todo/S91.md) Next-pitch odds in Live (paid) | `todo` | S90, S64 | S92 |
 | 118 | [S146](backlog/stories/todo/S146.md) Skip deploys with unchanged build inputs | `todo` | — | — |
 | 72 | [S123](backlog/stories/blocked/S123.md) Design: calendar date picker | `blocked` | — | — |
-| 75 | [S144](backlog/stories/blocked/S144.md) Design: Inspect play pill | `blocked` | — | — |
+| 75 | [S144](backlog/stories/blocked/S144.md) Design: inning pill play link | `blocked` | — | — |
 | 76 | [S129](backlog/stories/blocked/S129.md) Design: Standings views | `blocked` | — | — |
 | 78 | [S131](backlog/stories/blocked/S131.md) Approved release notes | `blocked` | — | — |
 | 80 | [S133](backlog/stories/blocked/S133.md) Design: change log + update notices | `blocked` | — | — |
