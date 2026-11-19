@@ -19108,3 +19108,32 @@ Design intake review of game-shell A6 (the inning pill, ratified 2026-11-19, S14
 2. What should a screen reader say for the pill? `Top 6 →` reads "Top 6 right arrow"; until answered S145 uses the visible words.
 3. If MLB's free-text search carries no play id or inning, should S153 fall back to loading each result's game (one extra upstream request per result), or show no pill on Search?
 4. In Search's player, does a `•` stay between `Go to: Game →` and the pill?
+
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-19T18:44:09Z` |
+| HEAD at capture | `fb4c508` (tree clean) |
+| Applied in | `fb4c508` — Apply the owner's answers to the game-shell A6 design intake review |
+
+**Answers and what was applied**
+
+Owner's answers, 2026-11-19, to the game-shell A6 design intake review's questions (ledger entry committed in ff01df2):
+
+1. Q: "Should the play's inning pill also appear in the day digest's player and the stage-mode player, which A6 doesn't draw?"
+   A (owner): "all players always"
+   Applied: S127 AC 2 (new) draws the inning pill in the scoreboard day digest's player (DayDigest.tsx:109-116) and the stage-mode player (PlayerHost.tsx:30-33) in the same standings-search-settings amendment; coordinator's reading stated in the note (players outside the game's Videos room show both pills; the Videos room player only the inning pill; the stage player follows its context). No build story invented: S127's ratification intake slices the digest and stage players, as it does Search's. Title, Impact, Gates and Builds-after lines follow.
+
+2. Q: "What should a screen reader say for the pill? (visible `Top 6 →` reads 'Top 6 right arrow')"
+   A (owner): "\"Open play - Top of 6th inning\""
+   Applied: S145 AC 1 asserts the accessible name "Open play - <Top|Bottom> of <ordinal> inning" on the card and in the player (RTL getByRole link names for a top-6 and a bottom-3 play), visible words unchanged (Top 6 → / Bot 3 →); AC 5 puts the spoken words in packages/domain/src/inning.ts beside the visible label, reusing its ordinal(), with the "Open play - " prefix added once beside the arrow. Agent's reading: the spoken name spells "Bottom" (visible keeps "Bot") and restores the ordinal, as the owner wrote "6th". S127 AC 3 names it.
+
+3. Q: "In Search's player, does a `•` stay between 'Go to: Game →' and the pill?"
+   A (owner): "Change Game -> to a pill as well, but change the label to \"More from game ->\" and link to the videos tab of that game, and remove the \"Go to:\" label"
+   Applied: S127 AC 1 draws a "More from game →" pill then the inning pill, no "Go to:" label, separator question removed; AC 3 says it opens /game/:gamePk/videos (the /game/:gamePk/:tab route). gamePk: -1 left as the amendment's question (no note settles it for the player). S153's "Not Search's player" note follows. FEATURES' Video play links row still says "Go to: Game →  •  At-Bat →": left for the doc parity review.
+
+Still open (not answered): whether Search should load each result's game when MLB's search lacks the play id or inning (S153's notes).
