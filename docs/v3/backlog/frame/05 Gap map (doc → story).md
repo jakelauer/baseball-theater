@@ -38,6 +38,7 @@
 | Collapsed bar opens the game (VISUAL-DESIGN §6 Scoreboard, owner 2026-11-07) | **S126** |
 | Change log page and the update notices (FEATURES Update / change log UX, owner 2026-11-08; named the change log, a link at the foot of the menu and a pointer at the menu after updating, owner 2026-11-10; the update notice links to the change log with no addition, owner 2026-11-10 evening) | **S131** approved release notes → **S132** API; design **S133** → **S134** page, **S135** notice and pointer |
 | Site footer (FEATURES, owner 2026-11-10) | Design **S141** → **S142** |
+| Live marker (FEATURES, owner 2026-11-16) | Design **S147** (done, shell-scoreboard A13) → **S148** marker, `SiteFooter` and the game page's socket state; **S150** → **S149** day hub and the scoreboard's marker; **S74** offline with no footer line; **S142** keeps the strip atop the footer of links |
 | Video play links from Search's floating player (FEATURES, owner 2026-11-05) | Design **S127**; its intake re-scopes **S5** or slices the build |
 | Budgets + coverage (ADR-026) | **S54** size + render counts + ratchet, **S81** Playwright + design-match captures (rule 22), **S62** Lighthouse CI + flows; bringing LCP under 2.5 s (both pages warn at about 3.2–3.3 s) — no story yet (owner, 2026-10-29: "we can figure out the problems later") |
 
