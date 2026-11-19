@@ -18975,3 +18975,124 @@ export const label = game.abbreviation + " @ ";  352ms
 ```
 
 </details>
+
+---
+
+## 2026-11-18 — S139 completed
+
+**Standings by season phase in the API**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T01:52:24Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `1a08f51` (tree dirty) |
+| Grader | `scripts/verify-S139.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: season phases spring, regularSeason, playoffs: one exported type and ordered list in packages/domain beside StandingsPhaseName; StandingsResponse keeps S128's fields and gains phases ({ startDate, endDate, table? } | null per phase); generated.types.test.ts lists the new types
+check 2 PASS: one domain function beside standingsPhase answers the season and each phase's dates and pick for a day from the calendars only (2027-02-18, 2027-02-19, 2027-03-24, 2027-03-25, 2026-09-05, 2026-09-27, 2026-09-28, after lastGameDate, before every season, no calendar, missing regularSeasonEndDate, lastGameDate = regularSeasonEndDate)
+check 3 PASS: GET /api/v1/standings takes includePhases (comma, repeated, mixed; duplicates once; exact names); bad names, empty names and spaces answer 400 include_phases_invalid naming the phases and ask MLB nothing; date is checked first; top-level fields identical whatever includePhases names
+check 4 PASS: the regular season before its first game lists the new season's teams by division in name order at 0-0 with null figures (spring teams when spring has any; on the first spring morning MLB's new-season team list, never last season's); S128's top-level table keeps its fallback
+check 5 PASS: MLB's answers recorded under fixtures/raw/ and drift-scanned (spring+regular in one request on a spring and an April day, playoffs types, the new season's teams); the request budget is tested with a counting client; bundled.ts lists every recording the fixture client reads and its guard fails without it
+check 6 PASS: fixtures/raw/standings-2026-09-12.json and fixtures/standings-2026-09-12.json: 1 to 11 teams clinched; its playoffs list is tested, and 2026-09-05's playoffs table has no division
+check 7 PASS: fetchStandings/useStandings take an optional phase list sent comma-joined, keyed in phase order; the spec has includePhases (form, explode false), phases and the 400; pnpm api:breaking exits 0; generated types re-rendered
+check 8 PASS: cached, not stored: no standings repository or table; cacheLifetimeMs takes a ladder, STANDINGS_CACHE_LIFETIME_LADDER caps at 30 days; the route's Cache-Control follows the day asked; calendars kept 24 hours (the floor in the postseason window, rejections never kept); a workerd test shows the Workers Cache serves them
+check 9 PASS: no visual change: nothing under web/src outside web/src/api changes, and nothing outside the story's scope files
+check 10 PASS: backlog Status is done (story heading and Story status table)
+```
+
+**10/10 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+S139 notes (not checked by this grader beyond what check 5 asserts of the recordings and the budget test) —
+MLB's answers, recorded 2026-11-18 with the repo's recorder (verbatim, fixtures/raw/, drift-scanned):
+- springTraining,regularSeason in one request (standings-2026-03-10-spring-regular, standings-2026-04-05-spring-regular):
+  it answers only the table the day has: six springTraining records on 2026-03-10, six regularSeason records on 2026-04-05
+  (no spring table, though spring's last-day table exists). So it is two requests, as the owner asked to check.
+- Playoffs: standingsTypes=postseason answers no records (standings-2026-postseason). wildCard
+  (standings-2026-09-20-wildcard, standings-2026-final-wildcard) comes in the same request as the regular season but
+  only ranks the non-division-leaders; its clinched teams are a subset of the regular-season table's (2026-09-20:
+  BOS, NYY of 6; final: 6 of 12), so it names no different set. The playoffs phase is the regular-season table's
+  clinched teams, at no request of its own.
+- The new season's teams before its first game: the season's table with no date (standings-2027-final, the URL
+  fetchFinalStandings asks) lists all 30 teams at 0-0, regularSeason type. So AC 4's first-spring-morning list is
+  fetchFinalStandings(new season).
+- AC 6: standings-2026-09-12 has 2 teams clinched (TB, MIL); 2026-09-20 has 6 (standings-2026-09-20-wildcard's
+  regular-season records), and 2026's final table all 12.
+- Verified budget (standings requests beyond the two calendars): regular-season day 2, spring day 1, off-season 2,
+  first spring morning 3, no calendar 1; includePhases=playoffs or regularSeason on 2026-09-05 1; spring on a spring day 1.
+Reuse check (ADR-025): standingsPhase, previousStandingsPhase, StandingsPick (standingsPhases is built on them, the
+  pick type reused for every phase), StandingsPhaseName's spring/regularSeason reused as SeasonPhaseName's, addDays,
+  SeasonCalendar, mlbToday (the new mlbDayEndsAt sits beside it, the one place BT knows MLB's zone), fetchPick and
+  isEmpty in the standings service (kept; picks are memoized per request so a shared table is asked once),
+  standingsCalendars (now takes any fetchSeasonCalendar source, the cache adapter's, and says whether every calendar
+  answered), cacheLifetimeMs (gains a ladder argument, not copied) and edgeCacheControl (gains the same), the route's
+  withCacheControl, isCalendarDate for the date check, the S128 standings fixtures and recordedClient;
+  fetchStandings/standingsKey extended rather than duplicated, with SEASON_PHASES/SeasonPhaseName from the domain.
+  New in the domain beside standingsPhases: playoffsTable and blankRegularSeasonTable (the playoffs list and AC 4's
+  0-0 list), and seasonSettling, the postseason window the calendar cache already used (calendarKeepMs now calls it)
+  and the standings' edge cache now judges an answer's season by. Nothing fit the calendar cache, so
+  cached-season-calendars.ts is new, an adapter around the unchanged port.
+Grader changed before shipping (pre-PR review, 2026-11-18): check 5 now asserts the recording claims above and that
+  every counting-client case carries its verified count; tightening only.
+
+--- verify-S139 check results ---
+check 1 PASS: season phases spring, regularSeason, playoffs: one exported type and ordered list in packages/domain beside StandingsPhaseName; StandingsResponse keeps S128's fields and gains phases ({ startDate, endDate, table? } | null per phase); generated.types.test.ts lists the new types
+check 2 PASS: one domain function beside standingsPhase answers the season and each phase's dates and pick for a day from the calendars only (2027-02-18, 2027-02-19, 2027-03-24, 2027-03-25, 2026-09-05, 2026-09-27, 2026-09-28, after lastGameDate, before every season, no calendar, missing regularSeasonEndDate, lastGameDate = regularSeasonEndDate)
+check 3 PASS: GET /api/v1/standings takes includePhases (comma, repeated, mixed; duplicates once; exact names); bad names, empty names and spaces answer 400 include_phases_invalid naming the phases and ask MLB nothing; date is checked first; top-level fields identical whatever includePhases names
+check 4 PASS: the regular season before its first game lists the new season's teams by division in name order at 0-0 with null figures (spring teams when spring has any; on the first spring morning MLB's new-season team list, never last season's); S128's top-level table keeps its fallback
+check 5 PASS: MLB's answers recorded under fixtures/raw/ and drift-scanned (spring+regular in one request on a spring and an April day, playoffs types, the new season's teams); the request budget is tested with a counting client; bundled.ts lists every recording the fixture client reads and its guard fails without it
+check 6 PASS: fixtures/raw/standings-2026-09-12.json and fixtures/standings-2026-09-12.json: 1 to 11 teams clinched; its playoffs list is tested, and 2026-09-05's playoffs table has no division
+check 7 PASS: fetchStandings/useStandings take an optional phase list sent comma-joined, keyed in phase order; the spec has includePhases (form, explode false), phases and the 400; pnpm api:breaking exits 0; generated types re-rendered
+check 8 PASS: cached, not stored: no standings repository or table; cacheLifetimeMs takes a ladder, STANDINGS_CACHE_LIFETIME_LADDER caps at 30 days; the route's Cache-Control follows the day asked; calendars kept 24 hours (the floor in the postseason window, rejections never kept); a workerd test shows the Workers Cache serves them
+check 9 PASS: no visual change: nothing under web/src outside web/src/api changes, and nothing outside the story's scope files
+check 10 PASS: backlog Status is done (story heading and Story status table)
+--- verify-S139: 10/10 checks passed ---
+verify-S139: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 133ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 8ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 20ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 24ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 26ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 32ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 578ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  313ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 349ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  333ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  17:54:36
+   Duration  1.07s (transform 89ms, setup 0ms, collect 2.84s, tests 1.17s, environment 1ms, prepare 330ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162825,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>

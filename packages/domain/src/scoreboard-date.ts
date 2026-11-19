@@ -50,6 +50,23 @@ export function mlbToday(instant: Date): string
 }
 
 /**
+ * The instant MLB's day `day` (`YYYY-MM-DD`) ends: when the next day begins in
+ * `America/New_York`, the zone `mlbToday` uses (S139: a past day's standings count how long
+ * they have been still from here). Midnight Eastern is 04:00 or 05:00 UTC depending on daylight
+ * time, so it tries both and keeps the one `mlbToday` places on the next day.
+ */
+export function mlbDayEndsAt(day: string): Date
+{
+	const [year, month, date] = day.split("-").map(Number) as [number, number, number];
+	for (const hour of [4, 5])
+	{
+		const instant = new Date(Date.UTC(year, month - 1, date + 1, hour));
+		if (mlbToday(instant) !== day && mlbToday(new Date(instant.getTime() - 1)) === day) return instant;
+	}
+	return new Date(Date.UTC(year, month - 1, date + 1, 5));
+}
+
+/**
  * The scoreboard's default day for `today` given the seasons MLB has published (any order).
  * Inside a season (first spring game through the final) it is `today`. After a final it is
  * that final until the next season's spring starts; with no next season published yet it

@@ -14,6 +14,22 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## Standings data covers spring training, the regular season and the playoffs at once
+
+- **Before, the standings data held one table, chosen by the calendar: in spring training there was no way to get
+  the regular season's, in the playoffs no way to get the teams that made it, and nothing said when each part of
+  the season starts and ends. Now one answer holds the day's spring training, regular season and playoffs standings,
+  each with the days it runs, and the app can ask for only the parts it will show; before opening day the regular
+  season lists every team at 0-0, and the playoffs list the teams that have clinched. Past days' standings are now
+  kept at the edge for up to 30 days once their season is over, instead of being fetched from MLB on every visit.** Nothing on the Standings
+  page changes yet: the page that lets fans switch between the three comes next. Details: **S139** —
+  `GET /api/v1/standings` gains `phases` (`StandingsPhases`, from `standingsPhases` in
+  `packages/domain/src/standings-phase.ts`) and `includePhases` (comma or repeated; 400 `include_phases_invalid`),
+  S128's fields unchanged at the top; edge `Cache-Control` from `STANDINGS_CACHE_LIFETIME_LADDER` (ADR-021's
+  ladder to a 30-day cap for a finished season, counted from the end of the day asked; 48 hours while the season
+  is played, the floor in its postseason or when MLB couldn't give a season calendar); season calendars kept a day by
+  `functions/src/adapters/cached-season-calendars.ts`; MLB's answers recorded under `fixtures/raw/`.
+
 ## The month's game counts also say which teams play each day
 
 - **Before, the month answer behind the coming calendar said how many games each day has but not who plays, so the

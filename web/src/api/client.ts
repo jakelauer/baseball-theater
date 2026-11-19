@@ -1,4 +1,4 @@
-import type { AccountSettings } from "@bt/domain";
+import type { AccountSettings, SeasonPhaseName } from "@bt/domain";
 import createClient from "openapi-fetch";
 import { getSessionToken } from "../session/token.js";
 import type { paths } from "./generated/bt-api.v1.js";
@@ -83,14 +83,32 @@ export async function fetchScheduleMonth(month: string)
 	}));
 }
 
-/** The division standings as of `date` (S4); the server's today when it is absent. */
-export async function fetchStandings(date?: string)
+/**
+ * The division standings as of `date` (S4); the server's today when it is absent. `phases` names
+ * the season phases whose tables to include (S139), sent in the comma form
+ * (`includePhases=spring,playoffs`); with none, or an empty list, it asks as before S139, which
+ * answers every phase: the API has no "no tables" form, so `[]` here means every phase. (The
+ * service's own `getStandings(…, [])` means no phase tables, on purpose: that is S128's table alone,
+ * which no client asks for.)
+ */
+export async function fetchStandings(date?: string, phases?: readonly SeasonPhaseName[])
 {
 	return unwrap(await api.GET("/api/v1/standings", {
 		params: {
-			query: date ? {
-				date,
-			} : {},
+			query: {
+				...date && {
+					date,
+				},
+				...phases?.length && {
+					includePhases: [...phases],
+				},
+			},
+		},
+		querySerializer: {
+			array: {
+				style: "form",
+				explode: false,
+			},
 		},
 	}));
 }

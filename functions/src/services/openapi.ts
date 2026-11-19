@@ -38,6 +38,9 @@ interface Parameter
 	required: boolean;
 	description: string;
 	schema: JsonSchema;
+	/** How a list parameter is written (S139's `includePhases`): `form` with `explode: false` is the comma form. */
+	style?: "form";
+	explode?: boolean;
 }
 
 interface RouteDescription
@@ -147,21 +150,37 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 	},
 	"GET /api/v1/standings": {
 		operationId: "getStandings",
-		summary: "The division standings for one day of the season — the regular season's table, the final table once it has ended, or spring training's (see `phase`): each division's teams in rank order, with wins, losses, winning percentage and games back (null for the leader).",
+		summary: "The division standings for one day of the season — the regular season's table, the final table once it has ended, or spring training's (see `phase`): each division's teams in rank order, with wins, losses, winning percentage and games back (null for the leader). `phases` (S139) carries every season phase of the day's season — spring training, the regular season and the playoffs (the teams that have clinched) — with the days it runs and, for the phases `includePhases` names, its table. Cached at the edge by how long the day asked has been over: up to 30 days once the answer's season (the one `phases` is for) is over; at most 48 hours while it is still being played or has no season calendar; briefly during its postseason, when MLB couldn't give a season calendar, or for today.",
 		parameters: [
 			{
 				name: "date",
 				in: "query",
 				required: false,
-				description: "The day to show standings for, `YYYY-MM-DD`; MLB's today when absent. After the regular season the answer is that season's final table, dated its `regularSeasonEndDate`; during spring training it is spring training's table (see `phase`).",
+				description: "The day to show standings for, a real date as `YYYY-MM-DD`; MLB's today when absent. After the regular season the answer is that season's final table, dated its `regularSeasonEndDate`; during spring training it is spring training's table (see `phase`).",
 				schema: {
 					type: "string",
 					pattern: "^\\d{4}-\\d{2}-\\d{2}$",
 				},
 			},
+			{
+				name: "includePhases",
+				in: "query",
+				required: false,
+				description: "The season phases whose tables `phases` carries (S139), comma-separated (`spring,regularSeason`); the parameter repeated (`includePhases=spring&includePhases=regularSeason`), or both forms mixed, is accepted too. Names match exactly and a name given twice counts once. Absent: every phase's table. Every phase's dates are in `phases` either way, and the top-level fields are the same whatever it names.",
+				schema: {
+					type: "array",
+					items: {
+						type: "string",
+						enum: ["spring", "regularSeason", "playoffs"],
+					},
+				},
+				style: "form",
+				explode: false,
+			},
 		],
 		errors: {
-			400: "`date` is not `YYYY-MM-DD`.",
+			400: "`date_invalid`: `date` is not a real `YYYY-MM-DD` date (checked first). `include_phases_invalid`: an `includePhases` name isn't `spring`, `regularSeason` or `playoffs`, is empty, or has spaces around it; MLB is asked nothing.",
+			502: "`standings_unavailable`: MLB couldn't answer a standings table; never cached, so trying again shortly may succeed. A season calendar MLB couldn't give is not this error: the answer is then the day's table without phase dates, cached only briefly.",
 		},
 	},
 	"GET /api/v1/me": {
