@@ -23,9 +23,16 @@ describe("FixtureClient season calendar (S111)", () =>
 				lastGameDate: "2026-10-28",
 				regularSeasonStartDate: "2026-03-25",
 				regularSeasonEndDate: "2026-09-27",
+				champion: {
+					teamId: 158,
+					name: "Milwaukee Brewers",
+					wonOn: "2026-10-28",
+				},
 			});
 			expect((await mlb.fetchSeasonCalendar(2027))?.springStartDate).toBe("2027-02-19");
 			expect((await mlb.fetchSeasonCalendar(2025))?.lastGameDate).toBe("2025-11-01");
+			// S140: the bundle serves the 2025 Series too, so the Worker's fixture names its winner.
+			expect((await mlb.fetchSeasonCalendar(2025))?.champion?.name).toBe("Los Angeles Dodgers");
 		}
 	});
 

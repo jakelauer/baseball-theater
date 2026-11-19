@@ -14,6 +14,17 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## The standings data names the World Series champion
+
+- **Before, nothing Baseball Theater served said who won the World Series. Now, from the day the Series is won
+  until the next spring training starts, the standings data names the champion and the day they won it, so the
+  Standings page can celebrate them above the regular season's table; asking for a past day gives the answer that
+  day would have had.** Nothing on the page changes yet: the celebratory box comes with the Standings views.
+  Details: **S140** — `GET /api/v1/standings` gains `champion` (`{ season, teamId, name, wonOn }` or `null`, by
+  `standingsChampion` in `packages/domain/src/standings-phase.ts`), read from the World Series schedule the season
+  calendar already fetches (`worldSeriesChampion`, `functions/src/mappers/season-calendar.ts`), so MLB is asked
+  nothing more.
+
 ## Standings data covers spring training, the regular season and the playoffs at once
 
 - **Before, the standings data held one table, chosen by the calendar: in spring training there was no way to get

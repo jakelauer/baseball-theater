@@ -2,7 +2,7 @@ import type {
 	SeasonPhaseName, StandingsPhaseAnswer, StandingsPhasesPlan, StandingsPick, StandingsResponse, StandingsSnapshot,
 } from "@bt/domain";
 import {
-	blankRegularSeasonTable, mlbToday, playoffsTable, previousStandingsPhase, SEASON_PHASES, standingsPhase, standingsPhases,
+	blankRegularSeasonTable, mlbToday, playoffsTable, previousStandingsPhase, SEASON_PHASES, standingsChampion, standingsPhase, standingsPhases,
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
 import { standingsCalendars } from "./scoreboard-date.js";
@@ -94,6 +94,10 @@ export interface StandingsRead
  * day, and the day's regular-season or final table) and three on it (the empty spring table, last
  * season's final for S128's table, and the new season's team list). A phase left out asks nothing
  * beyond what S128's table or an included phase needs.
+ *
+ * And `champion` (S140): the World Series winner `standingsChampion` names for the day, read from the
+ * same calendars (the winner comes with the World Series schedule the calendar already asks for), so
+ * it asks MLB nothing more and is the same whatever `include` names.
  */
 export async function getStandings(deps: StandingsDeps, day?: string, include: readonly SeasonPhaseName[] = SEASON_PHASES): Promise<StandingsRead>
 {
@@ -141,6 +145,7 @@ export async function getStandings(deps: StandingsDeps, day?: string, include: r
 				regularSeason,
 				playoffs,
 			},
+			champion: standingsChampion(date, seasons),
 		},
 		calendarsComplete: complete,
 	};

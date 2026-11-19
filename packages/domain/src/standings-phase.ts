@@ -22,7 +22,7 @@
  * table is the previous season's, which only the calendars can say.
  */
 import { addDays } from "./calendar-date.js";
-import type { SeasonCalendar } from "./scoreboard-date.js";
+import type { SeasonCalendar, SeasonChampion } from "./scoreboard-date.js";
 import type {
 	StandingsPhaseName, StandingsSnapshot, StandingsTeamRecord,
 } from "./types.js";
@@ -300,5 +300,30 @@ export function blankRegularSeasonTable(source: StandingsSnapshot, season: numbe
 			...division,
 			teams: [...division.teams].sort((a, b) => a.name.localeCompare(b.name)).map(blankRecord),
 		})),
+	};
+}
+
+/** A season's World Series winner as the standings answer names it (S140): the champion and its season. */
+export interface StandingsChampion extends SeasonChampion {
+	season: number;
+}
+
+/**
+ * The World Series winner the standings name on `day` (S140 AC 2), from the season calendars only,
+ * never the clock, so a past date gets the answer it would have had that day. It is the winner of
+ * the season whose `final` table `standingsPhase` picks (the off-season: the day after
+ * `regularSeasonEndDate` until the next season's spring), from the day the Series was won
+ * (`wonOn`) on; null on every other day, before the Series is decided (the playoffs are part of the
+ * off-season), and for a season with no winner.
+ */
+export function standingsChampion(day: string, seasons: readonly SeasonCalendar[]): StandingsChampion | null
+{
+	const pick = standingsPhase(day, seasons);
+	if (pick.phase !== "final") return null;
+	const champion = seasons.find((s) => s.season === pick.season)?.champion;
+	if (!champion || day < champion.wonOn) return null;
+	return {
+		season: pick.season,
+		...champion,
 	};
 }

@@ -89,10 +89,23 @@ export interface WorkersCacheLike
 	put(key: string, response: Response): Promise<void>;
 }
 
-/** The Workers Cache key a season's calendar is kept under: an internal address no request reaches. */
+/**
+ * The version of the `SeasonCalendar` shape the Workers Cache keeps (S140). Bump it whenever
+ * `SeasonCalendar` gains a field: a calendar kept by older code lacks it, and would otherwise be read
+ * as complete for up to a day after a deploy (S139's calendars, kept without S140's `champion`, would
+ * name no winner and leave a past date's null in the standings' month-long edge cache).
+ */
+const CALENDAR_SHAPE_VERSION = "v2";
+
+/**
+ * The Workers Cache key a season's calendar is kept under: an internal address no request reaches,
+ * versioned by the calendar's shape. Staging and production share the zone's cache and so these
+ * keys; they read the same MLB calendars, so that is harmless while both run the same shape, and a
+ * shape change bumps the version.
+ */
 export function seasonCalendarCacheKey(season: number): string
 {
-	return `https://season-calendars.bt.internal/${season}`;
+	return `https://season-calendars.bt.internal/${CALENDAR_SHAPE_VERSION}/${season}`;
 }
 
 /** Kept calendars in the Workers Cache (the Worker): the cache drops each once its `max-age` passes. */

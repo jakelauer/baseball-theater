@@ -12,6 +12,17 @@
 /** The zone MLB's day turns over in: a game's `officialDate` is its Eastern date. */
 const MLB_TIME_ZONE = "America/New_York";
 
+/**
+ * Who won a season's World Series (S140), from the World Series schedule the calendar reads:
+ * the team (MLB's ID and name) and `wonOn`, the day of the game that decided it.
+ */
+export interface SeasonChampion {
+	teamId: number;
+	name: string;
+	/** The deciding game's day, `YYYY-MM-DD`. */
+	wonOn: string;
+}
+
 /** The days that bound one season, as BT needs them. */
 export interface SeasonCalendar {
 	season: number;
@@ -30,6 +41,8 @@ export interface SeasonCalendar {
 	regularSeasonStartDate?: string;
 	/** The last scheduled regular-season day (MLB's `regularSeasonEndDate`; S128), optional as above. */
 	regularSeasonEndDate?: string;
+	/** The World Series winner (S140), once the Series is decided; absent before then, for a season with none, or when MLB's schedule can't say. */
+	champion?: SeasonChampion;
 }
 
 /**
