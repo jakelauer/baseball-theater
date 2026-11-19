@@ -14,6 +14,24 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## Plan checks no longer miss changes after branches are merged
+
+- **Before, when two lines of work were merged together, the check that says when the plan is due for another
+  review could start counting from the merge instead of from the last review, so a change to a story's
+  requirements made on the other line went unseen and a review that was due read as not due. Now it counts from
+  the review itself, so those changes are caught and the plan gets the review it needs.** Details: B40, fixes #40.
+  `ledgerBase` in `scripts/backlog-vault/ledger.ts` now returns the commit that added the newest review, answers or
+  skip entry (its ledger holds it, none of its parents' do) instead of comparing each commit with the one before it
+  in date order.
+
+## A game paused for a replay review still looks live
+
+- **Before, whenever a manager challenged a call or the umpires reviewed one, a live game looked as if it hadn't
+  started: its Live tab and the scoreboard's inning disappeared until the review ended, and a review late in a long
+  game could stop its live updates. Now a game under review stays live, with its Live tab, its inning and its
+  updates.** Details: B74, fixes #74. MLB codes a manager challenge `M` and an umpire review `N`; `isLiveStatus`
+  in `@bt/domain` now counts both as in progress, and `normalizeStatusCode` maps them to `I`.
+
 ## The day's top highlights lead with the plays that mattered, and keep up during games
 
 - **Before, the day's "Best of" highlights could open with an interview: on October 28, the World Series clincher,

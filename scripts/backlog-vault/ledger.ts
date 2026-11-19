@@ -233,13 +233,16 @@ function reviewTrail(audit: string, kind: ReviewKind): string
 }
 
 /**
- * The commit the debt checks measure drift from: the newest commit that added (or removed)
- * a review, answers or skip entry of `kind` in the ledger at `ledgerPath` (repo-relative).
- * Undefined when no commit ever logged one.
+ * The commit the debt checks measure drift from: the commit that added the newest review,
+ * answers or skip entry of `kind` (the last one in HEAD's ledger at `ledgerPath`,
+ * repo-relative). Undefined when HEAD's ledger has none.
  *
- * Walks the commits that touched the ledger, newest first, comparing each one's trail of
- * review entries with the commit before it, so edits to an entry's body (a correction)
- * don't move the base. Reads committed history only.
+ * That commit is the one whose ledger holds the entry while none of its parents' ledgers
+ * do (#40). Comparing a commit only with the one before it in `git log` order is wrong
+ * across a merge: the log lists a merge before both parents by date, so a merge whose
+ * other side touched the ledger last read as the base, and `git diff <merge> HEAD` hid
+ * drift that side carried and the review never saw. Only entry headings count, so edits
+ * to an entry's body (a correction) don't move the base. Reads committed history only.
  */
 export function ledgerBase(repo: string, ledgerPath: string, kind: ReviewKind): string | undefined
 {
@@ -258,15 +261,11 @@ export function ledgerBase(repo: string, ledgerPath: string, kind: ReviewKind): 
 	{
 		return undefined;
 	}
-	const trailAt = (commit: string | undefined) =>
+	const trailAt = (commit: string) =>
 	{
-		if (commit === undefined)
-		{
-			return "";
-		}
 		try
 		{
-			return reviewTrail(git(["show", `${commit}:${ledgerPath}`]), kind);
+			return reviewTrail(git(["show", `${commit}:${ledgerPath}`]), kind).split("\n").filter(Boolean);
 		}
 		catch (error)
 		{
@@ -274,18 +273,28 @@ export function ledgerBase(repo: string, ledgerPath: string, kind: ReviewKind): 
 			{
 				throw error;
 			}
-			return "";
+			return [];
 		}
 	};
-	let newer = trailAt(commits[0]);
-	for (let i = 0; i < commits.length; i++)
+	const head = trailAt("HEAD");
+	const newest = head.at(-1);
+	if (newest === undefined)
 	{
-		const older = trailAt(commits[i + 1]);
-		if (newer !== older)
+		return undefined;
+	}
+	// Headings can repeat (two same-day `continue` reviews), so "holds the entry" means
+	// holding at least as many copies of it as HEAD does.
+	const copies = head.filter((h) => h === newest).length;
+	const holds = (commit: string) => trailAt(commit).filter((h) => h === newest).length >= copies;
+	// The commit that added the entry changed the ledger against every parent, so `git log
+	// -- <ledger>` (which drops a merge matching one parent) always lists it.
+	for (const commit of commits)
+	{
+		const parents = git(["log", "-1", "--format=%p", commit]).trim().split(" ").filter(Boolean);
+		if (holds(commit) && !parents.some(holds))
 		{
-			return commits[i];
+			return commit;
 		}
-		newer = older;
 	}
 	return undefined;
 }

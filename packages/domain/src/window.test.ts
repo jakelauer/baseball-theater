@@ -111,6 +111,24 @@ describe("isGameInActiveWindow", () =>
 		expect(isGameInActiveWindow(delayed, new Date("2024-07-05T09:00:00.000Z"))).toBe(true);
 	});
 
+	it("keeps a game under a manager challenge (`M`) or umpire review (`N`) live and polled past the trail (#74)", () =>
+	{
+		for (const [code, detailedState] of [["M", "Manager challenge"], ["N", "Umpire review"]] as const)
+		{
+			const reviewing = {
+				...game(code, "2024-07-04T23:05:00.000Z"),
+				status: {
+					abstractGameState: "Live",
+					codedGameState: code,
+					detailedState,
+				},
+			};
+			expect(isLiveStatus(code)).toBe(true);
+			expect(normalizeStatusCode(code)).toBe("I");
+			expect(isGameInActiveWindow(reviewing, new Date("2024-07-05T09:00:00.000Z"))).toBe(true);
+		}
+	});
+
 	it("drops a postponed game (`D`) before, during and after its scheduled time (#72)", () =>
 	{
 		const postponed = {
