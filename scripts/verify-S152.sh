@@ -25,8 +25,13 @@ check 8 "the note carries a **P11 wording:** line quoting the owner; LAWS.md's P
 check 9 "backlog Status is done (story heading and Story status table)"
 check 10 "S152 changed no file outside its fence (plus creating scripts/verify-S152.sh and updating scripts/backlog-vault/ci-law.test.ts)"
 
-# The commit S152 started from (HEAD when its grader was written).
-BASE=585b23e
+# The commit S152's own changes are measured from. It started at 585b23e (HEAD when its
+# grader was written); on 2026-11-20 bug/B87, carrying stage (#95-#98, #106, #107), was merged
+# in (9299ae4), and story_diff compares two trees, so measuring from 585b23e counted the 64 files
+# stage brought in as S152's. Measuring from that merge's B87 side gives exactly S152's own
+# changes, which is what check 10 is for (rule 7: a pre-ship grader update, not a loosening;
+# S156's story_own_diff fixes this for later graders).
+BASE=9299ae4
 
 TMP="$(mktemp -d /tmp/verify-S152.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
