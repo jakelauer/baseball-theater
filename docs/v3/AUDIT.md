@@ -19328,3 +19328,42 @@ Fresh-context review at `ebbb4f6` (`scripts/review-debt.sh`: S138's acceptance c
 **Questions for the owner:** (1) where the change log starts, v4.0.0 (as the published releases say) or v3.1.0 (as S131 says); S131 is parked until answered. (2) S155's table headings: "American League" / "National League" or "AL" / "NL" (non-blocking).
 
 **Verdict: `amended`.** S155 (AC 1-4, notes, reuse check, turn-cap assumption), S138 (AC 2, Design line, notes) and S131 (parked) amended; baseline and gap map updated. B87 and S152 may start; S131 waits for the owner.
+
+---
+
+## 2026-11-19 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T02:06:11Z` |
+| HEAD at review | `bd48f8a` (tree dirty) |
+| Trigger | S155 added; FEATURES.md changed (Standings: S138 answers, pre-1969 by league) |
+| Stories `done` since last review | none (0 stories done since 4503fe8) |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Scope from `pnpm parity:debt` at bd48f8a (since 4503fe8): FEATURES.md changed; S155 added. Plus the next 3 `todo` stories by priority (INDEX: B87 is a bug with no Source line, then S152, S125, S144) and S138, whose FEATURES row text changed.
+
+**1. Citation honesty**
+
+- **S155** (Source: Feature: Standings). The Standings row now ends with the owner's 2026-11-19 answer, "One table per league (Recommended)", for a date before 1969, tagged `— S155`. S155's Gap and Impact (two tables, American League and National League, for a day before 1969) are exactly that sentence. Holds. The words on each table's heading ("American League" or "AL") are still open with the owner, as S155's note says. FEATURES names the leagues in prose and doesn't settle the heading, so nothing conflicts.
+- **S138** (Feature: Standings). The row records the owner's 2026-11-19 answers on where the date control sits ("Same as scoreboard (Recommended)") and what Today shows off-season ("Standings' own today (Recommended)"), tagged `— S138`. That matches S138's Gap and Impact (pick a date on Standings with the scoreboard's calendar). Holds.
+- **S152** (Feature: Fast PR checks). The row (FEATURES l.106) quotes the owner's 2026-11-19 ask and their choice of all four speed-ups. S152's Gap and Impact deliver exactly that. Holds.
+- **S125** (Feature: Calendar date picker). The row (l.101) quotes the owner's 2026-11-07 ask word for word, the same quote S125's Gap uses. Holds.
+- **S144** (Feature: Video play links). The row (l.98) covers a clip of a play linking to the play. S144 is the design amendment that moves that link onto the meta line (owner, 2026-11-10: "Move hte play link to the 2nd line…"). It serves that feature. Holds.
+- **Open citations:** none. `grep '^**Source:** Open'` over todo/blocked/doing returns nothing. The only pillar citation among open stories is S146 (Delightful, approved 2026-11-11). It was not named by parity:debt (its note changed only `order`), so it is not re-checked here.
+
+**2. Doc reflects reality**
+
+- **Amended. The change log's fourth kind is decided.** FEATURES' Update / change log UX row said the fourth kind was "undecided" and ended "For a fourth kind the owner asked for pitches…; still open". The owner answered on 2026-11-16, "Performance" (asked whether to add a fourth and which, pitched performance, more baseball data or removed). That answer is recorded in S131 on HEAD (AC 1's kinds `feature`, `enhancement`, `performance`, `fix`, and its note "the fourth kind is performance", commit b4775a2) and in the owner's Q12 answer in commit 17b6142's message. The Kinds sentence now lists the four kinds and quotes the 2026-11-16 answer, the pitch request moved into it, and the stale "still open" sentence is removed. Cited `— S131`.
+- **Left as is, open with the owner: the change log's first release.** The row and S131 both say "the page starts at v3.1.0" (owner, 2026-11-08). The published GitHub Release bodies say fan-facing notes start with the public launch release, v4.0.0 (owner, 2026-11-11). The bd48f8a backlog review already asked the owner which one holds, and parked S131 on it. No recorded decision settles it, so FEATURES is unchanged. S131 is `blocked` and not next up, so this does not block.
+- **Found: S133 on HEAD still says the fourth kind is undecided.** S133 note l.64 says "a possible fourth for performance undecided". The local, unpushed branch `story/S133-redraw` (17b6142, then 7657479 "A9 is ratified", 2026-11-19) carries the owner's Q12–Q14 answers into S133, A9 and this FEATURES row. That branch also records Q13 on the after-update pointer, "Keep the bar, remove the x, don't pause on hover, dismiss on click", which this row's "whether the pointer keeps them is asked when the redrawn draft is shown" still predates. Story text and the pointer sentence are left to that branch, and its FEATURES edit will conflict with this one on the same table line. Its version of the row also kept the stale "still open" sentence, which this review removes.
+
+**3. Coverage.** No feature was added this review. The pre-1969 sentence is served by S155, and the date-control answers by S138.
+
+**For the next backlog review**
+- S133's note on HEAD (l.64) still calls the fourth kind undecided. The owner answered "Performance" on 2026-11-16, and S131 AC 1 already has it. Check that `story/S133-redraw` (17b6142, 7657479, unpushed) lands, or bring S133 into line, and keep this FEATURES row's Kinds sentence when merging that branch's row edit.
+- The pointer's countdown and close button (owner Q13, 2026-11-16: "Keep the bar, remove the x, don't pause on hover, dismiss on click") are recorded only on that branch. Check that S135 and FEATURES pick them up when it lands.
+- The change log's first release (v3.1.0 or v4.0.0) is still open with the owner. S131 stays parked on it.
