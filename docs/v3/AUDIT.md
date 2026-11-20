@@ -18625,3 +18625,83 @@ Design intake made due only by PR #64, which added ?node-id= to the Figma Source
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
+
+---
+
+## 2026-11-19 — S107 completed
+
+**Design: win-probability slot**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-20T00:03:18Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `d779813` (tree dirty) |
+| Grader | `scripts/verify-S107.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: shell-scoreboard has their next free amendments/A<N>.md headed '(S107)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames at mobile, medium and desktop with the Win Probability occupant on a live, a final and a scheduled row, and one with Hide Scores on; the amendment repeals the pre-game drawing — named <screen>[-<state>]-<pairing>.png and listed in ## Frames
+check 3 PASS: each amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead
+check 4 PASS: no sealed file in those surfaces changed (each RATIFIED.md manifest still verifies, RATIFIED.md and earlier amendments untouched by S107)
+check 5 PASS: backlog Status is done (story heading and Story status table)
+```
+
+**5/5 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S107 check results ---
+check 1 PASS: shell-scoreboard has their next free amendments/A<N>.md headed '(S107)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames at mobile, medium and desktop with the Win Probability occupant on a live, a final and a scheduled row, and one with Hide Scores on; the amendment repeals the pre-game drawing — named <screen>[-<state>]-<pairing>.png and listed in ## Frames
+check 3 PASS: each amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead
+check 4 PASS: no sealed file in those surfaces changed (each RATIFIED.md manifest still verifies, RATIFIED.md and earlier amendments untouched by S107)
+check 5 PASS: backlog Status is done (story heading and Story status table)
+--- verify-S107: 5/5 checks passed ---
+verify-S107: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 227ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 29ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 24ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 30ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 39ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 638ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  320ms
+   ✓ jscpd duplication gate (.jscpd.json) > fails when a 30-line block is copied into a second file  316ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 473ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  453ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  16:05:20
+   Duration  1.29s (transform 136ms, setup 0ms, collect 3.33s, tests 1.47s, environment 1ms, prepare 409ms)
+
+
+> baseball-theater-v3@0.0.0 size /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/agent-afff785a151dd8a1e
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162463,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>

@@ -313,6 +313,12 @@ explicitly where that's the case. For what's still ahead, see
   starters before first pitch — or, if you choose Room Menu in Settings, quick links straight into the game's
   Videos, Live, Plays, Box and Recap.** Details: S67 — `GameRowSlot`, `slotOccupant` / `countShorthand` /
   `probableLine` in `packages/domain`, the Game-Row Slot setting; design matched by the owner. _(2026-10-30)_
+- **Before, choosing Win Probability for a game's corner of the scoreboard had nothing to show: the approved
+  design drew the odds only before first pitch, when no source gives them. Now there is an approved design for
+  the odds while a game is live and after it ends — a small line of how the game swung, with each team's current
+  chance while it's live — what it shows with scores hidden, and a game that hasn't started simply has no box.
+  The app doesn't show it yet; S108 builds it.** Details: S107 — shell-scoreboard amendment A7, ratified by the
+  owner 2026-11-19; its slot occupant is one Figma component set, `slot-win-probability`. _(2026-11-19)_
 
 ## The backend runs the way it will in production
 
