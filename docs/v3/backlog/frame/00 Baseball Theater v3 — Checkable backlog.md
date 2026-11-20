@@ -174,8 +174,8 @@ This section keeps only the *forward-looking* scheduling state: what is due next
 **Last review:** 2026-11-19 at HEAD `c7731fc`, verdict **`amended`**. **Trigger: design intake** — shell-scoreboard A14 ratified (S141). Two independent fresh-context reviewers, merged; see [AUDIT](./AUDIT.md). Done since the last review: S141.
 
 - **S142** re-scoped to A14: copyright line and `copyrightYear` in `packages/domain`; footer outside `<main>` (`flex: 1` trap, contentinfo role); render-prop state channel (no outlet context exists); no footer on the deleted page; Support & Community in a new tab; "Your data" → `/settings`, left out signed out and while loading; seven named frames; turn cap 14. **S154** link order and footer frames; **S148** and **S74** A14 references.
-- **Open with the owner:** S142 Q1 (wait for S134 or ship first), Q2 (signed-out "Legal" column before S154), Q3 (24px or 16px column inset). S142 can't start before them anyway: S134 waits on S131 and S133, both `blocked`.
-- **Next 3 by priority:** S125, S145, S130, each waiting on a `blocked` design story (S123, S144, S129). Startable now: S148, S150. A doc parity review is due next (this intake's parity items).
+- **Open with the owner:** ~~S142 Q1 (wait for S134 or ship first), Q2 (signed-out "Legal" column before S154), Q3 (24px or 16px column inset)~~ (answered 2026-11-19: *"Wait for S134 (Recommended)"*, *"Heading alone"*, *"24px, as drawn (Recommended)"*; S142's notes). S142 still can't start: S134 waits on S131 and S133, both `blocked`.
+- **Next 3 by priority:** S125, S145, S130, each waiting on a `blocked` design story (S123, S144, S129). Startable now: S148, S150. The doc parity review of this intake's items ran in `faeacf9`.
 
 **Earlier review:** 2026-11-16 at HEAD `af098ea`, verdict **`amended`**. **Trigger: drift** — S135's acceptance criteria rewritten (`49e184e`); also checked every story inserted or rewritten since the 2026-11-10 evening review under logged skips (S129–S133, S135, S137–S141, S143, S145, S146, S123's note). Fresh-context subagent with two parallel checklist slices; see [AUDIT](./AUDIT.md). Done since the last review: none (S124 is still the last).
 
