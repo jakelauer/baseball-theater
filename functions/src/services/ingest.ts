@@ -23,7 +23,15 @@ export type IngestDeps = {
    * the read path refreshes directly, without dedup or cooldown.
    */
 	refresh?: RefreshCoordinator;
+	/**
+	 * Where the standings read season calendars from (S139 AC 8): the MLB client's
+	 * `fetchSeasonCalendar` kept for a day (`cachedSeasonCalendars`); the MLB client itself when absent.
+	 */
+	seasonCalendars?: SeasonCalendarSource;
 };
+
+/** The one MLB read the standings' calendar cache wraps (S139). */
+export type SeasonCalendarSource = Pick<MlbStatsClient, "fetchSeasonCalendar">;
 
 /**
  * Run one upstream refresh for `key`. With a coordinator this is single-flighted

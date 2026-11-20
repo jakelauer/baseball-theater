@@ -47,20 +47,42 @@ export const CACHE_LIFETIME_LADDER: readonly CacheLifetimeStep[] = [
 	},
 ];
 
+/** Standings' longest cache lifetime (S139; ADR-021 amended 2026-11-13): 30 days instead of 48 hours. */
+export const STANDINGS_CACHE_LIFETIME_CAP_MS = 30 * 24 * HOUR;
+
+/**
+ * The standings' ladder (S139; owner, 2026-11-13: "They should still use the graduated thing, but
+ * make it an exception for the 48h cap. Increase the cap to 30 days."): ADR-021's ladder carried
+ * on past 48 hours — unchanged for 48 hours → 7 days, unchanged for 7 days → 30 days (the
+ * agent's proposed steps). A past day's table changes only by a late MLB correction.
+ */
+export const STANDINGS_CACHE_LIFETIME_LADDER: readonly CacheLifetimeStep[] = [
+	...CACHE_LIFETIME_LADDER,
+	{
+		unchangedForMs: CACHE_LIFETIME_CAP_MS,
+		lifetimeMs: 7 * 24 * HOUR,
+	},
+	{
+		unchangedForMs: 7 * 24 * HOUR,
+		lifetimeMs: STANDINGS_CACHE_LIFETIME_CAP_MS,
+	},
+];
+
 /**
  * How long data may be cached, given how long it has gone unchanged
  * (`now − lastChangedAt`). The one implementation of ADR-021: the edge
- * `s-maxage` and the MLB refresh-on-read both call it.
+ * `s-maxage` and the MLB refresh-on-read both call it. `ladder` defaults to
+ * ADR-021's; only the standings pass their own (`STANDINGS_CACHE_LIFETIME_LADDER`).
  *
  * A detected change resets `lastChangedAt`, so the input drops to ~0 and the
  * lifetime falls back to the floor. A negative or non-finite input (clock skew,
  * missing timestamp) also gets the floor: the safe answer is "check again soon".
  */
-export function cacheLifetimeMs(msSinceLastChange: number): number
+export function cacheLifetimeMs(msSinceLastChange: number, ladder: readonly CacheLifetimeStep[] = CACHE_LIFETIME_LADDER): number
 {
 	let lifetime = CACHE_LIFETIME_FLOOR_MS;
 	if (!Number.isFinite(msSinceLastChange)) return lifetime;
-	for (const step of CACHE_LIFETIME_LADDER)
+	for (const step of ladder)
 	{
 		if (msSinceLastChange < step.unchangedForMs) break;
 		lifetime = step.lifetimeMs;

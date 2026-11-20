@@ -14,6 +14,53 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## The approved footer and its links
+
+- **Before, nothing approved showed what the bottom of each page would look like or which links it would hold. Now
+  the owner has approved it: every page ends in a footer with two short columns of links, "Baseball Theater" (About,
+  Changelog, Support & Community, which opens the r/BaseballTheater community) and "Legal" (Privacy policy, Terms of
+  use, and Your data for signed-in fans), then "© 2026 Baseball Theater".** Nothing in the app changes yet: later
+  stories build the footer and the About, Privacy policy and Terms of use pages. Details: **S141** — shell-scoreboard
+  amendment A14 ratified with eight hashed frames; FEATURES' Site footer row and VISUAL-DESIGN's footer line record
+  the list; S142 builds it after S134's Changelog page, and S154 adds its three pages and their links.
+
+## The approved look for "this page is live"
+
+- **Before, nothing approved showed what would replace the "Fetched 12s ago · baseball.theater" line at the foot of
+  each page. Now the owner has approved it: a page that is receiving live updates opens its footer with a slightly
+  darker strip reading "● Live Data · Active", its red dot glowing and slowly blinking (steady for anyone who asks
+  for less motion), and no footer says "Fetched … ago", "baseball.theater" or "Offline · saved …" any more.**
+  Nothing in the app changes yet: the next story builds it. Details: **S147** — shell-scoreboard amendment A13
+  ratified with seven hashed frames; every Figma footer is one shared `site-footer` component; VISUAL-DESIGN D9,
+  ADR-014 and FEATURES' Live marker row updated; S148 builds it.
+
+## The standings data names the World Series champion
+
+- **Before, nothing Baseball Theater served said who won the World Series. Now, from the day the Series is won
+  until the next spring training starts, the standings data names the champion and the day they won it, so the
+  Standings page can celebrate them above the regular season's table; asking for a past day gives the answer that
+  day would have had.** Nothing on the page changes yet: the celebratory box comes with the Standings views.
+  Details: **S140** — `GET /api/v1/standings` gains `champion` (`{ season, teamId, name, wonOn }` or `null`, by
+  `standingsChampion` in `packages/domain/src/standings-phase.ts`), read from the World Series schedule the season
+  calendar already fetches (`worldSeriesChampion`, `functions/src/mappers/season-calendar.ts`), so MLB is asked
+  nothing more.
+
+## Standings data covers spring training, the regular season and the playoffs at once
+
+- **Before, the standings data held one table, chosen by the calendar: in spring training there was no way to get
+  the regular season's, in the playoffs no way to get the teams that made it, and nothing said when each part of
+  the season starts and ends. Now one answer holds the day's spring training, regular season and playoffs standings,
+  each with the days it runs, and the app can ask for only the parts it will show; before opening day the regular
+  season lists every team at 0-0, and the playoffs list the teams that have clinched. Past days' standings are now
+  kept at the edge for up to 30 days once their season is over, instead of being fetched from MLB on every visit.** Nothing on the Standings
+  page changes yet: the page that lets fans switch between the three comes next. Details: **S139** —
+  `GET /api/v1/standings` gains `phases` (`StandingsPhases`, from `standingsPhases` in
+  `packages/domain/src/standings-phase.ts`) and `includePhases` (comma or repeated; 400 `include_phases_invalid`),
+  S128's fields unchanged at the top; edge `Cache-Control` from `STANDINGS_CACHE_LIFETIME_LADDER` (ADR-021's
+  ladder to a 30-day cap for a finished season, counted from the end of the day asked; 48 hours while the season
+  is played, the floor in its postseason or when MLB couldn't give a season calendar); season calendars kept a day by
+  `functions/src/adapters/cached-season-calendars.ts`; MLB's answers recorded under `fixtures/raw/`.
+
 ## The team's checks no longer trip over file names with accented letters or dashes
 
 - **Before, the automatic check that a change touched only the files it was meant to could wrongly fail when a file's

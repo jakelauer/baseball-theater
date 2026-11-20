@@ -182,7 +182,7 @@ describe("HttpMlbStatsClient (S2)", () =>
 		expect(await mlb.fetchGameGraphContent(1)).toBeNull();
 	});
 
-	it("season calendar: the recorded 2026 calendar with its World Series final; a failed request rejects", async () =>
+	it("season calendar: the recorded 2026 calendar with its World Series final and winner; a failed request rejects (S140 AC 3: still two requests)", async () =>
 	{
 		const { mlb, urls } = client();
 		expect(await mlb.fetchSeasonCalendar(2026)).toEqual({
@@ -191,6 +191,11 @@ describe("HttpMlbStatsClient (S2)", () =>
 			lastGameDate: "2026-10-28",
 			regularSeasonStartDate: "2026-03-25",
 			regularSeasonEndDate: "2026-09-27",
+			champion: {
+				teamId: 158,
+				name: "Milwaukee Brewers",
+				wonOn: "2026-10-28",
+			},
 		});
 		expect(urls).toEqual([
 			"https://statsapi.mlb.com/api/v1/seasons/2026?sportId=1",
