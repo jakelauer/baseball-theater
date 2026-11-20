@@ -14,7 +14,11 @@ deploy machinery is reviewed in full on every run, whatever its record says. `is
 exactly what that means: workflows, scripts/, functions/src/scripts/, the deploy code, tools/, every
 package.json, tsconfig and `*.config.*` file at any depth, and the root duplication, size and Lighthouse
 configs. Everything else CI runs (application code, tests, pnpm-lock.yaml) is not on
-the list and, like any file a forged record marks as reviewed, relies on the trust model above. Other sensitive paths (`is_sensitive`: auth, sessions, migrations, deploys) no longer force a
+the list and, like any file a forged record marks as reviewed, relies on the trust model above. A story
+or bug grader (`scripts/verify-S<N>.sh`, `-B<N>`, `-V<N>`; `GRADER_RE`) is not on it either (S156 AC 2):
+no workflow runs one (law L12, `scripts/backlog-vault/grader-ci-law.test.ts`), so it can't forge a
+record or change what CI does, and a merge from stage into a branch whose only machinery is its grader
+gets an `unchanged` review instead of a paid full one. Other sensitive paths (`is_sensitive`: auth, sessions, migrations, deploys) no longer force a
 full Opus review on every push: that cost $1-2.20 a push, $17.67 of the first three days' $62 (owner,
 2026-11-14, of the reviewer's cost: "That is WAY more than it should be. Not worth it.", then agreeing to
 Sonnet only, a low turn cap, and only new commits after the first review: "Ok I'm good with that").
@@ -55,6 +59,8 @@ REVIEWER_PATHS = (".github/", ".claude/settings.json", ".cursor/", ".husky/", "s
 # At any depth: `pnpm` runs each package.json's scripts, and every `*.config.*` (vitest, Playwright, Vite,
 # PostCSS, ESLint, Drizzle) and tsconfig is loaded or run by a build, a test run or a deploy.
 REVIEWER_NAMES = re.compile(r"(^|/)(package\.json|tsconfig[a-z.]*\.json|[a-z.-]+\.config\.[a-z]+)$")
+# A story's, bug's or vault migration's grader: only `scripts/audit.sh` runs one, locally (law L12).
+GRADER_RE = re.compile(r"^scripts/verify-[SBV][0-9]+\.sh$")
 SONNET = "claude-sonnet-5-5"
 
 
@@ -78,7 +84,10 @@ def is_sensitive(path: str) -> bool:
 
 
 def is_reviewer_path(path: str) -> bool:
-    """CI and deploy machinery (the docstring's list): REVIEWER_PATHS, or REVIEWER_NAMES at any depth."""
+    """CI and deploy machinery (the docstring's list): REVIEWER_PATHS, or REVIEWER_NAMES at any depth,
+    except a grader (GRADER_RE), which no workflow runs (law L12)."""
+    if GRADER_RE.match(path):
+        return False
     return path.startswith(REVIEWER_PATHS) or bool(REVIEWER_NAMES.search(path))
 
 
@@ -107,6 +116,34 @@ def previous_record(reviews: list) -> dict | None:
         if record.get("version") == RECORD_VERSION:
             return record
     return None
+
+
+def decide_mode(record: dict | None, pr_files: dict[str, str], rules: dict[str, str], record_head_in_history: bool) -> tuple[str, str, list[str]]:
+    """The review's mode (the docstring's three), why, and the files to review in full, with no git or
+    gh call, so `test_plan_review.py` can prove it. `pr_files` maps each of the pull request's paths to
+    its blob at the head ("deleted" when removed); `rules` maps each RULE_FILES path to its blob on the
+    base; `record_head_in_history` says whether the record's head is still an ancestor of this head
+    (ignored without a record)."""
+    pr_paths = list(pr_files)
+    if not record:
+        return "full", "first review", pr_paths
+    if record.get("rules") != rules:
+        return "full", "the rules or checklist changed since the last review", pr_paths
+    if not record_head_in_history:
+        return "full", "the last reviewed commit is no longer in this branch's history", pr_paths
+    recorded = record.get("files", {})
+    changed = sorted(p for p in set(pr_files) | set(recorded) if pr_files.get(p, "deleted") != recorded.get(p, "deleted"))
+    # A same-repo workflow can forge a record, so CI and deploy machinery never skips.
+    machinery = sorted({p for p in pr_paths if is_reviewer_path(p)} - set(changed))
+    since = sorted(changed + machinery)
+    at = str(record.get("head", ""))[:7]
+    if not since:
+        return "unchanged", f"no file changed since the review of {at}", []
+    # The reason counts only what changed; CI and deploy files re-read anyway are named apart.
+    why = f"{len(changed)} file(s) changed since the review of {at}"
+    if machinery:
+        why += f", plus {len(machinery)} CI or deploy file(s) always re-reviewed"
+    return "incremental", why, since
 
 
 def tier(paths: list[str], lines: int) -> tuple[str, int, str]:
@@ -186,26 +223,8 @@ def main() -> int:
     reviews = [r for page in reviews for r in page]
     record = previous_record(reviews)
 
-    mode, why, reviewed = "full", "first review", pr_paths
-    if record:
-        if record.get("rules") != rules:
-            why = "the rules or checklist changed since the last review"
-        elif not (git_ok("cat-file", "-e", f"{record.get('head')}^{{commit}}") and git_ok("merge-base", "--is-ancestor", record["head"], head)):
-            why = "the last reviewed commit is no longer in this branch's history"
-        else:
-            changed = sorted(p for p in set(files) | set(record.get("files", {})) if files.get(p, "deleted") != record.get("files", {}).get(p, "deleted"))
-            # A same-repo workflow can forge a record, so CI and deploy machinery never skips.
-            machinery = sorted({p for p in pr_paths if is_reviewer_path(p)} - set(changed))
-            since = sorted(changed + machinery)
-            at = record["head"][:7]
-            if not since:
-                mode, why, reviewed = "unchanged", f"no file changed since the review of {at}", []
-            else:
-                # The reason counts only what changed; CI and deploy files re-read anyway are named apart.
-                why = f"{len(changed)} file(s) changed since the review of {at}"
-                if machinery:
-                    why += f", plus {len(machinery)} CI or deploy file(s) always re-reviewed"
-                mode, reviewed = "incremental", since
+    in_history = bool(record) and git_ok("cat-file", "-e", f"{record.get('head')}^{{commit}}") and git_ok("merge-base", "--is-ancestor", str(record.get("head")), head)
+    mode, why, reviewed = decide_mode(record, files, rules, in_history)
 
     if mode == "incremental":
         patch = git("diff", record["head"], head, "--", *reviewed)
