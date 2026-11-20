@@ -42,7 +42,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `122–122` 20. Every story has a Reuse check section (ADR-025, owner, 2026-10-19: "I would prefer that a…
     - `123–123` 21. Coverage floors ratchet up, never down (ADR-026; owner, 2026-10-19: ratchet).
     - `125–125` 22. A UI story is checked against its ratified frames by the owner's eye (ADR-026, amended 20…
-- [01 Current baseline](<backlog/frame/01 Current baseline.md>) — 37 KB
+- [01 Current baseline](<backlog/frame/01 Current baseline.md>) — 38 KB
   - `1–43` Current baseline
 - [02 Stories](<backlog/frame/02 Stories.md>) — 2 KB
 - [03 Data platform — MLB access & types](<backlog/frame/03 Data platform — MLB access & types.md>) — 2 KB
@@ -378,7 +378,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `2167–2170` System Consistency
   - `2171–2174` Originality
   - `2175–2221` Small-Size Test
-- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 63 KB
+- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 64 KB
   - `12–19` North star
   - `20–34` Principles (product)
   - `35–46` Scope legend
@@ -502,8 +502,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 76 | [S139](backlog/stories/todo/S139.md) Standings by season phase in the API | `todo` | S128 | — |
 | 76 | [S140](backlog/stories/todo/S140.md) World Series winner in standings | `todo` | S128 | — |
 | 77 | [S130](backlog/stories/todo/S130.md) Standings views | `todo` | S128, S139, S140, S81 | S129 |
-| 77 | [S137](backlog/stories/todo/S137.md) Design: Standings date picker | `todo` | S123, S129 | — |
-| 77 | [S138](backlog/stories/todo/S138.md) Standings date picker | `todo` | S125, S130, S81 | S137 |
+| 77 | [S138](backlog/stories/todo/S138.md) Standings date picker | `todo` | S125, S130, S81 | S123, S129 |
 | 79 | [S132](backlog/stories/todo/S132.md) Release notes API | `todo` | S131 | — |
 | 81 | [S134](backlog/stories/todo/S134.md) Change log page | `todo` | S132, S81 | S133 |
 | 81 | [S147](backlog/stories/todo/S147.md) Design: Live marker | `todo` | — | — |
@@ -538,6 +537,6 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 
 **`done`** (110): [S1](backlog/stories/done/S1.md), [S11](backlog/stories/done/S11.md), [S12](backlog/stories/done/S12.md), [S23](backlog/stories/done/S23.md), [S21](backlog/stories/done/S21.md), [S13](backlog/stories/done/S13.md), [S14](backlog/stories/done/S14.md), [S16](backlog/stories/done/S16.md), [S17](backlog/stories/done/S17.md), [S22](backlog/stories/done/S22.md), [S15](backlog/stories/done/S15.md), [S30](backlog/stories/done/S30.md), [S24](backlog/stories/done/S24.md), [S26](backlog/stories/done/S26.md), [S27](backlog/stories/done/S27.md), [S25](backlog/stories/done/S25.md), [S29](backlog/stories/done/S29.md), [S35](backlog/stories/done/S35.md), [S36](backlog/stories/done/S36.md), [S37](backlog/stories/done/S37.md), [S38](backlog/stories/done/S38.md), [S31](backlog/stories/done/S31.md), [S32](backlog/stories/done/S32.md), [S33](backlog/stories/done/S33.md), [S34](backlog/stories/done/S34.md), [S39](backlog/stories/done/S39.md), [S40](backlog/stories/done/S40.md), [S43](backlog/stories/done/S43.md), [S42](backlog/stories/done/S42.md), [S52](backlog/stories/done/S52.md), [S53](backlog/stories/done/S53.md), [S54](backlog/stories/done/S54.md), [S55](backlog/stories/done/S55.md), [S56](backlog/stories/done/S56.md), [S57](backlog/stories/done/S57.md), [S58](backlog/stories/done/S58.md), [S44](backlog/stories/done/S44.md), [S49](backlog/stories/done/S49.md), [S46](backlog/stories/done/S46.md), [S8](backlog/stories/done/S8.md), [S59](backlog/stories/done/S59.md), [S76](backlog/stories/done/S76.md), [S77](backlog/stories/done/S77.md), [S6](backlog/stories/done/S6.md), [S80](backlog/stories/done/S80.md), [S78](backlog/stories/done/S78.md), [S81](backlog/stories/done/S81.md), [S83](backlog/stories/done/S83.md), [S84](backlog/stories/done/S84.md), [S85](backlog/stories/done/S85.md), [S86](backlog/stories/done/S86.md), [S87](backlog/stories/done/S87.md), [S79](backlog/stories/done/S79.md), [S82](backlog/stories/done/S82.md), [S60](backlog/stories/done/S60.md), [S62](backlog/stories/done/S62.md), [S88](backlog/stories/done/S88.md), [S61](backlog/stories/done/S61.md), [S2](backlog/stories/done/S2.md), [S3](backlog/stories/done/S3.md), [S64](backlog/stories/done/S64.md), [S10](backlog/stories/done/S10.md), [S63](backlog/stories/done/S63.md), [S41](backlog/stories/done/S41.md), [S65](backlog/stories/done/S65.md), [S66](backlog/stories/done/S66.md), [S128](backlog/stories/done/S128.md), [S67](backlog/stories/done/S67.md), [S68](backlog/stories/done/S68.md), [S126](backlog/stories/done/S126.md), [S69](backlog/stories/done/S69.md), [S122](backlog/stories/done/S122.md), [S70](backlog/stories/done/S70.md), [S117](backlog/stories/done/S117.md), [S109](backlog/stories/done/S109.md), [S124](backlog/stories/done/S124.md), [S143](backlog/stories/done/S143.md), [S20](backlog/stories/done/S20.md), [S110](backlog/stories/done/S110.md), [S136](backlog/stories/done/S136.md), [S111](backlog/stories/done/S111.md), [S51](backlog/stories/done/S51.md), [S112](backlog/stories/done/S112.md), [S113](backlog/stories/done/S113.md), [S114](backlog/stories/done/S114.md), [S118](backlog/stories/done/S118.md), [S119](backlog/stories/done/S119.md), [S120](backlog/stories/done/S120.md), [S121](backlog/stories/done/S121.md), [S93](backlog/stories/done/S93.md), [S116](backlog/stories/done/S116.md), [S75](backlog/stories/done/S75.md), [S71](backlog/stories/done/S71.md), [S45](backlog/stories/done/S45.md), [S47](backlog/stories/done/S47.md), [S48](backlog/stories/done/S48.md), [S18](backlog/stories/done/S18.md), [S19](backlog/stories/done/S19.md), [S4](backlog/stories/done/S4.md), [S73](backlog/stories/done/S73.md), [S28](backlog/stories/done/S28.md), [S50](backlog/stories/done/S50.md), [S94](backlog/stories/done/S94.md), [S95](backlog/stories/done/S95.md), [S96](backlog/stories/done/S96.md), [S97](backlog/stories/done/S97.md), [S98](backlog/stories/done/S98.md), [S106](backlog/stories/done/S106.md), [S89](backlog/stories/done/S89.md), [S115](backlog/stories/done/S115.md)
 
-**`superseded`** (2): [S7](backlog/stories/superseded/S7.md), [S9](backlog/stories/superseded/S9.md)
+**`superseded`** (3): [S7](backlog/stories/superseded/S7.md), [S137](backlog/stories/superseded/S137.md), [S9](backlog/stories/superseded/S9.md)
 
 **Bugs `done`** (3): [B40](backlog/bugs/done/B40.md), [B48](backlog/bugs/done/B48.md), [B74](backlog/bugs/done/B74.md)
