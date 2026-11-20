@@ -21,3 +21,5 @@ export function useAccountDeleted(): UseQueryResult<boolean, Error>
 {
 	return useQuery(accountDeletedQuery);
 }
+
+// S152 AC 7 timing run: a throwaway change touching only web/ (closed unmerged).
