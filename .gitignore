@@ -66,3 +66,7 @@ docs/v3/backlog/Backlog.base
 
 # A parallel /run-backlog's overseer state: in-flight claims and gathered findings (S156, scripts/backlog-vault/claims.ts)
 .run/
+# Other checkouts of this repository, one per backlog item (S156, #110: scripts/worktree-for.sh), and
+# each one's ports and Compose project name (already covered by `.env.*`; named so the reason is here)
+.claude/worktrees/
+.env.worktree
