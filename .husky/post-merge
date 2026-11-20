@@ -1,3 +1,6 @@
 # docs/v3/INDEX.md and docs/v3/audit.jsonl are built, never committed (S156), so a merge (or a
 # pull) rebuilds them from the notes and ledger it brought, as .husky/post-checkout does.
+# A plain `git worktree add` checks out before anything is installed (scripts/worktree-for.sh
+# builds after its install instead), so with no node_modules there is nothing to run yet.
+[ -d node_modules ] || exit 0
 pnpm backlog:build --quiet >/dev/null || echo "backlog: could not build docs/v3/INDEX.md — run pnpm backlog:build" >&2

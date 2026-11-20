@@ -2,7 +2,8 @@
  * A finished story's own records (S156, ACs 6 and 7): since S156 each `done` story carries a
  * `**Baseline:**` line in its note (what it changed in the Current baseline; the As of line in
  * docs/v3/INDEX.md is built from the newest one, doc-index.ts) and a changelog fragment,
- * `changelog.d/<ID>.md` (rule 16), or a recorded skip, so no two stories edit one shared line.
+ * `changelog.d/<ID>.md` (rule 16; an entry, or a `skip:` fragment recording why it has none;
+ * changelog.ts), so no two stories edit one shared line.
  *
  * Which stories this applies to: a `done` story with no completion entry in the frozen ledger,
  * docs/v3/AUDIT.md. Every story that finished before S156 has one there (its history is the frozen
@@ -29,13 +30,10 @@ export function baselineText(body: string): string | undefined
 }
 
 /**
- * A recorded changelog skip: the note's `**Changelog:** skip — <why>` line, for a story with
- * nothing a reader outside the team would call an outcome (rule 16's one exception).
+ * What a story's changelog fragment is, as changelog.ts's `changelogFragmentFor` finds it: there
+ * (an entry or a recorded skip), missing, or malformed (its error message).
  */
-export function changelogSkipped(body: string): boolean
-{
-	return /^\*\*Changelog:\*\* skip(ped)?\b.*\S/m.test(body);
-}
+export type ChangelogState = "present" | "missing" | { malformed: string };
 
 /** Stories the frozen ledger records as finished (a completion or a backfill entry). */
 export function frozenCompletions(frozen: LedgerEntry[]): Set<string>
@@ -45,9 +43,9 @@ export function frozenCompletions(frozen: LedgerEntry[]): Set<string>
 
 /**
  * The problems with the records of every `done` story the frozen ledger doesn't list:
- * a missing `**Baseline:**` line, and neither a changelog fragment (`hasChangelog`) nor a skip.
+ * a missing `**Baseline:**` line, and a changelog fragment (`changelog`) missing or malformed.
  */
-export function recordProblems(stories: RecordedStory[], frozen: Set<string>, hasChangelog: (id: string) => boolean): string[]
+export function recordProblems(stories: RecordedStory[], frozen: Set<string>, changelog: (id: string) => ChangelogState): string[]
 {
 	const problems: string[] = [];
 	for (const story of stories.filter((s) => s.status === "done" && !frozen.has(s.id)))
@@ -56,9 +54,14 @@ export function recordProblems(stories: RecordedStory[], frozen: Set<string>, ha
 		{
 			problems.push(`${story.id} is \`done\` but its note has no **Baseline:** line (rule 17: what it changed in the Current baseline; the As of line is built from it)`);
 		}
-		if (!hasChangelog(story.id) && !changelogSkipped(story.body))
+		const state = changelog(story.id);
+		if (state === "missing")
 		{
-			problems.push(`${story.id} is \`done\` but has no changelog fragment, changelog.d/${story.id}.md, and no recorded skip (rule 16)`);
+			problems.push(`${story.id} is \`done\` but has no changelog fragment, changelog.d/${story.id}.md (an entry, or a \`skip:\` recording why; rule 16)`);
+		}
+		else if (state !== "present")
+		{
+			problems.push(`${story.id}'s changelog fragment is malformed: ${state.malformed}`);
 		}
 	}
 	return problems;

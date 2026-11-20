@@ -34,18 +34,20 @@ import {
 import { parseArgs } from "node:util";
 import type { BuiltBacklog } from "./assemble.ts";
 import { buildFromNotes } from "./assemble.ts";
+import { changelogFragmentFor } from "./changelog.ts";
 import type { IndexedDoc, LedgerState } from "./doc-index.ts";
 import { docIndexFor, isIndexedDoc } from "./doc-index.ts";
 import { inFlightIds } from "./in-flight.ts";
 import type { LedgerEntry, ReviewKind } from "./ledger.ts";
 import {
-	ledgerBase, parseLedger, renderLedgerIndex, reviewBlocked, storiesDoneSince,
+	ledgerBase, parseLedger, readLedger, renderLedgerIndex, reviewBlocked, storiesDoneSince,
 } from "./ledger.ts";
 import {
 	misplacedNotes, readNotes, writeNotes,
 } from "./notes-dir.ts";
 import { parseBacklog } from "./parse.ts";
 import { runPrecommit } from "./precommit.ts";
+import type { ChangelogState } from "./records.ts";
 import { frozenCompletions, recordProblems } from "./records.ts";
 import type { SourceDocs } from "./source.ts";
 
@@ -88,13 +90,13 @@ async function readAudit(): Promise<string | undefined>
 }
 
 /**
- * Every ledger entry, in ledger order: the frozen AUDIT.md's, then (once ledger.ts reads them,
- * S156 AC 5) the fragments'. The one place this tool reads the ledger, always through ledger.ts.
+ * Every ledger entry, in ledger order: the frozen AUDIT.md's, then its fragments' in stamp order
+ * (ledger.ts readLedger, from the docs/v3/audit/ folder beside it). The one place this tool reads
+ * the whole ledger. No AUDIT.md (a copy of the notes alone) is an empty ledger.
  */
 async function ledgerEntries(): Promise<LedgerEntry[]>
 {
-	const audit = await readAudit();
-	return audit === undefined ? [] : parseLedger(audit);
+	return existsSync(auditPath) ? readLedger(auditPath) : [];
 }
 
 /** The frozen ledger's entries alone: AUDIT.md, which draws the pre-S156 line for records.ts. */
@@ -104,18 +106,23 @@ async function frozenEntries(): Promise<LedgerEntry[]>
 	return audit === undefined ? [] : parseLedger(audit);
 }
 
-/**
- * The path of a story's changelog fragment, `changelog.d/<ID>.md` at the repo root (rule 16), or null.
- * Stands in for changelog.ts's `changelogFragmentFor(root, id)` until that module lands beside this one.
- */
-function changelogFragmentFor(root: string, id: string): string | null
+/** A story's changelog fragment as records.ts needs it (changelog.ts reads and parses it). */
+function changelogState(id: string): ChangelogState
 {
-	const path = join(root, "changelog.d", `${id}.md`);
-	return existsSync(path) ? path : null;
+	try
+	{
+		return changelogFragmentFor(notesRoot(), id) === undefined ? "missing" : "present";
+	}
+	catch (error)
+	{
+		return {
+			malformed: (error as Error).message,
+		};
+	}
 }
 
-/** The repository the notes dir sits in (docs/v3/backlog → its grandparent), for changelog.d/. */
-const notesRoot = () => dirname(docsDir);
+/** The repository the notes dir sits in (docs/v3/backlog → three levels up), for changelog.d/. */
+const notesRoot = () => resolve(docsDir, "../..");
 
 /** HEAD's short sha, for the As of line; "unknown" outside a git checkout. */
 function head(): string
@@ -202,8 +209,7 @@ async function check()
 			stale.push(join(dir, path));
 		}
 	}
-	const problems = recordProblems(parseBacklog(built.backlog).stories, frozenCompletions(await frozenEntries()),
-		(id) => changelogFragmentFor(notesRoot(), id) !== null);
+	const problems = recordProblems(parseBacklog(built.backlog).stories, frozenCompletions(await frozenEntries()), changelogState);
 	if (stale.length > 0)
 	{
 		const misplaced = misplacedNotes(notes, built.notes);

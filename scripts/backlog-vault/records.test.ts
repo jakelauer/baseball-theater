@@ -6,8 +6,9 @@ import {
 	describe, expect, it,
 } from "vitest";
 import { parseLedger } from "./ledger.ts";
+import type { ChangelogState } from "./records.ts";
 import {
-	baselineText, changelogSkipped, frozenCompletions, recordProblems,
+	baselineText, frozenCompletions, recordProblems,
 } from "./records.ts";
 
 const note = (id: string, status: string, ...lines: string[]) => ({
@@ -17,7 +18,7 @@ const note = (id: string, status: string, ...lines: string[]) => ({
 });
 const BASELINE = "**Baseline:** the scoreboard row now says so.";
 
-describe("baselineText and changelogSkipped", () =>
+describe("baselineText", () =>
 {
 	it("reads a non-empty **Baseline:** line, and only that", () =>
 	{
@@ -25,20 +26,14 @@ describe("baselineText and changelogSkipped", () =>
 		expect(baselineText(note("S1", "done", "**Baseline:**").body)).toBeUndefined();
 		expect(baselineText(note("S1", "done", "Its **Baseline:** line is missing.").body)).toBeUndefined();
 	});
-
-	it("reads a recorded skip with its reason, never a bare one", () =>
-	{
-		expect(changelogSkipped(note("S1", "done", "**Changelog:** skip — a grader-script fix, nothing a fan would notice.").body)).toBe(true);
-		expect(changelogSkipped(note("S1", "done", "**Changelog:** skip").body)).toBe(false);
-		expect(changelogSkipped(note("S1", "done").body)).toBe(false);
-	});
 });
 
 describe("recordProblems", () =>
 {
 	const frozen = frozenCompletions(parseLedger("## 2026-11-01 — S84 completed\n## 2026-11-02 — S9 verified (backfill)\n## 2026-11-03 — S85 re-verified\n"));
-	const fragments = new Set(["S200"]);
-	const has = (id: string) => fragments.has(id);
+	const has = (id: string): ChangelogState => (id === "S200" ? "present" : id === "S202" ? {
+		malformed: "changelog.d/S202.md: no effort",
+	} : "missing");
 
 	it("takes the frozen ledger's completions and backfills as finished before S156, not its re-verifications", () =>
 	{
@@ -64,9 +59,9 @@ describe("recordProblems", () =>
 		expect(recordProblems([note("S201", "done", BASELINE)], frozen, has)).toEqual([expect.stringMatching(/changelog/)]);
 	});
 
-	it("passes one with both, or with the line and a recorded skip", () =>
+	it("passes one with both (a skip fragment counts as present), and names a malformed fragment as a changelog problem", () =>
 	{
 		expect(recordProblems([note("S200", "done", BASELINE)], frozen, has)).toEqual([]);
-		expect(recordProblems([note("S201", "done", BASELINE, "", "**Changelog:** skip — a grader fix.")], frozen, has)).toEqual([]);
+		expect(recordProblems([note("S202", "done", BASELINE)], frozen, has)).toEqual(["S202's changelog fragment is malformed: changelog.d/S202.md: no effort"]);
 	});
 });
