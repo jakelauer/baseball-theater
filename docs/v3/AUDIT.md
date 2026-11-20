@@ -19942,3 +19942,176 @@ export const label = game.abbreviation + " @ ";  372ms
 ```
 
 </details>
+
+---
+
+## 2026-11-19 — S147 completed
+
+**Design: Live marker**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T18:53:29Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `292cfc9` (tree dirty) |
+| Grader | `scripts/verify-S147.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: shell-scoreboard A13 headed '(S147)' names what it adds/overrides/repeals, quotes the owner's 2026-11-16 words, draws the marker's two blink states, a live game page and the live scoreboard ending in it, and a page with no socket and no 'Fetched', at mobile and desktop, and says the blink's length, reduced motion, which pages open a socket, reconnecting and polling fallback, medium, and the marker's place in S141's footer of links
+check 2 PASS: every open question in A13 is answered by the owner, quoted
+check 3 PASS: A13's ratification record names who ratified, the date and quotes the owner's in-session go-ahead; its ## Manifest hashes exactly its own PNGs; D9 and the type table's meta row describe the ratified marker
+check 4 PASS: backlog Status is done (story heading and Story status table)
+check 5 PASS: no sealed shell-scoreboard file changed (RATIFIED.md and A1–A12 with their manifests)
+check 6 PASS: S147 changed no file outside its fence (plus creating scripts/verify-S147.sh)
+```
+
+**6/6 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S147 check results ---
+check 1 PASS: shell-scoreboard A13 headed '(S147)' names what it adds/overrides/repeals, quotes the owner's 2026-11-16 words, draws the marker's two blink states, a live game page and the live scoreboard ending in it, and a page with no socket and no 'Fetched', at mobile and desktop, and says the blink's length, reduced motion, which pages open a socket, reconnecting and polling fallback, medium, and the marker's place in S141's footer of links
+check 2 PASS: every open question in A13 is answered by the owner, quoted
+check 3 PASS: A13's ratification record names who ratified, the date and quotes the owner's in-session go-ahead; its ## Manifest hashes exactly its own PNGs; D9 and the type table's meta row describe the ratified marker
+check 4 PASS: backlog Status is done (story heading and Story status table)
+check 5 PASS: no sealed shell-scoreboard file changed (RATIFIED.md and A1–A12 with their manifests)
+check 6 PASS: S147 changed no file outside its fence (plus creating scripts/verify-S147.sh)
+--- verify-S147: 6/6 checks passed ---
+verify-S147: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 131ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 7ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 19ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 23ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 24ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 23ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 578ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  310ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 353ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  337ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  10:55:07
+   Duration  1.08s (transform 88ms, setup 0ms, collect 2.86s, tests 1.16s, environment 1ms, prepare 380ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162821,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+
+---
+
+## 2026-11-19 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-19T19:07:01Z` |
+| HEAD at review | `4c94350` (tree dirty) |
+| Trigger | design intake: shell-scoreboard A13 (Live marker), ADR-014 row amended, S148 ACs rewritten |
+| Stories `done` since last review | S147 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Design intake review of shell-scoreboard A13 (Live marker, ratified 2026-11-19 at 4c94350), ADR-014's amended "Freshness is visible" row, and S148's rewritten ACs. Two independent fresh-context reviewers (read-only, Figma tools), merged here; disputed claims checked against source.
+
+**Inventory (shell-scoreboard A13).** Frames: `live-marker-scoreboard-live-*`, `live-marker-scoreboard-quiet-*`, `live-marker-game-*` at mobile and desktop (medium = mobile footer centred, A13:25), plus `live-marker-states`. Components: `live-marker` (set 658:21788; 8px #FF5247 dot with glow, "Live Data · Active" 11px Plex Medium; `Phase=Bright|Dim`), `footer-live-strip` (705:23499/705:23516; black 40% over Dark, 10px above/below), `site-footer` (705:23532; `Live=Off|On` x `Width=Mobile|Wide`; its body is A14's draft, not ratified, A13:13). States: socket open -> strip, 2s eased blink; reduced motion -> Bright, no blink; no socket, reconnecting, polling fallback, offline -> no strip; no footer shows "Fetched … ago", "baseball.theater" or "Offline · saved …". Interactions none; settings only `prefers-reduced-motion`. Data: game socket-open state missing (`useLiveGame` returns `inWindow`, `web/src/api/live.ts:53`; `onopen` only resets failures) -> S148 AC 2; day socket and its open state missing -> S149 AC 5-6. No new domain value: "day has a game in its window" is `scheduleWindowMode` (`packages/domain/src/window.ts:142`); `fetchedAgo` stays (S74's banner).
+
+**Ownership map.** Owned 9 (marker, blink, reduced motion, game strip, game socket state, label removal, "baseball.theater" removal, hidden while reconnecting/polling, day socket state). Unowned 4, now owned: accessible name (A13:33) -> S148 AC 3; design match of `live-marker-scoreboard-live-*` (S148 only if `useLiveDay` exists, S149 had `design: []`) -> S149 AC 8; one footer component tying S148 to S142 (ADR-025) -> S148 AC 3 `SiteFooter`, S142 AC 1; Gap map row -> frame 05. Contradicted/stale, re-scoped: S74 AC 2 still built "Offline · saved {age} · baseball.theater"; S148 AC 1 would delete `fetchedAgo` that S74 AC 2 and its turn cap need; S142 AC 2 tied `fetchedAgo` to an offline footer; S134 note (c) "the footer reads baseball.theater alone"; S141 AC 1 What goes partly settled. Stories re-scoped: S148, S149, S74, S142, S141 (note), S134 (note). None inserted.
+
+**Re-scopes, with evidence.**
+- S148 AC 1: no-socket pages end with no footer line (A13:39), or in S142's footer if it shipped; A14 columns not built; "baseball.theater" checked on the footer element (Settings keeps `support@baseball.theater`, `AccountData.tsx:258`); `FooterMeta` removed, no `fetchedAt` prop; `fetchedAgo` kept (only caller `FooterMeta.tsx:20`; S74 AC 2 `S74.md:50` and turn cap line 71 need it), its comment rewritten; offline check is a grep (no offline UI exists, so the RTL passed vacuously).
+- S148 AC 2 (2b): breaks found: (1) a flag set in `connect()` passes "open -> shown" -> before-`onopen` case; (2) back from polling via `retryNow` (`live-stream.ts:151-159`) untested; (3) `GamePage.tsx:35-38` passes `useLiveGame`'s return to `useGame` as `streaming`, which disables `refetchInterval` (`game.ts:34`) - replacing it with open state would start query polling in every reconnect wait. AC now returns both flags and tests each.
+- S148 AC 3: `SiteFooter` (`web/src/layout/`, replaces `FooterMeta`, `live` prop) is the only strip host and the component S142 grows; dot `aria-hidden`, words accessible; every room of an in-window game (socket is the page's, A13 Which pages); strip spans the content column; `LiveIndicator` "One component for every live marker (S60)" comment rewritten.
+- S148 AC 6: frames named; reduced-motion emulation; `routeWebSocket` as `e2e/design/S19.spec.ts:61`; expected differences: A14 columns, and short-page footer after content (owner, 2026-11-19, asked to pin the footer to the screen's bottom on short pages or follow A13: "A13"). Turn cap 12 -> 14.
+- S149: `design: [S147]`, depends on S81, AC 8 rule-22 match of `live-marker-scoreboard-live-*`, fence +`e2e/design/`, `docs/v3/design-checks/`, turn cap 18 -> 20; AC 5 and AC 6 name `scheduleWindowMode` (ADR-025); AC 6 (2b): "stops re-asking while the socket is open, as game.ts does" contradicted game.ts (in-window flag) -> rewritten; added break: a day loaded before its first game's window never connects (stored `windowMode` "cache", no refetch) -> re-judged each minute, unit test.
+- S74 AC 2: no footer line offline (A13:6, :43, owner "yes"); design gains S147; note.
+- S142 AC 1 grows S148's `SiteFooter`; AC 2 keeps `fetchedAgo` and checks no "baseball.theater"; note: strip first row, socket state via `useState` in `AppShellLayout` + outlet context (ADR-024), placement per owner "A13".
+- S141 note: A13 settles three What-goes items; owner "A13" on placement/alignment; A14 draft on `origin/story/S141` still has a "baseball.theater" bottom line (A14:5, :21, :23, :40) and a pinned short footer, both to be redrawn before ratification; AC 3's VISUAL-DESIGN change set adds the red blink to the motion budget.
+- S134 note (c): Pending Q9 read per A13.
+- Gap map: Live marker row. Current baseline: App shell row names `SiteFooter`.
+
+**Reviewers' disagreements and resolutions.**
+1. Footer component name (`PageFooter` vs `SiteFooter`): `SiteFooter`, matching Figma's `site-footer`; ACs state behaviour (one component, reused by S142).
+2. S148 AC 2: reviewer 2 said it holds (`stop()` nulls `onclose`, unmount test load-bearing); reviewer 1 found three uncovered cases. Checked `GamePage.tsx:35-38` and `game.ts:34`: the `streaming` break is real; reviewer 1's cases added.
+3. VISUAL-DESIGN rows: reviewer 1 read the motion-budget row (:529) and Live row (:457) as contradicting A13 and asked the owner; reviewer 2 queued only :292 for parity. Checked: :457 is the scoreboard card's green indicator (unchanged by A13); :529 lists only the green blink, so it is incomplete, not contradicted; :292 is S141 AC 3's already. Resolved without a question: S141's AC 3 change set (its fence has VISUAL-DESIGN.md) adds the red blink; noted in S148.
+4. Figma frames outside A13 carrying A14's draft columns and `Live=On` strips: reviewer 2 asked the owner (optional). Resolved: the owner directed shared footer components everywhere (A13 One component everywhere, 2026-11-19); S148's note says PNGs are the record, don't build the columns, and A13's text wins over a non-A13 frame (e.g. Box room `Live=Off`).
+5. Marker on every room (reviewer 2 only): applied per A13 Which pages (the socket is the page's; `useLiveGame` runs in `GamePage` for every room).
+6. `scheduleWindowMode` in S149 (reviewer 2 only): verified at `window.ts:142`, applied.
+7. Short-page placement (reviewer 1's owner question 1): answered by the owner this session, "A13"; applied, not re-asked.
+
+**Check 2 (next 3 startable; S125, S145, S130, S137, S138, S132, S134, S135 above S148 wait on designs not done).** S148: `FooterMeta` called from `ScoreboardPage.tsx:116`, `GamePage.tsx:134`, `StandingsPage.tsx:46`; `useLiveGame` returns `inWindow`; S81 done; S147 done; S60 AC 4 pinned, not a law (`LAWS.md:332`); fence covers web/src, e2e/design, design-checks. S141: work on its branch, unmerged; A14 a draft (no intake due). S150: no design dependency; precedes S149 (forced). Check 2b applied to S148, S149, S74, S142, S141, S134: closing-class (fake-open flag), state-coupling (`streaming`), dead/vacuous test (offline RTL), duplication (ADR-025: footer, window mode, `fetchedAgo`), stale-doc (comments of `fetchedAgo`, `LiveIndicator`), clock edge (window opening after load), each recorded above. Check 3: S148 (82) before S141/S150 (83), S142/S149 (84); S74 (94) after S148 fine; no order change. Duplication sweep: only `LiveIndicator` vs the new `LiveMarker` (kept apart, reason recorded). Personal-data sweep: none (no store, field, service, browser key or log line added; files checked: S148, S149, S74, S142 ACs).
+
+**For the parity review.** FEATURES.md:103 (Live marker): the story list "— S147 (design), S148, S150, S149" sits mid-row before "Shown the draft, the owner moved it…"; move it to the end. FEATURES.md:102 (Site footer) doesn't say "baseball.theater" goes from every footer. FEATURES Installable app `Design:` bullet (:221) names an offline state without saying its footer line is gone (optional).
+
+**Owner question.** May an agent update the Figma `live-marker` component description (658:21788), which still reads "A13 (draft): the Live marker — a red dot and "Live" …", to A13's ratified wording, with no drawing change?
+
+---
+
+## 2026-11-19 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-19T19:09:48Z` |
+| HEAD at review | `03264f6` (tree dirty) |
+| Trigger | ARCHITECTURE.md, FEATURES.md, VISUAL-DESIGN.md changed (S147 checkpoints c6e3383, 4c94350; A13 intake 03264f6) |
+| Stories `done` since last review | S147 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Scope: the product-doc changes since 48dcf31 (c6e3383 and 4c94350 on FEATURES' Live marker row, VISUAL-DESIGN D9 and the Meta type row, ARCHITECTURE ADR-014's freshness row), read with the A13 design intake (03264f6); the stories they touch (S147, S148, S149, S150, S141, S142, S74); and the next 3 `todo` stories by priority (S125, S145, S130). The game-shell A6 change set (S144, S145's design) was reviewed on `story/S144`, which isn't an ancestor of this branch; it is not reviewed again here.
+
+**1. Citation honesty**
+- S147, S148, S149, S150 cite "Feature: Live marker" (FEATURES:103). The row describes the marker replacing "Fetched … ago" (S147 draws it, S148 builds it), the scoreboard's day socket (S149) and one stored state per game behind one source switch (S150). Each story's Gap/Impact matches the clause it serves. Holds.
+- S141, S142 cite "Feature: Site footer" (FEATURES:102): a footer of links ratified before it is built, with "Fetched … ago" gone. Matches both Gaps. Holds.
+- S74 cites "Feature: PWA / installability" (FEATURES:70), which says offline reading is at launch; its Gap is ADR-023's offline reading, marked with its age. Holds.
+- S125 cites "Feature: Calendar date picker" (FEATURES:101): calendar from the scoreboard's date, typed dates, year switching, game counts. These are S125's Impact word for word. Holds.
+- S145 cites "Feature: Video play links" (FEATURES:98): "'Play' in red replaces 'Highlight'; a clip with no play keeps 'Highlight'" with the owner's 2026-11-10 quote. This is S145's Gap. Holds.
+- S130 cites "Feature: Standings" (FEATURES:65): spring training, regular season and playoffs, "as of" a past day, and the World Series winner. This matches S130's Impact. Holds.
+- Pillar citations: one open story cites a pillar (S146, "Pillar: Delightful"). Its Gap, Impact and ACs did not change since 48dcf31 (`pnpm parity:debt` named no such change), so it is out of scope here.
+- Open questions: no open, blocked or todo story has an `Open:` Source (grep of `**Source:**` over stories/todo and stories/blocked: every line is Feature or Pillar).
+
+**2. Doc reflects reality**
+- ADR-014 freshness row (ARCHITECTURE:918) now says A13 was "ratified 2026-11-19 ... built by S148". This agrees with shell-scoreboard A13's ratification record (A13:55–58) and with FEATURES:103. No conflict.
+- VISUAL-DESIGN D9 (:44) gives "Live Data · Active" centred in a darker strip at the top of the footer, and "no footer reads 'baseball.theater'". This agrees with A13:34 and :39 and with FEATURES:103. The Meta type row (:227) dropped "fetched-at", which is consistent. D9 cites "FEATURES principle 6" (FEATURES:29, "we don't pretend to be MLB"), which is unchanged and consistent.
+- VISUAL-DESIGN :292 "Quiet meta: date, window mode, last fetched (D9)" still names a fetched age. Left alone, as the intake directed: S141 AC 3 owns it.
+- Finding (amended): FEATURES:103, the Live marker row, had its story list "— S147 (design), S148, S150, S149" in the middle of the row, running into "Shown the draft, the owner moved it…". The list now ends the row, as every other row's does. No wording changed.
+- Finding (amended): FEATURES:102, the Site footer row, said only that "Fetched … ago" goes. Ratified A13 (A13:6, :34, :39) and FEATURES:103 also remove "baseball.theater" from every footer. The row now records that, quoting the owner (2026-11-19: "baseball.theater is supposed to be removed, which I've asked for twice"; ratification answer recorded in 4c94350 and A13:58).
+- Finding (amended): the FEATURES Installable app (PWA) Design bullet (:221) listed an "offline state" without saying that its footer line goes. It now says so, quoting the owner (2026-11-19, asked whether to drop the "Offline · saved …" footer line: "yes"; A13:43; 4c94350's message). The User-visible bullet's "marked with their age" still holds, because the offline banner carries the age (A13:43; S74 AC 2).
+- Relics: none found. INTENT has no Fetched/footer statement (grep of "fetched" and "baseball.theater" over INTENT, FEATURES, VISUAL-DESIGN: the only remaining hits are VISUAL-DESIGN:292, which is S141's, and FEATURES:322, the cutover domain, which is unrelated).
+
+**3. Coverage**
+No feature was added in this review, and every FEATURES row touched has stories: Site footer is served by S141 and S142, Live marker by S147–S150, Installable app's offline state by S74.
+
+**For the next backlog review**
+- Does S142 (or S141's AC 1, whose notes at S141:68 already record it) have a checkable AC that no footer reads "baseball.theater"? FEATURES' Site footer row now says so, but S142's ACs (S142:50) speak only of "Fetched … ago".
+- S74 AC 2 and its 2026-11-19 intake note (S74:66) drop the offline footer line. Confirm that an AC, and not only a note, forbids "Offline · saved …" in the footer, since FEATURES' Installable app Design bullet now states it.

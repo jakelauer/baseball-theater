@@ -14,6 +14,16 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## The approved look for "this page is live"
+
+- **Before, nothing approved showed what would replace the "Fetched 12s ago · baseball.theater" line at the foot of
+  each page. Now the owner has approved it: a page that is receiving live updates opens its footer with a slightly
+  darker strip reading "● Live Data · Active", its red dot glowing and slowly blinking (steady for anyone who asks
+  for less motion), and no footer says "Fetched … ago", "baseball.theater" or "Offline · saved …" any more.**
+  Nothing in the app changes yet: the next story builds it. Details: **S147** — shell-scoreboard amendment A13
+  ratified with seven hashed frames; every Figma footer is one shared `site-footer` component; VISUAL-DESIGN D9,
+  ADR-014 and FEATURES' Live marker row updated; S148 builds it.
+
 ## The standings data names the World Series champion
 
 - **Before, nothing Baseball Theater served said who won the World Series. Now, from the day the Series is won
