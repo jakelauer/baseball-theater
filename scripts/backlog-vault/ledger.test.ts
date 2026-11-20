@@ -1,20 +1,24 @@
 /**
  * ledger.ts: the one reader of AUDIT.md's entry headings — every shape audit.sh writes, the
  * review counter (only a review resets it; owner, 2026-11-03), the debt checks' base commit,
- * and the generated audit.jsonl index.
+ * and the generated audit.jsonl index; since S156, the ledger fragments that follow the frozen
+ * AUDIT.md (one file per entry), read in stamp order, and `shipping_commit` finding a story by
+ * the commit that added its fragment.
  */
 import { execFileSync } from "node:child_process";
 import {
-	mkdtempSync, readFileSync, rmSync, writeFileSync,
+	mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
 import {
 	afterEach, describe, expect, it,
 } from "vitest";
 import {
-	LEDGER_MARKER, LedgerParseError, ledgerBase, parseLedger, renderLedgerIndex, reviewBlocked, storiesDoneSince,
+	fragmentFiles, fragmentsDirFor, LEDGER_MARKER, LedgerParseError, ledgerBase, parseFragment, parseLedger, readLedger, renderLedgerIndex,
+	reviewBlocked, storiesDoneSince,
 } from "./ledger.ts";
 
 const ledger = (...headings: string[]) => ["# Ledger", "## 2026-01-01 — preamble example, not an entry", LEDGER_MARKER, ...headings, ""].join("\n");
@@ -371,5 +375,226 @@ describe("ledgerBase (where the debt checks measure drift from)", () =>
 			expect(base).toBe(reviewed);
 			expect(git("diff", "--name-only", base ?? "", "HEAD")).toContain("S8.md");
 		});
+	});
+});
+
+/** The repository root (this file is scripts/backlog-vault/ledger.test.ts). */
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
+/** S156's base commit: the ledger and its parser as they were before fragments (its grader's BASE). */
+const BASE_COMMIT = "8051c3b4";
+const show = (path: string) => execFileSync("git", ["show", `${BASE_COMMIT}:${path}`], {
+	cwd: REPO_ROOT,
+	encoding: "utf8",
+	maxBuffer: 64 * 1024 * 1024,
+});
+
+/**
+ * S156 AC 5: fragments change nothing about the frozen AUDIT.md. The base commit's AUDIT.md,
+ * read by the base commit's parser (`git show`) and by today's, gives exactly the same entries,
+ * so every count and line number taken from it before S156 still holds.
+ */
+describe("parseLedger reads the base commit's AUDIT.md exactly as the base commit's parser does (S156)", () =>
+{
+	let dir = "";
+	afterEach(() => rmSync(dir, {
+		recursive: true,
+		force: true,
+	}));
+
+	it("gives identical entries", () =>
+	{
+		dir = mkdtempSync(join(tmpdir(), "ledger-base-parser-"));
+		writeFileSync(join(dir, "ledger.ts"), show("scripts/backlog-vault/ledger.ts"));
+		writeFileSync(join(dir, "AUDIT.md"), show("docs/v3/AUDIT.md"));
+		// The base parser runs in its own Node process (it is a copy outside the test's module graph).
+		const base = execFileSync(process.execPath, ["--input-type=module", "-e", `
+			import { readFileSync } from "node:fs";
+			const { parseLedger } = await import(${JSON.stringify(pathToFileURL(join(dir, "ledger.ts")).href)});
+			process.stdout.write(JSON.stringify(parseLedger(readFileSync(${JSON.stringify(join(dir, "AUDIT.md"))}, "utf8"))));`], {
+			encoding: "utf8",
+			maxBuffer: 64 * 1024 * 1024,
+		});
+		const now = parseLedger(readFileSync(join(dir, "AUDIT.md"), "utf8"));
+		expect(now.length).toBeGreaterThan(100);
+		expect(JSON.stringify(now)).toBe(base);
+	});
+});
+
+/** A fragment as audit.sh writes one: the entry's heading and table, nothing above it. */
+const fragment = (heading: string, ...rows: string[]) => [heading, "", "| | |", "|---|---|", ...rows, ""].join("\n");
+
+describe("ledger fragments (S156)", () =>
+{
+	let dir = "";
+	afterEach(() => rmSync(dir, {
+		recursive: true,
+		force: true,
+	}));
+	/** Write `files` (path relative to the fragment folder → text) beside a frozen AUDIT.md of `headings`. */
+	const world = (files: Record<string, string>, ...headings: string[]) =>
+	{
+		dir = mkdtempSync(join(tmpdir(), "ledger-fragments-"));
+		writeFileSync(join(dir, "AUDIT.md"), ledger(...headings));
+		for (const [path, text] of Object.entries(files))
+		{
+			mkdirSync(dirname(join(dir, "audit", path)), {
+				recursive: true,
+			});
+			writeFileSync(join(dir, "audit", path), text);
+		}
+		return join(dir, "AUDIT.md");
+	};
+
+	it("live in the lower-case folder named for their ledger", () =>
+	{
+		expect(fragmentsDirFor("docs/v3/AUDIT.md")).toBe("docs/v3/audit");
+		expect(fragmentsDirFor("docs/v3/VAULT-MIGRATION-AUDIT.md")).toBe("docs/v3/vault-migration-audit");
+	});
+
+	it("follow AUDIT.md's entries in stamp order, whatever their folders' or IDs' order", () =>
+	{
+		const audit = world({
+			"2026-11-22/20261122T000000Z-S2-completed.md": fragment("## 2026-11-21 — S2 completed"),
+			"2026-11-21/20261121T235959Z-backlog-review.md": fragment("## 2026-11-21 — backlog review (`continue`)", "| In flight | S7, B9 |"),
+			"2026-11-21/20261121T100000Z-S10-completed.md": fragment("## 2026-11-21 — S10 completed", "## Check 1 — a sub-heading, skipped"),
+		}, ...completed("S1"));
+		const entries = readLedger(audit);
+		expect(entries.map((e) => [e.heading, e.file, e.line])).toEqual([
+			["## 2026-11-01 — S1 completed", undefined, 4],
+			["## 2026-11-21 — S10 completed", "audit/2026-11-21/20261121T100000Z-S10-completed.md", 1],
+			["## 2026-11-21 — backlog review (`continue`)", "audit/2026-11-21/20261121T235959Z-backlog-review.md", 1],
+			// The heading has the local date, the folder the stamp's UTC date: they may differ.
+			["## 2026-11-21 — S2 completed", "audit/2026-11-22/20261122T000000Z-S2-completed.md", 1],
+		]);
+		expect(entries[2]!.inFlight).toEqual(["S7", "B9"]);
+		// The counters read fragments like any entry: the review resets, S2 counts after it.
+		expect(storiesDoneSince(entries, "backlog").stories).toEqual(["S2"]);
+		const index = renderLedgerIndex(entries).trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+		expect(index[0]).not.toHaveProperty("file");
+		expect(index[2]).toMatchObject({
+			file: "audit/2026-11-21/20261121T235959Z-backlog-review.md",
+			kind: "review",
+			inFlight: ["S7", "B9"],
+		});
+	});
+
+	it("are just the frozen ledger when there are none", () =>
+	{
+		const audit = world({}, ...completed("S1"));
+		expect(fragmentFiles(join(dir, "audit"))).toEqual([]);
+		expect(readLedger(audit)).toEqual(parseLedger(ledger(...completed("S1"))));
+	});
+
+	it("records no in-flight items when the row says none", () =>
+	{
+		expect(parseFragment(fragment("## 2026-11-21 — doc parity review (`amended`)", "| In flight | none |"), "a/20261121T000000Z-parity-review.md").inFlight).toBeUndefined();
+	});
+
+	it("name every entry kind audit.sh writes by its file-name kind", () =>
+	{
+		const cases: [string, string][] = [
+			["S5-reverified", "## 2026-11-21 — S5 re-verified at `74a93e0`"],
+			["S5-backfill", "## 2026-11-21 — S5 verified (backfill)"],
+			["S60-design", "## 2026-11-21 — S60 design match"],
+			["backlog-answers", "## 2026-11-21 — backlog review answers (2026-11-20)"],
+			["parity-skip", "## 2026-11-21 — doc parity review skipped"],
+		];
+		for (const [name, heading] of cases)
+		{
+			expect(parseFragment(fragment(heading), `d/20261121T000000Z-${name}.md`).heading).toBe(heading);
+		}
+	});
+
+	it("throw on a fragment audit.sh couldn't have written", () =>
+	{
+		const bad: [string, string][] = [
+			["d/S1-completed.md", fragment("## 2026-11-21 — S1 completed")], // no stamp
+			["d/20261121T000000Z-S1-completed.md", fragment("## 2026-11-21 — S2 completed")], // name and entry disagree
+			["d/20261121T000000Z-S1-reverified.md", fragment("## 2026-11-21 — S1 completed")], // kind disagrees
+			["d/20261121T000000Z-S1-completed.md", "no heading\n"], // no entry
+			["d/20261121T000000Z-S1-completed.md", `${fragment("## 2026-11-21 — S1 completed")}${fragment("## 2026-11-21 — S1 completed")}`], // two
+			["d/20261121T000000Z-S1-completed.md", fragment("## 2026-11-21 — S1 finished by hand")], // unknown shape
+		];
+		for (const [file, text] of bad)
+		{
+			expect(() => parseFragment(text, file), file).toThrow(LedgerParseError);
+		}
+		world({
+			"stray.md": "not in a date folder\n",
+		});
+		expect(() => fragmentFiles(join(dir, "audit"))).toThrow(LedgerParseError);
+	});
+});
+
+describe("ledgerBase and shipping_commit with fragments (S156)", () =>
+{
+	let repo = "";
+	const git = (...args: string[]) => execFileSync("git", args, {
+		cwd: repo,
+		encoding: "utf8",
+	});
+	const write = (path: string, text: string) =>
+	{
+		mkdirSync(dirname(join(repo, path)), {
+			recursive: true,
+		});
+		writeFileSync(join(repo, path), text);
+	};
+	const commit = (message: string) =>
+	{
+		git("add", "-A");
+		git("commit", "-qm", message);
+		return git("rev-parse", "--short", "HEAD").trim();
+	};
+	const shippingCommit = (id: string) => execFileSync("bash", ["-c", `source "${join(REPO_ROOT, "scripts/lib/reverify.sh")}" && shipping_commit docs/v3/AUDIT.md ${id}`], {
+		cwd: repo,
+		encoding: "utf8",
+	}).trim();
+
+	afterEach(() => rmSync(repo, {
+		recursive: true,
+		force: true,
+	}));
+
+	it("measure from the commit that added a fragment, and fall back to the frozen ledger without one", () =>
+	{
+		repo = mkdtempSync(join(tmpdir(), "ledger-fragment-base-"));
+		git("init", "-q", "-b", "stage");
+		git("config", "user.email", "test@example.com");
+		git("config", "user.name", "Test");
+		git("config", "core.hooksPath", "/dev/null");
+
+		const stamp = "2026-01-02T03:04:05Z";
+		write("docs/v3/AUDIT.md", ledger("## 2026-11-02 — backlog review (`amended`)", "## 2026-11-03 — S1 completed", `| Captured (UTC) | \`${stamp}\` |`));
+		const frozen = commit("frozen ledger");
+		expect(ledgerBase(repo, "docs/v3/AUDIT.md", "backlog")).toBe(frozen);
+		expect(shippingCommit("S1")).toBe(frozen);
+
+		// A story branch adds its completion fragment; a merge brings it to stage.
+		git("switch", "-qc", "story/S2");
+		write("docs/v3/audit/2026-11-21/20261121T100000Z-S2-completed.md", fragment("## 2026-11-21 — S2 completed", "| Shipped in | the commit that adds this entry |"));
+		const shipped = commit("S2 done");
+		git("switch", "-q", "stage");
+		git("merge", "-q", "--no-ff", "-m", "merge S2", "story/S2");
+		expect(shippingCommit("S2")).toBe(shipped);
+		expect(shippingCommit("S1")).toBe(frozen);
+		expect(shippingCommit("S3")).toBe("");
+		// A completion fragment is no review: the base stays where it was.
+		expect(ledgerBase(repo, "docs/v3/AUDIT.md", "backlog")).toBe(frozen);
+
+		// A backfill fragment names its shipping commit.
+		write("docs/v3/audit/2026-11-21/20261121T110000Z-S1-backfill.md", fragment("## 2026-11-21 — S1 verified (backfill)", `| Shipped in | \`${shipped}\` — S2 done |`));
+		commit("S1 backfill");
+		expect(shippingCommit("S1")).toBe(shipped);
+
+		// A skip fragment moves the backlog base, not the parity one (it has none).
+		write("docs/v3/audit/2026-11-21/20261121T120000Z-backlog-skip.md", fragment("## 2026-11-21 — backlog review skipped"));
+		const skipped = commit("skip");
+		expect(ledgerBase(repo, "docs/v3/AUDIT.md", "backlog")).toBe(skipped);
+		expect(ledgerBase(repo, "docs/v3/AUDIT.md", "parity")).toBeUndefined();
+
+		// Only committed fragments count for the base.
+		write("docs/v3/audit/2026-11-21/20261121T130000Z-backlog-review.md", fragment("## 2026-11-21 — backlog review (`continue`)"));
+		expect(ledgerBase(repo, "docs/v3/AUDIT.md", "backlog")).toBe(skipped);
 	});
 });

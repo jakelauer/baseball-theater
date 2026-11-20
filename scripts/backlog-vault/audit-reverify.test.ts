@@ -16,12 +16,20 @@ import {
 	afterEach, beforeEach, describe, expect, it,
 } from "vitest";
 import { reviewDebtLine } from "./assemble.ts";
+import { fragmentFiles } from "./ledger.ts";
 
 const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MARKER = "<!-- entries below; newest last; appended by scripts/audit.sh -->";
 const STAMP = "2026-01-02T03:04:05Z";
 
 let repo: string;
+
+/** The text of the entries audit.sh wrote since S156: every fragment in docs/v3/audit/, in stamp order. */
+function written(): string
+{
+	const dir = join(repo, "docs/v3/audit");
+	return fragmentFiles(dir).map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
+}
 
 function git(...args: string[]): string
 {
@@ -115,9 +123,11 @@ describe("audit.sh story --reverify (S84)", () =>
 		const ship = shippedThenBroken();
 		expect(spawnSync("bash", [join(repo, "scripts/verify-S900.sh")]).status).not.toBe(0);
 
+		const before = readFileSync(join(repo, "docs/v3/AUDIT.md"), "utf8");
 		const run = audit(["story", "S900", "--reverify", "--no-verify"]);
 		expect(run.status, String(run.stderr)).toBe(0);
-		const ledger = readFileSync(join(repo, "docs/v3/AUDIT.md"), "utf8");
+		expect(readFileSync(join(repo, "docs/v3/AUDIT.md"), "utf8")).toBe(before);
+		const ledger = written();
 		// audit.sh heads entries with the local date (`date +%Y-%m-%d`), as the whole ledger is;
 		// UTC would fail every evening west of Greenwich.
 		const today = new Date().toLocaleDateString("en-CA");
@@ -145,7 +155,8 @@ describe("audit.sh design mode (S84)", () =>
 		write("docs/v3/design-checks/S900/thing-mobile.png", "capture");
 		const run = audit(["design", "S900", "--design-match", "-"], "Matches\n");
 		expect(run.status, String(run.stderr)).toBe(0);
-		const ledger = readFileSync(join(repo, "docs/v3/AUDIT.md"), "utf8");
+		// The frozen ledger (holding S900's completion) then the new fragment, as ledger.ts reads them.
+		const ledger = `${readFileSync(join(repo, "docs/v3/AUDIT.md"), "utf8")}\n${written()}`;
 		expect(ledger).toMatch(/^## \S+ — S900 design match$/m);
 		expect(ledger).toMatch(/^Owner: "Matches"$/m);
 		expect(ledger).toContain("`docs/v3/visual/surface/thing-mobile.png`");
