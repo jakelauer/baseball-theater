@@ -13,7 +13,7 @@
 
 Assembled, in this order and around the stories, into BACKLOG.md.
 
-- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 122 KB
+- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 123 KB
   - `127–145` Verify-script contract
   - `146–159` Story status
   - `160–524` Backlog reviews
