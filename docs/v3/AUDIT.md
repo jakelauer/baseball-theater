@@ -19367,3 +19367,20 @@ Scope from `pnpm parity:debt` at bd48f8a (since 4503fe8): FEATURES.md changed; S
 - S133's note on HEAD (l.64) still calls the fourth kind undecided. The owner answered "Performance" on 2026-11-16, and S131 AC 1 already has it. Check that `story/S133-redraw` (17b6142, 7657479, unpushed) lands, or bring S133 into line, and keep this FEATURES row's Kinds sentence when merging that branch's row edit.
 - The pointer's countdown and close button (owner Q13, 2026-11-16: "Keep the bar, remove the x, don't pause on hover, dismiss on click") are recorded only on that branch. Check that S135 and FEATURES pick them up when it lands.
 - The change log's first release (v3.1.0 or v4.0.0) is still open with the owner. S131 stays parked on it.
+
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T04:09:10Z` |
+| HEAD at capture | `71fa6d6` (tree clean) |
+| Applied in | `71fa6d6` — Owner's answers: change log starts at v4.0.0; pre-1969 tables say "American League" |
+
+**Answers and what was applied**
+
+Owner, 2026-11-19 (through /pending), answering the 2026-11-19 backlog review's two questions:
+1. Asked "Should the fan-facing change log start at v4.0.0 (the public launch) or at v3.1.0?": chose "Start at v4.0.0 (Recommended)". Applied: S131 AC 6 requires no notes file below v4.0.0 (the grader's v3.1.0 check is updated before shipping, red first, rule 7), AC 5 drops its exception for AC 6's copies, the note "starts at v3.1.0" is replaced, S131 back to todo at priority 72; FEATURES' Update / change log UX row, S134's Impact and S135's note (f) follow.
+2. Asked "Should the pre-1969 standings tables be headed "American League" and "National League", or "AL" and "NL"?": chose "American League (Recommended)". Applied: S155's open-question note recorded as settled; AC 2 and AC 4 already say the full names, unchanged.
