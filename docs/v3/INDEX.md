@@ -13,12 +13,12 @@
 
 Assembled, in this order and around the stories, into BACKLOG.md.
 
-- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 123 KB
+- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 125 KB
   - `129–147` Verify-script contract
   - `148–161` Story status
-  - `162–526` Backlog reviews
-  - `527–546` Doc parity reviews
-  - `547–551` Goal command for multiple stories
+  - `162–534` Backlog reviews
+  - `535–554` Doc parity reviews
+  - `555–559` Goal command for multiple stories
   - Rules, by number:
     - `10–10` 1. Acceptance criteria map to commands, tests, or file invariants (exit codes / assertions).
     - `11–11` 2. Vague phrases (“works correctly”, “handles errors gracefully”) are forbidden until rewrit…
@@ -496,7 +496,6 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 |---|---|---|---|---|
 | 70.9 | [B87](backlog/bugs/todo/B87.md) Bug #87: Grader fence checks fail on file names with non-ASCII characters | `todo` | — | — |
 | 71 | [S152](backlog/stories/todo/S152.md) Fast PR checks (scoped caching) | `todo` | — | — |
-| 72 | [S131](backlog/stories/todo/S131.md) Approved release notes | `todo` | — | — |
 | 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
 | 75 | [S144](backlog/stories/todo/S144.md) Design: play link on the meta line | `todo` | — | — |
 | 75 | [S145](backlog/stories/todo/S145.md) Play link on the meta line | `todo` | S97, S81 | S144 |
@@ -532,6 +531,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 118 | [S146](backlog/stories/todo/S146.md) Skip deploys with unchanged build inputs | `todo` | — | — |
 | 119 | [S151](backlog/stories/todo/S151.md) Video download via service worker | `todo` | S73 | — |
 | 72 | [S123](backlog/stories/blocked/S123.md) Design: calendar date picker | `blocked` | — | — |
+| 72 | [S131](backlog/stories/blocked/S131.md) Approved release notes | `blocked` | — | — |
 | 76 | [S129](backlog/stories/blocked/S129.md) Design: Standings views | `blocked` | — | — |
 | 80 | [S133](backlog/stories/blocked/S133.md) Design: change log + update notices | `blocked` | — | — |
 | 103 | [S107](backlog/stories/blocked/S107.md) Design: win-probability slot | `blocked` | S67, S68 | — |
