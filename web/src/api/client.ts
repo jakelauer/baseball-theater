@@ -68,8 +68,9 @@ export async function fetchSchedule(date: string)
 }
 
 /**
- * The number of games on each day of `month` (`YYYY-MM`, S124), for the calendar date picker
- * (S125); `count` is null for a day BT doesn't know yet, distinct from a day with no games.
+ * The number of games on each day of `month` (`YYYY-MM`, S124) and the teams playing it (S136),
+ * for the calendar date picker (S125); `count` and `teamIds` are null for a day BT doesn't know
+ * yet, distinct from a day with no games (`0` and `[]`).
  */
 export async function fetchScheduleMonth(month: string)
 {

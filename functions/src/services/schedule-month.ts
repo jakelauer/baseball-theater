@@ -1,8 +1,9 @@
 /**
- * Games per day for a month (S124), for S125's calendar date picker, from BT's stored schedule
- * days (ADR-002: clients read BT only), counted by `monthGameCounts`. A month BT needn't ask MLB
- * about is one count read; a fill adds one MLB range request, a version-guarded write per day it
- * returns (`storeSchedule`, which reads the stored day first) and a second count read.
+ * Games per day for a month (S124) and the teams playing each day (S136), for S125's calendar
+ * date picker, from BT's stored schedule days (ADR-002: clients read BT only), counted by
+ * `monthGameCounts`. A month BT needn't ask MLB about is one count read; a fill adds one MLB
+ * range request, a version-guarded write per day it returns (`storeSchedule`, which reads the
+ * stored day first) and a second count read.
  *
  * Days inside `scheduleFillWindow` (the current season through December of next year; later
  * months are refused at the route, owner 2026-11-09: "Reject past next year") that BT doesn't
@@ -26,7 +27,10 @@ import {
 	needsRefresh, runRefresh, storeSchedule,
 } from "./ingest.js";
 
-/** A month's counts and when its data last changed, which sets its cache lifetime (ADR-021). */
+/**
+ * A month's counts and teams per day, and when its data last changed, which sets its cache
+ * lifetime (ADR-021).
+ */
 export interface ScheduleMonth
 {
 	/** The month, `YYYY-MM`. */
@@ -69,9 +73,10 @@ function rangeToAsk(deps: IngestDeps, key: string, fillable: string[], stored: S
 
 /**
  * The number of games on each day of `month` (`YYYY-MM`, already checked by `isCalendarMonth`
- * and `latestScheduleMonth` at the route), from BT's stored schedule days, filling or refreshing
- * the days inside `scheduleFillWindow` first as the module doc says. A failed MLB request leaves
- * those days as they were; a failed store write is BT's own failure and rejects.
+ * and `latestScheduleMonth` at the route) and the teams playing it (S136), from BT's stored
+ * schedule days, filling or refreshing the days inside `scheduleFillWindow` first as the module
+ * doc says. A failed MLB request leaves those days as they were; a failed store write is BT's own
+ * failure and rejects.
  */
 export async function getScheduleMonth(deps: IngestDeps, month: string): Promise<ScheduleMonth>
 {

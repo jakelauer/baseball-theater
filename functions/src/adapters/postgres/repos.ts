@@ -13,6 +13,7 @@
 import type {
 	AccountSettings, Entitlements, GameProjection, GameSnapshot, PatronTier, Role, ScheduleDay, ScheduleDayTally, UserProfile,
 } from "@bt/domain";
+import { distinctTeamIds } from "@bt/domain";
 import type {
 	DeletionLog,
 	DeletionLogEntry,
@@ -91,19 +92,27 @@ export class PostgresScheduleRepository implements ScheduleRepository
 		});
 	}
 
-	/** One query for the whole range; the games are counted in the database, so no document leaves it. */
+	/**
+	 * One query for the whole range; the games are counted and their teams' IDs picked out in the
+	 * database (S136), so no document leaves it. They come back as one jsonb array of every game's
+	 * away and home ID, repeats and all, as stored: the driver parses it, so a number arrives as a
+	 * JS number and a `null` or string ID as itself. `distinctTeamIds` (shared with the memory
+	 * adapter) is the one guard: it drops any non-integer ID, de-duplicates and sorts.
+	 */
 	async listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>
 	{
 		const rows = await this.db.select({
 			date: scheduleDays.date,
 			gameCount: sql<number>`jsonb_array_length(${scheduleDays.document}->'games')`,
+			teamIds: sql<unknown[]>`jsonb_path_query_array(${scheduleDays.document}, '$.games[*].teams.*.id')`,
 			fetchedAt: sql<string>`${scheduleDays.document}->>'fetchedAt'`,
 			lastChangedAt: sql<string>`${scheduleDays.document}->>'lastChangedAt'`,
 		}).from(scheduleDays).where(between(scheduleDays.date, from, to)).orderBy(asc(scheduleDays.date));
-		// A driver may hand an integer back as a string; the port promises a number.
+		// A driver may hand `jsonb_array_length`'s integer back as a string; the port promises a number.
 		return rows.map((row) => ({
 			...row,
 			gameCount: Number(row.gameCount),
+			teamIds: distinctTeamIds(row.teamIds),
 		}));
 	}
 }

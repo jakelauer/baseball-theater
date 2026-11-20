@@ -1,24 +1,32 @@
 /**
- * Games per day for a month (S124), the counts S125's calendar date picker shows. Counted from
- * the stored schedule days' game summaries, which list every game on the day (scheduled,
- * postponed, final, in or out of the live window), never from the games table, which holds only
- * the games ingest hydrated.
+ * Games per day for a month (S124) and the teams playing each day (S136), which S125's calendar
+ * date picker shows. Both come from the stored schedule days' game summaries, which list every
+ * game on the day (scheduled, postponed, final, in or out of the live window), never from the
+ * games table, which holds only the games ingest hydrated.
  */
 
-/** One stored schedule day as the month view needs it: its game count and its ADR-021/022 stamps. */
+/**
+ * One stored schedule day as the month view needs it: its game count, the teams playing it
+ * (S136) and its ADR-021/022 stamps.
+ */
 export interface ScheduleDayTally
 {
 	/** The day, `YYYY-MM-DD`. */
 	date: string;
 	/** How many games the stored schedule day lists. */
 	gameCount: number;
+	/**
+	 * The MLB team IDs of the away and home team of every game the day lists, each once, in
+	 * ascending order ({@link distinctTeamIds}); `[]` for a day with no games.
+	 */
+	teamIds: number[];
 	/** When the day was last fetched (`ScheduleDay.fetchedAt`). */
 	fetchedAt: string;
 	/** When the day's content last changed (`ScheduleDay.lastChangedAt`, ADR-022). */
 	lastChangedAt: string;
 }
 
-/** A day of the month view: its date and its number of games. */
+/** A day of the month view: its date, its number of games and the teams playing it (S136). */
 export interface ScheduleDayCount
 {
 	/** The day, `YYYY-MM-DD`. */
@@ -29,19 +37,74 @@ export interface ScheduleDayCount
 	 * so a client can tell "no games" from "not known".
 	 */
 	count: number | null;
+	/**
+	 * The MLB team IDs playing that day (away and home of every game counted in `count`, each
+	 * once, ascending; S136), so a client can mark the days a fan's favorites play without one
+	 * request per day. `[]` for a stored day with no games; `null` exactly when `count` is.
+	 * Every team is sent, not "a favorite plays", because favorites are personal and the month
+	 * answer is one shared, cached response (ADR-021).
+	 */
+	teamIds: number[] | null;
+}
+
+/**
+ * A day's team IDs as the month view sends them: each once, in ascending numeric order, keeping
+ * only integers. The one place both schedule repository adapters de-duplicate, sort and drop what
+ * isn't a team ID (S136), so the Postgres and memory answers can't drift apart. It takes `unknown`
+ * because the IDs come out of a stored schedule document, whose type can't vouch for an older or
+ * hand-edited row: a `null` or string ID adds no team rather than a team `0`, `NaN` or `"111"`.
+ */
+export function distinctTeamIds(ids: Iterable<unknown>): number[]
+{
+	return [...new Set(ids)].filter((id): id is number => Number.isInteger(id)).sort((a, b) => a - b);
 }
 
 /**
  * One count per date of `dates`, in order, from the stored days' tallies (ADR-025: the one
- * implementation of a day's game count for the month view): a date with no stored day is `null`.
+ * implementation of a day's game count and teams for the month view): a date with no stored day
+ * is `null` for both, so `teamIds` is `null` exactly when `count` is.
  */
-export function monthGameCounts(dates: readonly string[], stored: readonly Pick<ScheduleDayTally, "date" | "gameCount">[]): ScheduleDayCount[]
+export function monthGameCounts(dates: readonly string[], stored: readonly Pick<ScheduleDayTally, "date" | "gameCount" | "teamIds">[]): ScheduleDayCount[]
 {
-	const byDate = new Map(stored.map((day) => [day.date, day.gameCount]));
-	return dates.map((date) => ({
-		date,
-		count: byDate.get(date) ?? null,
-	}));
+	const byDate = new Map(stored.map((day) => [day.date, day]));
+	return dates.map((date) =>
+	{
+		const day = byDate.get(date);
+		return {
+			date,
+			count: day?.gameCount ?? null,
+			teamIds: day ? [...day.teamIds] : null,
+		};
+	});
+}
+
+/**
+ * Whether one of the fan's favorite teams plays on a month view day (S136; S125's calendar marks
+ * those days): its `teamIds` include any of `favoriteTeamIds`. The day-level twin of
+ * `scoreboardRows`' per-game favorite test. False for a day BT holds no schedule for (`null`), a
+ * day with no games (`[]`), a fan with no favorites, and a day with no `teamIds` at all, which an
+ * answer cached before S136 shipped can hold for up to the cache cap (`CACHE_LIFETIME_CAP_MS`):
+ * the mark is then missing for a while rather than the calendar breaking.
+ */
+export function dayHasFavoriteTeam(teamIds: readonly number[] | null | undefined, favoriteTeamIds: readonly number[]): boolean
+{
+	if (!teamIds) return false;
+	return teamIds.some((id) => favoriteTeamIds.includes(id));
+}
+
+/**
+ * What a month's days say about its games (S136; S125's calendar shows the off-season line from
+ * it): `"games"` when any day's count is above 0; `"none"` when there is at least one day and
+ * every day's count is 0; `"unknown"` otherwise, that is a `null` day with no day above 0 (BT
+ * holds no schedule for it, so the month can't be called empty) or no days at all (the calendar
+ * passes `[]` while the month loads or after its request fails). What an unknown month shows is
+ * S123's design to say, not this function's.
+ */
+export function monthGamesState(days: readonly Pick<ScheduleDayCount, "count">[]): "games" | "none" | "unknown"
+{
+	if (days.some((day) => day.count !== null && day.count > 0)) return "games";
+	if (days.length > 0 && days.every((day) => day.count === 0)) return "none";
+	return "unknown";
 }
 
 /**
