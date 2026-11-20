@@ -10,7 +10,8 @@ color: purple
 
 You run the Baseball Theater v3 backlog review. The `backlog-review` skill is loaded: follow it exactly, all four checks plus the duplication and personal-data sweeps, with cited evidence for each. The brief gives the debt script's output (why the review is due).
 
-- Read the backlog through `docs/v3/INDEX.md` and the story notes, never `docs/v3/BACKLOG.md` or `docs/v3/AUDIT.md` whole.
+- Read the backlog through `docs/v3/INDEX.md` (run `pnpm backlog:build` if it is missing) and the story notes (the generated `BACKLOG.md` is retired), never `docs/v3/AUDIT.md` whole; find ledger entries through `docs/v3/audit.jsonl`.
+- You run beside the items a run has in flight, never pausing them (owner, 2026-11-20: _"Run them in parallel (Recommended)"_): edit only notes of items not in flight, check with `claims.ts review-edits` as the skill says, report findings on in-flight items in your reply for the overseer to pass to their workers, and pass `--in-flight <IDs>` to `scripts/audit.sh`.
 - Keep to the skill's write scope: never `docs/v3/INTENT.md`, `docs/v3/FEATURES.md`, an existing `**Source:**` line, ADRs or ratified designs.
 - Edit the notes, `pnpm backlog:build`, `pnpm backlog:check`, log with `scripts/audit.sh review`, and commit the edits with the entry. Never push.
 

@@ -9,12 +9,12 @@ How to run Baseball Theater v3 with goal/loop agents without relying on chat mem
 | 1. Clean baseline + tag | **Done** | `git status` clean at tag `loop-baseline` (pre-scaffold) / post-scaffold commit |
 | 2. Single exit-code verify | **Done** | `pnpm verify` · recipe `.claude/skills/verify/SKILL.md` |
 | 3. Conventions recovered | **Done** | `CLAUDE.md` (edit if wrong) |
-| 4. Checkable backlog | **Done** | `docs/v3/BACKLOG.md` |
+| 4. Checkable backlog | **Done** | the notes in `docs/v3/backlog/`, indexed by `docs/v3/INDEX.md` (the generated `BACKLOG.md` is retired, S156) |
 | 5. Permission boundaries | **Done** | `.claude/settings.json` + `.cursor/rules/agent-boundaries.mdc` |
-| 6. Pilot one story | **Ready** | S1 prompt in BACKLOG — **you** run/watch first `/goal` |
+| 6. Pilot one story | **Ready** | S1 prompt in its note — **you** run/watch first `/goal` |
 | 7. Fresh-context reviewer | **Ready** | Process below: a fresh-context pre-PR review with the review-class checklist, on every pull request, then Claude's review (`.github/workflows/claude-review.yml`) |
-| 7b. Backlog review cadence | **Ready** | `.claude/skills/backlog-review/SKILL.md` · log in `docs/v3/AUDIT.md` |
-| 7c. Verification ledger | **Done** | `scripts/audit.sh` → `docs/v3/AUDIT.md` (story + review entries) |
+| 7b. Backlog review cadence | **Ready** | `.claude/skills/backlog-review/SKILL.md` · log in the ledger (`docs/v3/audit/`) |
+| 7c. Verification ledger | **Done** | `scripts/audit.sh` → one fragment per entry in `docs/v3/audit/<date>/` (story + review entries; `docs/v3/AUDIT.md` is frozen history, S156) |
 | 8. Scale then unattended loop | **Not yet** | Only after S1–S2 succeed observed |
 
 ## 1 — Baseline
@@ -38,7 +38,7 @@ pnpm verify
 
 Non-zero ⇒ not done. Details: `.claude/skills/verify/SKILL.md`.
 
-**Capture it.** `pnpm verify` prints and forgets. Every finished story and every backlog review gets an entry in the ledger, `docs/v3/AUDIT.md`, written by `scripts/audit.sh` — never by hand:
+**Capture it.** `pnpm verify` prints and forgets. Every finished story and every backlog review gets an entry in the ledger, written by `scripts/audit.sh` — never by hand — as its own new file, `docs/v3/audit/<YYYY-MM-DD>/<stamp>-<ID>-<kind>.md`, so two branches' entries never conflict (S156; `docs/v3/AUDIT.md` holds the entries before it, frozen; `scripts/backlog-vault/ledger.ts` reads both):
 
 ```bash
 scripts/audit.sh story S14            # grader + pnpm verify, captured verbatim
@@ -49,7 +49,7 @@ scripts/audit.sh design S79 --design-match -  # an owner's design verdict on its
 
 **Two tiers (S84).** A story's grader is a **commit-time proof**: it proves that story at its own commit and is never expected to hold for the whole system later. What must hold on every commit is a **law**, listed in `docs/v3/LAWS.md` and enforced by `pnpm verify`.
 
-The ledger is the only durable record of *what was actually checked*: which of the story's checks ran, whether they passed, and the commit the story shipped in. It is also what the review cadence counts off — "6 stories since the last review" reads from that one file.
+The ledger is the only durable record of *what was actually checked*: which of the story's checks ran, whether they passed, and the commit the story shipped in. It is also what the review cadence counts off — "6 stories since the last review" reads from it, through `ledger.ts`.
 
 ## 3 — Conventions
 
@@ -57,13 +57,13 @@ Read and correct `CLAUDE.md` once. Anything you disagree with must be written th
 
 ## 4 — Backlog
 
-Work only from `docs/v3/BACKLOG.md`. If a criterion is ambiguous mid-run, **tighten the backlog**, then re-run — don’t just patch code.
+Work only from the backlog notes (`docs/v3/backlog/`, found through `docs/v3/INDEX.md`, which `pnpm backlog:build` writes). If a criterion is ambiguous mid-run, **tighten the backlog**, then re-run — don’t just patch code.
 
-**Status is part of done:** set the story to `doing` when you start and to `done` when all acceptance criteria pass. Commit that status flip with the implementation, and keep the top **Story status** table in sync. A green `pnpm verify` with Status still `todo` is incomplete.
+**Status is part of done:** set the story to `doing` when you start and to `done` when all acceptance criteria pass. Commit that status flip with the implementation, and run `pnpm backlog:build` (the story list is generated from it). A green `pnpm verify` with Status still `todo` is incomplete.
 
 **Commit before the next goal:** if the prior story is marked done (or claimed complete) but its changes are still uncommitted, **do not start the next story**. Refuse to move on until that work is committed (or the user explicitly overrides). Check with `git status`.
 
-**Review the plan, not just the code:** `pnpm verify` proves the code is healthy and says nothing about whether the backlog is still right. Every **6** `done` stories — or immediately on a drift event (fence widened, turn cap hit, ACs rewritten mid-run, new ADR, new package, out-of-review re-prioritization, `pnpm verify` changed) — run `.claude/skills/backlog-review/SKILL.md` with **fresh context** (a `backlog-reviewer` subagent) and log the verdict in `docs/v3/AUDIT.md` (`scripts/audit.sh review`). `blocked` stops the loop. This is the plan-side counterpart to §7's reviewer pass.
+**Review the plan, not just the code:** `pnpm verify` proves the code is healthy and says nothing about whether the backlog is still right. Every **6** `done` stories — or immediately on a drift event (fence widened, turn cap hit, ACs rewritten mid-run, new ADR, new package, out-of-review re-prioritization, `pnpm verify` changed) — run `.claude/skills/backlog-review/SKILL.md` with **fresh context** (a `backlog-reviewer` subagent) and log the verdict in the ledger (`scripts/audit.sh review`). The review runs beside the items in flight and edits only notes of items not in flight (`node scripts/backlog-vault/claims.ts review-edits --root <main checkout>` reports a violation; owner, 2026-11-20: *"Run them in parallel (Recommended)"*); `blocked` stops new dispatches, and in-flight items finish. This is the plan-side counterpart to §7's reviewer pass.
 
 ## 5 — Boundaries
 
@@ -75,7 +75,7 @@ Also enable **worktree isolation** for unattended runs so agents don’t mutate 
 
 ## 6 — Pilot (do this next, watched)
 
-Use the S1 prompt in BACKLOG. Watch stalls/overreach. Do not walk away on the first run.
+Use the S1 prompt in its note. Watch stalls/overreach. Do not walk away on the first run.
 
 ## 7 — Reviewer pass
 
@@ -109,7 +109,7 @@ Before any pull request opens or merges into `stage` (a story, a backlog change,
 
    A finding that needs an owner decision (an AC that can't be met as written, a scope or fence call) is asked. So is any call the arbiter judges too impactful to make itself (owner, 2026-11-08: "The arbiter can also use its judgement to decide the call is too impactful for it to decide and escalate to me"). The story is held the same way, and the question goes in the run summary with what each answer would lead to.
 4. Only then push the branch and open its pull request
-5. Wait for Claude's review (its "Claude review of <head sha>:" summary review, with that `commit_id`, appears; the workflow runs on `pull_request_target`, so its check is on the base branch's commit, not the head's), handle every comment (fix it through step 3's fix flow, steps 3.1–3.5, or reply why not, and resolve the thread), and only then turn on auto-merge; repeated feedback already handled doesn't hold it back (CLAUDE.md → "Claude's review is handled before a pull request merges"; owner, 2026-11-07, of Copilot's review, whose rule Claude's kept on 2026-11-11: "If Copilot continues giving the same feedback you can merge when you feel the real stuff is all handled"). A review run that fails is re-run, and a pull request never merges without a finished review of its newest commit; if it still can't run, stop and ask the owner. Whenever a fix (for Claude's review or a failed check) lands on a branch others are stacked on, it is merged forward, in story order, into each of them, each branch from the one it was cut from (`git merge --no-commit --no-ff`, never a rebase or force-push), keeping both stories' changes (ledger entries, `CHANGELOG.md`, the baseline, the earlier story's first) and regenerating `docs/v3/audit.jsonl`, `docs/v3/INDEX.md` and `docs/v3/BACKLOG.md` with `pnpm backlog:build`, with `pnpm verify` run and the files staged before the merge is committed. A pull request stacked on another branch targets that branch and never has auto-merge on (`CLAUDE.md` → "Each story lands as its own pull request"), so a finding or failed check on the branch below only makes it wait for the fix to be merged forward. A merged branch with no pull request yet is pushed only at its own turn; one with a pull request (into its branch below, so without auto-merge) is pushed, and waits for Claude's review of its new head before auto-merge goes back on, as `.claude/skills/run-backlog/SKILL.md` step 5.3 says. **Every real finding of Claude's review is a miss of step 2:** besides fixing it, add its class to the checklist below (or sharpen the item that should have caught it) in the same pull request, so the next review catches it
+5. Wait for Claude's review (its "Claude review of <head sha>:" summary review, with that `commit_id`, appears; the workflow runs on `pull_request_target`, so its check is on the base branch's commit, not the head's), handle every comment (fix it through step 3's fix flow, steps 3.1–3.5, or reply why not, and resolve the thread), and only then turn on auto-merge; repeated feedback already handled doesn't hold it back (CLAUDE.md → "Claude's review is handled before a pull request merges"; owner, 2026-11-07, of Copilot's review, whose rule Claude's kept on 2026-11-11: "If Copilot continues giving the same feedback you can merge when you feel the real stuff is all handled"). A review run that fails is re-run, and a pull request never merges without a finished review of its newest commit; if it still can't run, stop and ask the owner. Stacking is kept only for a true dependency built in the same run; independent items branch from `origin/stage`, each in its own worktree (`scripts/worktree-for.sh`), and merge through `.claude/skills/run-backlog/SKILL.md`'s merge train. Whenever a fix (for Claude's review or a failed check) lands on a branch others are stacked on, it is merged forward, in story order, into each of them, each branch from the one it was cut from (`git merge --no-commit --no-ff`, never a rebase or force-push), keeping both stories' changes (their notes and Current baseline rows; ledger and changelog entries are separate fragment files, so they never conflict) and rebuilding the git-ignored `docs/v3/audit.jsonl` and `docs/v3/INDEX.md` with `pnpm backlog:build`, with `pnpm verify` run and the files staged before the merge is committed. A pull request stacked on another branch targets that branch and never has auto-merge on (`CLAUDE.md` → "Each story lands as its own pull request"), so a finding or failed check on the branch below only makes it wait for the fix to be merged forward. A merged branch with no pull request yet is pushed only at its own turn; one with a pull request (into its branch below, so without auto-merge) is pushed, and waits for Claude's review of its new head before auto-merge goes back on, as `.claude/skills/run-backlog/SKILL.md` step 3 says for a true dependency. **Every real finding of Claude's review is a miss of step 2:** besides fixing it, add its class to the checklist below (or sharpen the item that should have caught it) in the same pull request, so the next review catches it. **Rules freeze while a run is in flight** (S156): owner-directed edits to the `RULE_FILES` (`scripts/claude-review/plan-review.py`), and checklist classes added from Claude's findings, are gathered into one rules pull request per wave boundary, never one per finding, so a rule change can't force a full re-review of every open pull request mid-wave; a finding's own fix still lands on its branch
 
 ### Review-class checklist
 
@@ -123,7 +123,7 @@ What the pull request review (GitHub Copilot's until 2026-11-11, Claude's since)
 6. **ADR conformance.** Routes under `/api/v1/` (ADR-015), with `:name` path parameters as in `packages/domain/src/api-routes.ts`; freshness from `cacheLifetimeMs` by last change, not by "past vs current" (ADR-021); version-guarded writes (ADR-022); one named implementation per calculation (ADR-025); personal data in the inventory (ADR-028).
 7. **Upstream request budget.** A read path or loop that fans out to MLB (per-day requests, `fetchGame`'s three extra calls) has a bounded request count and fits a Worker's subrequest limit; a range request beats one per item.
 8. **Import side effects.** Reusing a helper never imports a module whose top level runs a script (seeding, migrating, guards); move the helper to an import-safe module.
-9. **Generated files inside the fence.** Every file the work regenerates (`docs/v3/BACKLOG.md`, `docs/v3/INDEX.md`, `docs/v3/audit.jsonl`, `openapi/`, `web/src/api/generated/`, the types fidelity test) is inside the story's scope files, Goal condition and `/goal`.
+9. **Generated files inside the fence.** Every committed file the work regenerates (`openapi/`, `web/src/api/generated/`, the types fidelity test) is inside the story's scope files, Goal condition and `/goal`. Since S156 `docs/v3/INDEX.md` and `docs/v3/audit.jsonl` are built and git-ignored, and the generated `docs/v3/BACKLOG.md` is retired.
 10. **Structured lines read by parsers.** Text a script parses (a **Depends on** line makes every story ID on it a hard dependency) says only what it should; preferences go on **Prefer after**. A parser's end marker is structural (the next bullet or heading), not a sibling's name that can be renamed (a grader's awk that ended only at `- **Copilot`; caught by Claude's review of PR #26). Prose on a parsed line can change generated output: a `;` plus a negating word ("not") in a **Depends on** aside cut off the next story ID, and the regenerated `depends_on` silently lost S134 (caught by Claude's review of PR #50); diff the frontmatter after `pnpm backlog:build`.
 11. **Contradictions inside a story or a procedure.** No AC requires what another AC or note forbids (existing tests "pass unchanged" while the behavior they test is removed), and no claim a procedure makes ("nothing stacked needs rebasing", "runs once") is undone by a later step of the same procedure (a review fix landing on a branch others were cut from). Caught by Claude's review of PR #11. One value can't be two things in two ACs: S135 AC 1 made `buildInfo`'s `release` null for `dev` while AC 4 printed `dev (…)` from that same value; a derived value gets its own name (caught by Claude's review of PR #50). One edit can't be owned by two stories: a note that gives a story a line to rewrite first checks no other story's AC already rewrites it (S147's note and S141 AC 3 both claimed VISUAL-DESIGN's quiet-meta line, with different targets; caught by Claude's review of PR #69). A rule about a branch's neighbour in a stack (the branch below it, the one above) also says what it does to the branches further along, which inherit the same reason (a hold on the branch above one that changes the reviewer holds every branch above that, too).
 12. **Boundaries.** Inclusive ranges and their edge days, time zones (`mlbToday`), the earliest and latest allowed values, and each tested; and where two rules both reach the same edge value (a "dimmed, pickable" style and a "disabled" style on a day before the earliest date), the text says which wins. Caught by Claude's review of PR #23.
@@ -141,7 +141,7 @@ What the pull request review (GitHub Copilot's until 2026-11-11, Claude's since)
 24. **A list that claims a class covers every member of it.** A path list or pattern said to cover "what steers CI" (or any class) is built from where that class actually lives: every file of that name at any depth (`functions/package.json`, not only the root one), every script the workflows run, found by searching them rather than from memory. Otherwise the comment narrows to what the list holds. Caught by Claude's review of PR #59.
 25. **A limit is stated in the unit the tool counts.** A budget given to a model or a process (turns, retries, bytes) uses the same unit as the limit that enforces it: `--max-turns` counts responses, not tool calls, so a prompt that counts tool calls makes the reviewer under-read or run out. Caught by Claude's review of PR #59.
 26. **A rule's exceptions name every case another criterion makes on purpose.** A blanket rule ("an empty table gets the floor", "any missing field is an error") is checked against every acceptance criterion and fixture that produces that case deliberately (a `playoffs` table empty because no team has clinched); each is listed as an exception and has a test beside the rule's own. Caught by Claude's review of PR #65.
-27. **A rewritten frame or baseline line stays whole.** Every sentence of a rewritten **As of** line, review bullet or frame note still ends, and the line keeps its trailing navigation pointer ("Earlier **As of** lines, newest first: [Baseline history](#baseline-history)."); moving a line into the history moves its text, not the pointer. Caught by Claude's review of PR #94.
+27. **A rewritten frame or baseline line stays whole.** Every sentence of a rewritten review bullet, frame note or `**Baseline:**` line still ends, and a line keeps its trailing navigation pointer. Caught by Claude's review of PR #94. Since S156 the **As of** line is not hand-edited: each `done` story's note carries a one-paragraph `**Baseline:**` line (what it changed in the Current baseline), `pnpm backlog:build` builds the **As of** line from the newest completion's into `docs/v3/INDEX.md`, `06 Baseline history.md` is frozen, and a story still edits the Current baseline area rows its change reaches (rule 17).
 28. **An owner answer reaches FEATURES with the stories it changes.** When a change set applies an owner answer to stories and also edits the FEATURES row those stories cite, the answer lands in that row in the owner's words in the same change set (or a parity skip is logged), not left to the next parity review. Caught by Claude's review of PR #94.
 29. **A rule changed in CLAUDE.md changes its procedure too.** When a change set rewrites a `CLAUDE.md` rule that names a procedure (a skill under `.claude/skills/`, a script), the procedure's own wording is updated in the same change set, so an agent following either file does the same thing. Caught by Claude's review of PR #106.
 30. **An AC that removes a thing is checked against every AC that requires it.** When an acceptance criterion is rewritten to forbid or drop a file, field or step (no notes before v4.0.0), every other criterion of the story, and its deploy or CI step, is read for a check that still requires it on some input (a deploy that fails when the notes file is missing). Caught by Claude's review of PR #106.
@@ -153,13 +153,13 @@ What the pull request review (GitHub Copilot's until 2026-11-11, Claude's since)
 | Stage | When | How |
 |-------|------|-----|
 | Multi-story `/goal` | After S1 clean under watch | Cap turns; still require `pnpm verify` |
-| `/loop` while you’re around | After 2–3 stories boringly succeed | Pick next `todo` from BACKLOG |
+| `/loop` while you’re around | After 2–3 stories boringly succeed | Pick next `todo` from `docs/v3/INDEX.md` |
 | Scheduled / cloud unattended | After verify + backlog prove solid | Only with worktrees + deny rules |
 
 Do **not** jump to unattended loops while criteria still need human eyes.
 
 ## Habit
 
-Every failure mode the loop missed → new test or verify step + BACKLOG/skill update.
+Every failure mode the loop missed → new test or verify step + backlog note/skill update.
 
 **MLB API drift:** Periodically (and after recording new fixtures) run the capability scanner from backlog **S15** (`pnpm mlb:scan-drift` once it exists). Newly available paths should become typed fields and/or backlog stories — don’t let Stats API growth go unnoticed.

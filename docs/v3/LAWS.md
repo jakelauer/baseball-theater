@@ -4,7 +4,7 @@ What must stay true on every commit, whoever changes the code — and, beside it
 
 The owner, 2026-10-28: *"Any given story may perform work whose requirements are specific to that story's functionality, but another story might do work that directly conflicts. … We'd only want to check each test's outcomes within the scope of its work, not in the context of the entire system."* And: *"The first would be an "at commit time" check which essentially proves the work is complete as defined at the time it's built, and would only be expected to succeed against the codebase as of the time of its commit. The second would be more of a law, something that defines things which ought to be checked henceforth."*
 
-- **A grader is a commit-time proof.** `scripts/verify-<ID>.sh` proves its own story as the code stood when the story shipped. Its "this story didn't change X" checks look only at the story's own commits (`story_diff` / `story_changed_files` in `scripts/lib/checks.sh`), and `scripts/audit.sh story <ID> --reverify` runs it in a worktree at the story's shipping commit. A later story may legitimately do what an earlier grader forbade; the earlier grader stays true.
+- **A grader is a commit-time proof.** `scripts/verify-<ID>.sh` proves its own story as the code stood when the story shipped. Its "this story didn't change X" checks look only at the story's own commits (`story_diff` / `story_changed_files` in `scripts/lib/checks.sh`; a grader written after S156 uses `story_own_diff` / `story_own_changed_files`, which leave out what a merge from `stage` brought in), and `scripts/audit.sh story <ID> --reverify` runs it in a worktree at the story's shipping commit. A later story may legitimately do what an earlier grader forbade; the earlier grader stays true.
 - **A law runs in `pnpm verify` on every commit** and is listed below with where it is enforced. Adding, changing or removing a law is an owner decision, recorded like a budget change (ADR-026). A requirement a story wants to hold forever becomes a law here, not a check in its grader.
 - **Proposed** laws are requirements that should hold forever but that nothing in `pnpm verify` checks yet. Each names what would enforce it; a later story builds that, one law at a time.
 
@@ -22,9 +22,11 @@ The owner, 2026-10-28: *"Any given story may perform work whose requirements are
 | L6 | Every package meets its coverage floor | ADR-026, backlog rule 21 (S54) | `web/vitest.config.ts` | test:coverage | enforced |
 | L7 | No copy-paste above the threshold (`pnpm dup:check`) | ADR-025 (S53) | `.jscpd.json` | dup:check | enforced |
 | L8 | Every unfinished UI story carries a **Design match (rule 22)** criterion | ADR-026 as amended 2026-10-28, rule 22 (S81) | `scripts/backlog-vault/parse.ts` | lint | enforced |
-| L9 | The backlog notes and `BACKLOG.md` agree; a UI story waits for its ratified design; every story says what it is for | backlog rules 5, 18, 19 (V3) | `scripts/backlog-vault/cli.ts` | lint | enforced |
+| L9 | The backlog notes are consistent (one note per ID, in its status's folder, frontmatter agreeing with the body); a UI story waits for its ratified design; every story says what it is for | backlog rules 5, 18, 19 (V3); owner, 2026-11-20, asked whether the generated `BACKLOG.md` should be retired entirely: *"Retire it (Recommended)"* (S156) | `scripts/backlog-vault/cli.ts` | lint | enforced |
 | L10 | The generated web API types match the published spec | ADR-016 (S29) | `web/src/api/codegen.test.ts` | test:coverage | enforced |
 | L11 | No explicit `any` | CLAUDE.md "TypeScript strict" (S11, S13, S25, S29); typescript-eslint recommended | `eslint.config.js` | lint | enforced |
+| L12 | No workflow runs a story grader (nothing under `.github/` names `scripts/verify-`, `verify-S`, `verify-B`, `verify-V` or `scripts/lib/checks.sh`), so a grader can stay off the reviewer paths | owner, 2026-11-20, asked whether S156 may add two new laws: *"Add both (Recommended)"* (S156) | `scripts/backlog-vault/grader-ci-law.test.ts` | test:coverage | enforced |
+| L13 | Story records are merge-safe: every ledger fragment parses through `ledger.ts`, the frozen `AUDIT.md` never changes, and three story branches' records from one base merge in any order with no conflict | owner, 2026-11-20: *"Add both (Recommended)"* (S156) | `scripts/backlog-vault/merge-safety.test.ts` | test:coverage | enforced |
 | P1 | Only `web/src/layout/` reads the viewport (`useMediaQuery`, `hiddenFrom`, `visibleFrom`; `bt/no-viewport-outside-layout`) | ADR-014 rule 8 (S6, S40, S59, S60, S83); owner, 2026-10-28: *"Yes: P1, P3, P5, P8"* (S85) | `tools/eslint-rules/no-viewport-outside-layout.js` | lint | enforced |
 | P3 | The web app never calls MLB directly (`bt/no-mlb-in-web`) | ADR-002 (S16); owner, 2026-10-28 (S85) | `tools/eslint-rules/no-mlb-in-web.js` | lint | enforced |
 | P5 | No personal data (emails, exports) in logs (`bt/no-personal-data-in-logs`) | ADR-028 (S77, S80); owner, 2026-10-28 (S85) | `tools/eslint-rules/no-personal-data-in-logs.js` | lint | enforced |
@@ -410,12 +412,12 @@ Each declared check of each `scripts/verify-*.sh`, as **pinned** (proves its own
 | V1 | 8 | husky post-commit/post-merge/post-checkout run the generator and never fail git | pinned | — |
 | V1 | 9 | audit.sh honors BT_AUDIT_LEDGER / BT_AUDIT_BACKLOG with unchanged defaults | pinned | — |
 | V1 | 10 | scripts/backlog-vault vitest suite exits 0 | pinned | — |
-| V1 | 11 | BACKLOG.md and scripts/verify-S*.sh unchanged since stage start | pinned | — |
+| V1 | 11 | BACKLOG.md (since retired, S156) and scripts/verify-S*.sh unchanged since stage start | pinned | — |
 | V1 | 12 | eslint passes on scripts/backlog-vault | pinned | — |
-| V2 | 1 | --roundtrip --to assembles BACKLOG.md byte-identically (grader's own cmp) | pinned | — |
-| V2 | 2 | round trip is byte-identical for BACKLOG.md at the last 5 commits that touched it | pinned | — |
+| V2 | 1 | --roundtrip --to assembles BACKLOG.md (since retired, S156) byte-identically (grader's own cmp) | pinned | — |
+| V2 | 2 | round trip is byte-identical for BACKLOG.md (since retired, S156) at the last 5 commits that touched it | pinned | — |
 | V2 | 3 | status table and bodies come from the notes: tampered priority re-sorts the row, tampered body line appears | pinned | — |
-| V2 | 4 | any BACKLOG.md change since stage start is whitespace-only | pinned | — |
+| V2 | 4 | any BACKLOG.md (since retired, S156) change since stage start is whitespace-only | pinned | — |
 | V2 | 5 | grader-matched lines (status rows, story headings, Status lines) and verify-S*.sh unchanged | pinned | — |
 | V2 | 6 | vitest suite exits 0 and includes a round-trip test | pinned | — |
 | V2 | 7 | eslint passes on scripts/backlog-vault | pinned | — |
@@ -444,7 +446,7 @@ The owner, 2026-10-28: *"some of the graders were modified after the original co
 | S22 | `d0f1950`, `21e99c5` | kept: the pinned model, early; a bug fix | `d0f1950` pinned its `web/` fence check to S22's own commit; `21e99c5` fixed a false match in finding the reconstruction test, without changing what is proven. |
 | S23 | `e2c6feb`, `a854c28` | restored | `e2c6feb` (S22's commit) loosened checks 3 and 7 so S23's grader would accept S22's later work (two more JSON-node types; S23 no longer asserting it leaves `diffpatch-823823.json` to S22). Reverted: S23's grader again proves S23 at its shipping commit, where it passes 10/10. `a854c28` kept (reporting retrofit, as S11). |
 | S55 | `7e2818c` | kept: the pinned model, early | Scoped to S55's own amendment and manifest so later amendments in the same folder don't count — the pattern this story makes standard. |
-| V3 | `5036023`, `f74767c`, `9ea8507`, `d0f1950` | restored | `f74767c` loosened check 5 so later backlog growth (new stories, re-numbered priorities) wouldn't turn it red, and `9ea8507` widened check 7 to a renamed pre-commit step; both reverted, and check 5 now reads `BACKLOG.md` at V3's own commit (`story_tip`). Kept: `5036023` (a pipefail flake fix) and `d0f1950` (expects S22 to pass once S22 was pinned). V3 passes 10/10 at its shipping commit. |
+| V3 | `5036023`, `f74767c`, `9ea8507`, `d0f1950` | restored | `f74767c` loosened check 5 so later backlog growth (new stories, re-numbered priorities) wouldn't turn it red, and `9ea8507` widened check 7 to a renamed pre-commit step; both reverted, and check 5 now reads `BACKLOG.md` (since retired, S156) at V3's own commit (`story_tip`). Kept: `5036023` (a pipefail flake fix) and `d0f1950` (expects S22 to pass once S22 was pinned). V3 passes 10/10 at its shipping commit. |
 | S6, S27, S59, S60, S77, S80, S83, V1, V2 | this story (S84) | restored | Each compared a fixed base with whatever tree it ran in; now each compares the story's own commits (`story_diff` / `story_changed_files`). V3's check 4 likewise. |
 
 ## Re-verified at shipping commits
