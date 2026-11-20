@@ -27,7 +27,9 @@ Sonnet only, a low turn cap, and only new commits after the first review: "Ok I'
   the PR touches no `is_reviewer_path` file (those always re-review): no model call; the post step says so and carries the record forward.
 
 Model and turns: always Sonnet (same owner answer; an Opus review cost $1-2.20, a Sonnet one about
-$0.18). Docs only, up to 300 changed lines, gets 15 turns; anything else 20. --max-turns counts model
+$0.18). Docs only, up to 300 changed lines, gets 15 turns; anything else 20, and a review of more than
+2,000 changed lines 40 (owner, 2026-11-20, after S156's 18,827-line review hit 20 turns and posted nothing:
+"Can you give it a higher limit?"). --max-turns counts model
 responses, not tool calls, so the prompt tells the reviewer to batch independent reads into one response. Every turn re-sends the whole
 conversation, so turns are most of the cost. A run that hits its cap posts nothing and fails, so the
 prompt tells the reviewer its budget and to keep a turn for the answer.
@@ -109,9 +111,16 @@ def previous_record(reviews: list) -> dict | None:
     return None
 
 
+# Above this many changed lines a review gets 40 turns, not 20: at 20, S156's 18,827-line review ran out
+# before it could answer and posted nothing (owner, 2026-11-20: "Can you give it a higher limit?").
+BIG_REVIEW_LINES = 2000
+
+
 def tier(paths: list[str], lines: int) -> tuple[str, int, str]:
     if paths and all(is_docs(p) for p in paths) and lines <= 300:
         return SONNET, 15, f"docs only, {lines} changed lines"
+    if lines > BIG_REVIEW_LINES:
+        return SONNET, 40, f"{lines} changed lines (a big review)"
     return SONNET, 20, f"{lines} changed lines"
 
 
