@@ -7,11 +7,9 @@ import {
 	afterEach, beforeEach, describe, expect, it,
 } from "vitest";
 import { buildFromNotes } from "./assemble.ts";
+import { FIXTURE, notesFor } from "./fixture.ts";
 import {
-	AUDIT, FIXTURE, notesFor,
-} from "./fixture.ts";
-import {
-	importBacklog, misplacedNotes, readNotes, writeNotes,
+	misplacedNotes, readNotes, writeNotes,
 } from "./notes-dir.ts";
 
 let dir = "";
@@ -63,7 +61,7 @@ describe("misplacedNotes", () =>
 	{
 		write("bugs/doing/B74.md", bug("todo"));
 		const notes = await readNotes(dir);
-		expect(misplacedNotes(notes, buildFromNotes(notes, AUDIT).notes)).toEqual(["B74: bugs/doing/B74.md belongs in bugs/todo/B74.md (its status names the folder)"]);
+		expect(misplacedNotes(notes, buildFromNotes(notes).notes)).toEqual(["B74: bugs/doing/B74.md belongs in bugs/todo/B74.md (its status names the folder)"]);
 	});
 });
 
@@ -74,21 +72,8 @@ describe("writeNotes", () =>
 		write("bugs/doing/B74.md", bug("todo"));
 		write("bugs/doing/.DS_Store", "x");
 		const notes = await readNotes(dir);
-		await writeNotes(dir, notes, buildFromNotes(notes, AUDIT).notes, quiet);
+		await writeNotes(dir, notes, buildFromNotes(notes).notes, quiet);
 		expect(readFileSync(join(dir, "bugs/todo/B74.md"), "utf8")).toBe(bug("todo"));
 		expect(existsSync(join(dir, "bugs/doing"))).toBe(false);
-	});
-});
-
-describe("importBacklog", () =>
-{
-	it("regenerates the story notes from BACKLOG.md and keeps the bug notes, each in its status folder", async () =>
-	{
-		write("bugs/B74.md", bug("doing"));
-		write("BACKLOG.md", FIXTURE);
-		await importBacklog(dir, join(dir, "BACKLOG.md"), quiet);
-		expect(readFileSync(join(dir, "bugs/doing/B74.md"), "utf8")).toBe(bug("doing"));
-		expect(existsSync(join(dir, "bugs/B74.md"))).toBe(false);
-		expect(existsSync(join(dir, "stories/todo/S9.md"))).toBe(true);
 	});
 });

@@ -44,7 +44,8 @@ async function withServer(run: (base: string, ctx: ApiContext) => Promise<void>)
 		}),
 	};
 	const server = createServer(toNodeListener((request) => handleApiRequest(request, ctx)));
-	await new Promise<void>((resolve) => server.listen(0, resolve));
+	// On 127.0.0.1, where the requests go, so another process listening on this port elsewhere can't answer them (#116).
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 	const addr = server.address();
 	if (!addr || typeof addr === "string") throw new Error("no port");
 	try

@@ -5,7 +5,7 @@
  * what orders the work: `id` (`B` + the issue number), `issue`, `title`, `priority`, `status`.
  * The body is free text, usually the issue's link.
  *
- * Bugs are not stories: they never enter BACKLOG.md (graders, the Story status table and the
+ * Bugs are not stories: they never enter the assembled backlog document (graders, the Story status table and the
  * Next line read stories only) and the review-debt checks never count them (they read
  * `stories/` only; owner, same day: bugs "should not require design reviews, backlog reviews,
  * or intake reviews"). They appear beside the open stories, in one priority order, in

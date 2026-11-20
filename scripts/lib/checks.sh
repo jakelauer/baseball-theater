@@ -5,7 +5,8 @@
 # was actually checked. Each grader now declares its checks up front with
 # `check <id> "<description>"`, calls `bad <id> "<reason>"` on failure, and ends
 # with `report`, which prints one PASS/FAIL line per declared check. That output
-# is what `scripts/audit.sh` captures into `docs/v3/audit/<ID>.md`.
+# is what `scripts/audit.sh` captures into the story's ledger fragment,
+# `docs/v3/audit/<date>/<stamp>-<ID>-<kind>.md`.
 #
 # Sourced, not executed. The grader owns `cd` and its own exit.
 
@@ -101,4 +102,48 @@ story_changed_files() {
     story_diff "$id" "$base" --name-only -- "$@"
     [ -z "$(story_tip "$id")" ] && git -c core.quotepath=false ls-files --others --exclude-standard -- "$@"
   } | sort -u
+}
+
+# story_own_diff <ID> <base> [git diff options…] [-- <paths>…] — the diffs of the story's own
+# commits only (S156 AC 11): each first-parent, non-merge commit between <base> and the tip
+# (`git log --first-parent --no-merges`), oldest first, plus the working tree against HEAD while the
+# story is unshipped. A merge from `stage` is a merge commit, so the files it brings in are never the
+# story's; the merge carries only its conflict resolutions, which this leaves out too. Graders written
+# after S156 use it (and story_own_changed_files) instead of story_diff, whose two-tree diff counts
+# a merged-in story's files as this one's; story_diff stays as it was, since frozen graders' --reverify
+# sources today's checks.sh. Options go to `git log`, so a file two commits touch is listed once per
+# commit (`--numstat` gives a line each); assumes the branch's own commits are on its first-parent
+# line, so a worker's branch is folded in by fast-forward or cherry-pick, never by a merge commit.
+story_own_diff() {
+  local id="$1" base="$2" tip opts=() paths=()
+  shift 2
+  while [ $# -gt 0 ] && [ "$1" != "--" ]; do opts+=("$1"); shift; done
+  [ "${1:-}" = "--" ] && { shift; paths=("$@"); }
+  tip="$(story_tip "$id")"
+  # `git log` prints no patch unless asked, while `git diff` (story_diff) does: with no output-format option,
+  # ask for the patch, so a caller grepping the story's own diff sees its lines as it would story_diff's. Any
+  # option that chooses the output (a stat, names, raw, no patch, a patch with its context) counts as one.
+  local logopts=("${opts[@]+"${opts[@]}"}") o fmt=""
+  for o in ${opts[@]+"${opts[@]}"}; do
+    case "$o" in
+      --numstat | --name-only | --name-status | --stat | --stat=* | --shortstat | --dirstat | --dirstat=* | \
+        --summary | --compact-summary | --raw | -s | --no-patch | -p | -u | --patch | --patch-with-stat | \
+        --patch-with-raw | -U* | --unified | --unified=*) fmt=1 ;;
+    esac
+  done
+  [ -z "$fmt" ] && logopts+=(-p)
+  git -c core.quotepath=false log --first-parent --no-merges --reverse --format= ${logopts[@]+"${logopts[@]}"} "$base..${tip:-HEAD}" -- ${paths[@]+"${paths[@]}"}
+  [ -z "$tip" ] && git -c core.quotepath=false diff ${opts[@]+"${opts[@]}"} HEAD -- ${paths[@]+"${paths[@]}"}
+  return 0
+}
+
+# story_own_changed_files <ID> <base> <paths>… — files the story's own commits added or edited
+# under <paths> (story_own_diff), plus untracked files while it is unshipped, each named as itself.
+story_own_changed_files() {
+  local id="$1" base="$2"
+  shift 2
+  {
+    story_own_diff "$id" "$base" --name-only -- "$@"
+    [ -z "$(story_tip "$id")" ] && git -c core.quotepath=false ls-files --others --exclude-standard -- "$@"
+  } | grep -v '^$' | sort -u
 }

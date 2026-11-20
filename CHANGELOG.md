@@ -11,6 +11,8 @@ theme rather than version number. **Most of what's below is backend work you can
 yet** in the running app; it's the pipe that later screens will read from. Entries say so
 explicitly where that's the case. For what's still ahead, see
 [`docs/v3/BACKLOG.md`](docs/v3/BACKLOG.md).
+That file was retired by S156: the stories and bugs ahead are listed in
+the built `docs/v3/INDEX.md`, from the backlog notes in [`docs/v3/backlog/`](docs/v3/backlog/).
 
 ---
 

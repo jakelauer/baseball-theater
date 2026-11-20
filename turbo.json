@@ -37,6 +37,17 @@
 		}
 	},
 	// TMPDIR reaches the tasks without entering any hash: in strict mode, with it stripped, functions'
-	// tests timed out on the shared temp folder (see S152's note).
-	"globalPassThroughEnv": ["TMPDIR"]
+	// tests timed out on the shared temp folder (see S152's note). A worktree's ports and Compose project
+	// (`.env.worktree`, scripts/worktree-for.sh, S156) pass through the same way: stripped, the workerd
+	// tests' PGlite socket fell back to 54329 and two worktrees' `pnpm verify` collided (EADDRINUSE).
+	"globalPassThroughEnv": [
+		"TMPDIR",
+		"PGLITE_PORT",
+		"BT_API_PORT",
+		"BT_WEB_PORT",
+		"BT_PG_PORT",
+		"BT_WORKTREE_SLOT",
+		"COMPOSE_PROJECT_NAME",
+		"CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE"
+	]
 }

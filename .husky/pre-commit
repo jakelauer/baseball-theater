@@ -1,8 +1,8 @@
 pnpm exec lint-staged
 
-# docs/v3/BACKLOG.md is generated from the notes in docs/v3/backlog/ (docs/v3/VAULT-MIGRATION.md V3).
-# Builds from the staged notes + AUDIT.md (like pnpm backlog:build, but from the index), re-stages
-# the result, and refuses a hand edit of the generated file staged on its own.
+# Canonicalizes the staged notes in docs/v3/backlog/ (like pnpm backlog:build, but from the index:
+# derived frontmatter refreshed, each note in its status folder) and re-stages them; refuses notes
+# that don't build, and a commit adding back the retired docs/v3/BACKLOG.md (S156).
 node scripts/backlog-vault/cli.ts pre-commit --quiet
 
 # Refuses the commit unless the tests its staged files reach (the changed packages and their

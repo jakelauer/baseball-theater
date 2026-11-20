@@ -9,7 +9,7 @@
  */
 import { spawnSync } from "node:child_process";
 import {
-	copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync,
+	copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -87,14 +87,14 @@ function reviewed(files: Record<string, string> = {}): void
 	commit("base: a backlog review");
 }
 
-function debt(script = "review-debt.sh"): { status: number | null;
+function debt(script = "review-debt.sh", args: string[] = []): { status: number | null;
 	stdout: string }
 {
 	const env = {
 		...process.env,
 	};
 	delete env.BT_AUDIT_LEDGER;
-	const run = spawnSync("bash", [join(repo, "scripts", script)], {
+	const run = spawnSync("bash", [join(repo, "scripts", script), ...args], {
 		cwd: repo,
 		encoding: "utf8",
 		env,
@@ -425,4 +425,106 @@ describe.each(["review-debt.sh", "parity-debt.sh"])("%s: story notes moved betwe
 		expect(run.status, run.stdout).toBe(1);
 		expect(run.stdout).toMatch(/S7 (inserted outside a review|added)/);
 	}, TIMEOUT);
+});
+
+describe("review-debt.sh and parity-debt.sh: the done and in-flight counts (S156 AC 13)", () =>
+{
+	/** A ledger with `n` stories completed since the reviews `reviewed()` logs. */
+	function completed(n: number): void
+	{
+		const lines = Array.from({
+			length: n,
+		}, (_, i) => `## 2026-11-0${i + 2} — S${i + 1} completed\n`).join("");
+		write("docs/v3/AUDIT.md", `# Ledger\n\n${LEDGER_MARKER}\n\n## 2026-11-01 — backlog review (\`continue\`)\n\n## 2026-11-01 — doc parity review (\`continue\`)\n\n${lines}`);
+		commit(`${n} done`);
+	}
+
+	it("5 done and 2 in flight (--in-flight): reports both, and that a review is due at the next done", () =>
+	{
+		reviewed();
+		completed(5);
+		for (const script of ["review-debt.sh", "parity-debt.sh"])
+		{
+			const run = debt(script, ["--in-flight", "S201,S202"]);
+			expect(run.stdout, script).toMatch(/5 of 6 stories done since the last (backlog|doc parity) review; 2 in flight \(S201, S202\)\./);
+			expect(run.stdout, script).toContain("A review is due at the next `done`; it starts beside the in-flight items");
+		}
+	}, TIMEOUT);
+
+	it("reads the in-flight items from the run's .run/claims/<ID>.json files when no --in-flight is given", () =>
+	{
+		reviewed();
+		write(".gitignore", "node_modules\n.run/\n");
+		write(".run/claims/S41.json", "{}\n");
+		write(".run/claims/S300.json", "{}\n");
+		write(".run/claims/notes.txt", "not a claim\n");
+		commit("ignore .run");
+		const run = debt();
+		expect(run.status, run.stdout).toBe(0);
+		expect(run.stdout).toContain("0 of 6 stories done since the last backlog review; 2 in flight (S41, S300).");
+		// An explicit empty --in-flight says none are, whatever the claim files hold.
+		expect(debt("review-debt.sh", ["--in-flight", ""]).stdout).toContain("; 0 in flight.");
+	}, TIMEOUT);
+
+	it("6 done is due by count and still prints the counts", () =>
+	{
+		reviewed();
+		completed(6);
+		const run = debt("review-debt.sh", ["--in-flight", "S201"]);
+		expect(run.status, run.stdout).toBe(1);
+		expect(run.stdout).toContain("6 stories done since (S1, S2, S3, S4, S5, S6)");
+		expect(run.stdout).toContain("6 of 6 stories done since the last backlog review; 1 in flight (S201).");
+	}, TIMEOUT);
+
+	it("--in-flight with no value exits 2 at once instead of looping", () =>
+	{
+		reviewed();
+		for (const script of ["review-debt.sh", "parity-debt.sh"])
+		{
+			const run = spawnSync("bash", [join(repo, "scripts", script), "--in-flight"], {
+				cwd: repo,
+				encoding: "utf8",
+				timeout: 10_000,
+			});
+			expect(run.signal, script).toBeNull();
+			expect(run.status, script).toBe(2);
+			expect(run.stderr, script).toContain("usage:");
+		}
+	}, TIMEOUT);
+});
+
+describe("every pnpm command the rules name exists", () =>
+{
+	/** pnpm's own commands, which need no root script. */
+	const BUILT_INS = new Set(["install", "exec", "run", "dlx", "add", "remove", "update", "why", "list", "store"]);
+
+	it("names only root package.json scripts or pnpm built-ins (CLAUDE.md, the skills, the agents, non-grader scripts/*.sh)", () =>
+	{
+		const scripts = Object.keys((JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { scripts: Record<string, string> }).scripts);
+		expect(scripts).toContain("review:debt");
+		const dirFiles = (dir: string, keep: (name: string) => boolean, path: (name: string) => string) =>
+			readdirSync(join(ROOT, dir)).filter(keep).map((n) => join(dir, path(n)));
+		const files = [
+			"CLAUDE.md",
+			...dirFiles(".claude/skills", () => true, (n) => `${n}/SKILL.md`),
+			...dirFiles(".claude/agents", (n) => n.endsWith(".md"), (n) => n),
+			// Graders are frozen at their own commits, so they may name a command since renamed.
+			...dirFiles("scripts", (n) => n.endsWith(".sh") && !n.startsWith("verify-"), (n) => n),
+		].filter((f) => existsSync(join(ROOT, f)));
+		const missing: string[] = [];
+		for (const file of files)
+		{
+			const text = readFileSync(join(ROOT, file), "utf8");
+			// A backticked `pnpm <name>`, or `pnpm <name>` starting a line (a shell comment's included).
+			for (const m of [...text.matchAll(/`pnpm ([a-z][\w:.-]*)/g), ...text.matchAll(/^[\s#]*pnpm ([a-z][\w:.-]*)/gm)])
+			{
+				const name = m[1] ?? "";
+				if (!scripts.includes(name) && !BUILT_INS.has(name))
+				{
+					missing.push(`${file}: pnpm ${name}`);
+				}
+			}
+		}
+		expect([...new Set(missing)]).toEqual([]);
+	});
 });

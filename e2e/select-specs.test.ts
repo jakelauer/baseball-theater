@@ -85,7 +85,7 @@ describe("selectSpecs (S152 AC 5)", () =>
 
 	it.each([
 		[["CHANGELOG.md"]],
-		[["docs/v3/AUDIT.md", "docs/v3/audit.jsonl", "docs/v3/INDEX.md", "docs/v3/BACKLOG.md"]],
+		[["docs/v3/AUDIT.md", "docs/v3/audit.jsonl", "docs/v3/INDEX.md", "docs/v3/backlog/stories/todo/S1.md"]],
 		[[".claude/agents/x.md"]],
 	])("%j selects none", (changed) =>
 	{
@@ -94,7 +94,7 @@ describe("selectSpecs (S152 AC 5)", () =>
 
 	it("the generated docs plus a web/src/ file select exactly what web/src/ alone does", () =>
 	{
-		expect(pick(["docs/v3/AUDIT.md", "docs/v3/audit.jsonl", "docs/v3/INDEX.md", "docs/v3/BACKLOG.md", "web/src/main.tsx"])).toEqual(WEB.slice().sort());
+		expect(pick(["docs/v3/AUDIT.md", "docs/v3/audit.jsonl", "docs/v3/INDEX.md", "docs/v3/backlog/stories/todo/S1.md", "web/src/main.tsx"])).toEqual(WEB.slice().sort());
 	});
 
 	it("the real specs: a web/src/ change selects exactly those naming web", () =>

@@ -4,19 +4,19 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	afterEach, beforeEach, describe, expect, it,
 } from "vitest";
-import {
-	AUDIT, FIXTURE, notesFor,
-} from "./fixture.ts";
+import { FIXTURE, notesFor } from "./fixture.ts";
 import { buildFromNotes } from "./assemble.ts";
-import { docIndexFor } from "./doc-index.ts";
 import { readNotes } from "./notes-dir.ts";
-import { parseLedger, renderLedgerIndex } from "./ledger.ts";
 import {
-	AUDIT as AUDIT_PATH, AUDIT_INDEX, BACKLOG, DOC_INDEX, NOTES_DIR, runPrecommit,
+	BUILT_DOCS, FROZEN_AUDIT, NOTES_DIR, RETIRED_BACKLOG, runPrecommit,
 } from "./precommit.ts";
+
+/** The repository root (this file is scripts/backlog-vault/precommit.test.ts). */
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
 let repo = "";
 
@@ -61,16 +61,6 @@ beforeEach(() =>
 	{
 		write(`${NOTES_DIR}/${path}`, content);
 	}
-	write(BACKLOG, FIXTURE);
-	write(AUDIT_PATH, AUDIT);
-	write(AUDIT_INDEX, renderLedgerIndex(parseLedger(AUDIT)));
-	write(DOC_INDEX, docIndexFor(FIXTURE, notesFor(FIXTURE), [{
-		path: "BACKLOG.md",
-		text: FIXTURE,
-	}, {
-		path: "AUDIT.md",
-		text: AUDIT,
-	}]));
 	git("add", "-A");
 	git("commit", "-qm", "base");
 });
@@ -106,15 +96,11 @@ describe("runPrecommit", () =>
 		const result = runPrecommit(repo);
 
 		expect(result.ok).toBe(true);
-		// The new status moves S9's note into stories/doing/; the docs index lists each story's status, so it moves with S9 too.
-		expect(result.restaged).toEqual([S9, S9_DOING, BACKLOG, DOC_INDEX]);
+		// The new status moves S9's note into stories/doing/; nothing generated is staged (S156).
+		expect(result.restaged).toEqual([S9, S9_DOING]);
 		expect(git("ls-files", "--", S9)).toBe("");
 		expect(stagedFile(S9_DOING)).toContain("status: doing");
 		expect(stagedFile(S9_DOING)).not.toContain("UNSTAGED");
-		expect(stagedFile(DOC_INDEX)).toContain("[S9](backlog/stories/doing/S9.md) Align `pnpm dev` | `doing` |");
-		expect(stagedFile(DOC_INDEX)).not.toContain("UNSTAGED");
-		expect(stagedFile(BACKLOG)).toContain("| 1 | [S9](#s9--align-pnpm-dev-with-emulator-story-document--smoke) | Align `pnpm dev` | `doing` |");
-		expect(stagedFile(BACKLOG)).not.toContain("UNSTAGED");
 		expect(read(framePath)).toContain("UNSTAGED FRAME EDIT");
 		// The working copy carries an unstaged edit, so it moves with the note rather than staying behind as a second S9.
 		expect(existsSync(join(repo, S9))).toBe(false);
@@ -123,10 +109,8 @@ describe("runPrecommit", () =>
 		expect(read(S9_DOING)).toContain("status: doing");
 		expect(git("diff", "--name-status", "--", `${NOTES_DIR}/stories`).trim()).toBe(`M\t${S9_DOING}`);
 		// So the working tree still builds: one note per ID, each in its status folder.
-		const built = buildFromNotes(await workingNotes(), AUDIT);
+		const built = buildFromNotes(await workingNotes());
 		expect([...built.notes.keys()].filter((k) => k.startsWith("stories/")).sort()).toEqual(["stories/doing/S9.md", "stories/done/S1.md"]);
-		// BACKLOG.md on disk still matched the old staged copy, so it is updated too.
-		expect(read(BACKLOG)).toBe(stagedFile(BACKLOG));
 	});
 
 	it("moves a note whose staged status changed and removes the emptied folder", async () =>
@@ -140,7 +124,7 @@ describe("runPrecommit", () =>
 		expect(existsSync(join(repo, dirname(S9)))).toBe(false);
 		expect(read(S9_DOING)).toBe(stagedFile(S9_DOING));
 		expect(git("diff", "--name-status", "--", `${NOTES_DIR}/stories`).trim()).toBe("");
-		expect(buildFromNotes(await workingNotes(), AUDIT).notes.size).toBeGreaterThan(0);
+		expect(buildFromNotes(await workingNotes()).notes.size).toBeGreaterThan(0);
 	});
 
 	it("refuses two staged notes with one ID, saying how to stage a move", () =>
@@ -170,47 +154,75 @@ describe("runPrecommit", () =>
 		expect(read(S9)).toBe(stagedFile(S9));
 	});
 
-	it("rebuilds the review-debt line when only AUDIT.md is staged", () =>
+	it("refuses a commit that adds back the retired BACKLOG.md", () =>
 	{
-		write(AUDIT_PATH, `${AUDIT}## 2026-09-13 — S9 completed\n`);
-		git("add", AUDIT_PATH);
-
-		const result = runPrecommit(repo);
-
-		expect(result.restaged).toEqual([BACKLOG, AUDIT_INDEX]);
-		expect(stagedFile(BACKLOG)).toContain("2 of 6 stories `done` since the last backlog review (2026-09-10, verdict `amended`): S1, S9.");
-		expect(stagedFile(AUDIT_INDEX).trim().split("\n").at(-1)).toBe(JSON.stringify({
-			line: 6,
-			date: "2026-09-13",
-			kind: "completed",
-			story: "S9",
-			heading: "## 2026-09-13 — S9 completed",
-		}));
-	});
-
-	it("rebuilds a hand-edited audit.jsonl from AUDIT.md", () =>
-	{
-		write(AUDIT_INDEX, "{\"hand\":\"edit\"}\n");
-		git("add", AUDIT_INDEX);
-
-		const result = runPrecommit(repo);
-
-		expect(result.ok).toBe(true);
-		expect(result.restaged).toEqual([AUDIT_INDEX]);
-		expect(stagedFile(AUDIT_INDEX)).toBe(renderLedgerIndex(parseLedger(AUDIT)));
-		expect(read(AUDIT_INDEX)).toBe(renderLedgerIndex(parseLedger(AUDIT)));
-	});
-
-	it("refuses a hand edit of BACKLOG.md staged on its own", () =>
-	{
-		write(BACKLOG, `${FIXTURE}HAND EDIT\n`);
-		git("add", BACKLOG);
+		write(RETIRED_BACKLOG, FIXTURE);
+		git("add", RETIRED_BACKLOG);
 
 		const result = runPrecommit(repo);
 
 		expect(result.ok).toBe(false);
-		expect(result.message).toMatch(/is generated — edit the notes/);
-		expect(stagedFile(BACKLOG)).toContain("HAND EDIT");
+		expect(result.message).toMatch(/is retired \(S156\): edit the notes/);
+	});
+
+	it("refuses a commit that tracks a built doc again, INDEX.md or audit.jsonl (S156)", () =>
+	{
+		for (const path of BUILT_DOCS)
+		{
+			write(path, "built\n");
+			git("add", "-f", path);
+			const result = runPrecommit(repo);
+			expect(result.ok, path).toBe(false);
+			expect(result.message).toContain(`${path}: built by pnpm backlog:build and git-ignored`);
+			git("rm", "-q", "--cached", path);
+		}
+	});
+
+	it("refuses any staged content for the frozen AUDIT.md but its frozen bytes, and its deletion (law L13)", () =>
+	{
+		const frozen = readFileSync(join(REPO_ROOT, FROZEN_AUDIT));
+		mkdirSync(join(repo, "docs/v3"), {
+			recursive: true,
+		});
+		writeFileSync(join(repo, FROZEN_AUDIT), frozen);
+		git("add", FROZEN_AUDIT);
+		// Staging exactly the frozen bytes passes: a merge from stage that resolves AUDIT.md to them.
+		expect(runPrecommit(repo).ok).toBe(true);
+		git("commit", "-qm", "frozen ledger");
+
+		writeFileSync(join(repo, FROZEN_AUDIT), Buffer.concat([frozen, Buffer.from("\n## 2026-11-21 — S9 completed\n")]));
+		git("add", FROZEN_AUDIT);
+		expect(runPrecommit(repo)).toMatchObject({
+			ok: false,
+			message: expect.stringContaining("is frozen history (S156, law L13)"),
+		});
+
+		git("rm", "-q", "-f", FROZEN_AUDIT);
+		expect(runPrecommit(repo)).toMatchObject({
+			ok: false,
+			message: expect.stringContaining("may not be deleted or moved"),
+		});
+	});
+
+	it("the real repository tracks none of the built docs or the retired BACKLOG.md (works in a shallow clone)", () =>
+	{
+		const tracked = execFileSync("git", ["ls-files", "--", RETIRED_BACKLOG, ...BUILT_DOCS], {
+			cwd: REPO_ROOT,
+			encoding: "utf8",
+		});
+		expect(tracked).toBe("");
+	});
+
+	it("checks a staged FEATURES.md, which every **Source:** line is checked against, even with no note staged", () =>
+	{
+		write("docs/v3/FEATURES.md", "| **Standings** | x |\n");
+		write("docs/v3/INTENT.md", "# Intent\n");
+		git("add", "docs/v3/FEATURES.md", "docs/v3/INTENT.md");
+
+		const result = runPrecommit(repo);
+
+		expect(result.ok).toBe(false);
+		expect(result.message).toMatch(/S1 has no \*\*Source:\*\* line/);
 	});
 
 	it("refuses staged notes that do not build", () =>
@@ -224,16 +236,15 @@ describe("runPrecommit", () =>
 		expect(result.message).toMatch(/do not build: .*id 'S8' does not match/);
 	});
 
-	it("lists a newly staged bug note in the docs index", () =>
+	it("accepts a newly staged bug note in its status folder as it is", () =>
 	{
 		write(B74, bugNote("todo"));
 		git("add", B74);
 
-		const result = runPrecommit(repo);
-
-		expect(result.ok).toBe(true);
-		expect(result.restaged).toContain(DOC_INDEX);
-		expect(stagedFile(DOC_INDEX)).toContain("[B74](backlog/bugs/todo/B74.md)");
+		expect(runPrecommit(repo)).toEqual({
+			ok: true,
+			restaged: [],
+		});
 	});
 
 	it("moves a bug note whose staged status changed, carrying its unstaged edit to the new path", async () =>
@@ -254,7 +265,7 @@ describe("runPrecommit", () =>
 		expect(read(B74_DOING)).toBe(`${bugNote("doing")}UNSTAGED\n`);
 		expect(git("diff", "--name-status", "--", `${NOTES_DIR}/bugs`).trim()).toBe(`M\t${B74_DOING}`);
 		// So the working tree still builds: one note per ID, each in its status folder.
-		const built = buildFromNotes(await workingNotes(), AUDIT);
+		const built = buildFromNotes(await workingNotes());
 		expect([...built.notes.keys()].filter((k) => k.startsWith("bugs/"))).toEqual(["bugs/doing/B74.md"]);
 	});
 

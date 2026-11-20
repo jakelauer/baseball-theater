@@ -1,4 +1,5 @@
 # Baseball Theater v3 — verification ledger
+> **Frozen history (S156, 2026-11-20).** Nothing is appended here any more: every entry since is its own file under [`audit/`](./audit/) (`audit/<YYYY-MM-DD>/<stamp>-<ID>-<kind>.md`, written by `scripts/audit.sh`), and `scripts/backlog-vault/ledger.ts` reads this file, then those fragments in stamp order, as one ledger. Never edit this file.
 
 The append-only record of **what was actually proven, and when**. Two kinds of entry, interleaved in chronological order:
 

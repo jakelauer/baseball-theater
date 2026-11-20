@@ -1,8 +1,9 @@
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	describe, expect, it,
 } from "vitest";
+import { assembleBacklog } from "./assemble.ts";
+import { readNotes } from "./notes-dir.ts";
 import { parseBacklog } from "./parse.ts";
 import type { Story } from "./parse.ts";
 import {
@@ -65,9 +66,9 @@ describe("renderStory", () =>
 
 describe("renderNotes", () =>
 {
-	it("renders one note per story in the real backlog, plus frame notes", () =>
+	it("renders one note per story in the real backlog, plus frame notes", async () =>
 	{
-		const markdown = readFileSync(join(import.meta.dirname, "../../docs/v3/BACKLOG.md"), "utf8");
+		const markdown = assembleBacklog(await readNotes(join(import.meta.dirname, "../../docs/v3/backlog")));
 		const files = renderNotes(parseBacklog(markdown));
 		const headings = markdown.match(/^### S\d+ —/gm) ?? [];
 
