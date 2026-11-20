@@ -19844,3 +19844,101 @@ export const label = game.abbreviation + " @ ";  333ms
 **What changed, and the owner's answer**
 
 S139 AC 8 was tightened to answer the S139 pre-PR review (an answer whose season is not over yet is kept the floor in its postseason window and 48 hours before it, and one built while MLB could not give a calendar the floor). CLAUDE.md: a story's acceptance criteria rewritten to answer a review are always skipped, without asking (owner, 2026-11-07, asked whether an AC rewrite answering a review needed a backlog review: "This shouldn't even trigger a question. Always skip.").
+
+---
+
+## 2026-11-18 — S140 completed
+
+**World Series winner in standings**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T02:19:54Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `b34cce6` (tree dirty) |
+| Grader | `scripts/verify-S140.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: one exported function, worldSeriesChampion, decides the winner from the World Series schedule mapSeasonCalendar already reads: the team whose series wins in the last final, not-cancelled game exceed half its gamesInSeries; none while under way, with no Series, an empty schedule, or no gamesInSeries/series records (tests 'S140 AC 1': 2025 Dodgers, 2026 Brewers, 2027 empty none, 2026 cut to four games none, neither field none)
+check 2 PASS: GET /api/v1/standings answers a top-level champion { season, teamId, name, wonOn } on off-season days on or after wonOn, null otherwise, the same for every includePhases (route tests 'S140 AC 2': 2025-11-15 Dodgers 2025-11-01; 2026-11-10 and 2026-10-28 Brewers 2026-10-28; 2026-10-27, 2026-10-01, 2026-09-05 and a spring day null), with the day's rule one tested domain function (domain tests 'S140 AC 2')
+check 3 PASS: a standings request asks MLB nothing more than before (counting-client tests 'S140 AC 3'), and the season calendar still asks only the seasons and World Series URLs
+check 4 PASS: openapi/bt-api.v1.json's StandingsResponse carries a required, nullable champion with season, teamId, name and wonOn; the spec is up to date (pnpm api:spec), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it again
+check 5 PASS: no visual change: the story changes nothing under web/src/ outside web/src/api/
+check 6 PASS: backlog Status is done (story heading and Story status table)
+check 7 PASS: the story changed nothing outside its fence (functions/src/, functions/vitest.config.ts, packages/domain/, packages/ports/, openapi/, fixtures/, web/src/api/, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, scripts/verify-S140.sh)
+```
+
+**7/7 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+S140 notes (design reasoning, not checked by this grader beyond checks 1-3) —
+Reuse check (ADR-025): mapSeasonCalendar's walk of the World Series games (worldSeriesFinal) is now one helper,
+  seriesGamesOn (not-cancelled games with their day, in order), read by both worldSeriesFinal and the new
+  worldSeriesChampion, so the winner comes from the same payload with no new request (worldSeriesUrl unchanged).
+  SeasonCalendar (scoreboard-date.ts) gains an optional champion rather than a second calendar type; the day's rule,
+  standingsChampion, is built on standingsPhase's final pick (the off-season as S128 defines it), beside
+  standingsPhases in standings-phase.ts; getStandings reads it from the calendars standingsCalendars already returns.
+  The mlb-api schedule types already carried gamesInSeries, isWinner and leagueRecord; nothing new was modelled.
+  The counting client (standingsClient) and the S139 route-test helpers were reused for AC 2 and AC 3.
+Freshness: nothing changed. The calendar cache (calendarKeepMs) and the standings' edge cache (standingsFreshness) both
+  keep a season's answer only for the floor from regularSeasonEndDate through the day after lastGameDate
+  (seasonSettling's postseason window), which covers the day the Series is decided (wonOn is on or before lastGameDate), so the
+  winner appears within the floor; a past off-season date before wonOn is cached as settled with null, its correct
+  answer for that day.
+
+--- verify-S140 check results ---
+check 1 PASS: one exported function, worldSeriesChampion, decides the winner from the World Series schedule mapSeasonCalendar already reads: the team whose series wins in the last final, not-cancelled game exceed half its gamesInSeries; none while under way, with no Series, an empty schedule, or no gamesInSeries/series records (tests 'S140 AC 1': 2025 Dodgers, 2026 Brewers, 2027 empty none, 2026 cut to four games none, neither field none)
+check 2 PASS: GET /api/v1/standings answers a top-level champion { season, teamId, name, wonOn } on off-season days on or after wonOn, null otherwise, the same for every includePhases (route tests 'S140 AC 2': 2025-11-15 Dodgers 2025-11-01; 2026-11-10 and 2026-10-28 Brewers 2026-10-28; 2026-10-27, 2026-10-01, 2026-09-05 and a spring day null), with the day's rule one tested domain function (domain tests 'S140 AC 2')
+check 3 PASS: a standings request asks MLB nothing more than before (counting-client tests 'S140 AC 3'), and the season calendar still asks only the seasons and World Series URLs
+check 4 PASS: openapi/bt-api.v1.json's StandingsResponse carries a required, nullable champion with season, teamId, name and wonOn; the spec is up to date (pnpm api:spec), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it again
+check 5 PASS: no visual change: the story changes nothing under web/src/ outside web/src/api/
+check 6 PASS: backlog Status is done (story heading and Story status table)
+check 7 PASS: the story changed nothing outside its fence (functions/src/, functions/vitest.config.ts, packages/domain/, packages/ports/, openapi/, fixtures/, web/src/api/, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, scripts/verify-S140.sh)
+--- verify-S140: 7/7 checks passed ---
+verify-S140: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 134ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 9ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 21ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 22ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 24ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 24ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 578ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  304ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 390ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  372ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  18:21:31
+   Duration  1.11s (transform 103ms, setup 0ms, collect 2.83s, tests 1.20s, environment 1ms, prepare 313ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162824,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>

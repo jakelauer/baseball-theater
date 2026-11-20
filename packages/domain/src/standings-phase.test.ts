@@ -4,7 +4,7 @@ import {
 } from "vitest";
 import type { SeasonCalendar } from "./scoreboard-date.js";
 import {
-	blankRegularSeasonTable, playoffsTable, previousStandingsPhase, seasonSettling, standingsPhase, standingsPhases,
+	blankRegularSeasonTable, playoffsTable, previousStandingsPhase, seasonSettling, standingsChampion, standingsPhase, standingsPhases,
 } from "./standings-phase.js";
 import type { StandingsSnapshot, StandingsTeamRecord } from "./types.js";
 
@@ -523,5 +523,66 @@ describe("blankRegularSeasonTable (S139)", () =>
 		expect(blank.divisions[0]!.teams).toEqual([blankTeam(111, "Boston Red Sox", "BOS"), blankTeam(147, "New York Yankees", "NEW"), blankTeam(139, "Tampa Bay Rays", "TAM")]);
 		expect(blank.divisions[1]!.teams).toEqual([blankTeam(114, "Cleveland Guardians", "CLE")]);
 		expect(TABLE.divisions[0]!.teams[0]!.wins).toBe(90); // the source is left as it was
+	});
+});
+
+describe("standingsChampion (S140 AC 2)", () =>
+{
+	const brewers = {
+		teamId: 158,
+		name: "Milwaukee Brewers",
+		wonOn: "2026-10-28",
+	};
+	const dodgers = {
+		teamId: 119,
+		name: "Los Angeles Dodgers",
+		wonOn: "2025-11-01",
+	};
+	const won = [{
+		...S2025,
+		champion: dodgers,
+	}, {
+		...S2026,
+		champion: brewers,
+	}, S2027];
+
+	it("S140 AC 2: names the off-season's season's winner from the day it was won, through the day before the next spring", () =>
+	{
+		expect(standingsChampion("2026-10-28", won)).toEqual({
+			season: 2026,
+			...brewers,
+		});
+		expect(standingsChampion("2026-11-10", won)).toEqual({
+			season: 2026,
+			...brewers,
+		});
+		// January and February are last season's off-season, until the next spring's first game.
+		expect(standingsChampion("2027-02-18", won)?.season).toBe(2026);
+		expect(standingsChampion("2027-02-19", won)).toBeNull();
+		expect(standingsChampion("2025-11-15", won)).toEqual({
+			season: 2025,
+			...dodgers,
+		});
+	});
+
+	it("S140 AC 2: null on off-season days before the Series was won, in the season and in the spring", () =>
+	{
+		for (const day of ["2026-10-27", "2026-10-01", "2026-09-28", "2026-09-27", "2026-09-05", "2026-03-01", "2026-02-20"])
+		{
+			expect(standingsChampion(day, won)).toBeNull();
+		}
+	});
+
+	it("S140 AC 2: null for a season with no winner, and with no calendar", () =>
+	{
+		expect(standingsChampion("2026-11-10", ALL)).toBeNull();
+		expect(standingsChampion("2026-11-10", [])).toBeNull();
+		// A winner on a calendar with no regular-season dates: the day's pick isn't `final`, so no winner is named.
+		expect(standingsChampion("2026-11-10", [{
+			season: 2026,
+			springStartDate: "2026-02-20",
+			lastGameDate: "2026-10-28",
+			champion: brewers,
+		}])).toBeNull();
 	});
 });

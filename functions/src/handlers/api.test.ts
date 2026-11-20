@@ -242,31 +242,37 @@ describe("handleApiRequest", () =>
 
 /**
  * The fixture client with its standings answers changed by `change` (a table it returns, or an
- * error), counting every MLB call the standings make (S139).
+ * error), counting every MLB call the standings make (S139) in `calls`, and every `fetch*` call
+ * of any kind in `allFetches` (S140 AC 3), so a request through another port method shows up too.
  */
 function standingsClient(change?: (table: StandingsSnapshot) => StandingsSnapshot | Promise<never>): { mlb: MlbStatsClient;
-	calls: string[]; }
+	calls: string[];
+	allFetches: string[]; }
 {
 	const fixtures = new FixtureMlbStatsClient();
 	const calls: string[] = [];
+	const allFetches: string[] = [];
 	const mlb = new Proxy(fixtures, {
 		get(target, prop)
 		{
 			const value = Reflect.get(target, prop, target) as unknown;
 			if (typeof value !== "function") return value;
 			const name = String(prop);
-			if (!/^fetch(Standings|FinalStandings|SpringStandings|SeasonCalendar)$/.test(name)) return value.bind(target);
+			if (!name.startsWith("fetch")) return value.bind(target);
+			const standings = /^fetch(Standings|FinalStandings|SpringStandings|SeasonCalendar)$/.test(name);
 			return async (...args: unknown[]) =>
 			{
-				calls.push(name);
+				allFetches.push(name);
+				if (standings) calls.push(name);
 				const answer = await (value as (...a: unknown[]) => Promise<unknown>).apply(target, args);
-				return change && name !== "fetchSeasonCalendar" ? change(answer as StandingsSnapshot) : answer;
+				return change && standings && name !== "fetchSeasonCalendar" ? change(answer as StandingsSnapshot) : answer;
 			};
 		},
 	});
 	return {
 		mlb,
 		calls,
+		allFetches,
 	};
 }
 
@@ -535,5 +541,66 @@ describe("GET /api/v1/standings phases and includePhases (S139)", () =>
 		{
 			logged.mockRestore();
 		}
+	});
+});
+
+describe("GET /api/v1/standings champion (S140)", () =>
+{
+	const dodgers = {
+		season: 2025,
+		teamId: 119,
+		name: "Los Angeles Dodgers",
+		wonOn: "2025-11-01",
+	};
+	const brewers = {
+		season: 2026,
+		teamId: 158,
+		name: "Milwaukee Brewers",
+		wonOn: "2026-10-28",
+	};
+
+	it("S140 AC 2: the off-season's winner from the day it was won, null on every other day", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			expect((await standingsJson(base, "?date=2025-11-15")).champion).toEqual(dodgers);
+			expect((await standingsJson(base, "?date=2026-11-10")).champion).toEqual(brewers);
+			expect((await standingsJson(base, "?date=2026-10-28")).champion).toEqual(brewers);
+			for (const day of ["2026-10-27", "2026-10-01", "2026-09-05", "2026-03-01"])
+			{
+				const body = await standingsJson(base, `?date=${day}`);
+				expect(body).toHaveProperty("champion", null);
+			}
+			// Without a date it is MLB's today's answer: 2026-11-10 by the clock below.
+			expect((await standingsJson(base, "")).champion).toEqual(brewers);
+		}, () => new Date("2026-11-10T15:00:00Z"));
+	});
+
+	it("S140 AC 2: the same champion whatever includePhases names (S139 has shipped)", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			for (const query of ["", "&includePhases=spring", "&includePhases=regularSeason", "&includePhases=playoffs", "&includePhases=spring,regularSeason,playoffs"])
+			{
+				expect((await standingsJson(base, `?date=2026-11-10${query}`)).champion).toEqual(brewers);
+			}
+		}, () => new Date("2026-11-18T15:00:00Z"));
+	});
+
+	it("S140 AC 3: a standings request asks MLB nothing more than before: the two calendars and the tables S139 reads", async () =>
+	{
+		// `allFetches` counts every `fetch*` call, so a new request through any port method fails this, not only a standings one.
+		const { mlb, allFetches } = standingsClient();
+		await withServer(async (base) =>
+		{
+			// The server's setup ingests 2024-07-04 (a schedule and its games) before `run`; only the request's calls count.
+			allFetches.length = 0;
+			const body = await standingsJson(base, "?date=2026-11-10");
+			expect(body.champion).toEqual(brewers);
+			expect([...allFetches].sort()).toEqual(["fetchFinalStandings", "fetchSeasonCalendar", "fetchSeasonCalendar", "fetchSpringStandings"]);
+			allFetches.length = 0;
+			await standingsJson(base, "?date=2026-11-10&includePhases=playoffs");
+			expect([...allFetches].sort()).toEqual(["fetchFinalStandings", "fetchSeasonCalendar", "fetchSeasonCalendar"]);
+		}, () => new Date("2026-11-18T15:00:00Z"), undefined, mlb);
 	});
 });

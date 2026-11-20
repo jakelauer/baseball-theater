@@ -765,6 +765,14 @@ export interface components {
         SignInResponse: {
             token: string;
         };
+        /** @description A season's World Series winner as the standings answer names it (S140): the champion and its season. */
+        StandingsChampion: {
+            name: string;
+            season: number;
+            teamId: number;
+            /** @description The deciding game's day, `YYYY-MM-DD`. */
+            wonOn: string;
+        };
         StandingsDivision: {
             divisionId: number | null;
             leagueId: number | null;
@@ -788,8 +796,9 @@ export interface components {
             regularSeason: components["schemas"]["StandingsPhaseAnswer"] | null;
             spring: components["schemas"]["StandingsPhaseAnswer"] | null;
         };
-        /** @description The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the regular season's as of that day, the season's final table after it ends, spring training's in the spring (see `phase`). S128's fields stay at the top unchanged (ADR-015: additive only), so a client that doesn't know phases keeps its table; `phases` (S139) carries each season phase's dates and, when asked for, its table. */
+        /** @description The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the regular season's as of that day, the season's final table after it ends, spring training's in the spring (see `phase`). S128's fields stay at the top unchanged (ADR-015: additive only), so a client that doesn't know phases keeps its table; `phases` (S139) carries each season phase's dates and, when asked for, its table. `champion` (S140) names the World Series winner in the off-season, from the day it was won (`standingsChampion`), and is null otherwise; it doesn't depend on `includePhases`. */
         StandingsResponse: {
+            champion: components["schemas"]["StandingsChampion"] | null;
             /** @description The day the table stands as of; for a `final` table, its season's `regularSeasonEndDate`. */
             date: string;
             divisions: components["schemas"]["StandingsDivision"][];

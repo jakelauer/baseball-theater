@@ -20,6 +20,7 @@
 import type { DigestItem } from "./digest.js";
 import type { ScheduleDayCount } from "./schedule-month.js";
 import type { AccountSettings } from "./settings.js";
+import type { StandingsChampion } from "./standings-phase.js";
 import type {
 	Entitlements, GameSnapshot, Role, ScheduleDay, StandingsSnapshot, UserProfile,
 } from "./types.js";
@@ -53,10 +54,13 @@ export type StandingsPhases = {
  * regular season's as of that day, the season's final table after it ends, spring training's
  * in the spring (see `phase`). S128's fields stay at the top unchanged (ADR-015: additive only),
  * so a client that doesn't know phases keeps its table; `phases` (S139) carries each season
- * phase's dates and, when asked for, its table.
+ * phase's dates and, when asked for, its table. `champion` (S140) names the World Series winner
+ * in the off-season, from the day it was won (`standingsChampion`), and is null otherwise; it
+ * doesn't depend on `includePhases`.
  */
 export type StandingsResponse = StandingsSnapshot & {
 	phases: StandingsPhases;
+	champion: StandingsChampion | null;
 };
 
 /**

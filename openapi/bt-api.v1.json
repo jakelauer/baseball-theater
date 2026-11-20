@@ -1086,6 +1086,18 @@
 				"required": ["token"],
 				"type": "object"
 			},
+			"StandingsChampion": {
+				"additionalProperties": false,
+				"description": "A season's World Series winner as the standings answer names it (S140): the champion and its season.",
+				"properties": {
+					"name": { "type": "string" },
+					"season": { "type": "number" },
+					"teamId": { "type": "number" },
+					"wonOn": { "description": "The deciding game's day, `YYYY-MM-DD`.", "type": "string" }
+				},
+				"required": ["name", "season", "teamId", "wonOn"],
+				"type": "object"
+			},
 			"StandingsDivision": {
 				"additionalProperties": false,
 				"properties": {
@@ -1130,8 +1142,9 @@
 			},
 			"StandingsResponse": {
 				"additionalProperties": false,
-				"description": "The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the regular season's as of that day, the season's final table after it ends, spring training's in the spring (see `phase`). S128's fields stay at the top unchanged (ADR-015: additive only), so a client that doesn't know phases keeps its table; `phases` (S139) carries each season phase's dates and, when asked for, its table.",
+				"description": "The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the regular season's as of that day, the season's final table after it ends, spring training's in the spring (see `phase`). S128's fields stay at the top unchanged (ADR-015: additive only), so a client that doesn't know phases keeps its table; `phases` (S139) carries each season phase's dates and, when asked for, its table. `champion` (S140) names the World Series winner in the off-season, from the day it was won (`standingsChampion`), and is null otherwise; it doesn't depend on `includePhases`.",
 				"properties": {
+					"champion": { "anyOf": [{ "$ref": "#/components/schemas/StandingsChampion" }, { "type": "null" }] },
 					"date": {
 						"description": "The day the table stands as of; for a `final` table, its season's `regularSeasonEndDate`.",
 						"type": "string"
@@ -1149,7 +1162,7 @@
 					},
 					"windowMode": { "enum": ["active", "cache"], "type": "string" }
 				},
-				"required": ["date", "divisions", "fetchedAt", "phases", "windowMode"],
+				"required": ["champion", "date", "divisions", "fetchedAt", "phases", "windowMode"],
 				"type": "object"
 			},
 			"StandingsSnapshot": {
