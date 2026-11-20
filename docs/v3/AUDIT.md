@@ -19554,3 +19554,42 @@ Design intake review of shell-scoreboard A14 (site footer of links, S141, ratifi
 Q1. Should the site footer wait for the change log page, or ship first with S134 adding its own Changelog link? A14's ratified No dead links puts S134 on S142's Depends on, and S134 waits on S131 (approved release notes) and S133 (its design), both blocked; shipping first changes A14's ratified wording.
 Q2. Before the About/Privacy/Terms pages (S154) ship, what should a signed-out visitor's "Legal" column show? It would have no links: hide the column and its heading, show the heading alone, or build S154's pages before the footer turns on.
 Q3. At medium and desktop, should the footer's columns start 24px in, as the frames draw, or line up with the page content at 16px, as A14's Columns words say?
+
+---
+
+## 2026-11-19 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T00:18:14Z` |
+| HEAD at review | `351d191` (tree dirty) |
+| Trigger | FEATURES.md and VISUAL-DESIGN.md changed (S141 ratified shell-scoreboard A14, 7d81df1/c7731fc; A14 design intake 351d191) |
+| Stories `done` since last review | S141 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Scope: `pnpm parity:debt` named no story (only FEATURES.md and VISUAL-DESIGN.md changed since 1c11438), so check 1 covers the next 3 `todo` stories by priority (INDEX.md: S125 p74, S145 p75, S130 p77) plus the footer stories the changes touch (S141 done, S142, S148, S154, S134, S74).
+
+1. Citation honesty
+- S125 `Feature: Calendar date picker`: holds. Gap/Impact (a calendar from the scoreboard date, type a date, jump years, games per day) are what FEATURES row "Calendar date picker" describes, quoting the same 2026-11-07 owner words.
+- S145 `Feature: Video play links`: holds. FEATURES row "Video play links" ends with the card's play link moving onto its second line as a red "Play" in place of "Highlight", which is S145's Gap and Impact.
+- S130 `Feature: Standings`: holds. FEATURES row "Standings" names S129/S130 for the season-phase views and mobile full width; S130's Gap cites that row.
+- S141 / S142 / S154 `Feature: Site footer`: hold. The row describes the footer of links (S141 design, S142 build) and the privacy, terms and about pages built together (owner, 2026-11-19: "add one story for all of them together, not one each"; S154).
+- S148 `Feature: Live marker`: holds (the "Live Data · Active" strip at the top of the footer, owner 2026-11-19 quote in the row).
+- S134 `Feature: Update / change log UX`: holds (the row's Change log page at `/changelog`).
+- S74 `Feature: PWA / installability`: holds; unchanged by this drift (its Design line gained S147/S141, not its Source).
+- No pillar-cited story in scope; `grep -rln '^\*\*Source:\*\* *Open' docs/v3/backlog/stories` finds no `Open:` story.
+
+2. Doc reflects reality (edits, FEATURES.md only)
+- Update / change log UX row: said the change log is reached "from a link at the foot of the menu" only. Ratified A14 adds a footer link to `/changelog` reading "Changelog" (owner, 2026-11-19, asked "Do you ratify A14, the site footer as drawn in Figma now?": "Make Changelog one word, then ratify"; commit 7d81df1, A14 decision "Changelog"). Recorded the footer link and its one-word label, citing A14, and that A14 renames only the footer link (A14: "Only the footer link's words change; the page it opens and every other surface keep their names"), so the row's **Named "Change log"** stays true on this branch.
+- Site footer row: "which of these the list keeps is settled when it is ratified" was stale after ratification; now "the ratified list below settles which of these it keeps". "asked whether he ratified A14" now "asked whether to ratify A14" (the owner is never "he"/"she"; the commit records the question as "Do you ratify A14 …"). Its story list (S141, S142, S154) omitted S148, which builds `SiteFooter` with the Live strip that S142 grows (S142 AC 1), and S134, which S142 now depends on for the Changelog link's page (S142 **Depends on**; A14 No dead links); both added.
+- VISUAL-DESIGN's new footer paragraph, quiet-meta line and motion row (7d81df1) match FEATURES' Site footer and Live marker rows (no fetched age, no "baseball.theater", no offline line, Live strip first). FEATURES row 221 (offline footer has no "Offline · saved" line) agrees. No contradiction with INTENT or ARCHITECTURE found; no relic theme found.
+- Not recorded: the brief reports that S133's change log design was ratified today with the menu link also renamed "Changelog" ("changelog should be fixed in both places"). No commit or ledger entry on this branch or on story/S133-redraw (8408c0b) records that answer (`git grep "both places"`), and S133 is still `blocked` here, so FEATURES keeps "Change log" for the page and menu until S133's ratification lands with its own record.
+
+3. Coverage
+For the next backlog review:
+- When S133's ratification (menu link "Changelog", owner: "changelog should be fixed in both places") lands, FEATURES' Update / change log UX row's **Named "Change log"** sentence and the footer-only rename recorded here need updating to match, and S134/S135 ACs checked against the one-word label.
+- FEATURES' Video play links row still says Search's floating player's `Go to: Game → • At-Bat →` has a design story (S127) and "no story builds it yet": a feature no build story serves.
+- No feature was added by this review.
