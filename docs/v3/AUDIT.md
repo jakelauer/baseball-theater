@@ -19412,3 +19412,87 @@ Owner, 2026-11-19, asked through /pending whether the S141 and S154 backlog chan
 **What changed, and the owner's answer**
 
 Owner, 2026-11-19, asked through /pending whether the S141 and S154 backlog changes the owner directed (S141's acceptance criteria rewritten to the footer answers, the new S154) need a review or a skip: chose "Skip (Recommended)".
+
+---
+
+## 2026-11-19 — S141 completed
+
+**Design: site footer**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-20T00:03:33Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `7d81df1` (tree dirty) |
+| Grader | `scripts/verify-S141.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: shell-scoreboard A14 headed '(S141)' draws the footer at mobile, medium and desktop, on a game page, a short page, in the installed app, offline and signed out, and decides its columns, how they fold at mobile, its copyright line and that nothing else is in it, every kind of page it shows on, the installed app, a short page right after the content (A13), the 'Fetched' line gone, A13's Live strip at the top of the footer, 'baseball.theater' gone from every footer, the recap's 'Source: MLB', the offline footer line gone and the other surfaces' frames
+check 2 PASS: A14's ## Decisions holds the list of links (column, words, destination: a BT path, an https address or a mailto), with About, Privacy policy and Terms of use built by one story, one 'Support & Community' link to r/BaseballTheater and no Contact or Report a problem, the data link for a signed-in fan and a signed-out visitor, no 'how the site is made' link, and no dead links (each unbuilt BT path's story is on S142's Depends on, or that story's ACs add the link); FEATURES' Site footer row records the ratified list with the owner's words
+check 3 PASS: every open question in A14 is answered by the owner, quoted
+check 4 PASS: A14's ratification record names who ratified, the date and quotes the owner's go-ahead; its ## Manifest hashes exactly its own PNGs; VISUAL-DESIGN's old footer line is gone, the new one names A14, and the quiet-meta line no longer lists 'last fetched'
+check 5 PASS: backlog Status is done (story heading and Story status table)
+check 6 PASS: no sealed file changed on the four surfaces (RATIFIED.md and earlier amendments with their manifests)
+check 7 PASS: S141 changed no file outside its fence (plus creating scripts/verify-S141.sh)
+```
+
+**7/7 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S141 check results ---
+check 1 PASS: shell-scoreboard A14 headed '(S141)' draws the footer at mobile, medium and desktop, on a game page, a short page, in the installed app, offline and signed out, and decides its columns, how they fold at mobile, its copyright line and that nothing else is in it, every kind of page it shows on, the installed app, a short page right after the content (A13), the 'Fetched' line gone, A13's Live strip at the top of the footer, 'baseball.theater' gone from every footer, the recap's 'Source: MLB', the offline footer line gone and the other surfaces' frames
+check 2 PASS: A14's ## Decisions holds the list of links (column, words, destination: a BT path, an https address or a mailto), with About, Privacy policy and Terms of use built by one story, one 'Support & Community' link to r/BaseballTheater and no Contact or Report a problem, the data link for a signed-in fan and a signed-out visitor, no 'how the site is made' link, and no dead links (each unbuilt BT path's story is on S142's Depends on, or that story's ACs add the link); FEATURES' Site footer row records the ratified list with the owner's words
+check 3 PASS: every open question in A14 is answered by the owner, quoted
+check 4 PASS: A14's ratification record names who ratified, the date and quotes the owner's go-ahead; its ## Manifest hashes exactly its own PNGs; VISUAL-DESIGN's old footer line is gone, the new one names A14, and the quiet-meta line no longer lists 'last fetched'
+check 5 PASS: backlog Status is done (story heading and Story status table)
+check 6 PASS: no sealed file changed on the four surfaces (RATIFIED.md and earlier amendments with their manifests)
+check 7 PASS: S141 changed no file outside its fence (plus creating scripts/verify-S141.sh)
+--- verify-S141: 7/7 checks passed ---
+verify-S141: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 208ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 26ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 26ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 29ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 29ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 624ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  317ms
+   ✓ jscpd duplication gate (.jscpd.json) > fails when a 30-line block is copied into a second file  305ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 428ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  410ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  16:05:48
+   Duration  1.24s (transform 119ms, setup 0ms, collect 3.20s, tests 1.38s, environment 1ms, prepare 382ms)
+
+
+> baseball-theater@0.0.0 size /private/tmp/claude-501/-Users-jakelauer-Repos-baseball-theater/9a3a2193-33ad-4d6e-9301-8a978618993e/scratchpad/wt2
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162827,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>

@@ -14,6 +14,16 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## The approved footer and its links
+
+- **Before, nothing approved showed what the bottom of each page would look like or which links it would hold. Now
+  the owner has approved it: every page ends in a footer with two short columns of links, "Baseball Theater" (About,
+  Changelog, Support & Community, which opens the r/BaseballTheater community) and "Legal" (Privacy policy, Terms of
+  use, and Your data for signed-in fans), then "© 2026 Baseball Theater".** Nothing in the app changes yet: later
+  stories build the footer and the About, Privacy policy and Terms of use pages. Details: **S141** — shell-scoreboard
+  amendment A14 ratified with eight hashed frames; FEATURES' Site footer row and VISUAL-DESIGN's footer line record
+  the list; S142 builds it after S134's Changelog page, and S154 adds its three pages and their links.
+
 ## The approved look for "this page is live"
 
 - **Before, nothing approved showed what would replace the "Fetched 12s ago · baseball.theater" line at the foot of
