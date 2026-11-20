@@ -61,7 +61,7 @@ An option that ratifies (e.g. "Ratify") is an explicit go-ahead for the surface 
 
 ## 4. Act
 
-Do what each answered section's `On answer:` line says, following `CLAUDE.md` as usual: stories through a fresh `story-worker`, reviews through their fresh-context subagents, and an owner-directed backlog change asks whether it needs a review (add that question to the file rather than asking separately) unless `CLAUDE.md` says otherwise: no question when a review is already due by story count, or when the change answers a pull request's review (always skipped), or when it applies the owner's answers to a review's own questions (logged with `scripts/audit.sh answers`). Push what `CLAUDE.md` already directs (a finished or parked story or bug); ask before any other push, pull request or CI/deploy workflow change.
+Do what each answered section's `On answer:` line says, following `CLAUDE.md` as usual: stories through a fresh `story-worker`, reviews through their fresh-context subagents, and an owner-directed backlog change asks whether it needs a review (add that question to the file rather than asking separately) unless `CLAUDE.md` says otherwise: no question when a review is already due by story count, or when the change answers a pull request's review (always skipped), or when it applies the owner's answers to a review's own questions (logged with `scripts/audit.sh answers`). Push the commits the answers produced without asking (`CLAUDE.md`, "Push your own work without asking"); ask before any other pull request or CI/deploy workflow change.
 
 ## 5. Report
 
