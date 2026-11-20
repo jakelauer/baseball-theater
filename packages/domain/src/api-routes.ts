@@ -20,6 +20,7 @@
 import type { DigestItem } from "./digest.js";
 import type { ScheduleDayCount } from "./schedule-month.js";
 import type { AccountSettings } from "./settings.js";
+import type { StandingsChampion } from "./standings-phase.js";
 import type {
 	Entitlements, GameSnapshot, Role, ScheduleDay, StandingsSnapshot, UserProfile,
 } from "./types.js";
@@ -28,11 +29,39 @@ export type ScheduleDayResponse = ScheduleDay;
 export type GameSnapshotResponse = GameSnapshot;
 
 /**
+ * One season phase in a standings answer (S139): the first and last day the phase runs in the
+ * season the answer is for, and its table when the request included the phase (`includePhases`).
+ * The dates are always there, so a caller can choose which phases to ask for without their
+ * tables. `startDate` and `endDate` are null only on `regularSeason` when the day has no season
+ * calendar. `table` keeps S128's meaning of `phase`, `season` and `date` (for `playoffs`, those of
+ * the regular-season table its teams come from).
+ */
+export type StandingsPhaseAnswer = {
+	startDate: string | null;
+	endDate: string | null;
+	table?: StandingsSnapshot;
+};
+
+/** Every season phase's answer for the day, keyed by phase; null for a phase the day's season can't answer. */
+export type StandingsPhases = {
+	spring: StandingsPhaseAnswer | null;
+	regularSeason: StandingsPhaseAnswer | null;
+	playoffs: StandingsPhaseAnswer | null;
+};
+
+/**
  * The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the
  * regular season's as of that day, the season's final table after it ends, spring training's
- * in the spring (see `phase`).
+ * in the spring (see `phase`). S128's fields stay at the top unchanged (ADR-015: additive only),
+ * so a client that doesn't know phases keeps its table; `phases` (S139) carries each season
+ * phase's dates and, when asked for, its table. `champion` (S140) names the World Series winner
+ * in the off-season, from the day it was won (`standingsChampion`), and is null otherwise; it
+ * doesn't depend on `includePhases`.
  */
-export type StandingsResponse = StandingsSnapshot;
+export type StandingsResponse = StandingsSnapshot & {
+	phases: StandingsPhases;
+	champion: StandingsChampion | null;
+};
 
 /**
  * Games per day for one month (S124) and the teams playing each day (S136), from BT's stored

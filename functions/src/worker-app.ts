@@ -9,6 +9,7 @@
  * R2 and Email adapters (the launch checklist). Recording replays is a Node-only tool
  * (`src/scripts/`) and has no place in the Worker.
  */
+import { cachedSeasonCalendars, defaultCalendarStore } from "./adapters/cached-season-calendars.js";
 import type { MlbStatsClient } from "@bt/ports";
 import {
 	createDevAccountData, createDevAuth, StaticSecretsProvider,
@@ -122,11 +123,14 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 {
 	const schedules = new PostgresScheduleRepository(db);
 	const games = new PostgresGameRepository(db);
+	const mlb = createMlbClient(env, storeOverlay({
+		schedules,
+		games,
+	}));
 	const ingest: IngestDeps = {
-		mlb: createMlbClient(env, storeOverlay({
-			schedules,
-			games,
-		})),
+		mlb,
+		// The standings' calendars, kept for a day (S139 AC 8): the Workers Cache in the Worker, memory under Node.
+		seasonCalendars: cachedSeasonCalendars(mlb, defaultCalendarStore()),
 		schedules,
 		games,
 		projections: new PostgresGameProjectionRepository(db),

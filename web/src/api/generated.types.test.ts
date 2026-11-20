@@ -1,12 +1,12 @@
 import type {
 	ApiRequestFor, ApiRoute, ApiRouteWithBody, GameSnapshotResponse, MeDeleteResponse,
 	MeDownloadFileResponse, MeDownloadResponse, MeResponse, ScheduleDayResponse, ScheduleMonthResponse, SettingsResponse, DayDigestResponse, StandingsResponse,
-	ScoreboardDefaultDateResponse, SignInConfigResponse, SignInResponse,
+	ScoreboardDefaultDateResponse, SignInConfigResponse, SignInResponse, StandingsPhaseAnswer, StandingsPhases,
 } from "@bt/domain";
 import {
 	describe, expect, it,
 } from "vitest";
-import type { paths } from "./generated/bt-api.v1.js";
+import type { components, paths } from "./generated/bt-api.v1.js";
 
 /**
  * The spec-fidelity gate (S29, ADR-016). S27's `oasdiff` gate only compares the
@@ -57,6 +57,15 @@ const requestFidelity = {
 } satisfies Record<ApiRouteWithBody, true>;
 
 /** The other side of exhaustiveness: every path the spec publishes is one the table knows. */
+/**
+ * The types inside a response that callers name on their own (S139: the standings' season
+ * phases), each paired with its generated component the same way.
+ */
+const componentFidelity = {
+	StandingsPhases: true as MutuallyAssignable<components["schemas"]["StandingsPhases"], StandingsPhases>,
+	StandingsPhaseAnswer: true as MutuallyAssignable<components["schemas"]["StandingsPhaseAnswer"], StandingsPhaseAnswer>,
+} satisfies Record<string, true>;
+
 type SpecPathsCovered = MutuallyAssignable<keyof paths, "/api/v1/games/{gamePk}" | "/api/v1/schedule" | "/api/v1/schedule/month/{month}" | "/api/v1/digest" | "/api/v1/standings" | "/api/v1/scoreboard/default-date" | "/api/v1/me" | "/api/v1/me/download" | "/api/v1/me/download/{downloadId}" | "/api/v1/me/delete" | "/api/v1/me/settings" | "/api/v1/sign-in">;
 const specPathsCovered: SpecPathsCovered = true;
 
@@ -75,5 +84,6 @@ describe("generated response types — spec fidelity", () =>
 		expect(Object.keys(fidelity).sort()).toEqual(["GET /api/v1/digest", "GET /api/v1/games/:gamePk", "GET /api/v1/me", "GET /api/v1/me/download", "GET /api/v1/me/download/:downloadId", "GET /api/v1/me/settings", "GET /api/v1/schedule", "GET /api/v1/schedule/month/:month", "GET /api/v1/scoreboard/default-date", "GET /api/v1/sign-in", "GET /api/v1/standings", "POST /api/v1/me/delete", "POST /api/v1/me/download", "POST /api/v1/sign-in", "PUT /api/v1/me/settings"]);
 		expect(Object.keys(requestFidelity)).toEqual(["POST /api/v1/me/delete", "PUT /api/v1/me/settings", "POST /api/v1/sign-in"]);
 		expect([specPathsCovered, wrongPairing]).toEqual([true, true]);
+		expect(Object.keys(componentFidelity)).toEqual(["StandingsPhases", "StandingsPhaseAnswer"]);
 	});
 });

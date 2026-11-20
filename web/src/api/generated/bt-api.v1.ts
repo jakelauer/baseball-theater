@@ -200,7 +200,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The division standings for one day of the season — the regular season's table, the final table once it has ended, or spring training's (see `phase`): each division's teams in rank order, with wins, losses, winning percentage and games back (null for the leader). */
+        /** The division standings for one day of the season — the regular season's table, the final table once it has ended, or spring training's (see `phase`): each division's teams in rank order, with wins, losses, winning percentage and games back (null for the leader). `phases` (S139) carries every season phase of the day's season — spring training, the regular season and the playoffs (the teams that have clinched) — with the days it runs and, for the phases `includePhases` names, its table. Cached at the edge by how long the day asked has been over: up to 30 days once the answer's season (the one `phases` is for) is over; at most 48 hours while it is still being played or has no season calendar; briefly during its postseason, when MLB couldn't give a season calendar, or for today. */
         get: operations["getStandings"];
         put?: never;
         post?: never;
@@ -765,19 +765,52 @@ export interface components {
         SignInResponse: {
             token: string;
         };
+        /** @description A season's World Series winner as the standings answer names it (S140): the champion and its season. */
+        StandingsChampion: {
+            name: string;
+            season: number;
+            teamId: number;
+            /** @description The deciding game's day, `YYYY-MM-DD`. */
+            wonOn: string;
+        };
         StandingsDivision: {
             divisionId: number | null;
             leagueId: number | null;
             name: string | null;
             teams: components["schemas"]["StandingsTeamRecord"][];
         };
+        /** @description One season phase in a standings answer (S139): the first and last day the phase runs in the season the answer is for, and its table when the request included the phase (`includePhases`). The dates are always there, so a caller can choose which phases to ask for without their tables. `startDate` and `endDate` are null only on `regularSeason` when the day has no season calendar. `table` keeps S128's meaning of `phase`, `season` and `date` (for `playoffs`, those of the regular-season table its teams come from). */
+        StandingsPhaseAnswer: {
+            endDate: string | null;
+            startDate: string | null;
+            table?: components["schemas"]["StandingsSnapshot"];
+        };
         /**
          * @description Which table a standings payload is (S128): the day's regular-season standings, a season's final regular-season table (after the regular season until the next spring), or spring training's standings as of the day.
          * @enum {string}
          */
         StandingsPhaseName: "regularSeason" | "final" | "spring";
-        /** @description The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the regular season's as of that day, the season's final table after it ends, spring training's in the spring (see `phase`). */
-        StandingsResponse: components["schemas"]["StandingsSnapshot"];
+        /** @description Every season phase's answer for the day, keyed by phase; null for a phase the day's season can't answer. */
+        StandingsPhases: {
+            playoffs: components["schemas"]["StandingsPhaseAnswer"] | null;
+            regularSeason: components["schemas"]["StandingsPhaseAnswer"] | null;
+            spring: components["schemas"]["StandingsPhaseAnswer"] | null;
+        };
+        /** @description The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the regular season's as of that day, the season's final table after it ends, spring training's in the spring (see `phase`). S128's fields stay at the top unchanged (ADR-015: additive only), so a client that doesn't know phases keeps its table; `phases` (S139) carries each season phase's dates and, when asked for, its table. `champion` (S140) names the World Series winner in the off-season, from the day it was won (`standingsChampion`), and is null otherwise; it doesn't depend on `includePhases`. */
+        StandingsResponse: {
+            champion: components["schemas"]["StandingsChampion"] | null;
+            /** @description The day the table stands as of; for a `final` table, its season's `regularSeasonEndDate`. */
+            date: string;
+            divisions: components["schemas"]["StandingsDivision"][];
+            fetchedAt: string;
+            /** @description Which table this is (S128); absent on snapshots read before S128 (recorded fixtures). */
+            phase?: components["schemas"]["StandingsPhaseName"];
+            phases: components["schemas"]["StandingsPhases"];
+            /** @description MLB's season id of the table (S128): the year it was played. */
+            season?: number;
+            /** @enum {string} */
+            windowMode: "active" | "cache";
+        };
         StandingsSnapshot: {
             /** @description The day the table stands as of; for a `final` table, its season's `regularSeasonEndDate`. */
             date: string;
@@ -1468,8 +1501,10 @@ export interface operations {
     getStandings: {
         parameters: {
             query?: {
-                /** @description The day to show standings for, `YYYY-MM-DD`; MLB's today when absent. After the regular season the answer is that season's final table, dated its `regularSeasonEndDate`; during spring training it is spring training's table (see `phase`). */
+                /** @description The day to show standings for, a real date as `YYYY-MM-DD`; MLB's today when absent. After the regular season the answer is that season's final table, dated its `regularSeasonEndDate`; during spring training it is spring training's table (see `phase`). */
                 date?: string;
+                /** @description The season phases whose tables `phases` carries (S139), comma-separated (`spring,regularSeason`); the parameter repeated (`includePhases=spring&includePhases=regularSeason`), or both forms mixed, is accepted too. Names match exactly and a name given twice counts once. Absent: every phase's table. Every phase's dates are in `phases` either way, and the top-level fields are the same whatever it names. */
+                includePhases?: ("spring" | "regularSeason" | "playoffs")[];
             };
             header?: never;
             path?: never;
@@ -1486,7 +1521,7 @@ export interface operations {
                     "application/json": components["schemas"]["StandingsResponse"];
                 };
             };
-            /** @description `date` is not `YYYY-MM-DD`. */
+            /** @description `date_invalid`: `date` is not a real `YYYY-MM-DD` date (checked first). `include_phases_invalid`: an `includePhases` name isn't `spring`, `regularSeason` or `playoffs`, is empty, or has spaces around it; MLB is asked nothing. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1497,6 +1532,15 @@ export interface operations {
             };
             /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
             426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `standings_unavailable`: MLB couldn't answer a standings table; never cached, so trying again shortly may succeed. A season calendar MLB couldn't give is not this error: the answer is then the day's table without phase dates, cached only briefly. */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

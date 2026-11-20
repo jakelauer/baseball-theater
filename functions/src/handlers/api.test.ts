@@ -1,9 +1,10 @@
 import type {
-	DayDigestResponse, ScoreboardDefaultDateResponse, StandingsResponse,
+	DayDigestResponse, ScoreboardDefaultDateResponse, SeasonCalendar, StandingsResponse, StandingsSnapshot,
 } from "@bt/domain";
+import type { MlbStatsClient } from "@bt/ports";
 import { createServer } from "node:http";
 import {
-	describe, expect, it,
+	describe, expect, it, vi,
 } from "vitest";
 import { toNodeListener } from "../adapters/node/http.js";
 import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.js";
@@ -23,12 +24,11 @@ import { ingestScheduleDay } from "../services/ingest.js";
  * `prepare` may change what is stored before the server starts.
  */
 async function withServer(run: (base: string) => Promise<void>, now?: () => Date, prepare?: (repos: { schedules: InMemoryScheduleRepository;
-	games: InMemoryGameRepository; }) => Promise<void>): Promise<void>
+	games: InMemoryGameRepository; }) => Promise<void>, mlb: MlbStatsClient = new FixtureMlbStatsClient()): Promise<void>
 {
 	const schedules = new InMemoryScheduleRepository();
 	const games = new InMemoryGameRepository();
 	const projections = new InMemoryGameProjectionRepository();
-	const mlb = new FixtureMlbStatsClient();
 	const ingest = {
 		mlb,
 		schedules,
@@ -237,5 +237,370 @@ describe("handleApiRequest", () =>
 				});
 			}
 		});
+	});
+});
+
+/**
+ * The fixture client with its standings answers changed by `change` (a table it returns, or an
+ * error), counting every MLB call the standings make (S139) in `calls`, and every `fetch*` call
+ * of any kind in `allFetches` (S140 AC 3), so a request through another port method shows up too.
+ */
+function standingsClient(change?: (table: StandingsSnapshot) => StandingsSnapshot | Promise<never>): { mlb: MlbStatsClient;
+	calls: string[];
+	allFetches: string[]; }
+{
+	const fixtures = new FixtureMlbStatsClient();
+	const calls: string[] = [];
+	const allFetches: string[] = [];
+	const mlb = new Proxy(fixtures, {
+		get(target, prop)
+		{
+			const value = Reflect.get(target, prop, target) as unknown;
+			if (typeof value !== "function") return value;
+			const name = String(prop);
+			if (!name.startsWith("fetch")) return value.bind(target);
+			const standings = /^fetch(Standings|FinalStandings|SpringStandings|SeasonCalendar)$/.test(name);
+			return async (...args: unknown[]) =>
+			{
+				allFetches.push(name);
+				if (standings) calls.push(name);
+				const answer = await (value as (...a: unknown[]) => Promise<unknown>).apply(target, args);
+				return change && standings && name !== "fetchSeasonCalendar" ? change(answer as StandingsSnapshot) : answer;
+			};
+		},
+	});
+	return {
+		mlb,
+		calls,
+		allFetches,
+	};
+}
+
+/** The fixture client with `fetchSeasonCalendar` answered by `answer` instead of the recordings (S139 AC 8). */
+function calendarsAnswered(answer: (season: number, fixtures: FixtureMlbStatsClient) => Promise<SeasonCalendar | null>): MlbStatsClient
+{
+	const fixtures = new FixtureMlbStatsClient();
+	return new Proxy(fixtures, {
+		get(target, prop)
+		{
+			if (prop === "fetchSeasonCalendar") return async (season: number) => await answer(season, target);
+			const value = Reflect.get(target, prop, target) as unknown;
+			return typeof value === "function" ? value.bind(target) : value;
+		},
+	});
+}
+
+/** The fixture client with `fetchSeasonCalendar(season)` rejecting, as when MLB can't be reached for it (S139 AC 8). */
+function calendarDown(season: number): MlbStatsClient
+{
+	return calendarsAnswered(async (asked, fixtures) => asked === season ? Promise.reject(new Error("MLB down")) : await fixtures.fetchSeasonCalendar(asked));
+}
+
+/** A standings answer without the fixture client's per-call `fetchedAt`, so two requests compare. */
+function stable(body: unknown): unknown
+{
+	return JSON.parse(JSON.stringify(body, (key, value: unknown) => key === "fetchedAt" ? undefined : value));
+}
+
+async function standingsJson(base: string, query: string): Promise<StandingsResponse>
+{
+	const response = await fetch(`${base}/api/v1/standings${query}`);
+	expect(response.status).toBe(200);
+	return await response.json() as StandingsResponse;
+}
+
+describe("GET /api/v1/standings phases and includePhases (S139)", () =>
+{
+	const PHASES = ["spring", "regularSeason", "playoffs"] as const;
+	const withTables = (body: StandingsResponse) => PHASES.filter((name) => body.phases[name]?.table !== undefined);
+
+	it("standings no includePhases: every phase's dates and table on 2026-09-05, 2026-10-05, 2027-02-18 and 2027-02-19", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			for (const day of ["2026-09-05", "2026-10-05", "2027-02-18", "2027-02-19"])
+			{
+				const body = await standingsJson(base, `?date=${day}`);
+				expect(withTables(body)).toEqual(PHASES);
+				for (const name of PHASES)
+				{
+					expect(body.phases[name]!.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+					expect(body.phases[name]!.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+				}
+			}
+			// S128's fields at the top, unchanged beside `phases`, on each day.
+			expect(await standingsJson(base, "?date=2026-09-05")).toMatchObject({
+				phase: "regularSeason",
+				season: 2026,
+				date: "2026-09-05",
+			});
+			expect(await standingsJson(base, "?date=2027-02-18")).toMatchObject({
+				phase: "final",
+				season: 2026,
+				date: "2026-09-27",
+			});
+			const offSeason = await standingsJson(base, "?date=2026-10-05");
+			expect(offSeason).toMatchObject({
+				phase: "final",
+				season: 2026,
+				date: "2026-09-27",
+			});
+			const firstSpring = await standingsJson(base, "?date=2027-02-19");
+			expect(firstSpring).toMatchObject({
+				phase: "final",
+				season: 2026,
+				date: "2026-09-27",
+			});
+			expect(firstSpring.phases.spring!.table!.divisions).toEqual([]);
+			expect(firstSpring.phases.regularSeason!.table).toMatchObject({
+				phase: "regularSeason",
+				season: 2027,
+			});
+			expect(firstSpring.phases.playoffs!.table!.divisions).toEqual([]);
+			const dayBefore = await standingsJson(base, "?date=2027-02-18");
+			expect(PHASES.map((name) => dayBefore.phases[name]!.table!.season)).toEqual([2026, 2026, 2026]);
+		}, () => new Date("2027-03-01T15:00:00Z"));
+	});
+
+	it("standings each phase alone: only the named phase carries a table, every phase its dates", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			for (const name of PHASES)
+			{
+				const body = await standingsJson(base, `?date=2026-09-05&includePhases=${name}`);
+				expect(withTables(body)).toEqual([name]);
+				expect(PHASES.every((phase) => body.phases[phase]!.startDate !== null)).toBe(true);
+			}
+		});
+	});
+
+	it("standings comma, repeated and mixed forms give the same answer", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			const comma = stable(await standingsJson(base, "?date=2026-09-05&includePhases=spring,playoffs"));
+			const repeated = stable(await standingsJson(base, "?date=2026-09-05&includePhases=spring&includePhases=playoffs"));
+			const mixed = stable(await standingsJson(base, "?includePhases=playoffs&date=2026-09-05&includePhases=spring,playoffs"));
+			expect(repeated).toEqual(comma);
+			expect(mixed).toEqual(comma);
+			expect(withTables(comma as StandingsResponse)).toEqual(["spring", "playoffs"]);
+		});
+	});
+
+	it("standings named twice counts once", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			expect(stable(await standingsJson(base, "?date=2026-09-05&includePhases=regularSeason,regularSeason")))
+				.toEqual(stable(await standingsJson(base, "?date=2026-09-05&includePhases=regularSeason")));
+		});
+	});
+
+	it("standings invalid includePhases: 400 include_phases_invalid naming the phases, no-store, and MLB is asked nothing", async () =>
+	{
+		const { mlb, calls } = standingsClient();
+		await withServer(async (base) =>
+		{
+			for (const value of ["Spring", "final", "views", "", "spring,", "spring,%20playoffs"])
+			{
+				const response = await fetch(`${base}/api/v1/standings?date=2026-09-05&includePhases=${value}`);
+				expect(response.status, value).toBe(400);
+				expect(response.headers.get("cache-control")).toBe("no-store");
+				const body = await response.json() as { error: string;
+					hint: string; };
+				expect(body.error).toBe("include_phases_invalid");
+				expect(body.hint).toBe("comma-separated phase names: spring,regularSeason,playoffs");
+			}
+		}, undefined, undefined, mlb);
+		expect(calls).toEqual([]);
+	});
+
+	it("standings bad date before includePhases: date_invalid wins", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			const response = await fetch(`${base}/api/v1/standings?date=July&includePhases=views`);
+			expect(response.status).toBe(400);
+			expect(((await response.json()) as { error: string }).error).toBe("date_invalid");
+			// A date the calendar doesn't have is not a date either.
+			const impossible = await fetch(`${base}/api/v1/standings?date=2026-02-30`);
+			expect(impossible.status).toBe(400);
+			expect(impossible.headers.get("cache-control")).toBe("no-store");
+			expect(((await impossible.json()) as { error: string }).error).toBe("date_invalid");
+		});
+	});
+
+	it("standings top-level fields identical whatever includePhases names", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			const top = async (query: string) =>
+			{
+				const { phases: _phases, ...rest } = await standingsJson(base, `?date=2026-09-05${query}`);
+				return stable(rest);
+			};
+			const all = await top("");
+			for (const query of ["&includePhases=spring", "&includePhases=regularSeason", "&includePhases=playoffs", "&includePhases=spring,regularSeason,playoffs"])
+			{
+				expect(await top(query)).toEqual(all);
+			}
+		});
+	});
+
+	it("standings Cache-Control: ADR-021's ladder to a 30-day cap, counted from the end of the day asked", async () =>
+	{
+		const header = async (base: string, query: string) => (await fetch(`${base}/api/v1/standings${query}`)).headers.get("cache-control");
+		const sMaxAge = (seconds: number) => `public, s-maxage=${seconds}, stale-while-revalidate=300`;
+		const now = () => new Date("2026-11-13T15:00:00Z");
+		await withServer(async (base) =>
+		{
+			// 2026-09-05's playoffs table has no division (no team clinched yet), and still gets 30 days.
+			expect(await header(base, "?date=2026-09-05")).toBe(sMaxAge(30 * 24 * 3600));
+			expect(await header(base, "?date=2026-11-10")).toBe(sMaxAge(7 * 24 * 3600)); // unchanged since 11-11T05:00Z: 58 hours
+			expect(await header(base, "?date=2026-11-12")).toBe(sMaxAge(24 * 3600)); // unchanged 10 hours
+			for (const query of ["", "?date=2026-11-13", "?date=2026-11-14"]) expect(await header(base, query)).toBe(sMaxAge(300));
+			expect(await header(base, "?date=2026-09-05&includePhases=views")).toBe("no-store");
+		}, now);
+
+		// The HTTP adapter labels every table active; the header is still the edge's.
+		const active = standingsClient((table) => ({
+			...table,
+			windowMode: "active",
+		}));
+		await withServer(async (base) =>
+		{
+			expect(await header(base, "?date=2026-09-05")).toBe(sMaxAge(30 * 24 * 3600));
+		}, now, undefined, active.mlb);
+
+		// MLB answering an empty table for a past day is "nothing yet": the floor.
+		const empty = standingsClient((table) => ({
+			...table,
+			divisions: [],
+		}));
+		await withServer(async (base) =>
+		{
+			expect(await header(base, "?date=2026-09-05")).toBe(sMaxAge(300));
+		}, now, undefined, empty.mlb);
+
+		// An answer built while MLB couldn't give a calendar (either year's) is kept the floor, whatever its day.
+		for (const season of [2026, 2025])
+		{
+			await withServer(async (base) =>
+			{
+				expect(await header(base, "?date=2026-09-05"), String(season)).toBe(sMaxAge(300));
+			}, now, undefined, calendarDown(season));
+		}
+
+		// No calendar for the day's season (MLB answered, with none published): not known to be over, so ADR-021's
+		// 48-hour ladder, not 30 days and not the floor.
+		await withServer(async (base) =>
+		{
+			expect(await header(base, "?date=2026-09-05")).toBe(sMaxAge(48 * 3600));
+		}, now, undefined, calendarsAnswered(async () => null));
+
+		// A season not over yet: the floor in its postseason window (2026-09-27 through 2026-10-29), ADR-021's
+		// 48-hour ladder before it.
+		await withServer(async (base) =>
+		{
+			expect(await header(base, "?date=2026-09-05")).toBe(sMaxAge(300));
+		}, () => new Date("2026-10-10T15:00:00Z"));
+		await withServer(async (base) =>
+		{
+			expect(await header(base, "?date=2026-09-05")).toBe(sMaxAge(48 * 3600)); // unchanged 14 days, ADR-021's cap
+		}, () => new Date("2026-09-20T15:00:00Z"));
+
+		// The season judged is the answer's (the one its phases are for), not today's year: on 2026-10-10, inside 2026's
+		// window, 2026-01-15 is 2025's off-season and 2025-09-05 is 2025's, both settled. The fixtures have no 2025
+		// tables, so every table is filled with 2026-09-05's teams (an empty one would be "nothing yet").
+		const september5 = await new FixtureMlbStatsClient().fetchStandings("2026-09-05");
+		const filled = standingsClient((table) => table.divisions.some((d) => d.teams.length > 0) ? table : {
+			...table,
+			divisions: september5.divisions,
+		});
+		await withServer(async (base) =>
+		{
+			expect(await header(base, "?date=2026-01-15")).toBe(sMaxAge(30 * 24 * 3600));
+			expect(await header(base, "?date=2025-09-05")).toBe(sMaxAge(30 * 24 * 3600));
+		}, () => new Date("2026-10-10T15:00:00Z"), undefined, filled.mlb);
+
+		// An MLB error: 502, never cached, and logged by the error's name.
+		const failing = standingsClient(() => Promise.reject(new Error("MLB down")));
+		const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		try
+		{
+			await withServer(async (base) =>
+			{
+				const response = await fetch(`${base}/api/v1/standings?date=2026-09-05`);
+				expect(response.status).toBe(502);
+				expect(response.headers.get("cache-control")).toBe("no-store");
+			}, now, undefined, failing.mlb);
+			expect(logged).toHaveBeenCalledWith("standings failed:", "Error");
+		}
+		finally
+		{
+			logged.mockRestore();
+		}
+	});
+});
+
+describe("GET /api/v1/standings champion (S140)", () =>
+{
+	const dodgers = {
+		season: 2025,
+		teamId: 119,
+		name: "Los Angeles Dodgers",
+		wonOn: "2025-11-01",
+	};
+	const brewers = {
+		season: 2026,
+		teamId: 158,
+		name: "Milwaukee Brewers",
+		wonOn: "2026-10-28",
+	};
+
+	it("S140 AC 2: the off-season's winner from the day it was won, null on every other day", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			expect((await standingsJson(base, "?date=2025-11-15")).champion).toEqual(dodgers);
+			expect((await standingsJson(base, "?date=2026-11-10")).champion).toEqual(brewers);
+			expect((await standingsJson(base, "?date=2026-10-28")).champion).toEqual(brewers);
+			for (const day of ["2026-10-27", "2026-10-01", "2026-09-05", "2026-03-01"])
+			{
+				const body = await standingsJson(base, `?date=${day}`);
+				expect(body).toHaveProperty("champion", null);
+			}
+			// Without a date it is MLB's today's answer: 2026-11-10 by the clock below.
+			expect((await standingsJson(base, "")).champion).toEqual(brewers);
+		}, () => new Date("2026-11-10T15:00:00Z"));
+	});
+
+	it("S140 AC 2: the same champion whatever includePhases names (S139 has shipped)", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			for (const query of ["", "&includePhases=spring", "&includePhases=regularSeason", "&includePhases=playoffs", "&includePhases=spring,regularSeason,playoffs"])
+			{
+				expect((await standingsJson(base, `?date=2026-11-10${query}`)).champion).toEqual(brewers);
+			}
+		}, () => new Date("2026-11-18T15:00:00Z"));
+	});
+
+	it("S140 AC 3: a standings request asks MLB nothing more than before: the two calendars and the tables S139 reads", async () =>
+	{
+		// `allFetches` counts every `fetch*` call, so a new request through any port method fails this, not only a standings one.
+		const { mlb, allFetches } = standingsClient();
+		await withServer(async (base) =>
+		{
+			// The server's setup ingests 2024-07-04 (a schedule and its games) before `run`; only the request's calls count.
+			allFetches.length = 0;
+			const body = await standingsJson(base, "?date=2026-11-10");
+			expect(body.champion).toEqual(brewers);
+			expect([...allFetches].sort()).toEqual(["fetchFinalStandings", "fetchSeasonCalendar", "fetchSeasonCalendar", "fetchSpringStandings"]);
+			allFetches.length = 0;
+			await standingsJson(base, "?date=2026-11-10&includePhases=playoffs");
+			expect([...allFetches].sort()).toEqual(["fetchFinalStandings", "fetchSeasonCalendar", "fetchSeasonCalendar"]);
+		}, () => new Date("2026-11-18T15:00:00Z"), undefined, mlb);
 	});
 });
