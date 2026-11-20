@@ -352,12 +352,15 @@
 {"line":18766,"date":"2026-11-17","kind":"skip","review":"parity","heading":"## 2026-11-17 — doc parity review skipped"}
 {"line":18781,"date":"2026-11-17","kind":"skip","review":"backlog","heading":"## 2026-11-17 — backlog review skipped"}
 {"line":18796,"date":"2026-11-18","kind":"skip","review":"backlog","heading":"## 2026-11-18 — backlog review skipped"}
-{"line":18811,"date":"2026-11-18","kind":"completed","story":"S143","heading":"## 2026-11-18 — S143 completed"}
-{"line":18899,"date":"2026-11-18","kind":"completed","story":"S136","heading":"## 2026-11-18 — S136 completed"}
-{"line":18981,"date":"2026-11-19","kind":"completed","story":"S144","heading":"## 2026-11-19 — S144 completed"}
-{"line":19065,"date":"2026-11-19","kind":"review","review":"backlog","verdict":"amended","heading":"## 2026-11-19 — backlog review (`amended`)"}
-{"line":19114,"date":"2026-11-19","kind":"answers","review":"backlog","answers":"2026-11-19","heading":"## 2026-11-19 — backlog review answers (2026-11-19)"}
-{"line":19143,"date":"2026-11-19","kind":"review","review":"parity","verdict":"amended","heading":"## 2026-11-19 — doc parity review (`amended`)"}
-{"line":19190,"date":"2026-11-19","kind":"answers","review":"backlog","answers":"2026-11-19","heading":"## 2026-11-19 — backlog review answers (2026-11-19)"}
-{"line":19205,"date":"2026-11-19","kind":"skip","review":"backlog","heading":"## 2026-11-19 — backlog review skipped"}
-{"line":19220,"date":"2026-11-19","kind":"review","review":"parity","verdict":"continue","heading":"## 2026-11-19 — doc parity review (`continue`)"}
+{"line":18811,"date":"2026-11-18","kind":"skip","review":"parity","heading":"## 2026-11-18 — doc parity review skipped"}
+{"line":18826,"date":"2026-11-18","kind":"skip","review":"backlog","heading":"## 2026-11-18 — backlog review skipped"}
+{"line":18841,"date":"2026-11-18","kind":"skip","review":"backlog","heading":"## 2026-11-18 — backlog review skipped"}
+{"line":18856,"date":"2026-11-18","kind":"completed","story":"S143","heading":"## 2026-11-18 — S143 completed"}
+{"line":18944,"date":"2026-11-18","kind":"completed","story":"S136","heading":"## 2026-11-18 — S136 completed"}
+{"line":19026,"date":"2026-11-19","kind":"completed","story":"S144","heading":"## 2026-11-19 — S144 completed"}
+{"line":19110,"date":"2026-11-19","kind":"review","review":"backlog","verdict":"amended","heading":"## 2026-11-19 — backlog review (`amended`)"}
+{"line":19159,"date":"2026-11-19","kind":"answers","review":"backlog","answers":"2026-11-19","heading":"## 2026-11-19 — backlog review answers (2026-11-19)"}
+{"line":19188,"date":"2026-11-19","kind":"review","review":"parity","verdict":"amended","heading":"## 2026-11-19 — doc parity review (`amended`)"}
+{"line":19235,"date":"2026-11-19","kind":"answers","review":"backlog","answers":"2026-11-19","heading":"## 2026-11-19 — backlog review answers (2026-11-19)"}
+{"line":19250,"date":"2026-11-19","kind":"skip","review":"backlog","heading":"## 2026-11-19 — backlog review skipped"}
+{"line":19265,"date":"2026-11-19","kind":"review","review":"parity","verdict":"continue","heading":"## 2026-11-19 — doc parity review (`continue`)"}

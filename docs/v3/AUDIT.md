@@ -18798,6 +18798,51 @@ Owner, 2026-11-07, on acceptance criteria rewritten to answer a pull request's r
 | | |
 |---|---|
 | Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T06:29:19Z` |
+| HEAD at capture | `db58c1c` (tree clean) |
+| Change | `db58c1c` — Video player: Download removed for now; S151 saves it through the service worker |
+
+**What changed, and the owner's answer**
+
+S151 (service-worker video download) inserted in db58c1c at the owner's direction (owner, 2026-11-12: "Remove the download button for now, but make a story to do the service worker in the future. Include instructions to remind me to explore other ways a service worker could be used"). Asked whether it needed a backlog review: "Skip it".
+
+---
+
+## 2026-11-18 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T06:29:19Z` |
+| HEAD at capture | `db58c1c` (tree dirty) |
+| Change | `db58c1c` — Video player: Download removed for now; S151 saves it through the service worker |
+
+**What changed, and the owner's answer**
+
+S151 added and the FEATURES Videos row says Download waits for it, in db58c1c, at the owner's direction (owner, 2026-11-12: "Remove the download button for now, but make a story to do the service worker in the future"). Asked whether the story needed a review: "Skip it".
+
+---
+
+## 2026-11-18 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T06:46:27Z` |
+| HEAD at capture | `8759fc1` (tree clean) |
+| Change | `8759fc1` — S151 and Download removal: pre-PR review fixes |
+
+**What changed, and the owner's answer**
+
+S151 acceptance criteria rewritten in 8759fc1 to answer the pre-PR review and change reviews of this pull request (LOOP §7). Skipped under the owner's rule (owner, 2026-11-07, asked whether ACs rewritten to answer a pull request's review need a backlog review: "This shouldn't even trigger a question. Always skip.").
+
+---
+
+## 2026-11-18 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
 | Captured (UTC) | `2026-11-18T21:38:37Z` |
 | HEAD at capture | `4210072` (tree clean) |
 | Change | `4210072` — Backlog: fix pre-PR review findings on bugs in the backlog order |
