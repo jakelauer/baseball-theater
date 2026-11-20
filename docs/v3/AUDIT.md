@@ -19119,3 +19119,50 @@ Fresh-context review at `76b101a` (`pnpm parity:debt`, since `876b651`: `docs/v3
 **Questions for the owner (non-blocking):** (1) Accept the browser cache in place of the prebuilt browser image for S152 (item 6).
 
 **Verdict: `continue`.** Every citation checked holds; no `Open:` story; the one unconfirmed clause (item 6) agrees with the backlog and doesn't block B87 or S152.
+
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T01:31:39Z` |
+| HEAD at capture | `3f0a6d2` (tree clean) |
+| Applied in | `3f0a6d2` — Owner's answers: P11 reworded, browser cached, B87 first (S152); Room Menu keeps its pre-game links (S108) |
+
+**Answers and what was applied**
+
+Answers to the 2026-11-19 backlog review (owner, 2026-11-19, through /pending):
+1. Law P11: asked "May S152 reword law P11 so pull requests reuse unchanged packages' last passing results and split the functions tests, while every push to stage or main still runs all of pnpm verify fresh?", the owner chose "Reword P11 (Recommended)". S152 AC 8 now requires the reworded P11 row, quoted in its P11 wording note; LAWS.md changes when S152 is built.
+2. B87 order: asked "Should bug #87 (graders reject file names with non-ASCII characters …) be fixed before S152?", the owner chose "Before S152 (Recommended)". B87 keeps priority 70.9, ahead of S152 (71); the frame note marks both answered.
+
+---
+
+## 2026-11-19 — doc parity review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 doc parity review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T01:31:39Z` |
+| HEAD at capture | `3f0a6d2` (tree dirty) |
+| Applied in | `3f0a6d2` — Owner's answers: P11 reworded, browser cached, B87 first (S152); Room Menu keeps its pre-game links (S108) |
+
+**Answers and what was applied**
+
+Answer to the 2026-11-19 doc parity review (owner, 2026-11-19, through /pending): asked "Is caching the test browser between runs acceptable for S152's fast PR checks, instead of the prebuilt browser image you picked?", the owner chose "Cache the browser (Recommended)". Quoted in FEATURES' Fast PR checks row and S152's browser note.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T01:31:39Z` |
+| HEAD at capture | `3f0a6d2` (tree dirty) |
+| Change | `3f0a6d2` — Owner's answers: P11 reworded, browser cached, B87 first (S152); Room Menu keeps its pre-game links (S108) |
+
+**What changed, and the owner's answer**
+
+S108 AC 3 rewritten to answer a pre-PR review finding on S107's branch (A7 says a scheduled row draws no slot box "whichever occupant the reader chose", while A3 draws Room Menu on a scheduled row as pre-game "Videos · Plays · Box"). Asked "On a game that hasn't started, should the Room Menu slot keep its "Videos · Plays · Box" links, or show no box like the other slot choices?", the owner answered (2026-11-19): "Keep the links, but continue to hide recap". Skipped without asking, per the owner (2026-11-07, on acceptance criteria rewritten to answer a pull request's review: "This shouldn't even trigger a question. Always skip.").

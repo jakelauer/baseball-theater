@@ -359,3 +359,6 @@
 {"line":18944,"date":"2026-11-18","kind":"completed","story":"S136","heading":"## 2026-11-18 — S136 completed"}
 {"line":19026,"date":"2026-11-19","kind":"review","review":"backlog","verdict":"amended","heading":"## 2026-11-19 — backlog review (`amended`)"}
 {"line":19080,"date":"2026-11-19","kind":"review","review":"parity","verdict":"continue","heading":"## 2026-11-19 — doc parity review (`continue`)"}
+{"line":19125,"date":"2026-11-19","kind":"answers","review":"backlog","answers":"2026-11-19","heading":"## 2026-11-19 — backlog review answers (2026-11-19)"}
+{"line":19142,"date":"2026-11-19","kind":"answers","review":"parity","answers":"2026-11-19","heading":"## 2026-11-19 — doc parity review answers (2026-11-19)"}
+{"line":19157,"date":"2026-11-19","kind":"skip","review":"backlog","heading":"## 2026-11-19 — backlog review skipped"}
