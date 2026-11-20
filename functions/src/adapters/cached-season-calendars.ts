@@ -136,3 +136,5 @@ export function defaultCalendarStore(): CalendarStore
 	const cache = (globalThis as { caches?: { default?: WorkersCacheLike } }).caches?.default;
 	return cache ? new WorkersCacheCalendarStore(cache) : new MemoryCalendarStore();
 }
+
+// S152 AC 7 timing run: a throwaway change touching only functions/ (closed unmerged).
