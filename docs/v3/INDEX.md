@@ -503,6 +503,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 76 | [S140](backlog/stories/todo/S140.md) World Series winner in standings | `todo` | S128 | — |
 | 77 | [S130](backlog/stories/todo/S130.md) Standings views | `todo` | S128, S139, S140, S81 | S129 |
 | 77 | [S138](backlog/stories/todo/S138.md) Standings date picker | `todo` | S125, S130, S81 | S123, S129 |
+| 78 | [S131](backlog/stories/todo/S131.md) Approved release notes | `todo` | — | — |
 | 79 | [S132](backlog/stories/todo/S132.md) Release notes API | `todo` | S131 | — |
 | 81 | [S134](backlog/stories/todo/S134.md) Change log page | `todo` | S132, S81 | S133 |
 | 81 | [S147](backlog/stories/todo/S147.md) Design: Live marker | `todo` | — | — |
@@ -531,7 +532,6 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 119 | [S151](backlog/stories/todo/S151.md) Video download via service worker | `todo` | S73 | — |
 | 72 | [S123](backlog/stories/blocked/S123.md) Design: calendar date picker | `blocked` | — | — |
 | 76 | [S129](backlog/stories/blocked/S129.md) Design: Standings views | `blocked` | — | — |
-| 78 | [S131](backlog/stories/blocked/S131.md) Approved release notes | `blocked` | — | — |
 | 80 | [S133](backlog/stories/blocked/S133.md) Design: change log + update notices | `blocked` | — | — |
 | 103 | [S107](backlog/stories/blocked/S107.md) Design: win-probability slot | `blocked` | S67, S68 | — |
 
