@@ -63,3 +63,6 @@ docs/v3/backlog/Backlog.base
 .eslintcache
 # Vitest shard reports, merged by CI's functions-coverage job (S152)
 .vitest-reports/
+
+# A parallel /run-backlog's overseer state: in-flight claims and gathered findings (S156, scripts/backlog-vault/claims.ts)
+.run/
