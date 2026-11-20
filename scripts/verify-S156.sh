@@ -376,6 +376,11 @@ if [ -d "$R/.git" ]; then
 	sed -E 's/^status: todo$/status: done/' "$R/docs/v3/backlog/stories/todo/S9001.md" >"$R/docs/v3/backlog/stories/done/S9001.md"
 	rm "$R/docs/v3/backlog/stories/todo/S9001.md"
 	(cd "$R" && tgit add -A && tgit commit -q -m "fixture S9001 done")
+	# The debt counters' done count before S9001's completion fragment lands (other stories, S156 among
+	# them once it is done, may already count; the fragment must add exactly one).
+	count_of() { (cd "$R" && bash "scripts/$1.sh") 2>&1 | grep -oE '\b[0-9]+ of 6\b' | head -1 | cut -d' ' -f1; }
+	before_review_debt=$(count_of review-debt)
+	before_parity_debt=$(count_of parity-debt)
 	(cd "$R" && bash scripts/audit.sh story S9001 --no-verify) >"$TMP/audit-story.out" 2>&1 || bad 5 "audit.sh story S9001 --no-verify failed: $(tail -2 "$TMP/audit-story.out" | tr '\n' ' ')"
 	cmp -s "$TMP/AUDIT.before" "$R/docs/v3/AUDIT.md" || bad 5 "audit.sh story changed docs/v3/AUDIT.md"
 	frag=$(cd "$R" && git -c core.quotepath=false ls-files --others --exclude-standard -- docs/v3/audit/ 2>/dev/null | grep -E '^docs/v3/audit/[0-9]{4}-[0-9]{2}-[0-9]{2}/[^/]*-S9001-[a-z]+\.md$' || true)
@@ -385,10 +390,14 @@ if [ -d "$R/.git" ]; then
 	got=$(cd "$R" && source scripts/lib/reverify.sh && shipping_commit docs/v3/AUDIT.md S9001)
 	[ -n "$got" ] && [ "$(cd "$R" && git rev-parse "$got" 2>/dev/null)" = "$fragsha" ] || bad 5 "shipping_commit S9001 is '${got:-empty}', not the commit that added its fragment"
 	# The debt counters see the fragment's completion (AC 13 has them print the done count, due or
-	# not; in the clone it is 1, the fixture's).
+	# not): the count rises by exactly one when S9001's fragment lands. (Before shipping, rule 7: it
+	# first expected exactly 1, which stopped holding once S156 itself went done in the copied tree.)
 	for d in review-debt parity-debt; do
 		(cd "$R" && bash "scripts/$d.sh") >"$TMP/$d.out" 2>&1
-		grep -qE '\b1 of 6\b|\b1 (stor(y|ies) )?done\b|done[^0-9]{0,20}\b1\b' "$TMP/$d.out" || bad 5 "scripts/$d.sh doesn't count the fragment's completion: $(head -1 "$TMP/$d.out")"
+		after=$(grep -oE '\b[0-9]+ of 6\b' "$TMP/$d.out" | head -1 | cut -d' ' -f1)
+		before=$([ "$d" = review-debt ] && echo "$before_review_debt" || echo "$before_parity_debt")
+		[ -n "$before" ] && [ -n "$after" ] && [ "$after" -eq "$((before + 1))" ] ||
+			bad 5 "scripts/$d.sh doesn't count the fragment's completion (done count ${before:-?} before, ${after:-?} after): $(head -1 "$TMP/$d.out")"
 	done
 	# audit.jsonl, built, lists the frozen ledger's entries and the fragment's.
 	(cd "$R" && pnpm -s backlog:build) >"$TMP/build1.out" 2>&1 || bad 5 "pnpm backlog:build fails in the clone: $(tail -2 "$TMP/build1.out" | tr '\n' ' ')"
