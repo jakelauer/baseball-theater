@@ -19184,3 +19184,18 @@ Still open (not answered): whether Search should load each result's game when ML
 2. **Search's floating player's `More from game →` pill plus the inning pill**: designed by S127 (draft), and no build story. Same as item 1.
 3. **Frame note `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md:179`**: "Parity review due: S153 inserted; FEATURES' Video play links row still describes `Play · Top 6th →` and `At-Bat →`" is stale after this review. It is outside the parity write scope; the backlog review should clear it.
 4. Still open with the owner from the A6 intake (not a parity question): whether Search should load each result's game when MLB's search lacks the play id or inning (S153's notes, "Data source unverified").
+
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T00:19:37Z` |
+| HEAD at capture | `73343fa` (tree clean) |
+| Applied in | `73343fa` — S153, S127: no pill when MLB gives no play, or the clip no game (owner) |
+
+**Answers and what was applied**
+
+Owner, 2026-11-19, through /pending, answering the game-shell A6 design intake review's open questions. Asked whether, when MLB gives a search result no play id or inning, search should fetch that clip's game to find them or show no inning pill: chose "Show no pill (Recommended)". Applied: S153 AC 1, AC 4 and its data-source note say such a result shows no pill and the game is never fetched. Asked whether a clip that belongs to no game should show the "More from game →" pill: chose "No pill (Recommended)". Applied: S127 AC 1 says a clip with no game draws no "More from game →" pill.
