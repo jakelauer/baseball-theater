@@ -19696,6 +19696,21 @@ S131's AC 3 rewritten to answer Claude's review of PR #106 (round 3: a malformed
 
 ---
 
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T05:33:01Z` |
+| HEAD at capture | `6603b2d` (tree clean) |
+| Change | `6603b2d` — S135: the owner keeps the after-update pointer before v4.0.0 |
+
+**What changed, and the owner's answer**
+
+Owner-directed backlog change (owner, 2026-11-19, asked whether S135's after-update pointer should stay hidden before v4.0.0: chose "Show it anyway (Recommended)"). Confident skip, no question (owner, 2026-11-19: "I also want you to start skipping reviews when you're confident in the choice. Ask when you can see a good argument either way"): it records the owner's answer in one S135 note, keeps the behavior the note already described, and changes no acceptance criterion.
+
+---
+
 ## 2026-11-18 — S139 completed
 
 **Standings by season phase in the API**
