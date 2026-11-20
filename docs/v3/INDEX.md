@@ -49,8 +49,8 @@ Assembled, in this order and around the stories, into BACKLOG.md.
 - [04 Live data plane — ADR-002 ingest + client freshness](<backlog/frame/04 Live data plane — ADR-002 ingest + client freshness.md>) — 10 KB
   - `1–80` Live data plane — ADR-002 ingest + client freshness
     - `55–80` Later themes (not yet story-sliced)
-- [05 Gap map (doc → story)](<backlog/frame/05 Gap map (doc → story).md>) — 10 KB
-  - `1–47` Gap map (doc → story)
+- [05 Gap map (doc → story)](<backlog/frame/05 Gap map (doc → story).md>) — 11 KB
+  - `1–48` Gap map (doc → story)
 - [06 Baseline history](<backlog/frame/06 Baseline history.md>) — 54 KB
   - `1–140` Baseline history
 
@@ -378,19 +378,19 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `2167–2170` System Consistency
   - `2171–2174` Originality
   - `2175–2221` Small-Size Test
-- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 69 KB
+- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 70 KB
   - `12–19` North star
   - `20–34` Principles (product)
   - `35–46` Scope legend
   - `47–81` Carry / cut from v2 (working table)
     - `76–81` Dropped (summary)
-  - `82–261` New product themes
-    - `108–261` Theme detail
-  - `262–278` Build checklist (working — not a “feel” gate)
-  - `279–307` Patronage & access (product-level)
-    - `291–307` Tiers (carry from v2)
-  - `308–318` Success signals
-  - `319–326` Open product questions
+  - `82–262` New product themes
+    - `109–262` Theme detail
+  - `263–279` Build checklist (working — not a “feel” gate)
+  - `280–308` Patronage & access (product-level)
+    - `292–308` Tiers (carry from v2)
+  - `309–319` Success signals
+  - `320–327` Open product questions
 - [FIGMA-EXPLORATION.md — FIGMA-EXPLORATION.md](FIGMA-EXPLORATION.md) — 19 KB
   - `161–164` Verdict
   - `165–167` Fails
@@ -494,6 +494,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 
 | Priority | Story or bug | Status | Depends on | Design |
 |---|---|---|---|---|
+| 60 | [S156](backlog/stories/todo/S156.md) Parallel backlog work (Phases 0–3) | `todo` | — | — |
 | 72 | [S131](backlog/stories/todo/S131.md) Approved release notes | `todo` | — | — |
 | 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
 | 75 | [S145](backlog/stories/todo/S145.md) Inning pill play link on cards and player | `todo` | S97, S81 | S144 |
