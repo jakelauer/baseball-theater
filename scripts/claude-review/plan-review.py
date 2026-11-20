@@ -86,7 +86,7 @@ def is_sensitive(path: str) -> bool:
 def is_reviewer_path(path: str) -> bool:
     """CI and deploy machinery (the docstring's list): REVIEWER_PATHS, or REVIEWER_NAMES at any depth,
     except a grader (GRADER_RE), which no workflow runs (law L12)."""
-    if GRADER_RE.match(path):
+    if GRADER_RE.fullmatch(path):
         return False
     return path.startswith(REVIEWER_PATHS) or bool(REVIEWER_NAMES.search(path))
 

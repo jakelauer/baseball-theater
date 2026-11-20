@@ -6,12 +6,12 @@
  * the commit that added its fragment.
  */
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
 	mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
 import {
 	afterEach, describe, expect, it,
@@ -380,43 +380,23 @@ describe("ledgerBase (where the debt checks measure drift from)", () =>
 
 /** The repository root (this file is scripts/backlog-vault/ledger.test.ts). */
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
-/** S156's base commit: the ledger and its parser as they were before fragments (its grader's BASE). */
-const BASE_COMMIT = "8051c3b4";
-const show = (path: string) => execFileSync("git", ["show", `${BASE_COMMIT}:${path}`], {
-	cwd: REPO_ROOT,
-	encoding: "utf8",
-	maxBuffer: 64 * 1024 * 1024,
-});
 
 /**
- * S156 AC 5: fragments change nothing about the frozen AUDIT.md. The base commit's AUDIT.md,
- * read by the base commit's parser (`git show`) and by today's, gives exactly the same entries,
- * so every count and line number taken from it before S156 still holds.
+ * What the base commit's parser (S156's base, `8051c3b4`, before fragments) gives for the frozen
+ * AUDIT.md: the SHA-256 of `JSON.stringify(parseLedger(AUDIT.md))`, computed once with that parser
+ * on the frozen file. Pinned rather than read with `git show`, which fails in CI's depth-1 checkout.
+ * Today's parser must give exactly the same entries (S156 AC 5); S156's grader recomputes the pin
+ * with the base parser, from history, so it can't drift from it.
  */
-describe("parseLedger reads the base commit's AUDIT.md exactly as the base commit's parser does (S156)", () =>
-{
-	let dir = "";
-	afterEach(() => rmSync(dir, {
-		recursive: true,
-		force: true,
-	}));
+const BASE_PARSER_SHA256 = "8b53568ec81d4bcef6865845bbe0b03b99be8c3df82baa12330a3e483aa1eab4";
 
-	it("gives identical entries", () =>
+describe("parseLedger reads the frozen AUDIT.md exactly as the base commit's parser did (S156)", () =>
+{
+	it("gives the entries the base parser gave", () =>
 	{
-		dir = mkdtempSync(join(tmpdir(), "ledger-base-parser-"));
-		writeFileSync(join(dir, "ledger.ts"), show("scripts/backlog-vault/ledger.ts"));
-		writeFileSync(join(dir, "AUDIT.md"), show("docs/v3/AUDIT.md"));
-		// The base parser runs in its own Node process (it is a copy outside the test's module graph).
-		const base = execFileSync(process.execPath, ["--input-type=module", "-e", `
-			import { readFileSync } from "node:fs";
-			const { parseLedger } = await import(${JSON.stringify(pathToFileURL(join(dir, "ledger.ts")).href)});
-			process.stdout.write(JSON.stringify(parseLedger(readFileSync(${JSON.stringify(join(dir, "AUDIT.md"))}, "utf8"))));`], {
-			encoding: "utf8",
-			maxBuffer: 64 * 1024 * 1024,
-		});
-		const now = parseLedger(readFileSync(join(dir, "AUDIT.md"), "utf8"));
+		const now = parseLedger(readFileSync(join(REPO_ROOT, "docs/v3/AUDIT.md"), "utf8"));
 		expect(now.length).toBeGreaterThan(100);
-		expect(JSON.stringify(now)).toBe(base);
+		expect(createHash("sha256").update(JSON.stringify(now)).digest("hex")).toBe(BASE_PARSER_SHA256);
 	});
 });
 
@@ -523,6 +503,36 @@ describe("ledger fragments (S156)", () =>
 			"stray.md": "not in a date folder\n",
 		});
 		expect(() => fragmentFiles(join(dir, "audit"))).toThrow(LedgerParseError);
+	});
+
+	it("skip names starting with a dot at both levels (.DS_Store, an editor's swap file, audit.sh's .tmp)", () =>
+	{
+		const audit = world({
+			".DS_Store": "binary junk",
+			"2026-11-21/.DS_Store": "binary junk",
+			"2026-11-21/.20261121T000001Z-S2-completed.md.tmp": "",
+			"2026-11-21/20261121T000000Z-S1-completed.md": fragment("## 2026-11-21 — S1 completed"),
+		});
+		expect(fragmentFiles(join(dir, "audit"))).toEqual(["2026-11-21/20261121T000000Z-S1-completed.md"]);
+		expect(readLedger(audit).map((e) => e.story)).toEqual(["S1"]);
+	});
+
+	it("keep a story the review listed as in flight counted across that review (its completion stamped before it)", () =>
+	{
+		const audit = world({
+			"2026-11-21/20261121T100000Z-S9-completed.md": fragment("## 2026-11-21 — S9 completed"),
+			"2026-11-21/20261121T100001Z-S8-completed.md": fragment("## 2026-11-21 — S8 completed"),
+			"2026-11-21/20261121T110000Z-backlog-review.md": fragment("## 2026-11-21 — backlog review (`continue`)", "| In flight | S9 |"),
+			"2026-11-21/20261121T120000Z-S10-completed.md": fragment("## 2026-11-21 — S10 completed"),
+		});
+		const entries = readLedger(audit);
+		// S9 was being built beside the review, so the review didn't cover it; S8 it did.
+		expect(storiesDoneSince(entries, "backlog").stories).toEqual(["S9", "S10"]);
+		// A parity review's in-flight list doesn't touch the backlog count, nor the reverse.
+		expect(storiesDoneSince(entries, "parity").stories).toEqual(["S9", "S8", "S10"]);
+		// A later review that doesn't list S9 has reviewed it: the count resets as usual.
+		writeFileSync(join(dir, "audit", "2026-11-21", "20261121T130000Z-backlog-review.md"), fragment("## 2026-11-21 — backlog review (`continue`)", "| In flight | none |"));
+		expect(storiesDoneSince(readLedger(audit), "backlog").stories).toEqual([]);
 	});
 });
 

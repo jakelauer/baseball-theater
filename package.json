@@ -43,6 +43,7 @@
 		"backlog:check": "node scripts/backlog-vault/cli.ts check",
 		"changelog:build": "node scripts/backlog-vault/changelog.ts",
 		"parity:debt": "scripts/parity-debt.sh",
+		"review:debt": "scripts/review-debt.sh",
 		"goal": "scripts/goal.sh",
 		"prepare": "husky",
 		"size": "size-limit --json",
@@ -51,7 +52,7 @@
 		"e2e": "playwright test --config e2e/playwright.config.ts --workers=4 flows/ design/harness.spec.ts",
 		"e2e:design": "playwright test --config e2e/playwright.config.ts design/",
 		"lighthouse": "cd e2e && lhci autorun --config=../lighthouserc.json",
-		"lighthouse:serve": "concurrently -k -n api,web \"pnpm --filter @bt/functions exec tsx src/local-server.ts\" \"node scripts/wait-for-port.ts 8787 && pnpm --filter @bt/web exec vite preview --port 4173 --strictPort\""
+		"lighthouse:serve": "concurrently -k -n api,web \"pnpm --filter @bt/functions exec tsx src/local-server.ts\" \"node scripts/wait-for-port.ts ${BT_API_PORT:-8787} && pnpm --filter @bt/web exec vite preview --port 4173 --strictPort\""
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.22.0",

@@ -9,7 +9,7 @@
  */
 import { spawnSync } from "node:child_process";
 import {
-	copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync,
+	copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -475,4 +475,56 @@ describe("review-debt.sh and parity-debt.sh: the done and in-flight counts (S156
 		expect(run.stdout).toContain("6 stories done since (S1, S2, S3, S4, S5, S6)");
 		expect(run.stdout).toContain("6 of 6 stories done since the last backlog review; 1 in flight (S201).");
 	}, TIMEOUT);
+
+	it("--in-flight with no value exits 2 at once instead of looping", () =>
+	{
+		reviewed();
+		for (const script of ["review-debt.sh", "parity-debt.sh"])
+		{
+			const run = spawnSync("bash", [join(repo, "scripts", script), "--in-flight"], {
+				cwd: repo,
+				encoding: "utf8",
+				timeout: 10_000,
+			});
+			expect(run.signal, script).toBeNull();
+			expect(run.status, script).toBe(2);
+			expect(run.stderr, script).toContain("usage:");
+		}
+	}, TIMEOUT);
+});
+
+describe("every pnpm command the rules name exists", () =>
+{
+	/** pnpm's own commands, which need no root script. */
+	const BUILT_INS = new Set(["install", "exec", "run", "dlx", "add", "remove", "update", "why", "list", "store"]);
+
+	it("names only root package.json scripts or pnpm built-ins (CLAUDE.md, the skills, the agents, non-grader scripts/*.sh)", () =>
+	{
+		const scripts = Object.keys((JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { scripts: Record<string, string> }).scripts);
+		expect(scripts).toContain("review:debt");
+		const dirFiles = (dir: string, keep: (name: string) => boolean, path: (name: string) => string) =>
+			readdirSync(join(ROOT, dir)).filter(keep).map((n) => join(dir, path(n)));
+		const files = [
+			"CLAUDE.md",
+			...dirFiles(".claude/skills", () => true, (n) => `${n}/SKILL.md`),
+			...dirFiles(".claude/agents", (n) => n.endsWith(".md"), (n) => n),
+			// Graders are frozen at their own commits, so they may name a command since renamed.
+			...dirFiles("scripts", (n) => n.endsWith(".sh") && !n.startsWith("verify-"), (n) => n),
+		].filter((f) => existsSync(join(ROOT, f)));
+		const missing: string[] = [];
+		for (const file of files)
+		{
+			const text = readFileSync(join(ROOT, file), "utf8");
+			// A backticked `pnpm <name>`, or `pnpm <name>` starting a line (a shell comment's included).
+			for (const m of [...text.matchAll(/`pnpm ([a-z][\w:.-]*)/g), ...text.matchAll(/^[\s#]*pnpm ([a-z][\w:.-]*)/gm)])
+			{
+				const name = m[1] ?? "";
+				if (!scripts.includes(name) && !BUILT_INS.has(name))
+				{
+					missing.push(`${file}: pnpm ${name}`);
+				}
+			}
+		}
+		expect([...new Set(missing)]).toEqual([]);
+	});
 });

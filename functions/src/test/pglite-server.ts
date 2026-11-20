@@ -21,11 +21,11 @@ declare module "vitest"
 /**
  * Where the workerd tests' Postgres listens. `PGLITE_PORT` from the environment (a worktree's
  * `.env.worktree`, S156) moves it, so two checkouts' `pnpm verify` can run at once; without it,
- * 54329. Read where `vitest.workers.config.ts` imports this, which sees the environment; the pool
+ * or set but empty, 54329 (an empty value would otherwise be port 0). Read where `vitest.workers.config.ts` imports this, which sees the environment; the pool
  * runs this file's {@link setup} with an empty `process.env`, so the config passes the value on
  * (`provide.pglitePort`) and setup listens where the binding points.
  */
-export const PGLITE_PORT = Number(process.env.PGLITE_PORT ?? 54329);
+export const PGLITE_PORT = Number(process.env.PGLITE_PORT || 54329);
 
 /**
  * The server drops its socket's error listener once a connection is done, so a Worker

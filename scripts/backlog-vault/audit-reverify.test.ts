@@ -166,3 +166,81 @@ describe("audit.sh design mode (S84)", () =>
 		expect(reviewDebtLine(parseLedger(ledger.replace(/^## \S+ — S900 completed$/m, "## x — note")))).toContain("0 of");
 	});
 });
+
+/** A fresh repository with audit.sh, its libraries and in-flight.ts, and an empty frozen ledger. */
+function plainRepo(): void
+{
+	git("init", "-q", "-b", "main");
+	for (const f of ["audit.sh", "lib/checks.sh", "lib/reverify.sh", "backlog-vault/design-reference.ts", "backlog-vault/in-flight.ts"]) copyFileSync(join(SCRIPTS, f), join(mkdirOf(`scripts/${f}`), f.split("/").pop()!));
+	write("docs/v3/AUDIT.md", `# Ledger\n\n${MARKER}\n`);
+	git("add", "-A");
+	git("commit", "-q", "-m", "base");
+}
+
+describe("audit.sh arguments and fragment writes (S156)", () =>
+{
+	const review = ["review", "--verdict", "continue", "--trigger", "manual", "--findings", "checked"];
+
+	it("--in-flight takes the shared item IDs, a shared fix's F1 included, and nothing looser", () =>
+	{
+		plainRepo();
+		const ok = audit([...review, "--in-flight", "S9,F1"]);
+		expect(ok.status, String(ok.stderr)).toBe(0);
+		expect(written()).toContain("| In flight | S9, F1 |");
+		for (const bad of ["X1", "s9", "S9, B2"])
+		{
+			expect(audit([...review, "--in-flight", bad]).status, bad).toBe(2);
+		}
+		// Empty says none are in flight.
+		expect(audit([...review, "--in-flight", ""]).status).toBe(0);
+	});
+
+	it("an option missing its value exits 2 at once instead of looping", () =>
+	{
+		plainRepo();
+		for (const args of [[...review, "--in-flight"], ["review", "--verdict"], ["skip", "backlog", "--commit"], ["story", "S1", "--commit"]])
+		{
+			const run = spawnSync("bash", [join(repo, "scripts/audit.sh"), ...args], {
+				cwd: repo,
+				encoding: "utf8",
+				timeout: 10_000,
+			});
+			expect(run.signal, args.join(" ")).toBeNull();
+			expect(run.status, args.join(" ")).toBe(2);
+		}
+	});
+
+	it("an entry interrupted while it is written leaves no fragment ledger.ts reads, only a dot file", () =>
+	{
+		plainRepo();
+		write("scripts/verify-S9001.sh", "#!/usr/bin/env bash\necho 'check 1 PASS: x'\nexit 0\n");
+		spawnSync("chmod", ["+x", join(repo, "scripts/verify-S9001.sh")]);
+		// `pnpm verify` passes at once; `tail`, which audit.sh runs inside the entry it is writing, kills it.
+		const bin = mkdtempSync(join(tmpdir(), "audit-kill-bin-"));
+		writeFileSync(join(bin, "pnpm"), "#!/bin/sh\nexit 0\n");
+		writeFileSync(join(bin, "tail"), "#!/bin/sh\nkill -9 $PPID\n");
+		spawnSync("chmod", ["+x", join(bin, "pnpm"), join(bin, "tail")]);
+		const run = spawnSync("bash", [join(repo, "scripts/audit.sh"), "story", "S9001"], {
+			cwd: repo,
+			encoding: "utf8",
+			timeout: 30_000,
+			env: {
+				...process.env,
+				PATH: `${bin}:${process.env["PATH"] ?? "/usr/bin:/bin"}`,
+				TMPDIR: bin,
+			},
+		});
+		rmSync(bin, {
+			recursive: true,
+			force: true,
+		});
+		expect(run.signal).toBe("SIGKILL");
+		const dir = join(repo, "docs/v3/audit");
+		expect(fragmentFiles(dir)).toEqual([]);
+		const day = spawnSync("find", [dir, "-type", "f"], {
+			encoding: "utf8",
+		}).stdout.trim().split("\n");
+		expect(day).toHaveLength(1);
+		expect(day[0]).toMatch(/\/\.\d{8}T\d{6}Z-S9001-completed\.md\.\d+\.tmp$/);
+	});
+});

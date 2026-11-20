@@ -17,6 +17,7 @@
  * the result.
  */
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
 	chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
@@ -26,7 +27,7 @@ import { fileURLToPath } from "node:url";
 import {
 	afterAll, beforeAll, describe, expect, it,
 } from "vitest";
-import { readLedger } from "./ledger.ts";
+import { FROZEN_AUDIT_SHA256, readLedger } from "./ledger.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const CLI = join(ROOT, "scripts/backlog-vault/cli.ts");
@@ -176,8 +177,9 @@ beforeAll(() =>
 		});
 		cpSync(join(ROOT, path), join(repo, path));
 	}
-	// The built files are git-ignored, as in the real repository (AC 8).
-	writeFileSync(join(repo, ".gitignore"), "docs/v3/INDEX.md\ndocs/v3/audit.jsonl\n");
+	// The built files are git-ignored by the real repository's own .gitignore (AC 8), copied rather than
+	// restated, so a .gitignore that stopped ignoring them would fail here.
+	cpSync(join(ROOT, ".gitignore"), join(repo, ".gitignore"));
 	git(["init", "-q", "-b", "stage"]);
 	git(["add", "-A"]);
 	git(["commit", "-q", "-m", "base"]);
@@ -195,6 +197,15 @@ afterAll(() =>
 	rmSync(tmp, {
 		recursive: true,
 		force: true,
+	});
+});
+
+describe("the frozen AUDIT.md never changes (law L13)", () =>
+{
+	it("holds exactly its pinned bytes", () =>
+	{
+		const bytes = readFileSync(join(ROOT, "docs/v3/AUDIT.md"));
+		expect(createHash("sha256").update(bytes).digest("hex")).toBe(FROZEN_AUDIT_SHA256);
 	});
 });
 

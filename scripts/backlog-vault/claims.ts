@@ -9,7 +9,8 @@
  *   .run/claims/<ID>.json   { "id", "files", "symbols", "docLines", "barrier", "mergeAfter", "claimedAt" }
  *
  * - `files`: repository-relative paths the item expects to touch; one ending in `/` is a directory
- *   and covers everything under it (a fence entry).
+ *   and covers everything under it (a fence entry). A path given without the `/` that is a directory on
+ *   disk is stored with it.
  * - `symbols`: the exported functions, components and hooks it will add, by name.
  * - `docLines`: the doc lines it rewrites, each `<path>: <the line's text or heading>`, compared with
  *   whitespace collapsed.
@@ -32,24 +33,35 @@
  *   node scripts/backlog-vault/claims.ts list                 in-flight IDs, barrier flag and merge order
  *   node scripts/backlog-vault/claims.ts release <ID>         drop the claim (merged or parked)
  *   node scripts/backlog-vault/claims.ts touched <ID> [--file <p>…]
- *       at commit time: files touched (stdin, one a line, when no --file) that the claim doesn't cover; exit 1 if any
+ *       at commit time: files touched (stdin, one a line, when no --file) that the claim doesn't cover, and, for
+ *       a claim that isn't a barrier, any touched barrier path (one made after the claim, or covered only by a
+ *       directory entry); exit 1 if any
  *   node scripts/backlog-vault/claims.ts review-edits [--file <p>…]
  *       a review's changed files (stdin when no --file): exit 1 if any is an in-flight item's note
  *   node scripts/backlog-vault/claims.ts findings [--findings <file>]   merge findings by class and file
  *   node scripts/backlog-vault/claims.ts questions [--pending <file>]   owner questions, most-blocking first
+ *
+ * `claim` and `release` run under a lock, the directory `.run/claims.lock` holding the holder's pid, so two
+ * claims made at once can't both be admitted against an empty in-flight set. A command that can't take it
+ * within 10 s exits 2 naming the holder's pid and whether that process is alive; a dead holder's lock is
+ * the overseer's to remove (never broken automatically). Claims are written to a temp file and renamed,
+ * so a crash never leaves a half-written claim; one that is unreadable anyway stops every command with
+ * exit 2 and its name, rather than being skipped, since skipping it could admit a conflicting item. Every
+ * command that takes an ID checks it against in-flight.ts's `ITEM_ID` before touching a file.
  *
  * Everything but the CLI's file and process calls is a pure exported function (claims.test.ts).
  */
 
 import { spawnSync } from "node:child_process";
 import {
-	mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync,
+	existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync,
 } from "node:fs";
 import {
 	dirname, join, resolve,
 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { ITEM_ID } from "./in-flight.ts";
 
 /** One in-flight item's claim, as stored in `.run/claims/<ID>.json`. */
 export interface Claim
@@ -81,8 +93,6 @@ export interface ClaimReport
 /** The files almost every feature edits (S156 AC 12): sharing one fixes the merge order instead of blocking. */
 export const HOT_FILES = ["packages/domain/src/index.ts", "functions/src/handlers/api.ts", "web/src/routes.tsx", "openapi/", "web/src/api/generated/", "vitest.config.ts"];
 
-/** Item IDs: a letter prefix and digits (`S156`, `B87`, a shared fix's `F1`), safe as a file name. */
-const ID_RE = /^[A-Z]+[0-9]+$/;
 
 /** The rule and agent files that, besides the reviewer paths, make an item run alone (S156 AC 12). */
 const BARRIER_FILES = ["CLAUDE.md", "docs/v3/LOOP.md"];
@@ -186,14 +196,51 @@ export function docLineKey(line: string): string
 	return line.trim().replace(/\s+/g, " ");
 }
 
+/**
+ * The claim entries as stored: an entry naming a directory on disk without its trailing `/` gets one,
+ * so it covers what is under it ({@link pathsOverlap}).
+ */
+export function normalizeEntries(root: string, files: string[]): string[]
+{
+	return files.map((f) => !f.endsWith("/") && existsSync(join(root, f)) && statSync(join(root, f)).isDirectory() ? `${f}/` : f);
+}
+
+/** The files git tracks under a directory entry, repository-relative. */
+function trackedUnder(root: string, dir: string): string[]
+{
+	const run = spawnSync("git", ["-C", root, "ls-files", "-z", "--", dir], {
+		encoding: "utf8",
+		maxBuffer: 64 * 1024 * 1024,
+	});
+	return run.status === 0 ? run.stdout.split("\0").filter(Boolean) : [];
+}
+
+/**
+ * {@link reviewerFlags} for claim entries (already {@link normalizeEntries normalized}): a directory entry
+ * is a reviewer path when it is one itself or any file git tracks under it is (`functions/` holds
+ * `functions/package.json`, `web/` holds `web/vite.config.ts`). One python call for every path.
+ */
+export function claimReviewerFlags(root: string, files: string[]): boolean[]
+{
+	const groups = files.map((f) => f.endsWith("/") ? [f, ...trackedUnder(root, f)] : [f]);
+	const flags = reviewerFlags(groups.flat());
+	let i = 0;
+	return groups.map((g) =>
+	{
+		const mine = flags.slice(i, i + g.length);
+		i += g.length;
+		return mine.some(Boolean);
+	});
+}
+
 /** Build a claim from a worker's lists; `flags` is {@link reviewerFlags} of `files`, in order. */
 export function makeClaim(id: string, input: { files?: string[];
 	symbols?: string[];
 	docLines?: string[] }, flags: boolean[], now = new Date()): Claim
 {
-	if (!ID_RE.test(id))
+	if (!ITEM_ID.test(id))
 	{
-		throw new Error(`not an item ID: ${id}`);
+		throw new ClaimsError(`not an item ID: ${id}`);
 	}
 	const files = [...new Set(input.files ?? [])];
 	return {
@@ -294,6 +341,16 @@ export function outsideClaim(claim: Claim, touched: string[]): string[]
 }
 
 /**
+ * Commit time: touched files that would have made a claim that isn't a barrier one (`flags` is
+ * {@link reviewerFlags} of `touched`): a reviewer or barrier path created after the claim, or covered only by
+ * a directory entry. A barrier claim already runs alone, so it has none.
+ */
+export function barrierTouches(claim: Claim, touched: string[], flags: boolean[]): string[]
+{
+	return claim.barrier ? [] : touched.filter((t, i) => t !== "" && isBarrierPath(t, flags[i] ?? false));
+}
+
+/**
  * S156 AC 13: a review running beside in-flight items edits only notes of items not in flight. Returns
  * the changed paths that are an in-flight item's story or bug note.
  */
@@ -335,7 +392,7 @@ export function parseFindings(text: string): Finding[]
 	for (const raw of text.split("\n"))
 	{
 		const m = /^\s*[-*]\s+([A-Z]+[0-9]+)\s*\|\s*([^|]+?)\s*\|\s*([^|\s]+?)(?::([0-9]+))?\s*\|\s*(.+?)\s*$/.exec(raw);
-		if (!m)
+		if (!m || !ITEM_ID.test(m[1] ?? ""))
 		{
 			continue;
 		}
@@ -396,7 +453,7 @@ export function parseQuestions(text: string): Question[]
 	{
 		const heading = (section.split("\n")[0] ?? "").slice(3).trim();
 		const line = /^Blocks:\s*(.*)$/m.exec(section);
-		const blocks = line ? [...new Set((line[1] ?? "").split(/[\s,]+/).filter((id) => ID_RE.test(id)))] : [];
+		const blocks = line ? [...new Set((line[1] ?? "").split(/[\s,]+/).filter((id) => ITEM_ID.test(id)))] : [];
 		out.push({
 			heading,
 			blocks,
@@ -415,7 +472,24 @@ export function orderQuestions(questions: Question[]): Question[]
 	})).sort((a, b) => b.q.blocks.length - a.q.blocks.length || a.i - b.i).map(({ q }) => q);
 }
 
-/** Every in-flight claim under `root`, by ID. A missing `.run/` means nothing is in flight. */
+/** A claim file that can't be read as a claim: every command stops on it rather than skip it. */
+export class ClaimsError extends Error
+{
+}
+
+/** Throw unless `id` is an item ID ({@link ITEM_ID}), so it is safe as a file name. */
+function checkId(id: string): void
+{
+	if (!ITEM_ID.test(id))
+	{
+		throw new ClaimsError(`not an item ID: '${id}' (S<N>, B<N>, F<N> or V<N>)`);
+	}
+}
+
+/**
+ * Every in-flight claim under `root`, by ID. A missing `.run/` means nothing is in flight. A file that
+ * isn't a claim throws {@link ClaimsError} naming it (an interrupted write, a hand edit).
+ */
 export function readClaims(root: string): Claim[]
 {
 	let names: string[];
@@ -427,24 +501,127 @@ export function readClaims(root: string): Claim[]
 	{
 		return [];
 	}
-	return names.filter((n) => n.endsWith(".json")).sort().map((n) => JSON.parse(readFileSync(join(claimsDir(root), n), "utf8")) as Claim);
+	return names.filter((n) => n.endsWith(".json")).sort().map((n) =>
+	{
+		const path = join(claimsDir(root), n);
+		let claim: Claim;
+		try
+		{
+			claim = JSON.parse(readFileSync(path, "utf8")) as Claim;
+		}
+		catch (e)
+		{
+			throw new ClaimsError(`${path} is not a valid claim (${(e as Error).message}): fix it, or delete it and claim again`);
+		}
+		if (typeof claim?.id !== "string" || !Array.isArray(claim.files) || !Array.isArray(claim.symbols) || !Array.isArray(claim.docLines))
+		{
+			throw new ClaimsError(`${path} is not a valid claim (missing id, files, symbols or docLines): fix it, or delete it and claim again`);
+		}
+		return claim;
+	});
 }
 
-/** Write (or replace) one claim's file. */
+/** Write (or replace) one claim's file: to a temp file first, then renamed into place, so it is never half-written. */
 export function writeClaim(root: string, claim: Claim): void
 {
+	checkId(claim.id);
 	mkdirSync(claimsDir(root), {
 		recursive: true,
 	});
-	writeFileSync(join(claimsDir(root), `${claim.id}.json`), `${JSON.stringify(claim, null, "\t")}\n`);
+	// Not ending in .json, so readClaims and in-flight.ts never read it.
+	const tmp = join(claimsDir(root), `.${claim.id}.json.${process.pid}.tmp`);
+	writeFileSync(tmp, `${JSON.stringify(claim, null, "\t")}\n`);
+	renameSync(tmp, join(claimsDir(root), `${claim.id}.json`));
 }
 
 /** Drop one claim (its item merged or parked). */
 export function removeClaim(root: string, id: string): void
 {
+	checkId(id);
 	rmSync(join(claimsDir(root), `${id}.json`), {
 		force: true,
 	});
+}
+
+/** The lock `claim` and `release` hold: a directory, so taking it is one atomic mkdir. */
+export function lockDir(root: string): string
+{
+	return join(runDir(root), "claims.lock");
+}
+
+/**
+ * Run `fn` holding the claims lock. Waits up to `waitMs` for another holder; then throws
+ * {@link ClaimsError} naming the holder's pid and whether it is still alive. A lock is never broken
+ * automatically: a dead holder's is the overseer's to remove.
+ */
+export function withClaimsLock<T>(root: string, fn: () => T, waitMs = 10_000): T
+{
+	const lock = lockDir(root);
+	mkdirSync(runDir(root), {
+		recursive: true,
+	});
+	const deadline = Date.now() + waitMs;
+	for (;;)
+	{
+		try
+		{
+			mkdirSync(lock);
+			break;
+		}
+		catch (e)
+		{
+			if ((e as NodeJS.ErrnoException).code !== "EEXIST")
+			{
+				throw e;
+			}
+			if (Date.now() >= deadline)
+			{
+				throw new ClaimsError(lockHeldMessage(lock));
+			}
+			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+		}
+	}
+	try
+	{
+		writeFileSync(join(lock, "pid"), `${process.pid}\n`);
+		return fn();
+	}
+	finally
+	{
+		rmSync(lock, {
+			recursive: true,
+			force: true,
+		});
+	}
+}
+
+function lockHeldMessage(lock: string): string
+{
+	let pid = Number.NaN;
+	try
+	{
+		pid = Number(readFileSync(join(lock, "pid"), "utf8").trim());
+	}
+	catch
+	{
+		// A holder that died between mkdir and writing its pid leaves none.
+	}
+	if (!Number.isInteger(pid) || pid <= 0)
+	{
+		return `${lock} is held by an unknown process (no pid in it); if no claims.ts is running, remove it (rm -r ${lock})`;
+	}
+	let alive = true;
+	try
+	{
+		process.kill(pid, 0);
+	}
+	catch (e)
+	{
+		alive = (e as NodeJS.ErrnoException).code === "EPERM";
+	}
+	return alive
+		? `${lock} is held by pid ${pid}, which is still running; try again when it finishes`
+		: `${lock} is held by pid ${pid}, which is no longer running; remove it (rm -r ${lock}) and try again`;
 }
 
 function formatReport(claim: Claim, report: ClaimReport): string
@@ -490,32 +667,42 @@ function main(argv: string[]): number
 		},
 	});
 	const root = resolve(values.root ?? process.cwd());
-	const [command, id] = positionals;
+	const [command, id = ""] = positionals;
 	const listInput = (): string[] => values.file ?? readFileSync(0, "utf8").split("\n").map((l) => l.trim()).filter(Boolean);
+	// Before any file is touched: an ID names a file under .run/claims/.
+	if (["claim", "release", "touched"].includes(command ?? "") && !ITEM_ID.test(id))
+	{
+		console.error(`claims.ts ${command}: not an item ID: '${id}' (S<N>, B<N>, F<N> or V<N>)`);
+		return 2;
+	}
 	switch (command)
 	{
 		case "claim":
 		{
-			const files = values.file ?? [];
-			const claim = makeClaim(id ?? "", {
+			const files = normalizeEntries(root, values.file ?? []);
+			// The python call runs before the lock is taken, so the lock is held only for the compare and write.
+			const claim = makeClaim(id, {
 				files,
 				symbols: values.symbol,
 				docLines: values["doc-line"],
-			}, reviewerFlags(files));
-			const report = compareClaim(claim, readClaims(root));
-			console.log(formatReport(claim, report));
-			if (!report.ok)
+			}, claimReviewerFlags(root, files));
+			return withClaimsLock(root, () =>
 			{
-				return 1;
-			}
-			if (!values["dry-run"])
-			{
-				writeClaim(root, {
-					...claim,
-					mergeAfter: report.mergeAfter,
-				});
-			}
-			return 0;
+				const report = compareClaim(claim, readClaims(root));
+				console.log(formatReport(claim, report));
+				if (!report.ok)
+				{
+					return 1;
+				}
+				if (!values["dry-run"])
+				{
+					writeClaim(root, {
+						...claim,
+						mergeAfter: report.mergeAfter,
+					});
+				}
+				return 0;
+			});
 		}
 		case "list":
 			for (const c of readClaims(root))
@@ -524,7 +711,7 @@ function main(argv: string[]): number
 			}
 			return 0;
 		case "release":
-			removeClaim(root, id ?? "");
+			withClaimsLock(root, () => removeClaim(root, id));
 			return 0;
 		case "touched":
 		{
@@ -534,9 +721,12 @@ function main(argv: string[]): number
 				console.error(`no claim for ${id} in ${claimsDir(root)}`);
 				return 2;
 			}
-			const outside = outsideClaim(claim, listInput());
+			const touched = listInput();
+			const outside = outsideClaim(claim, touched);
 			outside.forEach((f) => console.log(`outside the claim: ${f}`));
-			return outside.length > 0 ? 1 : 0;
+			const barrier = barrierTouches(claim, touched, claim.barrier ? [] : reviewerFlags(touched));
+			barrier.forEach((f) => console.log(`reviewer path under a non-barrier claim: ${f}`));
+			return outside.length + barrier.length > 0 ? 1 : 0;
 		}
 		case "review-edits":
 		{
@@ -587,5 +777,17 @@ function main(argv: string[]): number
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
 {
-	process.exitCode = main(process.argv.slice(2));
+	try
+	{
+		process.exitCode = main(process.argv.slice(2));
+	}
+	catch (e)
+	{
+		if (!(e instanceof ClaimsError))
+		{
+			throw e;
+		}
+		console.error(`claims.ts: ${e.message}`);
+		process.exitCode = 2;
+	}
 }

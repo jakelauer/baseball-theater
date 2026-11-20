@@ -37,6 +37,11 @@ class IsReviewerPath(unittest.TestCase):
                      "scripts/verify-all.sh", "scripts/lib/verify-S1.sh", "scripts/verify-S1.sh.orig", "scripts/claude-review/plan-review.py"]:
             self.assertTrue(plan_review.is_reviewer_path(path), path)
 
+    def test_a_grader_name_must_match_whole(self):
+        # `re.match` with `$` also matches before a trailing newline, which would carve this path out.
+        for path in ["scripts/verify-S1.sh\n", "scripts/verify-B87.sh\n"]:
+            self.assertTrue(plan_review.is_reviewer_path(path), repr(path))
+
 
 class DecideMode(unittest.TestCase):
     def test_grader_only_pull_request_with_matching_record_is_unchanged(self):

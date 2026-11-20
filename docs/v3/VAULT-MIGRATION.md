@@ -1,5 +1,7 @@
 # Backlog → Obsidian vault migration
 
+> **Historical (S156, 2026-11-20).** `docs/v3/BACKLOG.md` is retired: the notes are the backlog. `pnpm backlog:import`, the `--backlog` option and every round trip to `BACKLOG.md` described below are gone; this file records how the migration ran.
+
 **Purpose:** Make the backlog browsable as individual story notes with table/board views in [Obsidian](https://obsidian.md), without giving up what the loop relies on `BACKLOG.md` for: status committed atomically with code, story specs recoverable from git history, AC edits visible in diffs, and graders that read a file offline. *(`BACKLOG.md` was retired by S156: the notes are the backlog.)*
 
 **Why staged:** Each stage leaves the repo in a working state and can be the last one. Nothing in the main loop changes until **V3**, and V3 only starts after an explicit human go-ahead.

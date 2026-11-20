@@ -93,27 +93,56 @@ grep -qF "$MARKER" "$LEDGER" || {
   exit 2
 }
 
-# new_fragment <ID> <kind> — set FRAG to the path of a new, empty ledger fragment for an
-# entry captured now, and STAMP to its capture time (the entry's `Captured (UTC)` row, so the
-# name and the row agree). If that name is taken (two entries for one ID and kind within one
-# second) it waits for the next second rather than overwrite or reuse an entry.
+# new_fragment <ID> <kind> — set FRAG to the path of a new ledger fragment for an entry
+# captured now, STAMP to its capture time (the entry's `Captured (UTC)` row, so the name and the
+# row agree), and FRAG_TMP to the file the entry is written to first: `.<name>.<pid>.tmp` beside
+# it, a dot name ledger.ts never reads. finish_fragment then links it into place, so an
+# interrupted run never leaves a half-written or empty fragment (ledger.ts would refuse it and
+# every reader of the ledger would fail), only a dot file. If the name is taken (two entries for
+# one ID and kind within one second) it waits for the next second rather than overwrite one.
+FRAG_TMP=""
+trap 'rm -f "${FRAG_TMP:-}" "${FRAG_TMP:+${FRAG_TMP%.tmp}.new.tmp}"' EXIT
 new_fragment() {
-  local id="$1" kind="$2" path
+  FRAG_ID="$1"
+  FRAG_KIND="$2"
   while :; do
     STAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-    path="${FRAGMENTS}/${STAMP%%T*}/${STAMP//[-:]/}-${id}-${kind}.md"
-    [ -e "$path" ] || break
+    FRAG="${FRAGMENTS}/${STAMP%%T*}/${STAMP//[-:]/}-${FRAG_ID}-${FRAG_KIND}.md"
+    [ -e "$FRAG" ] || break
     sleep 1
   done
-  mkdir -p "$(dirname "$path")" || return 1
-  : >"$path" || return 1
-  FRAG="$path"
+  mkdir -p "$(dirname "$FRAG")" || return 1
+  FRAG_TMP="$(dirname "$FRAG")/.$(basename "$FRAG").$$.tmp"
+  : >"$FRAG_TMP" || return 1
+}
+
+# finish_fragment — put the written entry in place: a hard link to FRAG, which fails rather than
+# overwrite when another run took that name since new_fragment, then the temp file goes. On a
+# taken name it moves to the next second's stamp, rewriting the entry's `Captured (UTC)` row to
+# match, and tries again.
+finish_fragment() {
+  local old
+  until ln "$FRAG_TMP" "$FRAG" 2>/dev/null; do
+    if [ ! -e "$FRAG" ]; then
+      echo "audit: could not write ${FRAG}" >&2
+      return 1
+    fi
+    old="$STAMP"
+    sleep 1
+    STAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    FRAG="${FRAGMENTS}/${STAMP%%T*}/${STAMP//[-:]/}-${FRAG_ID}-${FRAG_KIND}.md"
+    mkdir -p "$(dirname "$FRAG")" || return 1
+    sed "s/| Captured (UTC) | \`${old}\` |/| Captured (UTC) | \`${STAMP}\` |/" "$FRAG_TMP" >"${FRAG_TMP%.tmp}.new.tmp" &&
+      mv "${FRAG_TMP%.tmp}.new.tmp" "$FRAG_TMP" || return 1
+  done
+  rm -f "$FRAG_TMP"
+  FRAG_TMP=""
 }
 
 # review_exists <heading regex> — whether any ledger entry (AUDIT.md or a fragment) has that heading.
 review_exists() {
   grep -qE "$1" "$LEDGER" && return 0
-  [ -d "$FRAGMENTS" ] && grep -rqE "$1" "$FRAGMENTS"
+  [ -d "$FRAGMENTS" ] && grep -rqE --exclude='.*' "$1" "$FRAGMENTS"
 }
 
 read_arg() { # read_arg <value> — "-" means stdin
@@ -185,7 +214,7 @@ if [ "$MODE" = "design" ]; then
   DESIGN_MATCH=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --design-match) DESIGN_MATCH="$(read_arg "${2:-}")"; shift 2 ;;
+      --design-match) DESIGN_MATCH="$(read_arg "${2:-}")"; shift 2 || usage ;;
       *) echo "audit: unknown option $1" >&2; usage ;;
     esac
   done
@@ -201,7 +230,8 @@ if [ "$MODE" = "design" ]; then
     echo "| Captured (UTC) | \`${STAMP}\` |"
     echo "| HEAD at capture | \`${HEAD_SHA}\` (tree ${TREE}) |"
     design_match_section "$rows" "$DESIGN_MATCH"
-  } >"$FRAG"
+  } >"$FRAG_TMP"
+  finish_fragment || exit 2
   echo "audit ${ID}: design match written to ${FRAG}"
   exit 0
 fi
@@ -218,11 +248,11 @@ if [ "$MODE" = "story" ]; then
   DESIGN_MATCH=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --design-match) DESIGN_MATCH="$(read_arg "${2:-}")"; shift 2 ;;
+      --design-match) DESIGN_MATCH="$(read_arg "${2:-}")"; shift 2 || usage ;;
       --reverify) LABEL="reverify"; shift ;;
       --backfill) LABEL="backfill"; shift ;;
       --no-verify) RUN_VERIFY=0; shift ;;
-      --commit) COMMIT="${2:-}"; shift 2 ;;
+      --commit) COMMIT="${2:-}"; shift 2 || usage ;;
       *) echo "audit: unknown option $1" >&2; usage ;;
     esac
   done
@@ -372,7 +402,8 @@ if [ "$MODE" = "story" ]; then
       echo
       echo "</details>"
     fi
-  } >"$FRAG"
+  } >"$FRAG_TMP"
+  finish_fragment || exit 2
 
   rm -f "$grader_log" "$verify_log"
 
@@ -405,9 +436,9 @@ if [ "$MODE" = "answers" ]; then
   APPLIED_IN="the commit that adds this entry"
   while [ $# -gt 0 ]; do
     case "$1" in
-      --review) REVIEW_DATE="${2:-}"; shift 2 ;;
-      --answers) ANSWERS="$(read_arg "${2:-}")"; shift 2 ;;
-      --commit) APPLIED_IN="\`$(git rev-parse --short "${2:-}")\` — $(git log -1 --format=%s "${2:-}")"; shift 2 ;;
+      --review) REVIEW_DATE="${2:-}"; shift 2 || usage ;;
+      --answers) ANSWERS="$(read_arg "${2:-}")"; shift 2 || usage ;;
+      --commit) APPLIED_IN="\`$(git rev-parse --short "${2:-}")\` — $(git log -1 --format=%s "${2:-}")"; shift 2 || usage ;;
       *) echo "audit: unknown option $1" >&2; usage ;;
     esac
   done
@@ -431,7 +462,8 @@ if [ "$MODE" = "answers" ]; then
     echo "**Answers and what was applied**"
     echo
     echo "$ANSWERS"
-  } >"$FRAG"
+  } >"$FRAG_TMP"
+  finish_fragment || exit 2
   echo "audit answers: wrote the owner's answers to the ${REVIEW_DATE} ${KIND} to ${FRAG}"
   exit 0
 fi
@@ -451,8 +483,8 @@ if [ "$MODE" = "skip" ]; then
   APPLIED_IN="the commit that adds this entry"
   while [ $# -gt 0 ]; do
     case "$1" in
-      --answers) ANSWERS="$(read_arg "${2:-}")"; shift 2 ;;
-      --commit) APPLIED_IN="\`$(git rev-parse --short "${2:-}")\` — $(git log -1 --format=%s "${2:-}")"; shift 2 ;;
+      --answers) ANSWERS="$(read_arg "${2:-}")"; shift 2 || usage ;;
+      --commit) APPLIED_IN="\`$(git rev-parse --short "${2:-}")\` — $(git log -1 --format=%s "${2:-}")"; shift 2 || usage ;;
       *) echo "audit: unknown option $1" >&2; usage ;;
     esac
   done
@@ -471,7 +503,8 @@ if [ "$MODE" = "skip" ]; then
     echo "**What changed, and the owner's answer**"
     echo
     echo "$ANSWERS"
-  } >"$FRAG"
+  } >"$FRAG_TMP"
+  finish_fragment || exit 2
   echo "audit skip: wrote the owner's skip of a ${KIND} to ${FRAG}"
   exit 0
 fi
@@ -493,13 +526,13 @@ IN_FLIGHT=""
 DATE="$TODAY"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --trigger) TRIGGER="$(read_arg "${2:-}")"; shift 2 ;;
-    --since) SINCE="$(read_arg "${2:-}")"; shift 2 ;;
-    --verdict) VERDICT="${2:-}"; shift 2 ;;
-    --findings) FINDINGS="$(read_arg "${2:-}")"; shift 2 ;;
-    --in-flight) IN_FLIGHT="${2:-}"; shift 2 ;;
-    --date) DATE="${2:-}"; shift 2 ;;
-    --commit) HEAD_SHA="$(git rev-parse --short "${2:-}")"; shift 2 ;;
+    --trigger) TRIGGER="$(read_arg "${2:-}")"; shift 2 || usage ;;
+    --since) SINCE="$(read_arg "${2:-}")"; shift 2 || usage ;;
+    --verdict) VERDICT="${2:-}"; shift 2 || usage ;;
+    --findings) FINDINGS="$(read_arg "${2:-}")"; shift 2 || usage ;;
+    --in-flight) IN_FLIGHT="${2:-}"; shift 2 || usage ;;
+    --date) DATE="${2:-}"; shift 2 || usage ;;
+    --commit) HEAD_SHA="$(git rev-parse --short "${2:-}")"; shift 2 || usage ;;
     *) echo "audit: unknown option $1" >&2; usage ;;
   esac
 done
@@ -512,8 +545,9 @@ esac
 [ -n "$FINDINGS" ] || { echo "audit: --findings is required (a verdict with no cited evidence does not count as a review)" >&2; exit 2; }
 # The in-flight items (S156 AC 13): comma-separated IDs, recorded as "S9, S12" ("none" when none).
 if [ -n "$IN_FLIGHT" ]; then
-  printf '%s' "$IN_FLIGHT" | grep -qE '^[SBV][0-9]+(,[SBV][0-9]+)*$' ||
-    { echo "audit: --in-flight takes comma-separated item IDs (S9,S12,B87), not '${IN_FLIGHT}'" >&2; exit 2; }
+  # in-flight.ts holds the one item-ID pattern (S, B, F or V and digits); comma-separated, no spaces.
+  node scripts/backlog-vault/in-flight.ts check "$IN_FLIGHT" ||
+    { echo "audit: --in-flight takes comma-separated item IDs (S9,S12,B87,F1), not '${IN_FLIGHT}'" >&2; exit 2; }
   IN_FLIGHT_ROW="${IN_FLIGHT//,/, }"
 else
   IN_FLIGHT_ROW="none"
@@ -536,7 +570,8 @@ new_fragment "$RID" review || exit 2
   echo "**Findings / amendments**"
   echo
   echo "$FINDINGS"
-} >"$FRAG"
+} >"$FRAG_TMP"
+finish_fragment || exit 2
 
 echo "audit ${MODE}: wrote a \`${VERDICT}\` ${KIND} entry to ${FRAG}"
 if [ "$VERDICT" = "blocked" ]; then

@@ -145,4 +145,13 @@ describe("pnpm changelog:build", () =>
 		expect(renderChangelog(stale, [], new Map())).toBe(HISTORY);
 		expect(renderChangelog(HISTORY, [], new Map())).toBe(HISTORY);
 	});
+
+	it("refuses a block missing one marker, or with the end before the start, rather than write a second block", () =>
+	{
+		const block = `${BLOCK_START}\n\n## Gone\n\n- **Gone.** Details: S0.\n\n${BLOCK_END}\n\n## An old effort`;
+		for (const broken of [block.replace(`${BLOCK_END}\n\n`, ""), block.replace(`${BLOCK_START}\n\n`, ""), block.replace(BLOCK_START, "@@").replace(BLOCK_END, BLOCK_START).replace("@@", BLOCK_END)])
+		{
+			expect(() => renderChangelog(HISTORY.replace("## An old effort", broken), [], new Map())).toThrow(ChangelogFragmentError);
+		}
+	});
 });

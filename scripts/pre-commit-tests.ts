@@ -18,8 +18,9 @@
  *   whole suite; the root lockfile, package.json, tsconfig or vitest config runs every suite.
  * - The repo-tooling suites outside the workspace packages run whole when a file they test is
  *   staged: the backlog tool's (`pnpm test:backlog`) for scripts/backlog-vault/, scripts/audit.sh,
- *   the debt scripts, the backlog notes, the ledger (one of its tests reads the real AUDIT.md) and
- *   changelog.d/, and the tools suite (`pnpm test:tools`) for tools/. Both take a few seconds.
+ *   the debt scripts, the backlog notes, the ledger (one of its tests reads the real AUDIT.md),
+ *   changelog.d/ and the other files its tests read (the triggers below), and the tools suite
+ *   (`pnpm test:tools`) for tools/. Both take a few seconds.
  * - Coverage thresholds and the workerd suite (`functions/vitest.workers.config.ts`) are left to
  *   `pnpm verify` and CI, to keep a commit fast.
  * - It tests the working tree, so unstaged edits to a staged file are tested too.
@@ -45,12 +46,17 @@ const toolingSuites = [
 		label: "scripts/backlog-vault",
 		config: "scripts/backlog-vault/vitest.config.ts",
 		// The tool itself, the ledger writer, the debt scripts, the backlog notes and docs it builds from, the ledger and its
-		// fragments, the changelog fragments a finished story needs (records.ts), and the CI workflow (law P11's test).
+		// fragments, the changelog fragments a finished story needs (records.ts), everything under .github/ (laws P11 and
+		// L12) and what else its tests run or read since S156: plan-review.py and its tests, worktree-for.sh, the review
+		// gate, turbo.json (L12) and the three configs reading a worktree's ports (worktree-ports.test.ts).
 		triggers: [
-			/^scripts\/(backlog-vault\/|audit\.sh$|review-debt\.sh$|parity-debt\.sh$|goal\.sh$|lib\/)/,
-			/^docs\/v3\/(backlog\/|audit\/|AUDIT\.md$|FEATURES\.md$|INTENT\.md$)/,
+			/^scripts\/(backlog-vault\/|audit\.sh$|review-debt\.sh$|parity-debt\.sh$|goal\.sh$|worktree-for\.sh$|review-gate\.sh$|lib\/|claude-review\/)/,
+			/^docs\/v3\/(backlog\/|audit\/|AUDIT\.md$|FEATURES\.md$|INTENT\.md$|LAWS\.md$)/,
 			/^changelog\.d\//,
-			/^\.github\/workflows\//,
+			/^\.github\//,
+			/^turbo\.json$/,
+			/^(web\/vite\.config\.ts|e2e\/playwright\.config\.ts|functions\/src\/test\/pglite-server\.ts)$/,
+			/^(CLAUDE\.md|\.claude\/(skills|agents)\/)/,
 		],
 	},
 	{

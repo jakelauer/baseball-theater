@@ -215,14 +215,23 @@ export function fragmentTimes(root: string, fragments: ChangelogFragment[]): Map
 	return times;
 }
 
-/** Remove the generated block (its markers and everything between) from a changelog, if it has one. */
+/**
+ * Remove the generated block (its markers and everything between) from a changelog, if it has one.
+ * A changelog with only one of the markers, or the end before the start, throws
+ * {@link ChangelogFragmentError}: treating it as having no block would write a second block above the
+ * first one's leftovers.
+ */
 function withoutBlock(lines: string[]): string[]
 {
 	const start = lines.indexOf(BLOCK_START);
 	const end = lines.indexOf(BLOCK_END);
-	if (start < 0 || end < start)
+	if (start < 0 && end < 0)
 	{
 		return lines;
+	}
+	if (start < 0 || end < start)
+	{
+		throw new ChangelogFragmentError(`CHANGELOG.md's generated block is broken: it needs both markers, the start ("${BLOCK_START}") before the end ("${BLOCK_END}"). Restore the missing one, then rebuild.`);
 	}
 	// The block is written with one blank line after it; take that too.
 	const after = lines[end + 1] === "" ? end + 2 : end + 1;

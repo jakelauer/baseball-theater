@@ -23,7 +23,7 @@ check 1 "W1: .claude/worktrees/ ignored by the committed .gitignore and by ESLin
 check 2 "W2: is_reviewer_path is false for graders and true for what it covers today; a mode function takes the record, the files and the rule files; test_plan_review.py passes (unchanged for grader-only, incremental for checks.sh); CLAUDE.md's stacking hold and run-backlog step 3 except graders; law L12's grader-ci-law.test.ts passes on the tree and fails on a workflow naming a grader or checks.sh"
 check 3 "W5: CLAUDE.md, run-backlog's SKILL.md and LOOP.md §7 step 5 gather RULE_FILES edits into one rules pull request per wave boundary"
 check 4 "W10: run-backlog's SKILL.md gives the merge train in order (priority order, one at a time, merge origin/stage --no-ff, never rebase or force-push, pnpm backlog:build, pnpm verify, push, CI and review, merge; cancelled staging deploy re-run)"
-check 5 "W3: audit.sh writes story/skip/review entries to new docs/v3/audit/<date>/<stamp>-<ID>-<kind>.md fragments, AUDIT.md byte-identical; AUDIT.md gains only a frozen header line; ledger.ts parses the base AUDIT.md exactly as the base parser does; shipping_commit agrees with the base for S84 S88 S121 S141 S147 and finds a fragment's commit; audit.jsonl and the debt counters read the fragments"
+check 5 "W3: audit.sh writes story/skip/review entries to new docs/v3/audit/<date>/<stamp>-<ID>-<kind>.md fragments, AUDIT.md byte-identical; AUDIT.md gains only a frozen header line; ledger.ts parses the base AUDIT.md exactly as the base parser does, and the tests pin that parse and AUDIT.md's SHA-256 without git history; shipping_commit agrees with the base for S84 S88 S121 S141 S147 and finds a fragment's commit; audit.jsonl and the debt counters read the fragments"
 check 6 "W4: changelog:build over three fixture fragments gives newest-first order grouped by effort and keeps every line of the base CHANGELOG.md; backlog:check fails on a fixture done story with no changelog fragment; changelog.d/S156.md exists; rule 16 and CLAUDE.md say so and the release step runs changelog:build"
 check 7 "W6: the As of line is built into INDEX.md from the newest completion's **Baseline:** line; frame 01 holds no hand-written As of line; 06 Baseline history is frozen; backlog:check fails on a fixture done story with no **Baseline:** line; this note has one; rule 17 and LOOP.md item 27 say so"
 check 8 "W8a: INDEX.md and audit.jsonl untracked and ignored; post-checkout and post-merge hooks run pnpm backlog:build; backlog:check passes in a throwaway clone without them; CLAUDE.md says to build INDEX.md when it is missing"
@@ -33,7 +33,7 @@ check 11 "W7: story_own_changed_files lists only a branch's own commit's file af
 check 12 "W9: run-backlog's SKILL.md orders eligible set, barrier, coarse fence filter, claim, admission, with concurrency 2 then 3 after two clean runs, never above 3; claims.ts calls is_reviewer_path, lists the hot files, keeps state in a git-ignored .run/; claims.test.ts covers shared symbol, doc line, hot file, barrier and an out-of-claim file; worker agents run one worktree each; CLAUDE.md pushes each item as ready; CLAUDE.md + SKILL.md words don't grow"
 check 13 "W11: review-debt.sh and parity-debt.sh take --in-flight and print the in-flight count; review-debt.test.ts covers in-flight items and passes; audit.sh review --in-flight records the IDs in its fragment; claims.test.ts covers a review editing an in-flight note; the SKILL runs reviews beside in-flight items"
 check 14 "W12: claims.test.ts covers merging findings and ordering questions by Blocks:; run-backlog's SKILL names 'Shared fixes' and 'Questions blocking more than one item'; the pending SKILL orders by Blocks:"
-check 15 "W13: run-backlog's SKILL caps live subagents at N workers plus four reviewers, staggered, stops dispatching after a rate-limit error until a retry succeeds, and ends with a budget line (Claude review runs via gh run list --workflow claude-review.yml, local reviewers on Opus and Sonnet)"
+check 15 "W13: run-backlog's SKILL caps live subagents at C workers (the concurrency, 2 or 3) plus four reviewers, staggered, stops dispatching after a rate-limit error until a retry succeeds, and ends with a budget line (Claude review runs via gh run list --workflow claude-review.yml, local reviewers on Opus and Sonnet)"
 check 16 "this note's Status is done (frontmatter status done, the note in docs/v3/backlog/stories/done/)"
 check 17 "S156 changed no file outside its fence (plus creating scripts/verify-S156.sh)"
 
@@ -344,8 +344,27 @@ node --input-type=module -e '
 	if (x !== y) { console.log("ledger.ts parses the base AUDIT.md differently from the base parser"); process.exit(1); }' \
 	"$TMP/base-ledger/ledger.ts" "$ROOT/scripts/backlog-vault/ledger.ts" "$TMP/base-AUDIT.md" >"$TMP/parse.out" 2>&1 ||
 	bad 5 "$(tail -1 "$TMP/parse.out")"
-grep -lE 'AUDIT\.md' scripts/backlog-vault/*.test.ts 2>/dev/null | xargs grep -lE "git.*show|$BASE|base commit" >/dev/null 2>&1 ||
-	bad 5 "no test in pnpm test:backlog parses the base commit's AUDIT.md"
+# Tightened before shipping (rule 7, after the pre-PR review): CI's depth-1 checkout has no base commit to
+# `git show`, so the test pins what the base parser gives instead. The parse hash lives in ledger.test.ts (the
+# parser's contract) and must equal the base parser's output on today's AUDIT.md, computed here with history; the
+# file hash lives in merge-safety.test.ts (law L13: the frozen AUDIT.md never changes) and must equal the file's.
+parse_pin=$(grep -oE 'BASE_PARSER_SHA256 = "[0-9a-f]{64}"' scripts/backlog-vault/ledger.test.ts 2>/dev/null | grep -oE '[0-9a-f]{64}')
+file_pin=$(grep -oE 'FROZEN_AUDIT_SHA256 = "[0-9a-f]{64}"' scripts/backlog-vault/ledger.ts 2>/dev/null | grep -oE '[0-9a-f]{64}')
+base_parse=$(node --input-type=module -e '
+	import { readFileSync } from "node:fs";
+	import { createHash } from "node:crypto";
+	import { pathToFileURL } from "node:url";
+	const { parseLedger } = await import(pathToFileURL(process.argv[1]).href);
+	process.stdout.write(createHash("sha256").update(JSON.stringify(parseLedger(readFileSync(process.argv[2], "utf8")))).digest("hex"));' \
+	"$TMP/base-ledger/ledger.ts" "$ROOT/docs/v3/AUDIT.md" 2>/dev/null)
+[ -n "$parse_pin" ] && [ "$parse_pin" = "$base_parse" ] ||
+	bad 5 "ledger.test.ts pins no BASE_PARSER_SHA256 equal to the base parser's output on AUDIT.md (${parse_pin:-none} vs ${base_parse:-?})"
+[ -n "$file_pin" ] && [ "$file_pin" = "$(shasum -a 256 docs/v3/AUDIT.md | cut -d' ' -f1)" ] ||
+	bad 5 "ledger.ts pins no FROZEN_AUDIT_SHA256 equal to docs/v3/AUDIT.md's SHA-256"
+grep -q 'FROZEN_AUDIT_SHA256' scripts/backlog-vault/merge-safety.test.ts 2>/dev/null ||
+	bad 5 "merge-safety.test.ts (law L13) doesn't assert AUDIT.md's pinned SHA-256"
+grep -q 'git", \["show"' scripts/backlog-vault/ledger.test.ts 2>/dev/null &&
+	bad 5 "ledger.test.ts still runs git show, which fails in CI's depth-1 checkout"
 
 # Check 5: shipping_commit agrees with the base commit's for five shipped stories.
 git show "$BASE:scripts/lib/reverify.sh" >"$TMP/base-reverify.sh"
@@ -672,6 +691,10 @@ grep -q 'Blocks:' .claude/skills/pending/SKILL.md || bad 14 "the pending SKILL d
 # --- Check 15: spend guard ------------------------------------------------------------------
 # =============================================================================================
 grep -qiE 'four reviewers|4 reviewers' "$SKILL" || bad 15 "the SKILL doesn't cap reviewers at four"
+# Tightened before shipping (rule 7, after the pre-PR review): N is the number of items to start, so the
+# concurrency has its own name, C, defined once as 2 or 3, and the worker cap is stated in it.
+grep -qF 'at most C workers' "$SKILL" || bad 15 "the SKILL doesn't cap live workers at the concurrency C"
+grep -qF '`C`, 2 or 3' "$SKILL" || bad 15 "the SKILL doesn't define the concurrency as \`C\`, 2 or 3"
 grep -qiE 'stagger' "$SKILL" || bad 15 "the SKILL doesn't stagger subagents"
 grep -iE 'rate.limit' "$SKILL" | grep -qiE 'retry' || bad 15 "the SKILL doesn't stop dispatching after a rate-limit error until a retry succeeds"
 budget=$(grep -iE 'budget' "$SKILL")

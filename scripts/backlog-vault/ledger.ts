@@ -28,6 +28,16 @@ import {
 	basename, dirname, join, relative,
 } from "node:path";
 
+/**
+ * The SHA-256 of the frozen docs/v3/AUDIT.md (S156): nothing is appended to it any more, every new
+ * entry being a fragment, so its bytes never change (law L13). Pinned here, the ledger's one module,
+ * for the law's test (merge-safety.test.ts) and the pre-commit step that refuses any other content
+ * for it (precommit.ts). Re-pinned only if a merge from `stage` brings in entries appended before
+ * S156 merged, in that merge's commit, together with `BASE_PARSER_SHA256` in ledger.test.ts (the base
+ * parser's output on the same file), which moves with it.
+ */
+export const FROZEN_AUDIT_SHA256 = "b9153847627ca9f308aec161d064ceab4e89de3966a95af01777e2da7e252ed3";
+
 /** The line in AUDIT.md after which every `## ` heading of the entry shapes below is an entry. */
 export const LEDGER_MARKER = "<!-- entries below; newest last; appended by scripts/audit.sh -->";
 
@@ -294,7 +304,8 @@ export function parseFragment(text: string, file: string): LedgerEntry
 /**
  * Every fragment file under `dir` (`<date>/<name>.md`), as paths relative to `dir`, in stamp
  * order (by file name; the stamp leads it, then the ID and kind break a tie the same way
- * everywhere). Empty when `dir` doesn't exist (a ledger with no fragments yet).
+ * everywhere). Empty when `dir` doesn't exist (a ledger with no fragments yet). Names starting
+ * with "." are skipped at both levels.
  */
 export function fragmentFiles(dir: string): string[]
 {
@@ -303,15 +314,17 @@ export function fragmentFiles(dir: string): string[]
 		return [];
 	}
 	const files: string[] = [];
+	// A name starting with "." is never a fragment: Finder's .DS_Store, an editor's swap file, or the
+	// `.<name>.tmp` audit.sh writes an entry to before linking it into place.
 	for (const day of readdirSync(dir, {
 		withFileTypes: true,
-	}))
+	}).filter((d) => !d.name.startsWith(".")))
 	{
 		if (!day.isDirectory())
 		{
 			throw new LedgerParseError(`${join(dir, day.name)}: only <YYYY-MM-DD>/ folders of fragments belong in the ledger's fragment folder`);
 		}
-		for (const file of readdirSync(join(dir, day.name)))
+		for (const file of readdirSync(join(dir, day.name)).filter((f) => !f.startsWith(".")))
 		{
 			files.push(`${day.name}/${file}`);
 		}
@@ -363,6 +376,11 @@ export interface DoneSince
  * counter is already at the target, the skip should leave the counter as it is so the
  * next time triggers the review"). Re-verifications, backfills and design matches are not
  * completions.
+ *
+ * A review that ran beside in-flight items (S156; its `In flight` row) didn't review them, so
+ * those of them already counted stay counted across it: an item whose completion fragment is
+ * stamped before the review but merges after it is still one of the stories done since. A later
+ * review that doesn't list it resets it as usual.
  */
 export function storiesDoneSince(entries: LedgerEntry[], kind: ReviewKind): DoneSince
 {
@@ -373,7 +391,7 @@ export function storiesDoneSince(entries: LedgerEntry[], kind: ReviewKind): Done
 		if (entry.kind === "review" && entry.review === kind)
 		{
 			review = entry;
-			stories = [];
+			stories = stories.filter((s) => entry.inFlight?.includes(s));
 		}
 		else if (entry.kind === "completed" && entry.story && !stories.includes(entry.story))
 		{

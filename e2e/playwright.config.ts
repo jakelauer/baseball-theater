@@ -13,8 +13,8 @@
  */
 import { defineConfig } from "@playwright/test";
 
-/** Where `pnpm dev` serves the app: Vite's port, read the way `web/vite.config.ts` reads it. */
-const APP_URL = `http://localhost:${process.env.BT_WEB_PORT ?? 5173}`;
+/** Where `pnpm dev` serves the app: Vite's port, read the way `web/vite.config.ts` reads it (empty counts as unset). */
+const APP_URL = `http://localhost:${process.env.BT_WEB_PORT || 5173}`;
 
 export default defineConfig({
 	testDir: ".",

@@ -53,7 +53,7 @@ pnpm lint
 
 Still run **`pnpm verify`** before marking a goal/story complete.
 
-When finishing a backlog story, also set `status: done` in its note `docs/v3/backlog/stories/<status>/<ID>.md` add its one-paragraph `**Baseline:**` line (rule 17), write its changelog fragment `changelog.d/<ID>.md` (rule 16), and run `pnpm backlog:build` (which moves the note into `stories/done/` and rebuilds the git-ignored `docs/v3/INDEX.md` and `docs/v3/audit.jsonl`; the generated `BACKLOG.md` is retired), then commit the note and the fragment with the code. Verify alone is not enough if the backlog is stale — and `pnpm verify` itself runs `pnpm backlog:check`, so notes edited without a build fail it.
+When finishing a backlog story, also set `status: done` in its note `docs/v3/backlog/stories/<status>/<ID>.md`, add its one-paragraph `**Baseline:**` line (rule 17), write its changelog fragment `changelog.d/<ID>.md` (rule 16), and run `pnpm backlog:build` (which moves the note into `stories/done/` and rebuilds the git-ignored `docs/v3/INDEX.md` and `docs/v3/audit.jsonl`; the generated `BACKLOG.md` is retired), then commit the note and the fragment with the code. Verify alone is not enough if the backlog is stale — and `pnpm verify` itself runs `pnpm backlog:check`, so notes edited without a build fail it.
 
 ## Capture the run (required to call a story done)
 

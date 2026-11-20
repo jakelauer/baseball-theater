@@ -144,7 +144,7 @@ export interface NextCandidate
 /** What the generated Next and review-debt lines in docs/v3/INDEX.md (doc-index.ts) start with. */
 export const GENERATED_PREFIX = {
 	next: "**Next (generated):** ",
-	reviewDebt: "**Review debt (generated from [AUDIT](./AUDIT.md)):** ",
+	reviewDebt: "**Review debt (generated from the ledger):** ",
 } as const;
 
 /** What the Next line reads from a story note: its open-question **Source:** and **Design:** stories. */

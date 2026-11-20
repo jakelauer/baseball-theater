@@ -5,7 +5,8 @@
 # was actually checked. Each grader now declares its checks up front with
 # `check <id> "<description>"`, calls `bad <id> "<reason>"` on failure, and ends
 # with `report`, which prints one PASS/FAIL line per declared check. That output
-# is what `scripts/audit.sh` captures into `docs/v3/audit/<ID>.md`.
+# is what `scripts/audit.sh` captures into the story's ledger fragment,
+# `docs/v3/audit/<date>/<stamp>-<ID>-<kind>.md`.
 #
 # Sourced, not executed. The grader owns `cd` and its own exit.
 
@@ -120,10 +121,15 @@ story_own_diff() {
   [ "${1:-}" = "--" ] && { shift; paths=("$@"); }
   tip="$(story_tip "$id")"
   # `git log` prints no patch unless asked, while `git diff` (story_diff) does: with no output-format option,
-  # ask for the patch, so a caller grepping the story's own diff sees its lines as it would story_diff's.
+  # ask for the patch, so a caller grepping the story's own diff sees its lines as it would story_diff's. Any
+  # option that chooses the output (a stat, names, raw, no patch, a patch with its context) counts as one.
   local logopts=("${opts[@]+"${opts[@]}"}") o fmt=""
   for o in ${opts[@]+"${opts[@]}"}; do
-    case "$o" in --numstat | --name-only | --name-status | --stat | --shortstat | -p | --patch | -U*) fmt=1 ;; esac
+    case "$o" in
+      --numstat | --name-only | --name-status | --stat | --stat=* | --shortstat | --dirstat | --dirstat=* | \
+        --summary | --compact-summary | --raw | -s | --no-patch | -p | -u | --patch | --patch-with-stat | \
+        --patch-with-raw | -U* | --unified | --unified=*) fmt=1 ;;
+    esac
   done
   [ -z "$fmt" ] && logopts+=(-p)
   git -c core.quotepath=false log --first-parent --no-merges --reverse --format= ${logopts[@]+"${logopts[@]}"} "$base..${tip:-HEAD}" -- ${paths[@]+"${paths[@]}"}

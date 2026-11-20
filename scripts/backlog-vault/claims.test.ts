@@ -4,7 +4,7 @@
  * findings merge and question order. Pure functions get fixtures; the CLI runs in a temp root with an
  * environment built from scratch, so the real repository's `.run/` and `.pending/` are never read.
  */
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
 	existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
@@ -16,9 +16,10 @@ import {
 } from "vitest";
 import type { Claim } from "./claims.ts";
 import {
-	compareClaim, isBarrierPath, makeClaim, mergeFindings, orderQuestions, outsideClaim, parseFindings, parseQuestions, readClaims,
-	reviewEditsToInFlight, reviewerFlags, writeClaim,
+	ClaimsError, compareClaim, isBarrierPath, lockDir, makeClaim, mergeFindings, orderQuestions, outsideClaim, parseFindings, parseQuestions,
+	readClaims, reviewEditsToInFlight, reviewerFlags, withClaimsLock, writeClaim,
 } from "./claims.ts";
+import { inFlightIds, invalidInFlight } from "./in-flight.ts";
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), "claims.ts");
 
@@ -286,5 +287,170 @@ describe("CLI in a temp root", () =>
 		expect(cli(["questions"]).stdout.split("\n")[0]).toBe("2 blocked (S1, S2): B: q?");
 		expect(cli(["release", "S1"]).status).toBe(0);
 		expect(readFileSync(join(root, ".run/findings.md"), "utf8")).toContain("S1");
+	});
+
+	/** Make the temp root a git repository tracking `files` (path → text), for directory claims. */
+	const repoWith = (files: Record<string, string>) =>
+	{
+		for (const [path, text] of Object.entries(files))
+		{
+			mkdirSync(dirname(join(root, path)), {
+				recursive: true,
+			});
+			writeFileSync(join(root, path), text);
+		}
+		for (const args of [["init", "-q"], ["add", "-A"]])
+		{
+			spawnSync("git", ["-C", root, ...args]);
+		}
+	};
+
+	it("a directory entry is a barrier when git tracks a reviewer path under it, with or without its trailing slash", () =>
+	{
+		repoWith({
+			"web/vite.config.ts": "x",
+			"web/src/a.ts": "x",
+			"functions/src/x/drizzle.config.ts": "x",
+			"functions/src/y.ts": "x",
+			"docs/notes/a.md": "x",
+		});
+		for (const entry of ["web/", "web", "functions/src/"])
+		{
+			const r = cli(["claim", "S1", "--file", entry, "--dry-run"]);
+			expect(r.stdout, entry).toContain("(barrier item: runs alone)");
+		}
+		expect(cli(["claim", "S1", "--file", "docs/notes/", "--dry-run"]).stdout).not.toContain("barrier");
+		// Stored with its slash, so it covers what is under it.
+		cli(["claim", "S2", "--file", "docs/notes"]);
+		expect(readClaims(root)[0]?.files).toEqual(["docs/notes/"]);
+	});
+
+	it("touched flags a reviewer path under a directory claim that isn't a barrier (made after the claim)", () =>
+	{
+		repoWith({
+			"web/src/a.ts": "x",
+		});
+		expect(cli(["claim", "S1", "--file", "web/"]).stdout).not.toContain("barrier");
+		const r = cli(["touched", "S1"], "web/src/a.ts\nweb/vite.config.ts\n");
+		expect(r.status).toBe(1);
+		expect(r.stdout).toContain("reviewer path under a non-barrier claim: web/vite.config.ts");
+		expect(r.stdout).not.toContain("web/src/a.ts");
+	});
+
+	it("checks the ID before touching any file: release ../../package deletes nothing", () =>
+	{
+		writeFileSync(join(root, "package.json"), "{}\n");
+		mkdirSync(join(root, ".run/claims"), {
+			recursive: true,
+		});
+		for (const args of [["release", "../../package"], ["release", "../package"], ["touched", "../x"], ["claim", "s1"], ["release"]])
+		{
+			const r = cli(args);
+			expect(r.status, args.join(" ")).toBe(2);
+			expect(r.stderr).toContain("not an item ID");
+		}
+		expect(existsSync(join(root, "package.json"))).toBe(true);
+		expect(() => writeClaim(root, {
+			...claim("S1", {}),
+			id: "../x",
+		})).toThrow(ClaimsError);
+	});
+
+	it("an unreadable claim stops every command with exit 2 and its name, never a stack trace or a skip", () =>
+	{
+		mkdirSync(join(root, ".run/claims"), {
+			recursive: true,
+		});
+		writeFileSync(join(root, ".run/claims/S1.json"), "{\"id\":");
+		for (const args of [["list"], ["claim", "S2", "--file", "a.ts"]])
+		{
+			const r = cli(args);
+			expect(r.status, args.join(" ")).toBe(2);
+			expect(r.stderr).toContain(".run/claims/S1.json is not a valid claim");
+			expect(r.stderr).not.toContain("    at ");
+		}
+		// Releasing it doesn't read it, so the overseer can still clear it.
+		expect(cli(["release", "S1"]).status).toBe(0);
+		expect(existsSync(join(root, ".run/claims/S1.json"))).toBe(false);
+	});
+
+	it("writes a claim whole, by rename, leaving no temp file", () =>
+	{
+		expect(cli(["claim", "S1", "--file", "a.ts"]).status).toBe(0);
+		expect(readFileSync(join(root, ".run/claims/S1.json"), "utf8")).toMatch(/^\{[\s\S]*\}\n$/);
+		expect(spawnSync("ls", ["-a", join(root, ".run/claims")], {
+			encoding: "utf8",
+		}).stdout.split("\n").filter((n) => n.endsWith(".tmp"))).toEqual([]);
+	});
+
+	it("waits for the claims lock, then compares with what the holder wrote: two claims at once can't both be admitted", async () =>
+	{
+		mkdirSync(lockDir(root), {
+			recursive: true,
+		});
+		writeFileSync(join(lockDir(root), "pid"), `${process.pid}\n`);
+		const child = spawn(process.execPath, [CLI, "--root", root, "claim", "S2", "--file", "b.ts", "--symbol", "useThing"], {
+			env: {
+				PATH: process.env["PATH"] ?? "/usr/bin:/bin",
+			},
+		});
+		let out = "";
+		child.stdout.on("data", (d: Buffer) => out += d.toString());
+		const exited = new Promise<number | null>((done) => child.on("exit", (code) => done(code)));
+		// The holder admits S1 with the same symbol while S2 waits, then lets go.
+		await new Promise((r) => setTimeout(r, 1500));
+		expect(child.exitCode).toBeNull();
+		writeClaim(root, claim("S1", {
+			files: ["a.ts"],
+			symbols: ["useThing"],
+		}));
+		rmSync(lockDir(root), {
+			recursive: true,
+		});
+		expect(await exited).toBe(1);
+		expect(out).toContain("conflict: symbol useThing");
+		expect(existsSync(join(root, ".run/claims/S2.json"))).toBe(false);
+	}, 20_000);
+
+	it("gives up after the wait, naming the holder's pid and whether it is alive, and never breaks the lock", () =>
+	{
+		mkdirSync(lockDir(root), {
+			recursive: true,
+		});
+		const dead = spawnSync(process.execPath, ["-e", "process.stdout.write(String(process.pid))"], {
+			encoding: "utf8",
+		}).stdout;
+		writeFileSync(join(lockDir(root), "pid"), `${dead}\n`);
+		expect(() => withClaimsLock(root, () => 0, 300)).toThrow(`held by pid ${dead}, which is no longer running`);
+		writeFileSync(join(lockDir(root), "pid"), `${process.pid}\n`);
+		expect(() => withClaimsLock(root, () => 0, 300)).toThrow(`held by pid ${process.pid}, which is still running`);
+		expect(existsSync(lockDir(root))).toBe(true);
+	});
+});
+
+describe("one item ID pattern (in-flight.ts ITEM_ID)", () =>
+{
+	it("takes stories, bugs, shared fixes and vault stages, and nothing else", () =>
+	{
+		expect(inFlightIds("/nonexistent", "F1,S2,X3,B4,V5")).toEqual(["F1", "S2", "B4", "V5"]);
+		expect(makeClaim("F1", {}, []).id).toBe("F1");
+		expect(() => makeClaim("X1", {}, [])).toThrow(ClaimsError);
+		expect(parseFindings("- F2 | 8 | a.ts | x\n- X2 | 8 | a.ts | y\n").map((f) => f.item)).toEqual(["F2"]);
+	});
+
+	it("check is strict: comma-separated IDs exactly, or empty for none", () =>
+	{
+		expect(invalidInFlight("")).toEqual([]);
+		expect(invalidInFlight("S9,F1,B2")).toEqual([]);
+		expect(invalidInFlight("s9")).toEqual(["s9"]);
+		expect(invalidInFlight("S9, B2")).toEqual([" B2"]);
+		expect(invalidInFlight("S9,,B2")).toEqual([""]);
+		const check = (value: string) => spawnSync(process.execPath, [join(dirname(CLI), "in-flight.ts"), "check", value], {
+			encoding: "utf8",
+		});
+		expect(check("S9,F1").status).toBe(0);
+		expect(check("").status).toBe(0);
+		expect(check("S9, B2").status).toBe(2);
+		expect(check("S9, B2").stderr).toContain("' B2'");
 	});
 });

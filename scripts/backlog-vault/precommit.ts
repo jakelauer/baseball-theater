@@ -7,20 +7,29 @@
  * rewritten when it still matches what was staged, so unstaged edits are never clobbered either.
  * Nothing generated is committed any more (S156): docs/v3/INDEX.md and docs/v3/audit.jsonl are
  * git-ignored and rebuilt after checkout and merge, and the generated BACKLOG.md is retired, so
- * this step refuses a commit that adds it back.
+ * this step refuses a commit that adds or changes any of the three (a branch resolving a
+ * modify/delete conflict by keeping one would otherwise track it again). It also refuses a commit
+ * that deletes the frozen ledger, docs/v3/AUDIT.md, or stages it with anything but its frozen
+ * bytes (law L13); staging exactly those bytes passes, as a merge from `stage` resolving it does.
  */
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
 	mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { buildFromNotes } from "./assemble.ts";
+import { FROZEN_AUDIT_SHA256 } from "./ledger.ts";
 import { isNoteKey, noteId } from "./vault.ts";
 
 export const NOTES_DIR = "docs/v3/backlog";
 /** The generated backlog file S156 retired (owner, 2026-11-20: "Retire it (Recommended)"); a commit may not add it back. */
 export const RETIRED_BACKLOG = "docs/v3/BACKLOG.md";
+/** The files `pnpm backlog:build` writes and .gitignore ignores (S156; owner, 2026-11-20: "Stop committing them (Recommended)"). */
+export const BUILT_DOCS = ["docs/v3/INDEX.md", "docs/v3/audit.jsonl"];
+/** The frozen ledger (S156): every new entry is a fragment under docs/v3/audit/. */
+export const FROZEN_AUDIT = "docs/v3/AUDIT.md";
 export const FEATURES = "docs/v3/FEATURES.md";
 export const INTENT = "docs/v3/INTENT.md";
 
@@ -149,6 +158,32 @@ function restage(repo: string, path: string, before: string | undefined, content
 	}
 }
 
+/** Why the staged frozen ledger is refused, or undefined when it isn't staged or holds exactly its frozen bytes. */
+function frozenAuditProblem(repo: string): string | undefined
+{
+	// With the pathspec on one side only, a rename shows as a deletion, so AMD covers it.
+	if (paths(git(repo, ["diff", "--cached", "--name-only", "-z", "--diff-filter=AMD", "--", FROZEN_AUDIT])).length === 0)
+	{
+		return undefined;
+	}
+	let bytes: Buffer;
+	try
+	{
+		bytes = execFileSync("git", ["show", `:${FROZEN_AUDIT}`], {
+			cwd: repo,
+			stdio: ["ignore", "pipe", "pipe"],
+			maxBuffer: 64 * 1024 * 1024,
+		});
+	}
+	catch
+	{
+		return `${FROZEN_AUDIT} is frozen history (S156, law L13) and may not be deleted or moved: restore it (git restore --staged --worktree ${FROZEN_AUDIT}).`;
+	}
+	return createHash("sha256").update(bytes).digest("hex") === FROZEN_AUDIT_SHA256
+		? undefined
+		: `${FROZEN_AUDIT} is frozen history (S156, law L13): new entries are fragments under docs/v3/audit/, written by scripts/audit.sh. Restore it (git restore --staged --worktree ${FROZEN_AUDIT}).`;
+}
+
 export function runPrecommit(repo: string): PrecommitResult
 {
 	if (paths(git(repo, ["diff", "--cached", "--name-only", "-z", "--diff-filter=AM", "--", RETIRED_BACKLOG])).length > 0)
@@ -156,6 +191,24 @@ export function runPrecommit(repo: string): PrecommitResult
 		return {
 			ok: false,
 			message: `${RETIRED_BACKLOG} is retired (S156): edit the notes in ${NOTES_DIR}/ instead, and unstage it (git rm --cached ${RETIRED_BACKLOG}).`,
+			restaged: [],
+		};
+	}
+	const builtDocs = paths(git(repo, ["diff", "--cached", "--name-only", "-z", "--diff-filter=AM", "--", ...BUILT_DOCS]));
+	if (builtDocs.length > 0)
+	{
+		return {
+			ok: false,
+			message: `${builtDocs.join(", ")}: built by pnpm backlog:build and git-ignored (S156), never committed; unstage with git rm --cached ${builtDocs.join(" ")}.`,
+			restaged: [],
+		};
+	}
+	const audit = frozenAuditProblem(repo);
+	if (audit)
+	{
+		return {
+			ok: false,
+			message: audit,
 			restaged: [],
 		};
 	}

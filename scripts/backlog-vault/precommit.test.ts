@@ -4,6 +4,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	afterEach, beforeEach, describe, expect, it,
 } from "vitest";
@@ -11,8 +12,11 @@ import { FIXTURE, notesFor } from "./fixture.ts";
 import { buildFromNotes } from "./assemble.ts";
 import { readNotes } from "./notes-dir.ts";
 import {
-	NOTES_DIR, RETIRED_BACKLOG, runPrecommit,
+	BUILT_DOCS, FROZEN_AUDIT, NOTES_DIR, RETIRED_BACKLOG, runPrecommit,
 } from "./precommit.ts";
+
+/** The repository root (this file is scripts/backlog-vault/precommit.test.ts). */
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
 let repo = "";
 
@@ -159,6 +163,54 @@ describe("runPrecommit", () =>
 
 		expect(result.ok).toBe(false);
 		expect(result.message).toMatch(/is retired \(S156\): edit the notes/);
+	});
+
+	it("refuses a commit that tracks a built doc again, INDEX.md or audit.jsonl (S156)", () =>
+	{
+		for (const path of BUILT_DOCS)
+		{
+			write(path, "built\n");
+			git("add", "-f", path);
+			const result = runPrecommit(repo);
+			expect(result.ok, path).toBe(false);
+			expect(result.message).toContain(`${path}: built by pnpm backlog:build and git-ignored`);
+			git("rm", "-q", "--cached", path);
+		}
+	});
+
+	it("refuses any staged content for the frozen AUDIT.md but its frozen bytes, and its deletion (law L13)", () =>
+	{
+		const frozen = readFileSync(join(REPO_ROOT, FROZEN_AUDIT));
+		mkdirSync(join(repo, "docs/v3"), {
+			recursive: true,
+		});
+		writeFileSync(join(repo, FROZEN_AUDIT), frozen);
+		git("add", FROZEN_AUDIT);
+		// Staging exactly the frozen bytes passes: a merge from stage that resolves AUDIT.md to them.
+		expect(runPrecommit(repo).ok).toBe(true);
+		git("commit", "-qm", "frozen ledger");
+
+		writeFileSync(join(repo, FROZEN_AUDIT), Buffer.concat([frozen, Buffer.from("\n## 2026-11-21 — S9 completed\n")]));
+		git("add", FROZEN_AUDIT);
+		expect(runPrecommit(repo)).toMatchObject({
+			ok: false,
+			message: expect.stringContaining("is frozen history (S156, law L13)"),
+		});
+
+		git("rm", "-q", "-f", FROZEN_AUDIT);
+		expect(runPrecommit(repo)).toMatchObject({
+			ok: false,
+			message: expect.stringContaining("may not be deleted or moved"),
+		});
+	});
+
+	it("the real repository tracks none of the built docs or the retired BACKLOG.md (works in a shallow clone)", () =>
+	{
+		const tracked = execFileSync("git", ["ls-files", "--", RETIRED_BACKLOG, ...BUILT_DOCS], {
+			cwd: REPO_ROOT,
+			encoding: "utf8",
+		});
+		expect(tracked).toBe("");
 	});
 
 	it("checks a staged FEATURES.md, which every **Source:** line is checked against, even with no note staged", () =>

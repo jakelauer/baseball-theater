@@ -229,7 +229,7 @@ describe("docIndexFor", () =>
 			head: "abc1234",
 		});
 		expect(index).toContain("**Next (generated):** **1 / S9** — the lowest **Priority** `todo` story not waiting on a design.");
-		expect(index).toContain("**Review debt (generated from [AUDIT](./AUDIT.md)):** 1 of 6 stories `done` since the last backlog review");
+		expect(index).toContain("**Review debt (generated from the ledger):** 1 of 6 stories `done` since the last backlog review");
 	});
 });
 

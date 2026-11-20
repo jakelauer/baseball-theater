@@ -29,7 +29,10 @@ cd "$(dirname "$0")/.."
 in_flight_flag=()
 while [ $# -gt 0 ]; do
   case "$1" in
-    --in-flight) in_flight_flag=(--in-flight "${2:-}"); shift 2 ;;
+    --in-flight)
+      # A missing value is an error, not a loop: `shift 2` fails under `set -u` without `-e` and shifts nothing.
+      [ $# -ge 2 ] || { echo "usage: $0 [--in-flight S1,S2]" >&2; exit 2; }
+      in_flight_flag=(--in-flight "$2"); shift 2 ;;
     --in-flight=*) in_flight_flag=(--in-flight "${1#--in-flight=}"); shift ;;
     *) echo "usage: $0 [--in-flight S1,S2]" >&2; exit 2 ;;
   esac
