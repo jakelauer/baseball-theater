@@ -19593,3 +19593,18 @@ For the next backlog review:
 - When S133's ratification (menu link "Changelog", owner: "changelog should be fixed in both places") lands, FEATURES' Update / change log UX row's **Named "Change log"** sentence and the footer-only rename recorded here need updating to match, and S134/S135 ACs checked against the one-word label.
 - FEATURES' Video play links row still says Search's floating player's `Go to: Game → • At-Bat →` has a design story (S127) and "no story builds it yet": a feature no build story serves.
 - No feature was added by this review.
+
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T00:29:08Z` |
+| HEAD at capture | `749f918` (tree dirty) |
+| Applied in | `749f918` — S142: the owner's answers to the A14 design intake's three questions |
+
+**Answers and what was applied**
+
+Owner, 2026-11-19, through /pending, answering the shell-scoreboard A14 design intake review's three questions. (Q1) Asked whether the site footer waits for the change log page (S134) or ships first with S134 adding its own "Changelog" link: chose "Wait for S134 (Recommended)". Applied: S134 stays on S142's Depends on; A14 unchanged. (Q2) Asked what a signed-out visitor's "Legal" column shows before the Privacy policy and Terms of use pages exist: chose "Heading alone". Applied: S142 AC 5 says the heading renders with no link under it, with an RTL check. (Q3) Asked whether the columns start 24px in as drawn or line up with the content at 16px: chose "24px, as drawn (Recommended)". Applied: recorded in S142's notes; AC 7's frames already show it.
