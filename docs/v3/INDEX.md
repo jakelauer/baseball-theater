@@ -494,7 +494,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 
 | Priority | Story or bug | Status | Depends on | Design |
 |---|---|---|---|---|
-| 60 | [S156](backlog/stories/todo/S156.md) Parallel backlog work (Phases 0–3) | `todo` | — | — |
+| 60 | [S156](backlog/stories/doing/S156.md) Parallel backlog work (Phases 0–3) | `doing` | — | — |
 | 72 | [S131](backlog/stories/todo/S131.md) Approved release notes | `todo` | — | — |
 | 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
 | 75 | [S145](backlog/stories/todo/S145.md) Inning pill play link on cards and player | `todo` | S97, S81 | S144 |

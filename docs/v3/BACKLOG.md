@@ -211,7 +211,7 @@ Ordered by **Priority** (execution order). Story IDs (`S1`…`S30`) are stable l
 | 58 | [S88](#s88--one-shipping-commit-lookup-graders-find-their-storys-commit-from-the-ledger) | One shipping-commit lookup (ledger) | `done` |
 | 59 | [S61](#s61--team-identity-colors-as-data-edge-and-swatch-components-division-names) | Team colors + division names | `done` |
 | 60 | [S2](#s2--box-score-tab-renders-fixture-innings) | Box score tab renders fixture innings | `done` |
-| 60 | [S156](#s156--parallel-backlog-work-phases-03--worktrees-merge-safe-records-an-overseer-and-up-to-three-workers) | Parallel backlog work (Phases 0–3) | `todo` |
+| 60 | [S156](#s156--parallel-backlog-work-phases-03--worktrees-merge-safe-records-an-overseer-and-up-to-three-workers) | Parallel backlog work (Phases 0–3) | `doing` |
 | 61 | [S3](#s3--live-tab-status-block--score-count-outs-inning) | Live status: score + count | `done` |
 | 62 | [S64](#s64--live-pitch-theater-body) | Live pitch theater body | `done` |
 | 63 | [S10](#s10--recap-tab-shows-editorial-blurb-from-fixture) | Recap tab shows editorial blurb | `done` |
@@ -308,7 +308,7 @@ Ordered by **Priority** (execution order). Story IDs (`S1`…`S30`) are stable l
 | 118 | [S146](#s146--a-deploy-is-skipped-when-nothing-its-build-reads-has-changed-decided-from-recorded-input-hashes) | Skip deploys with unchanged build inputs | `todo` |
 | 119 | [S151](#s151--download-any-video-streamed-to-disk-through-the-service-worker) | Video download via service worker | `todo` |
 
-**Next (generated):** **60 / S156** — the lowest **Priority** `todo` story not waiting on a design.
+**Next (generated):** **60 / S156** in progress (`doing`) — finish and commit before starting another story (rule 6).
 
 **Before starting it:** confirm no [backlog review](#backlog-reviews) is due — the review-debt line in that section counts stories, but a drift event makes one due regardless.
 
@@ -2654,7 +2654,7 @@ _Phase 3 — overseer skills, then three_
 /goal docs/v3/BACKLOG.md S156. Work item 0 first: if scripts/verify-S156.sh is missing, write it per the Verify-script contract, run it against current HEAD, and show the nonzero exit before changing any script, hook, rule or record. Then: scripts/verify-S156.sh exits 0, pnpm verify exits 0, no files outside eslint.config.js, .gitignore, .prettierignore, .jscpd.json, package.json, compose.yaml, functions/package.json, functions/src/adapters/postgres/local.ts, functions/src/test/pglite-server.ts, functions/vitest.workers.config.ts, functions/vitest.config.ts, web/vite.config.ts, e2e/playwright.config.ts, .husky/, scripts/worktree-for.sh, scripts/audit.sh, scripts/goal.sh, scripts/review-debt.sh, scripts/parity-debt.sh, scripts/review-gate.sh, scripts/pre-commit-tests.ts, scripts/lib/, scripts/backlog-vault/, scripts/claude-review/plan-review.py, scripts/claude-review/test_plan_review.py, CLAUDE.md, README.md, .claude/skills/run-backlog/SKILL.md, .claude/skills/backlog-review/SKILL.md, .claude/skills/doc-parity-review/SKILL.md, .claude/skills/design-intake-review/SKILL.md, .claude/skills/verify/SKILL.md, .claude/skills/pending/SKILL.md, .claude/agents/story-worker.md, .claude/agents/bug-worker.md, .claude/agents/backlog-reviewer.md, .claude/agents/doc-parity-reviewer.md, .claude/agents/pre-pr-reviewer.md, docs/v3/LOOP.md, docs/v3/LAWS.md, docs/v3/ARCHITECTURE.md, docs/v3/INTENT.md, docs/v3/VAULT-MIGRATION.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit/, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, changelog.d/ are modified, no other files under scripts/ or test/ are modified except creating scripts/verify-S156.sh, or stop after 48 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
 ```
 
-**Status:** `todo`
+**Status:** `doing`
 
 ### S138 — Standings for any date, picked from the calendar
 
