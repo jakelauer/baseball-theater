@@ -8,8 +8,8 @@
  * `package.json`); a path on the short list no browser run reads reaches nothing; any other path
  * (the lockfile, `scripts/`, `e2e/`, `fixtures/`, `compose.yaml`, …) reaches every package, since
  * it may change how anything builds or runs. CI's `changes` job asks `reachesFunctions` whether to
- * run the functions tests in shards; the `flows` and `design-specs` jobs ask `selectSpecs` which
- * spec files to run. Pushes to `stage` and `main` never ask: they run everything.
+ * run the functions tests in shards; the `flows` job asks `selectSpecs` which spec files to run.
+ * Pushes to `stage` and `main` never ask: they run everything.
  *
  * A spec declares its direct targets on a line `// @bt-targets: web, functions`. It names `web`
  * alone only when it answers every API request itself (it routes all of `**\/api/**`), so a
@@ -137,13 +137,14 @@ export function selectSpecs(changed: string[], specs: Spec[], graph: WorkspacePa
 }
 
 /**
- * The spec pool of each CI job, relative to `e2e/`: the flows job runs `flows/` plus the
- * harness spec (as `pnpm e2e` does), the design job every spec in `design/`.
+ * The flows job's spec pool, relative to `e2e/`: `flows/` plus the harness spec, as `pnpm e2e`
+ * runs. The design-capture specs have no CI job (owner, 2026-11-20: "We don't need to do this in
+ * CI; it can be something we run manually.").
  */
-export function specsFor(job: "flows" | "design", root: string): string[]
+export function flowSpecs(root: string): string[]
 {
-	const list = (dir: string): string[] => readdirSync(join(root, "e2e", dir)).filter((f) => f.endsWith(".spec.ts")).map((f) => `${dir}/${f}`).sort();
-	return job === "flows" ? [...list("flows"), "design/harness.spec.ts"] : list("design");
+	const flows = readdirSync(join(root, "e2e", "flows")).filter((f) => f.endsWith(".spec.ts")).map((f) => `flows/${f}`).sort();
+	return [...flows, "design/harness.spec.ts"];
 }
 
 /**
@@ -160,7 +161,7 @@ export function changedFiles(root: string, base: string, head: string): string[]
 }
 
 /**
- * `node e2e/select-specs.ts specs <flows|design> <base> <head>` prints the selected spec files
+ * `node e2e/select-specs.ts specs flows <base> <head>` prints the selected spec files
  * (relative to `e2e/`, space-separated, nothing when none); `… functions <base> <head>` prints
  * `true` or `false`.
  */
@@ -169,9 +170,9 @@ function main(argv: string[]): void
 	const root = join(import.meta.dirname, "..");
 	const graph = readGraph(root);
 	const [command, ...rest] = argv;
-	if (command === "specs" && (rest[0] === "flows" || rest[0] === "design") && rest.length === 3)
+	if (command === "specs" && rest[0] === "flows" && rest.length === 3)
 	{
-		const specs = specsFor(rest[0], root).map((file) => ({
+		const specs = flowSpecs(root).map((file) => ({
 			file,
 			targets: specTargets(readFileSync(join(root, "e2e", file), "utf8")),
 		}));
@@ -183,7 +184,7 @@ function main(argv: string[]): void
 	}
 	else
 	{
-		process.stderr.write("usage: node e2e/select-specs.ts specs <flows|design> <base> <head> | functions <base> <head>\n");
+		process.stderr.write("usage: node e2e/select-specs.ts specs flows <base> <head> | functions <base> <head>\n");
 		process.exitCode = 2;
 	}
 }

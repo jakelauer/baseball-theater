@@ -402,80 +402,9 @@ jobs:
                   path: functions/coverage/coverage-summary.json
                   if-no-files-found: ignore
 
-    # The design-capture specs run in CI without BT_DESIGN_CAPTURE, so nothing is written to the
-    # tree but a spec that breaks fails the run (S89 AC 2; it caught S97's at 2b4de06): every spec
-    # on a push, and on a pull request those its change can affect (S152 AC 5). Taking the captures
-    # is `pnpm design:capture`, on request.
-    design-specs:
-        needs: changes
-        if: needs.changes.outputs.code == 'true'
-        runs-on: ubuntu-latest
-        timeout-minutes: 30
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
-
-            - uses: pnpm/action-setup@v4
-              with:
-                  version: 9.15.0
-
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: ".nvmrc"
-                  cache: pnpm
-
-            - name: Install
-              run: pnpm install --frozen-lockfile
-
-            # S152 AC 5: a pull request runs only the specs its change can affect (each spec names
-            # its targets; e2e/select-specs.ts walks the workspace graph); a push runs them all. The
-            # list is assigned before it is written, so a selector that crashes fails the step
-            # instead of selecting nothing.
-            - name: Pick the specs this change can affect
-              id: specs
-              if: github.event_name == 'pull_request'
-              env:
-                  BASE: ${{ github.event.pull_request.base.sha }}
-                  HEAD: ${{ github.sha }}
-              run: |
-                  list="$(node e2e/select-specs.ts specs design "$BASE" "$HEAD")"
-                  echo "list=$list" >> "$GITHUB_OUTPUT"
-
-            # S152 AC 1: the browser download is kept between runs, keyed on the Playwright version
-            # the lockfile installed and the runner image, so a new ubuntu-latest downloads afresh.
-            # Its system libraries are installed every run (they live outside the cached folder). The
-            # version is assigned first, so failing to read it fails the step, not a version-less key.
-            - name: Browser cache key
-              id: browser-key
-              if: github.event_name != 'pull_request' || steps.specs.outputs.list != ''
-              run: |
-                  version="$(node -p 'require("@playwright/test/package.json").version')"
-                  echo "key=playwright-$RUNNER_OS-$ImageOS-$version" >> "$GITHUB_OUTPUT"
-
-            - name: Restore the Playwright browser
-              id: browser-cache
-              if: github.event_name != 'pull_request' || steps.specs.outputs.list != ''
-              uses: actions/cache@v4
-              with:
-                  path: ~/.cache/ms-playwright
-                  key: ${{ steps.browser-key.outputs.key }}
-
-            - name: Download the Playwright browser (cache miss only)
-              if: (github.event_name != 'pull_request' || steps.specs.outputs.list != '') && steps.browser-cache.outputs.cache-hit != 'true'
-              run: pnpm exec playwright install chromium
-
-            - name: Install the browser's system libraries
-              if: github.event_name != 'pull_request' || steps.specs.outputs.list != ''
-              run: pnpm exec playwright install-deps chromium
-
-            - name: Design-capture specs (no captures written)
-              if: github.event_name != 'pull_request'
-              run: pnpm e2e:design
-
-            - name: Design-capture specs (pull request, selected specs)
-              if: github.event_name == 'pull_request' && steps.specs.outputs.list != ''
-              run: pnpm exec playwright test --config e2e/playwright.config.ts ${{ steps.specs.outputs.list }}
+    # No design-capture specs here (owner, 2026-11-20: "We don't need to do this in CI; it can be
+    # something we run manually."): they only photograph screens for a design match, so a story
+    # running `pnpm design:capture` (or design-capture.yml) fixes a spec that has broken since.
 
     # Budgets on the built app (ADR-026): LCP warns over 2.5 s and fails at 5 s (owner,
     # 2026-10-29); TBT and layout shift fail over budget. Alone on its runner, so nothing else
@@ -530,13 +459,13 @@ jobs:
 
     # One check that stands for all of them, for a branch rule to require (so the rule needn't
     # change when the jobs do). It passes only when the jobs this change needed ran and passed:
-    # verify, flows, design-specs, lighthouse, functions-shard and functions-coverage for code, the
+    # verify, flows, lighthouse, functions-shard and functions-coverage for code, the
     # docs job for a docs-only change; a skipped job is fine only when the change didn't need it,
     # and a `code` that is neither true nor false fails. A pull request into stage also needs its
     # milestone (#47).
     ci-passed:
         if: always()
-        needs: [changes, docs, verify, flows, functions-shard, functions-coverage, design-specs, lighthouse, milestone]
+        needs: [changes, docs, verify, flows, functions-shard, functions-coverage, lighthouse, milestone]
         runs-on: ubuntu-latest
         steps:
             - name: Every CI job this change needed passed
@@ -546,7 +475,6 @@ jobs:
                   DOCS: ${{ needs.docs.result }}
                   VERIFY: ${{ needs.verify.result }}
                   FLOWS: ${{ needs.flows.result }}
-                  DESIGN: ${{ needs.design-specs.result }}
                   LIGHTHOUSE: ${{ needs.lighthouse.result }}
                   SHARDS: ${{ needs.functions-shard.result }}
                   MERGE: ${{ needs.functions-coverage.result }}
@@ -562,7 +490,7 @@ jobs:
                   test "$CHANGES" = success
                   if [ "$INTO_STAGE" = true ]; then test "$MILESTONE" = success; else test "$MILESTONE" = skipped; fi
                   if [ "$CODE" = true ]; then
-                      test "$VERIFY $FLOWS $DESIGN $LIGHTHOUSE" = "success success success success"
+                      test "$VERIFY $FLOWS $LIGHTHOUSE" = "success success success"
                   fi
                   # The functions shards and their merge (S152): they pass for every code change
                   # (their steps skip when the change doesn't reach functions) and are skipped only

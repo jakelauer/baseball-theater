@@ -16,7 +16,7 @@ import {
 } from "vitest";
 import type { Spec } from "./select-specs.ts";
 import {
-	changedFiles, isUnreadPath, reachesFunctions, readGraph, selectSpecs, specTargets, specsFor,
+	changedFiles, isUnreadPath, reachesFunctions, readGraph, selectSpecs, specTargets, flowSpecs,
 } from "./select-specs.ts";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -99,7 +99,7 @@ describe("selectSpecs (S152 AC 5)", () =>
 
 	it("the real specs: a web/src/ change selects exactly those naming web", () =>
 	{
-		const real = [...specsFor("flows", ROOT), ...specsFor("design", ROOT)].map((file) => ({
+		const real = flowSpecs(ROOT).map((file) => ({
 			file,
 			targets: specTargets(readFileSync(join(ROOT, "e2e", file), "utf8")),
 		}));
@@ -138,7 +138,7 @@ describe("reachesFunctions (S152 AC 4)", () =>
 	});
 });
 
-describe("readGraph, isUnreadPath, specsFor", () =>
+describe("readGraph, isUnreadPath, flowSpecs", () =>
 {
 	it("reads functions' @bt dependencies from its package.json", () =>
 	{
@@ -152,10 +152,9 @@ describe("readGraph, isUnreadPath, specsFor", () =>
 		expect(isUnreadPath("docs/v3/LAWS.md")).toBe(true);
 	});
 
-	it("runs the harness spec in both jobs", () =>
+	it("runs the harness spec in the flows job", () =>
 	{
-		expect(specsFor("flows", ROOT)).toContain("design/harness.spec.ts");
-		expect(specsFor("design", ROOT)).toContain("design/harness.spec.ts");
+		expect(flowSpecs(ROOT)).toContain("design/harness.spec.ts");
 	});
 });
 
