@@ -20350,3 +20350,33 @@ Owner, 2026-11-19, through /pending, answering the shell-scoreboard A14 design i
 **What changed, and the owner's answer**
 
 Owner, 2026-11-19, through /pending, asked whether S154's design change (its pages reuse the change log layout, so it names S133 as its design and gained a design match check) needs a backlog review or a skip: chose "Skip (Recommended)".
+
+---
+
+## 2026-11-20 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T08:28:59Z` |
+| HEAD at capture | `823fed11` (tree clean) |
+| Change | `e34c815e` — Backlog: parallel backlog work, Phases 0–3 (S156), owner-directed |
+
+**What changed, and the owner's answer**
+
+Owner-directed insertion of S156 (parallel backlog work, Phases 0–3, priority 60). Owner, 2026-11-20, asked "For speed, may S156 (the single parallelization story) skip its separate fresh-context backlog and doc parity reviews, and ship its story note and its build together as one pull request? The pre-PR review (several reviewers) and Claude's review still check the whole change.": chose "Skip them, one PR (Recommended)".
+
+---
+
+## 2026-11-20 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T08:29:00Z` |
+| HEAD at capture | `823fed11` (tree dirty) |
+| Change | `e34c815e` — Backlog: parallel backlog work, Phases 0–3 (S156), owner-directed |
+
+**What changed, and the owner's answer**
+
+Owner-directed insertion of S156 (parallel backlog work, Phases 0–3, priority 60). Owner, 2026-11-20, asked "For speed, may S156 (the single parallelization story) skip its separate fresh-context backlog and doc parity reviews, and ship its story note and its build together as one pull request? The pre-PR review (several reviewers) and Claude's review still check the whole change.": chose "Skip them, one PR (Recommended)".
