@@ -445,7 +445,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `97–109` Checkpoint — go / no-go for V3
     - `110–160` V3 — Story files become the source
     - `161–163` V4 — *(optional)* Slim `BACKLOG.md`
-- [VISUAL-DESIGN.md — Baseball Theater v3 — Visual Design](VISUAL-DESIGN.md) — 49 KB
+- [VISUAL-DESIGN.md — Baseball Theater v3 — Visual Design](VISUAL-DESIGN.md) — 50 KB
   - `16–29` North star (visual)
   - `30–75` 1. Design goals
     - `50–60` Hard bans
@@ -504,7 +504,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 82 | [S135](backlog/stories/todo/S135.md) Update notice and after-update pointer | `todo` | S131, S134, S81 | S133 |
 | 82 | [S148](backlog/stories/todo/S148.md) Live marker replaces "Fetched" | `todo` | S81 | S147 |
 | 83 | [S150](backlog/stories/todo/S150.md) One stored state per game | `todo` | — | — |
-| 84 | [S142](backlog/stories/todo/S142.md) Site footer of links | `todo` | S81 | S141 |
+| 84 | [S142](backlog/stories/todo/S142.md) Site footer of links | `todo` | S81, S134, S141 | S141 |
 | 84 | [S149](backlog/stories/todo/S149.md) Live scoreboard (day hub) | `todo` | S150, S81 | S147 |
 | 85 | [S154](backlog/stories/todo/S154.md) About, privacy and terms pages | `todo` | S142 | S133 |
 | 89 | [S127](backlog/stories/todo/S127.md) Design: play link in Search's player | `todo` | — | — |

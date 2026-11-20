@@ -284,12 +284,12 @@ Mantine `AppShell` stays as chrome, not as a content metaphor.
 
 Drop `v3 · local fixtures` on public builds.
 
-**Footer:** optional, quiet — copyright / report a problem. Not a second nav, not headlines.
+**Footer:** every page the shell draws ends in the site footer ([shell-scoreboard A14](./visual/shell-scoreboard/amendments/A14.md), ratified 2026-11-19): on a page with an open live WebSocket, A13's Live strip first; then a 12% Light hairline, two columns of links under muted uppercase headings, "Baseball Theater" (About, Changelog, Support & Community) and "Legal" (Privacy policy, Terms of use, and Your data for a signed-in fan), and a centred, muted "© {year} Baseball Theater". Just links and the copyright: no "Fetched" age, no "baseball.theater" mark, no offline line. It sits right after the content, never pinned to the screen's bottom. Not a second nav, not headlines.
 
 ### Scoreboard (summary)
 
 - Date control (prev / today / next / picker) first — not buried.
-- Quiet meta: date, window mode, last fetched (D9).
+- Quiet meta: date and window mode; freshness is the footer's Live marker (D9, shell-scoreboard A13), and no page shows the data's age (A14).
 - Each game is a **module-as-link** (the matchup/score side opens the game).
 - Anatomy: away (color, **abbr + record when scores show** — e.g. `NYY (91-71)`) · score · home (same) · time · **right-hand slot** (see below). **No logo, no photo hero, no headline.** Do not use city + full name as the scoreboard subheader under the score.
 - **Venue / game location on the list only while scheduled (pre-game).** Once live or final, location leaves the scoreboard row — it appears on **Box** (and only there among list vs rooms for location).
@@ -526,7 +526,7 @@ Tooltips are extra; accordion rows carry the same facts.
 | Allowed | Disallowed |
 |---------|------------|
 | Pitch / batted-ball flight (user-started) | Auto-animating lists, parallax, gradient motion |
-| Slow live-indicator blink (Accent 2 dot only; label has no colored bg/pill) | Module throb, staggered entrances, live status pill fills |
+| Slow live-indicator blink (Accent 2 dot only; label has no colored bg/pill); the footer's Live marker dot (`Primary Light`, a 2s fade cycle, steady under reduced motion; shell-scoreboard A13) | Module throb, staggered entrances, live status pill fills |
 | Hover: 0.3s border/lift, 0.4s still zoom, on Material's standard curve (owner, 2026-11-12) | Springy overshoot |
 | Tab / accordion height | Layout thrash on every live tick |
 
