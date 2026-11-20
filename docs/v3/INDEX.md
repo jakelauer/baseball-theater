@@ -378,7 +378,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `2167–2170` System Consistency
   - `2171–2174` Originality
   - `2175–2221` Small-Size Test
-- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 64 KB
+- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 65 KB
   - `12–19` North star
   - `20–34` Principles (product)
   - `35–46` Scope legend
@@ -502,8 +502,9 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 75 | [S145](backlog/stories/todo/S145.md) Play link on the meta line | `todo` | S97, S81 | S144 |
 | 76 | [S139](backlog/stories/todo/S139.md) Standings by season phase in the API | `todo` | S128 | — |
 | 76 | [S140](backlog/stories/todo/S140.md) World Series winner in standings | `todo` | S128 | — |
+| 76 | [S155](backlog/stories/todo/S155.md) Pre-1969 standings by league | `todo` | S139 | — |
 | 77 | [S130](backlog/stories/todo/S130.md) Standings views | `todo` | S128, S139, S140, S81 | S129 |
-| 77 | [S138](backlog/stories/todo/S138.md) Standings date picker | `todo` | S125, S130, S81 | S123, S129 |
+| 77 | [S138](backlog/stories/todo/S138.md) Standings date picker | `todo` | S125, S130, S155, S81 | S123, S129 |
 | 79 | [S132](backlog/stories/todo/S132.md) Release notes API | `todo` | S131 | — |
 | 81 | [S134](backlog/stories/todo/S134.md) Change log page | `todo` | S132, S81 | S133 |
 | 81 | [S147](backlog/stories/todo/S147.md) Design: Live marker | `todo` | — | — |
