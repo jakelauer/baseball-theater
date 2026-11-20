@@ -31,7 +31,11 @@ Sonnet only, a low turn cap, and only new commits after the first review: "Ok I'
   the PR touches no `is_reviewer_path` file (those always re-review): no model call; the post step says so and carries the record forward.
 
 Model and turns: always Sonnet (same owner answer; an Opus review cost $1-2.20, a Sonnet one about
-$0.18). Docs only, up to 300 changed lines, gets 15 turns; anything else 20. --max-turns counts model
+$0.18). Docs only, up to 300 changed lines, gets 15 turns; other reviews get 15 + files read / 3 + added
+lines / 1000, at least 20 and at most 50 (owner, 2026-11-20, after S156's 18,827-line review hit 20 turns
+and posted nothing: "Can you give it a higher limit?", then "Yeah use the formula"; see MIN_TURNS). An
+incremental review counts its new lines plus the whole change of the CI and deploy files it re-reads in
+full. --max-turns counts model
 responses, not tool calls, so the prompt tells the reviewer to batch independent reads into one response. Every turn re-sends the whole
 conversation, so turns are most of the cost. A run that hits its cap posts nothing and fails, so the
 prompt tells the reviewer its budget and to keep a turn for the answer.
@@ -100,6 +104,11 @@ def changed_lines(patch: str) -> int:
     return sum(1 for line in patch.splitlines() if line[:1] in "+-" and not line.startswith(("+++", "---")))
 
 
+def added_lines(patch: str) -> int:
+    """Lines a patch adds: what a reviewer reads as new code; deletions and moves cost little to review."""
+    return sum(1 for line in patch.splitlines() if line[:1] == "+" and not line.startswith("+++"))
+
+
 def previous_record(reviews: list) -> dict | None:
     """The newest record in a summary review by github-actions[bot]."""
     for review in reversed(reviews):
@@ -146,10 +155,20 @@ def decide_mode(record: dict | None, pr_files: dict[str, str], rules: dict[str, 
     return "incremental", why, since
 
 
-def tier(paths: list[str], lines: int) -> tuple[str, int, str]:
+# Turns scale with what the reviewer reads (owner, 2026-11-20, asked whether turns should be based on
+# size, "Like 0.01 x lines changed or something", then, shown this formula: "Yeah use the formula").
+# Reads are batched several to a turn, so files cost a third of a turn each, and only added lines count
+# (deletions and mechanical moves cost little to review). The floor keeps small reviews as they were; the
+# ceiling bounds the cost, since every turn re-sends the whole conversation (S156's 18,827-line review,
+# #117, ran out at a flat 20 and posted nothing). A pull request that needs more should be split.
+MIN_TURNS, MAX_TURNS = 20, 50
+
+
+def tier(paths: list[str], lines: int, added: int) -> tuple[str, int, str]:
     if paths and all(is_docs(p) for p in paths) and lines <= 300:
         return SONNET, 15, f"docs only, {lines} changed lines"
-    return SONNET, 20, f"{lines} changed lines"
+    turns = max(MIN_TURNS, min(MAX_TURNS, round(15 + len(paths) / 3 + added / 1000)))
+    return SONNET, turns, f"{len(paths)} files, {added} added lines ({lines} changed)"
 
 
 def prompt(mode: str, pr: str, head: str, review_dir: str, turns: int) -> str:
@@ -230,10 +249,21 @@ def main() -> int:
         patch = git("diff", record["head"], head, "--", *reviewed)
         with open(os.path.join(review_dir, "incremental.patch"), "w", encoding="utf-8") as f:
             f.write(patch)
+        lines, added = changed_lines(patch), added_lines(patch)
+        # CI and deploy files are re-read in full even when unchanged since the record, so the turn
+        # budget counts their whole change against the base too; counting only the new lines gave a
+        # 10-line push to a big pull request 20 turns for a re-read that had needed more. These are the
+        # files decide_mode added as machinery: reviewer paths unchanged since the record.
+        recorded = record.get("files", {})
+        machinery = [p for p in reviewed if is_reviewer_path(p) and files.get(p, "deleted") == recorded.get(p, "deleted")]
+        if machinery:
+            whole = git("diff", f"{base}...{head}", "--", *machinery)
+            lines, added = lines + changed_lines(whole), added + added_lines(whole)
     else:
         with open(os.path.join(review_dir, "diff.patch"), encoding="utf-8") as f:
             patch = f.read()
-    model, turns, tier_why = tier(reviewed, changed_lines(patch))
+        lines, added = changed_lines(patch), added_lines(patch)
+    model, turns, tier_why = tier(reviewed, lines, added)
 
     with open(os.path.join(review_dir, "reviewed.txt"), "w", encoding="utf-8") as f:
         f.write("".join(f"{p}\n" for p in reviewed))
