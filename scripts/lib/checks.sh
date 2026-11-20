@@ -119,7 +119,14 @@ story_own_diff() {
   while [ $# -gt 0 ] && [ "$1" != "--" ]; do opts+=("$1"); shift; done
   [ "${1:-}" = "--" ] && { shift; paths=("$@"); }
   tip="$(story_tip "$id")"
-  git -c core.quotepath=false log --first-parent --no-merges --reverse --format= ${opts[@]+"${opts[@]}"} "$base..${tip:-HEAD}" -- ${paths[@]+"${paths[@]}"}
+  # `git log` prints no patch unless asked, while `git diff` (story_diff) does: with no output-format option,
+  # ask for the patch, so a caller grepping the story's own diff sees its lines as it would story_diff's.
+  local logopts=("${opts[@]+"${opts[@]}"}") o fmt=""
+  for o in ${opts[@]+"${opts[@]}"}; do
+    case "$o" in --numstat | --name-only | --name-status | --stat | --shortstat | -p | --patch | -U*) fmt=1 ;; esac
+  done
+  [ -z "$fmt" ] && logopts+=(-p)
+  git -c core.quotepath=false log --first-parent --no-merges --reverse --format= ${logopts[@]+"${logopts[@]}"} "$base..${tip:-HEAD}" -- ${paths[@]+"${paths[@]}"}
   [ -z "$tip" ] && git -c core.quotepath=false diff ${opts[@]+"${opts[@]}"} HEAD -- ${paths[@]+"${paths[@]}"}
   return 0
 }
