@@ -16,14 +16,14 @@ explicitly where that's the case. For what's still ahead, see
 
 ## Checks on a proposed change finish faster
 
-- **Before, every proposed change waited about 9 minutes for its automatic checks, however small, because they
+- **Before, a proposed change waited up to about 9 minutes for all its automatic checks, however small, because they
   rebuilt and retested the whole app and reinstalled the test browser each time. Now the checks reuse the passing
-  results of the parts of the app a change doesn't touch, keep the test browser between runs, and split the slowest
-  tests in two so they run side by side: a change to the website alone finished its main check in about 2 minutes
-  instead of 7.5.** Every change merged into staging still reruns everything from scratch, so a reused result can't
+  results of the parts of the app a change doesn't touch and keep the test browser between runs, so the whole set
+  finished in about 6 minutes on both a website-only and a server-only change; a website-only change's main check
+  dropped from about 7.5 minutes to 2. A server change's own tests take about as long as before, now split in two.** Every change merged into staging still reruns everything from scratch, so a reused result can't
   hide a problem. Nothing in the app changes. Details: **S152** — Turborepo per-package caching (read only on pull
   requests), the Playwright browser cached, `functions`' tests sharded with merged coverage when a change reaches
-  them, browser specs scoped to the change, ESLint and tsc caches, law P11 reworded; measured on pull requests #113
+  them, browser specs scoped to the change (for now every spec declares both targets, so it selects them all), ESLint and tsc caches, law P11 reworded; measured on pull requests #113
   and #114.
 
 ## The approved footer and its links
