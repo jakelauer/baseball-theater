@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S106's design match (rule 22): the Live room's Win probability card, game-rooms
  * `live-medium` and `live-desktop` (desktop at 1200px, owner 2026-10-28), and with Hide Scores

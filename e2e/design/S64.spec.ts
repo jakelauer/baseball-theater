@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S64's design match (rule 22): the Live pitch theater in the pairing of each game-rooms
  * Live frame — `live-mobile`, `live-medium`, `live-desktop`. `pnpm dev` has no live game

@@ -494,7 +494,6 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 
 | Priority | Story or bug | Status | Depends on | Design |
 |---|---|---|---|---|
-| 71 | [S152](backlog/stories/todo/S152.md) Fast PR checks (scoped caching) | `todo` | — | — |
 | 72 | [S131](backlog/stories/todo/S131.md) Approved release notes | `todo` | — | — |
 | 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
 | 75 | [S145](backlog/stories/todo/S145.md) Inning pill play link on cards and player | `todo` | S97, S81 | S144 |
@@ -530,6 +529,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 117 | [S91](backlog/stories/todo/S91.md) Next-pitch odds in Live (paid) | `todo` | S90, S64 | S92 |
 | 118 | [S146](backlog/stories/todo/S146.md) Skip deploys with unchanged build inputs | `todo` | — | — |
 | 119 | [S151](backlog/stories/todo/S151.md) Video download via service worker | `todo` | S73 | — |
+| 71 | [S152](backlog/stories/blocked/S152.md) Fast PR checks (scoped caching) | `blocked` | — | — |
 | 72 | [S123](backlog/stories/blocked/S123.md) Design: calendar date picker | `blocked` | — | — |
 | 76 | [S129](backlog/stories/blocked/S129.md) Design: Standings views | `blocked` | — | — |
 | 80 | [S133](backlog/stories/blocked/S133.md) Design: change log + update notices | `blocked` | — | — |

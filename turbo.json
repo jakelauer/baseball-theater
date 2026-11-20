@@ -1,0 +1,33 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"globalDependencies": [
+		"pnpm-lock.yaml",
+		"tsconfig.base.json",
+		"eslint.config.js",
+		".nvmrc",
+		".jscpd.json",
+		".size-limit.json",
+		"wrangler.jsonc",
+		"fixtures/**",
+		"openapi/**",
+		"tools/**",
+		".github/workflows/**",
+		"scripts/preview-pr-open.sh"
+	],
+	"tasks": {
+		"typecheck": {
+			"dependsOn": ["^typecheck"],
+			"outputs": []
+		},
+		"build": {
+			"dependsOn": ["^build"],
+			"outputs": ["dist/**"]
+		},
+		"test:coverage": {
+			"dependsOn": ["^test:coverage"],
+			"outputs": ["coverage/**"],
+			"env": ["BT_FUNCTIONS_SHARDED", "BT_COVERAGE_SHARD"]
+		}
+	},
+	"globalPassThroughEnv": ["TMPDIR"]
+}

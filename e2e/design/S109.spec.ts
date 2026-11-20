@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S109's design match (rule 22): the Live room with the inning, count and outs in one
  * place, game-rooms A5's `live-mobile`, `live-medium` and `live-desktop` (desktop at

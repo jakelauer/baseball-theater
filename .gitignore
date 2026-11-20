@@ -58,3 +58,8 @@ e2e/playwright-report/
 docs/v3/.obsidian/workspace.json
 # The Obsidian Bases view of the backlog: Obsidian rewrites it on open; `pnpm backlog:build` seeds a default when it is missing
 docs/v3/backlog/Backlog.base
+
+# ESLint's cache (S152: `pnpm lint` runs it with --cache; CI keeps it between runs)
+.eslintcache
+# Vitest shard reports, merged by CI's functions-coverage job (S152)
+.vitest-reports/

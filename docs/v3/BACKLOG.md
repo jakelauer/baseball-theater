@@ -226,7 +226,7 @@ Ordered by **Priority** (execution order). Story IDs (`S1`…`S30`) are stable l
 | 70 | [S122](#s122--backfill-every-game-between-two-dates-gently-resumably-back-to-1901) | Game backfill since 1901 | `done` |
 | 71 | [S70](#s70--video-player-dialog-by-default-persistent-stage-by-setting) | Video player (dialog / stage) | `done` |
 | 71 | [S117](#s117--copy-productions-baseball-data-into-staging-on-request-with-no-fans-data) | Baseball-data copy to staging | `done` |
-| 71 | [S152](#s152--pr-checks-reuse-what-an-unchanged-package-already-passed-and-skip-the-browser-reinstall) | Fast PR checks (scoped caching) | `todo` |
+| 71 | [S152](#s152--pr-checks-reuse-what-an-unchanged-package-already-passed-and-skip-the-browser-reinstall) | Fast PR checks (scoped caching) | `blocked` |
 | 72 | [S109](#s109--live-status-the-inning-count-and-outs-in-one-place) | Live status, one place | `done` |
 | 72 | [S123](#s123--design-the-scoreboards-calendar-date-picker) | Design: calendar date picker | `blocked` |
 | 72 | [S131](#s131--each-releases-fan-facing-notes-approved-by-the-owner-before-it-publishes) | Approved release notes | `todo` |
@@ -306,7 +306,7 @@ Ordered by **Priority** (execution order). Story IDs (`S1`…`S30`) are stable l
 | 118 | [S146](#s146--a-deploy-is-skipped-when-nothing-its-build-reads-has-changed-decided-from-recorded-input-hashes) | Skip deploys with unchanged build inputs | `todo` |
 | 119 | [S151](#s151--download-any-video-streamed-to-disk-through-the-service-worker) | Video download via service worker | `todo` |
 
-**Next (generated):** **71 / S152** — the lowest **Priority** `todo` story not waiting on a design.
+**Next (generated):** **72 / S131** — the lowest **Priority** `todo` story not waiting on a design.
 
 **Before starting it:** confirm no [backlog review](#backlog-reviews) is due — the review-debt line in that section counts stories, but a drift event makes one due regardless.
 
@@ -8261,6 +8261,10 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 **Notes:**
 
 - **P11 wording:** (AC 8) asked "May S152 reword law P11 so pull requests reuse unchanged packages' last passing results and split the functions tests, while every push to stage or main still runs all of pnpm verify fresh?", the owner chose *"Reword P11 (Recommended)"* (2026-11-19), answering the 2026-11-19 backlog review's question. The story rewords P11's row in `docs/v3/LAWS.md` when it is built; until then the row is unchanged.
+- **CI workflow go-ahead** (CLAUDE.md asks before changing CI workflows): asked "May S152 (fast pull-request checks) change .github/workflows/ci.yml in this run? It adds per-package caching (Turborepo) so pull-request checks only rerun what changed; its ACs edit ci.yml, turbo.json and package scripts, and its note records no go-ahead for the workflow change.", the owner chose *"Yes, go ahead (Recommended)"* (2026-11-19), the option reading "S152 runs in this run, changing ci.yml as its ACs say".
+- **Reuse check** (2026-11-19, building): reused `scripts/ci-changes.sh` and the `changes` job unchanged (the docs-only skip; the new `functions` output sits beside `code`), the verify job's `pnpm verify`/Markdown steps and `ci-passed`'s line, each package's existing `test:coverage` and `vitest.config.ts` floors (functions' only gain a shard switch), `pnpm e2e`/`pnpm e2e:design` for pushes, and the root `verify` chain as it was (`build` and `test:coverage` now call `turbo` underneath, `pnpm lint`, `test:backlog` and `test:tools` stay root steps). New: `turbo.json`, `e2e/select-specs.ts` (one rule for the spec selection and the functions decision), the `functions-shard`/`functions-coverage` jobs.
+- **Parked checkpoint (AC 7):** committed with `status: blocked` as AC 7 says, every other criterion green; it waits for the pull request to merge into `stage`, for `stage`'s first push run with S152 to pass and save the cache, and then for two measured pull requests (one changing only `web/`, one changing `functions/`), whose run URLs and job times go here as `**Measured …:**` lines in the commit that flips it to `done`.
+- **`TMPDIR` passes through Turborepo** (`globalPassThroughEnv`, so it is not part of any hash): in Turborepo's strict mode the functions tests, with `TMPDIR` stripped, failed `pnpm verify` twice locally (a 10 s `beforeAll` timeout in `game-ingest-object.test.ts`, then a 401 for a 400 in `account-data.test.ts`) and passed with it; each file passes alone either way, so it reads as load on the shared temp folder (`functions/src/test/migrations-folder.ts` uses `os.tmpdir()`), not a test reading an undeclared input.
 - **B87 first** (owner, 2026-11-19, asked whether bug #87 should be fixed before S152: *"Before S152 (Recommended)"*): B87's note sits at priority 70.9, ahead of this story's 71.
 - **Why `stage` runs everything (AC 3, AC 5; owner, 2026-11-19: *"Stage reruns everything (Recommended)"*).** A cache key that misses an input would replay a stale pass. Pull requests take the speed; every merge to `stage` reruns the whole suite with no cache read, so such a miss shows on the next `stage` run instead of shipping. The `changes` job's docs-only skip stays as it is, and the new jobs skip with it.
 - **The browser image the owner picked.** Offered "Prebuilt browser image", the owner chose it; the pre-PR review found the image can't run the e2e web server (it needs Docker), so AC 1 caches the downloaded browser instead, which removes the same reinstall. The owner was told and agreed: asked "Is caching the test browser between runs acceptable for S152's fast PR checks, instead of the prebuilt browser image you picked?", the owner chose *"Cache the browser (Recommended)"* (2026-11-19).
@@ -8289,7 +8293,7 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 /goal docs/v3/BACKLOG.md S152. Work item 0 first: if scripts/verify-S152.sh is missing, write it per the Verify-script contract, run it against current HEAD, and show the nonzero exit before changing CI. Then: scripts/verify-S152.sh exits 0, pnpm verify exits 0, no files outside .github/workflows/ci.yml, turbo.json, package.json, packages/domain/package.json, packages/ports/package.json, packages/mlb-api/package.json, functions/package.json, functions/vitest.config.ts, web/package.json, pnpm-lock.yaml, .gitignore, eslint.config.js, e2e/, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, docs/v3/LAWS.md, CHANGELOG.md are modified, no files under scripts/ or test/ are modified except creating scripts/verify-S152.sh, or stop after 18 turns. If a criterion cannot be met inside that path list, stop and report which criterion and which path — do not widen the scope yourself.
 ```
 
-**Status:** `todo`
+**Status:** `blocked`
 
 ### S153 — A Search result for a play shows its inning pill, which opens the play
 
