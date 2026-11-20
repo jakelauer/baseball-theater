@@ -19199,3 +19199,18 @@ Still open (not answered): whether Search should load each result's game when ML
 **Answers and what was applied**
 
 Owner, 2026-11-19, through /pending, answering the game-shell A6 design intake review's open questions. Asked whether, when MLB gives a search result no play id or inning, search should fetch that clip's game to find them or show no inning pill: chose "Show no pill (Recommended)". Applied: S153 AC 1, AC 4 and its data-source note say such a result shows no pill and the game is never fetched. Asked whether a clip that belongs to no game should show the "More from game →" pill: chose "No pill (Recommended)". Applied: S127 AC 1 says a clip with no game draws no "More from game →" pill.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T00:45:37Z` |
+| HEAD at capture | `5868e64` (tree clean) |
+| Change | `5868e64` — S144 review fixes: one builder for the play pill's link (S145, S153), answered questions struck, A6's Search-player words superseded (S127) |
+
+**What changed, and the owner's answer**
+
+S145 AC 5, S153 AC 1/2/4/5 and S127 notes rewritten to answer the pre-PR review of PR #94; owner, 2026-11-07, asked whether such a rewrite needed a backlog review: "This shouldn't even trigger a question. Always skip."
