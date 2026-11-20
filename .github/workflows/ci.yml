@@ -13,15 +13,21 @@ concurrency:
     group: ci-${{ github.ref }}
     cancel-in-progress: true
 
+# Turborepo (S152) runs offline here: no usage reports from CI.
+env:
+    TURBO_TELEMETRY_DISABLED: "1"
+
 # S89: the checks run as separate jobs that start together, so a push learns sooner whether it
 # is green. Each job sets itself up the same way (checkout, pnpm, Node from .nvmrc, install).
 jobs:
     # Docs-only changes (Markdown, docs/, .claude/) skip the build, tests, browsers and Lighthouse
     # and run only the docs checks below (owner, 2026-11-07, of docs-only changes: "Things like this
-    # shouldn't trigger CI."). Law P11: anything else runs all of pnpm verify. A pull request is
-    # compared with its base; a push with the last commit on its branch whose CI run passed, so a
+    # shouldn't trigger CI."). Law P11: anything else runs the whole gate, a push all of pnpm verify
+    # fresh and a pull request reusing what unchanged packages already passed (S152). A pull request
+    # is compared with its base; a push with the last commit on its branch whose CI run passed, so a
     # docs merge right after an unchecked code merge still gets the full gate. scripts/ci-changes.sh
-    # decides, for CI and Deploy alike.
+    # decides `code`, for CI and Deploy alike; `functions` says whether a pull request's change
+    # reaches the functions package, so its tests run in the shard jobs (S152 AC 4).
     changes:
         runs-on: ubuntu-latest
         permissions:
@@ -56,14 +62,23 @@ jobs:
             # that scopes the browser specs, e2e/select-specs.ts), its tests run split across the
             # functions-shard jobs instead of inside verify. A push never splits them: verify runs
             # the whole suite there, fresh.
+            # The answer is assigned before it is written, so a selector that crashes fails this step
+            # (and so ci-passed) instead of deciding "no".
             - name: Does this change reach the functions package?
               id: functions
+              env:
+                  BASE: ${{ github.event.pull_request.base.sha }}
+                  HEAD: ${{ github.sha }}
               run: |
                   if [ "${{ github.event_name }}" = pull_request ]; then
-                      echo "functions=$(node e2e/select-specs.ts functions "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")" >> "$GITHUB_OUTPUT"
+                      functions="$(node e2e/select-specs.ts functions "$BASE" "$HEAD")"
                   else
-                      echo "functions=false" >> "$GITHUB_OUTPUT"
+                      functions=false
                   fi
+                  case "$functions" in
+                      true | false) echo "functions=$functions" >> "$GITHUB_OUTPUT" ;;
+                      *) echo "::error::e2e/select-specs.ts answered '$functions', not true or false"; exit 1 ;;
+                  esac
 
     # What a docs-only change can break: the generated backlog (pnpm backlog:check, also the first
     # step of pnpm lint), the backlog vault's own tests (ledger, laws, index) and the format of the
@@ -134,6 +149,13 @@ jobs:
 
             # S152 AC 6: ESLint's cache (content strategy, since a checkout resets every file's time)
             # and each package's tsc build info, kept between pull-request runs like Turborepo's.
+            # `pnpm lint` uses ESLint's cache only under GitHub Actions; a push restores none, so it
+            # lints fresh and saves the cache for later pull requests. The key hashes ESLint's config,
+            # its own rules, the lockfile (its plugins) and every tsconfig in the repository (its
+            # type-aware rules read each file's own, scripts/ and scripts/backlog-vault/ included),
+            # so a change to any of them starts afresh. A pull request can still replay a file's
+            # pass whose type-aware result another file's change altered; the next push's fresh lint
+            # is the backstop (owner, 2026-11-19: "Keep it on pull requests (Recommended)").
             - name: Restore the ESLint and tsc caches (pull requests only)
               if: github.event_name == 'pull_request'
               uses: actions/cache/restore@v4
@@ -143,10 +165,10 @@ jobs:
                       packages/*/tsconfig.tsbuildinfo
                       functions/tsconfig.tsbuildinfo
                       web/tsconfig.tsbuildinfo
-                  key: lint-tsc-${{ runner.os }}-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  key: lint-tsc-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'tools/eslint-rules/**', 'pnpm-lock.yaml', '**/tsconfig*.json', '!**/node_modules/**') }}-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
                   restore-keys: |
-                      lint-tsc-${{ runner.os }}-pr-${{ github.event.pull_request.number }}-
-                      lint-tsc-${{ runner.os }}-stage-
+                      lint-tsc-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'tools/eslint-rules/**', 'pnpm-lock.yaml', '**/tsconfig*.json', '!**/node_modules/**') }}-pr-${{ github.event.pull_request.number }}-
+                      lint-tsc-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'tools/eslint-rules/**', 'pnpm-lock.yaml', '**/tsconfig*.json', '!**/node_modules/**') }}-stage-
 
             # The docs job's Markdown check, run for code changes too (Claude's review of PR #14):
             # pnpm verify runs no Prettier, so without it a code change could merge unformatted
@@ -204,7 +226,7 @@ jobs:
                       packages/*/tsconfig.tsbuildinfo
                       functions/tsconfig.tsbuildinfo
                       web/tsconfig.tsbuildinfo
-                  key: lint-tsc-${{ runner.os }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  key: lint-tsc-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'tools/eslint-rules/**', 'pnpm-lock.yaml', '**/tsconfig*.json', '!**/node_modules/**') }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
 
     # The main flows on several workers (S89), each run twice so no flow depends on another's
     # order. Browsers run only here and in the design-spec job, never in pnpm verify (law P8).
@@ -231,19 +253,29 @@ jobs:
               run: pnpm install --frozen-lockfile
 
             # S152 AC 5: a pull request runs only the specs its change can affect (each spec names
-            # its targets; e2e/select-specs.ts walks the workspace graph); a push runs them all.
+            # its targets; e2e/select-specs.ts walks the workspace graph); a push runs them all. The
+            # list is assigned before it is written, so a selector that crashes fails the step
+            # instead of selecting nothing.
             - name: Pick the specs this change can affect
               id: specs
               if: github.event_name == 'pull_request'
-              run: echo "list=$(node e2e/select-specs.ts specs flows "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")" >> "$GITHUB_OUTPUT"
+              env:
+                  BASE: ${{ github.event.pull_request.base.sha }}
+                  HEAD: ${{ github.sha }}
+              run: |
+                  list="$(node e2e/select-specs.ts specs flows "$BASE" "$HEAD")"
+                  echo "list=$list" >> "$GITHUB_OUTPUT"
 
             # S152 AC 1: the browser download is kept between runs, keyed on the Playwright version
             # the lockfile installed and the runner image, so a new ubuntu-latest downloads afresh.
-            # Its system libraries are installed every run (they live outside the cached folder).
+            # Its system libraries are installed every run (they live outside the cached folder). The
+            # version is assigned first, so failing to read it fails the step, not a version-less key.
             - name: Browser cache key
               id: browser-key
               if: github.event_name != 'pull_request' || steps.specs.outputs.list != ''
-              run: echo "key=playwright-$RUNNER_OS-$ImageOS-$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
+              run: |
+                  version="$(node -p 'require("@playwright/test/package.json").version')"
+                  echo "key=playwright-$RUNNER_OS-$ImageOS-$version" >> "$GITHUB_OUTPUT"
 
             - name: Restore the Playwright browser
               id: browser-cache
@@ -361,9 +393,19 @@ jobs:
               working-directory: functions
               run: pnpm exec vitest --merge-reports --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary
 
-    # Every design-capture spec still runs in CI, without BT_DESIGN_CAPTURE, so nothing is
-    # written to the tree but a spec that breaks fails the push (S89 AC 2; it caught S97's at
-    # 2b4de06). Taking the captures is `pnpm design:capture`, on request.
+            # The verify job's coverage upload has no functions summary when the shards ran it.
+            - name: Upload the functions coverage summary
+              if: always() && needs.changes.outputs.functions == 'true'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-functions
+                  path: functions/coverage/coverage-summary.json
+                  if-no-files-found: ignore
+
+    # The design-capture specs run in CI without BT_DESIGN_CAPTURE, so nothing is written to the
+    # tree but a spec that breaks fails the run (S89 AC 2; it caught S97's at 2b4de06): every spec
+    # on a push, and on a pull request those its change can affect (S152 AC 5). Taking the captures
+    # is `pnpm design:capture`, on request.
     design-specs:
         needs: changes
         if: needs.changes.outputs.code == 'true'
@@ -387,19 +429,29 @@ jobs:
               run: pnpm install --frozen-lockfile
 
             # S152 AC 5: a pull request runs only the specs its change can affect (each spec names
-            # its targets; e2e/select-specs.ts walks the workspace graph); a push runs them all.
+            # its targets; e2e/select-specs.ts walks the workspace graph); a push runs them all. The
+            # list is assigned before it is written, so a selector that crashes fails the step
+            # instead of selecting nothing.
             - name: Pick the specs this change can affect
               id: specs
               if: github.event_name == 'pull_request'
-              run: echo "list=$(node e2e/select-specs.ts specs design "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")" >> "$GITHUB_OUTPUT"
+              env:
+                  BASE: ${{ github.event.pull_request.base.sha }}
+                  HEAD: ${{ github.sha }}
+              run: |
+                  list="$(node e2e/select-specs.ts specs design "$BASE" "$HEAD")"
+                  echo "list=$list" >> "$GITHUB_OUTPUT"
 
             # S152 AC 1: the browser download is kept between runs, keyed on the Playwright version
             # the lockfile installed and the runner image, so a new ubuntu-latest downloads afresh.
-            # Its system libraries are installed every run (they live outside the cached folder).
+            # Its system libraries are installed every run (they live outside the cached folder). The
+            # version is assigned first, so failing to read it fails the step, not a version-less key.
             - name: Browser cache key
               id: browser-key
               if: github.event_name != 'pull_request' || steps.specs.outputs.list != ''
-              run: echo "key=playwright-$RUNNER_OS-$ImageOS-$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
+              run: |
+                  version="$(node -p 'require("@playwright/test/package.json").version')"
+                  echo "key=playwright-$RUNNER_OS-$ImageOS-$version" >> "$GITHUB_OUTPUT"
 
             - name: Restore the Playwright browser
               id: browser-cache
@@ -478,8 +530,10 @@ jobs:
 
     # One check that stands for all of them, for a branch rule to require (so the rule needn't
     # change when the jobs do). It passes only when the jobs this change needed ran and passed:
-    # all four for code, the docs job for a docs-only change; a skipped job is fine only when the
-    # change didn't need it. A pull request into stage also needs its milestone (#47).
+    # verify, flows, design-specs, lighthouse, functions-shard and functions-coverage for code, the
+    # docs job for a docs-only change; a skipped job is fine only when the change didn't need it,
+    # and a `code` that is neither true nor false fails. A pull request into stage also needs its
+    # milestone (#47).
     ci-passed:
         if: always()
         needs: [changes, docs, verify, flows, functions-shard, functions-coverage, design-specs, lighthouse, milestone]
@@ -499,6 +553,12 @@ jobs:
                   MILESTONE: ${{ needs.milestone.result }}
                   INTO_STAGE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'stage' }}
               run: |
+                  # GitHub runs this as bash -e without pipefail, where a failing test before && doesn't
+                  # stop the script, so each test stands alone and a missing code fails outright.
+                  case "$CODE" in
+                      true | false) ;;
+                      *) echo "::error::changes gave code='$CODE', not true or false"; exit 1 ;;
+                  esac
                   test "$CHANGES" = success
                   if [ "$INTO_STAGE" = true ]; then test "$MILESTONE" = success; else test "$MILESTONE" = skipped; fi
                   if [ "$CODE" = true ]; then
@@ -510,6 +570,6 @@ jobs:
                   if [ "$CODE" = true ]; then
                       test "$SHARDS $MERGE" = "success success"
                   else
-                      test "$CODE" = false && test "$DOCS" = success
+                      test "$DOCS" = success
                       test "$SHARDS $MERGE" = "skipped skipped"
                   fi

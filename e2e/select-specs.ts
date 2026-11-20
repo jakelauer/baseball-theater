@@ -117,11 +117,13 @@ export function reachesFunctions(changed: string[], graph: WorkspacePackage[]): 
 	return reachedPackages(changed, graph).has("functions");
 }
 
-/** The targets a spec's source declares on its `// @bt-targets:` line, or `null` without one. */
+/** The targets a spec's source declares on its `// @bt-targets:` line, or `null` without one (or with a blank one). */
 export function specTargets(source: string): string[] | null
 {
-	const line = /^\/\/ @bt-targets: (.+)$/m.exec(source);
-	return line ? line[1]!.split(",").map((t) => t.trim()).filter(Boolean) : null;
+	const line = /^\/\/ @bt-targets:(.*)$/m.exec(source);
+	const targets = line ? line[1]!.split(",").map((t) => t.trim()).filter(Boolean) : [];
+	// A blank declaration names nothing, so it counts as none and runs whenever anything does.
+	return targets.length > 0 ? targets : null;
 }
 
 /** The specs a change selects: each one with a reached target, plus undeclared ones whenever anything is reached. */
@@ -130,7 +132,7 @@ export function selectSpecs(changed: string[], specs: Spec[], graph: WorkspacePa
 	const reached = reachedPackages(changed, graph);
 	if (reached.size === 0) return [];
 	return specs.filter((s) => s.targets === null
-		|| s.targets.some((t) => !(t in TARGET_DIRS) || reached.has(TARGET_DIRS[t]!)))
+		|| s.targets.some((t) => !Object.hasOwn(TARGET_DIRS, t) || reached.has(TARGET_DIRS[t]!)))
 		.map((s) => s.file);
 }
 
@@ -144,10 +146,15 @@ export function specsFor(job: "flows" | "design", root: string): string[]
 	return job === "flows" ? [...list("flows"), "design/harness.spec.ts"] : list("design");
 }
 
-/** The files a pull request changes: `git diff --name-only <base>...<head>`, as the `changes` job compares. */
-function changedFiles(root: string, base: string, head: string): string[]
+/**
+ * The files a pull request changes, `git diff --no-renames --name-only <base>...<head>`, read as
+ * `scripts/ci-changes.sh` reads them: paths unquoted, and no rename detection, so a file moved out
+ * of a package (to `docs/`, say) still lists its old path and reaches that package. Throws when git
+ * can't diff, so CI's step fails instead of selecting nothing.
+ */
+export function changedFiles(root: string, base: string, head: string): string[]
 {
-	return execFileSync("git", ["-c", "core.quotepath=false", "diff", "--name-only", `${base}...${head}`], {
+	return execFileSync("git", ["-c", "core.quotepath=false", "diff", "--no-renames", "--name-only", `${base}...${head}`], {
 		cwd: root,
 	}).toString().split("\n").filter(Boolean);
 }
