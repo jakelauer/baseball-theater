@@ -19214,3 +19214,43 @@ Owner, 2026-11-19, through /pending, answering the game-shell A6 design intake r
 **What changed, and the owner's answer**
 
 S145 AC 5, S153 AC 1/2/4/5 and S127 notes rewritten to answer the pre-PR review of PR #94; owner, 2026-11-07, asked whether such a rewrite needed a backlog review: "This shouldn't even trigger a question. Always skip."
+
+---
+
+## 2026-11-19 — doc parity review (`continue`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T00:50:10Z` |
+| HEAD at review | `6bdb0b8` (tree clean) |
+| Trigger | FEATURES.md changed (6bdb0b8: Video play links row gains the owner's two no-pill answers) |
+| Stories `done` since last review | none |
+| Verdict | `continue` |
+
+**Findings / amendments**
+
+**Scope.** `pnpm parity:debt` at `6bdb0b8` named only "docs/v3/FEATURES.md changed" (since `05567f4`): 6bdb0b8 added two sentences to FEATURES' Video play links row (FEATURES:98). No story note was added or removed and no `**Source:**` line changed since `05567f4` (`git diff --name-status 05567f4..HEAD -- docs/v3/backlog/stories/` shows only S127, S145, S153 modified; no `Source` line in that diff). Stories in scope: the three citing the changed row (S145, S153, S127), plus the next 3 `todo` by priority in `docs/v3/INDEX.md`: S125 (74), S145 (75), S139 (76; S140 ties at 76 and was read too). No `doing` story. No story cites `Open:` (`grep -rln "Source:\*\* Open" docs/v3/backlog/stories/` empty). The only pillar-cited open story is S146 (priority 118), unchanged since the last review and outside scope.
+
+**1. Citation honesty**
+
+- **The FEATURES change itself.** Both added sentences record decisions the owner already made, in the owner's own chosen words, and both are logged: the ledger entry "backlog review answers (2026-11-19)" at AUDIT line 19190 (committed in `3042ef0`, applied in `73343fa`) quotes the owner, through /pending, choosing "Show no pill (Recommended)" (a Search result MLB gives no play id or inning shows no inning pill; the clip's game is never fetched) and "No pill (Recommended)" (a clip that belongs to no game shows no `More from game →` pill). The row's wording matches S153 AC 1 / AC 4 and S127 AC 1 as applied in `73343fa`. Holds.
+  - Observation, no edit: the row says "no play id, half-inning or inning", where the ledger's question named "play id or inning". The half-inning case was added by PR #94's pre-PR review (`5868e64`, S153 notes "2026-11-19 pre-PR review"), since the pill's visible `Top`/`Bot` can't be drawn without it; it is a direct consequence of the owner's answer, not new intent.
+- **S153** (Feature: Video play links). Gap/Impact: A6's inning pill on Search's result rows, opening the play. The row says the pill appears on "Search's results", that S153 builds it, and now that a result without the play fields shows none (S153 AC 4). Holds.
+- **S145** (Feature: Video play links). Gap/Impact: the date-then-pill meta line on cards and the game's player, spoken name `Open play - Top of 6th inning`, a clip with no play keeps "Highlight". The row states each of these and names S145 as their builder. Holds.
+- **S127** (Feature: Video play links). Its AC 1 now draws no `More from game →` pill for a clip with no game, which the row now states. The row describes S127 as an unratified draft designing Search's, the day digest's and the stage player's pills. Holds.
+- **S125** (Feature: Calendar date picker). FEATURES:101 quotes the same 2026-11-07 owner words as the Gap and names S123/S124; note unchanged since the last review. Holds.
+- **S139 / S140** (Feature: Standings). FEATURES:65 records the `includePhases` words (naming S139) and the World Series box; notes unchanged since the last review. Holds.
+
+**2. Doc reflects reality**
+
+- The Video play links row no longer contradicts S153 or S127 on either question: the last parity review's open item ("whether Search should load each result's game when MLB's search lacks the play id or inning") is settled in the row, S153 and S127 alike.
+- No other FEATURES/INTENT text names the Search fallback or `gamePk: -1`; game-shell A6 and VISUAL-DESIGN don't cover either case (grep), so no conflict with a ratified file.
+- The frame note's stale "Parity review due: S153 inserted…" line (queued by the last parity review) is gone from `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md`.
+- No relic found in the rows read.
+
+**3. Coverage — For the next backlog review**
+
+1. **The inning pill in the scoreboard day digest's player and the stage-mode player** ("all players always") and **Search's floating player's `More from game →` pill plus the inning pill**: FEATURES records them, S127 (draft) designs them, and still no story builds them (carried from the 2026-11-19 parity review). The intake S127's ratification triggers must slice them.
+
+No edits: every citation checked holds and the docs match.
