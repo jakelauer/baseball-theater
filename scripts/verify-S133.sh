@@ -29,7 +29,7 @@ cd "$(dirname "$0")/.."
 source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "shell-scoreboard has its next free amendments/A<N>.md (new in S133) headed '(S133)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames"
-check 2 "the change log page (releases, empty, loading, error), A6 with its link, for a retired version and on the change log page, and the pointer after updating (plain, beside a marker, on the change log page) drawn at mobile, medium and desktop; the menu opened while the pointer shows and the drawer's change log link at mobile and medium; the rail's change log link and release version line at desktop: real PNGs at the ratified pairing width, listed in ## Frames, which names the buckets, kinds, states and the pointer's words, and never the old name or a Fetched line; every frame ## Frames names is one of its own; no earlier frame's name.png anywhere in the amendment"
+check 2 "the change log page (releases, empty, loading, error), A6 with its link (which ## Frames says also draws the retired-version notice) and on the change log page, and the pointer after updating (plain, beside a marker, on the change log page) drawn at mobile, medium and desktop; the menu opened while the pointer shows and the drawer's change log link at mobile and medium; the rail's change log link and release version line at desktop: real PNGs at the ratified pairing width, listed in ## Frames, which names the buckets, kinds, states and the pointer's words, and never the old name or a Fetched line; every frame ## Frames names is one of its own; no earlier frame's name.png anywhere in the amendment"
 check 3 "## Decisions says, one cited and quoted line each: the page's Name (Change log) and Address (/changelog, a new route), where it is Reached from (the foot of the menu), its Kinds (feature, enhancement, bug fix) and its Major Feature header (gold), the Update notice additions (none), the Retired version case (link hidden, or shown and where it goes), how long the pointer stays (Pointer goes after: N seconds), its Pointer countdown and close, what shows With the update notice (the update notice, not the pointer), and the Rail version line (semver with the commit)"
 check 4 "the amendment's ## Ratification names Jake Lauer, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left"
 check 5 "no sealed file in shell-scoreboard changed or deleted (RATIFIED.md manifest verifies; RATIFIED.md, ratified frames and every other amendment untouched by S133; every amendment's sealed frames present and unchanged)"
@@ -168,7 +168,13 @@ not_the_question() {
 PAIRINGS="mobile medium desktop"
 # Every state AC 1 names, drawn at every pairing. (A6's box beside the pointer is not drawn: only
 # the update notice shows then, and a frame of it would copy an A6 frame; ## Decisions says so.)
-STATES="changelog changelog-empty changelog-loading changelog-error update-notice-link update-notice-retired update-notice-on-changelog updated-pointer updated-pointer-with-marker updated-pointer-on-changelog"
+# The retired-version notice is not a frame set of its own either (updated before shipping, rule 7,
+# 2026-11-19): since the owner's Q14 answer (2026-11-16: "I don't think this matters. Shouldn't be a
+# way to update to a retired version.") it is the same box, link included, so its frames rendered
+# byte for byte as update-notice-link-*, which the identical-frames check below rightly rejects.
+# ## Frames must instead say in words that update-notice-link-* draws the retired case (RETIRED_RE).
+STATES="changelog changelog-empty changelog-loading changelog-error update-notice-link update-notice-on-changelog updated-pointer updated-pointer-with-marker updated-pointer-on-changelog"
+RETIRED_RE='retired.*update-notice-link-|update-notice-link-.*retired'
 # The drawer is where the menu is behind the menu button: mobile and medium.
 DRAWER_STATES="drawer-changelog-link updated-pointer-menu-open"
 # The rail's change log link and version line are drawn where the rail is, on desktop.
@@ -390,6 +396,10 @@ else
 	for term in "Change log" "Major Feature" "fixes and polish" "feature" "enhancement" "bug fix" "empty" "loading" "error" "retired" "pointer" "highlighted" "Update complete" "countdown" "marker" "reduced motion" "version"; do
 		echo "$frames_table" | grep -qiF "$term" || bad 2 "## Frames never mentions '$term'"
 	done
+	# The retired-version notice is A6's box with its link (Q14), drawn by update-notice-link-*: one
+	# line of ## Frames says so.
+	echo "$frames_table" | grep -qiE "$RETIRED_RE" ||
+		bad 2 "## Frames never says, on one line, that update-notice-link-* draws the retired-version notice"
 	# The owner renamed the page and dropped its fetch line (2026-11-10), so ## Frames draws neither.
 	for term in "What's new" "changelist" "Fetched"; do
 		echo "$frames_table" | grep -qiF "$term" && bad 2 "## Frames still draws '$term' (owner, 2026-11-10: the page is the change log, with no Fetched line)"

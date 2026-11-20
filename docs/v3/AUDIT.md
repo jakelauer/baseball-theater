@@ -18640,3 +18640,87 @@ Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the rev
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
+
+---
+
+## 2026-11-19 — S133 completed
+
+**Design: change log + update notices**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-20T01:01:51Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `8408c0b` (tree dirty) |
+| Grader | `scripts/verify-S133.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: shell-scoreboard has its next free amendments/A<N>.md (new in S133) headed '(S133)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: the change log page (releases, empty, loading, error), A6 with its link (which ## Frames says also draws the retired-version notice) and on the change log page, and the pointer after updating (plain, beside a marker, on the change log page) drawn at mobile, medium and desktop; the menu opened while the pointer shows and the drawer's change log link at mobile and medium; the rail's change log link and release version line at desktop: real PNGs at the ratified pairing width, listed in ## Frames, which names the buckets, kinds, states and the pointer's words, and never the old name or a Fetched line; every frame ## Frames names is one of its own; no earlier frame's name.png anywhere in the amendment
+check 3 PASS: ## Decisions says, one cited and quoted line each: the page's Name (Change log) and Address (/changelog, a new route), where it is Reached from (the foot of the menu), its Kinds (feature, enhancement, bug fix) and its Major Feature header (gold), the Update notice additions (none), the Retired version case (link hidden, or shown and where it goes), how long the pointer stays (Pointer goes after: N seconds), its Pointer countdown and close, what shows With the update notice (the update notice, not the pointer), and the Rail version line (semver with the commit)
+check 4 PASS: the amendment's ## Ratification names Jake Lauer, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left
+check 5 PASS: no sealed file in shell-scoreboard changed or deleted (RATIFIED.md manifest verifies; RATIFIED.md, ratified frames and every other amendment untouched by S133; every amendment's sealed frames present and unchanged)
+check 6 PASS: S133 changes no file outside its fence (scripts/verify-S133.sh aside)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+```
+
+**7/7 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S133 check results ---
+check 1 PASS: shell-scoreboard has its next free amendments/A<N>.md (new in S133) headed '(S133)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: the change log page (releases, empty, loading, error), A6 with its link (which ## Frames says also draws the retired-version notice) and on the change log page, and the pointer after updating (plain, beside a marker, on the change log page) drawn at mobile, medium and desktop; the menu opened while the pointer shows and the drawer's change log link at mobile and medium; the rail's change log link and release version line at desktop: real PNGs at the ratified pairing width, listed in ## Frames, which names the buckets, kinds, states and the pointer's words, and never the old name or a Fetched line; every frame ## Frames names is one of its own; no earlier frame's name.png anywhere in the amendment
+check 3 PASS: ## Decisions says, one cited and quoted line each: the page's Name (Change log) and Address (/changelog, a new route), where it is Reached from (the foot of the menu), its Kinds (feature, enhancement, bug fix) and its Major Feature header (gold), the Update notice additions (none), the Retired version case (link hidden, or shown and where it goes), how long the pointer stays (Pointer goes after: N seconds), its Pointer countdown and close, what shows With the update notice (the update notice, not the pointer), and the Rail version line (semver with the commit)
+check 4 PASS: the amendment's ## Ratification names Jake Lauer, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left
+check 5 PASS: no sealed file in shell-scoreboard changed or deleted (RATIFIED.md manifest verifies; RATIFIED.md, ratified frames and every other amendment untouched by S133; every amendment's sealed frames present and unchanged)
+check 6 PASS: S133 changes no file outside its fence (scripts/verify-S133.sh aside)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+--- verify-S133: 7/7 checks passed ---
+verify-S133: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 132ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 9ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 21ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 22ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 24ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 26ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 592ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  326ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 380ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  363ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  17:03:33
+   Duration  1.10s (transform 128ms, setup 0ms, collect 2.89s, tests 1.21s, environment 1ms, prepare 327ms)
+
+
+> baseball-theater-v3@0.0.0 size /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/agent-ac2b2dc2c4f456ef7
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162462,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
