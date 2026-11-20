@@ -523,7 +523,7 @@ Still to finish before a public launch (the _Cloudflare deploy_ Later theme):
 | `pnpm api:spec`         | Regenerate the OpenAPI spec (see below)          |
 | `pnpm api:breaking`     | Breaking-change gate against the baseline        |
 
-Loop / agent automation: [docs/v3/LOOP.md](./docs/v3/LOOP.md) · backlog [docs/v3/BACKLOG.md](./docs/v3/BACKLOG.md) · conventions `CLAUDE.md`.
+Loop / agent automation: [docs/v3/LOOP.md](./docs/v3/LOOP.md) · backlog [docs/v3/INDEX.md](./docs/v3/INDEX.md) (built by `pnpm backlog:build`) and the notes in [docs/v3/backlog/](./docs/v3/backlog/) · conventions `CLAUDE.md`.
 
 ## Packages
 
@@ -656,4 +656,4 @@ the cache when ingest knows it changed, which isn't built yet.
 
 - [INTENT](./docs/v3/INTENT.md) · [FEATURES](./docs/v3/FEATURES.md) · [ARCHITECTURE](./docs/v3/ARCHITECTURE.md)
 - [CHANGELOG](./CHANGELOG.md) — what shipped, in plain language, grouped by effort
-- [BACKLOG](./docs/v3/BACKLOG.md) — what's next
+- [Backlog notes](./docs/v3/backlog/) — what's next (one note per story; `docs/v3/INDEX.md`, built by `pnpm backlog:build`, lists them in order)
