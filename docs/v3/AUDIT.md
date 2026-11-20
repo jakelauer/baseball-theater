@@ -19496,3 +19496,61 @@ export const label = game.abbreviation + " @ ";  410ms
 ```
 
 </details>
+
+---
+
+## 2026-11-19 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-20T00:16:06Z` |
+| HEAD at review | `c7731fc` (tree dirty) |
+| Trigger | design intake: shell-scoreboard A14 (S141) |
+| Stories `done` since last review | S141 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Design intake review of shell-scoreboard A14 (site footer of links, S141, ratified 2026-11-19). Two independent fresh-context reviewers; this entry is the merge, applied by a merger agent at c7731fc.
+
+**Inventory (A14).** One Figma component set `site-footer` (705:23532), variants Live=Off|On x Width=Mobile|Wide (16px / 24px side padding); Live=On nests A13's `footer-live-strip` (705:23499) with `live-marker` (705:23500); body `site-footer-body` (705:23503): two `site-footer-column` and `site-footer-copyright` (734:8895). Signed-out is an instance override hiding "Your data". Eight sealed PNGs: site-footer-mobile, -medium, -desktop, -game-mobile, -short-desktop, -standalone-mobile, -offline-mobile, -signed-out-mobile. Links (A14:53-60): About /about, Changelog /changelog, Support & Community https://www.reddit.com/r/BaseballTheater/ (new tab, rel noopener noreferrer, no icon, A14:47), Privacy policy /privacy, Terms of use /terms, Your data /settings (signed-in only, A14:46). Copyright "(c) {year} Baseball Theater" centred muted (A14:5, :35). Shows on every shell page, not in dialogs/drawers, not on the account-deleted Settings page (A14:37). Short page: right after the content (A14:39). States not drawn: hover/focus (site-wide rule, styles.css:67-110), session loading, a column with no links (signed-out "Legal" before S154), a third column wrapping. Data: copyright year has no domain function (mlbToday at packages/domain/src/scoreboard-date.ts:53); socket state from S148 useLiveGame / S149 useLiveDay; session from useSession.
+
+**Ownership.** 24 items: 18 owned as written, 6 re-scoped, 0 unowned, no story inserted. S148: strip, LiveMarker, first SiteFooter, FooterMeta and "baseball.theater" removed. S149: scoreboard socket. S142: columns, headings, hairline, Changelog link (Depends on S134), copyright, shell placement. S154: About/Privacy/Terms pages and links. S74: offline frame. Recap "Source: MLB" built (RecapRoom.tsx:42); standalone safe area built (styles.css:59-65).
+
+**Re-scoped, with evidence.**
+- S142 Gap: "the evening answers made the footer just links" superseded by the ratified copyright (A14:35).
+- S142 AC 1: Search and the change log page added to the RTL list; footer found by role contentinfo, rendered outside `<main>` (a `<footer>` inside `<main>` has no contentinfo role; `<main>` has px="md" and flex:1 in a minHeight:100vh column, AppShellLayout.tsx:43-46, 92-94, which would inset the strip, A14:41, and pin the footer to the bottom of a short page, A14:39); no footer on the deleted page (queryByRole("contentinfo") null, replacing DeletedAccount.test.tsx:142's queryByText(/baseball\.theater$/), trivial once S148 removes the mark), none in the open drawer; page state through the render prop (App.tsx:103-105 `children(variant)`; web/src has no Outlet/useOutletContext) with cleanup on unmount (else the strip persists live game -> Standings); width from `variant`; `copyrightYear(instant)` = year of mlbToday, unit at 2027-01-01T03:00Z -> 2026 and 05:00Z -> 2027 (restores S142 note (b)).
+- S142 AC 3: Support & Community href, target=_blank, rel=noopener noreferrer, no icon; BT links same tab; site-wide hover via Mantine Anchor or bt-hover (owner 2026-11-12); no About/Privacy/Terms until S154.
+- S142 AC 4: requires the copyright line from copyrightYear; "nothing else" (A14:36) kept as an exact-text RTL check.
+- S142 AC 5: "Your data" -> /settings exactly (A14:46; was "Settings' data section", reuse check named an anchor); left out signed out and while loading (routes.tsx SignedInOnly renders null while loading, then redirects signed-out visitors); signed-out "Legal" before S154 is owner Q2.
+- S142 AC 7: names seven frames; standalone via S73's CDP display-mode emulation (e2e/design/S73.spec.ts:106-112); expected differences: About/Privacy/Terms until S154, scoreboard strip without useLiveDay, game strip without S148; offline is S74's.
+- S142: prefer_after S148; turn cap 12 -> 14; note's outlet-context sentence corrected; reuse check updated.
+- S154: Gap "a draft" -> ratified; S141 on Design line (done); AC 4 order (About first; Privacy policy, Terms of use before Your data), one link list, signed-out RTL; AC 5 captures site-footer-mobile, -desktop, -signed-out-mobile with all six links.
+- S148 AC 1 and note: "A14's draft" -> ratified, columns are S142's.
+- S74: S141 on Design line (done, gates nothing); AC 7 names site-footer-offline-mobile, columns an expected difference until S142.
+- Gap map Site footer row and Current baseline As of updated; Backlog reviews notes updated.
+
+**Disagreements and resolutions.**
+1. Standalone frame: reviewer 1 said not capturable (emulateMedia lacks display-mode); reviewer 2 said reuse S73's emulation. Checked e2e/design/S73.spec.ts:13, 106-112: it sets display-mode standalone over the DevTools protocol. Resolved for reviewer 2: S142 captures it.
+2. State channel: reviewer 1 `children(variant, {setLive, setFooter})` including the deleted page's hide; reviewer 2 `children(variant, setLive)` with unmount cleanup. Resolved as the union: props through the render prop carry both the live state and the deleted page's no-footer, each cleared on unmount; the exact signature is left to the implementer, the outcomes are RTL-checked.
+3. Placement fix: reviewer 1 footer outside `<main>`; reviewer 2 outside `<main>` or flex:1 moved to a wrapper. Resolved: outside `<main>`, since a `<footer>` inside `<main>` loses its contentinfo role (HTML-AAM) and is inset by px="md"; flex:1 must move so leftover height falls below the footer; proven by the short-desktop and desktop captures.
+4. Session loading: both read "left out"; reviewer 2 offered it to the owner. Resolved without a question: A14:46 shows the link to a signed-in fan only, and routes.tsx renders nothing for /settings while loading.
+5. S74: reviewer 1 left the offline frame unassigned in S142; reviewer 2 re-scoped S74. Union: S74 re-scoped.
+6. S148: reviewer 1 re-scoped wording; reviewer 2 judged S148 owned correctly. Union: wording only, no behaviour change.
+7. Verdict: reviewer 2 noted Q1/Q2 could block the footer chain. Resolved `amended`: the plan is consistent under every answer, S142 can't start before S131/S133 (blocked) anyway, and S142's note gates `doing` on the answers.
+
+**Check 2 (next 3 by priority: S125, S145, S130).** Untouched by this intake. Depends: S124, S136, S81 done; S97, S81 done; S128, S139, S140, S81 done. Designs S123, S144, S129 all `blocked`, so none can start. Fence paths exist (web/src/components/videos/, packages/domain/, e2e/design/); scripts/verify-S125/S145/S130.sh absent, as each story's work item 0 creates. Turn caps unchanged (no code landed since the 2026-11-19 review). HEAD facts for the footer: FooterMeta still called in ScoreboardPage.tsx, GamePage.tsx, StandingsPage.tsx; no SiteFooter/LiveMarker; routes.tsx serves no /changelog, /about, /privacy, /terms; LAWS.md pins S60's FooterMeta AC as a pinned grader, not a law.
+
+**Check 2b (re-scoped stories).** S142: AC 1 passed a footer inside `<main>` with an inset strip, pinned on a short page (fixed: contentinfo role + captures); AC 1's deleted-page check went trivial after S148 (fixed: contentinfo null); state persisted across navigation (fixed: cleanup RTL); AC 3 passed without new tab/rel (fixed); AC 4 passed without the copyright (fixed); AC 5 passed with /settings#data and a flashed link while loading (fixed); AC 7 passed with zero frames (fixed: seven named). S154: AC 4 passed with About after Support & Community and no signed-out check (fixed); AC 5 never compared the footer (fixed). S148: wording only. S74: AC 7 frame list predated A14 (fixed). Checklist items applied: undrawn states, trivially passing assertions, wrong mechanism named (outlet context), cross-story ordering, external-link safety, exact destinations.
+
+**Check 3 (order).** S148 (82) -> S142 (84) -> S154 (85) holds; S149 either side. S142 -> S134 -> S132 -> S131 (blocked) and S134's design S133 (blocked): the footer of links waits on approved release notes, which is Q1. Startable now: S148, S150.
+
+**Duplication / personal-data sweeps.** No code landed since the last review (S141 is design-only): none found. No story here adds a store, field, outside service, browser key or log line.
+
+**For the parity review.** FEATURES row 66 (Update / change log UX) says the change log is reached from "the footer, I think, or the foot of the menu": the site footer's "Changelog" link (A14) now settles it. FEATURES row 102 (Site footer): "which of these the list keeps is settled when it is ratified" is now settled; its story list (S141, S142, S154) omits S148 (SiteFooter, strip) and S134 (the Changelog page S142 depends on); "asked whether he ratified" should read "the owner ... they" by house style. No Source line changes.
+
+**Owner questions.**
+Q1. Should the site footer wait for the change log page, or ship first with S134 adding its own Changelog link? A14's ratified No dead links puts S134 on S142's Depends on, and S134 waits on S131 (approved release notes) and S133 (its design), both blocked; shipping first changes A14's ratified wording.
+Q2. Before the About/Privacy/Terms pages (S154) ship, what should a signed-out visitor's "Legal" column show? It would have no links: hide the column and its heading, show the heading alone, or build S154's pages before the footer turns on.
+Q3. At medium and desktop, should the footer's columns start 24px in, as the frames draw, or line up with the page content at 16px, as A14's Columns words say?

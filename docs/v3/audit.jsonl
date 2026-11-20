@@ -363,3 +363,4 @@
 {"line":19388,"date":"2026-11-19","kind":"skip","review":"backlog","heading":"## 2026-11-19 — backlog review skipped"}
 {"line":19403,"date":"2026-11-19","kind":"skip","review":"parity","heading":"## 2026-11-19 — doc parity review skipped"}
 {"line":19418,"date":"2026-11-19","kind":"completed","story":"S141","heading":"## 2026-11-19 — S141 completed"}
+{"line":19502,"date":"2026-11-19","kind":"review","review":"backlog","verdict":"amended","heading":"## 2026-11-19 — backlog review (`amended`)"}

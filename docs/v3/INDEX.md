@@ -13,12 +13,12 @@
 
 Assembled, in this order and around the stories, into BACKLOG.md.
 
-- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 121 KB
+- [00 Baseball Theater v3 — Checkable backlog](<backlog/frame/00 Baseball Theater v3 — Checkable backlog.md>) — 122 KB
   - `127–145` Verify-script contract
   - `146–159` Story status
-  - `160–517` Backlog reviews
-  - `518–537` Doc parity reviews
-  - `538–542` Goal command for multiple stories
+  - `160–523` Backlog reviews
+  - `524–543` Doc parity reviews
+  - `544–548` Goal command for multiple stories
   - Rules, by number:
     - `10–10` 1. Acceptance criteria map to commands, tests, or file invariants (exit codes / assertions).
     - `11–11` 2. Vague phrases (“works correctly”, “handles errors gracefully”) are forbidden until rewrit…
@@ -506,11 +506,11 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 83 | [S150](backlog/stories/todo/S150.md) One stored state per game | `todo` | — | — |
 | 84 | [S142](backlog/stories/todo/S142.md) Site footer of links | `todo` | S81, S134, S141 | S141 |
 | 84 | [S149](backlog/stories/todo/S149.md) Live scoreboard (day hub) | `todo` | S150, S81 | S147 |
-| 85 | [S154](backlog/stories/todo/S154.md) About, privacy and terms pages | `todo` | S142 | S133 |
+| 85 | [S154](backlog/stories/todo/S154.md) About, privacy and terms pages | `todo` | S142 | S133, S141 |
 | 89 | [S127](backlog/stories/todo/S127.md) Design: play link in Search's player | `todo` | — | — |
 | 90 | [S5](backlog/stories/todo/S5.md) Search page queries highlights fixture | `todo` | S70, S61, S68, S81 | S34, S56 |
 | 91 | [S72](backlog/stories/todo/S72.md) Search chips: date / team / tag | `todo` | S5, S69, S81 | S34 |
-| 94 | [S74](backlog/stories/todo/S74.md) Offline reading + prefetch | `todo` | S73, S68, S75, S76, S81 | S55, S57, S147 |
+| 94 | [S74](backlog/stories/todo/S74.md) Offline reading + prefetch | `todo` | S73, S68, S75, S76, S81 | S55, S57, S147, S141 |
 | 104 | [S108](backlog/stories/todo/S108.md) Win-probability slot | `todo` | S93, S106, S67, S68, S81 | S107 |
 | 105 | [S99](backlog/stories/todo/S99.md) Ingest player of the game | `todo` | — | — |
 | 106 | [S100](backlog/stories/todo/S100.md) Ingest strike-zone rule settings | `todo` | — | — |
