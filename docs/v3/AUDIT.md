@@ -20350,3 +20350,183 @@ Owner, 2026-11-19, through /pending, answering the shell-scoreboard A14 design i
 **What changed, and the owner's answer**
 
 Owner, 2026-11-19, through /pending, asked whether S154's design change (its pages reuse the change log layout, so it names S133 as its design and gained a design match check) needs a backlog review or a skip: chose "Skip (Recommended)".
+
+---
+
+## 2026-11-20 — S152 completed
+
+**Fast PR checks (scoped caching)**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-20T09:01:45Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `49931f52` (tree dirty) |
+| Grader | `scripts/verify-S152.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: flows and design-specs restore ~/.cache/ms-playwright with actions/cache keyed on the lockfile's @playwright/test version and the runner image (RUNNER_OS, ImageOS; two images give two keys, no literal version, a failing node fails the key step), download the browser only on a cache miss, and install its system libraries (install-deps) every run
+check 2 PASS: turbo.json: typecheck/build/test:coverage each depend on ^ of themselves, coverage/** in test:coverage outputs, web#build outputs dist/**, the global inputs AC 2 lists, every env var a task reads declared in its env; offline dry runs prove web/src, packages/domain/src and global-file edits change exactly the right hashes (tree untouched)
+check 3 PASS: pnpm verify's script unchanged; root build and test:coverage call turbo, read no cache unless BT_TURBO_CACHE_READ is set (which ci.yml sets only in a pull_request step) and write one only in CI; test:coverage runs pnpm test:selector; verify job keeps one job-level if, the Markdown step, a 'pnpm verify' step and the ci-passed line; Turborepo cache restored on pull requests (own PR first, then stage) and saved by every run, whatever its event; law tests pass
+check 4 PASS: functions' test:coverage skips on BT_FUNCTIONS_SHARDED; functions/vitest.config.ts turns floors off on BT_COVERAGE_SHARD; >=2 shard jobs after flows run vitest --shard and a merge job merges reports with the floors on and uploads them; the pull-request verify step exports BT_FUNCTIONS_SHARDED only when functions=true and the push step neither variable (run with a stub pnpm); vitest.workers.config.ts runs in exactly one job on a pull request for each decision, indirect runs included; step-level ifs on the functions decision; ci-passed, run over each outcome, requires shards and merge (skipped only for code=false) and fails on a missing code; the decision is reachesFunctions in e2e/select-specs.ts, and its step fails when the selector does
+check 5 PASS: every spec under e2e/flows and e2e/design declares targets (web/functions only; web alone only when it routes all of **/api/**, with no fallback, method limit or comment); e2e/select-specs.ts selects per AC 5's cases and the pre-PR review's; its unit tests pass from a config of their own, which Playwright doesn't collect; ci.yml runs it on pull requests only, fails the step when it crashes, passes the list in place of a fixed path, step-level skips, every spec on push
+check 6 PASS: ESLint runs with --cache --cache-strategy content and a fixed --cache-location (git-ignored) in CI only (GITHUB_ACTIONS); its CI cache keys hash the ESLint config, its rules and the lockfile, restored on pull requests only and saved on every run; every package's typecheck and build tsc pass --incremental with the same --tsBuildInfoFile; CI keeps both with actions/cache restored before pnpm verify
+check 7 PASS: the note names two measured pull-request runs (URLs and job times)
+check 8 PASS: the note carries a **P11 wording:** line quoting the owner; LAWS.md's P11 row names the pull-request reuse and the fresh full run on every push to stage or main
+check 9 PASS: backlog Status is done (story heading and Story status table)
+check 10 PASS: S152 changed no file outside its fence (plus creating scripts/verify-S152.sh and updating scripts/backlog-vault/ci-law.test.ts)
+```
+
+**10/10 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S152 check results ---
+check 1 PASS: flows and design-specs restore ~/.cache/ms-playwright with actions/cache keyed on the lockfile's @playwright/test version and the runner image (RUNNER_OS, ImageOS; two images give two keys, no literal version, a failing node fails the key step), download the browser only on a cache miss, and install its system libraries (install-deps) every run
+check 2 PASS: turbo.json: typecheck/build/test:coverage each depend on ^ of themselves, coverage/** in test:coverage outputs, web#build outputs dist/**, the global inputs AC 2 lists, every env var a task reads declared in its env; offline dry runs prove web/src, packages/domain/src and global-file edits change exactly the right hashes (tree untouched)
+check 3 PASS: pnpm verify's script unchanged; root build and test:coverage call turbo, read no cache unless BT_TURBO_CACHE_READ is set (which ci.yml sets only in a pull_request step) and write one only in CI; test:coverage runs pnpm test:selector; verify job keeps one job-level if, the Markdown step, a 'pnpm verify' step and the ci-passed line; Turborepo cache restored on pull requests (own PR first, then stage) and saved by every run, whatever its event; law tests pass
+check 4 PASS: functions' test:coverage skips on BT_FUNCTIONS_SHARDED; functions/vitest.config.ts turns floors off on BT_COVERAGE_SHARD; >=2 shard jobs after flows run vitest --shard and a merge job merges reports with the floors on and uploads them; the pull-request verify step exports BT_FUNCTIONS_SHARDED only when functions=true and the push step neither variable (run with a stub pnpm); vitest.workers.config.ts runs in exactly one job on a pull request for each decision, indirect runs included; step-level ifs on the functions decision; ci-passed, run over each outcome, requires shards and merge (skipped only for code=false) and fails on a missing code; the decision is reachesFunctions in e2e/select-specs.ts, and its step fails when the selector does
+check 5 PASS: every spec under e2e/flows and e2e/design declares targets (web/functions only; web alone only when it routes all of **/api/**, with no fallback, method limit or comment); e2e/select-specs.ts selects per AC 5's cases and the pre-PR review's; its unit tests pass from a config of their own, which Playwright doesn't collect; ci.yml runs it on pull requests only, fails the step when it crashes, passes the list in place of a fixed path, step-level skips, every spec on push
+check 6 PASS: ESLint runs with --cache --cache-strategy content and a fixed --cache-location (git-ignored) in CI only (GITHUB_ACTIONS); its CI cache keys hash the ESLint config, its rules and the lockfile, restored on pull requests only and saved on every run; every package's typecheck and build tsc pass --incremental with the same --tsBuildInfoFile; CI keeps both with actions/cache restored before pnpm verify
+check 7 PASS: the note names two measured pull-request runs (URLs and job times)
+check 8 PASS: the note carries a **P11 wording:** line quoting the owner; LAWS.md's P11 row names the pull-request reuse and the fresh full run on every push to stage or main
+check 9 PASS: backlog Status is done (story heading and Story status table)
+check 10 PASS: S152 changed no file outside its fence (plus creating scripts/verify-S152.sh and updating scripts/backlog-vault/ci-law.test.ts)
+--- verify-S152: 10/10 checks passed ---
+verify-S152: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+      Tests  42 passed (42)
+   Start at  01:03:30
+   Duration  1.38s (transform 98ms, setup 0ms, collect 2.95s, tests 1.64s, environment 1ms, prepare 610ms)
+
+
+> baseball-theater@0.0.0 test:selector /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish
+> cd e2e && vitest run
+
+
+ RUN  v3.2.7 /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish/e2e
+
+ ✓ select-specs.test.ts (38 tests) 379ms
+
+ Test Files  1 passed (1)
+      Tests  38 passed (38)
+   Start at  01:03:32
+   Duration  598ms (transform 27ms, setup 0ms, collect 31ms, tests 379ms, environment 0ms, prepare 42ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162825,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+
+---
+
+## 2026-11-20 — S152 completed
+
+**Fast PR checks (scoped caching)**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-20T09:06:48Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `7f15fcbc` (tree clean) |
+| Grader | `scripts/verify-S152.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: flows and design-specs restore ~/.cache/ms-playwright with actions/cache keyed on the lockfile's @playwright/test version and the runner image (RUNNER_OS, ImageOS; two images give two keys, no literal version, a failing node fails the key step), download the browser only on a cache miss, and install its system libraries (install-deps) every run
+check 2 PASS: turbo.json: typecheck/build/test:coverage each depend on ^ of themselves, coverage/** in test:coverage outputs, web#build outputs dist/**, the global inputs AC 2 lists, every env var a task reads declared in its env; offline dry runs prove web/src, packages/domain/src and global-file edits change exactly the right hashes (tree untouched)
+check 3 PASS: pnpm verify's script unchanged; root build and test:coverage call turbo, read no cache unless BT_TURBO_CACHE_READ is set (which ci.yml sets only in a pull_request step) and write one only in CI; test:coverage runs pnpm test:selector; verify job keeps one job-level if, the Markdown step, a 'pnpm verify' step and the ci-passed line; Turborepo cache restored on pull requests (own PR first, then stage) and saved by every run, whatever its event; law tests pass
+check 4 PASS: functions' test:coverage skips on BT_FUNCTIONS_SHARDED; functions/vitest.config.ts turns floors off on BT_COVERAGE_SHARD; >=2 shard jobs after flows run vitest --shard and a merge job merges reports with the floors on and uploads them; the pull-request verify step exports BT_FUNCTIONS_SHARDED only when functions=true and the push step neither variable (run with a stub pnpm); vitest.workers.config.ts runs in exactly one job on a pull request for each decision, indirect runs included; step-level ifs on the functions decision; ci-passed, run over each outcome, requires shards and merge (skipped only for code=false) and fails on a missing code; the decision is reachesFunctions in e2e/select-specs.ts, and its step fails when the selector does
+check 5 PASS: every spec under e2e/flows and e2e/design declares targets (web/functions only; web alone only when it routes all of **/api/**, with no fallback, method limit or comment); e2e/select-specs.ts selects per AC 5's cases and the pre-PR review's; its unit tests pass from a config of their own, which Playwright doesn't collect; ci.yml runs it on pull requests only, fails the step when it crashes, passes the list in place of a fixed path, step-level skips, every spec on push
+check 6 PASS: ESLint runs with --cache --cache-strategy content and a fixed --cache-location (git-ignored) in CI only (GITHUB_ACTIONS); its CI cache keys hash the ESLint config, its rules and the lockfile, restored on pull requests only and saved on every run; every package's typecheck and build tsc pass --incremental with the same --tsBuildInfoFile; CI keeps both with actions/cache restored before pnpm verify
+check 7 PASS: the note names two measured pull-request runs (URLs and job times)
+check 8 PASS: the note carries a **P11 wording:** line quoting the owner; LAWS.md's P11 row names the pull-request reuse and the fresh full run on every push to stage or main
+check 9 PASS: backlog Status is done (story heading and Story status table)
+check 10 PASS: S152 changed no file outside its fence (plus creating scripts/verify-S152.sh and updating scripts/backlog-vault/ci-law.test.ts)
+```
+
+**10/10 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S152 check results ---
+check 1 PASS: flows and design-specs restore ~/.cache/ms-playwright with actions/cache keyed on the lockfile's @playwright/test version and the runner image (RUNNER_OS, ImageOS; two images give two keys, no literal version, a failing node fails the key step), download the browser only on a cache miss, and install its system libraries (install-deps) every run
+check 2 PASS: turbo.json: typecheck/build/test:coverage each depend on ^ of themselves, coverage/** in test:coverage outputs, web#build outputs dist/**, the global inputs AC 2 lists, every env var a task reads declared in its env; offline dry runs prove web/src, packages/domain/src and global-file edits change exactly the right hashes (tree untouched)
+check 3 PASS: pnpm verify's script unchanged; root build and test:coverage call turbo, read no cache unless BT_TURBO_CACHE_READ is set (which ci.yml sets only in a pull_request step) and write one only in CI; test:coverage runs pnpm test:selector; verify job keeps one job-level if, the Markdown step, a 'pnpm verify' step and the ci-passed line; Turborepo cache restored on pull requests (own PR first, then stage) and saved by every run, whatever its event; law tests pass
+check 4 PASS: functions' test:coverage skips on BT_FUNCTIONS_SHARDED; functions/vitest.config.ts turns floors off on BT_COVERAGE_SHARD; >=2 shard jobs after flows run vitest --shard and a merge job merges reports with the floors on and uploads them; the pull-request verify step exports BT_FUNCTIONS_SHARDED only when functions=true and the push step neither variable (run with a stub pnpm); vitest.workers.config.ts runs in exactly one job on a pull request for each decision, indirect runs included; step-level ifs on the functions decision; ci-passed, run over each outcome, requires shards and merge (skipped only for code=false) and fails on a missing code; the decision is reachesFunctions in e2e/select-specs.ts, and its step fails when the selector does
+check 5 PASS: every spec under e2e/flows and e2e/design declares targets (web/functions only; web alone only when it routes all of **/api/**, with no fallback, method limit or comment); e2e/select-specs.ts selects per AC 5's cases and the pre-PR review's; its unit tests pass from a config of their own, which Playwright doesn't collect; ci.yml runs it on pull requests only, fails the step when it crashes, passes the list in place of a fixed path, step-level skips, every spec on push
+check 6 PASS: ESLint runs with --cache --cache-strategy content and a fixed --cache-location (git-ignored) in CI only (GITHUB_ACTIONS); its CI cache keys hash the ESLint config, its rules and the lockfile, restored on pull requests only and saved on every run; every package's typecheck and build tsc pass --incremental with the same --tsBuildInfoFile; CI keeps both with actions/cache restored before pnpm verify
+check 7 PASS: the note names two measured pull-request runs (URLs and job times)
+check 8 PASS: the note carries a **P11 wording:** line quoting the owner; LAWS.md's P11 row names the pull-request reuse and the fresh full run on every push to stage or main
+check 9 PASS: backlog Status is done (story heading and Story status table)
+check 10 PASS: S152 changed no file outside its fence (plus creating scripts/verify-S152.sh and updating scripts/backlog-vault/ci-law.test.ts)
+--- verify-S152: 10/10 checks passed ---
+verify-S152: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+      Tests  42 passed (42)
+   Start at  01:08:24
+   Duration  984ms (transform 81ms, setup 0ms, collect 2.32s, tests 1.16s, environment 1ms, prepare 323ms)
+
+
+> baseball-theater@0.0.0 test:selector /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish
+> cd e2e && vitest run
+
+
+ RUN  v3.2.7 /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish/e2e
+
+ ✓ select-specs.test.ts (38 tests) 305ms
+
+ Test Files  1 passed (1)
+      Tests  38 passed (38)
+   Start at  01:08:26
+   Duration  474ms (transform 21ms, setup 0ms, collect 24ms, tests 305ms, environment 0ms, prepare 39ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162822,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
