@@ -677,11 +677,22 @@ done
 [ "$(ls docs/v3/backlog/stories/*/S156.md 2>/dev/null | wc -l | tr -d ' ')" = "1" ] || bad 16 "there is not exactly one S156 note"
 awk '/^---$/{n++;next} n==1' "$NOTE" | grep -qE '^status: done$' || bad 16 "the note's frontmatter status is not done"
 
+# Check 1 (tightened before shipping, rule 7): under `pnpm verify` Turborepo's strict env mode strips any
+# variable turbo.json doesn't pass through, so a worktree's PGLITE_PORT never reached the workerd tests and two
+# worktrees collided on 54329. Every port .env.worktree sets must be in globalPassThroughEnv.
+for v in PGLITE_PORT BT_API_PORT BT_WEB_PORT BT_PG_PORT; do
+	grep -v '^\s*//' turbo.json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);process.exit((j.globalPassThroughEnv||[]).includes(process.argv[1])?0:1)})' "$v" ||
+		bad 1 "turbo.json's globalPassThroughEnv doesn't pass $v through, so pnpm verify strips it"
+done
+
+
 # =============================================================================================
 # --- Check 17: fence ------------------------------------------------------------------------
 # The owner widened the fence on 2026-11-20 ("Widen the fence to these four (Recommended)") to AGENTS.md,
 # .cursor/rules/agent-boundaries.mdc, docs/v3/FEATURES.md and e2e/select-specs.test.ts, which still named the
 # retired BACKLOG.md (rule 7: a pre-ship update recorded in the note; it widens only by those four).
+# On 2026-11-20 the owner also added turbo.json ("Widen the fence to turbo.json (Recommended)"), so the
+# worktree port variables pass through Turborepo's strict env mode to the tests (check 1).
 # =============================================================================================
 changed=$(own_changed_files S156 "$BASE" .)
 while IFS= read -r f; do
@@ -699,7 +710,7 @@ while IFS= read -r f; do
 			.claude/agents/doc-parity-reviewer.md | .claude/agents/pre-pr-reviewer.md | docs/v3/LOOP.md | docs/v3/LAWS.md | \
 			docs/v3/ARCHITECTURE.md | docs/v3/INTENT.md | docs/v3/VAULT-MIGRATION.md | docs/v3/BACKLOG.md | docs/v3/backlog/* | \
 			docs/v3/AUDIT.md | docs/v3/audit/* | docs/v3/audit.jsonl | docs/v3/INDEX.md | CHANGELOG.md | changelog.d/* | \
-			AGENTS.md | .cursor/rules/agent-boundaries.mdc | docs/v3/FEATURES.md | e2e/select-specs.test.ts | \
+			AGENTS.md | .cursor/rules/agent-boundaries.mdc | docs/v3/FEATURES.md | e2e/select-specs.test.ts | turbo.json | \
 			scripts/verify-S156.sh) ;;
 		*) bad 17 "outside the fence: $f" ;;
 	esac
