@@ -679,6 +679,9 @@ awk '/^---$/{n++;next} n==1' "$NOTE" | grep -qE '^status: done$' || bad 16 "the 
 
 # =============================================================================================
 # --- Check 17: fence ------------------------------------------------------------------------
+# The owner widened the fence on 2026-11-20 ("Widen the fence to these four (Recommended)") to AGENTS.md,
+# .cursor/rules/agent-boundaries.mdc, docs/v3/FEATURES.md and e2e/select-specs.test.ts, which still named the
+# retired BACKLOG.md (rule 7: a pre-ship update recorded in the note; it widens only by those four).
 # =============================================================================================
 changed=$(own_changed_files S156 "$BASE" .)
 while IFS= read -r f; do
@@ -696,6 +699,7 @@ while IFS= read -r f; do
 			.claude/agents/doc-parity-reviewer.md | .claude/agents/pre-pr-reviewer.md | docs/v3/LOOP.md | docs/v3/LAWS.md | \
 			docs/v3/ARCHITECTURE.md | docs/v3/INTENT.md | docs/v3/VAULT-MIGRATION.md | docs/v3/BACKLOG.md | docs/v3/backlog/* | \
 			docs/v3/AUDIT.md | docs/v3/audit/* | docs/v3/audit.jsonl | docs/v3/INDEX.md | CHANGELOG.md | changelog.d/* | \
+			AGENTS.md | .cursor/rules/agent-boundaries.mdc | docs/v3/FEATURES.md | e2e/select-specs.test.ts | \
 			scripts/verify-S156.sh) ;;
 		*) bad 17 "outside the fence: $f" ;;
 	esac
