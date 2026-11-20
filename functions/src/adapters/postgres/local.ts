@@ -15,9 +15,22 @@ export function isLocalDbHost(host: string): boolean
 	return LOCAL_DB_HOSTS.includes(host);
 }
 
-/** wrangler.jsonc's local Hyperdrive connection string (comments stripped; the file is JSONC). */
-export function localConnectionString(): string
+/**
+ * The variable `wrangler dev` reads to override the HYPERDRIVE binding's local connection string
+ * (its own name, `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<binding>`). A worktree's
+ * `.env.worktree` (S156, `scripts/worktree-for.sh`) sets it to that checkout's Postgres port, so
+ * the Worker and `pnpm db:seed` reach the same database and `wrangler.jsonc` stays unchanged.
+ */
+export const LOCAL_CONNECTION_STRING_ENV = "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE";
+
+/**
+ * The local Hyperdrive connection string: the environment's override when set (as `wrangler dev`
+ * takes it), else wrangler.jsonc's (comments stripped; the file is JSONC).
+ */
+export function localConnectionString(env: NodeJS.ProcessEnv = process.env): string
 {
+	const override = env[LOCAL_CONNECTION_STRING_ENV];
+	if (override) return override;
 	const text = readFileSync(new URL("../../../../wrangler.jsonc", import.meta.url), "utf8").replace(/^\s*\/\/.*$/gm, "");
 	const config = JSON.parse(text) as { hyperdrive?: { binding: string;
 		localConnectionString?: string; }[]; };

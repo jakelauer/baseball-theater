@@ -16,12 +16,20 @@ import {
 	afterEach, beforeEach, describe, expect, it,
 } from "vitest";
 import { reviewDebtLine } from "./assemble.ts";
+import { fragmentFiles, parseLedger } from "./ledger.ts";
 
 const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MARKER = "<!-- entries below; newest last; appended by scripts/audit.sh -->";
 const STAMP = "2026-01-02T03:04:05Z";
 
 let repo: string;
+
+/** The text of the entries audit.sh wrote since S156: every fragment in docs/v3/audit/, in stamp order. */
+function written(): string
+{
+	const dir = join(repo, "docs/v3/audit");
+	return fragmentFiles(dir).map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
+}
 
 function git(...args: string[]): string
 {
@@ -72,7 +80,6 @@ function shippedThenBroken(): string
 	].join("\n"));
 	spawnSync("chmod", ["+x", join(repo, "scripts/verify-S900.sh")]);
 	write("docs/v3/AUDIT.md", `# Ledger\n\n${MARKER}\n`);
-	write("docs/v3/BACKLOG.md", "| 1 | [S900](#s900) | Test story | `done` |\n");
 	git("add", "-A");
 	git("commit", "-q", "-m", "base");
 	write("work.txt", "the story's work\n");
@@ -115,9 +122,11 @@ describe("audit.sh story --reverify (S84)", () =>
 		const ship = shippedThenBroken();
 		expect(spawnSync("bash", [join(repo, "scripts/verify-S900.sh")]).status).not.toBe(0);
 
+		const before = readFileSync(join(repo, "docs/v3/AUDIT.md"), "utf8");
 		const run = audit(["story", "S900", "--reverify", "--no-verify"]);
 		expect(run.status, String(run.stderr)).toBe(0);
-		const ledger = readFileSync(join(repo, "docs/v3/AUDIT.md"), "utf8");
+		expect(readFileSync(join(repo, "docs/v3/AUDIT.md"), "utf8")).toBe(before);
+		const ledger = written();
 		// audit.sh heads entries with the local date (`date +%Y-%m-%d`), as the whole ledger is;
 		// UTC would fail every evening west of Greenwich.
 		const today = new Date().toLocaleDateString("en-CA");
@@ -145,14 +154,93 @@ describe("audit.sh design mode (S84)", () =>
 		write("docs/v3/design-checks/S900/thing-mobile.png", "capture");
 		const run = audit(["design", "S900", "--design-match", "-"], "Matches\n");
 		expect(run.status, String(run.stderr)).toBe(0);
-		const ledger = readFileSync(join(repo, "docs/v3/AUDIT.md"), "utf8");
+		// The frozen ledger (holding S900's completion) then the new fragment, as ledger.ts reads them.
+		const ledger = `${readFileSync(join(repo, "docs/v3/AUDIT.md"), "utf8")}\n${written()}`;
 		expect(ledger).toMatch(/^## \S+ — S900 design match$/m);
 		expect(ledger).toMatch(/^Owner: "Matches"$/m);
 		expect(ledger).toContain("`docs/v3/visual/surface/thing-mobile.png`");
 		// No grader ran: the grader would have failed at HEAD and printed its check line.
 		expect(ledger).not.toContain("check 1 FAIL");
 		// The ledger readers count completions only: the design entry adds none.
-		expect(reviewDebtLine(ledger)).toContain(": S900.");
-		expect(reviewDebtLine(ledger.replace(/^## \S+ — S900 completed$/m, "## x — note"))).toContain("0 of");
+		expect(reviewDebtLine(parseLedger(ledger))).toContain(": S900.");
+		expect(reviewDebtLine(parseLedger(ledger.replace(/^## \S+ — S900 completed$/m, "## x — note")))).toContain("0 of");
+	});
+});
+
+/** A fresh repository with audit.sh, its libraries and in-flight.ts, and an empty frozen ledger. */
+function plainRepo(): void
+{
+	git("init", "-q", "-b", "main");
+	for (const f of ["audit.sh", "lib/checks.sh", "lib/reverify.sh", "backlog-vault/design-reference.ts", "backlog-vault/in-flight.ts"]) copyFileSync(join(SCRIPTS, f), join(mkdirOf(`scripts/${f}`), f.split("/").pop()!));
+	write("docs/v3/AUDIT.md", `# Ledger\n\n${MARKER}\n`);
+	git("add", "-A");
+	git("commit", "-q", "-m", "base");
+}
+
+describe("audit.sh arguments and fragment writes (S156)", () =>
+{
+	const review = ["review", "--verdict", "continue", "--trigger", "manual", "--findings", "checked"];
+
+	it("--in-flight takes the shared item IDs, a shared fix's F1 included, and nothing looser", () =>
+	{
+		plainRepo();
+		const ok = audit([...review, "--in-flight", "S9,F1"]);
+		expect(ok.status, String(ok.stderr)).toBe(0);
+		expect(written()).toContain("| In flight | S9, F1 |");
+		for (const bad of ["X1", "s9", "S9, B2"])
+		{
+			expect(audit([...review, "--in-flight", bad]).status, bad).toBe(2);
+		}
+		// Empty says none are in flight.
+		expect(audit([...review, "--in-flight", ""]).status).toBe(0);
+	});
+
+	it("an option missing its value exits 2 at once instead of looping", () =>
+	{
+		plainRepo();
+		for (const args of [[...review, "--in-flight"], ["review", "--verdict"], ["skip", "backlog", "--commit"], ["story", "S1", "--commit"]])
+		{
+			const run = spawnSync("bash", [join(repo, "scripts/audit.sh"), ...args], {
+				cwd: repo,
+				encoding: "utf8",
+				timeout: 10_000,
+			});
+			expect(run.signal, args.join(" ")).toBeNull();
+			expect(run.status, args.join(" ")).toBe(2);
+		}
+	});
+
+	it("an entry interrupted while it is written leaves no fragment ledger.ts reads, only a dot file", () =>
+	{
+		plainRepo();
+		write("scripts/verify-S9001.sh", "#!/usr/bin/env bash\necho 'check 1 PASS: x'\nexit 0\n");
+		spawnSync("chmod", ["+x", join(repo, "scripts/verify-S9001.sh")]);
+		// `pnpm verify` passes at once; `tail`, which audit.sh runs inside the entry it is writing, kills it.
+		const bin = mkdtempSync(join(tmpdir(), "audit-kill-bin-"));
+		writeFileSync(join(bin, "pnpm"), "#!/bin/sh\nexit 0\n");
+		writeFileSync(join(bin, "tail"), "#!/bin/sh\nkill -9 $PPID\n");
+		spawnSync("chmod", ["+x", join(bin, "pnpm"), join(bin, "tail")]);
+		const run = spawnSync("bash", [join(repo, "scripts/audit.sh"), "story", "S9001"], {
+			cwd: repo,
+			encoding: "utf8",
+			timeout: 30_000,
+			env: {
+				...process.env,
+				PATH: `${bin}:${process.env["PATH"] ?? "/usr/bin:/bin"}`,
+				TMPDIR: bin,
+			},
+		});
+		rmSync(bin, {
+			recursive: true,
+			force: true,
+		});
+		expect(run.signal).toBe("SIGKILL");
+		const dir = join(repo, "docs/v3/audit");
+		expect(fragmentFiles(dir)).toEqual([]);
+		const day = spawnSync("find", [dir, "-type", "f"], {
+			encoding: "utf8",
+		}).stdout.trim().split("\n");
+		expect(day).toHaveLength(1);
+		expect(day[0]).toMatch(/\/\.\d{8}T\d{6}Z-S9001-completed\.md\.\d+\.tmp$/);
 	});
 });

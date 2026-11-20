@@ -1,22 +1,42 @@
 /**
- * The verification ledger (docs/v3/AUDIT.md), read as data.
+ * The verification ledger, read as data: the frozen docs/v3/AUDIT.md, then its fragments.
  *
- * AUDIT.md stays the human record: Markdown entries that scripts/audit.sh appends, newest
- * last. This module is the one place that reads its entry headings. Everything that needs
- * the ledger as data goes through it: the generated review-debt line in BACKLOG.md
- * (assemble.ts), the debt checks (scripts/review-debt.sh, scripts/parity-debt.sh, through
- * `cli.ts ledger-base` / `done-since`), the review gate hook (scripts/review-gate.sh,
- * through `cli.ts review-blocked`), and the generated index docs/v3/audit.jsonl (one
- * JSON object per entry, for tools and agents that want an entry's kind, story, verdict
- * or line without reading a ~1 MB Markdown file).
+ * AUDIT.md is the human record up to S156: Markdown entries that scripts/audit.sh appended,
+ * newest last. Since S156 (owner, 2026-11-20: "The goal is to enable agents to work in tandem
+ * on backlog items in a way that they don't conflict") audit.sh never appends to it: every
+ * new entry is its own file, a ledger fragment, `docs/v3/audit/<YYYY-MM-DD>/<stamp>-<ID>-<kind>.md`
+ * (see {@link FRAGMENT_NAME}), so two branches' entries are two new files and never conflict.
+ * The ledger is AUDIT.md's entries, then the fragments' in stamp order ({@link readLedger}).
+ *
+ * This module is the one place that reads entry headings. Everything that needs the ledger
+ * as data goes through it: the generated review-debt line (assemble.ts), the debt checks
+ * (scripts/review-debt.sh, scripts/parity-debt.sh, through `cli.ts ledger-base` /
+ * `done-since`), the review gate hook (scripts/review-gate.sh, through `cli.ts
+ * review-blocked`), and the generated index docs/v3/audit.jsonl (one JSON object per entry,
+ * for tools and agents that want an entry's kind, story, verdict or line without reading a
+ * ~1.5 MB Markdown file).
  *
  * Owner, 2026-11-03, on making these structures "more code friendly": "do the jsonl for
- * audit rather than splitting by month". The index is generated, never hand-edited: the
- * pre-commit hook rebuilds it from the staged AUDIT.md and `pnpm backlog:check` fails when
- * it is stale, as for BACKLOG.md.
+ * audit rather than splitting by month". The index is generated, never hand-edited.
  */
 
 import { execFileSync } from "node:child_process";
+import {
+	existsSync, readdirSync, readFileSync,
+} from "node:fs";
+import {
+	basename, dirname, join, relative,
+} from "node:path";
+
+/**
+ * The SHA-256 of the frozen docs/v3/AUDIT.md (S156): nothing is appended to it any more, every new
+ * entry being a fragment, so its bytes never change (law L13). Pinned here, the ledger's one module,
+ * for the law's test (merge-safety.test.ts) and the pre-commit step that refuses any other content
+ * for it (precommit.ts). Re-pinned only if a merge from `stage` brings in entries appended before
+ * S156 merged, in that merge's commit, together with `BASE_PARSER_SHA256` in ledger.test.ts (the base
+ * parser's output on the same file), which moves with it.
+ */
+export const FROZEN_AUDIT_SHA256 = "b9153847627ca9f308aec161d064ceab4e89de3966a95af01777e2da7e252ed3";
 
 /** The line in AUDIT.md after which every `## ` heading of the entry shapes below is an entry. */
 export const LEDGER_MARKER = "<!-- entries below; newest last; appended by scripts/audit.sh -->";
@@ -37,8 +57,14 @@ export type LedgerKind =
 /** One ledger entry, from its heading. Optional fields are present only for the kinds that carry them. */
 export interface LedgerEntry
 {
-	/** 1-based line of the heading in AUDIT.md. */
+	/** 1-based line of the heading in AUDIT.md, or in {@link LedgerEntry.file} for a fragment's entry. */
 	line: number;
+	/**
+	 * A fragment's entry only: the fragment's path relative to the ledger's directory
+	 * (`audit/2026-11-21/20261121T101500Z-S9-completed.md`, beside AUDIT.md in docs/v3/).
+	 * Absent for an entry of AUDIT.md itself, so AUDIT.md parses exactly as it did before S156.
+	 */
+	file?: string;
 	/** The date in the heading (`YYYY-MM-DD` in every entry audit.sh writes). */
 	date: string;
 	kind: LedgerKind;
@@ -52,6 +78,12 @@ export interface LedgerEntry
 	answers?: string;
 	/** For a re-verification: the shipping commit it re-ran at, when the heading names it. */
 	at?: string;
+	/**
+	 * A review fragment's in-flight items (its `| In flight |` row, `audit.sh review --in-flight`,
+	 * S156 AC 13): the items being built while the review ran, whose notes it may not edit.
+	 * Absent when the row is missing or says `none`.
+	 */
+	inFlight?: string[];
 	heading: string;
 }
 
@@ -119,6 +151,16 @@ const SHAPES: { pattern: RegExp;
 	},
 ];
 
+/** The entry a heading's text after "<date> — " names, or undefined when it matches no shape. */
+function shapeOf(rest: string): Omit<LedgerEntry, "line" | "date" | "heading"> | undefined
+{
+	return SHAPES.map(({ pattern, entry }) =>
+	{
+		const m = pattern.exec(rest);
+		return m ? entry(m) : undefined;
+	}).find((e) => e !== undefined);
+}
+
 /** Thrown when a dated heading among the entries matches no shape audit.sh writes (a hand-written entry). */
 export class LedgerParseError extends Error
 {
@@ -148,11 +190,7 @@ export function parseLedger(audit: string): LedgerEntry[]
 			continue;
 		}
 		const [, date, rest] = heading as unknown as [string, string, string];
-		const shape = SHAPES.map(({ pattern, entry }) =>
-		{
-			const m = pattern.exec(rest);
-			return m ? entry(m) : undefined;
-		}).find((e) => e !== undefined);
+		const shape = shapeOf(rest);
 		if (shape)
 		{
 			entries.push({
@@ -166,6 +204,156 @@ export function parseLedger(audit: string): LedgerEntry[]
 		{
 			throw new LedgerParseError(`AUDIT.md line ${i + 1}: "${lines[i]}" is not an entry scripts/audit.sh writes`);
 		}
+	}
+	return entries;
+}
+
+/**
+ * A ledger fragment's file name: `<stamp>-<ID>-<kind>.md`, in a folder named for the stamp's
+ * UTC date. The stamp is the entry's `Captured (UTC)` time without separators
+ * (`20261121T101500Z`), so file names sort in stamp order. The ID is the story (`S9`, `B12`,
+ * `V3`) for a story's entries and the review (`backlog`, `parity`) for a review's; the kind is
+ * {@link FRAGMENT_KINDS}' name for the entry's {@link LedgerKind}. scripts/audit.sh writes
+ * these names; this pattern is how they are read back and checked.
+ */
+export const FRAGMENT_NAME = /^(\d{8}T\d{6}Z)-([A-Za-z0-9]+)-([a-z]+)\.md$/;
+
+/** The kind in a fragment's file name for each entry kind (a file name has no `-` in its kind). */
+export const FRAGMENT_KINDS: Record<LedgerKind, string> = {
+	"completed": "completed",
+	"re-verified": "reverified",
+	"backfill": "backfill",
+	"design-match": "design",
+	"review": "review",
+	"answers": "answers",
+	"skip": "skip",
+};
+
+/**
+ * The folder a ledger's fragments live in: beside it, named for it in lower case
+ * (docs/v3/AUDIT.md → docs/v3/audit/, docs/v3/VAULT-MIGRATION-AUDIT.md →
+ * docs/v3/vault-migration-audit/). scripts/audit.sh and scripts/lib/reverify.sh derive the
+ * same folder the same way, so an overridden ledger (`BT_AUDIT_LEDGER`) keeps its own fragments.
+ */
+export function fragmentsDirFor(auditPath: string): string
+{
+	return join(dirname(auditPath), basename(auditPath, ".md").toLowerCase());
+}
+
+/**
+ * The one entry of a ledger fragment. `file` is its path relative to the ledger's directory
+ * (it becomes the entry's {@link LedgerEntry.file}); its base name must be a
+ * {@link FRAGMENT_NAME} whose ID and kind agree with the entry heading, so a renamed or
+ * hand-written fragment can't pass as another entry. A fragment holds exactly one entry
+ * heading (`## <date> — <shape>`, the same headings AUDIT.md's entries have); a review's
+ * findings may use other `## ` sub-headings, skipped as in {@link parseLedger}.
+ * Throws {@link LedgerParseError} for anything else.
+ */
+export function parseFragment(text: string, file: string): LedgerEntry
+{
+	const name = FRAGMENT_NAME.exec(basename(file));
+	if (!name)
+	{
+		throw new LedgerParseError(`${file}: a ledger fragment is named <stamp>-<ID>-<kind>.md (scripts/audit.sh)`);
+	}
+	const [, , id, kind] = name as unknown as [string, string, string, string];
+	const lines = text.split("\n");
+	const found: LedgerEntry[] = [];
+	for (let i = 0; i < lines.length; i++)
+	{
+		const heading = /^## (\S+) — (.+)$/.exec(lines[i]!);
+		if (!heading)
+		{
+			continue;
+		}
+		const [, date, rest] = heading as unknown as [string, string, string];
+		const shape = shapeOf(rest);
+		if (shape)
+		{
+			found.push({
+				line: i + 1,
+				date,
+				file,
+				...shape,
+				heading: lines[i]!,
+			});
+		}
+		else if (/^\d{4}-\d{2}-\d{2}$/.test(date))
+		{
+			throw new LedgerParseError(`${file} line ${i + 1}: "${lines[i]}" is not an entry scripts/audit.sh writes`);
+		}
+	}
+	if (found.length !== 1)
+	{
+		throw new LedgerParseError(`${file}: a ledger fragment holds exactly one entry heading, not ${found.length}`);
+	}
+	const entry = found[0]!;
+	const entryId = entry.story ?? entry.review;
+	if (entryId !== id || FRAGMENT_KINDS[entry.kind] !== kind)
+	{
+		throw new LedgerParseError(`${file}: its name says ${id} ${kind}, but its entry is "${entry.heading}"`);
+	}
+	const inFlight = /^\| In flight \| (.*) \|$/m.exec(text)?.[1]?.trim();
+	if (inFlight && inFlight !== "none")
+	{
+		entry.inFlight = inFlight.split(/,\s*/).filter(Boolean);
+	}
+	return entry;
+}
+
+/**
+ * Every fragment file under `dir` (`<date>/<name>.md`), as paths relative to `dir`, in stamp
+ * order (by file name; the stamp leads it, then the ID and kind break a tie the same way
+ * everywhere). Empty when `dir` doesn't exist (a ledger with no fragments yet). Names starting
+ * with "." are skipped at both levels.
+ */
+export function fragmentFiles(dir: string): string[]
+{
+	if (!existsSync(dir))
+	{
+		return [];
+	}
+	const files: string[] = [];
+	// A name starting with "." is never a fragment: Finder's .DS_Store, an editor's swap file, or the
+	// `.<name>.tmp` audit.sh writes an entry to before linking it into place.
+	for (const day of readdirSync(dir, {
+		withFileTypes: true,
+	}).filter((d) => !d.name.startsWith(".")))
+	{
+		if (!day.isDirectory())
+		{
+			throw new LedgerParseError(`${join(dir, day.name)}: only <YYYY-MM-DD>/ folders of fragments belong in the ledger's fragment folder`);
+		}
+		for (const file of readdirSync(join(dir, day.name)).filter((f) => !f.startsWith(".")))
+		{
+			files.push(`${day.name}/${file}`);
+		}
+	}
+	return files.sort((a, b) => compareFragments(a, b));
+}
+
+/** Stamp order for fragment paths: by file name, then by the whole path. */
+function compareFragments(a: string, b: string): number
+{
+	const [x, y] = [basename(a), basename(b)];
+	return x < y ? -1 : x > y ? 1 : a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * The whole ledger at `auditPath`: its own entries (the frozen AUDIT.md, parsed by
+ * {@link parseLedger}), then each fragment's in stamp order ({@link fragmentFiles}) from
+ * `fragmentsDir` (default {@link fragmentsDirFor}). A fragment entry's `file` is relative to
+ * the ledger's directory. Reads the working tree; throws {@link LedgerParseError} on a
+ * fragment that isn't one audit.sh writes.
+ */
+export function readLedger(auditPath: string, fragmentsDir = fragmentsDirFor(auditPath)): LedgerEntry[]
+{
+	const entries = parseLedger(readFileSync(auditPath, "utf8"));
+	const base = dirname(auditPath);
+	for (const file of fragmentFiles(fragmentsDir))
+	{
+		const path = join(fragmentsDir, file);
+		entries.push(parseFragment(readFileSync(path, "utf8"), relative(base, path)));
 	}
 	return entries;
 }
@@ -188,6 +376,11 @@ export interface DoneSince
  * counter is already at the target, the skip should leave the counter as it is so the
  * next time triggers the review"). Re-verifications, backfills and design matches are not
  * completions.
+ *
+ * A review that ran beside in-flight items (S156; its `In flight` row) didn't review them, so
+ * those of them already counted stay counted across it: an item whose completion fragment is
+ * stamped before the review but merges after it is still one of the stories done since. A later
+ * review that doesn't list it resets it as usual.
  */
 export function storiesDoneSince(entries: LedgerEntry[], kind: ReviewKind): DoneSince
 {
@@ -198,7 +391,7 @@ export function storiesDoneSince(entries: LedgerEntry[], kind: ReviewKind): Done
 		if (entry.kind === "review" && entry.review === kind)
 		{
 			review = entry;
-			stories = [];
+			stories = stories.filter((s) => entry.inFlight?.includes(s));
 		}
 		else if (entry.kind === "completed" && entry.story && !stories.includes(entry.story))
 		{
@@ -243,6 +436,11 @@ function reviewTrail(audit: string, kind: ReviewKind): string
  * other side touched the ledger last read as the base, and `git diff <merge> HEAD` hid
  * drift that side carried and the review never saw. Only entry headings count, so edits
  * to an entry's body (a correction) don't move the base. Reads committed history only.
+ *
+ * Since S156 a newer entry is a fragment ({@link readLedger}), and fragments always follow
+ * AUDIT.md's entries, so when HEAD holds a review, answers or skip fragment of `kind` the
+ * base is the commit that added the newest one (`git log --diff-filter=A`, which never lists
+ * a merge, so the #40 merge order can't fool it); only otherwise is AUDIT.md searched as before.
  */
 export function ledgerBase(repo: string, ledgerPath: string, kind: ReviewKind): string | undefined
 {
@@ -252,6 +450,11 @@ export function ledgerBase(repo: string, ledgerPath: string, kind: ReviewKind): 
 		maxBuffer: 64 * 1024 * 1024,
 		stdio: ["ignore", "pipe", "ignore"],
 	});
+	const fragmentBase = newestReviewFragmentCommit(git, ledgerPath, kind);
+	if (fragmentBase !== undefined)
+	{
+		return fragmentBase;
+	}
 	let commits: string[];
 	try
 	{
@@ -299,11 +502,46 @@ export function ledgerBase(repo: string, ledgerPath: string, kind: ReviewKind): 
 	return undefined;
 }
 
-/** docs/v3/audit.jsonl: one JSON object per entry, oldest first, keys in a fixed order. */
+/**
+ * The commit that added HEAD's newest review, answers or skip fragment of `kind` (ledgerBase's
+ * fragment half), or undefined when HEAD holds none. Fragments are read from HEAD's tree, not
+ * the working tree, and each is parsed, so a misnamed one throws as in {@link readLedger}.
+ */
+function newestReviewFragmentCommit(git: (args: string[]) => string, ledgerPath: string, kind: ReviewKind): string | undefined
+{
+	const dir = fragmentsDirFor(ledgerPath);
+	let paths: string[];
+	try
+	{
+		paths = git(["ls-tree", "-r", "--name-only", "HEAD", "--", `${dir}/`]).split("\n").filter(Boolean);
+	}
+	catch
+	{
+		return undefined;
+	}
+	const base = dirname(ledgerPath);
+	const newest = paths
+		.filter((p) => FRAGMENT_NAME.exec(basename(p))?.[2] === kind)
+		.sort(compareFragments)
+		.filter((p) =>
+		{
+			const entry = parseFragment(git(["show", `HEAD:${p}`]), relative(base, p));
+			return entry.review === kind && (entry.kind === "review" || entry.kind === "answers" || entry.kind === "skip");
+		})
+		.at(-1);
+	if (newest === undefined)
+	{
+		return undefined;
+	}
+	return git(["log", "--diff-filter=A", "--format=%h", "--", newest]).split("\n").filter(Boolean).at(-1);
+}
+
+/** docs/v3/audit.jsonl: one JSON object per entry, oldest first, keys in a fixed order (`file` only for a fragment's entry). */
 export function renderLedgerIndex(entries: LedgerEntry[]): string
 {
 	return entries.map((e) => JSON.stringify({
 		line: e.line,
+		file: e.file,
 		date: e.date,
 		kind: e.kind,
 		story: e.story,
@@ -311,6 +549,7 @@ export function renderLedgerIndex(entries: LedgerEntry[]): string
 		verdict: e.verdict,
 		answers: e.answers,
 		at: e.at,
+		inFlight: e.inFlight,
 		heading: e.heading,
 	})).join("\n") + (entries.length > 0 ? "\n" : "");
 }

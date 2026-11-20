@@ -17,6 +17,7 @@ One `##` section per question:
 ## <header>: <question>
 
 Asked: <date> · Affects: <story / PR / branch>
+Blocks: <ID>, <ID>
 
 Links:
 
@@ -35,6 +36,7 @@ On answer: <what the agent does next>
 - `<header>` is at most 12 characters, with no `:` in it (it is the dialog's chip).
 - `Options:` holds 1 to 3 options, the recommended one first. A question with no natural options (free text) gets one option such as `Answer in Other — type your answer`; a question with more than 3 is split into several sections.
 - `Links:` (owner, 2026-11-19, asked whether questions could link to what they reference: "yes") lists every design, document, pull request or issue the question refers to, as full URLs: the dialog shows plain text, and the terminal makes bare URLs clickable.
+- `Blocks:` names every backlog item (`S<N>`, `B<N>`, a shared fix `F<n>`) the question holds, or `none` (S156: a parallel `/run-backlog` asks the questions that hold the most items first).
 - A ratification question names the surface or amendment it ratifies in its question text, so the go-ahead it gets can only mean that one.
 
 ## 1. Read the file
@@ -50,7 +52,7 @@ Each `##` section becomes one question for `AskUserQuestion`:
 - `options`: the section's `Options:` bullets (label before `—`, description after), then a last option **`Skip for now`** ("Leave this question open; /pending asks it again next time"), so 2 to 4 options in all; the tool adds "Other" for a free-text answer. Never mark an option that ratifies as recommended
 - `multiSelect`: false
 
-Ask up to 4 questions per call, in file order, and keep calling until every section has been asked.
+Ask up to 4 questions per call, most-blocking first (the order `node scripts/backlog-vault/claims.ts questions` prints: by how many items each section's `Blocks:` line names, then file order), and keep calling until every section has been asked.
 
 ## 3. Record
 

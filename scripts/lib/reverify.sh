@@ -3,10 +3,31 @@
 # Sourced by scripts/audit.sh and scripts/reverify-all.sh. Sourced, not executed.
 
 # shipping_commit <ledger> <ID> — the commit a story shipped in, from its newest
-# completion (or backfill) entry: the backfill's `Shipped in` commit, else the first
-# commit whose ledger diff adds that entry's unique `Captured (UTC)` stamp. Empty if none.
+# completion (or backfill) entry: the entry's `Shipped in` commit when it names one, else
+# the commit that added the entry. Empty if none.
+#
+# Since S156 a new entry is a ledger fragment, its own file in the folder beside the ledger
+# named for it in lower case (docs/v3/AUDIT.md → docs/v3/audit/<date>/<stamp>-<ID>-<kind>.md;
+# scripts/backlog-vault/ledger.ts fragmentsDirFor), and fragments are always newer than the
+# frozen ledger's entries, so the newest `-<ID>-completed` or `-<ID>-backfill` fragment (by
+# file name, which is stamp order) wins, and the commit that added it is the first commit
+# `git log --diff-filter=A` lists for it. Only with no such fragment is the ledger searched
+# as before S156: the first commit whose ledger diff adds the entry's unique `Captured (UTC)`
+# stamp. `--reverify` copies this file into old worktrees, where that fallback still works.
 shipping_commit() {
-  local ledger="$1" id="$2" entry shipped stamp
+  local ledger="$1" id="$2" entry shipped stamp dir frag
+  dir="$(dirname "$ledger")/$(basename "$ledger" .md | tr '[:upper:]' '[:lower:]')"
+  frag="$(find "$dir" -type f \( -name "*-${id}-completed.md" -o -name "*-${id}-backfill.md" \) 2>/dev/null |
+    awk -F/ '{ print $NF "\t" $0 }' | LC_ALL=C sort | tail -1 | cut -f2)"
+  if [ -n "$frag" ]; then
+    shipped="$(grep -m1 '^| Shipped in |' "$frag" | grep -oE '`[0-9a-f]{7,40}`' | head -1 | tr -d '`')"
+    if [ -n "$shipped" ]; then
+      git rev-parse --short "$shipped" 2>/dev/null
+      return 0
+    fi
+    git log --diff-filter=A --format=%h -- "$frag" | tail -1
+    return 0
+  fi
   entry="$(awk -v id="$id" '
     $0 ~ "^## [0-9-]+ — " id " (completed|verified \\(backfill\\))$" { buf=""; f=1 }
     f && /^---$/ { last=buf; f=0 }

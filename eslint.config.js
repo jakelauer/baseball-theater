@@ -14,7 +14,9 @@ const requireExtensions = createRequire(import.meta.url)("eslint-plugin-require-
 export default tseslint.config(
 	{
 		// `.wrangler/` is wrangler dev's scratch output (bundles it leaves behind when a dev server is killed); owner, 2026-11-03.
-		ignores: ["**/dist/**", "**/coverage/**", "**/node_modules/**", "**/.wrangler/**", "docs/**", "tools/eslint-rules/fixtures/**"],
+		// `.claude/worktrees/` holds other checkouts of this repository, one per backlog item (S156, #110:
+		// `scripts/worktree-for.sh`); each lints itself, and the flat config reads no ignore file.
+		ignores: ["**/dist/**", "**/coverage/**", "**/node_modules/**", "**/.wrangler/**", "**/.claude/worktrees/**", "docs/**", "tools/eslint-rules/fixtures/**"],
 	},
 	js.configs.recommended,
 	...tseslint.configs.recommended,

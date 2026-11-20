@@ -11,7 +11,10 @@
 # A review whose newest ledger entry is `blocked` with no answers entry after it waits
 # for the owner: the gate reports it and never runs it on its own.
 # Stays quiet while the working tree is dirty: a story or review is mid-flight, and a
-# review must not land in the same commit as other work.
+# review must not land in the same commit as other work. In a parallel /run-backlog the main
+# checkout stays clean while items build in their own worktrees, so the gate fires then too: its
+# instructions say to start the review beside the in-flight items, never to pause them (S156;
+# .claude/skills/run-backlog/SKILL.md step 2).
 # Loop guard: Stop blocks once per HEAD + due set; if a forced turn ends without
 # committing a review, Claude is allowed to stop rather than spin.
 
@@ -50,7 +53,7 @@ fi
 
 wait_note=""
 if [ "${#waiting[@]}" -gt 0 ]; then
-  wait_note="Blocked, waiting for the owner's answers (do not run it, and do not start a story): $(IFS=,; echo "${waiting[*]}"). Ask the owner the open questions in its newest docs/v3/AUDIT.md entry."
+  wait_note="Blocked, waiting for the owner's answers (do not run it, and do not start a story; in a parallel run the in-flight items still finish): $(IFS=,; echo "${waiting[*]}"). Ask the owner the open questions in its newest review entry: a fragment under docs/v3/audit/ (docs/v3/audit.jsonl indexes them; scripts/backlog-vault/ledger.ts reads them)."
 fi
 
 if [ "${#todo[@]}" -eq 0 ]; then
@@ -59,10 +62,10 @@ if [ "${#todo[@]}" -eq 0 ]; then
 fi
 
 body="$(printf '%s\n\n' "${todo[@]}")"
-instructions="Review debt is due. Run these reviews now, in this order, before starting or continuing any story (CLAUDE.md Agent / loop rules):
+instructions="Review debt is due. Run these reviews now, in this order (CLAUDE.md Agent / loop rules). In a parallel /run-backlog (in-flight items claimed in .run/claims/), each starts at once in its own worktree beside the in-flight items and never pauses them: it edits no in-flight item's note, logs its entry with --in-flight <IDs>, and no new story starts until it is logged (bugs may). Otherwise run it before starting the next story:
 
 ${body}
-Each review commits its edits together with its ledger entry, one commit per review. Run the backlog or design intake review before the doc parity review, and re-run scripts/review-debt.sh and scripts/parity-debt.sh after each commit, since one review can make the other due. If a verdict is \`blocked\`, stop and ask the owner its questions. Do not push unless the owner asked.${wait_note:+
+Each review commits its edits together with its ledger entry, one commit per review. Run the backlog or design intake review before the doc parity review, and re-run scripts/review-debt.sh and scripts/parity-debt.sh after each commit, since one review can make the other due. If a verdict is \`blocked\`, stop and ask the owner its questions. Each review's commit opens as its own pull request into stage.${wait_note:+
 
 $wait_note}"
 

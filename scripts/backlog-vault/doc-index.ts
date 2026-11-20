@@ -3,21 +3,28 @@
  *
  * Owner, 2026-11-04, on cutting token sinks: "In general, a cascading linked docs approach
  * would be good whenever it is mostly lossless contextually". The big docs stay whole
- * (BACKLOG.md ~1 MB, AUDIT.md ~1 MB, ARCHITECTURE.md ~140 KB), because graders, the backlog
- * tool and people read them as they are. This index sits on top: every doc with its size,
- * the sections of the large ones with their line ranges (so a reader opens only the part it
- * needs), the backlog rules by number, and the stories and bugs by status with a link to each note.
- * It points at the text rather than summarising it, so nothing is lost by starting here.
+ * (AUDIT.md ~1 MB, ARCHITECTURE.md ~140 KB), because graders, the backlog tool and people read
+ * them as they are. This index sits on top: the backlog's generated status lines (the As of line,
+ * the Next line, the review-debt line), every doc with its size, the sections of the large ones
+ * with their line ranges (so a reader opens only the part it needs), the backlog rules by number,
+ * and the stories and bugs by status with a link to each note. It points at the text rather than
+ * summarising it, so nothing is lost by starting here.
  *
- * Generated, never hand-edited: `pnpm backlog:build` writes it, the pre-commit step rebuilds
- * it from the staged docs, and `pnpm backlog:check` fails when it is stale (cli.ts,
- * precommit.ts), as for BACKLOG.md and audit.jsonl.
+ * Built, never committed (S156; owner, 2026-11-20: "Stop committing them (Recommended)"):
+ * `pnpm backlog:build` writes it (the post-checkout and post-merge hooks run that), and it is
+ * git-ignored, so no two branches ever conflict over it. `pnpm backlog:check` builds it in memory
+ * and never reads it from disk.
  */
 
+import {
+	nextCandidate, nextStoryLine, reviewDebtLine,
+} from "./assemble.ts";
 import type { Bug } from "./bugs.ts";
 import { bugsIn } from "./bugs.ts";
+import type { LedgerEntry } from "./ledger.ts";
 import type { Story } from "./parse.ts";
 import { parseBacklog } from "./parse.ts";
+import { baselineText } from "./records.ts";
 import { bugNotePath, storyNotePath } from "./vault.ts";
 
 /** A doc the index lists: its path relative to docs/v3/ and its text. */
@@ -242,13 +249,66 @@ function workLines(stories: Story[], bugs: Bug[]): string[]
 	return out;
 }
 
+/** The ledger as the index needs it: every entry in ledger order (AUDIT.md's, then the fragments'), and the commit it describes. */
+export interface LedgerState
+{
+	entries: LedgerEntry[];
+	/** Short sha of HEAD when the index is built. */
+	head: string;
+}
+
+const BASELINE_HISTORY = "backlog/frame/06 Baseline history.md";
+
+/**
+ * The Current baseline's **As of** line (rule 17), built rather than hand-edited (S156, AC 7): the
+ * newest completion entry in ledger order, its date, the HEAD the index was built at, and that
+ * story's `**Baseline:**` text. A story that finished before S156 has no such line; the frozen
+ * Baseline history holds its text.
+ */
+export function asOfLine(stories: Pick<Story, "id" | "body">[], ledger: LedgerState): string
+{
+	const newest = ledger.entries.filter((e) => e.kind === "completed" && e.story).at(-1);
+	if (newest === undefined)
+	{
+		return `**As of:** HEAD \`${ledger.head}\` — no story has landed yet.`;
+	}
+	const text = baselineText(stories.find((s) => s.id === newest.story)?.body ?? "");
+	const what = text === undefined
+		? `landed (its note has no **Baseline:** line; see [Baseline history](${target(BASELINE_HISTORY)})).`
+		: `landed: ${text}`;
+	return `**As of:** ${newest.date} (HEAD \`${ledger.head}\`) — **${newest.story}** ${what}`;
+}
+
+/**
+ * Baseline history since S156: each completed story's `**Baseline:**` text, newest first (each
+ * story once, at its newest completion). The history before it is the frozen frame note 06.
+ */
+export function baselineHistory(stories: Pick<Story, "id" | "body">[], ledger: LedgerState): string[]
+{
+	const seen = new Set<string>();
+	const lines: string[] = [];
+	for (const entry of ledger.entries.filter((e) => e.kind === "completed" && e.story).reverse())
+	{
+		const id = entry.story as string;
+		const text = seen.has(id) ? undefined : baselineText(stories.find((s) => s.id === id)?.body ?? "");
+		seen.add(id);
+		if (text !== undefined)
+		{
+			lines.push(`- ${entry.date} — **${id}**: ${text}`);
+		}
+	}
+	return lines;
+}
+
 /** The whole of docs/v3/INDEX.md. `docs` are docs/v3's own Markdown files; `frame` the backlog's frame notes. */
 export function renderDocIndex(input: { docs: IndexedDoc[];
 	frame: IndexedDoc[];
 	stories: Story[];
-	bugs?: Bug[] }): string
+	bugs?: Bug[];
+	ledger: LedgerState }): string
 {
-	const big = new Set(["BACKLOG.md", "AUDIT.md", "INDEX.md"]);
+	const big = new Set(["AUDIT.md", "INDEX.md"]);
+	const history = baselineHistory(input.stories, input.ledger);
 	const docs = input.docs.filter((d) => !big.has(d.path)).sort((a, b) => a.path.localeCompare(b.path));
 	return [
 		"# Baseball Theater v3 — docs index",
@@ -261,17 +321,28 @@ export function renderDocIndex(input: { docs: IndexedDoc[];
 		"",
 		"- **A story:** its note, `backlog/stories/<status>/S<N>.md` (linked below; the folder follows "
 		+ "its status). The note holds the story's whole text — Gap, Impact, "
-		+ "Source, ACs, `/goal` line — and its status, priority and dependencies in frontmatter. [BACKLOG.md](BACKLOG.md) (~"
-		+ "1 MB) is generated from the notes for graders and tools; don't open it whole.",
+		+ "Source, ACs, `/goal` line — and its status, priority and dependencies in frontmatter.",
 		"- **A bug:** its GitHub issue holds the symptoms and cause; its note, `backlog/bugs/<status>/B<issue>.md`, "
 		+ "holds only its priority and status, so bugs and stories are worked in one order (the table below).",
 		"- **The ledger:** [audit.jsonl](audit.jsonl), one JSON line per entry with the line it starts at in "
-		+ "[AUDIT.md](AUDIT.md) (~1 MB); read only that entry.",
+		+ "[AUDIT.md](AUDIT.md) (~1 MB, frozen) or its fragment under `audit/`; read only that entry.",
 		"- **The backlog's rules and scheduling:** the frame notes below, by rule number or section.",
 		"",
+		"## Backlog status",
+		"",
+		asOfLine(input.stories, input.ledger),
+		"",
+		nextStoryLine(input.stories.map(nextCandidate)),
+		"",
+		reviewDebtLine(input.ledger.entries),
+		"",
+		"**Baseline history since S156**, newest first (earlier lines: "
+		+ `[Baseline history](${target(BASELINE_HISTORY)}), frozen):${history.length === 0 ? " none yet." : ""}`,
+		"",
+		...(history.length === 0 ? [] : [...history, ""]),
 		"## Backlog frame notes",
 		"",
-		"Assembled, in this order and around the stories, into BACKLOG.md.",
+		"The backlog's rules and the frame around the stories, in this order.",
 		"",
 		...input.frame.flatMap((d, i) => docEntry(d, d.path.replace(/^backlog\/frame\//, "").replace(/\.md$/, ""), i === 0)),
 		"",
@@ -293,8 +364,8 @@ export function isIndexedDoc(path: string): boolean
 	return /^[^/]+\.md$/.test(path) && path !== "INDEX.md";
 }
 
-/** INDEX.md for a built backlog: its frame notes, stories and bugs, plus docs/v3's own docs (paths relative to docs/v3/). */
-export function docIndexFor(backlog: string, notes: Map<string, string>, docs: IndexedDoc[]): string
+/** INDEX.md for a built backlog (the in-memory document): its frame notes, stories and bugs, the ledger, plus docs/v3's own docs (paths relative to docs/v3/). */
+export function docIndexFor(backlog: string, notes: Map<string, string>, docs: IndexedDoc[], ledger: LedgerState): string
 {
 	const frame = [...notes].filter(([key]) => key.startsWith("frame/")).sort(([a], [b]) => a.localeCompare(b)).map(([key, text]) => ({
 		path: `backlog/${key}`,
@@ -305,5 +376,6 @@ export function docIndexFor(backlog: string, notes: Map<string, string>, docs: I
 		frame,
 		stories: parseBacklog(backlog).stories,
 		bugs: bugsIn(notes),
+		ledger,
 	});
 }
