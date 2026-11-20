@@ -1097,14 +1097,60 @@
 				"required": ["divisionId", "name", "leagueId", "teams"],
 				"type": "object"
 			},
+			"StandingsPhaseAnswer": {
+				"additionalProperties": false,
+				"description": "One season phase in a standings answer (S139): the first and last day the phase runs in the season the answer is for, and its table when the request included the phase (`includePhases`). The dates are always there, so a caller can choose which phases to ask for without their tables. `startDate` and `endDate` are null only on `regularSeason` when the day has no season calendar. `table` keeps S128's meaning of `phase`, `season` and `date` (for `playoffs`, those of the regular-season table its teams come from).",
+				"properties": {
+					"endDate": { "type": ["string", "null"] },
+					"startDate": { "type": ["string", "null"] },
+					"table": { "$ref": "#/components/schemas/StandingsSnapshot" }
+				},
+				"required": ["startDate", "endDate"],
+				"type": "object"
+			},
 			"StandingsPhaseName": {
 				"description": "Which table a standings payload is (S128): the day's regular-season standings, a season's final regular-season table (after the regular season until the next spring), or spring training's standings as of the day.",
 				"enum": ["regularSeason", "final", "spring"],
 				"type": "string"
 			},
+			"StandingsPhases": {
+				"additionalProperties": false,
+				"description": "Every season phase's answer for the day, keyed by phase; null for a phase the day's season can't answer.",
+				"properties": {
+					"playoffs": {
+						"anyOf": [{ "$ref": "#/components/schemas/StandingsPhaseAnswer" }, { "type": "null" }]
+					},
+					"regularSeason": {
+						"anyOf": [{ "$ref": "#/components/schemas/StandingsPhaseAnswer" }, { "type": "null" }]
+					},
+					"spring": { "anyOf": [{ "$ref": "#/components/schemas/StandingsPhaseAnswer" }, { "type": "null" }] }
+				},
+				"required": ["spring", "regularSeason", "playoffs"],
+				"type": "object"
+			},
 			"StandingsResponse": {
-				"$ref": "#/components/schemas/StandingsSnapshot",
-				"description": "The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the regular season's as of that day, the season's final table after it ends, spring training's in the spring (see `phase`)."
+				"additionalProperties": false,
+				"description": "The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the regular season's as of that day, the season's final table after it ends, spring training's in the spring (see `phase`). S128's fields stay at the top unchanged (ADR-015: additive only), so a client that doesn't know phases keeps its table; `phases` (S139) carries each season phase's dates and, when asked for, its table.",
+				"properties": {
+					"date": {
+						"description": "The day the table stands as of; for a `final` table, its season's `regularSeasonEndDate`.",
+						"type": "string"
+					},
+					"divisions": { "items": { "$ref": "#/components/schemas/StandingsDivision" }, "type": "array" },
+					"fetchedAt": { "type": "string" },
+					"phase": {
+						"$ref": "#/components/schemas/StandingsPhaseName",
+						"description": "Which table this is (S128); absent on snapshots read before S128 (recorded fixtures)."
+					},
+					"phases": { "$ref": "#/components/schemas/StandingsPhases" },
+					"season": {
+						"description": "MLB's season id of the table (S128): the year it was played.",
+						"type": "number"
+					},
+					"windowMode": { "enum": ["active", "cache"], "type": "string" }
+				},
+				"required": ["date", "divisions", "fetchedAt", "phases", "windowMode"],
+				"type": "object"
 			},
 			"StandingsSnapshot": {
 				"additionalProperties": false,
@@ -1683,11 +1729,23 @@
 				"operationId": "getStandings",
 				"parameters": [
 					{
-						"description": "The day to show standings for, `YYYY-MM-DD`; MLB's today when absent. After the regular season the answer is that season's final table, dated its `regularSeasonEndDate`; during spring training it is spring training's table (see `phase`).",
+						"description": "The day to show standings for, a real date as `YYYY-MM-DD`; MLB's today when absent. After the regular season the answer is that season's final table, dated its `regularSeasonEndDate`; during spring training it is spring training's table (see `phase`).",
 						"in": "query",
 						"name": "date",
 						"required": false,
 						"schema": { "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "type": "string" }
+					},
+					{
+						"description": "The season phases whose tables `phases` carries (S139), comma-separated (`spring,regularSeason`); the parameter repeated (`includePhases=spring&includePhases=regularSeason`), or both forms mixed, is accepted too. Names match exactly and a name given twice counts once. Absent: every phase's table. Every phase's dates are in `phases` either way, and the top-level fields are the same whatever it names.",
+						"explode": false,
+						"in": "query",
+						"name": "includePhases",
+						"required": false,
+						"schema": {
+							"items": { "enum": ["spring", "regularSeason", "playoffs"], "type": "string" },
+							"type": "array"
+						},
+						"style": "form"
 					}
 				],
 				"responses": {
@@ -1701,16 +1759,22 @@
 						"content": {
 							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
 						},
-						"description": "`date` is not `YYYY-MM-DD`."
+						"description": "`date_invalid`: `date` is not a real `YYYY-MM-DD` date (checked first). `include_phases_invalid`: an `includePhases` name isn't `spring`, `regularSeason` or `playoffs`, is empty, or has spaces around it; MLB is asked nothing."
 					},
 					"426": {
 						"content": {
 							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
 						},
 						"description": "`version_unsupported`: this API version has been retired (ADR-015); the client should reload to update."
+					},
+					"502": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`standings_unavailable`: MLB couldn't answer a standings table; never cached, so trying again shortly may succeed. A season calendar MLB couldn't give is not this error: the answer is then the day's table without phase dates, cached only briefly."
 					}
 				},
-				"summary": "The division standings for one day of the season — the regular season's table, the final table once it has ended, or spring training's (see `phase`): each division's teams in rank order, with wins, losses, winning percentage and games back (null for the leader)."
+				"summary": "The division standings for one day of the season — the regular season's table, the final table once it has ended, or spring training's (see `phase`): each division's teams in rank order, with wins, losses, winning percentage and games back (null for the leader). `phases` (S139) carries every season phase of the day's season — spring training, the regular season and the playoffs (the teams that have clinched) — with the days it runs and, for the phases `includePhases` names, its table. Cached at the edge by how long the day asked has been over: up to 30 days once the answer's season (the one `phases` is for) is over; at most 48 hours while it is still being played or has no season calendar; briefly during its postseason, when MLB couldn't give a season calendar, or for today."
 			}
 		}
 	}

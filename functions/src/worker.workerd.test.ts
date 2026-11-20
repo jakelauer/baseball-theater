@@ -6,6 +6,7 @@
  * `POST /api/v1/sign-in` (the tenant is a stand-in serving a locally made key).
  * S143 AC 4: with `BT_MOCK_SIGN_IN=1` (staging), the mock credential signs in as the shared test
  * account and the whole account API works behind it, deletion included.
+ * S139 AC 8: the standings' season calendars are kept in the Workers Cache between requests.
  * Run with `pnpm --filter @bt/functions test:workerd`.
  */
 import { env, SELF } from "cloudflare:test";
@@ -13,6 +14,8 @@ import { DEFAULT_SETTINGS, MOCK_SIGN_IN_CREDENTIAL } from "@bt/domain";
 import {
 	describe, expect, it,
 } from "vitest";
+import type { WorkersCacheLike } from "./adapters/cached-season-calendars.js";
+import { seasonCalendarCacheKey } from "./adapters/cached-season-calendars.js";
 import { inDatabaseScope, scopedDatabase } from "./adapters/postgres/connect.js";
 import { handleApiRequest } from "./handlers/api.js";
 import {
@@ -39,6 +42,36 @@ describe("the Worker on workerd (S45)", () =>
 		expect(res.status).toBe(200);
 		const game = await res.json() as { gamePk: number };
 		expect(game.gamePk).toBe(744834);
+	});
+});
+
+describe("the standings' calendars in the Workers Cache (S139)", () =>
+{
+	it("S139 AC 8: standings calendars come from the Workers Cache on the second request", async () =>
+	{
+		// workerd's `caches.default`, which this package's types don't declare.
+		const cache = (globalThis as unknown as { caches: { default: WorkersCacheLike } }).caches.default;
+		const first = await SELF.fetch("http://bt.test/api/v1/standings?date=2026-09-05");
+		expect(first.status).toBe(200);
+		const kept = await cache.match(seasonCalendarCacheKey(2026));
+		expect(kept).toBeDefined();
+		const { calendar } = await kept!.json() as { calendar: { springStartDate: string } };
+		expect(calendar.springStartDate).toBe("2026-02-20");
+
+		// Change what the cache holds: the next request's spring dates can only come from it, not from MLB's recording.
+		await cache.put(seasonCalendarCacheKey(2026), new Response(JSON.stringify({
+			calendar: {
+				...calendar,
+				springStartDate: "2026-02-01",
+			},
+		}), {
+			headers: {
+				"cache-control": "max-age=3600",
+			},
+		}));
+		const second = await SELF.fetch("http://bt.test/api/v1/standings?date=2026-07-01&includePhases=regularSeason");
+		expect(second.status).toBe(200);
+		expect(((await second.json()) as { phases: { spring: { startDate: string } } }).phases.spring.startDate).toBe("2026-02-01");
 	});
 });
 

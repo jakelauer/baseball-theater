@@ -16,7 +16,9 @@ const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 /**
  * What `FixtureClient` reads by name: `schedule-<date>`, `game-<pk>`, `plays-<pk>`, `standings-<date>`,
  * `players-*`, and from `raw/` the play-metrics recordings (S93), the GraphQL game content (S94)
- * the season calendars and World Series (S111), and each season's final and spring standings (S128).
+ * the season calendars and World Series (S111), and each season's final and spring standings (S128) —
+ * a season's table with no date, which before its first game lists the new season's teams (S139
+ * reads 2027's for the regular season's blank list), included.
  */
 const SERVED = new RegExp(`^(${[
 	String.raw`schedule-\d{4}-\d{2}-\d{2}`, String.raw`game-\d+`, String.raw`plays-\d+`, String.raw`standings-\d{4}-\d{2}-\d{2}`, "players-.+",
@@ -35,6 +37,21 @@ describe("bundled fixtures (S45)", () =>
 		{
 			expect(BUNDLED_FIXTURES[name], name).toEqual(JSON.parse(readFileSync(path.join(FIXTURES, name), "utf8")));
 		}
+	});
+
+	it("the guard covers S139's recordings: without them in bundled.ts it fails", () =>
+	{
+		// The new season's team list and the clinched-day table are read by name, so the guard must match them.
+		for (const name of ["raw/standings-2027-final.json", "standings-2026-09-12.json"])
+		{
+			expect(SERVED.test(name), name).toBe(true);
+			const { [name]: _left, ...without } = BUNDLED_FIXTURES;
+			const committed = [...readdirSync(FIXTURES), ...readdirSync(path.join(FIXTURES, "raw")).map((file) => `raw/${file}`)]
+				.filter((file) => SERVED.test(file)).sort();
+			expect(Object.keys(without).sort()).not.toEqual(committed);
+		}
+		// The combined-types and playoff recordings are evidence for the ledger, never served, so never bundled.
+		expect(SERVED.test("raw/standings-2026-final-wildcard.json")).toBe(false);
 	});
 
 	it("an unknown fixture rejects like a missing file", async () =>
