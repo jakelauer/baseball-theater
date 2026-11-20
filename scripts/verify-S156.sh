@@ -300,7 +300,9 @@ else
 	miss=$(in_order "$TMP/train.md" 'priority order' 'one at a time' 'origin/stage' 'git merge --no-ff' 'pnpm backlog:build' 'pnpm backlog:check' 'push' '\bCI\b' 'review' 'merge') ||
 		bad 4 "the merge train's steps are missing or out of order (stuck at: $miss)"
 	grep -qiE 'merge ref' "$TMP/train.md" || bad 4 "the merge train doesn't rely on CI's verify of the pull request's merge ref"
-	grep -iE 'pnpm verify' "$TMP/train.md" | grep -qviE "no local|never .*locally|not .*locally|CI's" &&
+	# Drop the parenthetical that says why there is no local run, so a `pnpm verify` the train itself runs
+	# can't hide behind it on the same line (tightened before shipping after the change review, rule 7).
+	sed -E 's/\(no local[^)]*\)//g' "$TMP/train.md" | grep -qiE 'pnpm verify' &&
 		bad 4 "the merge train still runs pnpm verify locally"
 	grep -qiE 'rebase' "$TMP/train.md" && grep -qiE 'force-push' "$TMP/train.md" || bad 4 "the merge train doesn't rule out a rebase and a force-push"
 	grep -qiE 'cancel' "$TMP/train.md" && grep -qiE 're-run|rerun' "$TMP/train.md" || bad 4 "the merge train doesn't re-run a cancelled staging deploy"

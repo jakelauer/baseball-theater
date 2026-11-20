@@ -1,3 +1,4 @@
+import { availableParallelism } from "node:os";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -17,7 +18,9 @@ export default defineConfig({
 		// Vitest starts a fork per core but one, and Turborepo runs this suite beside web's, so two worktrees'
 		// gates started ~68 workers on 18 cores; that start-up burst slowed a migrated PGlite from ~0.5 s to
 		// 4–9 s. Four each let two gates pass at once (~75 s) and a solo run is no slower (58 s vs 63 s) (#116).
-		maxWorkers: 4,
+		// At most four, and never more than Vitest's own default (a core but one), which a bare number
+		// would override: on a 4-core CI runner that stays 3.
+		maxWorkers: Math.min(4, Math.max(availableParallelism() - 1, 1)),
 		coverage: {
 			provider: "v8",
 			reporter: ["text", "json-summary"],

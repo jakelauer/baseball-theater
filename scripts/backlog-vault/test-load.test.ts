@@ -62,7 +62,14 @@ describe("concurrent pnpm verify runs stay within the machine (#116)", () =>
 	it("every functions test server listens on 127.0.0.1, where its requests go", () =>
 	{
 		const loose = tsFiles(join(ROOT, "functions/src"))
-			.filter((f) => /\.listen\(\s*0\s*(,(?!\s*"127\.0\.0\.1")|\))/.test(readFileSync(f, "utf8")))
+			.filter((f) =>
+			{
+				const text = readFileSync(f, "utf8");
+				// listen(0) / listen(0, cb) without the loopback host, or listen({ port: 0 … }) without host "127.0.0.1".
+				const positional = /\.listen\(\s*0\s*(,(?!\s*"127\.0\.0\.1")|\))/.test(text);
+				const options = [...text.matchAll(/\.listen\(\s*\{([^}]*)\}/g)].some((m) => /\bport\s*:\s*0\b/.test(m[1] ?? "") && !/host\s*:\s*"127\.0\.0\.1"/.test(m[1] ?? ""));
+				return positional || options;
+			})
 			.map((f) => relative(ROOT, f));
 		expect(loose).toEqual([]);
 	});

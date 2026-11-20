@@ -1,3 +1,4 @@
+import { availableParallelism } from "node:os";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
@@ -11,7 +12,9 @@ export default defineConfig({
 		// Vitest starts a fork per core but one, and Turborepo runs this suite beside functions', so two
 		// worktrees' gates started ~68 workers on 18 cores and the 1 s `findBy` waits timed out under that
 		// load. Four each let two gates pass at once, and a solo run is no slower (#116).
-		maxWorkers: 4,
+		// At most four, and never more than Vitest's own default (a core but one), which a bare number
+		// would override: on a 4-core CI runner that stays 3.
+		maxWorkers: Math.min(4, Math.max(availableParallelism() - 1, 1)),
 		coverage: {
 			provider: "v8",
 			reporter: ["text", "json-summary"],
