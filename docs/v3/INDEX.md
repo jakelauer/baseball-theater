@@ -496,6 +496,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 |---|---|---|---|---|
 | 70.9 | [B87](backlog/bugs/todo/B87.md) Bug #87: Grader fence checks fail on file names with non-ASCII characters | `todo` | — | — |
 | 71 | [S152](backlog/stories/todo/S152.md) Fast PR checks (scoped caching) | `todo` | — | — |
+| 72 | [S131](backlog/stories/todo/S131.md) Approved release notes | `todo` | — | — |
 | 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
 | 75 | [S144](backlog/stories/todo/S144.md) Design: play link on the meta line | `todo` | — | — |
 | 75 | [S145](backlog/stories/todo/S145.md) Play link on the meta line | `todo` | S97, S81 | S144 |
@@ -503,7 +504,6 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 | 76 | [S140](backlog/stories/todo/S140.md) World Series winner in standings | `todo` | S128 | — |
 | 77 | [S130](backlog/stories/todo/S130.md) Standings views | `todo` | S128, S139, S140, S81 | S129 |
 | 77 | [S138](backlog/stories/todo/S138.md) Standings date picker | `todo` | S125, S130, S81 | S123, S129 |
-| 78 | [S131](backlog/stories/todo/S131.md) Approved release notes | `todo` | — | — |
 | 79 | [S132](backlog/stories/todo/S132.md) Release notes API | `todo` | S131 | — |
 | 81 | [S134](backlog/stories/todo/S134.md) Change log page | `todo` | S132, S81 | S133 |
 | 81 | [S147](backlog/stories/todo/S147.md) Design: Live marker | `todo` | — | — |

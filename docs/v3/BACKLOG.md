@@ -229,6 +229,7 @@ Ordered by **Priority** (execution order). Story IDs (`S1`…`S30`) are stable l
 | 71 | [S152](#s152--pr-checks-reuse-what-an-unchanged-package-already-passed-and-skip-the-browser-reinstall) | Fast PR checks (scoped caching) | `todo` |
 | 72 | [S109](#s109--live-status-the-inning-count-and-outs-in-one-place) | Live status, one place | `done` |
 | 72 | [S123](#s123--design-the-scoreboards-calendar-date-picker) | Design: calendar date picker | `blocked` |
+| 72 | [S131](#s131--each-releases-fan-facing-notes-approved-by-the-owner-before-it-publishes) | Approved release notes | `todo` |
 | 73 | [S124](#s124--games-per-day-for-a-month-from-bts-store) | Games-per-day counts API | `done` |
 | 73 | [S143](#s143--staging-signs-in-with-a-mock-account-and-a-site-without-sign-in-shows-no-sign-in-button) | Mock sign-in on staging | `done` |
 | 73 | [S20](#s20--scoreboard-live-refresh-for-in-window-games) | Scoreboard live refresh for in-window games | `done` |
@@ -247,7 +248,6 @@ Ordered by **Priority** (execution order). Story IDs (`S1`…`S30`) are stable l
 | 77 | [S138](#s138--standings-for-any-date-picked-from-the-calendar) | Standings date picker | `todo` |
 | 77 | [S112](#s112--dev-seed-the-last-month-of-the-season-and-the-postseason-refreshable-by-date-range) | Dev seed (season end + postseason) | `done` |
 | 78 | [S113](#s113--production-database-neon-through-hyperdrive-migrated-composed-into-the-worker) | Production database (Neon) | `done` |
-| 78 | [S131](#s131--each-releases-fan-facing-notes-approved-by-the-owner-before-it-publishes) | Approved release notes | `todo` |
 | 79 | [S114](#s114--cloudflare-deploy-preview-staging-and-production-through-github-actions) | Cloudflare deploy | `done` |
 | 79 | [S118](#s118--branch-flow-stage-deploys-staging-main-deploys-production) | Stage and main branch flow | `done` |
 | 79 | [S119](#s119--production-deploys-to-nextbaseballtheater-until-the-owners-dns-cutover) | Production at next.baseball.theater | `done` |
@@ -7338,6 +7338,7 @@ Inserted by the owner, 2026-11-07: told the findings and offered "a small follow
 - **2026-11-13: a build's release now comes from its pull request's milestone (#47).** The owner, asked (1) *"Should the release name come from the milestone (#47), with S131/S135 re-scoped to read it? I recommend yes."* and (2) *"Should `wrangler rollback` stay as a last resort, only past GitHub's 30-day re-run window? I recommend yes."*, answered *"1 and 2 both yes"* (question 2 concerns the release rule, not this story). Since #47 every deploy build is labelled with the milestone of the pull request whose merge commit it builds (`scripts/build-release.sh`, injected as `__BT_RELEASE__` by `web/vite.config.ts` and read through `web/src/layout/version.ts`), so the build's release no longer comes from the newest approved notes; the note "Why the version comes from the notes" above is superseded for the build. `currentRelease` over `releases/` still serves the releases API and the change log page. S135's ACs 1 and 4 read the build's release from #47's value instead of `currentRelease` (rewritten in S135 on 2026-11-13, answering Claude's review of #50). In the production job, `release:check` (AC 4) still goes after Install and before any build step; #47's release lookup ("Which release is this build?", `scripts/build-release.sh`) only reads GitHub and is not a build step, wherever it sits (`scripts/verify-S131.sh` check 4 skips it, updated before S131 shipped, answering Claude's review of #50).
 
 - **2026-11-19: restarted.** Parked on 2026-11-09 until v3.1.0 was published (note above: *"No, release v3.1.0 first"*); v3.1.0 was published on 2026-11-11, so the story is `todo` again (owner, 2026-11-19, told the park's reason had cleared: *"Ok yeah restart s131 asap"*). Its checkpoint grader (`scripts/verify-S131.sh`, red-first at e54fb5e) is updated before shipping only where AC 1 and AC 5 gained `performance` (rule 7).
+- **2026-11-19: priority 78 → 72** (owner: *"Just put 131 wherever it best belongs"*). It heads the chain S131 → S132 → S134 → S135, and S142 and S154 wait on S134, and it needs no design; it goes after B87 (the graders' fix every story uses) and S152 (faster pull-request checks for every later story, S131's included), and before S145.
 
 **Reuse check** (ADR-025): before writing code, search `packages/domain/src/` for an existing version or date parser (`calendar-date`, the API version in `api-routes.ts`) and `functions/src/scripts/` for an existing CLI pattern (argument parsing, exit codes) to follow; record what was reused, or why nothing fit, in the story's ledger notes.
 
