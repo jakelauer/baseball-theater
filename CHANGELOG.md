@@ -14,6 +14,18 @@ explicitly where that's the case. For what's still ahead, see
 
 ---
 
+## Standings will show spring training, the regular season and the playoffs
+
+- **Before, nothing said how a fan would tell spring training's standings from the real ones, or get from one to
+  the other. Now there is an approved design for Standings' three views: a switch under the heading between spring
+  training, the regular season and the playoffs; "Standings as of March 2, 2027" on a day that isn't today; a gold
+  box naming the World Series champions until January 31; and bold rows with MLB's clinch letters on the teams that
+  made the playoffs. The app doesn't show it yet; S130 builds it.** Details: S129 — standings-search-settings
+  amendment A9, ratified by the owner 2026-11-19; its heading, World Series box, division tables, rows, clinch
+  legend and spring training's first-morning block are now shared Figma components (`standings-heading`,
+  `world-series-box`, `standings-division`, `standings-table-header`, `standings-row`, `clinch-legend`,
+  `spring-empty`). _(2026-11-19)_
+
 ## The day's top highlights lead with the plays that mattered, and keep up during games
 
 - **Before, the day's "Best of" highlights could open with an interview: on October 28, the World Series clincher,

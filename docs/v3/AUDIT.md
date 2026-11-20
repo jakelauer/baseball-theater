@@ -18640,3 +18640,89 @@ Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the rev
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
+
+---
+
+## 2026-11-19 — S129 completed
+
+**Design: Standings views**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-20T00:37:21Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `cddc80b` (tree dirty) |
+| Grader | `scripts/verify-S129.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: standings-search-settings has its next free amendments/A<N>.md (new in S129) headed '(S129)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames standings-spring-{mobile,medium,desktop}.png (real PNGs at the ratified standings frame's width) listed in ## Frames, which names each view AC 1 draws, with a frame set per state at every pairing; every frame ## Frames names exists as one of its own; any final-table frames come as all three pairings
+check 3 PASS: the amendment says whether the off-season final table (phase "final") is marked: a quoted owner decision in ## Decisions; if it is marked, FEATURES' Standings row (changed by S129) records it
+check 4 PASS: the amendment's ## Ratification names Jake Lauer, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left
+check 5 PASS: no sealed file in standings-search-settings changed or deleted (RATIFIED.md manifest verifies; RATIFIED.md, ratified frames and every other amendment untouched by S129; every amendment's sealed frames present and unchanged)
+check 6 PASS: S129 changes no file outside its fence (scripts/verify-S129.sh aside)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+check 8 PASS: the amendment answers every AC 1 bullet in words: the view switch (and whether it shows with the regular season alone), the hidden games-behind column, the regular season before its first game, the playoffs list, the 'Standings as of' line, the World Series box (how long it stays, reduced motion), the heading and browser tab title, the off-season's final table, the first spring morning, full width on mobile, loading/empty/error
+```
+
+**8/8 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S129 check results ---
+check 1 PASS: standings-search-settings has its next free amendments/A<N>.md (new in S129) headed '(S129)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames standings-spring-{mobile,medium,desktop}.png (real PNGs at the ratified standings frame's width) listed in ## Frames, which names each view AC 1 draws, with a frame set per state at every pairing; every frame ## Frames names exists as one of its own; any final-table frames come as all three pairings
+check 3 PASS: the amendment says whether the off-season final table (phase "final") is marked: a quoted owner decision in ## Decisions; if it is marked, FEATURES' Standings row (changed by S129) records it
+check 4 PASS: the amendment's ## Ratification names Jake Lauer, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left
+check 5 PASS: no sealed file in standings-search-settings changed or deleted (RATIFIED.md manifest verifies; RATIFIED.md, ratified frames and every other amendment untouched by S129; every amendment's sealed frames present and unchanged)
+check 6 PASS: S129 changes no file outside its fence (scripts/verify-S129.sh aside)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+check 8 PASS: the amendment answers every AC 1 bullet in words: the view switch (and whether it shows with the regular season alone), the hidden games-behind column, the regular season before its first game, the playoffs list, the 'Standings as of' line, the World Series box (how long it stays, reduced motion), the heading and browser tab title, the off-season's final table, the first spring morning, full width on mobile, loading/empty/error
+--- verify-S129: 8/8 checks passed ---
+verify-S129: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 9ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 30ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 31ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 31ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 35ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 670ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  347ms
+   ✓ jscpd duplication gate (.jscpd.json) > fails when a 30-line block is copied into a second file  322ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 462ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  443ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  16:38:56
+   Duration  1.29s (transform 130ms, setup 0ms, collect 3.25s, tests 1.41s, environment 1ms, prepare 397ms)
+
+
+> baseball-theater-v3@0.0.0 size /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/agent-a587e84dbfe076b39
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162463,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
