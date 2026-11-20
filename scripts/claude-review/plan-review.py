@@ -27,9 +27,10 @@ Sonnet only, a low turn cap, and only new commits after the first review: "Ok I'
   the PR touches no `is_reviewer_path` file (those always re-review): no model call; the post step says so and carries the record forward.
 
 Model and turns: always Sonnet (same owner answer; an Opus review cost $1-2.20, a Sonnet one about
-$0.18). Docs only, up to 300 changed lines, gets 15 turns; anything else 20, and a review of more than
-2,000 changed lines 40 (owner, 2026-11-20, after S156's 18,827-line review hit 20 turns and posted nothing:
-"Can you give it a higher limit?"). --max-turns counts model
+$0.18). Docs only, up to 300 changed lines, gets 15 turns; other reviews get 20 up to 2,000 changed lines
+and 40 above (owner, 2026-11-20, after S156's 18,827-line review hit 20 turns and posted nothing: "Can
+you give it a higher limit?"). An incremental review counts its new lines plus the whole change of the CI
+and deploy files it re-reads in full. --max-turns counts model
 responses, not tool calls, so the prompt tells the reviewer to batch independent reads into one response. Every turn re-sends the whole
 conversation, so turns are most of the cost. A run that hits its cap posts nothing and fails, so the
 prompt tells the reviewer its budget and to keep a turn for the answer.
@@ -220,10 +221,17 @@ def main() -> int:
         patch = git("diff", record["head"], head, "--", *reviewed)
         with open(os.path.join(review_dir, "incremental.patch"), "w", encoding="utf-8") as f:
             f.write(patch)
+        lines = changed_lines(patch)
+        # CI and deploy files are re-read in full even when unchanged since the record, so the turn
+        # budget counts their whole change against the base too; counting only the new lines gave a
+        # 10-line push to a big pull request 20 turns for a re-read that had needed 40.
+        if machinery:
+            lines += changed_lines(git("diff", f"{base}...{head}", "--", *machinery))
     else:
         with open(os.path.join(review_dir, "diff.patch"), encoding="utf-8") as f:
             patch = f.read()
-    model, turns, tier_why = tier(reviewed, changed_lines(patch))
+        lines = changed_lines(patch)
+    model, turns, tier_why = tier(reviewed, lines)
 
     with open(os.path.join(review_dir, "reviewed.txt"), "w", encoding="utf-8") as f:
         f.write("".join(f"{p}\n" for p in reviewed))
