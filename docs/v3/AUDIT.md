@@ -18655,3 +18655,85 @@ Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the rev
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
+
+---
+
+## 2026-11-19 — S123 completed
+
+**Design: calendar date picker**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-20T00:22:17Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `42a230c` (tree dirty) |
+| Grader | `scripts/verify-S123.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: shell-scoreboard has its next free amendments/A<N>.md (new in S123) headed '(S123)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames at mobile, medium and desktop (PNGs at the ratified scoreboard frame's width): calendar closed and open, the favorite teams' off-day ✕ (red, yellow) and its Off
+check 3 PASS: the amendment's ## Components section says which parts are @mantine/dates (the month grid, DateInput with its own drop-down off, renderDay for the count and the favorite-team mark, DatesProvider's consistentWeeks), which are native (the month and year pickers) and which are custom
+check 4 PASS: the amendment's ## Ratification names who ratified, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left
+check 5 PASS: no sealed file in shell-scoreboard changed (RATIFIED.md manifest still verifies; RATIFIED.md, ratified frames and every other amendment untouched by S123; every amendment's sealed frames present and unchanged)
+check 6 PASS: backlog Status is done (story heading and Story status table)
+```
+
+**6/6 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S123 check results ---
+check 1 PASS: shell-scoreboard has its next free amendments/A<N>.md (new in S123) headed '(S123)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames at mobile, medium and desktop (PNGs at the ratified scoreboard frame's width): calendar closed and open, the favorite teams' off-day ✕ (red, yellow) and its Off
+check 3 PASS: the amendment's ## Components section says which parts are @mantine/dates (the month grid, DateInput with its own drop-down off, renderDay for the count and the favorite-team mark, DatesProvider's consistentWeeks), which are native (the month and year pickers) and which are custom
+check 4 PASS: the amendment's ## Ratification names who ratified, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left
+check 5 PASS: no sealed file in shell-scoreboard changed (RATIFIED.md manifest still verifies; RATIFIED.md, ratified frames and every other amendment untouched by S123; every amendment's sealed frames present and unchanged)
+check 6 PASS: backlog Status is done (story heading and Story status table)
+--- verify-S123: 6/6 checks passed ---
+verify-S123: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 13ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 906ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  447ms
+   ✓ jscpd duplication gate (.jscpd.json) > fails when a 30-line block is copied into a second file  458ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 46ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 53ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 60ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 57ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 691ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  664ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  16:24:51
+   Duration  1.84s (transform 111ms, setup 0ms, collect 4.80s, tests 2.02s, environment 1ms, prepare 423ms)
+
+
+> baseball-theater-v3@0.0.0 size /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/agent-ad401e31d2d460ac5
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162465,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>

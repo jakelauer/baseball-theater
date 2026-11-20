@@ -116,6 +116,12 @@ explicitly where that's the case. For what's still ahead, see
   `ScheduleRepository.listGameCounts`), filled through one `MlbStatsClient.fetchScheduleRange` request and
   `storeSchedule` with no game hydrated, cached by the month's last change (ADR-021); months after December of next
   year are refused (`month_too_late`).
+- **Before, the only way to reach a date long ago on the scoreboard was to tap back one day at a time. Now there
+  is an approved design for a calendar that opens from the date: type a date or pick one, switch the month and
+  year with your device's own pickers, see the weekdays and each day's game count, and spot the days your
+  favorite teams are off. The app doesn't show it yet; S125 builds it.** Details: S123 — shell-scoreboard amendment
+  A8, ratified by the owner 2026-11-19; the date control and every part of the calendar are now shared Figma
+  components (`date-selector`, `calendar-panel`, `calendar-day` and their parts). _(2026-11-19)_
 
 ## Testing on staging
 
