@@ -16,7 +16,7 @@ import {
 	afterEach, beforeEach, describe, expect, it,
 } from "vitest";
 import { reviewDebtLine } from "./assemble.ts";
-import { fragmentFiles } from "./ledger.ts";
+import { fragmentFiles, parseLedger } from "./ledger.ts";
 
 const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MARKER = "<!-- entries below; newest last; appended by scripts/audit.sh -->";
@@ -163,7 +163,7 @@ describe("audit.sh design mode (S84)", () =>
 		// No grader ran: the grader would have failed at HEAD and printed its check line.
 		expect(ledger).not.toContain("check 1 FAIL");
 		// The ledger readers count completions only: the design entry adds none.
-		expect(reviewDebtLine(ledger)).toContain(": S900.");
-		expect(reviewDebtLine(ledger.replace(/^## \S+ — S900 completed$/m, "## x — note"))).toContain("0 of");
+		expect(reviewDebtLine(parseLedger(ledger))).toContain(": S900.");
+		expect(reviewDebtLine(parseLedger(ledger.replace(/^## \S+ — S900 completed$/m, "## x — note")))).toContain("0 of");
 	});
 });

@@ -70,3 +70,6 @@ docs/v3/backlog/Backlog.base
 # each one's ports and Compose project name (already covered by `.env.*`; named so the reason is here)
 .claude/worktrees/
 .env.worktree
+# Built by pnpm backlog:build (the post-checkout and post-merge hooks run it), never committed (S156)
+docs/v3/INDEX.md
+docs/v3/audit.jsonl

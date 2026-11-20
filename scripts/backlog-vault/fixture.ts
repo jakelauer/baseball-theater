@@ -49,7 +49,7 @@ export const FIXTURE = [
 	"",
 	"**Design:** S1 — approved design required (rule 18).",
 	"",
-	"**Scope files:** `package.json`, `docs/v3/BACKLOG.md`",
+	"**Scope files:** `package.json`, `docs/v3/backlog/`",
 	"",
 	"**Turn cap:** 10 — assumes things.",
 	"",

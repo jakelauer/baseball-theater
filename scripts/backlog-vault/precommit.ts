@@ -1,10 +1,13 @@
 /**
  * Pre-commit step for the backlog notes (docs/v3/VAULT-MIGRATION.md, V3).
  *
- * Builds from the **index**, not the working tree, so a commit's BACKLOG.md reflects exactly
- * the notes (and AUDIT.md) being committed, and unstaged edits never leak into it. Results go
- * into the index; a working-tree file is only rewritten when it still matches what was staged,
- * so unstaged edits are never clobbered either.
+ * Builds from the **index**, not the working tree, so the notes a commit carries are exactly the
+ * staged ones in canonical form (derived frontmatter refreshed, each note in its status folder),
+ * and unstaged edits never leak into them. Results go into the index; a working-tree file is only
+ * rewritten when it still matches what was staged, so unstaged edits are never clobbered either.
+ * Nothing generated is committed any more (S156): docs/v3/INDEX.md and docs/v3/audit.jsonl are
+ * git-ignored and rebuilt after checkout and merge, and the generated BACKLOG.md is retired, so
+ * this step refuses a commit that adds it back.
  */
 
 import { execFileSync } from "node:child_process";
@@ -13,18 +16,11 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { buildFromNotes } from "./assemble.ts";
-import { docIndexFor, isIndexedDoc } from "./doc-index.ts";
-import { parseLedger, renderLedgerIndex } from "./ledger.ts";
 import { isNoteKey, noteId } from "./vault.ts";
 
 export const NOTES_DIR = "docs/v3/backlog";
-export const BACKLOG = "docs/v3/BACKLOG.md";
-export const AUDIT = "docs/v3/AUDIT.md";
-/** The ledger's generated index (ledger.ts), rebuilt here from the staged AUDIT.md. */
-export const AUDIT_INDEX = "docs/v3/audit.jsonl";
-/** The docs index (doc-index.ts), rebuilt here from the staged notes and docs/v3 docs. */
-export const DOC_INDEX = "docs/v3/INDEX.md";
-const DOCS_DIR = "docs/v3";
+/** The generated backlog file S156 retired (owner, 2026-11-20: "Retire it (Recommended)"); a commit may not add it back. */
+export const RETIRED_BACKLOG = "docs/v3/BACKLOG.md";
 export const FEATURES = "docs/v3/FEATURES.md";
 export const INTENT = "docs/v3/INTENT.md";
 
@@ -155,8 +151,16 @@ function restage(repo: string, path: string, before: string | undefined, content
 
 export function runPrecommit(repo: string): PrecommitResult
 {
-	// Any docs/v3 doc can move a line range in INDEX.md, so a change anywhere in docs/v3/ rebuilds.
-	const changed = paths(git(repo, ["diff", "--cached", "--name-only", "-z", "--", DOCS_DIR]));
+	if (paths(git(repo, ["diff", "--cached", "--name-only", "-z", "--diff-filter=AM", "--", RETIRED_BACKLOG])).length > 0)
+	{
+		return {
+			ok: false,
+			message: `${RETIRED_BACKLOG} is retired (S156): edit the notes in ${NOTES_DIR}/ instead, and unstage it (git rm --cached ${RETIRED_BACKLOG}).`,
+			restaged: [],
+		};
+	}
+	// The notes, and the two docs every **Source:** line is checked against, are all the build reads.
+	const changed = paths(git(repo, ["diff", "--cached", "--name-only", "-z", "--", NOTES_DIR, FEATURES, INTENT]));
 	if (changed.length === 0)
 	{
 		return {
@@ -184,13 +188,10 @@ export function runPrecommit(repo: string): PrecommitResult
 		intent,
 	};
 
-	const audit = staged(repo, AUDIT);
 	let built;
-	let index: string | undefined;
 	try
 	{
-		built = buildFromNotes(notes, audit, docs);
-		index = audit === undefined ? undefined : renderLedgerIndex(parseLedger(audit));
+		built = buildFromNotes(notes, docs);
 	}
 	catch (error)
 	{
@@ -200,19 +201,6 @@ export function runPrecommit(repo: string): PrecommitResult
 		return {
 			ok: false,
 			message: `the staged backlog notes do not build: ${why}${hint}`,
-			restaged: [],
-		};
-	}
-
-	const stagedBacklog = staged(repo, BACKLOG);
-	// BACKLOG.md staged with nothing it is built from can only be a hand edit (or a stale build).
-	const builtFrom = changed.filter((p) => p !== DOC_INDEX && p !== AUDIT_INDEX);
-	if (builtFrom.length === 1 && builtFrom[0] === BACKLOG && stagedBacklog !== built.backlog)
-	{
-		return {
-			ok: false,
-			message: `${BACKLOG} is generated — edit the notes in ${NOTES_DIR}/ and run pnpm backlog:build. `
-				+ "(To keep a hand edit of BACKLOG.md instead, run pnpm backlog:import, then stage the notes.)",
 			restaged: [],
 		};
 	}
@@ -228,36 +216,6 @@ export function runPrecommit(repo: string): PrecommitResult
 			restage(repo, `${NOTES_DIR}/${key}`, before, after);
 			restaged.push(`${NOTES_DIR}/${key}`);
 		}
-	}
-	if (stagedBacklog !== built.backlog)
-	{
-		restage(repo, BACKLOG, stagedBacklog, built.backlog);
-		restaged.push(BACKLOG);
-	}
-	const indexedDocs = paths(git(repo, ["ls-files", "-z", "--cached", "--", DOCS_DIR]))
-		.map((path) => path.slice(DOCS_DIR.length + 1))
-		.filter(isIndexedDoc)
-		.flatMap((path) =>
-		{
-			const text = staged(repo, `${DOCS_DIR}/${path}`);
-			return text === undefined ? [] : [{
-				path,
-				text,
-			}];
-		});
-	const docIndex = docIndexFor(built.backlog, built.notes, indexedDocs);
-	const stagedDocIndex = staged(repo, DOC_INDEX);
-	if (stagedDocIndex !== docIndex)
-	{
-		restage(repo, DOC_INDEX, stagedDocIndex, docIndex);
-		restaged.push(DOC_INDEX);
-	}
-	// The index is generated from AUDIT.md, so a staged hand edit of it is simply rebuilt over.
-	const stagedIndex = staged(repo, AUDIT_INDEX);
-	if (index !== undefined && stagedIndex !== index)
-	{
-		restage(repo, AUDIT_INDEX, stagedIndex, index);
-		restaged.push(AUDIT_INDEX);
 	}
 	return {
 		ok: true,

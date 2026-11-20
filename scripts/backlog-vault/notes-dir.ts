@@ -1,6 +1,6 @@
 /**
  * The backlog's notes directory on disk (docs/v3/backlog/): reading the notes, naming the ones in the
- * wrong folder, and writing a built or imported set back. Kept apart from cli.ts, which parses its
+ * wrong folder, and writing a built set back. Kept apart from cli.ts, which parses its
  * arguments and runs a command as soon as it is imported, so these can be tested on a temp directory.
  */
 
@@ -8,7 +8,6 @@ import {
 	access, mkdir, readdir, readFile, rm, rmdir, writeFile,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { importNotes } from "./assemble.ts";
 import {
 	BACKLOG_BASE, isNoteKey, noteId,
 } from "./vault.ts";
@@ -117,13 +116,4 @@ export async function writeNotes(dir: string, current: Map<string, string>, want
 			await rmdir(path).catch(() => undefined);
 		}
 	}
-}
-
-/** `pnpm backlog:import`: regenerate the notes in `dir` from the BACKLOG.md at `backlogPath`, keeping the bug notes (assemble.ts importNotes). */
-export async function importBacklog(dir: string, backlogPath: string, log: (message: string) => void)
-{
-	const current = await readNotes(dir);
-	const wanted = importNotes(await readFile(backlogPath, "utf8"), current);
-	await writeNotes(dir, current, wanted, log);
-	log(`imported ${wanted.size} notes into ${dir} from ${backlogPath}`);
 }

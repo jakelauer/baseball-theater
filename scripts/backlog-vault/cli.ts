@@ -1,24 +1,30 @@
 /**
  * The backlog's Obsidian notes (docs/v3/VAULT-MIGRATION.md, V3).
  *
- *   pnpm backlog:build    notes → docs/v3/BACKLOG.md; rewrite notes canonically (derived fields refreshed)
- *   pnpm backlog:check    exit 1 if build would change anything; --backlog-only compares BACKLOG.md alone
- *   pnpm backlog:import   recovery: regenerate the notes from docs/v3/BACKLOG.md, keeping the bug notes
- *                         (moved to their status folders), since BACKLOG.md holds none
- *   cli.ts pre-commit     (the Husky hook) build from the index and re-stage; refuse hand edits of BACKLOG.md
+ *   pnpm backlog:build    rewrite the notes canonically (derived fields refreshed, each note moved to
+ *                         its status folder) and write docs/v3/INDEX.md and docs/v3/audit.jsonl
+ *   pnpm backlog:check    exit 1 if build would change a note, or a finished story's records are
+ *                         missing (records.ts); builds INDEX.md in memory, never reads it from disk
+ *   cli.ts pre-commit     (the Husky hook) canonicalize the staged notes and re-stage them
  *   cli.ts ledger-base backlog|parity   the commit the debt checks measure drift from (ledger.ts)
  *   cli.ts done-since backlog|parity    stories completed since the newest review of that kind
  *   cli.ts review-blocked backlog|parity  prints `blocked` when that review waits for the owner, else `clear`
+ *   cli.ts in-flight [--in-flight S1,S2]  the items in flight in a parallel run, comma-separated (in-flight.ts)
  *
- * build and check also cover docs/v3/audit.jsonl, the ledger's generated index (`--index <file>`),
- * and docs/v3/INDEX.md, the docs index agents start reading from (doc-index.ts; beside BACKLOG.md).
+ * INDEX.md (the docs index agents start reading from, with the generated As of, Next and
+ * review-debt lines; doc-index.ts) and audit.jsonl (the ledger's index) are built and git-ignored,
+ * never committed (S156; owner, 2026-11-20: "Stop committing them (Recommended)"), and the
+ * generated docs/v3/BACKLOG.md is retired (owner, same day: "Retire it (Recommended)"): tools
+ * read the notes themselves.
  *
- * `--dir <notes dir>` (default docs/v3/backlog), `--backlog <file>` (default docs/v3/BACKLOG.md),
- * and `--audit <file>` (default docs/v3/AUDIT.md, read for the generated review-debt line) let
- * graders and hooks work on copies. Everything is computed in
- * memory first, so a note that fails to parse changes nothing on disk.
+ * `--dir <notes dir>` (default docs/v3/backlog; its parent is the docs dir INDEX.md is written to),
+ * `--audit <file>` (default docs/v3/AUDIT.md, the frozen ledger) and `--index <file>` (default
+ * docs/v3/audit.jsonl) let graders and hooks work on copies. Everything is computed in memory
+ * first, so a note that fails to parse changes nothing on disk.
  */
 
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import {
 	readdir, readFile, writeFile,
 } from "node:fs/promises";
@@ -26,17 +32,21 @@ import {
 	dirname, join, relative, resolve,
 } from "node:path";
 import { parseArgs } from "node:util";
+import type { BuiltBacklog } from "./assemble.ts";
 import { buildFromNotes } from "./assemble.ts";
-import type { IndexedDoc } from "./doc-index.ts";
+import type { IndexedDoc, LedgerState } from "./doc-index.ts";
 import { docIndexFor, isIndexedDoc } from "./doc-index.ts";
-import type { ReviewKind } from "./ledger.ts";
+import { inFlightIds } from "./in-flight.ts";
+import type { LedgerEntry, ReviewKind } from "./ledger.ts";
 import {
 	ledgerBase, parseLedger, renderLedgerIndex, reviewBlocked, storiesDoneSince,
 } from "./ledger.ts";
 import {
-	importBacklog, misplacedNotes, readNotes, writeNotes,
+	misplacedNotes, readNotes, writeNotes,
 } from "./notes-dir.ts";
+import { parseBacklog } from "./parse.ts";
 import { runPrecommit } from "./precommit.ts";
+import { frozenCompletions, recordProblems } from "./records.ts";
 import type { SourceDocs } from "./source.ts";
 
 const repoRoot = resolve(import.meta.dirname, "../..");
@@ -48,10 +58,6 @@ const { values, positionals } = parseArgs({
 			type: "string",
 			default: join(repoRoot, "docs/v3/backlog"),
 		},
-		backlog: {
-			type: "string",
-			default: join(repoRoot, "docs/v3/BACKLOG.md"),
-		},
 		audit: {
 			type: "string",
 			default: join(repoRoot, "docs/v3/AUDIT.md"),
@@ -60,9 +66,8 @@ const { values, positionals } = parseArgs({
 			type: "string",
 			default: join(repoRoot, "docs/v3/audit.jsonl"),
 		},
-		"backlog-only": {
-			type: "boolean",
-			default: false,
+		"in-flight": {
+			type: "string",
 		},
 		quiet: {
 			type: "boolean",
@@ -72,7 +77,8 @@ const { values, positionals } = parseArgs({
 });
 
 const dir = resolve(values.dir);
-const backlogPath = resolve(values.backlog);
+/** docs/v3: the notes dir's parent, which holds FEATURES.md, INTENT.md, the other docs and INDEX.md. */
+const docsDir = dirname(dir);
 const auditPath = resolve(values.audit);
 const indexPath = resolve(values.index);
 
@@ -81,20 +87,65 @@ async function readAudit(): Promise<string | undefined>
 	return readFile(auditPath, "utf8").catch(() => undefined);
 }
 
+/**
+ * Every ledger entry, in ledger order: the frozen AUDIT.md's, then (once ledger.ts reads them,
+ * S156 AC 5) the fragments'. The one place this tool reads the ledger, always through ledger.ts.
+ */
+async function ledgerEntries(): Promise<LedgerEntry[]>
+{
+	const audit = await readAudit();
+	return audit === undefined ? [] : parseLedger(audit);
+}
+
+/** The frozen ledger's entries alone: AUDIT.md, which draws the pre-S156 line for records.ts. */
+async function frozenEntries(): Promise<LedgerEntry[]>
+{
+	const audit = await readAudit();
+	return audit === undefined ? [] : parseLedger(audit);
+}
+
+/**
+ * The path of a story's changelog fragment, `changelog.d/<ID>.md` at the repo root (rule 16), or null.
+ * Stands in for changelog.ts's `changelogFragmentFor(root, id)` until that module lands beside this one.
+ */
+function changelogFragmentFor(root: string, id: string): string | null
+{
+	const path = join(root, "changelog.d", `${id}.md`);
+	return existsSync(path) ? path : null;
+}
+
+/** The repository the notes dir sits in (docs/v3/backlog → its grandparent), for changelog.d/. */
+const notesRoot = () => dirname(docsDir);
+
+/** HEAD's short sha, for the As of line; "unknown" outside a git checkout. */
+function head(): string
+{
+	try
+	{
+		return execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+			cwd: notesRoot(),
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+	}
+	catch
+	{
+		return "unknown";
+	}
+}
+
 /** FEATURES.md and INTENT.md beside the backlog, which every story's **Source:** line is checked against (rule 19). */
 async function readSourceDocs(): Promise<SourceDocs>
 {
-	const docsDir = dirname(backlogPath);
 	return {
 		features: await readFile(join(docsDir, "FEATURES.md"), "utf8"),
 		intent: await readFile(join(docsDir, "INTENT.md"), "utf8"),
 	};
 }
 
-/** docs/v3's own Markdown docs (the directory BACKLOG.md sits in), for the docs index. */
+/** docs/v3's own Markdown docs, for the docs index. */
 async function readIndexedDocs(): Promise<IndexedDoc[]>
 {
-	const docsDir = dirname(backlogPath);
 	const names = (await readdir(docsDir).catch(() => [] as string[])).filter(isIndexedDoc).sort();
 	return Promise.all(names.map(async (path) => ({
 		path,
@@ -102,8 +153,8 @@ async function readIndexedDocs(): Promise<IndexedDoc[]>
 	})));
 }
 
-/** Where the docs index lives: INDEX.md beside BACKLOG.md. */
-const docIndexPath = () => join(dirname(backlogPath), "INDEX.md");
+/** Where the docs index lives: docs/v3/INDEX.md. */
+const docIndexPath = () => join(docsDir, "INDEX.md");
 
 function log(message: string)
 {
@@ -113,67 +164,62 @@ function log(message: string)
 	}
 }
 
+/** INDEX.md's text for a build, from the notes, the docs and the ledger. */
+async function docIndex(built: BuiltBacklog, entries: LedgerEntry[]): Promise<string>
+{
+	const ledger: LedgerState = {
+		entries,
+		head: head(),
+	};
+	return docIndexFor(built.backlog, built.notes, await readIndexedDocs(), ledger);
+}
+
 async function build()
 {
 	const notes = await readNotes(dir);
-	const built = buildFromNotes(notes, await readAudit(), await readSourceDocs());
+	const built = buildFromNotes(notes, await readSourceDocs());
+	const entries = await ledgerEntries();
+	const index = await docIndex(built, entries);
 	await writeNotes(dir, notes, built.notes, log);
-	await writeFile(backlogPath, built.backlog);
-	log(`built ${backlogPath} from ${built.notes.size} notes`);
-	const audit = await readAudit();
-	if (audit !== undefined)
-	{
-		await writeFile(indexPath, renderLedgerIndex(parseLedger(audit)));
-		log(`built ${indexPath} from ${auditPath}`);
-	}
-	await writeFile(docIndexPath(), docIndexFor(built.backlog, built.notes, await readIndexedDocs()));
+	log(`built ${built.notes.size} notes in ${dir}`);
+	await writeFile(indexPath, renderLedgerIndex(entries));
+	log(`built ${indexPath} from the ledger`);
+	await writeFile(docIndexPath(), index);
 	log(`built ${docIndexPath()}`);
 }
 
 async function check()
 {
 	const notes = await readNotes(dir);
-	const built = buildFromNotes(notes, await readAudit(), await readSourceDocs());
+	const built = buildFromNotes(notes, await readSourceDocs());
+	// Built in memory so a broken index fails here; the file on disk is git-ignored and never compared.
+	await docIndex(built, await ledgerEntries());
 	const stale: string[] = [];
-	if ((await readFile(backlogPath, "utf8").catch(() => undefined)) !== built.backlog)
+	for (const path of new Set([...notes.keys(), ...built.notes.keys()]))
 	{
-		stale.push(backlogPath);
-	}
-	if (!values["backlog-only"])
-	{
-		for (const path of new Set([...notes.keys(), ...built.notes.keys()]))
+		if (notes.get(path) !== built.notes.get(path))
 		{
-			if (notes.get(path) !== built.notes.get(path))
-			{
-				stale.push(join(dir, path));
-			}
+			stale.push(join(dir, path));
 		}
 	}
-	const audit = await readAudit();
-	if (!values["backlog-only"] && audit !== undefined
-		&& (await readFile(indexPath, "utf8").catch(() => undefined)) !== renderLedgerIndex(parseLedger(audit)))
-	{
-		stale.push(indexPath);
-	}
-	if (!values["backlog-only"]
-		&& (await readFile(docIndexPath(), "utf8").catch(() => undefined)) !== docIndexFor(built.backlog, built.notes, await readIndexedDocs()))
-	{
-		stale.push(docIndexPath());
-	}
+	const problems = recordProblems(parseBacklog(built.backlog).stories, frozenCompletions(await frozenEntries()),
+		(id) => changelogFragmentFor(notesRoot(), id) !== null);
 	if (stale.length > 0)
 	{
-		const misplaced = values["backlog-only"] ? [] : misplacedNotes(notes, built.notes);
+		const misplaced = misplacedNotes(notes, built.notes);
 		const moves = misplaced.length === 0 ? "" : `\nNotes in the wrong folder (pnpm backlog:build moves them):\n  ${misplaced.join("\n  ")}`;
 		console.error(`backlog: out of date — run pnpm backlog:build. Would change:\n  ${stale.join("\n  ")}${moves}`);
 		process.exitCode = 1;
-		return;
 	}
-	log("notes and BACKLOG.md are in sync");
-}
-
-async function importFromBacklog()
-{
-	await importBacklog(dir, backlogPath, log);
+	if (problems.length > 0)
+	{
+		console.error(`backlog: finished stories with missing records:\n- ${problems.join("\n- ")}`);
+		process.exitCode = 1;
+	}
+	if (stale.length === 0 && problems.length === 0)
+	{
+		log("the notes are consistent");
+	}
 }
 
 async function preCommit()
@@ -215,32 +261,36 @@ async function printLedgerBase()
 /** Prints the stories completed since the newest review of the kind, comma-separated (empty when none). */
 async function printDoneSince()
 {
-	const audit = await readAudit();
-	console.log(audit === undefined ? "" : storiesDoneSince(parseLedger(audit), reviewKind()).stories.join(", "));
+	console.log(storiesDoneSince(await ledgerEntries(), reviewKind()).stories.join(", "));
 }
 
 /** Prints `blocked` when the review waits for the owner (ledger.ts reviewBlocked), else `clear`; an error prints neither. */
 async function printReviewBlocked()
 {
-	const audit = await readAudit();
-	console.log(audit !== undefined && reviewBlocked(parseLedger(audit), reviewKind()) ? "blocked" : "clear");
+	console.log(reviewBlocked(await ledgerEntries(), reviewKind()) ? "blocked" : "clear");
+}
+
+/** Prints the items in flight (in-flight.ts): `--in-flight` when given, else the run's claim files under the repo's .run/claims/. */
+async function printInFlight()
+{
+	console.log(inFlightIds(process.cwd(), values["in-flight"]).join(", "));
 }
 
 const commands: Record<string, () => Promise<void>> = {
 	build,
 	check,
-	import: importFromBacklog,
 	"pre-commit": preCommit,
 	"ledger-base": printLedgerBase,
 	"done-since": printDoneSince,
 	"review-blocked": printReviewBlocked,
+	"in-flight": printInFlight,
 };
 
 // lint-staged and hooks may append file paths; only the first positional is the command.
 const command = commands[positionals[0] ?? ""];
 if (!command)
 {
-	console.error("usage: cli.ts <build|check|import|pre-commit|ledger-base|done-since|review-blocked <kind>> [--dir <notes dir>] [--backlog <file>] [--audit <file>] [--index <file>] [--backlog-only] [--quiet]");
+	console.error("usage: cli.ts <build|check|pre-commit|ledger-base|done-since|review-blocked <kind>|in-flight> [--dir <notes dir>] [--audit <file>] [--index <file>] [--in-flight <IDs>] [--quiet]");
 	process.exitCode = 2;
 }
 else

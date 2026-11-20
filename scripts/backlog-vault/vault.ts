@@ -15,7 +15,7 @@ import { sourceKind } from "./source.ts";
 const STATUS_LINE = /^\*\*Status:\*\* `[a-z]+`$/;
 
 /**
- * The editable part of a story body. BACKLOG.md lays every story out as a blank line,
+ * The editable part of a story body. The assembled backlog document lays every story out as a blank line,
  * the content, a blank line, and the Status line; anything else is refused rather than
  * silently reshaped.
  */

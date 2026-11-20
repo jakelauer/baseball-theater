@@ -5,9 +5,7 @@ import { buildFromNotes } from "./assemble.ts";
 import {
 	BugNoteError, bugsIn, placeBugNotes, readBugNote,
 } from "./bugs.ts";
-import {
-	AUDIT, FIXTURE, notesFor,
-} from "./fixture.ts";
+import { FIXTURE, notesFor } from "./fixture.ts";
 
 const note = (fields: Record<string, string | number>, body = "https://github.com/o/r/issues/74\n") =>
 	`---\n${Object.entries(fields).map(([k, v]) => `${k}: ${v}`).join("\n")}\n---\n\n${body}`;
@@ -106,12 +104,12 @@ describe("placeBugNotes", () =>
 
 describe("buildFromNotes with bug notes", () =>
 {
-	it("keeps bug notes out of BACKLOG.md and returns them in their status folders", () =>
+	it("keeps bug notes out of the assembled backlog document and returns them in their status folders", () =>
 	{
 		const stories = notesFor(FIXTURE);
 		const withBug = new Map([...stories, ["bugs/B74.md", note(B74)]]);
-		const built = buildFromNotes(withBug, AUDIT);
-		expect(built.backlog).toBe(buildFromNotes(stories, AUDIT).backlog);
+		const built = buildFromNotes(withBug);
+		expect(built.backlog).toBe(buildFromNotes(stories).backlog);
 		expect(built.notes.get("bugs/todo/B74.md")).toBe(note(B74));
 		expect(built.notes.has("bugs/B74.md")).toBe(false);
 		expect(bugsIn(built.notes)).toEqual([B74]);

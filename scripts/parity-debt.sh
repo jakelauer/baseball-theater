@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Is a doc parity review due? (docs/v3/BACKLOG.md rule 19, "Doc parity reviews")
+# Is a doc parity review due? (backlog rule 19, "Doc parity reviews", in frame note 00)
 #
 #   pnpm parity:debt          # prints why or why not; exit 1 when due, 0 when not
+#   pnpm parity:debt --in-flight S160,S161   # the items in flight in a parallel run
+#
+# Always prints the `done` count and the in-flight count, as scripts/review-debt.sh does (S156).
 #
 # Measured from the commit that logged the newest "doc parity review" entry, the
 # owner's answers to one, or the owner's skip of one, in docs/v3/AUDIT.md. A parity
@@ -22,6 +25,15 @@
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
+
+in_flight_flag=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --in-flight) in_flight_flag=(--in-flight "${2:-}"); shift 2 ;;
+    --in-flight=*) in_flight_flag=(--in-flight "${1#--in-flight=}"); shift ;;
+    *) echo "usage: $0 [--in-flight S1,S2]" >&2; exit 2 ;;
+  esac
+done
 # shellcheck source=lib/story-notes.sh
 . scripts/lib/story-notes.sh
 
@@ -79,10 +91,23 @@ if [ "$done_count" -ge "$BACKSTOP" ]; then
   reasons+=("${done_count} stories done since (${done_since})")
 fi
 
+# The counts line, printed whether or not a review is due: stories done since the last review and
+# the items in flight (read through cli.ts in-flight, scripts/backlog-vault/in-flight.ts).
+in_flight="$(node scripts/backlog-vault/cli.ts in-flight ${in_flight_flag[@]+"${in_flight_flag[@]}"})" || in_flight=""
+flight_count=0
+[ -n "$in_flight" ] && flight_count="$(tr ',' '\n' <<<"$in_flight" | wc -l | tr -d ' ')"
+counts="%s: ${done_count} of ${BACKSTOP} stories done since the last %s; ${flight_count} in flight${in_flight:+ (${in_flight})}."
+if [ "$done_count" -eq "$((BACKSTOP - 1))" ]; then
+  counts="${counts} A review is due at the next \`done\`; it starts beside the in-flight items, never pausing them."
+fi
+print_counts() { printf "${counts}\n" "parity" "doc parity review"; }
+
 if [ "${#reasons[@]}" -eq 0 ]; then
   echo "parity: not due — nothing changed since the last doc parity review or its answers (logged in ${base}); ${done_count} of ${BACKSTOP} stories done since."
+  print_counts
   exit 0
 fi
 echo "parity: a doc parity review is due (since ${base}, which logged the last review or its answers):"
 printf '  - %s\n' "${reasons[@]}"
+print_counts
 exit 1

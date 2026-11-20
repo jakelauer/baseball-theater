@@ -1,0 +1,3 @@
+# docs/v3/INDEX.md and docs/v3/audit.jsonl are built, never committed (S156), so a merge (or a
+# pull) rebuilds them from the notes and ledger it brought, as .husky/post-checkout does.
+pnpm backlog:build --quiet >/dev/null || echo "backlog: could not build docs/v3/INDEX.md — run pnpm backlog:build" >&2
