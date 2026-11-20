@@ -62,8 +62,6 @@ LEDGER="${BT_AUDIT_LEDGER:-docs/v3/AUDIT.md}"
 # Where new entries go: beside the ledger, in the folder named for it in lower case
 # (ledger.ts fragmentsDirFor and reverify.sh shipping_commit derive it the same way).
 FRAGMENTS="$(dirname "$LEDGER")/$(basename "$LEDGER" .md | tr '[:upper:]' '[:lower:]')"
-# Only for a story's title when its note has none (the status table of the retired BACKLOG.md).
-BACKLOG="${BT_AUDIT_BACKLOG:-docs/v3/BACKLOG.md}"
 # Rule 22 inputs, overridable for tests (scripts/backlog-vault/audit-design-match.test.ts).
 STORIES_DIR="${BT_AUDIT_STORIES:-docs/v3/backlog/stories}"
 CHECKS_DIR="${BT_AUDIT_DESIGN_CHECKS:-docs/v3/design-checks}"
@@ -263,15 +261,11 @@ if [ "$MODE" = "story" ]; then
   fi
 
   # The story's title: its note's frontmatter `title` (the notes are the backlog since S156
-  # retired BACKLOG.md), else the old status table's row when a BACKLOG.md is still there.
+  # retired the generated backlog view).
   TITLE=""
   if [ -f "$NOTE" ]; then
     TITLE="$(awk '/^---$/{n++;next} n==1 && /^title: /{sub(/^title: /,""); print; exit}' "$NOTE" |
       sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/; s/[[:space:]]*$//')"
-  fi
-  if [ -z "$TITLE" ] && [ -f "$BACKLOG" ]; then
-    TITLE="$(grep -m1 -E "^\| [0-9]+ \| \[${ID}\]" "$BACKLOG" |
-      awk -F' \\| ' '{print $3}' | sed 's/[[:space:]]*$//')"
   fi
   [ -n "$TITLE" ] || TITLE="(title not found in ${ID}'s note)"
 

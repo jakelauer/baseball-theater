@@ -80,7 +80,6 @@ function shippedThenBroken(): string
 	].join("\n"));
 	spawnSync("chmod", ["+x", join(repo, "scripts/verify-S900.sh")]);
 	write("docs/v3/AUDIT.md", `# Ledger\n\n${MARKER}\n`);
-	write("docs/v3/BACKLOG.md", "| 1 | [S900](#s900) | Test story | `done` |\n");
 	git("add", "-A");
 	git("commit", "-q", "-m", "base");
 	write("work.txt", "the story's work\n");

@@ -23,12 +23,11 @@ const MARKER = "<!-- entries below; newest last; appended by scripts/audit.sh --
 
 let root: string;
 
-/** A one-story world: ledger, backlog table row, note, passing grader, one frame and its capture. */
+/** A one-story world: ledger, note (with its title), passing grader, one frame and its capture. */
 function world(design: boolean): Record<string, string>
 {
 	const dirs = {
 		BT_AUDIT_LEDGER: join(root, "AUDIT.md"),
-		BT_AUDIT_BACKLOG: join(root, "BACKLOG.md"),
 		BT_AUDIT_STORIES: join(root, "stories"),
 		BT_AUDIT_DESIGN_CHECKS: join(root, "checks"),
 		BT_AUDIT_VISUAL: join(root, "visual"),
@@ -38,8 +37,7 @@ function world(design: boolean): Record<string, string>
 		recursive: true,
 	});
 	writeFileSync(dirs.BT_AUDIT_LEDGER, `# Ledger\n\n${MARKER}\n`);
-	writeFileSync(dirs.BT_AUDIT_BACKLOG, "| 1 | [S900](#s900) | Test story | `done` |\n");
-	writeFileSync(join(dirs.BT_AUDIT_STORIES, "S900.md"), `---\nid: S900\n${design ? "design:\n  - \"[[S31]]\"" : "design: []"}\n---\n\nBody.\n`);
+	writeFileSync(join(dirs.BT_AUDIT_STORIES, "S900.md"), `---\nid: S900\ntitle: Test story\n${design ? "design:\n  - \"[[S31]]\"" : "design: []"}\n---\n\nBody.\n`);
 	const grader = join(dirs.BT_AUDIT_GRADERS, "verify-S900.sh");
 	writeFileSync(grader, "#!/usr/bin/env bash\necho 'check 1 PASS: works'\necho '--- verify-S900: 1/1 checks passed ---'\n");
 	chmodSync(grader, 0o755);
