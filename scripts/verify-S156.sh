@@ -22,7 +22,7 @@ source "$(dirname "$0")/lib/checks.sh"
 check 1 "W1: .claude/worktrees/ ignored by the committed .gitignore and by ESLint; scripts/worktree-for.sh makes two worktrees on new branches from origin/stage with distinct, stable .env.worktree ports and Compose project names; dev, Vite, Playwright, compose.yaml and local.ts read their ports from the environment with today's defaults; no fixed listening port under functions/src/test/ or in any vitest*.config.ts; the note records two simultaneous pnpm verify runs with both exit codes"
 check 2 "W2: is_reviewer_path is false for graders and true for what it covers today; a mode function takes the record, the files and the rule files; test_plan_review.py passes (unchanged for grader-only, incremental for checks.sh); CLAUDE.md's stacking hold and run-backlog step 3 except graders; law L12's grader-ci-law.test.ts passes on the tree and fails on a workflow naming a grader or checks.sh"
 check 3 "W5: CLAUDE.md, run-backlog's SKILL.md and LOOP.md §7 step 5 gather RULE_FILES edits into one rules pull request per wave boundary"
-check 4 "W10: run-backlog's SKILL.md gives the merge train in order (priority order, one at a time, merge origin/stage --no-ff, never rebase or force-push, pnpm backlog:build, pnpm verify, push, CI and review, merge; cancelled staging deploy re-run)"
+check 4 "W10: run-backlog's SKILL.md gives the merge train in order (priority order, one at a time, merge origin/stage --no-ff, never rebase or force-push, pnpm backlog:build, pnpm backlog:check, push, CI and review, merge; no local pnpm verify, CI's verify of the merge ref instead; cancelled staging deploy re-run)"
 check 5 "W3: audit.sh writes story/skip/review entries to new docs/v3/audit/<date>/<stamp>-<ID>-<kind>.md fragments, AUDIT.md byte-identical; AUDIT.md gains only a frozen header line; ledger.ts parses the base AUDIT.md exactly as the base parser does, and the tests pin that parse and AUDIT.md's SHA-256 without git history; shipping_commit agrees with the base for S84 S88 S121 S141 S147 and finds a fragment's commit; audit.jsonl and the debt counters read the fragments"
 check 6 "W4: changelog:build over three fixture fragments gives newest-first order grouped by effort and keeps every line of the base CHANGELOG.md; backlog:check fails on a fixture done story with no changelog fragment; changelog.d/S156.md exists; rule 16 and CLAUDE.md say so and the release step runs changelog:build"
 check 7 "W6: the As of line is built into INDEX.md from the newest completion's **Baseline:** line; frame 01 holds no hand-written As of line; 06 Baseline history is frozen; backlog:check fails on a fixture done story with no **Baseline:** line; this note has one; rule 17 and LOOP.md item 27 say so"
@@ -294,8 +294,14 @@ section "$SKILL" '[Mm]erge train' '^## ' >"$TMP/train.md"
 if [ ! -s "$TMP/train.md" ]; then
 	bad 4 "run-backlog's SKILL.md has no merge train"
 else
-	miss=$(in_order "$TMP/train.md" 'priority order' 'one at a time' 'origin/stage' 'git merge --no-ff' 'pnpm backlog:build' 'pnpm verify' 'push' '\bCI\b' 'review' 'merge') ||
+	# Updated before shipping (rule 7): asked "Cut local pnpm verify runs per backlog item? …", the owner chose
+	# "Both (Recommended)" (2026-11-20), so the train checks the merged notes (pnpm backlog:build, then
+	# pnpm backlog:check) and relies on CI's verify of the pull request's merge ref instead of a local pnpm verify.
+	miss=$(in_order "$TMP/train.md" 'priority order' 'one at a time' 'origin/stage' 'git merge --no-ff' 'pnpm backlog:build' 'pnpm backlog:check' 'push' '\bCI\b' 'review' 'merge') ||
 		bad 4 "the merge train's steps are missing or out of order (stuck at: $miss)"
+	grep -qiE 'merge ref' "$TMP/train.md" || bad 4 "the merge train doesn't rely on CI's verify of the pull request's merge ref"
+	grep -iE 'pnpm verify' "$TMP/train.md" | grep -qviE "no local|never .*locally|not .*locally|CI's" &&
+		bad 4 "the merge train still runs pnpm verify locally"
 	grep -qiE 'rebase' "$TMP/train.md" && grep -qiE 'force-push' "$TMP/train.md" || bad 4 "the merge train doesn't rule out a rebase and a force-push"
 	grep -qiE 'cancel' "$TMP/train.md" && grep -qiE 're-run|rerun' "$TMP/train.md" || bad 4 "the merge train doesn't re-run a cancelled staging deploy"
 	grep -qiE 'merge queue' "$TMP/train.md" || bad 4 "the merge train doesn't say why (no merge queue on a user-owned repository)"
@@ -534,7 +540,12 @@ grep -qE '^\*\*As of:\*\*' "$BASEL" && bad 7 "frame 01 still holds a hand-writte
 grep -qiE '<!--.*as of|as of.*-->|\{\{.*as.?of' "$BASEL" || bad 7 "frame 01 holds no marker where the As of line was"
 HIST="docs/v3/backlog/frame/06 Baseline history.md"
 head -8 "$HIST" | grep -qiE 'frozen' || bad 7 "06 Baseline history.md has no header line saying it is frozen"
-[ "$(own_diff S156 "$BASE" --numstat -- "$HIST" | awk '{print $2}')" = "0" ] || bad 7 "06 Baseline history.md lost or changed lines (only a header line may be added)"
+# Updated before shipping (rule 7): own_diff's per-commit numstat printed one line a commit, so the check read
+# "0" only while one commit touched the file, and missed a change made in a dirty tree at capture time. The
+# file's net change from the base is what must lose no line (a merge from stage only adds lines to it).
+hist_tip=$(story_tip S156)
+[ "$(git -c core.quotepath=false diff --numstat "$BASE" ${hist_tip:+"$hist_tip"} -- "$HIST" | awk '{d+=$2} END {print d+0}')" = "0" ] ||
+	bad 7 "06 Baseline history.md lost or changed lines (only a header line may be added)"
 section "$FRAME00" '^17\. ' '^18\. ' | grep -q 'Baseline:' || bad 7 "rule 17 doesn't name the **Baseline:** line"
 section docs/v3/LOOP.md '^27\. ' '^28\. ' | grep -q 'Baseline:' || bad 7 "LOOP.md checklist item 27 doesn't name the **Baseline:** line"
 
@@ -725,6 +736,12 @@ done
 # retired BACKLOG.md (rule 7: a pre-ship update recorded in the note; it widens only by those four).
 # On 2026-11-20 the owner also added turbo.json ("Widen the fence to turbo.json (Recommended)"), so the
 # worktree port variables pass through Turborepo's strict env mode to the tests (check 1).
+# On 2026-11-20 the owner also added web/vitest.config.ts and the five functions files whose test servers
+# listen on an OS port (asked "Fix the concurrent-verify failures inside S156's pull request (#117) and drop the
+# 'one pnpm verify at a time' rule? …", chose "Yes, in S156 (Recommended)"): worker caps, hook time and
+# 127.0.0.1 listeners, so two worktrees' pnpm verify pass at once (#116). And .claude/agents/fix-worker.md, whose
+# finish step runs the one local pnpm verify (asked "Cut local pnpm verify runs per backlog item? …", the owner
+# chose "Both (Recommended)").
 # =============================================================================================
 changed=$(own_changed_files S156 "$BASE" .)
 while IFS= read -r f; do
@@ -743,7 +760,9 @@ while IFS= read -r f; do
 			docs/v3/ARCHITECTURE.md | docs/v3/INTENT.md | docs/v3/VAULT-MIGRATION.md | docs/v3/BACKLOG.md | docs/v3/backlog/* | \
 			docs/v3/AUDIT.md | docs/v3/audit/* | docs/v3/audit.jsonl | docs/v3/INDEX.md | CHANGELOG.md | changelog.d/* | \
 			AGENTS.md | .cursor/rules/agent-boundaries.mdc | docs/v3/FEATURES.md | e2e/select-specs.test.ts | turbo.json | \
-			scripts/verify-S156.sh) ;;
+			web/vitest.config.ts | functions/src/handlers/me.test.ts | functions/src/handlers/settings.test.ts | \
+			functions/src/handlers/api.test.ts | functions/src/handlers/account-harness.ts | \
+			functions/src/adapters/node/http.test.ts | .claude/agents/fix-worker.md | scripts/verify-S156.sh) ;;
 		*) bad 17 "outside the fence: $f" ;;
 	esac
 done <<<"$changed"

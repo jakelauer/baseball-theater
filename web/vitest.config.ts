@@ -8,6 +8,10 @@ export default defineConfig({
 		environment: "jsdom",
 		include: ["src/**/*.test.{ts,tsx}"],
 		setupFiles: ["./src/test/setup.ts"],
+		// Vitest starts a fork per core but one, and Turborepo runs this suite beside functions', so two
+		// worktrees' gates started ~68 workers on 18 cores and the 1 s `findBy` waits timed out under that
+		// load. Four each let two gates pass at once, and a solo run is no slower (#116).
+		maxWorkers: 4,
 		coverage: {
 			provider: "v8",
 			reporter: ["text", "json-summary"],

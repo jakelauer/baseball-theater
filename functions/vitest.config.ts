@@ -11,6 +11,13 @@ export default defineConfig({
 		// 2-core CI runner, which the 5 s default timed out (live.test.ts, worker-app.test.ts).
 		// No test asserts on speed; this only stops slow setup reading as a failure.
 		testTimeout: 20_000,
+		// The same for `beforeAll(useNodeDatabase)` hooks, which build that PGlite: the 10 s default timed
+		// out when two worktrees' `pnpm verify` ran at once (#116).
+		hookTimeout: 20_000,
+		// Vitest starts a fork per core but one, and Turborepo runs this suite beside web's, so two worktrees'
+		// gates started ~68 workers on 18 cores; that start-up burst slowed a migrated PGlite from ~0.5 s to
+		// 4–9 s. Four each let two gates pass at once (~75 s) and a solo run is no slower (58 s vs 63 s) (#116).
+		maxWorkers: 4,
 		coverage: {
 			provider: "v8",
 			reporter: ["text", "json-summary"],
