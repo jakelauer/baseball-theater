@@ -19020,3 +19020,282 @@ export const label = game.abbreviation + " @ ";  352ms
 ```
 
 </details>
+
+---
+
+## 2026-11-19 — S144 completed
+
+**Design: inning pill play link**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T18:25:28Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `09a04bc` (tree dirty) |
+| Grader | `scripts/verify-S144.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: game-shell has its next free amendments/A<N>.md headed '(S144)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (the owner's 2026-11-10 words quoted), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames of the Videos room's cards in grid and list at mobile, medium and desktop, the floating player at mobile and medium and Search's results at mobile, medium and desktop, named <screen>[-<state>]-<pairing>.png and listed in ## Frames, which says each shows a clip with a play and one without
+check 3 PASS: ## Decisions says which part of the meta line is the link, what the rest of the line reads, names the pill's colour tokens (its fill and its text, the date's), the link's hover and focus look, the line for another or missing kind and for no date, that a clip with no play keeps 'Highlight · Sep 5, 2026' (recap and condensed keep their word), that the rest of the card is unchanged, how a touch screen chooses the play, and where else the change applies (the player's overlay row, Search)
+check 4 PASS: the amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead
+check 5 PASS: no sealed game-shell file changed (RATIFIED.md's manifest and every earlier amendment's manifest still verify; S144 changed neither RATIFIED.md nor A1–A5)
+check 6 PASS: S144 changed no file outside its fence (docs/v3/visual/game-shell/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, plus creating scripts/verify-S144.sh)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+```
+
+**7/7 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S144 check results ---
+check 1 PASS: game-shell has its next free amendments/A<N>.md headed '(S144)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (the owner's 2026-11-10 words quoted), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames of the Videos room's cards in grid and list at mobile, medium and desktop, the floating player at mobile and medium and Search's results at mobile, medium and desktop, named <screen>[-<state>]-<pairing>.png and listed in ## Frames, which says each shows a clip with a play and one without
+check 3 PASS: ## Decisions says which part of the meta line is the link, what the rest of the line reads, names the pill's colour tokens (its fill and its text, the date's), the link's hover and focus look, the line for another or missing kind and for no date, that a clip with no play keeps 'Highlight · Sep 5, 2026' (recap and condensed keep their word), that the rest of the card is unchanged, how a touch screen chooses the play, and where else the change applies (the player's overlay row, Search)
+check 4 PASS: the amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead
+check 5 PASS: no sealed game-shell file changed (RATIFIED.md's manifest and every earlier amendment's manifest still verify; S144 changed neither RATIFIED.md nor A1–A5)
+check 6 PASS: S144 changed no file outside its fence (docs/v3/visual/game-shell/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, plus creating scripts/verify-S144.sh)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+--- verify-S144: 7/7 checks passed ---
+verify-S144: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 136ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 9ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 25ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 27ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 27ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 30ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 620ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  330ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 406ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  389ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  10:27:15
+   Duration  1.19s (transform 97ms, setup 0ms, collect 2.95s, tests 1.28s, environment 3ms, prepare 594ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162796,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+
+---
+
+## 2026-11-19 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-19T18:40:40Z` |
+| HEAD at review | `3153b39` (tree dirty) |
+| Trigger | design intake: game-shell A6 ratified (S144); S127, S144, S145 acceptance criteria rewritten |
+| Stories `done` since last review | S144 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Design intake review of game-shell A6 (the inning pill, ratified 2026-11-19, S144), with check 2b on S127, S144 and S145, whose acceptance criteria were rewritten since `ee64d0d`. Two independent design-intake reviewers (read-only, HEAD `3153b39`), merged by the merger, who checked each disputed claim against the source.
+
+**Inventory (game-shell A6).** 11 frames: `game-videos-{grid,list}-playmeta-{mobile,medium,desktop}`, `video-player-dialog-playmeta-{mobile,medium}`, `search-playmeta-{mobile,medium,desktop}`. Two shared Figma components: `play-inning-pill` (724:10189) and `video-meta` (724:10197, Play yes/no). States: date muted then pill; no play `Kind · date`; pill alone with no date; a play wins over any kind; Search no-play `Highlight · date` in primary colour. Described, not drawn: pill hover fill `raised-current` with no zoom, focus card then pill, ≥24×24 tap area, the date plays the clip, Hide Scores unchanged. Data: cards and player via `Video.playId` + `atBatOfPlay` (owned); Search rows need a play id and inning no route returns (missing).
+
+**Ownership map:** owned 9, re-scoped 6 (all in S145), unowned 3 (Search's rows, Search's route data, Search's player build). Search's rows and data -> new S153; Search's player stays with S127's own intake (S127 is not ratified).
+
+**Amendments.**
+- **S145** (grader not yet written): AC 1 adds A6's other kinds (`video`-kind and recap with a play read date + pill; play + date, no kind). AC 3 rewritten to behaviour: the pill navigates without `onPlay`, the title and the date each call `onPlay`, `pill.closest("button") === null`, `pill.closest(".bt-zoom-host") === null` (`web/src/styles.css`'s `.bt-zoom-host:hover .bt-zoom img` would otherwise zoom the still), button then pill in tab order, hit area ≥24×24, hover rule `var(--bt-raised-current)`; layout left to the builder. AC 4 names S97 AC 2's `VideoPlayLinks.test.tsx:127-140` (expects `conineLabel`, built at :45 as `Play · … →`) as moved, checks kept, and `e2e/design/S97.spec.ts:63,71,88`; Search goes to S153 and S127's intake. New AC 5: one `PlayInningPill.tsx` used by `VideoCard` and `PlayerDialog`, one shared meta line, one domain label taking `{ halfInning, inning }` that replaces `atBatInningLabel` and that `PlaysPanel.tsx`'s private `inningTag` (`web/src/components/pitch/PlaysPanel.tsx:51-54`, the same `Top 3` / `Bot 7`, found by the merger's grep) calls; fence gains that one file. AC 6 (design match) names the eight non-Search frames. Notes "Why the link sat outside the button" and "One label" corrected. Cap 8 -> 10.
+- **S153 inserted** (priority 91, after S5, beside S72; Source: Feature: Video play links; Design S144, S34, S56; depends S5, S145, S81): the route returns `playId` / `halfInning` / `inning` from S5's recording; rows reuse S145's pill and meta line; pill navigates without opening the player; no-play or `gamePk: -1` rows keep `Highlight · date` in `--bt-light`; Hide Scores unchanged; design match on `search-playmeta-*` judging only the meta line.
+- **S5:** AC 8 adds that the search request asks MLB for `mediaPlayback { guid playInfo { inning inningHalf gamePk } }` beside `ClipDetails.id` so the recording carries them, without parsing them, and carries on if MLB omits them. The 2026-11-19 note now points at S153; a note cites `playInfo.teams` for AC 8's team-field check.
+- **S127:** AC 2's "(A6)" now says standings-search-settings A6 (game-shell A6 is a different amendment); AC 1 names `play-inning-pill` (724:10189), asks what a `gamePk: -1` clip shows and whether the `•` stays; Gates and Builds-after lines point Search's rows at S153; reuse check adds game-shell A6.
+- **S144:** done and frozen; its AC 1's "It names the red" is a superseded draft leftover, recorded here only.
+
+**Disagreements and resolutions.**
+1. `atBatInningLabel`'s callers. Reviewer 1: its only non-test caller is `playLink.ts:22`, so the new function replaces it. Reviewer 2: it "stays for its other callers". Checked: `grep -rn atBatInningLabel packages web functions` finds only `inning.ts:44`, `playLink.ts:22` and `video-play-context.test.ts:26-30`. Reviewer 1 is right; S145 AC 5 replaces it. The merger also found `PlaysPanel.tsx:51-54`'s `inningTag`, a second spelling of the same label, folded into AC 5.
+2. The play id field. Reviewer 1: `ClipDetails.id`. Reviewer 2: `MediaPlayback.guid`. Checked: BT's content feed reads `guid` as a video's `playId` (`packages/domain/src/types.ts:123`, `packages/mlb-api/src/parse.ts:708`); `ClipDetails.id` is the search hit's own id, unverified as a play id. S5 asks for both; S153 AC 1 takes the field that equals a `PitchEvent.playId`, expected `guid`.
+3. Where Search's data lands. Reviewer 1: S5 returns `playId` / `halfInning` / `inning`. Reviewer 2: a new story parses them from S5's recording. Resolved: S5 only asks for them (one request field, no parse, no stop), S153 parses and returns them, so S5 isn't held by a pill-only field and no re-recording is needed.
+4. Who builds Search's player. Reviewer 1: the new story, designed by S127. Reviewer 2: S127's own intake. Resolved for reviewer 2: S127 isn't ratified, and gating S153 on it would hold Search's rows behind an unratified design.
+5. S145 card layout. Reviewer 1: the meta line beside the button is wrong; Reviewer 2: reuse `.bt-above-card-link`. Resolved (coordinator's direction): AC 3 states the behaviour (date plays, pill outside button and `.bt-zoom-host`, tab order); the note offers the stretched-card pattern as an option.
+6. Priority of the new story: 90.5 vs 90. Priorities are integers (`pnpm backlog:check`); 91, after S5 (90).
+7. Turn cap of S145: 9 or 10; 10, since AC 5 adds `PlaysPanel.tsx`.
+
+**Check 2 (next 3).** S125 (74): design S123 `blocked`, can't start. S145 (75): depends S97, S81 done; design S144 done; `VideosRoom.test.tsx:79-87`, `VideoPlayLinks.test.tsx:93-140`, `HideScoresRooms.test.tsx:245-251`, `PlaysPanel.tsx:51-54`, `inning.ts:44`, `playLink.ts:22`, `e2e/design/S97.spec.ts` exist at HEAD; `scripts/verify-S145.sh` absent (red-first); fence now covers every AC path. S139 (76): depends S128 done; not re-grounded beyond its AC list.
+**Check 2b.** S145: a test the AC moves but doesn't name (player test, fixed); a premise false at HEAD (`atBatInningLabel`'s callers, fixed); a layout passing the AC but breaking the design (the dead date, the zooming still, fixed); one implementation (pill, meta line, label, `inningTag`, fixed); stale comment (`inning.ts:40-42`, moves with AC 5); a vague grep ("no other file renders a link", tightened to named imports). S127: ambiguous reference ("A6"), an owner quote overtaken by a later answer (the `•`), an undrawn input (`gamePk: -1`). S5: data a frame needs that no route provides. S153: an AC unmeetable on the recording (a "result without play fields" may not exist; the test may strip them), a design frame that doesn't match its own surface (A6's Search frames are pre-A2 copies: "Search Plays & Highlights", "Search games, players…", ACTIVE FILTERS chips, confirmed in `search-playmeta-mobile.png`; listed as expected differences), a Figma overrun (`video-meta` 220 wide in a 188-wide frame at mobile; noted).
+**Check 3.** S145 after S125 (which can't start) is right; S127 (89) before S5 (90) before S153 / S72 (91) holds; nothing obsolete. Duplication sweep: `PlaysPanel.tsx:51-54` `inningTag` duplicates the pill's label (folded into S145 AC 5); `inning.ts:46` and `PlaysPanel.tsx:35` (`Top`/`Bottom`, a different form) checked. Personal-data sweep: S153 adds no store; none found in S144's design-only diff.
+
+**For the parity review:** FEATURES' Video play links row still names `Play · Top 6th →`, red "Play" and S127's `Go to: Game →  •  At-Bat →`; it should describe the inning pill after the date on cards, list rows, Search's results and both players, and Search's player as `Go to: Game →` plus the pill. The Current baseline's "the Video play links row says so" holds only after that. S153 is new and cites Feature: Video play links.
+
+**Owner questions.**
+1. Should the day digest's player (`DayDigest.tsx:109-116`, "Go to game: … →" only) and the stage-mode player (`PlayerHost.tsx:30-33`, no link) also show the pill? No ratified frame draws them; yes needs a design amendment first.
+2. What should a screen reader say for the pill? `Top 6 →` reads "Top 6 right arrow"; until answered S145 uses the visible words.
+3. If MLB's free-text search carries no play id or inning, should S153 fall back to loading each result's game (one extra upstream request per result), or show no pill on Search?
+4. In Search's player, does a `•` stay between `Go to: Game →` and the pill?
+
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-19T18:44:09Z` |
+| HEAD at capture | `fb4c508` (tree clean) |
+| Applied in | `fb4c508` — Apply the owner's answers to the game-shell A6 design intake review |
+
+**Answers and what was applied**
+
+Owner's answers, 2026-11-19, to the game-shell A6 design intake review's questions (ledger entry committed in ff01df2):
+
+1. Q: "Should the play's inning pill also appear in the day digest's player and the stage-mode player, which A6 doesn't draw?"
+   A (owner): "all players always"
+   Applied: S127 AC 2 (new) draws the inning pill in the scoreboard day digest's player (DayDigest.tsx:109-116) and the stage-mode player (PlayerHost.tsx:30-33) in the same standings-search-settings amendment; coordinator's reading stated in the note (players outside the game's Videos room show both pills; the Videos room player only the inning pill; the stage player follows its context). No build story invented: S127's ratification intake slices the digest and stage players, as it does Search's. Title, Impact, Gates and Builds-after lines follow.
+
+2. Q: "What should a screen reader say for the pill? (visible `Top 6 →` reads 'Top 6 right arrow')"
+   A (owner): "\"Open play - Top of 6th inning\""
+   Applied: S145 AC 1 asserts the accessible name "Open play - <Top|Bottom> of <ordinal> inning" on the card and in the player (RTL getByRole link names for a top-6 and a bottom-3 play), visible words unchanged (Top 6 → / Bot 3 →); AC 5 puts the spoken words in packages/domain/src/inning.ts beside the visible label, reusing its ordinal(), with the "Open play - " prefix added once beside the arrow. Agent's reading: the spoken name spells "Bottom" (visible keeps "Bot") and restores the ordinal, as the owner wrote "6th". S127 AC 3 names it.
+
+3. Q: "In Search's player, does a `•` stay between 'Go to: Game →' and the pill?"
+   A (owner): "Change Game -> to a pill as well, but change the label to \"More from game ->\" and link to the videos tab of that game, and remove the \"Go to:\" label"
+   Applied: S127 AC 1 draws a "More from game →" pill then the inning pill, no "Go to:" label, separator question removed; AC 3 says it opens /game/:gamePk/videos (the /game/:gamePk/:tab route). gamePk: -1 left as the amendment's question (no note settles it for the player). S153's "Not Search's player" note follows. FEATURES' Video play links row still says "Go to: Game →  •  At-Bat →": left for the doc parity review.
+
+Still open (not answered): whether Search should load each result's game when MLB's search lacks the play id or inning (S153's notes).
+
+---
+
+## 2026-11-19 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-19T18:46:37Z` |
+| HEAD at review | `f5c03c1` (tree dirty) |
+| Trigger | S153 added (2026-11-19 design intake review of game-shell A6, ff01df2) |
+| Stories `done` since last review | S144 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+**Scope.** S153 (named by `pnpm parity:debt`), plus the next 3 `todo` stories by priority in `docs/v3/INDEX.md`: S125 (74), S145 (75), S139 (76; S140 ties at 76 and was read too). No `doing` story. No story cites `Open:` (`grep -rln "Source:\*\* Open" docs/v3/backlog/stories/` empty). The only pillar-cited open story is S146 (priority 118), outside this scope and not changed since the last review.
+
+**1. Citation honesty**
+
+- **S153** (Feature: Video play links). The Gap and Impact deliver game-shell A6's inning pill on Search's result rows, opening the play. Before this review the cited row didn't describe that: it still said a card, list row and the player show `Play · Top 6th →`, then that "Play" in red replaces "Highlight" (S144 designs it, S145 builds it), and said nothing of Search's results. So the citation pointed at the right feature, but the row described a superseded plan. **Amended** (below). After the edit the row describes the pill on Search's results and names S153 as its builder, so the citation holds.
+- **S145** (Feature: Video play links). Same stale row: its Gap and ACs build A6's date-then-pill meta line, its spoken name (`Open play - Top of 6th inning`) and the pill in the player. Fixed by the same amendment; the citation holds now.
+- **S125** (Feature: Calendar date picker). FEATURES:101 quotes the same 2026-11-07 owner words the Gap quotes (calendar, year switching, typed date, game counts) and names S123/S124. Holds.
+- **S139 / S140** (Feature: Standings). FEATURES:65 records the owner's `includePhases` words and the World Series box and names S139 and S140. Holds.
+
+**2. Doc reflects reality**
+
+- FEATURES' Video play links row (FEATURES:98) contradicted decisions the owner had already made and recorded:
+  - game-shell A6 ratified 2026-11-19 (owner: "the one in figma looks good"; S144's ledger entry at AUDIT line 18981, `docs/v3/visual/game-shell/amendments/A6.md`). It replaces A5's `Play · Top 6th →` and the 2026-11-10 red "Play" with the date followed by a `Top 6 →` pill, on cards, list rows, the game's floating player and Search's results. The owner's words on S144's draft are quoted in S145's Gap and S144's note.
+  - The owner's answers to the A6 intake, 2026-11-19 (ledger entry "backlog review answers (2026-11-19)", f5c03c1; applied in fb4c508): "all players always"; "\"Open play - Top of 6th inning\""; "Change Game -> to a pill as well, but change the label to \"More from game ->\" and link to the videos tab of that game, and remove the \"Go to:\" label". The row still said Search's player gets `Go to: Game →  •  At-Bat →`.
+- **Edit (FEATURES:98, owner's words only).**
+  - S96's ratification and S97's shipped `Play · Top 6th →` are kept as history.
+  - The 2026-11-10 red-"Play" decision, the 2026-11-19 S144-draft decisions and A6's ratification are recorded, each in the owner's quoted words.
+  - The row says what A6 draws, with the clip with no play keeping `Highlight · <date>`, and gives the pill's spoken name.
+  - S145 and S153 are named as the builders, and the row says neither has shipped.
+  - It records "all players always" (the day digest's and stage player included).
+  - Search's player: the 2026-11-07 `At-Bat →` plan is kept as superseded, and the planned `More from game →` pill (opening the game's Videos tab) is described, followed by the inning pill with no "Go to:" label.
+  - S127 is described as an unratified draft that designs those players, and the row says no story builds them yet.
+- The Current baseline frame note's "the Video play links row says so" (`docs/v3/backlog/frame/01 Current baseline.md:3`) is true as of this edit. No other FEATURES/INTENT/VISUAL-DESIGN/ARCHITECTURE text names `Top 6th`, `At-Bat →` or `Go to: Game` (grep).
+- No relic found in the rows read. The Game → Videos row (FEATURES:59) only points to Video play links and still holds.
+
+**3. Coverage — For the next backlog review**
+
+1. **The inning pill in the scoreboard day digest's player and the stage-mode player** ("all players always"): FEATURES now records it, S127 (draft) designs it, and no story builds it. As S127's Gates line says, the intake that runs when S127 is ratified must slice it; confirm that nothing builds these players before then.
+2. **Search's floating player's `More from game →` pill plus the inning pill**: designed by S127 (draft), and no build story. Same as item 1.
+3. **Frame note `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md:179`**: "Parity review due: S153 inserted; FEATURES' Video play links row still describes `Play · Top 6th →` and `At-Bat →`" is stale after this review. It is outside the parity write scope; the backlog review should clear it.
+4. Still open with the owner from the A6 intake (not a parity question): whether Search should load each result's game when MLB's search lacks the play id or inning (S153's notes, "Data source unverified").
+
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T00:19:37Z` |
+| HEAD at capture | `73343fa` (tree clean) |
+| Applied in | `73343fa` — S153, S127: no pill when MLB gives no play, or the clip no game (owner) |
+
+**Answers and what was applied**
+
+Owner, 2026-11-19, through /pending, answering the game-shell A6 design intake review's open questions. Asked whether, when MLB gives a search result no play id or inning, search should fetch that clip's game to find them or show no inning pill: chose "Show no pill (Recommended)". Applied: S153 AC 1, AC 4 and its data-source note say such a result shows no pill and the game is never fetched. Asked whether a clip that belongs to no game should show the "More from game →" pill: chose "No pill (Recommended)". Applied: S127 AC 1 says a clip with no game draws no "More from game →" pill.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T00:45:37Z` |
+| HEAD at capture | `5868e64` (tree clean) |
+| Change | `5868e64` — S144 review fixes: one builder for the play pill's link (S145, S153), answered questions struck, A6's Search-player words superseded (S127) |
+
+**What changed, and the owner's answer**
+
+S145 AC 5, S153 AC 1/2/4/5 and S127 notes rewritten to answer the pre-PR review of PR #94; owner, 2026-11-07, asked whether such a rewrite needed a backlog review: "This shouldn't even trigger a question. Always skip."
+
+---
+
+## 2026-11-19 — doc parity review (`continue`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T00:50:10Z` |
+| HEAD at review | `6bdb0b8` (tree clean) |
+| Trigger | FEATURES.md changed (6bdb0b8: Video play links row gains the owner's two no-pill answers) |
+| Stories `done` since last review | none |
+| Verdict | `continue` |
+
+**Findings / amendments**
+
+**Scope.** `pnpm parity:debt` at `6bdb0b8` named only "docs/v3/FEATURES.md changed" (since `05567f4`): 6bdb0b8 added two sentences to FEATURES' Video play links row (FEATURES:98). No story note was added or removed and no `**Source:**` line changed since `05567f4` (`git diff --name-status 05567f4..HEAD -- docs/v3/backlog/stories/` shows only S127, S145, S153 modified; no `Source` line in that diff). Stories in scope: the three citing the changed row (S145, S153, S127), plus the next 3 `todo` by priority in `docs/v3/INDEX.md`: S125 (74), S145 (75), S139 (76; S140 ties at 76 and was read too). No `doing` story. No story cites `Open:` (`grep -rln "Source:\*\* Open" docs/v3/backlog/stories/` empty). The only pillar-cited open story is S146 (priority 118), unchanged since the last review and outside scope.
+
+**1. Citation honesty**
+
+- **The FEATURES change itself.** Both added sentences record decisions the owner already made, in the owner's own chosen words, and both are logged: the ledger entry "backlog review answers (2026-11-19)" at AUDIT line 19190 (committed in `3042ef0`, applied in `73343fa`) quotes the owner, through /pending, choosing "Show no pill (Recommended)" (a Search result MLB gives no play id or inning shows no inning pill; the clip's game is never fetched) and "No pill (Recommended)" (a clip that belongs to no game shows no `More from game →` pill). The row's wording matches S153 AC 1 / AC 4 and S127 AC 1 as applied in `73343fa`. Holds.
+  - Observation, no edit: the row says "no play id, half-inning or inning", where the ledger's question named "play id or inning". The half-inning case was added by PR #94's pre-PR review (`5868e64`, S153 notes "2026-11-19 pre-PR review"), since the pill's visible `Top`/`Bot` can't be drawn without it; it is a direct consequence of the owner's answer, not new intent.
+- **S153** (Feature: Video play links). Gap/Impact: A6's inning pill on Search's result rows, opening the play. The row says the pill appears on "Search's results", that S153 builds it, and now that a result without the play fields shows none (S153 AC 4). Holds.
+- **S145** (Feature: Video play links). Gap/Impact: the date-then-pill meta line on cards and the game's player, spoken name `Open play - Top of 6th inning`, a clip with no play keeps "Highlight". The row states each of these and names S145 as their builder. Holds.
+- **S127** (Feature: Video play links). Its AC 1 now draws no `More from game →` pill for a clip with no game, which the row now states. The row describes S127 as an unratified draft designing Search's, the day digest's and the stage player's pills. Holds.
+- **S125** (Feature: Calendar date picker). FEATURES:101 quotes the same 2026-11-07 owner words as the Gap and names S123/S124; note unchanged since the last review. Holds.
+- **S139 / S140** (Feature: Standings). FEATURES:65 records the `includePhases` words (naming S139) and the World Series box; notes unchanged since the last review. Holds.
+
+**2. Doc reflects reality**
+
+- The Video play links row no longer contradicts S153 or S127 on either question: the last parity review's open item ("whether Search should load each result's game when MLB's search lacks the play id or inning") is settled in the row, S153 and S127 alike.
+- No other FEATURES/INTENT text names the Search fallback or `gamePk: -1`; game-shell A6 and VISUAL-DESIGN don't cover either case (grep), so no conflict with a ratified file.
+- The frame note's stale "Parity review due: S153 inserted…" line (queued by the last parity review) is gone from `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md`.
+- No relic found in the rows read.
+
+**3. Coverage — For the next backlog review**
+
+1. **The inning pill in the scoreboard day digest's player and the stage-mode player** ("all players always") and **Search's floating player's `More from game →` pill plus the inning pill**: FEATURES records them, S127 (draft) designs them, and still no story builds them (carried from the 2026-11-19 parity review). The intake S127's ratification triggers must slice them.
+
+No edits: every citation checked holds and the docs match.
