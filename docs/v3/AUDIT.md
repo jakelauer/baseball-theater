@@ -19663,3 +19663,18 @@ Scope from `pnpm parity:debt` at bd48f8a (since 4503fe8): FEATURES.md changed; S
 Owner, 2026-11-19 (through /pending), answering the 2026-11-19 backlog review's two questions:
 1. Asked "Should the fan-facing change log start at v4.0.0 (the public launch) or at v3.1.0?": chose "Start at v4.0.0 (Recommended)". Applied: S131 AC 6 requires no notes file below v4.0.0 (the grader's v3.1.0 check is updated before shipping, red first, rule 7), AC 5 drops its exception for AC 6's copies, the note "starts at v3.1.0" is replaced, S131 back to todo at priority 72; FEATURES' Update / change log UX row, S134's Impact and S135's note (f) follow.
 2. Asked "Should the pre-1969 standings tables be headed "American League" and "National League", or "AL" and "NL"?": chose "American League (Recommended)". Applied: S155's open-question note recorded as settled; AC 2 and AC 4 already say the full names, unchanged.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T04:19:55Z` |
+| HEAD at capture | `76f9ea7` (tree clean) |
+| Change | `76f9ea7` — #106 Claude review fixes: pre-launch releases deploy with no notes; backlog-review skill matches the confident-skip rule |
+
+**What changed, and the owner's answer**
+
+S131's AC 3 and AC 4 rewritten to answer Claude's review of PR #106 (a pre-launch release below v4.0.0 would fail its deploy on the notes file AC 6 forbids). Always skipped (owner, 2026-11-07, asked whether such a rewrite needed a backlog review: "This shouldn't even trigger a question. Always skip.").
