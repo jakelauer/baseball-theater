@@ -1,6 +1,6 @@
 ## Current baseline
 
-**As of:** 2026-11-19 (HEAD `09a04bc` plus S144) — **S144** landed: game-shell A6 is ratified (owner, 2026-11-19: *"the one in figma looks good"*), so a video with a play will read its date and then a small inning pill (`Top 6 →`) that links to the play, on the Videos room's cards and list rows, in the floating player and on Search's results, while a clip with no play keeps `Highlight · …`; S145 builds it for the Videos room and the player, and **S153** (inserted by the 2026-11-19 design intake review) for Search's results; the Video play links row says so
+**As of:** 2026-11-19 (HEAD `09a04bc` plus S144) — **S144** landed: game-shell A6 is ratified (owner, 2026-11-19: *"the one in figma looks good"*), so a video with a play will read its date and then a small inning pill (`Top 6 →`) that links to the play, on the Videos room's cards and list rows, in the floating player and on Search's results, while a clip with no play keeps `Highlight · …`; S145 builds it for the Videos room and the player, and **S153** (inserted by the 2026-11-19 design intake review) for Search's results; the Video play links row says so. Earlier **As of** lines, newest first: [Baseline history](#baseline-history).
 
 | Area | State |
 |------|-------|

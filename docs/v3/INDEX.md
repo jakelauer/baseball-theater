@@ -51,7 +51,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
     - `55–80` Later themes (not yet story-sliced)
 - [05 Gap map (doc → story)](<backlog/frame/05 Gap map (doc → story).md>) — 9 KB
   - `1–44` Gap map (doc → story)
-- [06 Baseline history](<backlog/frame/06 Baseline history.md>) — 51 KB
+- [06 Baseline history](<backlog/frame/06 Baseline history.md>) — 50 KB
   - `1–135` Baseline history
 
 ## Product and architecture docs
@@ -378,7 +378,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `2167–2170` System Consistency
   - `2171–2174` Originality
   - `2175–2221` Small-Size Test
-- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 64 KB
+- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 65 KB
   - `12–19` North star
   - `20–34` Principles (product)
   - `35–46` Scope legend
@@ -406,7 +406,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `47–432` Every grader, sorted
   - `433–449` Graders edited after their story shipped
   - `450–514` Re-verified at shipping commits
-- [LOOP.md — Loop-ready automation guide](LOOP.md) — 29 KB
+- [LOOP.md — Loop-ready automation guide](LOOP.md) — 30 KB
   - `5–19` Checklist status
   - `20–32` 1 — Baseline
   - `33–53` 2 — Verify
@@ -414,10 +414,10 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `58–67` 4 — Backlog
   - `68–75` 5 — Boundaries
   - `76–79` 6 — Pilot (do this next, watched)
-  - `80–144` 7 — Reviewer pass
-    - `114–144` Review-class checklist
-  - `145–154` 8 — Scale → loop
-  - `155–159` Habit
+  - `80–146` 7 — Reviewer pass
+    - `114–146` Review-class checklist
+  - `147–156` 8 — Scale → loop
+  - `157–161` Habit
 - [ORIGIN.md — Baseball Theater v3 — Origin](ORIGIN.md) — 4 KB
 - [SAVANT-DATA.md — Baseball Savant data](SAVANT-DATA.md) — 8 KB
   - `10–15` Terms of use
