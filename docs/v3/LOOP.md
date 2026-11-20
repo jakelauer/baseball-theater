@@ -146,6 +146,7 @@ What the pull request review (GitHub Copilot's until 2026-11-11, Claude's since)
 29. **A rule changed in CLAUDE.md changes its procedure too.** When a change set rewrites a `CLAUDE.md` rule that names a procedure (a skill under `.claude/skills/`, a script), the procedure's own wording is updated in the same change set, so an agent following either file does the same thing. Caught by Claude's review of PR #106.
 30. **An AC that removes a thing is checked against every AC that requires it.** When an acceptance criterion is rewritten to forbid or drop a file, field or step (no notes before v4.0.0), every other criterion of the story, and its deploy or CI step, is read for a check that still requires it on some input (a deploy that fails when the notes file is missing). Caught by Claude's review of PR #106.
 31. **An exemption validates its input first.** A pass-through for a range of values ("a version below v4.0.0 passes") says that malformed input is rejected before the range is tested, with a test for each malformed form, so a bad value can't fall into the exempt range. Caught by Claude's review of PR #106.
+32. **A permission names the rules that still limit it.** A rule that lifts a requirement ("push without asking") lists every other rule that still limits the same act (batching pushes per review round, stacking order, a run's single push), so an agent following the new rule alone breaks none of them. Caught by Claude's review of PR #106.
 
 ## 8 — Scale → loop
 
