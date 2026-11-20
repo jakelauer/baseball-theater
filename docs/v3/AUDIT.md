@@ -19166,3 +19166,18 @@ Answer to the 2026-11-19 doc parity review (owner, 2026-11-19, through /pending)
 **What changed, and the owner's answer**
 
 S108 AC 3 rewritten to answer a pre-PR review finding on S107's branch (A7 says a scheduled row draws no slot box "whichever occupant the reader chose", while A3 draws Room Menu on a scheduled row as pre-game "Videos · Plays · Box"). Asked "On a game that hasn't started, should the Room Menu slot keep its "Videos · Plays · Box" links, or show no box like the other slot choices?", the owner answered (2026-11-19): "Keep the links, but continue to hide recap". Skipped without asking, per the owner (2026-11-07, on acceptance criteria rewritten to answer a pull request's review: "This shouldn't even trigger a question. Always skip.").
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T01:33:32Z` |
+| HEAD at capture | `cf5e905` (tree clean) |
+| Change | `cf5e905` — Pre-PR review fixes: S152's Status AC on its own line; the baseline records the P11 answer |
+
+**What changed, and the owner's answer**
+
+S152 AC 9 restored to its own line (a lost line break), answering the pre-PR review of the backlog/review-2026-11-19 pull request. Owner, 2026-11-07, asked whether an AC rewrite answering a pull request's review needed a backlog review: "This shouldn't even trigger a question. Always skip."
