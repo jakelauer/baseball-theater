@@ -124,6 +124,21 @@ describe("story_tip is shipping_commit (S88)", () =>
 		expect(changed).toEqual(expect.arrayContaining(["checkpoint.txt", "untracked.txt"]));
 	});
 
+	it("lists a non-ASCII file name as itself, not git's quoted escape, so a fence pattern can match it (#87)", () =>
+	{
+		// Pin git's default (core.quotepath on) so a developer's own config can't hide the bug.
+		git("config", "core.quotepath", "true");
+		write("docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md", "frame\n");
+		commit("S903: edits a frame note with an em dash in its name");
+		write("docs/v3/backlog/frame/01 Café.md", "untracked\n");
+
+		const changed = spawnSync("bash", ["-c", "source scripts/lib/checks.sh; story_changed_files S903 HEAD~1 ."], {
+			cwd: repo,
+			encoding: "utf8",
+		}).stdout.trim().split("\n");
+		expect(changed).toEqual(["docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md", "docs/v3/backlog/frame/01 Café.md"]);
+	});
+
 	it("V* stories read the vault migration ledger", () =>
 	{
 		write("work.txt", "vault work\n");
