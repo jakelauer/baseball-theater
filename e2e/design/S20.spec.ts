@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S20's design match (rule 22): the scoreboard after a live refresh, in the frames it keeps
  * current — shell-scoreboard `scoreboard-mobile`, `-medium` and `-desktop` (desktop at

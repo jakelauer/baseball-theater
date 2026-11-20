@@ -13,6 +13,9 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
 	testDir: ".",
+	// Only the browser specs: the spec selector's unit tests (`select-specs.test.ts`, S152) sit in
+	// this folder too and run under Vitest (`pnpm test:selector`), never in a browser.
+	testMatch: "**/*.spec.ts",
 	outputDir: process.env.BT_E2E_OUTPUT ?? "test-results",
 	fullyParallel: false,
 	// One worker for the design specs, which share the dev account and its settings; `pnpm e2e`

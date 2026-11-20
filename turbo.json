@@ -1,0 +1,42 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	// S152 AC 2: every file outside the packages that a package's build or tests read. A change to
+	// any of them changes every task's hash, so nothing replays a pass it could have altered:
+	// functions' and web's tests read the fixtures, the OpenAPI spec, wrangler.jsonc and the
+	// workflows, and functions/src/deploy/deploy-workflow.test.ts runs scripts/preview-pr-open.sh.
+	"globalDependencies": [
+		"pnpm-lock.yaml",
+		"tsconfig.base.json",
+		"eslint.config.js",
+		".nvmrc",
+		".jscpd.json",
+		".size-limit.json",
+		"wrangler.jsonc",
+		"fixtures/**",
+		"openapi/**",
+		"tools/**",
+		".github/workflows/**",
+		"scripts/preview-pr-open.sh"
+	],
+	"tasks": {
+		"typecheck": {
+			"dependsOn": ["^typecheck"],
+			"outputs": []
+		},
+		// web's dist/ is restored on a replay, so `pnpm size` (law L5) still finds the bundle.
+		"build": {
+			"dependsOn": ["^build"],
+			"outputs": ["dist/**"]
+		},
+		// The coverage summaries are restored on a replay; the two variables change what functions'
+		// tests run (CI's shard jobs, S152 AC 4), so they are part of the hash and reach the task.
+		"test:coverage": {
+			"dependsOn": ["^test:coverage"],
+			"outputs": ["coverage/**"],
+			"env": ["BT_FUNCTIONS_SHARDED", "BT_COVERAGE_SHARD"]
+		}
+	},
+	// TMPDIR reaches the tasks without entering any hash: in strict mode, with it stripped, functions'
+	// tests timed out on the shared temp folder (see S152's note).
+	"globalPassThroughEnv": ["TMPDIR"]
+}

@@ -21,7 +21,10 @@ export default defineConfig({
 				"src/local-server.ts",
 				"src/scripts/**",
 			],
-			thresholds: {
+			// S152: a CI shard job (`BT_COVERAGE_SHARD`, set only there) holds part of the suite, so its
+			// coverage is partial and would fail these floors; the merge job checks them on the merged
+			// shards' coverage instead, so they mean what they always have.
+			thresholds: process.env.BT_COVERAGE_SHARD ? undefined : {
 				// Ratchet (S54, ADR-026; backlog rule 21): floors sit at the measured value
 				// rounded down and only ever go up. Measured 2026-10-20: lines 80.01, functions 87.77, branches 78.21, statements 80.01.
 				// Raised 2026-10-23 by S46 (repository contract + versioning tests; S44's gain folded in):

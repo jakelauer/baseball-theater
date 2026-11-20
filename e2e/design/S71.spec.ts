@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S71's design match (rule 22): "Best of <date> — Highlights" under the scoreboard's games,
  * in the frames that draw it — shell-scoreboard `scoreboard-mobile`, `-medium` and

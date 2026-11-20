@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S10's design match (rule 22): the Recap room in the pairing of each game-rooms
  * Recap frame — `recap-mobile`, `recap-medium`, `recap-desktop` — and A2's

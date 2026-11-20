@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S19's design match (rule 22): a game page following a game in progress live, in the
  * frames it keeps current — game-rooms `live-mobile` and game-shell

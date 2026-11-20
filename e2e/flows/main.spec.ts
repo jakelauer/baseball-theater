@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * The main flows (S62; ADR-026: Playwright "cover[s] the main flows … against
  * fixtures"): scoreboard → game → every room tab, plus standings, search and

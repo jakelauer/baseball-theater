@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * The update notice (S73; S55 shell-scoreboard A1's copy, A6's floating box; ADR-026 "cover
  * the main flows"): when a new version is waiting, "An update to Baseball Theater is ready."
