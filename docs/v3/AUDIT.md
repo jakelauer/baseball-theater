@@ -19074,3 +19074,48 @@ Fresh-context review at `762a30d` (`scripts/review-debt.sh`: S152 inserted outsi
 **Questions for the owner (non-blocking):** (1) Law P11's wording after S152 (S152 AC 8). (2) B87's priority 70.9 (just before S152), named to the owner as the bug rule asks.
 
 **Verdict: `amended`.** No question blocks the next item (B87, then S152; S152's AC 8 is applied when it finishes).
+
+---
+
+## 2026-11-19 — doc parity review (`continue`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T01:18:02Z` |
+| HEAD at review | `76b101a` (tree clean) |
+| Trigger | docs/v3/FEATURES.md changed (Fast PR checks row); S152 added |
+| Stories `done` since last review | S143, S136 |
+| Verdict | `continue` |
+
+**Findings / amendments**
+
+Fresh-context review at `76b101a` (`pnpm parity:debt`, since `876b651`: `docs/v3/FEATURES.md` changed; S152 added). FEATURES' only change since then is the new **Fast PR checks** row (`1034315`, PR #102); INTENT unchanged (`git diff 876b651 HEAD -- docs/v3/INTENT.md`: empty). The only `**Source:**` line added or changed is S152's (`+**Source:** Feature: Fast PR checks`); the other story diffs since `876b651` are generated `order:` bumps and backlog-review notes (S125, S146, S151), none on a pillar-cited story's Gap, Impact or ACs. Scope: S152, plus the next 3 `todo` stories after it in `docs/v3/INDEX.md` (S125 at 74, S144 and S145 at 75; B87 at 70.9 is a bug note with no **Source:** line).
+
+**Check 1: citation honesty**
+
+1. **S152 → Feature: Fast PR checks (FEATURES line 106). Holds.** The row quotes the owner (2026-11-19: *"Can we get scoped build caching somehow so we can avoid a full rebuild for PR checks"*; *"The point would be to only build the stuff that changes"*; *"Yes, scope them too"*; *"Stage reruns everything (Recommended)"*), and the same quotes are recorded in commit `1034315`'s message and PR #102's body. S152's Gap quotes them word for word, and each AC delivers part of the row: AC 2/3 skip unchanged packages and keep `stage` uncached; AC 1 the browser cache; AC 4 the split tests; AC 5 the scoped browser specs; AC 6 lint and typecheck caches. The 2026-11-19 backlog review's amendments (`76b101a`) stay inside the row: shards only when a change reaches `functions` is "builds only what a change touches"; reading the cache only on pull requests (not local `pnpm verify`) is consistent with a row that speaks only of "a pull request's checks". Impact ("a change to one part of the app reuses the passing results of the parts it doesn't touch") matches the row.
+2. **S125 → Feature: Calendar date picker. Holds.** Gap quotes the owner's 2026-11-07 words that open the row (FEATURES line 101); Impact (open a calendar, type a date, jump years, game counts) is the row's first sentence.
+3. **S144, S145 → Feature: Video play links. Hold.** Both quote the owner's 2026-11-10 *"Move hte play link to the 2nd line. Replace "Highlight" with "Play" in red. If there's no play, just keep "Highlight""*, which the row (FEATURES line 98) records and closes with "S144 designs it and S145 builds it".
+4. **Pillar citations near the new feature.** S89 (done, Delightful: "faster checks on every change", approved 2026-10-29 *"It's more about perf and customer benefit"* / *"Delightful"*) and S146 (todo, Delightful, approved 2026-11-11 *"delightful"*) are the stories closest to the new row. Is a feature now available for them? No: the row is about not rebuilding or retesting what a pull request didn't change; S89 ran CI jobs in parallel (all of them, every change) and S146 skips deploys by recorded build inputs, neither of which the row describes. Both approvals stand; neither story's Gap/Impact/ACs changed since `876b651` (S146's diff is a reuse-check note only).
+5. **`Open:` stories:** none (`grep -h '^\*\*Source:\*\* Open' docs/v3/backlog/stories/*/*.md`: no match).
+
+**Check 2: doc reflects reality**
+
+6. **Fast PR checks row, browser image (finding, non-blocking).** The row says the owner "chose all four" of the offered speed-ups, including "a prebuilt browser image", then states as settled that "the browser is cached between runs rather than run from a prebuilt image, which can't start the app's database". That substitution is the agent's (pre-PR review of #102), not an owner decision: S152's Notes say "The owner is told when the story is opened", and no ledger entry, commit or PR text records the owner accepting it (grep `prebuilt` in AUDIT.md: none; PR #102 body states it as a choice made). Backlog and FEATURES agree with each other, so this is not a doc-backlog conflict, and the technical reason (Playwright's image has no Docker for `pnpm dev`'s `docker compose`) is recorded in S152 AC 1. Not edited: rewriting it either way would be writing intent. Asked of the owner below.
+7. **ADR-013 vs S152 (for the backlog review).** ADR-013's decision table (`docs/v3/ARCHITECTURE.md:775`) says CI runs "on PR/push: install → lint → test (coverage) → build", and its tooling stack (:808–817) lists no build orchestrator; after S152 a pull request replays unchanged packages' passing results through Turborepo and runs `functions`' tests in shards. Not a contradiction of a requirement ("Tests must pass before merge" still holds, and `stage` runs everything), but the ADR's CI line will no longer describe pull requests. ARCHITECTURE is outside this review's write scope.
+8. **Law P11 vs S152:** already raised by the 2026-11-19 backlog review (S152 AC 8, owner question 1); not re-asked here.
+9. **Relics:** none found in the changed row. INTENT's CI/CD row (line 62, ADR-013) names "Vitest coverage gates; Husky; GitHub Actions", which S152 keeps.
+
+**Check 3: coverage**
+
+10. Fast PR checks is served by S152 only, and every clause of the row maps to an S152 AC (item 1). No feature was added by this review.
+
+**For the next backlog review**
+
+1. ADR-013's CI row and tooling list don't describe S152's pull-request runs (Turborepo replay, sharded `functions` tests, scoped browser specs). Decide whether S152's finishing commit should carry an ADR-013 note (an ADR change is the owner's call) or whether the law P11 answer covers it.
+2. FEATURES' Fast PR checks row records the cached-browser substitution for the owner's "prebuilt browser image" without an owner quote; if the owner rejects it when asked, S152 AC 1 changes with it.
+
+**Questions for the owner (non-blocking):** (1) Accept the browser cache in place of the prebuilt browser image for S152 (item 6).
+
+**Verdict: `continue`.** Every citation checked holds; no `Open:` story; the one unconfirmed clause (item 6) agrees with the backlog and doesn't block B87 or S152.
