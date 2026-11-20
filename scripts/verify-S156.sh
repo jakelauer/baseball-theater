@@ -543,8 +543,9 @@ head -8 "$HIST" | grep -qiE 'frozen' || bad 7 "06 Baseline history.md has no hea
 # Updated before shipping (rule 7): own_diff's per-commit numstat printed one line a commit, so the check read
 # "0" only while one commit touched the file, and missed a change made in a dirty tree at capture time. The
 # file's net change from the base is what must lose no line (a merge from stage only adds lines to it).
-hist_tip=$(story_tip S156)
-[ "$(git -c core.quotepath=false diff --numstat "$BASE" ${hist_tip:+"$hist_tip"} -- "$HIST" | awk '{d+=$2} END {print d+0}')" = "0" ] ||
+# The tree against the base: at a capture that is the commit being recorded, and under --reverify the worktree
+# sits at the shipping commit, so it is that commit.
+[ "$(git -c core.quotepath=false diff --numstat "$BASE" -- "$HIST" | awk '{d+=$2} END {print d+0}')" = "0" ] ||
 	bad 7 "06 Baseline history.md lost or changed lines (only a header line may be added)"
 section "$FRAME00" '^17\. ' '^18\. ' | grep -q 'Baseline:' || bad 7 "rule 17 doesn't name the **Baseline:** line"
 section docs/v3/LOOP.md '^27\. ' '^28\. ' | grep -q 'Baseline:' || bad 7 "LOOP.md checklist item 27 doesn't name the **Baseline:** line"
@@ -743,7 +744,19 @@ done
 # finish step runs the one local pnpm verify (asked "Cut local pnpm verify runs per backlog item? …", the owner
 # chose "Both (Recommended)").
 # =============================================================================================
-changed=$(own_changed_files S156 "$BASE" .)
+# Updated before shipping (rule 7, stricter only): once a completion fragment is committed, story_tip stops the
+# own-commit helpers there, so a later fix round's commits and its uncommitted capture went unchecked. Add the
+# first-parent non-merge commits after the tip, the working tree and untracked files; under --reverify the
+# worktree is clean at the shipping commit, so they add nothing.
+fence_tip=$(story_tip S156)
+changed=$({
+	own_changed_files S156 "$BASE" .
+	if [ -n "$fence_tip" ]; then
+		git -c core.quotepath=false log --first-parent --no-merges --format= --name-only "$fence_tip..HEAD"
+		git -c core.quotepath=false diff --name-only HEAD
+		git -c core.quotepath=false ls-files --others --exclude-standard
+	fi
+} | grep -v '^$' | sort -u)
 while IFS= read -r f; do
 	[ -z "$f" ] && continue
 	case "$f" in
