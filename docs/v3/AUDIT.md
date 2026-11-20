@@ -19608,3 +19608,18 @@ For the next backlog review:
 **Answers and what was applied**
 
 Owner, 2026-11-19, through /pending, answering the shell-scoreboard A14 design intake review's three questions. (Q1) Asked whether the site footer waits for the change log page (S134) or ships first with S134 adding its own "Changelog" link: chose "Wait for S134 (Recommended)". Applied: S134 stays on S142's Depends on; A14 unchanged. (Q2) Asked what a signed-out visitor's "Legal" column shows before the Privacy policy and Terms of use pages exist: chose "Heading alone". Applied: S142 AC 5 says the heading renders with no link under it, with an RTL check. (Q3) Asked whether the columns start 24px in as drawn or line up with the content at 16px: chose "24px, as drawn (Recommended)". Applied: recorded in S142's notes; AC 7's frames already show it.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T00:29:45Z` |
+| HEAD at capture | `58ed8e8` (tree clean) |
+| Change | `1b5f7b5` — S154: the pages reuse the change log page's layout (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19, through /pending, asked whether S154's design change (its pages reuse the change log layout, so it names S133 as its design and gained a design match check) needs a backlog review or a skip: chose "Skip (Recommended)".
