@@ -84,7 +84,9 @@
     from ratified designs and amendments, through a backlog review, and cite them. A UI story that
     finds its surface needs a screen or state the ratified design doesn't show stops and reports
     rather than designing it in code. Non-UI stories (API, ingest, cache, tooling) carry no
-    `**Design:**` line and are not gated.
+    `**Design:**` line and are not gated. One exception: **S151** restores the video player's Download
+    button with no design story, as PR #58 built the owner's 2026-11-12 polish list (#38) without stories or
+    designs (owner, 2026-11-12, asked whether S151 needs a design first: *"Same exception applies"*).
     **Waiting on the owner does not stall the loop** (added by the 2026-09-14 review; extended to the
     Figma-revision stories S35–S38 on 2026-10-08): a design or Figma-revision story waiting on the
     owner is *parked* — `status: blocked`, `pnpm backlog:build`, and a checkpoint commit of the
@@ -176,6 +178,14 @@ This section keeps only the *forward-looking* scheduling state: what is due next
 - **S142** re-scoped to A14: copyright line and `copyrightYear` in `packages/domain`; footer outside `<main>` (`flex: 1` trap, contentinfo role); render-prop state channel (no outlet context exists); no footer on the deleted page; Support & Community in a new tab; "Your data" → `/settings`, left out signed out and while loading; seven named frames; turn cap 14. **S154** link order and footer frames; **S148** and **S74** A14 references.
 - **Open with the owner:** ~~S142 Q1 (wait for S134 or ship first), Q2 (signed-out "Legal" column before S154), Q3 (24px or 16px column inset)~~ (answered 2026-11-19: *"Wait for S134 (Recommended)"*, *"Heading alone"*, *"24px, as drawn (Recommended)"*; S142's notes). S142 still can't start: S134 waits on S131 and S133, both `blocked`.
 - **Next 3 by priority:** S125, S145, S130, each waiting on a `blocked` design story (S123, S144, S129). Startable now: S148, S150. The doc parity review of this intake's items ran in `faeacf9`.
+
+**Earlier review:** 2026-11-19 at HEAD `3153b39`, verdict **`amended`**. **Trigger: design intake** — game-shell A6 ratified (S144), with S127's, S144's and S145's acceptance criteria rewritten; two independent reviewers, merged.
+
+- **S145:** AC 1 gains A6's other kinds (a play always wins); AC 3 says the date plays the clip, the pill stays out of `.bt-zoom-host`, focus order, 24×24 and hover fill, leaving the layout to the builder; AC 4 names S97's player test (`VideoPlayLinks.test.tsx:127-140`); new AC 5: one `PlayInningPill`, one shared meta line, one domain label taking `{ halfInning, inning }` that replaces `atBatInningLabel` (no non-test caller but `playLink.ts:22`) and that `PlaysPanel.tsx`'s duplicate `inningTag` calls (fence gains that file), and `playInningLink` in `playLink.ts`, which `videoPlayLink` and S153 both call (PR #94 pre-PR review); AC 6 names the eight frames; cap 8 → 10.
+- **S153 inserted** (priority 91, after S5, beside S72): A6's Search rows with the pill; its route returns `playId`, `halfInning`, `inning`. **S5 AC 8** asks MLB for `guid` and `playInfo` so its recording carries them, without parsing them. **S127:** "(A6)" disambiguated, names A6's `play-inning-pill`, says what a no-game clip shows and whether the `•` stays; Search's player build stays with S127's own intake.
+- **Unanswered, with the owner:** ~~the pill in the day digest's and stage-mode players (no frame draws them); the pill's accessible name; the fallback if MLB's search carries no play id or inning; the `•` in Search's player~~ (answered 2026-11-19: *"all players always"*, S127 AC 2; *"\"Open play - Top of 6th inning\""*, S145 AC 1; *"Show no pill (Recommended)"*, S153 AC 1 and AC 4; the `•` went with the "Go to:" label, now two pills, S127 AC 1).
+- **Parity review ran** 2026-11-19 (`05567f4`) for S153's insertion: FEATURES' Video play links row now records game-shell A6 and the owner's answers on the spoken name, every player and the More from game pill; 73343fa's two no-pill answers were added to that row with PR #94's review fixes.
+- **Next 3 by priority:** S125 (waits on S123's ratification), S145, S139. Startable now: S145, S139, S140.
 
 **Earlier review:** 2026-11-16 at HEAD `af098ea`, verdict **`amended`**. **Trigger: drift** — S135's acceptance criteria rewritten (`49e184e`); also checked every story inserted or rewritten since the 2026-11-10 evening review under logged skips (S129–S133, S135, S137–S141, S143, S145, S146, S123's note). Fresh-context subagent with two parallel checklist slices; see [AUDIT](./AUDIT.md). Done since the last review: none (S124 is still the last).
 

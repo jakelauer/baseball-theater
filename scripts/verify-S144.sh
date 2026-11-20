@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Grader for BACKLOG story S144 — design amendment: a video's play link moves onto
-# the card's meta line, as a red "Play" (rule 18; S145 builds it).
+# Grader for BACKLOG story S144 — design amendment: a video's play link becomes an
+# inning pill ("Top 6 →") after the date on the card's meta line, in the floating player
+# and on Search's results (owner, 2026-11-19; rule 18; S145 builds the cards and player).
 # Contract: docs/v3/BACKLOG.md#verify-script-contract
 # No network. No writes outside /tmp. Does its own checking (never `pnpm verify`).
 
@@ -11,8 +12,8 @@ cd "$(dirname "$0")/.."
 source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "game-shell has its next free amendments/A<N>.md headed '(S144)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (the owner's 2026-11-10 words quoted), ## Open questions = None., and a SHA-256 manifest of exactly its own frames"
-check 2 "frames of the Videos room's cards in grid and list at mobile, medium and desktop, named <screen>[-<state>]-<pairing>.png and listed in ## Frames, which says each shows a clip with a play and one without"
-check 3 "## Decisions says which part of the meta line is the link, what the rest of the line reads, names the red as a VISUAL-DESIGN colour token, the link's hover and focus look, the line for another or missing kind and for no date, that a clip with no play keeps 'Highlight · Sep 5, 2026' (recap and condensed keep their word), that the rest of the card is unchanged, how a touch screen chooses the play, and where else the change applies (the player's overlay row, Search)"
+check 2 "frames of the Videos room's cards in grid and list at mobile, medium and desktop, the floating player at mobile and medium and Search's results at mobile, medium and desktop, named <screen>[-<state>]-<pairing>.png and listed in ## Frames, which says each shows a clip with a play and one without"
+check 3 "## Decisions says which part of the meta line is the link, what the rest of the line reads, names the pill's colour tokens (its fill and its text, the date's), the link's hover and focus look, the line for another or missing kind and for no date, that a clip with no play keeps 'Highlight · Sep 5, 2026' (recap and condensed keep their word), that the rest of the card is unchanged, how a touch screen chooses the play, and where else the change applies (the player's overlay row, Search)"
 check 4 "the amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead"
 check 5 "no sealed game-shell file changed (RATIFIED.md's manifest and every earlier amendment's manifest still verify; S144 changed neither RATIFIED.md nor A1–A5)"
 check 6 "S144 changed no file outside its fence (docs/v3/visual/game-shell/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, plus creating scripts/verify-S144.sh)"
@@ -93,24 +94,29 @@ else
 			[ -n "$row" ] || bad 2 "$f not in ## Frames"
 		done
 	done
+	for f in video-player-dialog-playmeta-mobile.png video-player-dialog-playmeta-medium.png \
+		search-playmeta-mobile.png search-playmeta-medium.png search-playmeta-desktop.png; do
+		[ -f "$DIR/$f" ] || bad 2 "frame $f missing"
+		echo "$frames_table" | grep -qF "\`$f\`" || bad 2 "$f not in ## Frames"
+	done
 	for f in $(own_frames); do
 		echo "$f" | grep -qE '^[a-z]+(-[a-z]+)*-(mobile|medium|desktop)\.png$' || bad 2 "$f breaks <screen>[-<state>]-<pairing>.png"
 		echo "$frames_table" | grep -qF "\`$f\`" || bad 2 "$f not in ## Frames"
 	done
 	echo "$frames_table" | grep -qiE 'no play' || bad 2 "## Frames does not say the frames show a clip with no play"
-	echo "$frames_table" | grep -qF 'Play ·' || bad 2 "## Frames does not show a clip with a play's 'Play ·' meta line"
+	for f in game-videos-grid-playmeta-mobile.png game-videos-list-playmeta-mobile.png video-player-dialog-playmeta-mobile.png search-playmeta-mobile.png; do
+		echo "$frames_table" | grep -F "\`$f\`" | grep -qE '(Top|Bot) [0-9]+ →' || bad 2 "$f's ## Frames row does not show the inning pill (Top/Bot <number> →, no ordinal)"
+	done
 
 	# --- Check 3: the decisions AC 1 asks the amendment to make ------------------------
-	for l in "Link" "Rest of the line" "Red" "Hover and focus" "Other kinds" "No date" "No play" "Rest of the card" "Touch" "Where else"; do
+	for l in "Link" "Rest of the line" "Colour" "Hover and focus" "Other kinds" "No date" "No play" "Rest of the card" "Touch" "Where else"; do
 		[ -n "$(decision "$l")" ] || bad 3 "## Decisions has no '- **$l:**' bullet"
 	done
-	decision "Link" | grep -qiE 'word|whole line|the line' || bad 3 "Link: does not say whether the word or the line is the link"
-	red=$(decision "Red")
-	tok_ok=0
-	for t in "Primary Light" "Primary"; do
-		if echo "$red" | grep -qF "$t" && grep -qF "**$t**" docs/v3/VISUAL-DESIGN.md; then tok_ok=1; break; fi
+	decision "Link" | grep -qiE 'pill' || bad 3 "Link: does not say the pill is the link"
+	col=$(decision "Colour")
+	for t in "color/bg/raised" "color/text/muted"; do
+		echo "$col" | grep -qF "$t" || bad 3 "Colour: does not name the pill's $t token"
 	done
-	[ "$tok_ok" = 1 ] || bad 3 "Red: does not name a red colour token from VISUAL-DESIGN (Primary Light or Primary)"
 	decision "Hover and focus" | grep -qi hover || bad 3 "Hover and focus: does not describe hover"
 	decision "Hover and focus" | grep -qi focus || bad 3 "Hover and focus: does not describe focus"
 	decision "Other kinds" | grep -qF 'Video' || bad 3 "Other kinds: does not say what a 'Video'-kind clip with a play reads"

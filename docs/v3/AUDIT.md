@@ -56,7 +56,6 @@ A grader proves its own checks. It does not prove the checks were the right ones
 Unit tests in `packages/domain` over the window helpers, plus a fresh-context review pass (Bugbot) that rejected the first version of those tests as false confidence and forced `e840939`. There is no per-check record because there is no grader.
 
 **Known gap:** S1 is the only `done` story with no grader. Its acceptance criteria live only in `BACKLOG.md` prose and in its tests. If S1's behaviour regresses, nothing under `scripts/` catches it *as an S1 failure* — only the domain suite inside `pnpm verify`.
-
 ---
 
 ## 2026-09-08 — S11 verified (backfill)
@@ -105,8 +104,6 @@ verify-S11: all checks passed
 ```
 
 </details>
-
-
 ---
 
 ## 2026-09-08 — S12 verified (backfill)
@@ -155,8 +152,6 @@ verify-S12: all checks passed
 ```
 
 </details>
-
-
 ---
 
 ## 2026-09-08 — backlog review (`amended`)
@@ -180,7 +175,6 @@ Amendments:
 - Inserted **S25**–**S28** and re-prioritized 14→28, so the typed route contract, the spec gate, and the query cache land before the UI fill stories (S2–S5) copy the ad-hoc `useEffect` + `fetch` pattern.
 
 **Backfill note:** this entry reconstructs the review from the row logged in the `Backlog reviews` table in `BACKLOG.md` before this ledger existed. The review itself was real; the wording is carried over, not re-derived. The amendment was uncommitted at the time it was logged.
-
 ---
 
 ## 2026-09-08 — S23 verified (backfill)
@@ -233,8 +227,6 @@ verify-S23: all checks passed
 ```
 
 </details>
-
-
 ---
 
 ## 2026-09-08 — S21 verified (backfill)
@@ -279,8 +271,6 @@ verify-S21: all checks passed
 ```
 
 </details>
-
-
 ---
 
 ## 2026-09-08 — S13 completed
@@ -362,7 +352,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-09 — backlog review (`amended`)
@@ -532,7 +521,6 @@ Third pending-drift item (`packages/mlb-api` missing from `CLAUDE.md`) is resolv
 AC6 rather than by an edit here — `CLAUDE.md` is outside this review's write scope and inside S15's.
 
 **Not blocked.** S14 is startable once this amendment is committed.
-
 ---
 
 ## 2026-09-09 — S14 completed
@@ -614,7 +602,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-09 — S14 re-verified
@@ -696,7 +683,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-09 — S16 completed
@@ -778,7 +764,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-09 — backlog review (`amended`)
@@ -964,7 +949,6 @@ considered and left alone (no drift touches it).
   done).
 
 **Not blocked.** S17 is startable once this amendment is committed.
-
 ---
 
 ## 2026-09-09 — S17 completed
@@ -1044,7 +1028,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-09 — S22 completed
@@ -1134,7 +1117,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-09 — backlog review (`amended`)
@@ -1226,7 +1208,6 @@ S22's replay archival target is already a Later theme. ADR-016 work is carried b
 - **Backlog reviews scheduling notes** — new Last review row; next review due (3 more `done` or drift; pre-S27 re-decision carried); pending-drift list rewritten (verify-S23.sh check-7 desync + numeric-ceiling fragility; ports→mlb-api replay-method placement open; rule-14 application check; S7 coverage-floor check; rule-12 sweep — next-3 all now have caps; caps held; S15 last-reprieve instruction).
 
 **Not blocked.** S15 is startable once this amendment is committed.
-
 ---
 
 ## 2026-09-09 — S15 completed
@@ -1312,7 +1293,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-10 — S7 completed
@@ -1394,7 +1374,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-10 — S22 re-verified
@@ -1484,7 +1463,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-10 — backlog review (`amended`)
@@ -1572,7 +1550,6 @@ Not blocked: the debt is diagnosed, categorized (tractable vs. self-resolving), 
 - **Backlog reviews section** — new "Last review" line (this pass); "Next review due" rewritten (3 more done or drift, in particular functions-coverage regression or a web-floor edit that isn't a raise); pending-drift list rewritten: added the two temporary-threshold bullets, kept verify-S23.sh check-7 drift / ports→mlb-api / manifest-fence-rule-14 / S27-S29 counterfactual / S29 CI wiring / S25 coherence bullets (updated for current state), updated rule-12 turn-cap sweep to the new next-3 (S30/S24/S26), removed the now-resolved S15-anchor-debt and S7-coverage-risk bullets (both landed clean per the S15/S7 completion ledger entries), updated "Story IDs run to S29" → "S30".
 
 Verified after all edits: `pnpm verify` exits 0 (full run).
-
 ---
 
 ## 2026-09-10 — S30 completed
@@ -1652,7 +1629,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-13 — S24 completed
@@ -1738,7 +1714,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-13 — S26 completed
@@ -1832,7 +1807,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-13 — backlog review (`amended`)
@@ -1965,7 +1939,6 @@ Not `blocked`: the external-consumer question is genuinely a product call, but i
 - **ADR-016 §Consequence** — the S25 bullet now records the sequencing amendment: S25 ships before S29 using `ApiResponseFor`, S29 owns the import swap, and the ADR describes an end state rather than a prerequisite ordering.
 
 `pnpm verify` re-run after all edits: **exit 0** (full run, captured).
-
 ---
 
 ## 2026-09-13 — backlog review (`amended`)
@@ -2062,7 +2035,6 @@ Not `blocked`: the external-consumer question is genuinely a product call, but i
 ### Check 4 — verdict: amended
 
 Without the fence retrofit, no story can run under V3's rules. No product decision is needed. One ordering gate is recorded: finish V3's final commit before starting S27.
-
 ---
 
 ## 2026-09-13 — S15 re-verified
@@ -2111,8 +2083,6 @@ verify-S15: all checks passed
 ```
 
 </details>
-
-
 ---
 
 ## 2026-09-13 — S22 re-verified
@@ -2165,8 +2135,6 @@ verify-S22: all checks passed
 ```
 
 </details>
-
-
 ---
 
 ## 2026-09-14 — backlog review (`amended`)
@@ -2303,7 +2271,6 @@ verify-S22: all checks passed
 The plan is coherent after these amendments. No product decision blocks the next story (S27). Open questions for the owner are non-blocking and were not decided here:
 - whether no-spoilers titles should be designed now;
 - whether the Plays room and sign-in flow get design stories before their build stories are written.
-
 ---
 
 ## 2026-09-14 — S27 completed
@@ -2395,7 +2362,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-15 — S25 completed
@@ -2489,7 +2455,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-09-16 — backlog review (`amended`)
@@ -2718,7 +2683,6 @@ S33 is `todo`"); the unmodified copy exits 0. The gate is sound; the story text 
 - S31–S34 not rewritten (owner's model change, deferred pending a bot account).
 - `web/src/api/client.ts`'s route/response defect not fixed (outside a review's write scope);
   carried with the deferred theme.
-
 ---
 
 ## 2026-09-18 — S29 completed
@@ -2810,7 +2774,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-04 — backlog review (`blocked`)
@@ -2884,7 +2847,6 @@ Questions for the product owner:
 - **Q3.** Rewrite S31–S34 to the ratified-baseline + amendments model now, so S35–S38 feed stories that can start — or keep the `APPROVAL.md` flow? Should `REVISIONS.md` fold into the ratified `DESIGN.md`?
 - **Q4.** S33 AC 4 requires deciding §9 "Default open at-bat", which VISUAL-DESIGN now records as Accepted ("Pitch accordion default"). Revert S33 AC 4 to "no §9 row in scope"? Who owns the new Open row "Videos sort / filter fields" — S32 or a later story?
 - **Q5.** May an agent author new Figma frames under rule 18 (and should rule 18 say so)? Should S35–S38 park at `blocked` with a checkpoint commit while waiting on you (Figma URL, Figma MCP auth, owner-made edits) so S18/S8/S9 keep running — or should S18 move back ahead of the design band?
-
 ---
 
 ## 2026-10-09 — backlog review (`amended`)
@@ -2984,7 +2946,6 @@ Notes for the doc parity review (not edited here):
 - S35 cites only "Daily scoreboard by date", but it also revises the app shell's global notice slot (R16, the S28 upgrade prompt → "Update / changelist UX"). S36 cites only "Game → Videos / highlights", but it also revises the game header and the phase-aware tab bar (R6, R7, R14b).
 - S9's pillar approval: this re-scope relies on the queued note's reading that the approval covers a re-scope inside the owner's quoted requirements (rule 19: "a material re-scope … voids the approval"). Please confirm.
 - ADR-013 vs S9's two tiers (Q3), and `CHATGPT-LOGO-BACKLOG.md` vs VISUAL-DESIGN's logo ban (Q1).
-
 ---
 
 ## 2026-10-09 — doc parity review (`amended`)
@@ -3064,7 +3025,6 @@ None blocking. No `Open` story exists, no approval is void, and every doc/backlo
 6. **Whole-game record** (owner feature, 2026-10-09): S22 captures it, but nothing user-facing reads it ("can be used for a lot of things"). Is a consumer story wanted, or is capture enough for now?
 7. **New themes** (Derived insight, Multi-source knowledge, AI game companion, Impact curation beyond the shipped heuristic sort, Inning / game insight pipeline): no stories, which is consistent with FEATURES ("when chosen, not blockers") and open product question 2. Listed so the review confirms that is still the owner's intent rather than drift.
 8. **S17's citation** names the scoreboard while its Impact describes finished game pages. If S17 is ever re-run or re-verified, consider whether its Source should name the game rows. Not edited, because it would be a guess.
-
 ---
 
 ## 2026-10-09 — backlog review answers (2026-10-09)
@@ -3086,7 +3046,6 @@ The owner answered the review's four questions on 2026-10-09:
 - **Q4 (does the Delightful approval survive the re-scope):** *"Yes."* Applied: S9's `**Source:**` is unchanged.
 
 Not covered by these answers, and therefore still subject to a normal review: nothing. S9's rewritten ACs get the standard check 2 when S9 enters the next 3 by priority (it is at 38).
-
 ---
 
 ## 2026-10-10 — S35 completed
@@ -3166,7 +3125,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-10 — S35 re-verified
@@ -3246,7 +3204,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-10 — S35 re-verified
@@ -3326,7 +3283,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-10 — S36 completed
@@ -3408,7 +3364,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-12 — S37 completed
@@ -3490,7 +3445,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-12 — backlog review (`amended`)
@@ -3611,7 +3565,6 @@ Amendments (notes only, then `pnpm backlog:build`; `pnpm backlog:check` exits 0)
 
 Questions for the product owner (**none blocks S38**; the S33 questions go to the owner through S33 itself):
 - **Q1.** Several features the app is meant to keep from the old site have no story that builds them: the "hide scores" setting (the new scoreboard and game designs already draw it), playback preferences, the scoreboard slot and collapse settings as working controls, highlight search by date and tag, Savant links, and the Patreon link with its patron perks. They are now listed in the backlog's gap map. Do you want stories for them written now, so they sit in the queue behind the design work, or only when the UI work reaches them?
-
 ---
 
 ## 2026-10-13 — doc parity review (`continue`)
@@ -3670,7 +3623,6 @@ None blocking. No `Open` story exists, no approval is void, and no doc conflicts
 
 1. **S17's citation** (carried from 2026-10-09 item 8, which the 2026-10-12 review passed back as out of its scope). Its Source names Daily scoreboard by date, but its Impact is about a stale finished game refreshing on read, which serves the game rooms. S17 is `done`, and a parity review may change a Source line only to record an owner decision. None exists, so it stays as is. Put it to the owner only if S17 is re-verified or re-opened.
 2. **Q1 of the 2026-10-12 backlog review** (stories for carry rows with no build story) is still unanswered. It does not block S38.
-
 ---
 
 ## 2026-10-13 — S38 completed
@@ -3750,7 +3702,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-14 — S31 completed
@@ -3832,7 +3783,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-14 — S32 completed
@@ -3901,7 +3851,6 @@ backlog: out of date — run pnpm backlog:build. Would change:
 ```
 
 </details>
-
 ---
 
 ## 2026-10-14 — S33 completed
@@ -3970,7 +3919,6 @@ backlog: out of date — run pnpm backlog:build. Would change:
 ```
 
 </details>
-
 ---
 
 ## 2026-10-14 — S34 completed
@@ -4039,7 +3987,6 @@ backlog: out of date — run pnpm backlog:build. Would change:
 ```
 
 </details>
-
 ---
 
 ## 2026-10-14 — S32 completed
@@ -4121,7 +4068,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-14 — S33 completed
@@ -4203,7 +4149,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-14 — S34 completed
@@ -4285,7 +4230,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-14 — backlog review (`amended`)
@@ -4323,7 +4267,6 @@ Amendments: inserted S39 (p27), S40 (p28), S41 (p31). S2 re-scoped (rebound to 8
 Owner questions (non-blocking, none gate S39): (1) data source for Live's win-probability chart when the Live theater body is sliced; (2) standing ADR-016 DAL question unchanged.
 
 Doc parity review is due (pnpm parity:debt exits 1) and gates S39.
-
 ---
 
 ## 2026-10-14 — backlog review answers (2026-10-14)
@@ -4339,7 +4282,6 @@ Doc parity review is due (pnpm parity:debt exits 1) and gates S39.
 
 Q1 (win-probability data source for the Live pitch theater body): owner — "Dunno yet". Recorded on the frame-00 scheduling note and the gap-map row; still open, ask again when the Live theater body is sliced.
 Q2 (standing: amend ADR-016 to say the generated DAL waits on a real consumer?): owner — "No, our own client should use it". ADR-016 left unamended (it already describes the DAL as the end state). Applied: retired the T1/T2 triggers on the Generated DAL adoption Later theme (frame 04), closed the standing owner question and replaced the trigger bullet with "slice it into a story at the next review" (frame 00), updated the gap-map row and the Current baseline API-versioning row. No story inserted — slicing is left to the next backlog review.
-
 ---
 
 ## 2026-10-14 — doc parity review (`amended`)
@@ -4410,7 +4352,6 @@ None blocking.
 
 1. **VISUAL-DESIGN stale rows** (lines 97, 99, 354; see Check 2). Route them to whoever may edit VISUAL-DESIGN, or ask the owner.
 2. FEATURES Videos and Settings rows now name the dialog/stage player, the facets and the Favorite Teams dropdown. Frame 05 rows (b) and (d) already track them as unowned. Slice them before the UI they sit in, as that row says.
-
 ---
 
 ## 2026-10-14 — doc parity review answers (2026-10-14)
@@ -4425,7 +4366,6 @@ None blocking.
 **Answers and what was applied**
 
 "go for it" — owner approved correcting VISUAL-DESIGN lines 97, 99 and 354 (Plays row, Recap row, linescore placement) to match the ratified S33 design as a one-off doc fix.
-
 ---
 
 ## 2026-10-15 — S39 completed
@@ -4511,7 +4451,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-15 — S40 completed
@@ -4597,7 +4536,6 @@ verify-S40: all checks passed
 ```
 
 </details>
-
 ---
 
 ## 2026-10-15 — S40 completed
@@ -4683,7 +4621,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-18 — backlog review (`amended`)
@@ -4727,7 +4664,6 @@ Disagreements resolved: first story (A: S43, B: S42) -> S43 (feature-cited, star
 Owner answers 2026-10-18 applied: Q1 pillar Flexible for platform stories ("The reasoning is mostly related to flexibility; I didn’t want to lean too hard on firebase when it is not as generally understood and is too tied to one provider") -> S42, S44, S45, S46, S50, S51; S49 stays Open. Q2 local default ("whatever is the most standard in the industry that will work locally and be representative") -> S51 Postgres in Docker. Q3 supersede vs reverify as above. Q5 Logto email: "Code if I have to choose, both if possible in a single email" -> Later theme note. Q4 (migration tool) and Q6 (environments/IaC) still open.
 
 For the doc parity review: INTENT:64 and FEATURES:70/:95 still say FCM; FEATURES says "magic link" vs owner's code-first answer; S7 Source relic; S9 Delightful approval lapses with S9; new stories' citations (S43/S47/S48 follow the S16/S17 precedent).
-
 ---
 
 ## 2026-10-18 — backlog review answers (2026-10-18)
@@ -4746,7 +4682,6 @@ Owner answers to the 2026-10-18 review's questions, applied to ARCHITECTURE in 6
 - Q5 Logto email: "Code if I have to choose, both if possible in a single email" -> ADR-019 records code first, link too if one email can carry both.
 Also in 6cfa86f (review-flagged defects in 52a0d0f, not new decisions): ADR-022 moved after ADR-021; ADR-012/014 and §2 stale Firebase text corrected; ADR-013's emulator model marked superseded.
 Still open: Q4 (ADR-018 migration tool; gates S50), Q6 (environments/IaC/deploy; Later theme), S49's pillar.
-
 ---
 
 ## 2026-10-18 — backlog review answers (2026-10-18)
@@ -4761,7 +4696,6 @@ Still open: Q4 (ADR-018 migration tool; gates S50), Q6 (environments/IaC/deploy;
 **Answers and what was applied**
 
 Q4 (ADR-018 migration tool, gates S50): "Drizzle"
-
 ---
 
 ## 2026-10-18 — backlog review answers (2026-10-18)
@@ -4776,7 +4710,6 @@ Q4 (ADR-018 migration tool, gates S50): "Drizzle"
 **Answers and what was applied**
 
 S49 pillar (Open → Dependable): "Yes to dependable."
-
 ---
 
 ## 2026-10-18 — doc parity review (`amended`)
@@ -4857,7 +4790,6 @@ None blocking.
 1. ARCHITECTURE sign-in wording (ADR-019 "Magic-link email" bullet; "Identity, billing, entitlements" "magic link + passkeys"). Route the fix to the owner (question 2).
 2. A sign-in design story (rule 18) is owed before any Logto sign-in UI. It is also where ADR-019's "code and link in one email" check lands. Today it is only a Later theme.
 3. Push (Web Push + dedupe) has no story. That is expected while it is Later; confirm the Later theme names VAPID / Web Push, not FCM.
-
 ---
 
 ## 2026-10-18 — doc parity review answers (2026-10-18)
@@ -4873,7 +4805,6 @@ None blocking.
 
 Q1 (S51 pillar, Flexible or Delightful): "delightful"
 Q2 (correct ARCHITECTURE lines 1127, 1406, 1552 that still said magic link / passkeys later): "Yes"
-
 ---
 
 ## 2026-10-19 — backlog review (`amended`)
@@ -4904,7 +4835,6 @@ Q2 (correct ARCHITECTURE lines 1127, 1406, 1552 that still said magic link / pas
 **Check 2 — next 3 at HEAD.** S43: fence `packages/domain/` exists; `git grep -e applyIfNewer -e contentHash -e cacheLifetimeMs` prints nothing (red-first holds); `@bt/domain` at `packages/domain/package.json:2`; `CACHE_TTL_MS` 5 min at `functions/src/services/refresh.ts:22`; floors 85/90/60/85 at `packages/domain/vitest.config.ts:13-18`, measured 94.47 / 92.3 / 79.48; no deps; cap 8 holds. S42: `functions/src/adapters/firestore/`, `firebase.json`, `.firebaserc` exist; `@google-cloud/firestore` in `functions/package.json`; `BT_USE_FIRESTORE` in `local-server.ts`; AC 2 grep hits 13 files, all inside the fence; floors match `functions/vitest.config.ts`; no deps; cap 8 holds. S52: `web/src/components/game/gamePhase.ts`, `packages/domain/src/window.ts`, inline checks in `ScoreboardPage.tsx`, `tsconfig.base.json` `experimentalDecorators` exist; `tools/` absent (S52 creates it); type-aware linting already configured (`projectService` in `eslint.config.js`); no deps.
 
 **For the parity review.** 23 stories inserted and S6 re-scoped (cites two features). FEATURES Push themes row still says "not full PWA". VISUAL-DESIGN §6 "Sign in: magic link and passkey first" and the Settings frame copy contradict ADR-019 (design S58 owns the frame side). VISUAL-DESIGN's medium-header row and §5a settings table (no Opens First) trail the ratified frames. FEATURES "Best of [date]" is listed as brainstorm though ratified and now S71's Source.
-
 ---
 
 ## 2026-10-19 — doc parity review (`amended`)
@@ -4967,7 +4897,6 @@ No feature was added. Unserved features: Push notifications (Later, expected), M
 
 1. Inning pipeline detail still says the "Scoreboard / Best of day" surface is "Built from packages"; S71 ships at launch on the per-game impact rule. Confirm S71 or a Later theme records the move to packages.
 2. FEATURES row label "Settings sync for patrons" is historic (sync is free, ADR-027); S6 cites it. Harmless; rename only with a Source-line update.
-
 ---
 
 ## 2026-10-19 — doc parity review answers (2026-10-19)
@@ -4988,7 +4917,6 @@ Applied in VISUAL-DESIGN only:
 - §5a table: game-row slot occupant says win probability is left out at launch; new **Opens First** row (Videos / Live / Box, S34 design); "(default game tab, …)" removed from the not-listed line.
 - §5a Settings view and §6 Settings & auth: persistence lines now say settings live on the account, signed in only (ADR-027).
 - §6: "Sign in: magic link and passkey first" → email one-time code (plus a link in the same email if Logto supports it); no passkeys at launch (ADR-019).
-
 ---
 
 ## 2026-10-19 — S43 completed
@@ -5070,7 +4998,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-19 — S42 completed
@@ -5154,7 +5081,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-19 — S52 completed
@@ -5238,7 +5164,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-19 — backlog review (`amended`)
@@ -5309,7 +5234,6 @@ Read the code S43, S42 and S52 added.
 - Frame 04 day-digest row.
 - Frame 00: last-review block, next-review notes (S52's verify change reviewed; the `CLAUDE.md` tsconfig line), and a stale 2026-10-14 parity paragraph replaced with the current parity debt.
 - `pnpm backlog:check` passes.
-
 ---
 
 ## 2026-10-19 — doc parity review (`blocked`)
@@ -5365,7 +5289,6 @@ No feature added. No FEATURES item newly unserved.
 
 1. How should the pre-game Live tab regression be fixed: **(a)** take `P` out of the live set (ingest still covers warm-up through its 2h lead window), or **(b)** let room phase and the poll window differ (rewrites S52 AC 1)? And should a delay (`D`) show Live?
 2. Where should the fix land: re-open S52, or a small new story? Either way the S52 CHANGELOG line gets corrected.
-
 ---
 
 ## 2026-10-19 — doc parity review answers (2026-10-19)
@@ -5390,7 +5313,6 @@ Applied:
 - `game-phase.ts`: comment updated.
 - `CHANGELOG.md`: the S52 entry no longer claims warm-up/delay show Live.
 - Evidence: `scripts/verify-S52.sh` 7/7; `pnpm --filter @bt/domain exec vitest run` 96 passed; `pnpm verify` exit 0.
-
 ---
 
 ## 2026-10-19 — S53 completed
@@ -5470,7 +5392,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-20 — doc parity review (`continue`)
@@ -5511,7 +5432,6 @@ Run in the session that implemented S53 (owner's direction; no subagent). It wro
 ## Check 3 — coverage
 
 No feature added. No FEATURES item newly unserved. Nothing queued for the next backlog review from this pass (one is already due: S53 changed `pnpm verify`).
-
 ---
 
 ## 2026-10-20 — backlog review (`amended`)
@@ -5602,7 +5522,6 @@ Run in the session that implemented S53 at the owner's direction (no subagent; "
 ## Baseline
 
 Frame 01's As-of line and the Frontend-guardrails row already record S53. No insert or remove, so no baseline change.
-
 ---
 
 ## 2026-10-20 — doc parity review (`continue`)
@@ -5640,7 +5559,6 @@ Narrow pass on the one item `pnpm parity:debt` named. The review ran in the impl
 ## Check 3 — coverage
 
 Nothing new for the next backlog review.
-
 ---
 
 ## 2026-10-20 — S54 completed
@@ -5720,7 +5638,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-20 — backlog review (`continue`)
@@ -5792,7 +5709,6 @@ Run in the session that implemented S54, at the owner's direction (no subagent).
 ## Baseline
 
 Frame 01's As-of line and the guardrails row record S54 (`1a12dfe`). No change.
-
 ---
 
 ## 2026-10-21 — S55 completed
@@ -5872,7 +5788,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-21 — backlog review (`amended`)
@@ -5966,7 +5881,6 @@ S73 is at priority 69, so this is recorded in frame 00's forward notes to ask be
 ## For the parity review
 
 Nothing new. FEATURES:210 already describes the Install row, the offline age marker and the update notice.
-
 ---
 
 ## 2026-10-21 — backlog review answers (2026-10-21)
@@ -5993,7 +5907,6 @@ In the same commit, at the owner's separate request ("Double the review trigger 
 - **Backlog review:** 6 stories `done`, or the second drift event since the last review.
 - **Doc parity:** the second change event, or 6 stories.
 - **Design intake:** the second design event, or whenever the owner asks.
-
 ---
 
 ## 2026-10-21 — S56 completed
@@ -6073,7 +5986,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-21 — backlog review (`blocked`)
@@ -6119,7 +6031,6 @@ Two independent fresh-context reviewers (read-only, PNGs read as images), merged
 1. "The version line is drawn as 'v3.0.0 (c46e853)', but every package.json says 0.0.0. Should the build read the version from web/package.json bumped to 3.0.0, or from somewhere else?" (before S60)
 2. "With Hide Scores on, what should Search results and the search player show, given titles carry outcomes ('Judge 447-ft go-ahead HR')? Should S57 draw that too (it would add standings-search-settings to its fence)?" (before S57 — blocking)
 3. "Should a clip played from the scoreboard's Best-of digest show the same 'Go to game' link as Search?" (before S71)
-
 ---
 
 ## 2026-10-21 — backlog review answers (2026-10-21)
@@ -6143,7 +6054,6 @@ Applied:
 - Q2 (Hide Scores on Search), partly answered: the recap video is titled "Recap (score hidden)" on the game page; recorded in S57's Gap for its `## Decisions`. Still open, and blocking S57: what Search results, the search player, and video titles other than the recap's show with Hide Scores on.
 
 For the parity review: FEATURES should record that every video tied to a game links to it unless played from that game, and the build-number version line.
-
 ---
 
 ## 2026-10-21 — backlog review answers (2026-10-21)
@@ -6164,7 +6074,6 @@ Owner, 2026-10-21, finishing the S56 intake's open question:
 Applied: S57's Gap records it — S57 draws no Search frame and its fence is unchanged; the review's blocking question is closed. The rule for game-page video titles other than the recap's ("Recap (score hidden)", answered earlier) is S57's own AC 2 decision, asked in its ratification session. Frame 00's open-question line updated.
 
 For the parity review: FEATURES' Hide Scores entry should say Search is unaffected.
-
 ---
 
 ## 2026-10-21 — S57 completed
@@ -6244,7 +6153,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-22 — backlog review (`amended`)
@@ -6287,7 +6195,6 @@ Two independent fresh-context reviewers (read-only), merged by the coordinator. 
 **For the parity review.** FEATURES' Settings row (FEATURES.md:63) should record what Hide Scores covers, in the owner's words (A3/A4 Decisions); VISUAL-DESIGN §5a "No-spoilers…Open" is now decided (owner's call to close). Still queued from 2026-10-21: game link on videos not played from their game, build-number version line, search-result modal, iOS install steps. Inserting S75 makes the parity review due.
 
 **Owner questions:** none blocking.
-
 ---
 
 ## 2026-10-22 — doc parity review (`amended`)
@@ -6319,7 +6226,6 @@ Two independent fresh-context reviewers (read-only), merged by the coordinator. 
 **3. Coverage**
 
 **For the next backlog review:** no feature was added — the Settings row only gained the already-ratified Hide Scores rule, which S68 (hook + scoreboard) and S75 (rooms + recap title) together serve; confirm nothing in that rule (e.g. "Search is unaffected") lacks a check.
-
 ---
 
 ## 2026-10-22 — backlog review (`amended`)
@@ -6367,7 +6273,6 @@ No product code since ae33c15 (diff above; only two new shell scripts under `scr
 As-of line updated for 118d49e and this review; no Done row changed (no story flipped). Frame 00 Last-review and scheduling notes updated (parity review now ran, c8fe74b).
 
 **Owner questions:** none. No pillar-cited story re-scoped and none inserted, so no parity review is made due.
-
 ---
 
 ## 2026-10-22 — S58 completed
@@ -6447,7 +6352,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-22 — backlog review (`amended`)
@@ -6502,7 +6406,6 @@ S58 is design-only: no file under `web/`, `functions/`, `packages/` changed sinc
 ## Owner questions
 
 None blocking.
-
 ---
 
 ## 2026-10-23 — S44 completed
@@ -6584,7 +6487,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-23 — S49 completed
@@ -6664,7 +6566,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-23 — backlog review (`amended`)
@@ -6706,7 +6607,6 @@ Fresh-context subagent at HEAD `87a8375` (tree clean at start). Count 2 of 6 (S4
 ## Also checked
 - S65 fences only `web/src/api/generated/`. If it adds required schedule-summary fields, the same `cache.types.test.ts` class of trap applies → watch item in frame 00.
 - Current baseline "As of" already names S49 (and S44). This review inserts and removes no story, so no baseline row changes. No `**Source:**` line was touched and no pillar-cited story's scope changed beyond fences. A fence widening isn't a re-scope of what the story is for, so this makes no parity review due.
-
 ---
 
 ## 2026-10-23 — doc parity review (`amended`)
@@ -6739,7 +6639,6 @@ Fresh-context subagent at HEAD `87a8375` (tree clean at start). Count 2 of 6 (S4
 **3. Coverage — For the next backlog review**
 - FEATURES *Modern membership* "Unlinking" (added this review) and the Patreon linked/not-linked rows have no story; they sit with the Later theme "Patreon OAuth link + entitlement refresh" (frame 04). Confirm that ordering, or slice it.
 - ADR-004's stale "Still open" line (above): ask the owner whether to amend it.
-
 ---
 
 ## 2026-10-23 — S46 completed
@@ -6821,7 +6720,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-23 — S8 completed
@@ -6905,7 +6803,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-23 — S59 completed
@@ -6987,7 +6884,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-23 — backlog review (`amended`)
@@ -7031,7 +6927,6 @@ S76–S79 inserted (`48c7472`) and pillar-cited S50's ACs re-scoped here: a doc 
 
 ## Owner questions (not blocking)
 - ADR-004's "Still open" line (ARCHITECTURE.md ~614) still lists unlink UX, magic-link email delivery and `users/{uid}` entitlement schema, all superseded (A3, ADR-017–019). Amend it?
-
 ---
 
 ## 2026-10-23 — doc parity review (`amended`)
@@ -7064,7 +6959,6 @@ S76–S79 inserted (`48c7472`) and pillar-cited S50's ACs re-scoped here: a doc 
 **Owner questions**
 
 1. When you said "Yes, but only if download happens before delete", did you mean users can download their data only as the first step of deleting it (FEATURES and ADR-028 currently say "There is no separate export feature"), or that a standalone "download my data" is fine too, as long as deletion always requires a download first? This decides whether S78/S79 draw and build a separate download entry in Settings.
-
 ---
 
 ## 2026-10-24 — S76 completed
@@ -7146,7 +7040,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-24 — backlog review (`amended`)
@@ -7201,7 +7094,6 @@ Fresh-context subagent (no transcript of S76's run). Read CLAUDE.md, `.claude/sk
 2. **Standalone download or download only inside deletion?** (from the 2026-10-23 parity review; needed before S78).
 3. **Is Delete your data a launch requirement on FEATURES' Build checklist?** (parity scope; from the 2026-10-23 parity review).
 4. Still open from 2026-10-23: amend ADR-004's stale "Still open" line?
-
 ---
 
 ## 2026-10-24 — S77 completed
@@ -7285,7 +7177,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-24 — S6 completed
@@ -7373,7 +7264,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-25 — backlog review (`amended`)
@@ -7428,7 +7318,6 @@ Fresh-context subagent (no transcript of S77's or S6's runs). Read CLAUDE.md, `.
 2. **Did "Yes, but only if download happens before delete" mean download only as the first step of deleting, or a standalone download too?** (Needed before S78 drafts frames.)
 3. **Is it all right that this review widened 23 fences mechanically, only adding each package's `vitest.config.ts`, so rule 21 can be met?** Reverting is one commit.
 4. Still open: is Delete your data a launch requirement on FEATURES' Build checklist (parity scope), and should ADR-004's stale "Still open" line be amended?
-
 ---
 
 ## 2026-10-25 — backlog review answers (2026-10-25)
@@ -7446,7 +7335,6 @@ Owner, 2026-10-25, answering the 2026-10-24/25 backlog reviews' questions:
 - Turn cap ("Does a turn mean one /goal agent turn, not a tool call?"): "Whatever is most typical". Applied: rule 12 (frame 00) now records the definition as confirmed by the owner, and the "weigh next time" item asking for confirmation is removed.
 - ADR-004's stale "Still open" line ("Should it be amended?"): "If they are all settled, yes". Not applied: of its four items, the entitlement schema on `users/{uid}` (superseded by Postgres, ADR-018), magic-link email delivery (repealed by A3; Logto sends email, ADR-019) and unlink UX (A3: "Unlink Patreon", owner "Unlink from bt") are settled, but "webhook vs poll balance" is not (ADR-004 still reads "Campaign webhooks and/or scheduled refresh"). So the condition fails and the line stays; reported back to the owner.
 - The 2026-10-25 review's question 3 (23 fences widened by `vitest.config.ts`) was not answered and stays open.
-
 ---
 
 ## 2026-10-25 — doc parity review answers (2026-10-23)
@@ -7462,7 +7350,6 @@ Owner, 2026-10-25, answering the 2026-10-24/25 backlog reviews' questions:
 
 Owner, 2026-10-25, answering the 2026-10-23 doc parity review's question (did "Yes, but only if download happens before delete" mean download only as the first step of deleting, or a standalone download as well?): "On its own".
 Applied: FEATURES "Delete your data" (Download first bullet) and ADR-028's "Download, then delete" bullet replace "There is no separate export feature" with downloading also offered on its own, quoting the owner; S78's "Before starting" note becomes "Answered" (A4 draws a standalone download entry); S79 gains a note that it builds that entry with the same export call. No ACs changed.
-
 ---
 
 ## 2026-10-25 — doc parity review (`amended`)
@@ -7506,7 +7393,6 @@ Fresh-context subagent. Read CLAUDE.md, `.claude/skills/doc-parity-review/SKILL.
 **For the next backlog review**
 - The Build checklist question above. If the owner makes it a launch item, the deploy theme's legal check and S78/S79 become launch-gating.
 - No new FEATURES items were added this review. The *Highlight search* correction only matches FEATURES to what S5/S56/S70 already build.
-
 ---
 
 ## 2026-10-26 — doc parity review answers (2026-10-25)
@@ -7521,7 +7407,6 @@ Fresh-context subagent. Read CLAUDE.md, `.claude/skills/doc-parity-review/SKILL.
 **Answers and what was applied**
 
 Owner: "1. Yes" — Delete your data is a launch requirement; FEATURES Build checklist gains "Download and delete your data from Settings (ADR-028)".
-
 ---
 
 ## 2026-10-26 — backlog review answers (2026-10-25)
@@ -7536,7 +7421,6 @@ Owner: "1. Yes" — Delete your data is a launch requirement; FEATURES Build che
 **Answers and what was applied**
 
 Owner: "2. Yes" — the 23 todo stories keep their package vitest.config.ts fence (rule 21); no edits needed.
-
 ---
 
 ## 2026-10-27 — backlog review (`amended`)
@@ -7598,7 +7482,6 @@ No code since the last review (`git diff --stat 50bacce HEAD -- packages functio
 ## Owner questions (not blocking)
 1. **Should ADR-018 be amended to allow R2 for data downloads?** ADR-018 (2026-10-18) says *"we want to do all of our storage in Postgres, not split across any other providing option"* and "No D1, KV, or R2 for BT data". ADR-028 (2026-10-27) now stores downloads in R2 with a 14-day lifecycle rule. S80 builds only the port, so nothing is blocked now; the deploy theme needs the answer before it builds the R2 adapter.
 2. **For a failed account deletion, how many failures count as "repeatedly", and where does "contact support" lead?** You decided a failed deletion shows "Try again", then contact support if it fails repeatedly. BT has no support channel in FEATURES (an email address, a page or a form), so S78 can't draw that screen until both are answered. S78 now draws it, and S79 AC 6 builds it.
-
 ---
 
 ## 2026-10-27 — doc parity review (`amended`)
@@ -7633,7 +7516,6 @@ No code since the last review (`git diff --stat 50bacce HEAD -- packages functio
 **Owner questions (carried from the 2026-10-27 backlog review, not blocking S80):**
 1. Should ADR-018 be amended to allow R2 for data downloads?
 2. For a failed account deletion, how many failures count as "repeatedly", and where does "contact support" lead?
-
 ---
 
 ## 2026-10-28 — S80 completed
@@ -7721,7 +7603,6 @@ Exit status 1
 ```
 
 </details>
-
 ---
 
 ## 2026-10-28 — S80 completed
@@ -7809,7 +7690,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-28 — S60 completed
@@ -7901,7 +7781,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-28 — backlog review answers (2026-10-27)
@@ -7918,7 +7797,6 @@ functions build: Done
 Owner: "I want a message to the user to show all the time, which tells them "Contact support if it fails repeatedly" (but with better wording)" — no failure count: a failed deletion shows "Try again" and the support message every time. S78 AC 2 and notes, S79 AC 6 and note updated.
 
 Owner: "mailto: support@baseball.theater" — contact support is email to support@baseball.theater. S78 AC 2 Decisions and S79 AC 6 name it.
-
 ---
 
 ## 2026-10-28 — doc parity review answers (2026-10-27)
@@ -7933,7 +7811,6 @@ Owner: "mailto: support@baseball.theater" — contact support is email to suppor
 **Answers and what was applied**
 
 Owner: "I want a message to the user to show all the time, which tells them "Contact support if it fails repeatedly" (but with better wording)" and "mailto: support@baseball.theater" — FEATURES "Delete your data" detail no longer lists the failure count and support destination as open; it records both answers.
-
 ---
 
 ## 2026-10-28 — S78 completed
@@ -8013,7 +7890,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-28 — backlog review (`amended`)
@@ -8048,7 +7924,6 @@ functions build: Done
 **Other.** S80 has two completion ledger entries, the first recording `pnpm verify` exit 1 (AUDIT ~7637, ~7725); the second (exit 0) stands. Personal-data sweep: no new store; captures use the dev fixture account only (S81 AC 2).
 
 **For the parity review.** S81 and S82 cite "Feature: Visual design" and "Feature: Modern membership" — confirm honest. FEATURES/INTENT: record the owner's "It should be impossible for an account to have no email." and the support address `support@baseball.theater` (must receive mail before launch — deploy theme). ADR-018/ADR-028 R2 conflict resolved (f889213).
-
 ---
 
 ## 2026-10-28 — doc parity review (`amended`)
@@ -8085,7 +7960,6 @@ functions build: Done
 **For the next backlog review**
 1. `support@baseball.theater` must actually receive mail before launch (S79's failed-deletion message links to it); no story sets up the mailbox or checks it in the deploy/launch work. Decide which story owns it.
 2. ADR-026's "records each screenshot beside its frame" vs S81's `docs/v3/design-checks/<ID>/`: confirm the wording is fine as is or ask the owner for an ADR wording fix (the owner's quote does not specify location).
-
 ---
 
 ## 2026-10-28 — S60 re-verified
@@ -8153,8 +8027,6 @@ check 11 PASS: backlog Status is done (story heading and Story status table)
 ```
 
 </details>
-
-
 ---
 
 ## 2026-10-28 — S81 completed
@@ -8240,7 +8112,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-28 — backlog review (`amended`)
@@ -8307,7 +8178,6 @@ S81: captures use the dev fixture account only (S81 AC 2); no new store, browser
 3. **May a story fix `scripts/verify-S60.sh` check 7 so it checks only the `version` field of `package.json`, as an exception to rule 8?** The check fails on any `package.json` change since S60 started, so S81 adding Playwright turned S60's grader red for good.
 4. **Should ADR-026's wording change from recording each screenshot "beside its frame" to "paired with its frame in the ledger"?** Captures live in `docs/v3/design-checks/<ID>/` because the ratified folders are sealed; backlog rule 22 now says so, but the ADR text is yours.
 5. **Is it acceptable that the Adobe Fonts kit tells Adobe about each page view (visitor IP address and page), or should the wordmark font be self-hosted?** The kit imports a page-view counter from `p.typekit.net`; Google Fonts already sees visitors the same way for IBM Plex Sans.
-
 ---
 
 ## 2026-10-28 — backlog review answers (2026-10-28)
@@ -8326,7 +8196,6 @@ Owner, asked whether the footer should sit at the bottom of the screen as the fr
 Owner, asked whether the Adobe Fonts kit (page-view reporting to Adobe, render-blocking) is acceptable or the font should be self-hosted: "Use Typekit as given" — S83 AC 1 stands; noted in S83.
 
 Not yet answered: the scripts/verify-S60.sh check 7 exception; ADR-026 "beside its frame" wording; VISUAL-DESIGN wordmark typeface.
-
 ---
 
 ## 2026-10-28 — doc parity review (`amended`)
@@ -8366,7 +8235,6 @@ No feature added this review. No FEATURES item newly unserved.
 ## For the next backlog review
 
 1. Still-open owner questions from the 2026-10-28 backlog review: VISUAL-DESIGN wordmark typeface (clarendon-urw vs Plex), ADR-026 "beside its frame" wording, and the `scripts/verify-S60.sh` check 7 exception. If the ADR-026 wording changes, the FEATURES "Visual design" row's "beside" wording should be revisited by the next parity review.
-
 ---
 
 ## 2026-10-28 — S83 completed
@@ -8461,7 +8329,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-28 — backlog review (`amended`)
@@ -8525,7 +8392,6 @@ S83 adds no table, field, browser key or log line (`git diff 08876df HEAD -- web
 ## Verdict
 
 `amended` — S84 tightened (AC 4 proposed laws, AC 5/6 include `verify-V*.sh`, ten notes), S45 note, S79 `prefer_after` fixed, baseline rows fixed. Not `blocked`: the one owner question doesn't stop S84 as fenced.
-
 ---
 
 ## 2026-10-28 — backlog review answers (2026-10-28)
@@ -8546,7 +8412,6 @@ Owner, asked whether S84 should cite Pillar: Dependable instead of Feature: Robu
 Owner, asked whether VISUAL-DESIGN should record the Clarendon wordmark: "Yes, update it" — VISUAL-DESIGN §5 (type table, wordmark paragraph, chrome and v2-to-v3 rows) updated.
 
 Owner, asked whether ADR-026 and FEATURES should say captures are paired with their frames in the ledger: "Yes, reword" — both reworded.
-
 ---
 
 ## 2026-10-28 — doc parity review (`continue`)
@@ -8589,7 +8454,6 @@ No feature added this review. No FEATURES item newly unserved. Robust core's "St
 ## Verdict
 
 `continue` — every citation checked holds (S84's per the owner's explicit "Keep Robust core"), and the docs changed in `8573caf` match each other and the shipped code.
-
 ---
 
 ## 2026-10-28 — S60 re-verified at `74a93e0`
@@ -8644,8 +8508,6 @@ verify-S60: all checks passed
 ```
 
 </details>
-
-
 ---
 
 ## 2026-10-28 — S84 completed
@@ -8733,7 +8595,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-28 — backlog review (`amended`)
@@ -8797,7 +8658,6 @@ S84 adds no table, field, browser key, outside service or log line (`git diff ac
 ## Verdict
 
 `amended` — S45 AC 8 / fence / `/goal` re-scoped to the pinned model; S62 notes; contract note on naming the shipping commit; baseline guardrails row and As-of fixed; scheduling notes. Not `blocked`: S79, S82 and S62 can proceed as fenced; the three questions don't stop them.
-
 ---
 
 ## 2026-10-28 — doc parity review (`continue`)
@@ -8831,7 +8691,6 @@ S84 adds no table, field, browser key, outside service or log line (`git diff ac
 - Nothing new: no feature added, no story's Source changed.
 
 No doc edits. No owner questions.
-
 ---
 
 ## 2026-10-28 — backlog review answers (2026-10-28)
@@ -8848,7 +8707,6 @@ No doc edits. No owner questions.
 Owner, asked whether a story should enforce proposed laws (P1 and P2 at least) and where it goes: "Yes: P1, P3, P5, P8." — S85 inserted before S79 ("Before S79"). P2, P4 removed ("Some of these aren't wrong, but don't need to be checked or can't be checked: P2, P4"); P10 removed ("One was just an example: P10 ..."); P6, P7, P9 augmented with the owner override clause, Overrides table added ("Yes, as described").
 
 Not yet answered: whether CI runs pnpm dup:check and pnpm size (or pnpm verify) via S62; whether story_tip should read the ledger.
-
 ---
 
 ## 2026-10-28 — doc parity review (`continue`)
@@ -8881,7 +8739,6 @@ Not yet answered: whether CI runs pnpm dup:check and pnpm size (or pnpm verify) 
 - Nothing new: no feature added, no Source line changed.
 
 No doc edits. No owner questions.
-
 ---
 
 ## 2026-10-28 — S85 completed
@@ -8963,7 +8820,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-28 — backlog review (`amended`)
@@ -9010,7 +8866,6 @@ None found. S85 adds no store, browser key or log line (lint rules + test). S79:
 
 - Should CI run `pnpm dup:check` and `pnpm size` (or `pnpm verify`), via S62's `ci.yml` edit?
 - Should `story_tip` read the ledger (one shipping-commit lookup)?
-
 ---
 
 ## 2026-10-29 — S82 completed
@@ -9086,7 +8941,6 @@ backlog: notes and BACKLOG.md are in sync
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — S82 completed
@@ -9153,7 +9007,6 @@ backlog: out of date — run pnpm backlog:build. Would change:
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — S82 completed
@@ -9220,7 +9073,6 @@ backlog: out of date — run pnpm backlog:build. Would change:
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — S82 completed
@@ -9300,7 +9152,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — backlog review (`amended`)
@@ -9352,7 +9203,6 @@ None found. S82 (db449f3) adds one blank-email check (`functions/src/services/ac
 
 - **Should the deletion cookie also be `Secure` (sent only over HTTPS)?** S87 AC 1 lists `HttpOnly`, `SameSite=Strict`, `Path=/` and no lifetime, and says nothing about `Secure`. Production is HTTPS, but some browsers (Safari) drop `Secure` cookies on `http://localhost`, which would break the dev flow. One way: add `Secure` only in the Worker (S45).
 - Carried, not re-asked: should CI run `pnpm dup:check` and `pnpm size` (or `pnpm verify`) via S62's `ci.yml` edit? Should `story_tip` read the ledger?
-
 ---
 
 ## 2026-10-29 — doc parity review (`amended`)
@@ -9387,7 +9237,6 @@ None found. S82 (db449f3) adds one blank-email check (`functions/src/services/ac
 - The new FEATURES bullet is served by S86 (design), S87 (cookie) and S79 (build). Nothing unserved.
 
 No Source lines changed. No owner questions.
-
 ---
 
 ## 2026-10-29 — backlog review answers (2026-10-29)
@@ -9402,7 +9251,6 @@ No Source lines changed. No owner questions.
 **Answers and what was applied**
 
 Owner, asked whether the deletion cookie should be Secure: "Secure on HTTPS only" — S87 AC 1 sets Secure when the request came over HTTPS and not on plain http (local dev).
-
 ---
 
 ## 2026-10-29 — S86 completed
@@ -9482,7 +9330,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — backlog review (`amended`)
@@ -9511,7 +9358,6 @@ functions build: Done
 **Check 3 — against the order.** Deletion is not launch-critical next to live data (S2, S3, S63), but S79's checkpoint already put the A4 flow on `main`; finishing S87 → S79 clears a half-shipped feature. Order kept.
 
 **Personal data / duplication.** S87's cookie value is a fixed marker cleared when read (AC 4); nothing new to sweep.
-
 ---
 
 ## 2026-10-29 — S87 completed
@@ -9591,7 +9437,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — S79 completed
@@ -9696,7 +9541,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — backlog review answers (2026-10-29)
@@ -9711,7 +9555,6 @@ functions build: Done
 **Answers and what was applied**
 
 Owner-directed in session (2026-10-29), answering whether CI should run pnpm dup:check and pnpm size or all of pnpm verify, and whether one shipping-commit lookup should replace two: "Yes" to both recommendations — S62 re-scoped (CI runs pnpm verify; law P11) and S88 inserted (story_tip reads the ledger), applied in d4bb16c. Logged as answers under the owner's 2026-10-29 rule that owner-directed backlog changes are not drift ("Seems unnecessary").
-
 ---
 
 ## 2026-10-29 — doc parity review answers (2026-10-29)
@@ -9726,7 +9569,6 @@ Owner-directed in session (2026-10-29), answering whether CI should run pnpm dup
 **Answers and what was applied**
 
 Owner-directed in session (2026-10-29): S88 added (Source: Feature: Robust core, as the owner chose for S84) and S62 re-scoped, applied in d4bb16c ("Yes"). Logged as answers under the owner's 2026-10-29 rule that owner-directed backlog changes are not drift.
-
 ---
 
 ## 2026-10-29 — S88 completed
@@ -9806,7 +9648,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — backlog review answers (2026-10-29)
@@ -9821,7 +9662,6 @@ functions build: Done
 **Answers and what was applied**
 
 Owner-directed in session (2026-10-29): "Increase the budget for S61 to five seconds. and we can figure out the problems later. Actually make it green at 2 1/2 seconds or lower, yellow under five seconds, and red over five seconds if it’s red, we are blocking. If it’s yellow, we’re warning, but allowing" (the Lighthouse budget, S62). Applied in 32fa981: ADR-026 amended (LCP warn over 2.5 s, block at 5 s); S62 AC 1 tiered. Asked whether it needs a review, the owner answered: "It does not need a review".
-
 ---
 
 ## 2026-10-29 — S62 completed
@@ -9905,7 +9745,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — doc parity review answers (2026-10-29)
@@ -9920,7 +9759,6 @@ functions build: Done
 **Answers and what was applied**
 
 Owner-directed in session (2026-10-29): "Increase the budget for S61 to five seconds. and we can figure out the problems later. Actually make it green at 2 1/2 seconds or lower, yellow under five seconds, and red over five seconds if it’s red, we are blocking. If it’s yellow, we’re warning, but allowing" (the Lighthouse budget, S62). Applied in 32fa981: ADR-026 amended (LCP warn over 2.5 s, block at 5 s) and S62 AC 1 tiered; no Source line changed. Asked whether it needs a review, the owner answered: "It does not need a review". S62 then shipped to that AC in b09cd7a.
-
 ---
 
 ## 2026-10-29 — S61 completed
@@ -10004,7 +9842,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — doc parity review (`continue`)
@@ -10048,7 +9885,6 @@ Scope: the six stories `pnpm parity:debt` named (S86, S87, S79, S88, S62, S61) p
 - No feature added this review; no FEATURES item newly unserved.
 
 No Source lines changed. No edits to INTENT or FEATURES. No owner questions.
-
 ---
 
 ## 2026-10-29 — S63 completed
@@ -10128,7 +9964,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — S65 completed
@@ -10203,7 +10038,6 @@ backlog: notes and BACKLOG.md are in sync
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — S65 completed
@@ -10285,7 +10119,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — S3 completed
@@ -10384,7 +10217,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — S2 completed
@@ -10496,7 +10328,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — S10 completed
@@ -10581,7 +10412,6 @@ backlog: out of date — run pnpm backlog:build. Would change:
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — S10 completed
@@ -10679,7 +10509,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — doc parity review answers (2026-10-29)
@@ -10694,7 +10523,6 @@ functions build: Done
 **Answers and what was applied**
 
 Owner, 2026-10-29, asked whether S89's insertion (with its Source line, Pillar: Delightful, approved in-session) needs its own review: "Do one backlog review, not two". No separate doc parity review for S89: its Source line was set by the owner's own words ("It's more about perf and customer benefit"; "Delightful") in 00111f4. The next scheduled or drift-triggered parity review still checks it. The backlog review that is due (7 stories done, S89 inserted) runs once and covers S89.
-
 ---
 
 ## 2026-10-29 — backlog review (`amended`)
@@ -10740,7 +10568,6 @@ One review for both triggers (owner, 2026-10-29: "Do one backlog review, not two
 **Questions for the owner (not blocking):**
 1. Should S89 also fix Lighthouse's 60-second wait for a server-ready line it never sees on CI (adds `lighthouserc.json` to S89's fence, which re-scopes a story whose pillar you approved)?
 2. Do you want a story now to bring Largest Contentful Paint under 2.5 s (both pages warn at about 3.2–3.3 s; `CHANGELOG.md` says "fixing that is next"), or keep it deferred?
-
 ---
 
 ## 2026-10-29 — backlog review answers (2026-10-29)
@@ -10758,7 +10585,6 @@ Owner, 2026-10-29, answering the review's two questions with "Yes, yes, stay def
 1. Should S89 also fix Lighthouse's 60 s wait for a ready line it never sees in CI? "Yes" — applied in 5ab10a7: lighthouserc.json added to S89's fence; new AC 4 (lhci sees the ready line, no timeout); Status AC renumbered to 6; the review's note marked answered.
 2. A story now for LCP under 2.5 s, or keep it deferred? "stay deferred" — no story added; the gap map row already records the deferral.
 Also applied in 5ab10a7 (not a review question): CLAUDE.md records the owner's rule that a review due by story count runs without asking whether an owner-directed change needs its own.
-
 ---
 
 ## 2026-10-29 — doc parity review answers (2026-10-29)
@@ -10773,7 +10599,6 @@ Also applied in 5ab10a7 (not a review question): CLAUDE.md records the owner's r
 **Answers and what was applied**
 
 Owner, 2026-10-29: "Yes" to widening S89 so Lighthouse starts when the app is ready (AC 4, lighthouserc.json in the fence), applied in 5ab10a7 as the answer to the backlog review's question — part of finishing that review, not new drift. S89's pillar citation (Delightful) stands as the owner approved it the same day ("It's more about perf and customer benefit"; "Delightful"): a faster, steadier CI fits it. The owner asked for one review, not two ("Do one backlog review, not two"); the next scheduled parity review still checks it.
-
 ---
 
 ## 2026-10-29 — doc parity review answers (2026-10-29)
@@ -10788,7 +10613,6 @@ Owner, 2026-10-29: "Yes" to widening S89 so Lighthouse starts when the app is re
 **Answers and what was applied**
 
 Owner, 2026-10-29, told S62's Gap / Impact rewording (by the backlog review in 3667a69, to the tiered LCP budget the owner set the same day) was not described in the previous parity answers entry: "Skip the doc parity review". No doc parity review is run for it.
-
 ---
 
 ## 2026-10-29 — backlog review answers (2026-10-29)
@@ -10803,7 +10627,6 @@ Owner, 2026-10-29, told S62's Gap / Impact rewording (by the backlog review in 3
 **Answers and what was applied**
 
 Owner, 2026-10-29, asked whether moving S64 before S41 (shared PitchSequence, MatchupCards, pitcherLine / batterLine and the speed formatter moved into S64; S41 reuses them) needs a backlog review: "No". The next scheduled or drift-triggered review still checks it.
-
 ---
 
 ## 2026-10-29 — S64 completed
@@ -10906,7 +10729,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-29 — backlog review answers (2026-10-29)
@@ -10921,7 +10743,6 @@ functions build: Done
 **Answers and what was applied**
 
 Owner, 2026-10-29, on whether inserting S90 / S92 / S91 (next-pitch prediction, commit 9ad7272) needs a backlog review: "No backlog review because these are going at the end of the backlog". No review run; the next scheduled or drift-triggered review checks them. The doc parity review due by story count (6 done) covers their Source lines and the FEATURES entry.
-
 ---
 
 ## 2026-10-29 — doc parity review (`continue`)
@@ -10957,7 +10778,6 @@ Owner, 2026-10-29, on whether inserting S90 / S92 / S91 (next-pitch prediction, 
 **For the next backlog review**
 
 - Every FEATURES row added this cycle (Next-pitch prediction) is served by S90/S91/S92. Nothing is unserved. If the owner answers "no" above, S91 Work item 4 and S92's "called it" frame need trimming.
-
 ---
 
 ## 2026-10-29 — doc parity review answers (2026-10-29)
@@ -10972,7 +10792,6 @@ Owner, 2026-10-29, on whether inserting S90 / S92 / S91 (next-pitch prediction, 
 **Answers and what was applied**
 
 Owner, 2026-10-29, asked "Did you choose that, after each pitch, the Live room shows whether the predicted pitch was right, with a running hit rate for the game?": "No, I don’t want to show that. I won’t even ship the prediction thing unless it’s pretty good". FEATURES Next-pitch prediction row: the right/wrong result removed, the ship-only-if-good condition added in the owner's words. For the next backlog review: trim S91 work item 4 (right/wrong and hit rate) and S92's "called it" state, and gate S91 on S90's evaluation meeting a bar the owner accepts.
-
 ---
 
 ## 2026-10-29 — S41 completed
@@ -11080,7 +10899,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-30 — S66 completed
@@ -11190,7 +11008,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-30 — S45 completed
@@ -11280,7 +11097,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-30 — backlog review (`amended`)
@@ -11334,7 +11150,6 @@ Trigger: drift event 7. S45 (65ddcfe) changed what `pnpm verify` runs (`function
 **Questions for the owner (not blocking the loop; S47 is parked):**
 1. **Should finished games be edge-cached with Workers Cache, which bills every request (static assets included), or with the Cache API (one data center, no billing change)?** ADR-021 wants an edge `s-maxage` with Tiered Cache, but a Worker runs before Cloudflare's cache, so headers alone cache nothing. Workers Cache gives exactly ADR-021 (tiered, honors `stale-while-revalidate`, no Worker run on a hit) and costs the standard request rate on requests that are free today. The Cache API keeps today's billing but caches per data center and still runs the Worker on every request. S47 waits on this.
 2. **In the Videos room, should "Featured team" narrow to your first favorite team playing in that game, else the home team?** S69 built it that way (`featuredTeamId`). FEATURES and VISUAL-DESIGN name a "Featured team" filter but don't say whose team, and the screenshots you'll judge for S69 can't show the rule.
-
 ---
 
 ## 2026-10-30 — S67 completed
@@ -11428,7 +11243,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-30 — backlog review answers (2026-10-30)
@@ -11446,7 +11260,6 @@ Owner, 2026-10-30, answering the 2026-10-30 backlog review and the S67 AC change
 1. S47's edge cache — Workers Cache or the Cache API? "Workers cache" — applied in 3d70149: S47 AC 6 enables Workers Cache in wrangler.jsonc, AC 5's README line names it and its billing, cap 12 → 13, status back to todo. Recording ADR-017's new cost line (every request billed at the Workers rate) is left to the next backlog review.
 2. Does the owner-directed change to S67 AC 3 (no pips; 6c0e367) need its own backlog review? "No review - the design already had it that way". Logged here; the next scheduled or drift review still checks it.
 3. S69's Featured team: "Featured team is just a way to filter or label videos. Most highlights feature a particular team - the team benefiting from the play". Not yet applied: S69 (parked) will change to it after one follow-up question on how the filter picks a team.
-
 ---
 
 ## 2026-10-30 — backlog review answers (2026-10-30)
@@ -11461,7 +11274,6 @@ Owner, 2026-10-30, answering the 2026-10-30 backlog review and the S67 AC change
 **Answers and what was applied**
 
 S47 AC 3 re-scope (owner-directed backlog change). Asked whether S47's AC 3 should require S17's own test (functions/src/services/refresh.test.ts) instead of scripts/verify-S17.sh, which only has to hold at S17's own commit (S84); owner: "sounds good" (and earlier: "These should only be expected to succeed against the codebase as it was when they were created... right?"). Asked whether the change needs a backlog review (recommended no); owner: "sounds good". No review; the next scheduled review checks it.
-
 ---
 
 ## 2026-10-30 — backlog review answers (2026-10-30)
@@ -11476,7 +11288,6 @@ S47 AC 3 re-scope (owner-directed backlog change). Asked whether S47's AC 3 shou
 **Answers and what was applied**
 
 S68 AC 2 (86cc816: collapsed bars centered, score between the teams, the state muted underneath; the favorite's module full-width at medium / desktop while anything is collapsed) and S69 AC 3 / AC 4 (7ae10cc: a sort with Impact as the default; the quick filters show as many as fit, then a Filters button opening a bottom drawer) are owner-directed backlog changes. Asked whether they need a backlog review (recommended no: both stay inside their own story, and nothing else builds on the collapsed bar or the Videos filter row); owner: "no". Asked whether Impact / Newest / Oldest is the right set of sort options; owner: "yes". No review; the next scheduled review checks them.
-
 ---
 
 ## 2026-10-30 — doc parity review (`amended`)
@@ -11511,7 +11322,6 @@ S68 AC 2 (86cc816: collapsed bars centered, score between the teams, the state m
 - **Ingest-only stories S99, S101, S102** keep data "ready for a view to use", and no story shows it yet. That matches the owner's "ingest" request. Flagged only so the review can see the gap from ingested data to a view.
 
 **Question for the owner:** should BT ingest the bdfed gameday config feed too, and if so, for what? It is the one URL from your list with no story (both variants, with and without appContext=mlb).
-
 ---
 
 ## 2026-10-30 — backlog review (`amended`)
@@ -11573,7 +11383,6 @@ The platform band (S47 → S48 → S18 / S19 → S20, then S50 / S51) is launch 
 1. Should the video play links (S93, S94, S95, then S98) move ahead of the platform work, or stay after the Postgres switch (S51)? See the report.
 2. Is it right that S102 changes the Standings headings to MLB's own short names ("AL East") and deletes BT's hand-kept list?
 3. Carried from the parity review: should BT ingest the gameday config feed? It is mlb.com app settings, not game data.
-
 ---
 
 ## 2026-10-30 — doc parity review (`amended`)
@@ -11607,7 +11416,6 @@ The platform band (S47 → S48 → S18 / S19 → S20, then S50 / S51) is launch 
 
 - **Savant ToS check has no owner.** S103's note asks for a terms-of-use check before the HTTP adapter calls `baseballsavant.mlb.com/gf` outside a recording, but no AC requires the check or a record of it. The backlog review should decide whether that needs an AC or stays a note.
 - **No view for Savant's extras**, like S99/S101/S102. The data is ingest-only by the owner's request. Flagged so the gap from ingested data to a view is visible.
-
 ---
 
 ## 2026-10-30 — S68 completed
@@ -11706,7 +11514,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-30 — S69 completed
@@ -11802,7 +11609,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-30 — backlog review answers (2026-10-30)
@@ -11817,7 +11623,6 @@ functions build: Done
 **Answers and what was applied**
 
 Asked whether S103 (Baseball Savant's per-pitch game feed, added by the owner at 8c59368 and checked by the doc parity review at 421b80c) needs its own backlog review. Owner, 2026-10-30: "S103: no". No backlog review runs for it; the next scheduled or drift-triggered review still checks S103 (including the doc parity review's note that its terms-of-use check had no AC, which the owner's "Sure" the same day turns into an AC — logged with that change).
-
 ---
 
 ## 2026-10-30 — backlog review answers (2026-10-30)
@@ -11839,7 +11644,6 @@ Owner answers, 2026-10-30, to the questions after 0fa2f7f (S104–S106 and S103 
 5. Japanese-language highlight reel: "Keep them where they are". No change.
 6. Videos room heading: "Use “Videos”". Applied at b8e9cc2.
 7. Correct VISUAL-DESIGN's "win probability is left out at launch" line: "Yes". Applied (§5a game-row slot row).
-
 ---
 
 ## 2026-10-30 — doc parity review answers (2026-10-30)
@@ -11861,7 +11665,6 @@ Owner answers, 2026-10-30, to the questions after 0fa2f7f (S104–S106 and S103 
 5. Japanese-language highlight reel: "Keep them where they are". No change.
 6. Videos room heading: "Use “Videos”". Applied at b8e9cc2.
 7. Correct VISUAL-DESIGN's "win probability is left out at launch" line: "Yes". Applied (§5a game-row slot row).
-
 ---
 
 ## 2026-10-30 — backlog review answers (2026-10-30)
@@ -11876,7 +11679,6 @@ Owner answers, 2026-10-30, to the questions after 0fa2f7f (S104–S106 and S103 
 **Answers and what was applied**
 
 Asked whether S107–S108 (the scoreboard Win Probability slot on live and final games, added at ab5f90a by owner direction) need a backlog review before S47. Owner, 2026-10-30: "No". Logged for backlog and parity; the next scheduled or drift-triggered review checks them.
-
 ---
 
 ## 2026-10-30 — doc parity review answers (2026-10-30)
@@ -11891,7 +11693,6 @@ Asked whether S107–S108 (the scoreboard Win Probability slot on live and final
 **Answers and what was applied**
 
 Asked whether S107–S108 (the scoreboard Win Probability slot on live and final games, added at ab5f90a by owner direction) need a backlog review before S47. Owner, 2026-10-30: "No". Logged for backlog and parity; the next scheduled or drift-triggered review checks them.
-
 ---
 
 ## 2026-10-30 — S47 completed
@@ -11975,7 +11776,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-30 — doc parity review (`continue`)
@@ -12011,7 +11811,6 @@ functions build: Done
 - No relic found: every item in the *More MLB game data* row has a story (S93 play metrics, S94 GraphQL content, S99 player of the game, S100 ABS rule settings, S101 uniforms, S102 division names, S103–S105 Savant).
 
 **For the next backlog review:** nothing new.
-
 ---
 
 ## 2026-10-30 — S48 completed
@@ -12101,7 +11900,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-30 — S18 completed
@@ -12189,7 +11987,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-31 — S70 completed
@@ -12283,7 +12080,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-10-31 — S19 completed
@@ -12385,7 +12181,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-11-02 — backlog review (`amended`)
@@ -12447,7 +12242,6 @@ Two independent fresh-context reviewers (A, B) reported without editing; merged 
 2. "If S110 goes ahead, may its Source cite the Dependable pillar, as the other budget stories (S54, S62) do?"
 
 S109 and S20 can proceed meanwhile; S110 waits on the answers, and S75 and S71 sit behind it.
-
 ---
 
 ## 2026-11-02 — backlog review answers (2026-11-02)
@@ -12465,7 +12259,6 @@ Owner answers to the 2026-11-02 design intake review's two questions:
 1. "The app's first download is 99 bytes under its 200 KB limit. Should the game, standings, search and settings pages load on demand (new story S110), or should the budget be raised?" Owner: "Lazy loading would be better, with chunked JS files." S110 stands as written (route-level `React.lazy`, so each page is its own chunk); the budget is unchanged.
 2. "If S110 goes ahead, may its Source cite the Dependable pillar, as the other budget stories (S54, S62) do?" Owner: "yes". S110's Source changes from `Open:` to `Pillar: Dependable … Approved by owner 2026-11-02`, and its frontmatter `source` from open to pillar.
 Applied in the commit named above. Nothing beyond the answers changed.
-
 ---
 
 ## 2026-11-02 — doc parity review (`continue`)
@@ -12494,7 +12287,6 @@ Applied in the commit named above. Nothing beyond the answers changed.
 **Check 3, coverage.** No features added this review. Nothing new for the next backlog review.
 
 No edits; no owner questions.
-
 ---
 
 ## 2026-11-02 — S110 completed
@@ -12575,7 +12367,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-11-02 — backlog review (`amended`)
@@ -12615,7 +12406,6 @@ Fresh-context single reviewer. Trigger: `/run-stories` stopped S5 before work it
 1. "What should highlight search look through at launch: only the games Baseball Theater has already saved (fast, and grows as the season is collected, but older seasons aren't searchable yet), or should it ask MLB's own search each time (covers everything, but every search becomes a request to MLB, which ADR-002 moved away from)? The architecture doc lists this as still open, so the Search page (S5) waits on your answer."
 
 Verdict `amended`: fence fixed, notes on S5, S73, S28, S50. S73, S28 and S50 can proceed; S5 stays `blocked` on the question and goes to `todo` when it is answered.
-
 ---
 
 ## 2026-11-02 — S50 completed
@@ -12699,7 +12489,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-11-02 — S109 completed
@@ -12790,7 +12579,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-11-02 — S20 completed
@@ -12879,7 +12667,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-11-02 — S71 completed
@@ -12973,7 +12760,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-11-02 — backlog review answers (2026-11-02)
@@ -12991,7 +12777,6 @@ Owner answers to the 2026-11-02 backlog review (fence: S5 needs packages/ports),
 "What should highlight search look through at launch: only the games Baseball Theater has already saved …, or should it ask MLB's own search each time …?"
 Owner: "MLB's own search on every query, for now. It can match the existing site (repo is called baseball-theater)."
 Applied in the commit named above: S5's notes say MlbStatsClient gains a highlight-search method calling MLB's GraphQL Search operation (fastball-gateway, as ~/Repos/BaseballTheater does), the fixture client answers from a recorded response, AC 8 stops and reports if MLB's results lack gamePk/teams/date, S94 and S5 share one gateway client, and the review's repository-search notes are superseded. ACs, fence and turn cap unchanged; S5 back to todo. Recording the decision as an ADR is left to the owner.
-
 ---
 
 ## 2026-11-02 — backlog review (`amended`)
@@ -13028,7 +12813,6 @@ Two independent fresh-context reviewers (A, B), merged. Both read A6/A7/A8 in fu
 **For the parity review.** FEATURES.md:214 and ADR-023:15 say "Install app row in Settings"; A8 makes it a dismissable tip at the top of Settings, still the owner's "quiet prompt in Settings".
 
 **Owner question (optional, not blocking).** "May S73's grader check 3 be edited to match A6 (its label and `-t \"Reload\"` filter becoming Update Now / Snooze), though rule 8 forbids editing a grader after it's written? Default: keep it, name the test truthfully, and note the stale label in the ledger."
-
 ---
 
 ## 2026-11-02 — S93 completed
@@ -13110,7 +12894,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-11-02 — doc parity review (`amended`)
@@ -13149,7 +12932,6 @@ functions build: Done
 1. ARCHITECTURE.md:1232 (ADR-023) still says "A quiet **Install app** row in Settings"; A8 makes it a dismissable tip at the top of Settings. ADR text is outside this review's write scope.
 2. Highlight search asking MLB on every query (owner, 2026-11-02) sits against ADR-002, which lists highlight search under "still open / later" (ARCHITECTURE.md:53) and says media/search needs its own ADR (ARCHITECTURE.md:553). The answers entry left recording it as an ADR to the owner; S5 should not ship without that decision written down or the gap acknowledged.
 3. No FEATURES item added this review; no new uncovered feature found.
-
 ---
 
 ## 2026-11-02 — backlog review answers (2026-11-02)
@@ -13164,7 +12946,6 @@ functions build: Done
 **Answers and what was applied**
 
 Owner-directed change: ADR-029 accepted (highlight search asks MLB on every query, for now), commit 7828fd9; owner, 2026-11-02: "Yes" to recording it as an ADR. Asked whether it needs the design intake / backlog and doc parity reviews, the owner said: "no reviedw needed". It records a decision already applied to S5 (689a706, answers f983e40) and FEATURES (1593751). The next scheduled or drift-triggered review still checks it.
-
 ---
 
 ## 2026-11-02 — doc parity review answers (2026-11-02)
@@ -13179,7 +12960,6 @@ Owner-directed change: ADR-029 accepted (highlight search asks MLB on every quer
 **Answers and what was applied**
 
 Owner-directed change: ADR-029 accepted (highlight search asks MLB on every query, for now), commit 7828fd9; owner, 2026-11-02: "Yes" to recording it as an ADR. Asked whether it needs the design intake / backlog and doc parity reviews, the owner said: "no reviedw needed". It records a decision already applied to S5 (689a706, answers f983e40) and FEATURES (1593751). The next scheduled or drift-triggered review still checks it.
-
 ---
 
 ## 2026-11-02 — backlog review answers (2026-11-02)
@@ -13194,7 +12974,6 @@ Owner-directed change: ADR-029 accepted (highlight search asks MLB on every quer
 **Answers and what was applied**
 
 Owner-directed backlog change: S111 (default scoreboard date, top priority), S112 (dev seed), S113 (production database), S114 (Cloudflare deploy) added and the order set to S111, S51, S112, S113, S114 ahead of S75 and the S4 / S73 / S28 rework, with everything at priority 75+ moved +5 (commit 1e63c09); FEATURES' Daily scoreboard row records the default-date rule in the owner's words; S112 / S113 / S114 cite Delightful / Dependable / Dependable (owner: "yes those are good pillars to use", commit 86de706). Asked whether it needs the backlog and doc parity reviews, the owner said: "no review needed, as these are all bundled together and should not affect the rest of the featureset". The next scheduled or drift-triggered review still checks it.
-
 ---
 
 ## 2026-11-02 — doc parity review answers (2026-11-02)
@@ -13209,7 +12988,6 @@ Owner-directed backlog change: S111 (default scoreboard date, top priority), S11
 **Answers and what was applied**
 
 Owner-directed backlog change: S111 (default scoreboard date, top priority), S112 (dev seed), S113 (production database), S114 (Cloudflare deploy) added and the order set to S111, S51, S112, S113, S114 ahead of S75 and the S4 / S73 / S28 rework, with everything at priority 75+ moved +5 (commit 1e63c09); FEATURES' Daily scoreboard row records the default-date rule in the owner's words; S112 / S113 / S114 cite Delightful / Dependable / Dependable (owner: "yes those are good pillars to use", commit 86de706). Asked whether it needs the backlog and doc parity reviews, the owner said: "no review needed, as these are all bundled together and should not affect the rest of the featureset". The next scheduled or drift-triggered review still checks it.
-
 ---
 
 ## 2026-11-02 — backlog review answers (2026-11-02)
@@ -13224,7 +13002,6 @@ Owner-directed backlog change: S111 (default scoreboard date, top priority), S11
 **Answers and what was applied**
 
 Owner-directed backlog change: S114 adds a staging target — every push to main deploys to stage.baseball.theater on a long-lived Neon staging branch, production at baseball.theater stays behind the production environment approval; ACs renumber, README AC adds staging, turn cap 16 -> 18; S113 / S114 notes record the non-secret production setup IDs (commit d86edde). Owner, 2026-11-02: "Yes, agreed." Asked whether it needs the backlog and doc parity reviews, the owner said: "no backlog change needed". The next scheduled or drift-triggered review still checks it.
-
 ---
 
 ## 2026-11-02 — doc parity review answers (2026-11-02)
@@ -13239,7 +13016,6 @@ Owner-directed backlog change: S114 adds a staging target — every push to main
 **Answers and what was applied**
 
 Owner-directed backlog change: S114 adds a staging target — every push to main deploys to stage.baseball.theater on a long-lived Neon staging branch, production at baseball.theater stays behind the production environment approval; ACs renumber, README AC adds staging, turn cap 16 -> 18; S113 / S114 notes record the non-secret production setup IDs (commit d86edde). Owner, 2026-11-02: "Yes, agreed." Asked whether it needs the backlog and doc parity reviews, the owner said: "no backlog change needed". The next scheduled or drift-triggered review still checks it.
-
 ---
 
 ## 2026-11-02 — backlog review (`amended`)
@@ -13279,7 +13055,6 @@ Fresh-context subagent (did not write these stories). Read 3e3a4a2 and 342f95c i
 **Verdict: `amended`.** S94 → `todo` with the fence fix and endpoint facts; six sibling ingest stories fenced the same way; S5, S106 notes; frame and baseline updated. Not `blocked`: the S5 question gates only S5 and S72, which were already parked, and the next three can start.
 
 **Owner question (gates S5 and S72 only).** Highlight search: MLB's `Search` on fastball-gateway takes only Film Room structured filters (`Description = [...]`, `HitResult = [...]`, `Season = [n]`), not free text, and `Description = ["walk-off"]` finds nothing; v2's free-text box used its own index. Which should launch search be — (a) BT's own search over stored games' highlight titles/blurbs (S50's GIN index), (b) MLB's structured filters exposed as filter choices instead of a free-text box, or (c) something else? ADR-029 and S5's ACs follow from the answer.
-
 ---
 
 ## 2026-11-02 — S94 completed
@@ -13361,7 +13136,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-11-03 — backlog review (`amended`)
@@ -13397,7 +13171,6 @@ Fresh-context subagent (did not write these stories). Read 929282c, efb09aa (S94
 **Personal-data sweep (ADR-028).** S94 adds MLB game content only (video ids, article slugs/headlines); no table, personal field, outside service or browser key; its only log lines are the pre-existing `functions/src/scripts/record-fixtures.ts:38,55` (file names and errors). S95, S96, S106 add none. None found.
 
 **Verdict: `amended`.** S95 → `todo` with `fixtures/` and cap 12; S98 and S108 widened the same way; notes on S95's challenge data and the one assembly point; frame (last review, pending drift) and baseline As of updated. Not `blocked`: no new owner question; the pending ones (S5's search source; S111 and S75 design matches; S51's `pnpm dev` check) gate only stories already parked.
-
 ---
 
 ## 2026-11-03 — S95 completed
@@ -13477,7 +13250,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-11-03 — backlog review answers (2026-11-02)
@@ -13492,7 +13264,6 @@ functions build: Done
 **Answers and what was applied**
 
 S5 (highlight search source). Owner, 2026-11-03: "Use the prior repo to see what to do." Applied: the prior site searched its own index of ingested highlights, so S5 searches BT's stored games through a repository query; ADR-029 amended; S5 back to todo.
-
 ---
 
 ## 2026-11-03 — backlog review answers (2026-11-02)
@@ -13507,7 +13278,6 @@ S5 (highlight search source). Owner, 2026-11-03: "Use the prior repo to see what
 **Answers and what was applied**
 
 S5 (highlight search source), corrected. Owner, 2026-11-03: "Use the prior repo to see what to do." then "Wait, are you sure search works that way on the existing site? Not a graphql query?" The prior site's search page asks MLB's GraphQL search with queryType FREETEXT; the earlier entry's reading (its own index, from its server) was wrong and its ADR-029 amendment is reverted (06baaf5). ADR-029 stands; S5 back to todo with the probe's findings.
-
 ---
 
 ## 2026-11-03 — S111 completed
@@ -13600,7 +13370,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-11-03 — S75 completed
@@ -13703,7 +13472,6 @@ functions build: Done
 ```
 
 </details>
-
 ---
 
 ## 2026-11-03 — backlog review skipped
@@ -13718,7 +13486,6 @@ functions build: Done
 **What changed, and the owner's answer**
 
 `pnpm verify` changed (a drift event): it now runs `pnpm build` (lint, then each package's typecheck and build) && dup:check && test:coverage && size, so lint and typecheck run once instead of twice; `pnpm build` drops its separate `pnpm typecheck`. In the same commit, Lighthouse CI stops waiting out its 60 s timeout (its ready pattern allows Vite's colour codes, and the preview starts once the API listens). Owner, 2026-11-03, asked whether to make the verify change, which sets off a backlog review: "Do both, skip the backlog review". No backlog review run for it; the next scheduled or drift-triggered review still checks it. The stories-done count stays at 3 (S95, S111, S75).
-
 ---
 
 ## 2026-11-04 — backlog review skipped
@@ -13733,7 +13500,6 @@ functions build: Done
 **What changed, and the owner's answer**
 
 The backlog tooling changed (owner-directed): the ledger is read through one parser (scripts/backlog-vault/ledger.ts) with a generated index, docs/v3/audit.jsonl; review-debt.sh, parity-debt.sh and review-gate.sh call it instead of their own heading patterns; the pre-commit test gate also runs the backlog tool's and tools' suites. It changes how review debt is computed (same results on the current ledger), not the stories. Owner, 2026-11-04, asked whether it needs a backlog review: "No". The stories-done count stays at 3 (S95, S111, S75).
-
 ---
 
 ## 2026-11-04 — backlog review skipped
@@ -13748,7 +13514,6 @@ The backlog tooling changed (owner-directed): the ledger is read through one par
 **What changed, and the owner's answer**
 
 The backlog frame changed (owner-directed): rule 17 now moves the replaced **As of** line to a new frame note, 06 Baseline history, which holds the 97 earlier As of entries unchanged; and a generated docs index, docs/v3/INDEX.md, is where agents start reading (CLAUDE.md, the review and run-stories skills). No story was added, removed, re-scoped or re-prioritized. Owner, 2026-11-04, asked whether it needs a backlog review: "No backlog review". The stories-done count stays at 3 (S95, S111, S75).
-
 ---
 
 ## 2026-11-04 — backlog review (`amended`)
@@ -13837,7 +13602,6 @@ The As of line was moved on. S75's previous As of line went to Baseline history.
 **Owner questions.** None new from this review. The decisions that are pending all belong to the owner's S96 ratification session (A5 Q1–Q3, A6 Q1–Q2) and to S51's `pnpm dev` check, and both are already asked by their own stories.
 
 **Verdict: `amended`.** Notes only: S97, S98, S106, S5. Also the baseline row, the As of line and the scheduling note. No AC, priority, status, fence or Source line changed. Not `blocked`: S5, S98 and S106 can start.
-
 ---
 
 ## 2026-11-04 — S98 completed
@@ -13915,7 +13679,6 @@ export const label = game.abbreviation + " @ ";  1059ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-04 — S96 completed
@@ -13995,7 +13758,6 @@ export const label = game.abbreviation + " @ ";  1176ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-04 — backlog review (`amended`)
@@ -14030,7 +13792,6 @@ export const label = game.abbreviation + " @ ";  1176ms
 2. When one at-bat has several clips, one `Video:` line per clip or one per at-bat? (Until answered, one per at-bat as drawn.)
 3. Should the play link show on cards when Hide Scores is on? No hidden frame draws it.
 4. Should Search's floating player get the play link too? If yes, that's a separate amendment and story, not S97.
-
 ---
 
 ## 2026-11-04 — doc parity review (`amended`)
@@ -14068,7 +13829,6 @@ Question for the owner (does not block): should a video played from Search's flo
 For the next backlog review:
 - ARCHITECTURE "Heuristic bootstrap (Phase A)" lists runs, late innings, event type and keywords but not win probability added (S98); outside parity's write scope.
 - The Search floating player play-link gap above, once the owner answers.
-
 ---
 
 ## 2026-11-04 — backlog review (`amended`)
@@ -14099,7 +13859,6 @@ Design intake review (`.claude/skills/design-intake-review/SKILL.md`), one fresh
 **For the parity review:** nothing.
 
 **Owner questions:** A7's three open questions, asked at S107's ratification; none new.
-
 ---
 
 ## 2026-11-04 — backlog review (`amended`)
@@ -14134,7 +13893,6 @@ Fresh-context backlog review, one reviewer, focused stage. Read: S89, S115, S98 
 **Other.** S90–S92 still lack Goal conditions and `/goal` commands (frame note updated). Parity: the 2026-11-04 parity review's queued items (ARCHITECTURE Phase A table lacks win probability added, `docs/v3/ARCHITECTURE.md:1400`; Search floating player play link) still wait on the owner; not in this review's scope to change.
 
 **Owner questions:** (1) Keep S89's widened AC 2 (a CI job that runs the design specs without capturing, so a broken one still turns CI red), or drop it and rely on S115 on request? (2) Move S89 and S115 above S5 and S99–S105, since those need live MLB recordings a cloud session can't make?
-
 ---
 
 ## 2026-11-04 — doc parity review (`continue`)
@@ -14168,7 +13926,6 @@ No story flipped to `done` since the last parity review (4599c77), so FEATURES' 
 Nothing new: no features added this review, and no FEATURES item newly unserved.
 
 **Edits:** none.
-
 ---
 
 ## 2026-11-04 — S89 completed
@@ -14250,7 +14007,6 @@ export const label = game.abbreviation + " @ ";  883ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-04 — S115 completed
@@ -14330,7 +14086,6 @@ export const label = game.abbreviation + " @ ";  1096ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-04 — S106 completed
@@ -14425,7 +14180,6 @@ export const label = game.abbreviation + " @ ";  723ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-04 — S97 completed
@@ -14526,7 +14280,6 @@ export const label = game.abbreviation + " @ ";  762ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-04 — S51 completed
@@ -14608,7 +14361,6 @@ export const label = game.abbreviation + " @ ";  792ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-04 — S112 completed
@@ -14690,7 +14442,6 @@ export const label = game.abbreviation + " @ ";  996ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-04 — backlog review (`amended`)
@@ -14729,7 +14480,6 @@ With S114 parked, the next 3 startable are S113, S5, S99 (S99: no deps, `todo`, 
 **Parity:** queued nothing for this review (2026-11-04 entry). A parity review is also due by count (`pnpm parity:debt`); no Source line edited here.
 
 **Owner questions:** (1) Should staging and preview databases start with no fans' data (schema-only Neon branches plus the dev seed), or be copies of production (then an ADR-028 amendment)? (2) Keep AC 7 (no `dev:` sign-in on deployed sites, so nobody can sign in there until Logto), and should a Logto story be sliced to land before the production release? (3) Who creates the staging Hyperdrive config, and do previews get their own (workflow-created per PR) or share staging's?
-
 ---
 
 ## 2026-11-04 — doc parity review (`amended`)
@@ -14781,7 +14531,6 @@ Fresh-context doc parity review, one reviewer. Read: INTENT, FEATURES (whole), t
 
 - No features added this review. FEATURES items still unserved by any startable story, unchanged from earlier reviews: Standings (S4 blocked), Update / changelist UX (S28, S73 blocked), Savant deep links, Multi-source knowledge, AI game companion, Inning / game insight pipeline, Whole-game record. Nothing new to slice.
 - Carried: ARCHITECTURE Phase A table (ARCHITECTURE:1400) still lacks win probability added (S98); outside parity scope.
-
 ---
 
 ## 2026-11-05 — backlog review answers (2026-11-04)
@@ -14796,7 +14545,6 @@ Fresh-context doc parity review, one reviewer. Read: INTENT, FEATURES (whole), t
 **Answers and what was applied**
 
 Owner, 2026-11-05, on the 2026-11-04 question "Should the staging and preview databases start with no fans' data, or be copies of production?": "No user data, copied baseball data". Applied to S114 as AC 9; S114 back to todo.
-
 ---
 
 ## 2026-11-05 — doc parity review answers (2026-11-04)
@@ -14811,7 +14559,6 @@ Owner, 2026-11-05, on the 2026-11-04 question "Should the staging and preview da
 **Answers and what was applied**
 
 Owner, 2026-11-05, on the 2026-11-04 question "Should the staging and preview databases start with no fans' data, or be copies of production?": "No user data, copied baseball data". Applied to S114 as AC 9; S114 back to todo.
-
 ---
 
 ## 2026-11-05 — S113 completed
@@ -14893,7 +14640,6 @@ export const label = game.abbreviation + " @ ";  1272ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-05 — backlog review answers (2026-11-04)
@@ -14908,7 +14654,6 @@ export const label = game.abbreviation + " @ ";  1272ms
 **Answers and what was applied**
 
 Owner, 2026-11-05. Q2 (sign-in off on deployed sites until Logto; a Logto story before production): "Yes it is ok re: logto, and add a logto story ahead of production". Added S116, which depends on S114; S114 notes the production release waits for it. Q3 (staging Hyperdrive config; previews own or shared): "Previews share staging db". Applied in S114 AC 1.
-
 ---
 
 ## 2026-11-05 — doc parity review answers (2026-11-04)
@@ -14923,7 +14668,6 @@ Owner, 2026-11-05. Q2 (sign-in off on deployed sites until Logto; a Logto story 
 **Answers and what was applied**
 
 Owner, 2026-11-05. Q1 (S115: Pillar: Delightful or Feature: Visual design): "Visual design". S115 Source changed. Q3 (Search floating player links its play): "Yes". Recorded in FEATURES, Video play links.
-
 ---
 
 ## 2026-11-05 — backlog review skipped
@@ -14938,7 +14682,6 @@ Owner, 2026-11-05. Q1 (S115: Pillar: Delightful or Feature: Visual design): "Vis
 **What changed, and the owner's answer**
 
 Owner, 2026-11-05, asked whether the owner-directed bootstrapping changes (9bded5f: migrate on every deploy, all bootstrapping idempotent; 7021372: bootstrapping steps as idempotent constants run on every deploy) need a backlog review: "Skip"
-
 ---
 
 ## 2026-11-05 — backlog review skipped
@@ -14953,7 +14696,6 @@ Owner, 2026-11-05, asked whether the owner-directed bootstrapping changes (9bded
 **What changed, and the owner's answer**
 
 Owner, 2026-11-05, asked whether the owner-directed bootstrapping changes (9bded5f: migrate on every deploy, all bootstrapping idempotent; 7021372: bootstrapping steps as idempotent constants run on every deploy) need a backlog review: "Skip"
-
 ---
 
 ## 2026-11-05 — backlog review (`amended`)
@@ -14991,7 +14733,6 @@ Owner, 2026-11-05, asked whether the owner-directed bootstrapping changes (9bded
 **Questions for the owner (non-blocking):** (1) Should preview deploys offer Logto sign-in, which registers each PR's address with Logto, or should previews have no sign-in? (2) Should S114's AC 9 (the baseball-data copy) become its own story to keep S114 smaller?
 
 Verdict **amended**: S114 and S116 notes edited, `pnpm backlog:build`, `pnpm backlog:check` passes.
-
 ---
 
 ## 2026-11-05 — backlog review answers (2026-11-05)
@@ -15006,7 +14747,6 @@ Verdict **amended**: S114 and S116 notes edited, `pnpm backlog:build`, `pnpm bac
 **Answers and what was applied**
 
 Owner, 2026-11-05. Previews and Logto sign-in: "Yes to Logto", applied in S116 AC 5 with cleanup on PR close. Split the baseball-data copy out of S114: "Its own story, before production launch, but it should be a manual step (to allow for local iteration not getting stomped)", now S117, with S114 AC 9 narrowed to the no-fans-data guarantee.
-
 ---
 
 ## 2026-11-05 — backlog review answers (2026-11-05)
@@ -15021,7 +14761,6 @@ Owner, 2026-11-05. Previews and Logto sign-in: "Yes to Logto", applied in S116 A
 **Answers and what was applied**
 
 Owner, 2026-11-05, clarifying the S117 answer ("local iteration not getting stomped"): "if I make changes to data and schemas that's different from production, it'll need to have data in staging that isn't present in production". Applied as S117 AC 3: additive copy, matching columns only, staging-only rows/tables/columns kept.
-
 ---
 
 ## 2026-11-06 — doc parity review (`continue`)
@@ -15063,7 +14802,6 @@ Fresh-context doc parity review, one reviewer. Read: INTENT (whole); FEATURES:8,
 - S114's Impact still says "every change can be previewed at its own address against a copy of the database"; after 79709f4 staging is schema-only and starts empty until S117's copy runs (AC 9). Story text, outside parity scope.
 - S116 lets people sign in on previews and staging (S116 AC 5, owner: "Yes to Logto"), which writes account and settings rows into the staging database; S114 AC 9 says "The staging branch never holds a fan's data". Check whether AC 9 means production fans' data only, and whether account deletion and ADR-028's inventory need to say anything about staging-only test accounts.
 - No features added this review. FEATURES items still unserved by any startable story, unchanged from the last review: Standings (S4 blocked), Update / changelist UX (S28, S73 blocked), Savant deep links, Multi-source knowledge, AI game companion, Inning / game insight pipeline, Whole-game record.
-
 ---
 
 ## 2026-11-06 — S114 completed
@@ -15155,7 +14893,6 @@ export const label = game.abbreviation + " @ ";  1044ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-06 — S118 completed
@@ -15237,7 +14974,6 @@ export const label = game.abbreviation + " @ ";  960ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-06 — backlog review (`blocked`)
@@ -15287,7 +15023,6 @@ Fresh-context backlog review, one reviewer, at `a3b095e` on `stage`. Trigger: S1
 **Questions for the owner (block S116):**
 1. Should staging and pull-request previews sign people in through a separate Logto tenant from production's, so their accounts are test accounts that never mix with real fans' (and may staging sign-in be limited to your own addresses)? Or should one tenant serve every environment, which needs ADR-028 to say how deleting an account on production also reaches staging's copy?
 2. Is your holding off merging `stage` into `main` until S116 is done enough to keep production from launching without sign-in, or should the production deploy job refuse to run until Logto is configured?
-
 ---
 
 ## 2026-11-06 — doc parity review (`blocked`)
@@ -15329,7 +15064,6 @@ Fresh-context review at `b781f36`. Scope: S118 (added), S114 (Impact changed, ci
 - ARCHITECTURE.md:631, :773 and :817 still describe Firebase-era deploys and call staging vs previews "still open", which S114 and S118 have settled; decide whether ADR text needs an owner-ratified amendment or a superseded note.
 
 **Carried question for the owner (asked 2026-11-06, unanswered):** S117 (copy production's baseball data into staging, by hand) was split out of S114, which cites the Dependable pillar with your approval. Does that approval cover S117, or should it cite something else?
-
 ---
 
 ## 2026-11-06 — backlog review answers (2026-11-06)
@@ -15344,7 +15078,6 @@ Fresh-context review at `b781f36`. Scope: S118 (added), S114 (Impact changed, ci
 **Answers and what was applied**
 
 Owner, 2026-11-06. Q1, separate Logto tenant for staging and previews: "We will use a staging one or a fake shim". Applied in S116 AC 5: staging and previews never use production's tenant (a staging Logto tenant or a fake identity shim), so staging's accounts are test accounts and S114 AC 9 holds; production's Logto vars and machine-to-machine secret appear only in env.production and the production job; README's manual setup lists the staging tenant or the shim. Notes: a shim on a deployed site conflicts with S114 AC 7 / AC 2 as they stand, so choosing it means asking first; the aside about limiting staging sign-in to the owner's addresses was not answered. Turn cap 22 -> 23 (second tenant's vars and secret kept apart per environment). S116 back to `todo`. Q2, whether holding off the merge is enough: "It is enough, because the actual production release gate is changing the DNS away from the elastic beanstalk destination". Recorded in S116's notes (no Logto check in the production job; README:190's launch-checklist line to be reworded by S116, whose fence holds README). Caveat recorded and raised with the owner: `wrangler.jsonc:119` attaches `baseball.theater` as a Workers custom domain, and `wrangler deploy` in CI overrides an existing DNS record for it, so the first production deploy would itself move the DNS off Elastic Beanstalk.
-
 ---
 
 ## 2026-11-06 — doc parity review answers (2026-11-06)
@@ -15359,7 +15092,6 @@ Owner, 2026-11-06. Q1, separate Logto tenant for staging and previews: "We will 
 **Answers and what was applied**
 
 Owner, 2026-11-06. Carried question, which pillar or feature S117 (copy production's baseball data into staging, by hand) cites: "Delightful, bc it makes testing much faster in stage". Applied: S117's **Source:** is now "Pillar: Delightful — developers too: staging that already holds production's games, schedules and videos makes testing on stage.baseball.theater much faster", quoting the owner's approval (frontmatter `source: pillar`); the S117 note's "waits on its Source" bullet records the answer, so S117 may start.
-
 ---
 
 ## 2026-11-07 — backlog review skipped
@@ -15374,7 +15106,6 @@ Owner, 2026-11-06. Carried question, which pillar or feature S117 (copy producti
 **What changed, and the owner's answer**
 
 Owner, 2026-11-07, asked "Does this S116 change need a backlog review, or should I log a skip? ... I'd lean toward skip." (and again: "Does the S116 change need a backlog review, or should I log a skip? I'd skip it."): "Agreed and yes" — "Agreed" answers the skip question.
-
 ---
 
 ## 2026-11-07 — S119 completed
@@ -15454,7 +15185,6 @@ export const label = game.abbreviation + " @ ";  794ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-07 — backlog review skipped
@@ -15469,7 +15199,6 @@ export const label = game.abbreviation + " @ ";  794ms
 **What changed, and the owner's answer**
 
 Owner, 2026-11-07, asked "Should I log skips for the backlog and doc parity reviews that S119 triggered, or run them? I'd skip both.": "1. Skip"
-
 ---
 
 ## 2026-11-07 — doc parity review skipped
@@ -15484,7 +15213,6 @@ Owner, 2026-11-07, asked "Should I log skips for the backlog and doc parity revi
 **What changed, and the owner's answer**
 
 Owner, 2026-11-07, asked "Should I log skips for the backlog and doc parity reviews that S119 triggered, or run them? I'd skip both.": "1. Skip"
-
 ---
 
 ## 2026-11-07 — backlog review skipped
@@ -15499,7 +15227,6 @@ Owner, 2026-11-07, asked "Should I log skips for the backlog and doc parity revi
 **What changed, and the owner's answer**
 
 Owner, 2026-11-07, asked "Should I log a skip for the review, or run a backlog review first?" after S116's fence was widened to packages/domain/src/ and packages/domain/vitest.config.ts with the owner's "Yes it's okay": "Skip"
-
 ---
 
 ## 2026-11-07 — S116 completed
@@ -15583,7 +15310,6 @@ export const label = game.abbreviation + " @ ";  823ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-07 — S4 completed
@@ -15684,7 +15410,6 @@ export const label = game.abbreviation + " @ ";  979ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-07 — S120 completed
@@ -15770,7 +15495,6 @@ export const label = game.abbreviation + " @ ";  1059ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-07 — backlog review skipped
@@ -15785,7 +15509,6 @@ export const label = game.abbreviation + " @ ";  1059ms
 **What changed, and the owner's answer**
 
 Owner, 2026-11-07, asked "Should I skip the backlog and doc parity reviews for S120, or run them? I'd skip both.": "Skip"
-
 ---
 
 ## 2026-11-07 — doc parity review skipped
@@ -15800,7 +15523,6 @@ Owner, 2026-11-07, asked "Should I skip the backlog and doc parity reviews for S
 **What changed, and the owner's answer**
 
 Owner, 2026-11-07, asked "Should I skip the backlog and doc parity reviews for S120, or run them? I'd skip both.": "Skip"
-
 ---
 
 ## 2026-11-07 — S121 completed
@@ -15884,7 +15606,6 @@ export const label = game.abbreviation + " @ ";  996ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-07 — backlog review skipped
@@ -15899,7 +15620,6 @@ export const label = game.abbreviation + " @ ";  996ms
 **What changed, and the owner's answer**
 
 Owner, 2026-11-07, asked "Should I skip the backlog and doc parity reviews for S121, or run them? I'd skip.": "2 skip"
-
 ---
 
 ## 2026-11-07 — doc parity review skipped
@@ -15914,7 +15634,6 @@ Owner, 2026-11-07, asked "Should I skip the backlog and doc parity reviews for S
 **What changed, and the owner's answer**
 
 Owner, 2026-11-07, asked "Should I skip the backlog and doc parity reviews for S121, or run them? I'd skip.": "2 skip"
-
 ---
 
 ## 2026-11-07 — S28 completed
@@ -16013,7 +15732,6 @@ export const label = game.abbreviation + " @ ";  1057ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-07 — S73 design match
@@ -16037,7 +15755,6 @@ export const label = game.abbreviation + " @ ";  1057ms
 | `docs/v3/visual/shell-scoreboard/amendments/A6.md` | `55b71163fbc40aaa8cee23ed1b76db31c00e54bfa95f2915cf8c4b30c2fd1899` | `docs/v3/design-checks/S73/shell-update-medium.png` | `2e0f8af3534025f1ed6e850b3a557efa705bf12344459a5581d7ef0170d9e9a3` |
 | `docs/v3/visual/shell-scoreboard/amendments/A6.md` | `55b71163fbc40aaa8cee23ed1b76db31c00e54bfa95f2915cf8c4b30c2fd1899` | `docs/v3/design-checks/S73/shell-update-mobile.png` | `8a863a0556af488ebf28cbec42efbc1950dda9c8e7ee0a11765afc6905de4738` |
 Owner: "Owner, 2026-11-07, shown the S73 captures (taken on GitHub, 22eba97) beside A6's and A8's written amendments and the scoreboard-standalone frame via `pnpm design:review S73`, asked "Do S73 and S28 match their designs now?": "1 yes". Then, told S73 would get this verdict recorded while its Docker-only Playwright flows (AC 6) wait for an environment with Docker: "Go head"."
-
 ---
 
 ## 2026-11-07 — backlog review (`amended`)
@@ -16088,7 +15805,6 @@ Fresh-context backlog review, one reviewer, at `f34576a` on `stage`. Trigger: co
 1. May ADR-013 get a dated note at its head saying deploys are now Cloudflare through `deploy.yml` (a preview per pull request, staging on `stage`, production on a published GitHub Release), so its Firebase deploy row (ARCHITECTURE.md:773) and the open "staging project vs preview channels" item (:817) read as settled?
 2. May ADR-028's inventory Browser row add Logto's sign-in keys and the sign-in return page (kept in the tab's own storage until sign-in finishes, cleared on sign-out and deletion)?
 3. S73 is done except AC 6's Playwright flows, which need Docker this cloud session can't pull (CI runs them on every pull request). Will you finish it on a machine with Docker, or should its AC 6 accept the flows passing in CI on its pull request?
-
 ---
 
 ## 2026-11-07 — doc parity review (`amended`)
@@ -16134,7 +15850,6 @@ Fresh-context review at `cd88229`. Scope: the six stories done since `03a72ef` (
 **For the next backlog review**
 
 - Still unserved: FEATURES, Video play links — "A video played from Search's floating player links to its play too" (owner, 2026-11-05: "Yes"); no design amendment or story builds it yet (S5's note :119 waits on one).
-
 ---
 
 ## 2026-11-07 — backlog review answers (2026-11-07)
@@ -16150,7 +15865,6 @@ Fresh-context review at `cd88229`. Scope: the six stories done since `03a72ef` (
 
 - **Question 3** ("S73 is done except AC 6's Playwright flows, which need Docker this cloud session can't pull (CI runs them on every pull request). Will you finish it on a machine with Docker, or should its AC 6 accept the flows passing in CI on its pull request?"; put to the owner as "Will you finish S73 yourself on a machine with Docker, or should its AC 6 count the Playwright flows passing in CI on its pull request?"). Owner, 2026-11-07: "4 passing in ci". **Applied** in `86ea13e`: S73's note records the answer; AC 6's S62 flows are proven by GitHub CI's `flows` job concluding `success` on a commit in HEAD's history that descends from S73's checkpoint `9d64162` and holds `e2e/flows/update.spec.ts` as in the tree; the S54 size budget stays a local check. `scripts/verify-S73.sh` check 6 reads that run through the GitHub REST API (rule 7: updated before S73 shipped; shown red when the spec differs from what CI ran). AC wording unchanged.
 - Questions 1 (ADR-013 dated note) and 2 (ADR-028 Browser row) are not answered here and stay pending.
-
 ---
 
 ## 2026-11-07 — S73 completed
@@ -16252,7 +15966,6 @@ export const label = game.abbreviation + " @ ";  1016ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-07 — backlog review answers (2026-11-07)
@@ -16267,7 +15980,6 @@ export const label = game.abbreviation + " @ ";  1016ms
 **Answers and what was applied**
 
 Owner, 2026-11-07, asked "May ADR-013 get a dated note at its head saying deploys are now Cloudflare through deploy.yml?" and "May ADR-028's inventory Browser row also list Logto's sign-in keys and the 'return to this page after sign-in' key?": "2 and 3 - change both". Applied as a dated note under ADR-013's heading and an extended Browser row in ADR-028's inventory.
-
 ---
 
 ## 2026-11-07 — doc parity review skipped
@@ -16282,7 +15994,6 @@ Owner, 2026-11-07, asked "May ADR-013 get a dated note at its head saying deploy
 **What changed, and the owner's answer**
 
 Owner, 2026-11-07, asked "Should I skip the doc parity review for the ADR-013 and ADR-028 wording fixes, or run it? I'd skip.": "Skip"
-
 ---
 
 ## 2026-11-07 — backlog review (`amended`)
@@ -16336,7 +16047,6 @@ Fresh-context backlog review, one reviewer, at `797e868` on `backlog/backfill-an
 **Questions for the owner (non-blocking):**
 1. S117 (copy production's baseball data into staging) was next before the DNS cutover, and now sits below the five stories you added today (S126, S122–S125). Should S117 go first, or does the new order stand?
 2. I added a design story, S127, for the play link in Search's floating player (you said "Yes" on 2026-11-05 to that link, but nothing drew or built it). Is that the right next step, and should it come before S5 (Search) or after?
-
 ---
 
 ## 2026-11-07 — doc parity review (`amended`)
@@ -16381,7 +16091,6 @@ Fresh-context doc parity review at `196b98b` on `backlog/backfill-and-calendar` 
 **Edits:** `docs/v3/FEATURES.md` (Video play links row, one clause). `pnpm backlog:build` and `pnpm backlog:check` clean.
 
 **Questions for the owner:** none.
-
 ---
 
 ## 2026-11-07 — backlog review (`amended`)
@@ -16427,7 +16136,6 @@ Fresh-context backlog review, one reviewer, at `e7deda1` on `backlog/backfill-an
 **Amendments:** S124 (AC 2; four notes; reuse check), S122 (note), frame 00 (Last review block; pending-drift item records the S127-vs-S5 question as still open).
 
 **Questions for the owner:** none new. Pending from the review at `797e868`: S117 before S122–S126?; S127 before or after S5?
-
 ---
 
 ## 2026-11-07 — backlog review answers (2026-11-07)
@@ -16444,7 +16152,6 @@ Fresh-context backlog review, one reviewer, at `e7deda1` on `backlog/backfill-an
 Asked by the 2026-11-07 backlog review (196b98b): "S117 (copy production's baseball data into staging) was next before the DNS cutover, and now sits below the five stories you added today (S126, S122–S125). Should S117 go first, or does the new order stand?" Owner, 2026-11-07: "No, it should go after the hydration story". Applied in 953c8d9: S117 priority 80 → 71 (right after S122 at 70); S123 → 72, S124 → 73, S125 → 74.
 Also asked whether S124's Copilot-driven AC rewrite needed a backlog review (it was run anyway, a5bdd5f). Owner: "This shouldn't even trigger a question. Always skip." CLAUDE.md now says review-feedback AC rewrites are always skipped without asking.
 The other question (whether S127 comes before or after S5) is still open.
-
 ---
 
 ## 2026-11-07 — backlog review answers (2026-11-07)
@@ -16459,7 +16166,6 @@ The other question (whether S127 comes before or after S5) is still open.
 **Answers and what was applied**
 
 Asked by the 2026-11-07 backlog review (196b98b): "I added a design story, S127, for the play link in Search's floating player (you said "Yes" on 2026-11-05 to that link, but nothing drew or built it). Is that the right next step, and should it come before S5 (Search) or after?" Owner, 2026-11-07: "S127: make it “Go to: Game ->  •  At-Bat ->” instead of the one link that us there now, but with actual arrow Unicode characters". Applied in 2c7326c: S127 kept at priority 89 (before S5); its ACs and FEATURES' Video play links row now specify Search's player link as `Go to: Game →  •  At-Bat →`.
-
 ---
 
 ## 2026-11-07 — backlog review skipped
@@ -16474,7 +16180,6 @@ Asked by the 2026-11-07 backlog review (196b98b): "I added a design story, S127,
 **What changed, and the owner's answer**
 
 S122's AC 4, 7 and 8 and S124's AC 3 were rewritten in 6fdee19 to answer Copilot's review of PR #10. Standing owner answer (2026-11-07, asked whether such a rewrite needed a backlog review): "This shouldn't even trigger a question. Always skip."
-
 ---
 
 ## 2026-11-07 — doc parity review (`continue`)
@@ -16505,7 +16210,6 @@ Proportionate review of the one FEATURES change since 6c465c9 (2c7326c), plus th
 
 3. Coverage
 - No new FEATURES items. The row's "no story builds it yet" (the floating player's At-Bat link in code) was already carried to the backlog review by the 6c465c9 parity entry; still open, still S127-gated.
-
 ---
 
 ## 2026-11-07 — backlog review skipped
@@ -16520,7 +16224,6 @@ Proportionate review of the one FEATURES change since 6c465c9 (2c7326c), plus th
 **What changed, and the owner's answer**
 
 Owner-directed backlog change: S128 (Standings follow the season), S129 (design: spring training label), S130 (the label), inserted in 909e7e4 and refined in ea04055, e3f27a2, 0b35af2 after a three-pass pre-PR review (14 findings fixed, last pass clean). Asked whether they need a backlog review or a skip: owner, 2026-11-07: "Skip".
-
 ---
 
 ## 2026-11-07 — doc parity review skipped
@@ -16535,7 +16238,6 @@ Owner-directed backlog change: S128 (Standings follow the season), S129 (design:
 **What changed, and the owner's answer**
 
 Owner-directed: FEATURES' Standings row quotes the owner ("Yes, it should always show the last standings for the prior season until spring training’s first game"; "Agreed"; "first regular season game"), and S128–S130 cite Feature: Standings. Asked whether they need a doc parity review or a skip: owner, 2026-11-07: "Skip".
-
 ---
 
 ## 2026-11-08 — S126 completed
@@ -16613,7 +16315,6 @@ export const label = game.abbreviation + " @ ";  872ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-08 — S128 completed
@@ -16701,7 +16402,6 @@ export const label = game.abbreviation + " @ ";  952ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-08 — S128 completed
@@ -16789,7 +16489,6 @@ export const label = game.abbreviation + " @ ";  1048ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-08 — S128 completed
@@ -16877,7 +16576,6 @@ export const label = game.abbreviation + " @ ";  862ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-08 — S128 completed
@@ -16965,7 +16663,6 @@ export const label = game.abbreviation + " @ ";  867ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-08 — S128 completed
@@ -17053,7 +16750,6 @@ export const label = game.abbreviation + " @ ";  945ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-08 — S122 completed
@@ -17147,7 +16843,6 @@ export const label = game.abbreviation + " @ ";  877ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-08 — S122 completed
@@ -17241,7 +16936,6 @@ export const label = game.abbreviation + " @ ";  956ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-08 — S117 completed
@@ -17325,7 +17019,6 @@ export const label = game.abbreviation + " @ ";  1010ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-08 — S117 completed
@@ -17409,7 +17102,6 @@ export const label = game.abbreviation + " @ ";  850ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-08 — backlog review (`amended`)
@@ -17479,7 +17171,6 @@ Fresh-context subagent review. Trigger: S131–S135 inserted outside a review (o
 4. The API accepts impossible dates like `2026-02-30` in `/api/v1/schedule` and its siblings (shape check only). Should they become a 400 through the same date check the backfill uses? If yes, it folds into S124.
 
 **Verdict: `amended`** — S124, S130, S131, S132, S133, S134, S135 and the Backlog reviews scheduling notes edited; `pnpm backlog:build` and `pnpm backlog:check` pass.
-
 ---
 
 ## 2026-11-08 — doc parity review (`amended`)
@@ -17510,7 +17201,6 @@ Scope: S131–S135 (named by `pnpm parity:debt`) plus the next 3 `todo` by prior
 For the next backlog review: none.
 
 Owner questions: none.
-
 ---
 
 ## 2026-11-09 — backlog review answers (2026-11-08)
@@ -17525,7 +17215,6 @@ Owner questions: none.
 **Answers and what was applied**
 
 Owner, 2026-11-08: 1. rail version line: "Follow semver". 2. v3.1.0 notes until S131: "GitHub Release notes". 3. S131 deploy step: "This is the go-ahead". 4. impossible API dates as 400: "No, leave as is".
-
 ---
 
 ## 2026-11-09 — backlog review skipped
@@ -17540,7 +17229,6 @@ Owner, 2026-11-08: 1. rail version line: "Follow semver". 2. v3.1.0 notes until 
 **What changed, and the owner's answer**
 
 S131, S132, S133 and S135 acceptance criteria rewritten in d843d8f to answer the pre-PR review of this pull request (LOOP §7), before it opened. Skipped under the owner's rule for review-driven rewrites (owner, 2026-11-07, asked whether ACs rewritten to answer a pull request's review need a backlog review: "This shouldn't even trigger a question. Always skip."), read as covering a reviewer's review of the pull request before it opens; the owner can overrule.
-
 ---
 
 ## 2026-11-09 — backlog review (`amended`)
@@ -17579,7 +17267,6 @@ Design intake review (`.claude/skills/design-intake-review/SKILL.md`), two indep
 3. **When S124 returns `null` (unknown) rather than `0`, should that day look dimmed like a no-game day?** A8 draws only an undimmed loading state; S125 AC 2 dims unknown; S124's note says the same unless the design says otherwise.
 
 Plus A8's own four open questions, asked at S123's ratification.
-
 ---
 
 ## 2026-11-09 — backlog review (`amended`)
@@ -17603,7 +17290,6 @@ Plus A8's own four open questions, asked at S123's ratification.
 - **Previous intake's questions:** Q1 (skip intakes on draft-only amendments) restated, still open and strengthened: this is the fourth draft-only intake, S123's A8 twice. Q2 (year-view totals) is now carried as A8's own open question Q5. Q3 (whether `count: null` dims) is answered by the draft (A8.md:87), superseded pending ratification.
 - **Note for S123's ratification ask (not a backlog change):** should A8 draw the prose-only states (muted `Today`; year view loading / failed / 1901) before the owner ratifies it?
 - No new owner questions. No file under `docs/v3/visual/` edited.
-
 ---
 
 ## 2026-11-09 — S124 completed
@@ -17685,7 +17371,6 @@ export const label = game.abbreviation + " @ ";  321ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-09 — S124 completed
@@ -17767,7 +17452,6 @@ export const label = game.abbreviation + " @ ";  464ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-09 — backlog review skipped
@@ -17782,7 +17466,6 @@ export const label = game.abbreviation + " @ ";  464ms
 **What changed, and the owner's answer**
 
 Asked (2026-11-09) whether the owner-directed S124 note recording "Reject past next year" (months after December of next year answer 400, narrowing AC 2's "or the future"; committed in a6ae3f3) needs a backlog review, the owner answered: "No, skip it (Recommended)".
-
 ---
 
 ## 2026-11-09 — backlog review (`amended`)
@@ -17813,7 +17496,6 @@ Design intake review (`.claude/skills/design-intake-review/SKILL.md`), two indep
 **Owner questions.**
 
 1. **Should the review-debt check skip draft amendments marked "Draft, not ratified."?** Restated from the A8 intakes (bc694a5), still unanswered and strengthened: this is the fifth draft-only intake (S96, S107, S123 twice, S129), each able to record only a reading-aid note, while the real intake fires again at ratification. `scripts/review-debt.sh` fires on any change under `docs/v3/visual/*/amendments/*.md`; changing it is outside a review's write scope, so it is the owner's call.
-
 ---
 
 ## 2026-11-09 — backlog review (`amended`)
@@ -17844,7 +17526,6 @@ Design intake review (`.claude/skills/design-intake-review/SKILL.md`), two indep
 **Owner questions.**
 
 1. **Should the review-debt check skip draft amendments marked "Draft, not ratified."?** Restated from the A8 intakes (bc694a5), still unanswered: this is the sixth draft-only intake (S96, S107, S123 twice, S129, S133), each able to record only a reading-aid note, while the real intake fires again at ratification. `scripts/review-debt.sh` fires on any change under `docs/v3/visual/*/amendments/*.md`; changing it is outside a review's write scope, so it is the owner's call.
-
 ---
 
 ## 2026-11-09 — backlog review skipped
@@ -17859,7 +17540,6 @@ Design intake review (`.claude/skills/design-intake-review/SKILL.md`), two indep
 **What changed, and the owner's answer**
 
 Owner-directed backlog change b262eda (2026-11-09): three stories added (S136 the teams playing each day in the month counts; S137 and S138 the Standings date picker design and build), acceptance criteria rewritten in S123 and S125 (native month and year pickers, the favorite-team mark) and in S133 and S135 (one "update complete" box after updating, never two boxes), and the owner's words added to three FEATURES rows. Asked "Does the backlog change you directed today need a full backlog review and doc parity review before I go on?", with the options to skip both, run both, or run the backlog review only, the owner answered: "No, skip both (Recommended)". The fresh-context pre-PR review (LOOP.md section 7) still runs on the whole diff before its pull request opens, and the next scheduled or drift-triggered review still checks these stories.
-
 ---
 
 ## 2026-11-09 — doc parity review skipped
@@ -17874,7 +17554,6 @@ Owner-directed backlog change b262eda (2026-11-09): three stories added (S136 th
 **What changed, and the owner's answer**
 
 Owner-directed backlog change b262eda (2026-11-09): three stories added (S136 the teams playing each day in the month counts; S137 and S138 the Standings date picker design and build), acceptance criteria rewritten in S123 and S125 (native month and year pickers, the favorite-team mark) and in S133 and S135 (one "update complete" box after updating, never two boxes), and the owner's words added to three FEATURES rows. Asked "Does the backlog change you directed today need a full backlog review and doc parity review before I go on?", with the options to skip both, run both, or run the backlog review only, the owner answered: "No, skip both (Recommended)". The fresh-context pre-PR review (LOOP.md section 7) still runs on the whole diff before its pull request opens, and the next scheduled or drift-triggered review still checks these stories.
-
 ---
 
 ## 2026-11-10 — backlog review skipped
@@ -17889,7 +17568,6 @@ Owner-directed backlog change b262eda (2026-11-09): three stories added (S136 th
 **What changed, and the owner's answer**
 
 Not asked. a4a28d2 rewrites acceptance criteria and notes of S123, S125, S133, S135, S136, S137 and S138 to answer the pre-PR review of b262eda (two fresh-context reviewers with the Copilot-class checklist, before the pull request opened). The owner's standing rule for that (2026-11-07, asked whether such a rewrite needed a backlog review): "This shouldn't even trigger a question. Always skip." This is read as covering a pre-PR reviewer's findings as well as Copilot's; the owner can overrule it. Two parts of a4a28d2 go beyond rewording an AC, and the next scheduled or drift-triggered backlog review still checks them: S137's scope fence gains docs/v3/FEATURES.md (so the owner's answers about Standings can be written there, rule 19), and S136 gains a new AC 4 (one tested packages/domain function saying whether a month has games, none, or is unknown, for S125's off-season line). The doc parity question for a4a28d2's two FEATURES edits (the Update / changelist UX row and the Installable app bullet) has been put to the owner and is not skipped here.
-
 ---
 
 ## 2026-11-10 — doc parity review (`amended`)
@@ -17925,7 +17603,6 @@ For the next backlog review:
 Owner questions (none blocks the next story):
 
 1. **Should the "update available" notice still list the new version's big additions?** On 2026-11-08 you asked for them on both notices ("Both"). On 2026-11-09 you took them off the notification after updating ("Image 2 is weird, no need to show that") and said "There shouldn’t be two boxes ever." Neither answer said whether the update-available notice keeps its list, and image 1, which you said "looks good", listed none. FEATURES and S135 currently keep the list on the update-available notice, with its link, Snooze and Update Now, and say you will be asked when S133's redrawn draft is shown. Yes: nothing changes. No: the notice shows only its link, and S132's "what's new since version X" request and S135 AC 2 lose their purpose and are re-scoped.
-
 ---
 
 ## 2026-11-10 — backlog review (`amended`)
@@ -17985,7 +17662,6 @@ Backlog review (`.claude/skills/backlog-review/SKILL.md`), one fresh-context rev
 1. On the first morning of spring training, before any spring game has been played, should Standings keep showing last season's final table as the regular season view, and should the switch offer a spring training view that is still empty?
 2. When the calendar is open as a sheet on a phone, should the phone's Back button close the sheet and stay on the day, or leave the page?
 3. If the privacy policy and user agreement aren't written yet when the footer's design is approved, may the footer ship without those two links, or does the whole footer wait for them?
-
 ---
 
 ## 2026-11-10 — doc parity review (`amended`)
@@ -18033,7 +17709,6 @@ Fresh-context review at `29e8c9e`, after the owner's 2026-11-10 answers (`2e6ae4
 
 1. Should "Fetched … ago" go from every page, even though the docs list visible freshness as one of your debuggability requirements? — see finding 9.
 2. Does "how the site is made" go in the footer, on the about page, or on a page of its own? — see finding 10.
-
 ---
 
 ## 2026-11-10 — backlog review skipped
@@ -18048,7 +17723,6 @@ Fresh-context review at `29e8c9e`, after the owner's 2026-11-10 answers (`2e6ae4
 **What changed, and the owner's answer**
 
 Acceptance criteria of S123, S130, S133, S135, S139, S140, S141 and S142 were rewritten to answer the pre-PR review of this branch (LOOP.md section 7). Owner, 2026-11-07, asked whether such a rewrite needs a backlog review: "This shouldn't even trigger a question. Always skip."
-
 ---
 
 ## 2026-11-10 — backlog review (`amended`)
@@ -18102,7 +17776,6 @@ S133 / S135 (parity queue, items 11): **amended** wording only — the retired-v
 **Personal-data sweep (ADR-028):** S143 adds no table, no stored field, no outside service, no browser key (the session token is `token.ts`'s existing one) and no log line (the sign-in route logs the error's name only, `api.ts:413`). The mock adds `identity_links` rows with provider `mock` and a `users` row with a staging-only test email, in stores already registered and deleted by account deletion. S136 and S125 add none. None found.
 
 **Verdict: `amended`.** No owner question blocks the next story.
-
 ---
 
 ## 2026-11-10 — doc parity review (`amended`)
@@ -18139,7 +17812,6 @@ Fresh-context parity review at 5c61a56 (since 6347608). Scope: S143 (added) plus
 - S139 AC 1's `playoffs` end date (the day before the next known season's `springStartDate`) is marked as the agent's reading for the owner to accept or change; it should reach the owner before S139 starts.
 
 **Questions for the owner:** none blocking. One to carry (non-blocking, S139): how long should the playoffs view stay choosable after the World Series? The story's proposal is until the next spring training starts.
-
 ---
 
 ## 2026-11-10 — backlog review (`amended`)
@@ -18197,7 +17869,6 @@ Fresh-context review at `2eaa555`, triggered by the owner's evening answers of 2
 **Questions for the owner (non-blocking):** (1) ADR-014's "Freshness is visible" row (ARCHITECTURE.md, `fetchedAt` / `windowMode` render per D9) and VISUAL-DESIGN's D9 principle predate "just get rid of the fetched label": amend ADR-014's row to match? (2) Still open from earlier: how long the playoffs choice and the World Series box stay after the Series (S139 AC 1, S140 AC 2); a fourth change log kind (S131).
 
 **Verdict: `amended`.** No owner question blocks the next story (S143).
-
 ---
 
 ## 2026-11-10 — doc parity review (`amended`)
@@ -18235,7 +17906,6 @@ Fresh-context subagent at HEAD `5acc927`. Scope: S144, S145 (added), FEATURES' r
 - **S129 AC 1's width bullet** says FEATURES' Standings row "records the change in the owner's words in the same change set". This review recorded it now, so when `scripts/verify-S129.sh` is updated before S129 ships (rule 7) it must not require S129's own commits to add that quote to FEATURES (it is already there); the bullet's FEATURES clause can say it is done.
 - **Offline age:** S141's ratified list/frames should say whether an offline page keeps an age marker, so the Installable app line and S142 AC 2 agree (the owner's answer to the question above decides it).
 - No FEATURES item added by this review needs a new story.
-
 ---
 
 ## 2026-11-11 — backlog review skipped
@@ -18252,7 +17922,6 @@ Fresh-context subagent at HEAD `5acc927`. Scope: S144, S145 (added), FEATURES' r
 Rule change (owner-directed, 2026-11-11): GitHub Copilot's pull request review is replaced by Claude's review (`.github/workflows/claude-review.yml`, running `stage`'s copy on `pull_request_target`, read-only reviewer, findings posted by a trusted step). CLAUDE.md's Copilot rules, the 2026-12-01 quota exception and LOOP.md §7 now name Claude's review; the checklist is renamed "Review-class checklist" and gains item 16; `copilot-review-owed` pull requests are cleared by dispatching Claude's review; `scripts/verify-S131.sh`'s end anchor no longer names the Copilot bullet (byte-identical extraction). Commits 0a5982e, 1a0ce91, b49e528.
 
 Asked whether this needs a backlog review, the owner answered: "skip".
-
 ---
 
 ## 2026-11-11 — backlog review skipped
@@ -18267,7 +17936,6 @@ Asked whether this needs a backlog review, the owner answered: "skip".
 **What changed, and the owner's answer**
 
 S129 AC 1 and S130 AC 2 were rewritten to answer Claude's review of pull request #31 (S129: FEATURES already holds the owner's quote; S130: a lost full stop). Owner, 2026-11-07, asked whether an acceptance-criteria rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
-
 ---
 
 ## 2026-11-11 — backlog review skipped
@@ -18282,7 +17950,6 @@ S129 AC 1 and S130 AC 2 were rewritten to answer Claude's review of pull request
 **What changed, and the owner's answer**
 
 S141 AC 2 was rewritten to answer Claude's review of pull request #31 (a link's destination "that exists" contradicted its own No dead links clause). Owner, 2026-11-07, asked whether an acceptance-criteria rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
-
 ---
 
 ## 2026-11-11 — backlog review skipped
@@ -18297,7 +17964,6 @@ S141 AC 2 was rewritten to answer Claude's review of pull request #31 (a link's 
 **What changed, and the owner's answer**
 
 S145 AC 2 and S132 AC 2 were rewritten to answer Claude's review of pull request #31 (S145: an existing meta-line test it said didn't exist; S132: a grep with no pattern). Owner, 2026-11-07, asked whether an acceptance-criteria rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
-
 ---
 
 ## 2026-11-11 — backlog review skipped
@@ -18324,7 +17990,6 @@ S145 AC 2 was rewritten to answer Claude's review of pull request #31 (two S97 t
 Owner-directed change (2026-11-11: "Can we avoid deploying when the only change was docs?", then "yeah, I like your plan"): a docs-only push to `stage` no longer deploys staging, and a staging run deploys unless staging already serves its commit or a newer one (`bt-commit.txt`). It edits CLAUDE.md's release and push rules, LOOP.md, README, wrangler.jsonc's comment, the baseline frame's deploy line, and law P11's test. Commits 705a855, 9704399.
 
 Asked whether this needs a backlog review, the owner answered: "skip".
-
 ---
 
 ## 2026-11-11 — backlog review skipped
@@ -18339,7 +18004,6 @@ Asked whether this needs a backlog review, the owner answered: "skip".
 **What changed, and the owner's answer**
 
 S131 AC 1 was rewritten to answer Claude's review of pull request #31 (headline described as what the update notice shows, which the owner's evening answers removed). Owner, 2026-11-07, asked whether an acceptance-criteria rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
-
 ---
 
 ## 2026-11-11 — backlog review skipped
@@ -18356,7 +18020,6 @@ S131 AC 1 was rewritten to answer Claude's review of pull request #31 (headline 
 S146 (skip a staging or preview deploy when its recorded build inputs are unchanged) added at the owner's direction (2026-11-11: "ultimately it'd be nice if this used some kind of hashing or something rather than directory allow/blocklists", then "yeah, I like your plan"; its Source, the Delightful pillar: "delightful").
 
 Asked whether adding S146 needs a backlog review, the owner answered: "no backlog review".
-
 ---
 
 ## 2026-11-11 — doc parity review (`continue`)
@@ -18385,7 +18048,6 @@ Asked whether adding S146 needs a backlog review, the owner answered: "no backlo
 
 **3. Coverage for the backlog review**
 - No features added this review. No new uncovered FEATURES item surfaced in the rows checked.
-
 ---
 
 ## 2026-11-11 — backlog review skipped
@@ -18400,7 +18062,6 @@ Asked whether adding S146 needs a backlog review, the owner answered: "no backlo
 **What changed, and the owner's answer**
 
 S146 AC 3 was rewritten to answer Claude's review of pull request #34 (a preview record outliving its torn-down Worker). Owner, 2026-11-07, asked whether an acceptance-criteria rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
-
 ---
 
 ## 2026-11-11 — backlog review skipped
@@ -18415,7 +18076,6 @@ S146 AC 3 was rewritten to answer Claude's review of pull request #34 (a preview
 **What changed, and the owner's answer**
 
 S146 AC 3 was rewritten again to answer Claude's review of pull request #34 (the record's deletion needs actions: write). Owner, 2026-11-07, asked whether an acceptance-criteria rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
-
 ---
 
 ## 2026-11-12 — backlog review skipped
@@ -18430,7 +18090,6 @@ S146 AC 3 was rewritten again to answer Claude's review of pull request #34 (the
 **What changed, and the owner's answer**
 
 Owner, 2026-11-12, asked whether the rule change in PR #37 (a bug gets an issue and its fix closes it; release step (4) moves a held-back fix's issue with it) needs a backlog review: "oh, no backlog review needed for that"
-
 ---
 
 ## 2026-11-13 — backlog review answers (2026-11-08)
@@ -18445,7 +18104,6 @@ Owner, 2026-11-12, asked whether the rule change in PR #37 (a bug gets an issue 
 **Answers and what was applied**
 
 Applies the owner's 2026-11-08 answer to that review's S131 question ("This is the go-ahead") to the frame bullet that still said S131's deploy-workflow edit needed a go-ahead, as flagged by Claude's after-the-fact review of PR #22.
-
 ---
 
 ## 2026-11-13 — backlog review skipped
@@ -18460,7 +18118,6 @@ Applies the owner's 2026-11-08 answer to that review's S131 question ("This is t
 **What changed, and the owner's answer**
 
 S135 AC 1 and AC 4 (and S133 AC 1 wording) were rewritten to answer Claude's review of PR #50 (comment 4569986624), applying the owner's 2026-11-13 re-scope ("1 and 2 both yes"). Per CLAUDE.md, ACs rewritten to answer a PR review are always skipped (owner, 2026-11-07: "This shouldn't even trigger a question. Always skip.").
-
 ---
 
 ## 2026-11-13 — backlog review skipped
@@ -18475,7 +18132,6 @@ S135 AC 1 and AC 4 (and S133 AC 1 wording) were rewritten to answer Claude's rev
 **What changed, and the owner's answer**
 
 Owner, 2026-11-13, asked "The S139/S130 change: a backlog review after #56 merges, or a logged skip?": "for your first question, skip it". The change: S139 re-scoped from views to season phases with includePhases (owner, 2026-11-13), the view rules moved to S130 (turn cap 12 -> 16), S129, S137, S138 and S140 re-pointed at S130, ADR-021 amended for standings (30-day cap), and the World Series box from the day after the Series ("option a"); commits 9cbc539, 966f7cd and 65f9463 on backlog/s139-phases (PR #56).
-
 ---
 
 ## 2026-11-16 — backlog review (`amended`)
@@ -18528,7 +18184,6 @@ Fresh-context review at `af098ea` (`scripts/review-debt.sh`: S135's acceptance c
 **Questions for the owner (non-blocking):** (1) S146: should the release rule's Prepare step also accept a later `stage` commit when the input check against staging's record prints `unchanged`? (2) Still open from earlier: ADR-014's "Freshness is visible" row; a fourth change log kind (S131).
 
 **Verdict: `amended`.** No owner question blocks the next story (S143).
-
 ---
 
 ## 2026-11-16 — doc parity review (`amended`)
@@ -18565,7 +18220,6 @@ Fresh-context review at `af098ea` (`scripts/review-debt.sh`: S135's acceptance c
 For the next backlog review:
 1. FEATURES' Videos row now names the player's quality picker, actions row and larger desktop size, and the Plays row that no at-bat opens by default. Both shipped in PR #58 with no story: confirm no story or ratified design contradicts them (in particular the game-rooms/game-shell Videos and Plays frames and S145's play link on the meta line, which touches the same player) and that they need no story.
 2. No FEATURES item found that no story serves among the rows checked (Standings: S128-S130, S137-S140; Calendar date picker: S124, S125, S136; Modern membership staging sign-in: S143).
-
 ---
 
 ## 2026-11-16 — backlog review skipped
@@ -18580,7 +18234,6 @@ For the next backlog review:
 **What changed, and the owner's answer**
 
 S139 AC 4 reworded to answer the pre-PR review of this branch (a spliced sentence; what it checks is unchanged). Owner, 2026-11-07, asked whether an AC rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
-
 ---
 
 ## 2026-11-16 — backlog review skipped
@@ -18595,7 +18248,6 @@ S139 AC 4 reworded to answer the pre-PR review of this branch (a spliced sentenc
 **What changed, and the owner's answer**
 
 S139 AC 8 rewritten to answer Claude's review of PR #65 (comment 4590830376): an empty playoffs table with no clinched team joins the floor rule's exceptions. Owner, 2026-11-07, asked whether an AC rewrite answering a pull request's review needs a backlog review: "This shouldn't even trigger a question. Always skip."
-
 ---
 
 ## 2026-11-16 — backlog review skipped
@@ -18610,7 +18262,6 @@ S139 AC 8 rewritten to answer Claude's review of PR #65 (comment 4590830376): an
 **What changed, and the owner's answer**
 
 Design intake made due only by PR #64, which added ?node-id= to the Figma Source link in 22 ratified amendments; no frame, decision or requirement changed. Owner, 2026-11-16, asked whether it needed a design intake: "we can skip it. The links PR is not a good reason"
-
 ---
 
 ## 2026-11-16 — backlog review skipped
@@ -18625,7 +18276,6 @@ Design intake made due only by PR #64, which added ?node-id= to the Figma Source
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
-
 ---
 
 ## 2026-11-16 — doc parity review skipped
@@ -18640,7 +18290,6 @@ Owner, 2026-11-16: "do the reviews if they have been triggered by the normal rec
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
-
 ---
 
 ## 2026-11-16 — backlog review skipped
@@ -18655,7 +18304,6 @@ Owner, 2026-11-16: "do the reviews if they have been triggered by the normal rec
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
-
 ---
 
 ## 2026-11-16 — doc parity review skipped
@@ -18670,7 +18318,6 @@ Owner, 2026-11-16: "do the reviews if they have been triggered by the normal rec
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
-
 ---
 
 ## 2026-11-16 — backlog review skipped
@@ -18685,7 +18332,6 @@ Owner, 2026-11-16: "do the reviews if they have been triggered by the normal rec
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
-
 ---
 
 ## 2026-11-16 — backlog review skipped
@@ -18700,7 +18346,6 @@ Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the rev
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
-
 ---
 
 ## 2026-11-16 — doc parity review skipped
@@ -18715,7 +18360,6 @@ Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the rev
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
-
 ---
 
 ## 2026-11-16 — backlog review skipped
@@ -18730,7 +18374,6 @@ Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the rev
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; these (design intake and doc parity) come from the owner-directed S149 change, so they are skipped.
-
 ---
 
 ## 2026-11-16 — doc parity review skipped
@@ -18745,7 +18388,6 @@ Owner, 2026-11-16: "do the reviews if they have been triggered by the normal rec
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; these (design intake and doc parity) come from the owner-directed S149 change, so they are skipped.
-
 ---
 
 ## 2026-11-17 — backlog review skipped
@@ -18760,7 +18402,6 @@ Owner, 2026-11-16: "do the reviews if they have been triggered by the normal rec
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". These are change-triggered (S150 inserted, S147/S148/S149 rewritten, ADR-020 amendment, FEATURES Live marker row); the story count is 0 of 6. Note on b6f0a65: its body said "design intake and doc parity", but the entries it recorded were backlog and parity skips.
-
 ---
 
 ## 2026-11-17 — doc parity review skipped
@@ -18775,7 +18416,6 @@ Owner, 2026-11-16: "do the reviews if they have been triggered by the normal rec
 **What changed, and the owner's answer**
 
 Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". These are change-triggered (S150 inserted, S147/S148/S149 rewritten, ADR-020 amendment, FEATURES Live marker row); the story count is 0 of 6. Note on b6f0a65: its body said "design intake and doc parity", but the entries it recorded were backlog and parity skips.
-
 ---
 
 ## 2026-11-17 — backlog review skipped
@@ -18790,7 +18430,48 @@ Owner, 2026-11-16: "do the reviews if they have been triggered by the normal rec
 **What changed, and the owner's answer**
 
 Owner, 2026-11-07, on acceptance criteria rewritten to answer a pull request's review: "This shouldn't even trigger a question. Always skip." S150 AC 6 rewritten for Claude's review of #76 (served windowMode).
+---
 
+## 2026-11-18 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T06:29:19Z` |
+| HEAD at capture | `db58c1c` (tree clean) |
+| Change | `db58c1c` — Video player: Download removed for now; S151 saves it through the service worker |
+
+**What changed, and the owner's answer**
+
+S151 (service-worker video download) inserted in db58c1c at the owner's direction (owner, 2026-11-12: "Remove the download button for now, but make a story to do the service worker in the future. Include instructions to remind me to explore other ways a service worker could be used"). Asked whether it needed a backlog review: "Skip it".
+---
+
+## 2026-11-18 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T06:29:19Z` |
+| HEAD at capture | `db58c1c` (tree dirty) |
+| Change | `db58c1c` — Video player: Download removed for now; S151 saves it through the service worker |
+
+**What changed, and the owner's answer**
+
+S151 added and the FEATURES Videos row says Download waits for it, in db58c1c, at the owner's direction (owner, 2026-11-12: "Remove the download button for now, but make a story to do the service worker in the future"). Asked whether the story needed a review: "Skip it".
+---
+
+## 2026-11-18 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T06:46:27Z` |
+| HEAD at capture | `8759fc1` (tree clean) |
+| Change | `8759fc1` — S151 and Download removal: pre-PR review fixes |
+
+**What changed, and the owner's answer**
+
+S151 acceptance criteria rewritten in 8759fc1 to answer the pre-PR review and change reviews of this pull request (LOOP §7). Skipped under the owner's rule (owner, 2026-11-07, asked whether ACs rewritten to answer a pull request's review need a backlog review: "This shouldn't even trigger a question. Always skip.").
 ---
 
 ## 2026-11-18 — backlog review skipped
@@ -18805,7 +18486,6 @@ Owner, 2026-11-07, on acceptance criteria rewritten to answer a pull request's r
 **What changed, and the owner's answer**
 
 Owner, 2026-11-18, asked whether bugs in the backlog order and the /run-stories → /run-backlog rename (0dfd5be, 4210072) need a backlog review: "No, log a skip (Recommended)".
-
 ---
 
 ## 2026-11-18 — S143 completed
@@ -18893,7 +18573,6 @@ export const label = game.abbreviation + " @ ";  563ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-18 — S136 completed
@@ -18975,7 +18654,6 @@ export const label = game.abbreviation + " @ ";  352ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-18 — S139 completed
@@ -19096,7 +18774,6 @@ export const label = game.abbreviation + " @ ";  333ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-18 — backlog review skipped
@@ -19111,7 +18788,6 @@ export const label = game.abbreviation + " @ ";  333ms
 **What changed, and the owner's answer**
 
 S139 AC 8 was tightened to answer the S139 pre-PR review (an answer whose season is not over yet is kept the floor in its postseason window and 48 hours before it, and one built while MLB could not give a calendar the floor). CLAUDE.md: a story's acceptance criteria rewritten to answer a review are always skipped, without asking (owner, 2026-11-07, asked whether an AC rewrite answering a review needed a backlog review: "This shouldn't even trigger a question. Always skip.").
-
 ---
 
 ## 2026-11-18 — S140 completed
@@ -19209,7 +18885,278 @@ export const label = game.abbreviation + " @ ";  372ms
 ```
 
 </details>
+---
 
+## 2026-11-19 — S144 completed
+
+**Design: inning pill play link**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T18:25:28Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `09a04bc` (tree dirty) |
+| Grader | `scripts/verify-S144.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: game-shell has its next free amendments/A<N>.md headed '(S144)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (the owner's 2026-11-10 words quoted), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames of the Videos room's cards in grid and list at mobile, medium and desktop, the floating player at mobile and medium and Search's results at mobile, medium and desktop, named <screen>[-<state>]-<pairing>.png and listed in ## Frames, which says each shows a clip with a play and one without
+check 3 PASS: ## Decisions says which part of the meta line is the link, what the rest of the line reads, names the pill's colour tokens (its fill and its text, the date's), the link's hover and focus look, the line for another or missing kind and for no date, that a clip with no play keeps 'Highlight · Sep 5, 2026' (recap and condensed keep their word), that the rest of the card is unchanged, how a touch screen chooses the play, and where else the change applies (the player's overlay row, Search)
+check 4 PASS: the amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead
+check 5 PASS: no sealed game-shell file changed (RATIFIED.md's manifest and every earlier amendment's manifest still verify; S144 changed neither RATIFIED.md nor A1–A5)
+check 6 PASS: S144 changed no file outside its fence (docs/v3/visual/game-shell/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, plus creating scripts/verify-S144.sh)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+```
+
+**7/7 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S144 check results ---
+check 1 PASS: game-shell has its next free amendments/A<N>.md headed '(S144)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (the owner's 2026-11-10 words quoted), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames of the Videos room's cards in grid and list at mobile, medium and desktop, the floating player at mobile and medium and Search's results at mobile, medium and desktop, named <screen>[-<state>]-<pairing>.png and listed in ## Frames, which says each shows a clip with a play and one without
+check 3 PASS: ## Decisions says which part of the meta line is the link, what the rest of the line reads, names the pill's colour tokens (its fill and its text, the date's), the link's hover and focus look, the line for another or missing kind and for no date, that a clip with no play keeps 'Highlight · Sep 5, 2026' (recap and condensed keep their word), that the rest of the card is unchanged, how a touch screen chooses the play, and where else the change applies (the player's overlay row, Search)
+check 4 PASS: the amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead
+check 5 PASS: no sealed game-shell file changed (RATIFIED.md's manifest and every earlier amendment's manifest still verify; S144 changed neither RATIFIED.md nor A1–A5)
+check 6 PASS: S144 changed no file outside its fence (docs/v3/visual/game-shell/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, plus creating scripts/verify-S144.sh)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+--- verify-S144: 7/7 checks passed ---
+verify-S144: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 136ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 9ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 25ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 27ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 27ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 30ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 620ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  330ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 406ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  389ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  10:27:15
+   Duration  1.19s (transform 97ms, setup 0ms, collect 2.95s, tests 1.28s, environment 3ms, prepare 594ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162796,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+---
+
+## 2026-11-19 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-19T18:40:40Z` |
+| HEAD at review | `3153b39` (tree dirty) |
+| Trigger | design intake: game-shell A6 ratified (S144); S127, S144, S145 acceptance criteria rewritten |
+| Stories `done` since last review | S144 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Design intake review of game-shell A6 (the inning pill, ratified 2026-11-19, S144), with check 2b on S127, S144 and S145, whose acceptance criteria were rewritten since `ee64d0d`. Two independent design-intake reviewers (read-only, HEAD `3153b39`), merged by the merger, who checked each disputed claim against the source.
+
+**Inventory (game-shell A6).** 11 frames: `game-videos-{grid,list}-playmeta-{mobile,medium,desktop}`, `video-player-dialog-playmeta-{mobile,medium}`, `search-playmeta-{mobile,medium,desktop}`. Two shared Figma components: `play-inning-pill` (724:10189) and `video-meta` (724:10197, Play yes/no). States: date muted then pill; no play `Kind · date`; pill alone with no date; a play wins over any kind; Search no-play `Highlight · date` in primary colour. Described, not drawn: pill hover fill `raised-current` with no zoom, focus card then pill, ≥24×24 tap area, the date plays the clip, Hide Scores unchanged. Data: cards and player via `Video.playId` + `atBatOfPlay` (owned); Search rows need a play id and inning no route returns (missing).
+
+**Ownership map:** owned 9, re-scoped 6 (all in S145), unowned 3 (Search's rows, Search's route data, Search's player build). Search's rows and data -> new S153; Search's player stays with S127's own intake (S127 is not ratified).
+
+**Amendments.**
+- **S145** (grader not yet written): AC 1 adds A6's other kinds (`video`-kind and recap with a play read date + pill; play + date, no kind). AC 3 rewritten to behaviour: the pill navigates without `onPlay`, the title and the date each call `onPlay`, `pill.closest("button") === null`, `pill.closest(".bt-zoom-host") === null` (`web/src/styles.css`'s `.bt-zoom-host:hover .bt-zoom img` would otherwise zoom the still), button then pill in tab order, hit area ≥24×24, hover rule `var(--bt-raised-current)`; layout left to the builder. AC 4 names S97 AC 2's `VideoPlayLinks.test.tsx:127-140` (expects `conineLabel`, built at :45 as `Play · … →`) as moved, checks kept, and `e2e/design/S97.spec.ts:63,71,88`; Search goes to S153 and S127's intake. New AC 5: one `PlayInningPill.tsx` used by `VideoCard` and `PlayerDialog`, one shared meta line, one domain label taking `{ halfInning, inning }` that replaces `atBatInningLabel` and that `PlaysPanel.tsx`'s private `inningTag` (`web/src/components/pitch/PlaysPanel.tsx:51-54`, the same `Top 3` / `Bot 7`, found by the merger's grep) calls; fence gains that one file. AC 6 (design match) names the eight non-Search frames. Notes "Why the link sat outside the button" and "One label" corrected. Cap 8 -> 10.
+- **S153 inserted** (priority 91, after S5, beside S72; Source: Feature: Video play links; Design S144, S34, S56; depends S5, S145, S81): the route returns `playId` / `halfInning` / `inning` from S5's recording; rows reuse S145's pill and meta line; pill navigates without opening the player; no-play or `gamePk: -1` rows keep `Highlight · date` in `--bt-light`; Hide Scores unchanged; design match on `search-playmeta-*` judging only the meta line.
+- **S5:** AC 8 adds that the search request asks MLB for `mediaPlayback { guid playInfo { inning inningHalf gamePk } }` beside `ClipDetails.id` so the recording carries them, without parsing them, and carries on if MLB omits them. The 2026-11-19 note now points at S153; a note cites `playInfo.teams` for AC 8's team-field check.
+- **S127:** AC 2's "(A6)" now says standings-search-settings A6 (game-shell A6 is a different amendment); AC 1 names `play-inning-pill` (724:10189), asks what a `gamePk: -1` clip shows and whether the `•` stays; Gates and Builds-after lines point Search's rows at S153; reuse check adds game-shell A6.
+- **S144:** done and frozen; its AC 1's "It names the red" is a superseded draft leftover, recorded here only.
+
+**Disagreements and resolutions.**
+1. `atBatInningLabel`'s callers. Reviewer 1: its only non-test caller is `playLink.ts:22`, so the new function replaces it. Reviewer 2: it "stays for its other callers". Checked: `grep -rn atBatInningLabel packages web functions` finds only `inning.ts:44`, `playLink.ts:22` and `video-play-context.test.ts:26-30`. Reviewer 1 is right; S145 AC 5 replaces it. The merger also found `PlaysPanel.tsx:51-54`'s `inningTag`, a second spelling of the same label, folded into AC 5.
+2. The play id field. Reviewer 1: `ClipDetails.id`. Reviewer 2: `MediaPlayback.guid`. Checked: BT's content feed reads `guid` as a video's `playId` (`packages/domain/src/types.ts:123`, `packages/mlb-api/src/parse.ts:708`); `ClipDetails.id` is the search hit's own id, unverified as a play id. S5 asks for both; S153 AC 1 takes the field that equals a `PitchEvent.playId`, expected `guid`.
+3. Where Search's data lands. Reviewer 1: S5 returns `playId` / `halfInning` / `inning`. Reviewer 2: a new story parses them from S5's recording. Resolved: S5 only asks for them (one request field, no parse, no stop), S153 parses and returns them, so S5 isn't held by a pill-only field and no re-recording is needed.
+4. Who builds Search's player. Reviewer 1: the new story, designed by S127. Reviewer 2: S127's own intake. Resolved for reviewer 2: S127 isn't ratified, and gating S153 on it would hold Search's rows behind an unratified design.
+5. S145 card layout. Reviewer 1: the meta line beside the button is wrong; Reviewer 2: reuse `.bt-above-card-link`. Resolved (coordinator's direction): AC 3 states the behaviour (date plays, pill outside button and `.bt-zoom-host`, tab order); the note offers the stretched-card pattern as an option.
+6. Priority of the new story: 90.5 vs 90. Priorities are integers (`pnpm backlog:check`); 91, after S5 (90).
+7. Turn cap of S145: 9 or 10; 10, since AC 5 adds `PlaysPanel.tsx`.
+
+**Check 2 (next 3).** S125 (74): design S123 `blocked`, can't start. S145 (75): depends S97, S81 done; design S144 done; `VideosRoom.test.tsx:79-87`, `VideoPlayLinks.test.tsx:93-140`, `HideScoresRooms.test.tsx:245-251`, `PlaysPanel.tsx:51-54`, `inning.ts:44`, `playLink.ts:22`, `e2e/design/S97.spec.ts` exist at HEAD; `scripts/verify-S145.sh` absent (red-first); fence now covers every AC path. S139 (76): depends S128 done; not re-grounded beyond its AC list.
+**Check 2b.** S145: a test the AC moves but doesn't name (player test, fixed); a premise false at HEAD (`atBatInningLabel`'s callers, fixed); a layout passing the AC but breaking the design (the dead date, the zooming still, fixed); one implementation (pill, meta line, label, `inningTag`, fixed); stale comment (`inning.ts:40-42`, moves with AC 5); a vague grep ("no other file renders a link", tightened to named imports). S127: ambiguous reference ("A6"), an owner quote overtaken by a later answer (the `•`), an undrawn input (`gamePk: -1`). S5: data a frame needs that no route provides. S153: an AC unmeetable on the recording (a "result without play fields" may not exist; the test may strip them), a design frame that doesn't match its own surface (A6's Search frames are pre-A2 copies: "Search Plays & Highlights", "Search games, players…", ACTIVE FILTERS chips, confirmed in `search-playmeta-mobile.png`; listed as expected differences), a Figma overrun (`video-meta` 220 wide in a 188-wide frame at mobile; noted).
+**Check 3.** S145 after S125 (which can't start) is right; S127 (89) before S5 (90) before S153 / S72 (91) holds; nothing obsolete. Duplication sweep: `PlaysPanel.tsx:51-54` `inningTag` duplicates the pill's label (folded into S145 AC 5); `inning.ts:46` and `PlaysPanel.tsx:35` (`Top`/`Bottom`, a different form) checked. Personal-data sweep: S153 adds no store; none found in S144's design-only diff.
+
+**For the parity review:** FEATURES' Video play links row still names `Play · Top 6th →`, red "Play" and S127's `Go to: Game →  •  At-Bat →`; it should describe the inning pill after the date on cards, list rows, Search's results and both players, and Search's player as `Go to: Game →` plus the pill. The Current baseline's "the Video play links row says so" holds only after that. S153 is new and cites Feature: Video play links.
+
+**Owner questions.**
+1. Should the day digest's player (`DayDigest.tsx:109-116`, "Go to game: … →" only) and the stage-mode player (`PlayerHost.tsx:30-33`, no link) also show the pill? No ratified frame draws them; yes needs a design amendment first.
+2. What should a screen reader say for the pill? `Top 6 →` reads "Top 6 right arrow"; until answered S145 uses the visible words.
+3. If MLB's free-text search carries no play id or inning, should S153 fall back to loading each result's game (one extra upstream request per result), or show no pill on Search?
+4. In Search's player, does a `•` stay between `Go to: Game →` and the pill?
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-19T18:44:09Z` |
+| HEAD at capture | `fb4c508` (tree clean) |
+| Applied in | `fb4c508` — Apply the owner's answers to the game-shell A6 design intake review |
+
+**Answers and what was applied**
+
+Owner's answers, 2026-11-19, to the game-shell A6 design intake review's questions (ledger entry committed in ff01df2):
+
+1. Q: "Should the play's inning pill also appear in the day digest's player and the stage-mode player, which A6 doesn't draw?"
+   A (owner): "all players always"
+   Applied: S127 AC 2 (new) draws the inning pill in the scoreboard day digest's player (DayDigest.tsx:109-116) and the stage-mode player (PlayerHost.tsx:30-33) in the same standings-search-settings amendment; coordinator's reading stated in the note (players outside the game's Videos room show both pills; the Videos room player only the inning pill; the stage player follows its context). No build story invented: S127's ratification intake slices the digest and stage players, as it does Search's. Title, Impact, Gates and Builds-after lines follow.
+
+2. Q: "What should a screen reader say for the pill? (visible `Top 6 →` reads 'Top 6 right arrow')"
+   A (owner): "\"Open play - Top of 6th inning\""
+   Applied: S145 AC 1 asserts the accessible name "Open play - <Top|Bottom> of <ordinal> inning" on the card and in the player (RTL getByRole link names for a top-6 and a bottom-3 play), visible words unchanged (Top 6 → / Bot 3 →); AC 5 puts the spoken words in packages/domain/src/inning.ts beside the visible label, reusing its ordinal(), with the "Open play - " prefix added once beside the arrow. Agent's reading: the spoken name spells "Bottom" (visible keeps "Bot") and restores the ordinal, as the owner wrote "6th". S127 AC 3 names it.
+
+3. Q: "In Search's player, does a `•` stay between 'Go to: Game →' and the pill?"
+   A (owner): "Change Game -> to a pill as well, but change the label to \"More from game ->\" and link to the videos tab of that game, and remove the \"Go to:\" label"
+   Applied: S127 AC 1 draws a "More from game →" pill then the inning pill, no "Go to:" label, separator question removed; AC 3 says it opens /game/:gamePk/videos (the /game/:gamePk/:tab route). gamePk: -1 left as the amendment's question (no note settles it for the player). S153's "Not Search's player" note follows. FEATURES' Video play links row still says "Go to: Game →  •  At-Bat →": left for the doc parity review.
+
+Still open (not answered): whether Search should load each result's game when MLB's search lacks the play id or inning (S153's notes).
+---
+
+## 2026-11-19 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-19T18:46:37Z` |
+| HEAD at review | `f5c03c1` (tree dirty) |
+| Trigger | S153 added (2026-11-19 design intake review of game-shell A6, ff01df2) |
+| Stories `done` since last review | S144 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+**Scope.** S153 (named by `pnpm parity:debt`), plus the next 3 `todo` stories by priority in `docs/v3/INDEX.md`: S125 (74), S145 (75), S139 (76; S140 ties at 76 and was read too). No `doing` story. No story cites `Open:` (`grep -rln "Source:\*\* Open" docs/v3/backlog/stories/` empty). The only pillar-cited open story is S146 (priority 118), outside this scope and not changed since the last review.
+
+**1. Citation honesty**
+
+- **S153** (Feature: Video play links). The Gap and Impact deliver game-shell A6's inning pill on Search's result rows, opening the play. Before this review the cited row didn't describe that: it still said a card, list row and the player show `Play · Top 6th →`, then that "Play" in red replaces "Highlight" (S144 designs it, S145 builds it), and said nothing of Search's results. So the citation pointed at the right feature, but the row described a superseded plan. **Amended** (below). After the edit the row describes the pill on Search's results and names S153 as its builder, so the citation holds.
+- **S145** (Feature: Video play links). Same stale row: its Gap and ACs build A6's date-then-pill meta line, its spoken name (`Open play - Top of 6th inning`) and the pill in the player. Fixed by the same amendment; the citation holds now.
+- **S125** (Feature: Calendar date picker). FEATURES:101 quotes the same 2026-11-07 owner words the Gap quotes (calendar, year switching, typed date, game counts) and names S123/S124. Holds.
+- **S139 / S140** (Feature: Standings). FEATURES:65 records the owner's `includePhases` words and the World Series box and names S139 and S140. Holds.
+
+**2. Doc reflects reality**
+
+- FEATURES' Video play links row (FEATURES:98) contradicted decisions the owner had already made and recorded:
+  - game-shell A6 ratified 2026-11-19 (owner: "the one in figma looks good"; S144's ledger entry at AUDIT line 18981, `docs/v3/visual/game-shell/amendments/A6.md`). It replaces A5's `Play · Top 6th →` and the 2026-11-10 red "Play" with the date followed by a `Top 6 →` pill, on cards, list rows, the game's floating player and Search's results. The owner's words on S144's draft are quoted in S145's Gap and S144's note.
+  - The owner's answers to the A6 intake, 2026-11-19 (ledger entry "backlog review answers (2026-11-19)", f5c03c1; applied in fb4c508): "all players always"; "\"Open play - Top of 6th inning\""; "Change Game -> to a pill as well, but change the label to \"More from game ->\" and link to the videos tab of that game, and remove the \"Go to:\" label". The row still said Search's player gets `Go to: Game →  •  At-Bat →`.
+- **Edit (FEATURES:98, owner's words only).**
+  - S96's ratification and S97's shipped `Play · Top 6th →` are kept as history.
+  - The 2026-11-10 red-"Play" decision, the 2026-11-19 S144-draft decisions and A6's ratification are recorded, each in the owner's quoted words.
+  - The row says what A6 draws, with the clip with no play keeping `Highlight · <date>`, and gives the pill's spoken name.
+  - S145 and S153 are named as the builders, and the row says neither has shipped.
+  - It records "all players always" (the day digest's and stage player included).
+  - Search's player: the 2026-11-07 `At-Bat →` plan is kept as superseded, and the planned `More from game →` pill (opening the game's Videos tab) is described, followed by the inning pill with no "Go to:" label.
+  - S127 is described as an unratified draft that designs those players, and the row says no story builds them yet.
+- The Current baseline frame note's "the Video play links row says so" (`docs/v3/backlog/frame/01 Current baseline.md:3`) is true as of this edit. No other FEATURES/INTENT/VISUAL-DESIGN/ARCHITECTURE text names `Top 6th`, `At-Bat →` or `Go to: Game` (grep).
+- No relic found in the rows read. The Game → Videos row (FEATURES:59) only points to Video play links and still holds.
+
+**3. Coverage — For the next backlog review**
+
+1. **The inning pill in the scoreboard day digest's player and the stage-mode player** ("all players always"): FEATURES now records it, S127 (draft) designs it, and no story builds it. As S127's Gates line says, the intake that runs when S127 is ratified must slice it; confirm that nothing builds these players before then.
+2. **Search's floating player's `More from game →` pill plus the inning pill**: designed by S127 (draft), and no build story. Same as item 1.
+3. **Frame note `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md:179`**: "Parity review due: S153 inserted; FEATURES' Video play links row still describes `Play · Top 6th →` and `At-Bat →`" is stale after this review. It is outside the parity write scope; the backlog review should clear it.
+4. Still open with the owner from the A6 intake (not a parity question): whether Search should load each result's game when MLB's search lacks the play id or inning (S153's notes, "Data source unverified").
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T00:19:37Z` |
+| HEAD at capture | `73343fa` (tree clean) |
+| Applied in | `73343fa` — S153, S127: no pill when MLB gives no play, or the clip no game (owner) |
+
+**Answers and what was applied**
+
+Owner, 2026-11-19, through /pending, answering the game-shell A6 design intake review's open questions. Asked whether, when MLB gives a search result no play id or inning, search should fetch that clip's game to find them or show no inning pill: chose "Show no pill (Recommended)". Applied: S153 AC 1, AC 4 and its data-source note say such a result shows no pill and the game is never fetched. Asked whether a clip that belongs to no game should show the "More from game →" pill: chose "No pill (Recommended)". Applied: S127 AC 1 says a clip with no game draws no "More from game →" pill.
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T00:45:37Z` |
+| HEAD at capture | `5868e64` (tree clean) |
+| Change | `5868e64` — S144 review fixes: one builder for the play pill's link (S145, S153), answered questions struck, A6's Search-player words superseded (S127) |
+
+**What changed, and the owner's answer**
+
+S145 AC 5, S153 AC 1/2/4/5 and S127 notes rewritten to answer the pre-PR review of PR #94; owner, 2026-11-07, asked whether such a rewrite needed a backlog review: "This shouldn't even trigger a question. Always skip."
+---
+
+## 2026-11-19 — doc parity review (`continue`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T00:50:10Z` |
+| HEAD at review | `6bdb0b8` (tree clean) |
+| Trigger | FEATURES.md changed (6bdb0b8: Video play links row gains the owner's two no-pill answers) |
+| Stories `done` since last review | none |
+| Verdict | `continue` |
+
+**Findings / amendments**
+
+**Scope.** `pnpm parity:debt` at `6bdb0b8` named only "docs/v3/FEATURES.md changed" (since `05567f4`): 6bdb0b8 added two sentences to FEATURES' Video play links row (FEATURES:98). No story note was added or removed and no `**Source:**` line changed since `05567f4` (`git diff --name-status 05567f4..HEAD -- docs/v3/backlog/stories/` shows only S127, S145, S153 modified; no `Source` line in that diff). Stories in scope: the three citing the changed row (S145, S153, S127), plus the next 3 `todo` by priority in `docs/v3/INDEX.md`: S125 (74), S145 (75), S139 (76; S140 ties at 76 and was read too). No `doing` story. No story cites `Open:` (`grep -rln "Source:\*\* Open" docs/v3/backlog/stories/` empty). The only pillar-cited open story is S146 (priority 118), unchanged since the last review and outside scope.
+
+**1. Citation honesty**
+
+- **The FEATURES change itself.** Both added sentences record decisions the owner already made, in the owner's own chosen words, and both are logged: the ledger entry "backlog review answers (2026-11-19)" at AUDIT line 19190 (committed in `3042ef0`, applied in `73343fa`) quotes the owner, through /pending, choosing "Show no pill (Recommended)" (a Search result MLB gives no play id or inning shows no inning pill; the clip's game is never fetched) and "No pill (Recommended)" (a clip that belongs to no game shows no `More from game →` pill). The row's wording matches S153 AC 1 / AC 4 and S127 AC 1 as applied in `73343fa`. Holds.
+  - Observation, no edit: the row says "no play id, half-inning or inning", where the ledger's question named "play id or inning". The half-inning case was added by PR #94's pre-PR review (`5868e64`, S153 notes "2026-11-19 pre-PR review"), since the pill's visible `Top`/`Bot` can't be drawn without it; it is a direct consequence of the owner's answer, not new intent.
+- **S153** (Feature: Video play links). Gap/Impact: A6's inning pill on Search's result rows, opening the play. The row says the pill appears on "Search's results", that S153 builds it, and now that a result without the play fields shows none (S153 AC 4). Holds.
+- **S145** (Feature: Video play links). Gap/Impact: the date-then-pill meta line on cards and the game's player, spoken name `Open play - Top of 6th inning`, a clip with no play keeps "Highlight". The row states each of these and names S145 as their builder. Holds.
+- **S127** (Feature: Video play links). Its AC 1 now draws no `More from game →` pill for a clip with no game, which the row now states. The row describes S127 as an unratified draft designing Search's, the day digest's and the stage player's pills. Holds.
+- **S125** (Feature: Calendar date picker). FEATURES:101 quotes the same 2026-11-07 owner words as the Gap and names S123/S124; note unchanged since the last review. Holds.
+- **S139 / S140** (Feature: Standings). FEATURES:65 records the `includePhases` words (naming S139) and the World Series box; notes unchanged since the last review. Holds.
+
+**2. Doc reflects reality**
+
+- The Video play links row no longer contradicts S153 or S127 on either question: the last parity review's open item ("whether Search should load each result's game when MLB's search lacks the play id or inning") is settled in the row, S153 and S127 alike.
+- No other FEATURES/INTENT text names the Search fallback or `gamePk: -1`; game-shell A6 and VISUAL-DESIGN don't cover either case (grep), so no conflict with a ratified file.
+- The frame note's stale "Parity review due: S153 inserted…" line (queued by the last parity review) is gone from `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md`.
+- No relic found in the rows read.
+
+**3. Coverage — For the next backlog review**
+
+1. **The inning pill in the scoreboard day digest's player and the stage-mode player** ("all players always") and **Search's floating player's `More from game →` pill plus the inning pill**: FEATURES records them, S127 (draft) designs them, and still no story builds them (carried from the 2026-11-19 parity review). The intake S127's ratification triggers must slice them.
+
+No edits: every citation checked holds and the docs match.
 ---
 
 ## 2026-11-19 — S147 completed
@@ -19291,7 +19238,6 @@ export const label = game.abbreviation + " @ ";  337ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-19 — backlog review (`amended`)
@@ -19339,7 +19285,6 @@ Design intake review of shell-scoreboard A13 (Live marker, ratified 2026-11-19 a
 **For the parity review.** FEATURES.md:103 (Live marker): the story list "— S147 (design), S148, S150, S149" sits mid-row before "Shown the draft, the owner moved it…"; move it to the end. FEATURES.md:102 (Site footer) doesn't say "baseball.theater" goes from every footer. FEATURES Installable app `Design:` bullet (:221) names an offline state without saying its footer line is gone (optional).
 
 **Owner question.** May an agent update the Figma `live-marker` component description (658:21788), which still reads "A13 (draft): the Live marker — a red dot and "Live" …", to A13's ratified wording, with no drawing change?
-
 ---
 
 ## 2026-11-19 — doc parity review (`amended`)
@@ -19382,7 +19327,6 @@ No feature was added in this review, and every FEATURES row touched has stories:
 **For the next backlog review**
 - Does S142 (or S141's AC 1, whose notes at S141:68 already record it) have a checkable AC that no footer reads "baseball.theater"? FEATURES' Site footer row now says so, but S142's ACs (S142:50) speak only of "Fetched … ago".
 - S74 AC 2 and its 2026-11-19 intake note (S74:66) drop the offline footer line. Confirm that an AC, and not only a note, forbids "Offline · saved …" in the footer, since FEATURES' Installable app Design bullet now states it.
-
 ---
 
 ## 2026-11-19 — backlog review skipped
@@ -19397,7 +19341,6 @@ No feature was added in this review, and every FEATURES row touched has stories:
 **What changed, and the owner's answer**
 
 Owner, 2026-11-19, asked through /pending whether the S141 and S154 backlog changes the owner directed (S141's acceptance criteria rewritten to the footer answers, the new S154) need a review or a skip: chose "Skip (Recommended)".
-
 ---
 
 ## 2026-11-19 — doc parity review skipped
@@ -19412,7 +19355,6 @@ Owner, 2026-11-19, asked through /pending whether the S141 and S154 backlog chan
 **What changed, and the owner's answer**
 
 Owner, 2026-11-19, asked through /pending whether the S141 and S154 backlog changes the owner directed (S141's acceptance criteria rewritten to the footer answers, the new S154) need a review or a skip: chose "Skip (Recommended)".
-
 ---
 
 ## 2026-11-19 — S141 completed
@@ -19496,7 +19438,6 @@ export const label = game.abbreviation + " @ ";  410ms
 ```
 
 </details>
-
 ---
 
 ## 2026-11-19 — backlog review (`amended`)
@@ -19554,7 +19495,6 @@ Design intake review of shell-scoreboard A14 (site footer of links, S141, ratifi
 Q1. Should the site footer wait for the change log page, or ship first with S134 adding its own Changelog link? A14's ratified No dead links puts S134 on S142's Depends on, and S134 waits on S131 (approved release notes) and S133 (its design), both blocked; shipping first changes A14's ratified wording.
 Q2. Before the About/Privacy/Terms pages (S154) ship, what should a signed-out visitor's "Legal" column show? It would have no links: hide the column and its heading, show the heading alone, or build S154's pages before the footer turns on.
 Q3. At medium and desktop, should the footer's columns start 24px in, as the frames draw, or line up with the page content at 16px, as A14's Columns words say?
-
 ---
 
 ## 2026-11-19 — doc parity review (`amended`)
@@ -19593,7 +19533,6 @@ For the next backlog review:
 - When S133's ratification (menu link "Changelog", owner: "changelog should be fixed in both places") lands, FEATURES' Update / change log UX row's **Named "Change log"** sentence and the footer-only rename recorded here need updating to match, and S134/S135 ACs checked against the one-word label.
 - FEATURES' Video play links row still says Search's floating player's `Go to: Game → • At-Bat →` has a design story (S127) and "no story builds it yet": a feature no build story serves.
 - No feature was added by this review.
-
 ---
 
 ## 2026-11-19 — backlog review answers (2026-11-19)
@@ -19608,7 +19547,6 @@ For the next backlog review:
 **Answers and what was applied**
 
 Owner, 2026-11-19, through /pending, answering the shell-scoreboard A14 design intake review's three questions. (Q1) Asked whether the site footer waits for the change log page (S134) or ships first with S134 adding its own "Changelog" link: chose "Wait for S134 (Recommended)". Applied: S134 stays on S142's Depends on; A14 unchanged. (Q2) Asked what a signed-out visitor's "Legal" column shows before the Privacy policy and Terms of use pages exist: chose "Heading alone". Applied: S142 AC 5 says the heading renders with no link under it, with an RTL check. (Q3) Asked whether the columns start 24px in as drawn or line up with the content at 16px: chose "24px, as drawn (Recommended)". Applied: recorded in S142's notes; AC 7's frames already show it.
-
 ---
 
 ## 2026-11-19 — backlog review skipped

@@ -41,5 +41,7 @@
 | Live marker (FEATURES, owner 2026-11-16) | Design **S147** (done, shell-scoreboard A13) → **S148** marker, `SiteFooter` and the game page's socket state; **S150** → **S149** day hub and the scoreboard's marker; **S74** offline with no footer line; **S142** keeps the strip atop the footer of links |
 | Video play links from Search's floating player (FEATURES, owner 2026-11-05) | Design **S127**; its intake re-scopes **S5** or slices the build |
 | Budgets + coverage (ADR-026) | **S54** size + render counts + ratchet, **S81** Playwright + design-match captures (rule 22), **S62** Lighthouse CI + flows; bringing LCP under 2.5 s (both pages warn at about 3.2–3.3 s) — no story yet (owner, 2026-10-29: "we can figure out the problems later") |
+| Video Download, streamed through the service worker (FEATURES Game → Videos / highlights, owner 2026-11-12) | **S151** |
+| Fast PR checks: scoped caching, a prebuilt browser, split functions tests, lint and tsc caches (FEATURES Fast PR checks, owner 2026-11-19) | **S152** |
 
 ---
