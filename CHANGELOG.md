@@ -90,6 +90,14 @@ explicitly where that's the case. For what's still ahead, see
   request built before `stage` gained a newer migration) and staging's never does; every other difference fails everywhere. The readers it uses moved there
   from the baseball-data copy, which shares them.
 
+## The video player's Download button is gone for now
+
+- **Before, the player's Download button didn't download: browsers open another site's video file instead of
+  saving it, so it did the same as Direct link. Now there's no Download button; Direct link opens the video, where
+  your browser's own save works, until a real download arrives.** Details: owner, 2026-11-12 ("Remove the download
+  button for now, but make a story to do the service worker in the future"); `PlayerActions`
+  (`web/src/components/videos`); S151 saves the file through the app's service worker.
+
 ## Plan checks no longer miss changes after branches are merged
 
 - **Before, when two lines of work were merged together, the check that says when the plan is due for another
@@ -360,6 +368,7 @@ explicitly where that's the case. For what's still ahead, see
 
 ## A game's videos are easy to browse
 
+- **Before, the approved design put a video's link to its play on an extra line under the card, reading "Play · Top 6th →". Now the approved design moves it onto the card's date line as a small, quiet pill with the inning, "Top 6 →", the same pill in the video player and on Search's results, so a clip with a play takes no more room than one without; a clip with no play still says "Highlight".** Nothing on screen changes yet: S145 builds it. Details: S144 — game-shell A6, ratified by the owner ("the one in figma looks good"); shared Figma components `play-inning-pill` and `video-meta`. _(2026-11-19)_
 - **Before, a video didn't say which play it showed. Now a clip with a play carries a small "Play · Top 6th →" link, on its card, in the list and in the player, and following it opens the Plays room right on that at-bat, marked. Every play that has a clip says so with a "Video:" line, and thumbnails no longer show a play icon.** Details: S97 — `videoPlayLink` from S95's links, the `?play=` arrival in `PlaysPanel`; built to game-shell A5 and game-rooms A6; design matched by the owner. _(2026-11-04)_
 - **Before, nothing showed how a video should lead to the play it shows. Now there's an approved design for it, ready to build: a small "Play · Top 6th →" link on each clip that has a play, the Plays room opening right on that at-bat, and a "Video:" line on every play that has a clip. Video thumbnails also lose their play icon.** Details: S96 — game-shell A5 and game-rooms A6, ratified by the owner; built by S97. _(2026-11-04)_
 - **Before, "biggest moments first" was a guess from each clip's title, so any home run beat a game-saving

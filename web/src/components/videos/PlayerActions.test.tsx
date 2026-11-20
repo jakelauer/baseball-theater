@@ -365,7 +365,7 @@ describe("action palette", () =>
 		})).toBeInTheDocument();
 	});
 
-	it("Direct link opens the file in a new tab; Download links the MP4 to save, also off the page", () =>
+	it("Direct link opens the file in a new tab; there is no Download yet (owner, 2026-11-12: \"Remove the download button for now\")", () =>
 	{
 		renderPlayer();
 		const palette = within(screen.getByRole("toolbar", {
@@ -377,15 +377,15 @@ describe("action palette", () =>
 		expect(direct).toHaveAttribute("href", MP4);
 		expect(direct).toHaveAttribute("target", "_blank");
 		expect(direct).toHaveAttribute("rel", "noopener noreferrer");
-		const download = palette.getByRole("link", {
+		expect(palette.queryByRole("link", {
 			name: "Download",
-		});
-		expect(download).toHaveAttribute("href", MP4);
-		expect(download).toHaveAttribute("download");
-		expect(download).toHaveAttribute("target", "_blank");
+		})).toBeNull();
+		expect(palette.queryByRole("button", {
+			name: "Download",
+		})).toBeNull();
 	});
 
-	it("playing the HLS stream, Download saves the MP4 MLB also gives; a stream-only clip has no Download", () =>
+	it("playing the HLS stream, Direct link opens the MP4 MLB also gives; a stream-only clip opens the stream", () =>
 	{
 		hlsSupport(true);
 		renderPlayer({
@@ -400,7 +400,7 @@ describe("action palette", () =>
 			}],
 		});
 		expect(screen.getByRole("link", {
-			name: "Download",
+			name: "Direct link",
 		})).toHaveAttribute("href", MP4);
 		cleanup();
 		renderPlayer({
@@ -411,9 +411,9 @@ describe("action palette", () =>
 				url: HLS,
 			}],
 		});
-		expect(screen.queryByRole("link", {
-			name: "Download",
-		})).toBeNull();
+		expect(screen.getByRole("link", {
+			name: "Direct link",
+		})).toHaveAttribute("href", HLS);
 	});
 
 	it("Share opens the device's share sheet with the title and URL; without one it copies the link", async () =>
