@@ -75,6 +75,9 @@ story_tip() {
 }
 
 # story_diff <ID> <base> [git diff options…] [-- <paths>…] — `git diff` over the story's own changes.
+# Paths print as themselves (core.quotepath=false): git's default quotes and escapes any name
+# with a non-ASCII character ("…\342\200\224…" for an em dash), which no fence pattern like
+# `^docs/v3/backlog/` can match (#87).
 story_diff() {
   local id="$1" base="$2" tip opts=() paths=()
   shift 2
@@ -82,19 +85,20 @@ story_diff() {
   [ "${1:-}" = "--" ] && { shift; paths=("$@"); }
   tip="$(story_tip "$id")"
   if [ -n "$tip" ]; then
-    git diff ${opts[@]+"${opts[@]}"} "$base" "$tip" -- ${paths[@]+"${paths[@]}"}
+    git -c core.quotepath=false diff ${opts[@]+"${opts[@]}"} "$base" "$tip" -- ${paths[@]+"${paths[@]}"}
   else
-    git diff ${opts[@]+"${opts[@]}"} "$base" -- ${paths[@]+"${paths[@]}"}
+    git -c core.quotepath=false diff ${opts[@]+"${opts[@]}"} "$base" -- ${paths[@]+"${paths[@]}"}
   fi
 }
 
 # story_changed_files <ID> <base> <paths>… — files the story added or edited under <paths>
-# (its own diff, plus untracked files while it is unshipped).
+# (its own diff, plus untracked files while it is unshipped), each named as itself even when it
+# has a non-ASCII character (#87; see story_diff).
 story_changed_files() {
   local id="$1" base="$2"
   shift 2
   {
     story_diff "$id" "$base" --name-only -- "$@"
-    [ -z "$(story_tip "$id")" ] && git ls-files --others --exclude-standard -- "$@"
+    [ -z "$(story_tip "$id")" ] && git -c core.quotepath=false ls-files --others --exclude-standard -- "$@"
   } | sort -u
 }

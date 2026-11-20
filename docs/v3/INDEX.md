@@ -494,7 +494,6 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 
 | Priority | Story or bug | Status | Depends on | Design |
 |---|---|---|---|---|
-| 70.9 | [B87](backlog/bugs/todo/B87.md) Bug #87: Grader fence checks fail on file names with non-ASCII characters | `todo` | — | — |
 | 71 | [S152](backlog/stories/todo/S152.md) Fast PR checks (scoped caching) | `todo` | — | — |
 | 72 | [S131](backlog/stories/todo/S131.md) Approved release notes | `todo` | — | — |
 | 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
@@ -537,4 +536,4 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 
 **`superseded`** (3): [S7](backlog/stories/superseded/S7.md), [S137](backlog/stories/superseded/S137.md), [S9](backlog/stories/superseded/S9.md)
 
-**Bugs `done`** (3): [B40](backlog/bugs/done/B40.md), [B48](backlog/bugs/done/B48.md), [B74](backlog/bugs/done/B74.md)
+**Bugs `done`** (4): [B40](backlog/bugs/done/B40.md), [B48](backlog/bugs/done/B48.md), [B74](backlog/bugs/done/B74.md), [B87](backlog/bugs/done/B87.md)

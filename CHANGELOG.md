@@ -61,6 +61,16 @@ explicitly where that's the case. For what's still ahead, see
   is played, the floor in its postseason or when MLB couldn't give a season calendar); season calendars kept a day by
   `functions/src/adapters/cached-season-calendars.ts`; MLB's answers recorded under `fixtures/raw/`.
 
+## The team's checks no longer trip over file names with accented letters or dashes
+
+- **Before, the automatic check that a change touched only the files it was meant to could wrongly fail when a file's
+  name had a character outside plain English letters, such as the long dash in one of the backlog's planning notes,
+  so legitimate work had to be patched around by hand. Now those files are listed by their real names and the check
+  judges them like any other, which keeps the team's work moving without one-off workarounds.** Nothing on the site
+  changes. Details: B87, fixes #87. `story_diff` and `story_changed_files` in `scripts/lib/checks.sh` run git with
+  `core.quotepath=false`, so a path with a non-ASCII character prints as itself instead of quoted and octal-escaped,
+  and a grader's fence pattern such as `^docs/v3/backlog/` can match it.
+
 ## The month's game counts also say which teams play each day
 
 - **Before, the month answer behind the coming calendar said how many games each day has but not who plays, so the
