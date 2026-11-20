@@ -19181,3 +19181,47 @@ S108 AC 3 rewritten to answer a pre-PR review finding on S107's branch (A7 says 
 **What changed, and the owner's answer**
 
 S152 AC 9 restored to its own line (a lost line break), answering the pre-PR review of the backlog/review-2026-11-19 pull request. Owner, 2026-11-07, asked whether an AC rewrite answering a pull request's review needed a backlog review: "This shouldn't even trigger a question. Always skip."
+
+---
+
+## 2026-11-19 — doc parity review (`continue`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T01:44:09Z` |
+| HEAD at review | `202bb1d` (tree clean) |
+| Trigger | docs/v3/FEATURES.md changed (Standings row: S137 superseded, picker is the scoreboard's) |
+| Stories `done` since last review | — |
+| Verdict | `continue` |
+
+**Findings / amendments**
+
+Fresh-context review at `202bb1d` (`pnpm parity:debt`, since `1998de5`: `docs/v3/FEATURES.md` changed). Commits since: `cf5e905`, `ee41b4a` (S152 AC split, baseline, ledger skip) and `202bb1d` (S137 superseded, S138 re-scoped to the scoreboard's A8 control). FEATURES' one change (`git diff 1998de5 HEAD -- docs/v3/FEATURES.md`) is the Standings row's last clause: it adds *"the picker is the scoreboard's control and calendar, unchanged (owner, 2026-11-19, shown a separate design story for it: "The standings date picker is exactly the same")"* and its story list goes from "— S137, S138" to "— S138". INTENT unchanged (diff empty). No `**Source:**` line changed (`git diff 1998de5 HEAD -- docs/v3/backlog/stories/ | grep '^[-+]\*\*Source'`: none); no pillar-cited story's Gap, Impact or ACs changed (the story diffs are S129/S130 notes, S137's supersede and S138's Design line, ACs and notes, all `Feature: Standings`). Scope: S138 and S137 (the stories the changed row names), plus the next 3 `todo` stories in `docs/v3/INDEX.md`: S152 (71), S125 (74), S144 (75) and S145 (75, same priority); B87 (70.9) is a bug note with no **Source:** line.
+
+**Check 1: citation honesty**
+
+1. **S138 -> Feature: Standings. Holds.** The row's last sentence (FEATURES line 65) is S138's whole job: "The page gets the scoreboard's date picker and shows the standings as they were on any date", "a past date offers and opens the views it would have on that day", and now "the picker is the scoreboard's control and calendar, unchanged". S138's Gap quotes the same 2026-11-09 words; its Impact ("fans pick or type a date on Standings, with the same calendar the scoreboard has") restates the row; AC 1 (S125's control and calendar imported, no second calendar), AC 2 (pick drops `?view=`, "Same rules as if that date were today.") and AC 5 (captures paired with A8's scoreboard frames and A9's Standings frames) each map to a clause. The new quote is the owner's: recorded in `202bb1d`'s message ("The owner, shown S137 ... and S138 ... (2026-11-19): "The standings date picker is exactly the same"") and in the coordinator's brief for this review, and it is the same quote on S138's **Design:** line and S137's supersede note.
+2. **S137 -> Feature: Standings.** Superseded and never started; its citation was honest for a design story and no longer matters. The row no longer names it (correct: it builds nothing). Remaining mentions are history only (`docs/v3/backlog/frame/02 Stories.md` embed, gap map, review frames).
+3. **S152 -> Feature: Fast PR checks; S125 -> Feature: Calendar date picker; S144, S145 -> Feature: Video play links. Hold**, unchanged since the 2026-11-19 parity review (AUDIT.md:19097-19099): no Source, Gap, Impact or cited row changed since (`cf5e905` moved S152's Status AC onto its own line, AC 9; the cited rows at FEATURES:98, :101, :106 are untouched).
+4. **`Open:` stories:** none (`grep -rn 'Source:\*\* *Open' docs/v3/backlog/stories/{todo,doing,blocked}`: no match). The one pillar citation in open stories, S146 (Delightful, approved 2026-11-11), is unchanged and was re-checked against Fast PR checks in the last review.
+
+**Check 2: doc reflects reality**
+
+5. **"unchanged" and A8's state on this branch (no conflict).** FEATURES now says the Standings picker is the scoreboard's control and calendar, unchanged. On this branch `docs/v3/visual/shell-scoreboard/amendments/A8.md:3` still says "Draft, not ratified" and S123 is `blocked` (INDEX:532); A8 is ratified on `story/S123-redraw` (`2c39156`, "Ratified 2026-11-19"), not yet an ancestor of HEAD (`git merge-base --is-ancestor`: no). S138's notes say exactly this ("ratified 2026-11-19 on `story/S123-redraw`"), and rule 18 holds S138 until S123 is `done`, so FEATURES and the backlog agree; no edit.
+6. **The agent's readings of "exactly the same" are owner questions, not doc conflicts.** S138's Notes list them (placement above the heading and view switch; off-season `Today`; an invalid address `date`) plus seasons before 1969. FEATURES says nothing that contradicts any reading: it says "unchanged", and the readings take A8 as drawn. One reading interacts with other Standings clauses and is worth the owner's eye: A8's `Today` is the scoreboard's opening day (`useScoreboardDefaultDate`, A8 Choices: "the footer's `Today` goes to the day the scoreboard opens on"), which in the off-season is the last season's final regular-season day, so on Standings in, say, December, `Today` opens that September day: the regular-season table "as of" it (FEATURES: the "as of" line shows "only if the date is not today"), with no World Series box (the row: from "the day after the last World Series game") and whatever views that day had, a different page from Standings with no date. Not edited (writing either answer would be writing intent); carried as a question below.
+7. **Seasons before 1969.** FEATURES' "shows the standings as they were on any date" and the calendar's 1901-04-18 bound (Calendar date picker row; S125 AC 3) let a fan pick 1950; nothing says what the page shows when the leagues had no divisions (`functions/src/mappers/standings.ts` groups by division). Open, already in S138's notes, and now with no design story to settle it (S137 was to). Question below.
+8. **Relics:** none. "Add as its own stories" (plural, 2026-11-09) is still the history of why the work is its own story; S137's supersede is recorded with the owner's later words, so the row doesn't read as promising a separate design.
+
+**Check 3: coverage**
+
+9. The Standings row's date-picker clause is served by S138 alone (design gate S123/A8, built by S125). No feature was added by this review. Video play links' Search-player link (S127 designs, no build story) remains the known item from the 2026-11-14 entry (AUDIT.md:16378), still gated on S127's intake; not re-raised.
+
+**For the next backlog review**
+
+1. S138's design gate is S123, which is `blocked` on this branch while its ratification (`2c39156`) lives on `story/S123-redraw`; check S123 is `done` and A8 merged before S138 (or S125) goes to `doing`.
+2. S138's open questions (placement, off-season `Today`, an invalid address `date`, seasons before 1969) must be answered before S138 starts; a pre-1969 answer that needs API or mapper work is its own story (S138's fence is `web/src/`), and S130's function would have to say which views a pre-1969 day offers.
+
+**Questions for the owner (non-blocking; S138 is not next up):** (1) off-season `Today` on Standings (item 6); (2) what Standings shows before 1969 (item 7); (3) placement of the control above the heading and view switch (S138 AC 1).
+
+**Verdict: `continue`.** Every citation checked holds; FEATURES' one change records the owner's own words and agrees with S138; no `Open:` story; S138's open questions are recorded in its notes and don't block B87, S152 or S125.
