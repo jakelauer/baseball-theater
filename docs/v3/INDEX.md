@@ -50,7 +50,7 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `1–80` Live data plane — ADR-002 ingest + client freshness
     - `55–80` Later themes (not yet story-sliced)
 - [05 Gap map (doc → story)](<backlog/frame/05 Gap map (doc → story).md>) — 10 KB
-  - `1–45` Gap map (doc → story)
+  - `1–46` Gap map (doc → story)
 - [06 Baseline history](<backlog/frame/06 Baseline history.md>) — 51 KB
   - `1–136` Baseline history
 
@@ -378,19 +378,19 @@ Assembled, in this order and around the stories, into BACKLOG.md.
   - `2167–2170` System Consistency
   - `2171–2174` Originality
   - `2175–2221` Small-Size Test
-- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 65 KB
+- [FEATURES.md — Baseball Theater v3 — Features](FEATURES.md) — 66 KB
   - `12–19` North star
   - `20–34` Principles (product)
   - `35–46` Scope legend
   - `47–81` Carry / cut from v2 (working table)
     - `76–81` Dropped (summary)
-  - `82–260` New product themes
-    - `107–260` Theme detail
-  - `261–277` Build checklist (working — not a “feel” gate)
-  - `278–306` Patronage & access (product-level)
-    - `290–306` Tiers (carry from v2)
-  - `307–317` Success signals
-  - `318–325` Open product questions
+  - `82–261` New product themes
+    - `108–261` Theme detail
+  - `262–278` Build checklist (working — not a “feel” gate)
+  - `279–307` Patronage & access (product-level)
+    - `291–307` Tiers (carry from v2)
+  - `308–318` Success signals
+  - `319–326` Open product questions
 - [FIGMA-EXPLORATION.md — FIGMA-EXPLORATION.md](FIGMA-EXPLORATION.md) — 19 KB
   - `161–164` Verdict
   - `165–167` Fails
@@ -494,6 +494,7 @@ Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priori
 
 | Priority | Story or bug | Status | Depends on | Design |
 |---|---|---|---|---|
+| 71 | [S152](backlog/stories/todo/S152.md) Fast PR checks (scoped caching) | `todo` | — | — |
 | 74 | [S125](backlog/stories/todo/S125.md) Calendar date picker | `todo` | S124, S136, S81 | S123 |
 | 75 | [S145](backlog/stories/todo/S145.md) Inning pill play link on cards and player | `todo` | S97, S81 | S144 |
 | 76 | [S139](backlog/stories/todo/S139.md) Standings by season phase in the API | `todo` | S128 | — |
