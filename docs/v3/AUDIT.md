@@ -19225,3 +19225,48 @@ Fresh-context review at `202bb1d` (`pnpm parity:debt`, since `1998de5`: `docs/v3
 **Questions for the owner (non-blocking; S138 is not next up):** (1) off-season `Today` on Standings (item 6); (2) what Standings shows before 1969 (item 7); (3) placement of the control above the heading and view switch (S138 AC 1).
 
 **Verdict: `continue`.** Every citation checked holds; FEATURES' one change records the owner's own words and agrees with S138; no `Open:` story; S138's open questions are recorded in its notes and don't block B87, S152 or S125.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T01:47:14Z` |
+| HEAD at capture | `3db754f` (tree clean) |
+| Change | `202bb1d` — S137 superseded: Standings' date picker is the scoreboard's (A8); S138 builds it (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19: "I also want you to start skipping reviews when you're confident in the choice. Ask when you can see a good argument either way." Confident skip: S137 superseded and S138's ACs rewritten on the owner's word ("The standings date picker is exactly the same"), building ratified A8 with no new design; a doc parity review (4503fe8, continue) already checked the same change set, and S138's remaining readings are open owner questions it can't start before.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T01:47:15Z` |
+| HEAD at capture | `3db754f` (tree dirty) |
+| Change | `b4775a2` — S131 restarted: v3.1.0 is published; its kinds gain Performance (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19: "I also want you to start skipping reviews when you're confident in the choice. Ask when you can see a good argument either way." Confident skip: S131 restarted after its park reason cleared (v3.1.0 published 2026-11-11; owner: "Ok yeah restart s131 asap") and its kinds gained "Performance", applying the owner's 2026-11-16 answer already recorded in S133; no new decision.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T01:47:15Z` |
+| HEAD at capture | `3db754f` (tree dirty) |
+| Change | `7203438` — S131: priority 78 → 72, after B87 and S152 (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19: "I also want you to start skipping reviews when you're confident in the choice. Ask when you can see a good argument either way." Confident skip: S131 moved from priority 78 to 72 on the owner's word ("Just put 131 wherever it best belongs"), after B87 and S152 and before S145; no AC or dependency changed.
