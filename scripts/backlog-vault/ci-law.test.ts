@@ -259,6 +259,12 @@ describe("CI runs pnpm verify (law P11)", () =>
 		// 2026-11-11: "Can we avoid deploying when the only change was docs?").
 		expect(staging).toContain("needs.changes.outputs.code == 'true' && needs.verify.result == 'success'");
 		expect(staging).not.toContain("needs.verify.result == 'skipped'");
+		// Deploy's verify runs the full gate before staging and production. It may skip it only on a pull
+		// request, where ci.yml's verify runs it (owner, 2026-11-21: "Yes, drop the duplicate (Recommended)").
+		const verifyJob = deploy.slice(deploy.indexOf("\n    verify:\n"), deploy.indexOf("\n    # ", deploy.indexOf("\n    verify:\n") + 1));
+		const gate = /\n( +)- name: Verify\n((?:\1 {2}.*\n)*)/.exec(verifyJob)?.[2] ?? "";
+		expect(gate).toMatch(/run: pnpm verify\n/);
+		expect(gate.match(/^\s*if: (.*)$/m)?.[1] ?? "").toMatch(/^(github\.event_name != 'pull_request')?$/);
 		// Whether to deploy is decided from the commit staging serves, never from what else is on
 		// stage, so a newer run that fails can't strand an older commit that passed.
 		expect(staging).toContain('echo "${{ github.sha }}" >web/dist/bt-commit.txt');
