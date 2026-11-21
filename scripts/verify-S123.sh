@@ -247,9 +247,13 @@ else
 		echo "$frames_table" | grep -qiF "$term" || bad 2 "## Frames never mentions '$term'"
 	done
 	# What AC 1 says the amendment states in words, wherever in it.
-	for term in "Esc" "URL" "Back" "month_too_late" "null" "December 2019" "ms" "px" "next year" "April 1901"; do
+	for term in "Esc" "URL" "Back" "month_too_late" "null" "December 2019" "next year" "April 1901"; do
 		grep -qF "$term" "$A" || bad 2 "the amendment never states '$term' (AC 1)"
 	done
+	# The slide's duration and the short-screen height as numbers, not bare "ms"/"px" (which "items" or any
+	# width matches; Claude's review of #127, tightened before shipping, rule 7).
+	grep -qE 'slide is [0-9]+ ?ms' "$A" || bad 2 "the amendment never states the slide's duration in ms (AC 1)"
+	grep -qE 'short-screen line is [0-9]+ ?px' "$A" || bad 2 "the amendment never states the short-screen height in px (AC 1)"
 
 	# --- Check 3: Mantine vs custom -----------------------------------------------
 	comps=$(section "$A" Components)
