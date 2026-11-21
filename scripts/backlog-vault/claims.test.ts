@@ -16,8 +16,8 @@ import {
 } from "vitest";
 import type { Claim } from "./claims.ts";
 import {
-	ClaimsError, compareClaim, isBarrierPath, lockDir, makeClaim, mergeFindings, orderQuestions, outsideClaim, parseFindings, parseQuestions,
-	readClaims, reviewEditsToInFlight, reviewerFlags, withClaimsLock, writeClaim,
+	branchesNaming, ClaimsError, compareClaim, isBarrierPath, lockDir, makeClaim, mergeFindings, orderQuestions, outsideClaim, parseFindings, parseQuestions,
+	readClaims, reviewEditsToInFlight, reviewerFlags, uncoveredBlocked, withClaimsLock, writeClaim,
 } from "./claims.ts";
 import { inFlightIds, invalidInFlight } from "./in-flight.ts";
 
@@ -199,6 +199,20 @@ describe("findings and questions", () =>
 		});
 	});
 
+	it("names every blocked item no question's Blocks: line holds (owner, 2026-11-20)", () =>
+	{
+		const questions = parseQuestions("## A: q?\nBlocks: S133, B81\n\n## B: q?\n");
+		expect(uncoveredBlocked(["S133", "S129", "S107", "B81", "S129"], questions)).toEqual(["S107", "S129"]);
+		expect(uncoveredBlocked([], questions)).toEqual([]);
+	});
+
+	it("finds a blocked item's branches by its whole ID", () =>
+	{
+		const branches = ["stage", "story/S133-redraw", "story/S1330", "story/S133", "bug/B81", "work/xS133"];
+		expect(branchesNaming(branches, "S133")).toEqual(["story/S133-redraw", "story/S133"]);
+		expect(branchesNaming(branches, "B81")).toEqual(["bug/B81"]);
+	});
+
 	it("orders owner questions by how many items their Blocks: line holds", () =>
 	{
 		const text = [
@@ -285,6 +299,15 @@ describe("CLI in a temp root", () =>
 		writeFileSync(join(root, ".pending/needs-input.md"), "## A: q?\nBlocks: S1\n\n## B: q?\nBlocks: S1, S2\n");
 		expect(cli(["findings"]).stdout).toContain("shared fix [8] a.ts: S1, S2");
 		expect(cli(["questions"]).stdout.split("\n")[0]).toBe("2 blocked (S1, S2): B: q?");
+		mkdirSync(join(root, "docs/v3/backlog/stories/blocked"), {
+			recursive: true,
+		});
+		mkdirSync(join(root, "docs/v3/backlog/bugs/blocked"), {
+			recursive: true,
+		});
+		for (const n of ["stories/blocked/S1.md", "stories/blocked/S9.md", "bugs/blocked/B4.md"]) writeFileSync(join(root, "docs/v3/backlog", n), "---\n---\n");
+		const lines = cli(["questions"]).stdout.trim().split("\n");
+		expect(lines.slice(2)).toEqual(["no question: B4 is blocked", "no question: S9 is blocked"]);
 		expect(cli(["release", "S1"]).status).toBe(0);
 		expect(readFileSync(join(root, ".run/findings.md"), "utf8")).toContain("S1");
 	});
