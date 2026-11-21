@@ -15,8 +15,9 @@ export interface ScheduleRepository {
 	getByDate(date: string): Promise<ScheduleDay | null>;
 	upsert(day: ScheduleDay): Promise<void>;
 	/**
-	 * Every stored day from `from` to `to` (both included, `YYYY-MM-DD`) as its game count and
-	 * stamps, in date order, in one read (S124's month view): days nothing stored are left out.
+	 * Every stored day from `from` to `to` (both included, `YYYY-MM-DD`) as its game count, its
+	 * teams' IDs (S136; each once, ascending) and stamps, in date order, in one read (S124's month
+	 * view): days nothing stored are left out.
 	 */
 	listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>;
 }

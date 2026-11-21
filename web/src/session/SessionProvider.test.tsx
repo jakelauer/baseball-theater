@@ -6,10 +6,10 @@ import type { ReactNode } from "react";
 import {
 	afterEach, beforeEach, describe, expect, it, vi,
 } from "vitest";
+import { MOCK_SIGN_IN_CREDENTIAL } from "@bt/domain";
 import { createQueryClient } from "../api/queryClient.js";
 import { jsonResponse } from "../test/jsonResponse.js";
 import { stubMeApi } from "../test/meApi.js";
-import type { AuthClientLoader } from "./SessionProvider.js";
 import { SessionProvider } from "./SessionProvider.js";
 import type { LogtoSdk } from "./AuthClient.js";
 import { createAuthClient } from "./AuthClient.js";
@@ -17,8 +17,10 @@ import {
 	ACCOUNT_QUERY_KEY, DEV_SIGN_IN_TOKEN, useSession,
 } from "./session.js";
 import type * as StorageModule from "../storage/storage.js";
-import { clearPersonalData } from "../storage/storage.js";
+import { clearPersonalData, readStored } from "../storage/storage.js";
 import { getSessionToken, setSessionToken } from "./token.js";
+import type { SignInWay, SignInWayLoader } from "./signInWay.js";
+import { forgetSignInWay } from "./signInWay.js";
 
 // The real storage, with clearPersonalData watched so sign-out can be shown to call it (ADR-028).
 vi.mock("../storage/storage.js", async (importOriginal) =>
@@ -30,12 +32,12 @@ vi.mock("../storage/storage.js", async (importOriginal) =>
 	};
 });
 
-function renderSession(queryClient = createQueryClient(), authClient?: AuthClientLoader)
+function renderSession(queryClient = createQueryClient(), signInWay?: SignInWayLoader)
 {
 	const wrapper = ({ children }: { children: ReactNode }) => (
 		<QueryClientProvider client={queryClient}>
-			<SessionProvider {...authClient && {
-				authClient,
+			<SessionProvider {...signInWay && {
+				signInWay,
 			}}>{children}</SessionProvider>
 		</QueryClientProvider>
 	);
@@ -54,6 +56,8 @@ afterEach(() =>
 	cleanup();
 	vi.unstubAllGlobals();
 	vi.unstubAllEnvs();
+	// Each case is a fresh page load.
+	forgetSignInWay();
 });
 
 describe("SessionProvider", () =>
@@ -125,6 +129,7 @@ describe("SessionProvider", () =>
 		vi.stubEnv("PROD", true);
 		const fetchMock = vi.fn(async (request: Request) => (new URL(request.url).pathname === "/api/v1/sign-in" ? jsonResponse({
 			logto: null,
+			mock: false,
 		}) : jsonResponse({}, 401)));
 		vi.stubGlobal("fetch", fetchMock);
 		const { result } = renderSession();
@@ -166,12 +171,15 @@ describe("SessionProvider", () =>
 	it("S116 AC 3: locally (no Logto) signIn() is still the dev sign-in and signOut() ends no other session", async () =>
 	{
 		stubMeApi();
-		const authClient = vi.fn(async () => null);
-		const { result } = renderSession(createQueryClient(), authClient);
+		const signInWay = vi.fn(async (): Promise<SignInWay> => ({
+			kind: "dev",
+		}));
+		const { result } = renderSession(createQueryClient(), signInWay);
 		await act(() => result.current.signIn());
 		expect(getSessionToken()).toBe(DEV_SIGN_IN_TOKEN);
 		act(() => result.current.signOut());
-		await waitFor(() => expect(authClient).toHaveBeenCalledTimes(2));
+		// Asked on mount (for the header), on sign-in and on sign-out; it is the loader that remembers.
+		await waitFor(() => expect(signInWay).toHaveBeenCalledTimes(3));
 		expect(result.current.status).toBe("signedOut");
 	});
 
@@ -208,7 +216,10 @@ describe("SessionProvider with Logto (S116)", () =>
 			return sdk;
 		});
 		return {
-			loader: async () => client,
+			loader: async (): Promise<SignInWay> => ({
+				kind: "logto",
+				client: async () => client,
+			}),
 			sdk: () => sdk!,
 		};
 	}
@@ -293,6 +304,22 @@ describe("SessionProvider with Logto (S116)", () =>
 		expect(Object.keys(sessionStorage)).toEqual([]);
 	});
 
+	it("S143: a Logto client that fails to load makes signIn() reject before anything is stored, so the next click starts clean", async () =>
+	{
+		stubSignInApi();
+		window.history.replaceState(null, "", "/settings");
+		const { result } = renderSession(createQueryClient(), async () => ({
+			kind: "logto",
+			client: () => Promise.reject(new Error("chunk failed")),
+		}));
+		await act(async () =>
+		{
+			await expect(result.current.signIn()).rejects.toThrow("chunk failed");
+		});
+		expect(readStored("bt.signInReturnTo")).toBeNull();
+		expect(result.current.status).toBe("signedOut");
+	});
+
 	it("S116 AC 3: a refused ID token leaves the browser signed out", async () =>
 	{
 		stubSignInApi();
@@ -301,14 +328,19 @@ describe("SessionProvider with Logto (S116)", () =>
 			finishSignIn: vi.fn(async () => "a-forged-token"),
 			signOut: vi.fn(async () => undefined),
 		};
-		const { result } = renderSession(createQueryClient(), async () => client);
+		const { result } = renderSession(createQueryClient(), async () => ({
+			kind: "logto",
+			client: async () => client,
+		}));
 		await act(async () =>
 		{
 			await expect(result.current.finishSignIn(`${location.origin}/sign-in/callback?code=bad`)).rejects.toThrow(/401/);
 		});
 		expect(result.current.status).toBe("signedOut");
 		expect(getSessionToken()).toBeNull();
-		await expect(renderSession(createQueryClient(), async () => null).result.current.finishSignIn("x")).rejects.toThrow(/no Logto/);
+		await expect(renderSession(createQueryClient(), async () => ({
+			kind: "none",
+		})).result.current.finishSignIn("x")).rejects.toThrow(/no Logto/);
 	});
 
 	it("S120 AC 5: the in-flight sign-in and its return path are kept in this tab's sessionStorage, never the shared localStorage", async () =>
@@ -367,7 +399,10 @@ describe("SessionProvider with Logto (S116)", () =>
 				finishSignIn: vi.fn(async () => "logto-id-token"),
 				signOut: vi.fn(async () => undefined),
 			};
-			const { result, unmount } = renderSession(createQueryClient(), async () => client);
+			const { result, unmount } = renderSession(createQueryClient(), async () => ({
+				kind: "logto",
+				client: async () => client,
+			}));
 			await waitFor(() => expect(answerOld).toBeDefined());
 
 			await act(async () =>
@@ -386,5 +421,66 @@ describe("SessionProvider with Logto (S116)", () =>
 			unmount();
 			setSessionToken(null);
 		}
+	});
+});
+
+describe("SessionProvider with staging's mock sign-in (S143)", () =>
+{
+	it("S143 AC 5: signIn() (the header's Sign in, and Settings' Sign in again) trades the mock credential for a session each time, on this page; signOut() ends only BT's", async () =>
+	{
+		let issued = 0;
+		const fetchMock = vi.fn(async (request: Request): Promise<Response> =>
+		{
+			const path = new URL(request.url).pathname;
+			if (path === "/api/v1/sign-in" && request.method === "POST")
+			{
+				const { idToken } = await request.json() as { idToken: string };
+				issued += 1;
+				return idToken === MOCK_SIGN_IN_CREDENTIAL ? jsonResponse({
+					token: `bt-mock-${issued}`,
+				}) : jsonResponse({
+					error: "sign_in_refused",
+				}, 401);
+			}
+			if (path === "/api/v1/me") return request.headers.get("Authorization")?.startsWith("Bearer bt-mock-") ? jsonResponse({
+				uid: "mock-uid",
+				email: "tester@stage.baseball.theater",
+				role: "member",
+				entitlements: {},
+			}) : jsonResponse({}, 401);
+			return new Promise<Response>(() => undefined);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const href = location.href;
+		const { result } = renderSession(createQueryClient(), async () => ({
+			kind: "mock",
+		}));
+		await waitFor(() => expect(result.current.signInOffer).toBe("offered"));
+
+		let leaving: boolean | undefined;
+		await act(async () =>
+		{
+			leaving = await result.current.signIn();
+		});
+		// Signed in here, not by leaving the page.
+		expect(leaving).toBe(false);
+		expect(location.href).toBe(href);
+		expect(result.current.status === "signedIn" && result.current.account.email).toBe("tester@stage.baseball.theater");
+		expect(getSessionToken()).toBe("bt-mock-1");
+
+		// "Sign in again" before deleting: a fresh sign-in, so a fresh session.
+		await act(() => result.current.signIn());
+		expect(getSessionToken()).toBe("bt-mock-2");
+
+		act(() => result.current.signOut());
+		await act(async () => await Promise.resolve());
+		expect(result.current.status).toBe("signedOut");
+		expect(getSessionToken()).toBeNull();
+		expect(location.href).toBe(href);
+		// BT's sign-in twice and its /me; no one else's session to end.
+		expect(fetchMock.mock.calls.map(([request]) => `${request.method} ${new URL(request.url).pathname}`).filter((call) => !call.endsWith("/api/v1/me"))).toEqual([
+			"POST /api/v1/sign-in",
+			"POST /api/v1/sign-in",
+		]);
 	});
 });

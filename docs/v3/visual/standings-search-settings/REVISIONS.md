@@ -2,7 +2,7 @@
 
 ## Source
 
-https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF
+https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF?node-id=635-22630 — the Standings page; the [Search](https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF?node-id=635-22631) and [Settings](https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF?node-id=635-22632) pages hold the others (link updated 2026-11-16, when the file was split into pages).
 
 Version: 2026-10-13 — live file as edited and exported in the S38 session (the Plugin API cannot save a named version; no named version was taken).
 

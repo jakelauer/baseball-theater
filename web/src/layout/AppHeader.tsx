@@ -17,7 +17,8 @@ import { HomeLink } from "./Wordmark.js";
  * feedback"): it reads "Signing in…" with a spinner and stops taking presses while Logto's
  * SDK loads and the redirect starts. It stays that way only while the page is leaving for
  * Logto (`signIn()` answers true). It goes back to "Sign in" when the start fails, when
- * `signIn()` answers false (a production build without Logto, or a local dev sign-in), and
+ * `signIn()` answers false (staging's mock sign-in or a local dev sign-in, which finish on the
+ * page), and
  * when the reader comes Back from Logto to this very page out of the back/forward cache
  * (`pageshow` with `persisted`), where React's state is restored as it was left. Its state
  * lives here, not in `AccountControl`, so signing in unmounts it and a later sign-out starts
@@ -73,8 +74,10 @@ function SignInButton({ signIn }: { signIn: () => Promise<boolean> })
 /**
  * The account control at the header's right (S56 A2). Signed in, the icon opens a menu
  * with **Settings** and **Sign out** (owner, 2026-11-12: "the user icon should provide a
- * menu on click that offers: Settings, Sign Out"). Signed out, `SignInButton`. While the
- * session loads it draws nothing, so it doesn't flash.
+ * menu on click that offers: Settings, Sign Out"). Signed out, `SignInButton`, but only where
+ * the page offers a way to sign in (S143 AC 6): a preview, which offers none, shows nothing
+ * there rather than a button that does nothing. While the session, or whether sign-in is
+ * offered, is still loading it draws nothing, so it doesn't flash.
  */
 function AccountControl()
 {
@@ -100,6 +103,7 @@ function AccountControl()
 			</Menu>
 		);
 	}
+	if (session.signInOffer !== "offered") return null;
 	return <SignInButton signIn={session.signIn} />;
 }
 

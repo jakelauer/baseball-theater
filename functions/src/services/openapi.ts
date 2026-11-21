@@ -38,6 +38,9 @@ interface Parameter
 	required: boolean;
 	description: string;
 	schema: JsonSchema;
+	/** How a list parameter is written (S139's `includePhases`): `form` with `explode: false` is the comma form. */
+	style?: "form";
+	explode?: boolean;
 }
 
 interface RouteDescription
@@ -84,7 +87,7 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 	},
 	"GET /api/v1/schedule/month/:month": {
 		operationId: "getScheduleMonth",
-		summary: "The number of games on each day of one month, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, distinct from a day with no games (`0`).",
+		summary: "The number of games on each day of one month, and the teams playing it, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null` and `teamIds: null`, distinct from a day with no games (`0` and `[]`).",
 		parameters: [
 			{
 				name: "month",
@@ -147,21 +150,37 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 	},
 	"GET /api/v1/standings": {
 		operationId: "getStandings",
-		summary: "The division standings for one day of the season — the regular season's table, the final table once it has ended, or spring training's (see `phase`): each division's teams in rank order, with wins, losses, winning percentage and games back (null for the leader).",
+		summary: "The division standings for one day of the season — the regular season's table, the final table once it has ended, or spring training's (see `phase`): each division's teams in rank order, with wins, losses, winning percentage and games back (null for the leader). `phases` (S139) carries every season phase of the day's season — spring training, the regular season and the playoffs (the teams that have clinched) — with the days it runs and, for the phases `includePhases` names, its table. Cached at the edge by how long the day asked has been over: up to 30 days once the answer's season (the one `phases` is for) is over; at most 48 hours while it is still being played or has no season calendar; briefly during its postseason, when MLB couldn't give a season calendar, or for today.",
 		parameters: [
 			{
 				name: "date",
 				in: "query",
 				required: false,
-				description: "The day to show standings for, `YYYY-MM-DD`; MLB's today when absent. After the regular season the answer is that season's final table, dated its `regularSeasonEndDate`; during spring training it is spring training's table (see `phase`).",
+				description: "The day to show standings for, a real date as `YYYY-MM-DD`; MLB's today when absent. After the regular season the answer is that season's final table, dated its `regularSeasonEndDate`; during spring training it is spring training's table (see `phase`).",
 				schema: {
 					type: "string",
 					pattern: "^\\d{4}-\\d{2}-\\d{2}$",
 				},
 			},
+			{
+				name: "includePhases",
+				in: "query",
+				required: false,
+				description: "The season phases whose tables `phases` carries (S139), comma-separated (`spring,regularSeason`); the parameter repeated (`includePhases=spring&includePhases=regularSeason`), or both forms mixed, is accepted too. Names match exactly and a name given twice counts once. Absent: every phase's table. Every phase's dates are in `phases` either way, and the top-level fields are the same whatever it names.",
+				schema: {
+					type: "array",
+					items: {
+						type: "string",
+						enum: ["spring", "regularSeason", "playoffs"],
+					},
+				},
+				style: "form",
+				explode: false,
+			},
 		],
 		errors: {
-			400: "`date` is not `YYYY-MM-DD`.",
+			400: "`date_invalid`: `date` is not a real `YYYY-MM-DD` date (checked first). `include_phases_invalid`: an `includePhases` name isn't `spring`, `regularSeason` or `playoffs`, is empty, or has spaces around it; MLB is asked nothing.",
+			502: "`standings_unavailable`: MLB couldn't answer a standings table; never cached, so trying again shortly may succeed. A season calendar MLB couldn't give is not this error: the answer is then the day's table without phase dates, cached only briefly.",
 		},
 	},
 	"GET /api/v1/me": {
@@ -229,18 +248,18 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 	},
 	"GET /api/v1/sign-in": {
 		operationId: "getSignInConfig",
-		summary: "How this deployment signs fans in: its Logto tenant's address and the web app's ID, or `logto: null` where it offers no Logto sign-in (local dev, previews, and staging until its own tenant exists).",
+		summary: "How this deployment signs fans in: its Logto tenant's address and the web app's ID, or `logto: null` where it offers no Logto sign-in; and `mock: true` where it signs in as one shared test account instead (staging). Where both say no, it offers no sign-in (previews, and local dev, which signs in as `dev:`).",
 		parameters: [],
 		errors: {},
 	},
 	"POST /api/v1/sign-in": {
 		operationId: "signIn",
-		summary: "Finishes a sign-in: takes the ID token Logto's hosted sign-in gave the web app (checked against the tenant's keys, issuer, the app's ID and expiry), finds or creates the BT account linked to it, and answers with BT's own session token, sent from then on as `Authorization: Bearer <token>`.",
+		summary: "Finishes a sign-in: takes the ID token Logto's hosted sign-in gave the web app (checked against the tenant's keys, issuer, the app's ID and expiry), or, where `GET /api/v1/sign-in` answers `mock: true`, the mock sign-in credential, finds or creates the BT account linked to it, and answers with BT's own session token, sent from then on as `Authorization: Bearer <token>`.",
 		parameters: [],
 		errors: {
 			400: "The body is not JSON with a non-empty `idToken`.",
-			401: "`sign_in_refused`: the ID token doesn't verify, is malformed, has expired, is for another app or tenant, or carries no email.",
-			404: "`sign_in_unavailable`: this deployment offers no Logto sign-in.",
+			401: "`sign_in_refused`: the ID token doesn't verify, is malformed, has expired, is for another app or tenant, or carries no email; or, where the mock sign-in is offered, it isn't the mock credential.",
+			404: "`sign_in_unavailable`: this deployment offers no provider sign-in (neither Logto nor the mock).",
 			503: "`sign_in_failed`: BT couldn't finish the sign-in for a reason of its own (the tenant's keys couldn't be fetched, or its database or session key failed); the token wasn't refused, so trying again later may succeed.",
 		},
 	},

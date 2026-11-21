@@ -133,10 +133,12 @@ function api(repos: Repos, mlb: MlbStatsClient = new CountingClient(), start: Da
 			expect(response.status).toBe(200);
 			const body = await response.json() as { month: string;
 				days: { date: string;
-					count: number | null; }[]; };
+					count: number | null;
+					teamIds: number[] | null; }[]; };
 			return {
 				body,
 				count: (date: string) => body.days.find((day) => day.date === date)?.count,
+				teams: (date: string) => body.days.find((day) => day.date === date)?.teamIds,
 				cacheControl: response.headers.get("Cache-Control"),
 			};
 		},
@@ -201,9 +203,39 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 	});
 });
 
+describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] as const)("S136 AC 1 %s", (_name, makeRepos) =>
+{
+	it("S136 AC 1 teams: each stored day names its games' away and home teams once each, ascending (postponed and unplayed games included); a day with none is []", async () =>
+	{
+		const repos = await makeRepos();
+		// 121 at 120 (not yet played) and 147 at 111 (postponed).
+		await store(repos, "2024-07-04", await mixedGames());
+		await store(repos, "2024-07-05", []);
+		const { teams, count } = await api(repos).month("2024-07");
+		expect(count("2024-07-04")).toBe(2);
+		expect(teams("2024-07-04")).toEqual([111, 120, 121, 147]);
+		expect(count("2024-07-05")).toBe(0);
+		expect(teams("2024-07-05")).toEqual([]);
+	});
+
+	it("S136 AC 1 route null: a day BT holds no schedule for answers count null and teamIds null, and only such a day", async () =>
+	{
+		const repos = await makeRepos();
+		await store(repos, "2024-07-04", await mixedGames());
+		const { body } = await api(repos).month("2024-07");
+		const day = body.days.find((d) => d.date === "2024-07-06");
+		expect(day).toEqual({
+			date: "2024-07-06",
+			count: null,
+			teamIds: null,
+		});
+		for (const d of body.days) expect(d.teamIds === null, d.date).toBe(d.count === null);
+	});
+});
+
 describe("S124 AC 1 one query", () =>
 {
-	it("reads a month with one repository query, never one per day", async () =>
+	it("S136 AC 1 one query: reads a month's counts and teams with one repository query, never one per day", async () =>
 	{
 		const repos = memoryRepos();
 		await store(repos, "2024-07-04", await mixedGames());
@@ -224,10 +256,11 @@ describe("S124 AC 1 one query", () =>
 				return repos.schedules.listGameCounts(from, to);
 			},
 		};
-		await api({
+		const { teams } = await api({
 			...repos,
 			schedules,
 		}).month("2024-07");
+		expect(teams("2024-07-04")).toEqual([111, 120, 121, 147]);
 		expect(calls).toEqual({
 			list: 1,
 			day: 0,
@@ -253,6 +286,20 @@ describe("S124 AC 2", () =>
 		const twelfth = await repos.schedules.getByDate("2026-12-12");
 		expect(twelfth?.windowMode).toBe(scheduleWindowMode(twelfth!.games, T0));
 		expect((await repos.schedules.getByDate("2026-12-13"))?.windowMode).toBe("cache");
+	});
+
+	it("S136 AC 2 fill teams: a day the fill stores answers with its teams in the same response, with one schedule request and no game request", async () =>
+	{
+		const repos = memoryRepos();
+		const mlb = new CountingClient();
+		mlb.gamesOn.set("2026-12-12", await mixedGames());
+		const { count, teams } = await api(repos, mlb).month("2026-12");
+		expect(count("2026-12-12")).toBe(2);
+		expect(teams("2026-12-12")).toEqual([111, 120, 121, 147]);
+		expect(teams("2026-12-13")).toEqual([]);
+		expect(mlb.ranges).toEqual([["2026-12-01", "2026-12-31"]]);
+		expect(mlb.days).toBe(0);
+		expect(mlb.games).toBe(0);
 	});
 
 	it("S124 AC 2 holding the ends: only the span between the days it holds is asked", async () =>

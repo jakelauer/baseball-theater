@@ -29,7 +29,7 @@ Goals were the reasons v3 started. Pillars are how it is run, every day, by ever
 | [FEATURES.md](./FEATURES.md) | What v3 *is* for users (keep / cut / add) |
 | [VISUAL-DESIGN.md](./VISUAL-DESIGN.md) | How v3 looks and behaves (color, layout, interaction) |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | How v3 is built (greenfield) |
-| [BACKLOG.md](./BACKLOG.md) | Checkable implementation stories (command-mapped AC) |
+| [backlog/](./backlog/) | Checkable implementation stories (command-mapped AC), one note each, listed in order in `INDEX.md` (`BACKLOG.md`, which assembled them, is retired) |
 | [LOOP.md](./LOOP.md) | Loop/goal automation readiness + process |
 
 ---

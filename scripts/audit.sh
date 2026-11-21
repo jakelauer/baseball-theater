@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Append an entry to the verification ledger, docs/v3/AUDIT.md.
+# Write an entry to the verification ledger: one new file per entry, a ledger fragment,
+# docs/v3/audit/<YYYY-MM-DD>/<stamp>-<ID>-<kind>.md (S156). docs/v3/AUDIT.md is frozen.
 #
 # Story entries record exactly what a story's grader checked and the commit the
 # story shipped in. Review entries record every backlog review pass; parity
-# entries record every doc parity review pass (docs/v3/BACKLOG.md rule 19).
+# entries record every doc parity review pass (backlog rule 19).
 #
 #   scripts/audit.sh story S13                    # completion: grader + pnpm verify
 #   scripts/audit.sh story S13 --reverify         # later re-run of a shipped story
@@ -12,7 +13,7 @@
 #   scripts/audit.sh design S60 --design-match -   # a verdict on its own, no grader run
 #   scripts/audit.sh review --trigger "3 done since last review" \
 #                    --since "S23, S21, S13" --verdict amended --findings "..."
-#   scripts/audit.sh review --verdict continue --trigger manual --findings -
+#   scripts/audit.sh review --verdict continue --trigger manual --findings - --in-flight S9,S12
 #   scripts/audit.sh parity --trigger "S40 inserted" --verdict amended --findings -
 #   scripts/audit.sh answers backlog --review 2026-10-09 --commit 6a46b62 --answers -
 #   scripts/audit.sh skip backlog --commit 5470524 --answers -   # owner: no review needed
@@ -27,7 +28,9 @@
 # just avoid incrementing it"), so a count already at the backstop stays due.
 #
 # Flags: --commit <sha> names the shipping commit; --no-verify skips the repo-wide
-# pnpm verify for entries covered by another run; --findings - reads stdin.
+# pnpm verify for entries covered by another run; --findings - reads stdin;
+# --in-flight <IDs> (review/parity; comma-separated, `S9,S12`) names the items being built
+# while the review ran, whose notes it may not edit (S156 AC 13).
 # --design-match <verdict|-> (rule 22, S81) pairs each capture in
 # docs/v3/design-checks/<ID>/ with the ratified frame (or written amendment) under docs/v3/visual/ that governs it,
 # recording both SHA-256s and the owner's verdict, quoted. A story whose note has a
@@ -36,9 +39,17 @@
 # --reverify runs today's grader in a temporary worktree at the story's shipping commit
 # (scripts/lib/reverify.sh): a grader proves its own story, not the repo at HEAD (S84).
 #
+# Why fragments (S156; owner, 2026-11-20: "The goal is to enable agents to work in tandem on
+# backlog items in a way that they don't conflict"): appending to one file made every two
+# branches' entries conflict. Each entry is now a new file, so entries from any number of
+# branches merge in any order. The fragment holds exactly the Markdown the entry would have
+# appended (from its `## <date> — …` heading down); scripts/backlog-vault/ledger.ts, the one
+# parser, reads AUDIT.md and then the fragments in stamp order. The stamp in the name is the
+# entry's `Captured (UTC)` time without separators, so names sort in stamp order.
+#
 # Unlike a grader this DOES write to the working tree — that is its whole job.
 # It never fabricates results: every check line in a story entry comes from a
-# real grader run captured here. A story is not done until its ledger entry is
+# real grader run captured here. A story is not done until its ledger fragment is
 # committed alongside the code.
 #
 # Prints a commit-message summary block to stdout on completion.
@@ -48,13 +59,14 @@ cd "$(dirname "$0")/.."
 
 # Overridable for a separate backlog + ledger (docs/v3/VAULT-MIGRATION.md).
 LEDGER="${BT_AUDIT_LEDGER:-docs/v3/AUDIT.md}"
-BACKLOG="${BT_AUDIT_BACKLOG:-docs/v3/BACKLOG.md}"
+# Where new entries go: beside the ledger, in the folder named for it in lower case
+# (ledger.ts fragmentsDirFor and reverify.sh shipping_commit derive it the same way).
+FRAGMENTS="$(dirname "$LEDGER")/$(basename "$LEDGER" .md | tr '[:upper:]' '[:lower:]')"
 # Rule 22 inputs, overridable for tests (scripts/backlog-vault/audit-design-match.test.ts).
 STORIES_DIR="${BT_AUDIT_STORIES:-docs/v3/backlog/stories}"
 CHECKS_DIR="${BT_AUDIT_DESIGN_CHECKS:-docs/v3/design-checks}"
 VISUAL_DIR="${BT_AUDIT_VISUAL:-docs/v3/visual}"
 GRADERS_DIR="${BT_AUDIT_GRADERS:-scripts}"
-STAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 TODAY="$(date +"%Y-%m-%d")"
 HEAD_SHA="$(git rev-parse --short HEAD)"
 
@@ -65,20 +77,72 @@ else
 fi
 
 usage() {
-  sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 2
 }
 
 if [ ! -f "$LEDGER" ]; then
-  echo "audit: $LEDGER missing — the ledger is the file entries append to" >&2
+  echo "audit: $LEDGER missing — the frozen ledger its fragments continue" >&2
   exit 2
 fi
 
-# Everything below the marker is entries, newest last.
+# Everything below the marker is entries, newest last; a ledger without it isn't one audit.sh wrote.
 MARKER="<!-- entries below; newest last; appended by scripts/audit.sh -->"
 grep -qF "$MARKER" "$LEDGER" || {
-  echo "audit: $LEDGER has no append marker" >&2
+  echo "audit: $LEDGER has no entries marker" >&2
   exit 2
+}
+
+# new_fragment <ID> <kind> — set FRAG to the path of a new ledger fragment for an entry
+# captured now, STAMP to its capture time (the entry's `Captured (UTC)` row, so the name and the
+# row agree), and FRAG_TMP to the file the entry is written to first: `.<name>.<pid>.tmp` beside
+# it, a dot name ledger.ts never reads. finish_fragment then links it into place, so an
+# interrupted run never leaves a half-written or empty fragment (ledger.ts would refuse it and
+# every reader of the ledger would fail), only a dot file. If the name is taken (two entries for
+# one ID and kind within one second) it waits for the next second rather than overwrite one.
+FRAG_TMP=""
+trap 'rm -f "${FRAG_TMP:-}" "${FRAG_TMP:+${FRAG_TMP%.tmp}.new.tmp}"' EXIT
+new_fragment() {
+  FRAG_ID="$1"
+  FRAG_KIND="$2"
+  while :; do
+    STAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    FRAG="${FRAGMENTS}/${STAMP%%T*}/${STAMP//[-:]/}-${FRAG_ID}-${FRAG_KIND}.md"
+    [ -e "$FRAG" ] || break
+    sleep 1
+  done
+  mkdir -p "$(dirname "$FRAG")" || return 1
+  FRAG_TMP="$(dirname "$FRAG")/.$(basename "$FRAG").$$.tmp"
+  : >"$FRAG_TMP" || return 1
+}
+
+# finish_fragment — put the written entry in place: a hard link to FRAG, which fails rather than
+# overwrite when another run took that name since new_fragment, then the temp file goes. On a
+# taken name it moves to the next second's stamp, rewriting the entry's `Captured (UTC)` row to
+# match, and tries again.
+finish_fragment() {
+  local old
+  until ln "$FRAG_TMP" "$FRAG" 2>/dev/null; do
+    if [ ! -e "$FRAG" ]; then
+      echo "audit: could not write ${FRAG}" >&2
+      return 1
+    fi
+    old="$STAMP"
+    sleep 1
+    STAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    FRAG="${FRAGMENTS}/${STAMP%%T*}/${STAMP//[-:]/}-${FRAG_ID}-${FRAG_KIND}.md"
+    mkdir -p "$(dirname "$FRAG")" || return 1
+    sed "s/| Captured (UTC) | \`${old}\` |/| Captured (UTC) | \`${STAMP}\` |/" "$FRAG_TMP" >"${FRAG_TMP%.tmp}.new.tmp" &&
+      mv "${FRAG_TMP%.tmp}.new.tmp" "$FRAG_TMP" || return 1
+  done
+  rm -f "$FRAG_TMP"
+  FRAG_TMP=""
+}
+
+# review_exists <heading regex> — whether any ledger entry (AUDIT.md or a fragment) has that heading.
+review_exists() {
+  grep -qE "$1" "$LEDGER" && return 0
+  [ -d "$FRAGMENTS" ] && grep -rqE --exclude='.*' "$1" "$FRAGMENTS"
 }
 
 read_arg() { # read_arg <value> — "-" means stdin
@@ -150,16 +214,14 @@ if [ "$MODE" = "design" ]; then
   DESIGN_MATCH=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --design-match) DESIGN_MATCH="$(read_arg "${2:-}")"; shift 2 ;;
+      --design-match) DESIGN_MATCH="$(read_arg "${2:-}")"; shift 2 || usage ;;
       *) echo "audit: unknown option $1" >&2; usage ;;
     esac
   done
   [ -n "$DESIGN_MATCH" ] || { echo "audit: design needs --design-match <verdict|->" >&2; exit 2; }
   rows="$(design_match_rows "$ID")" || exit 2
+  new_fragment "$ID" design || exit 2
   {
-    echo
-    echo "---"
-    echo
     echo "## ${TODAY} — ${ID} design match"
     echo
     echo "| | |"
@@ -168,8 +230,9 @@ if [ "$MODE" = "design" ]; then
     echo "| Captured (UTC) | \`${STAMP}\` |"
     echo "| HEAD at capture | \`${HEAD_SHA}\` (tree ${TREE}) |"
     design_match_section "$rows" "$DESIGN_MATCH"
-  } >>"$LEDGER"
-  echo "audit ${ID}: design match appended to ${LEDGER}"
+  } >"$FRAG_TMP"
+  finish_fragment || exit 2
+  echo "audit ${ID}: design match written to ${FRAG}"
   exit 0
 fi
 
@@ -185,11 +248,11 @@ if [ "$MODE" = "story" ]; then
   DESIGN_MATCH=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --design-match) DESIGN_MATCH="$(read_arg "${2:-}")"; shift 2 ;;
+      --design-match) DESIGN_MATCH="$(read_arg "${2:-}")"; shift 2 || usage ;;
       --reverify) LABEL="reverify"; shift ;;
       --backfill) LABEL="backfill"; shift ;;
       --no-verify) RUN_VERIFY=0; shift ;;
-      --commit) COMMIT="${2:-}"; shift 2 ;;
+      --commit) COMMIT="${2:-}"; shift 2 || usage ;;
       *) echo "audit: unknown option $1" >&2; usage ;;
     esac
   done
@@ -207,7 +270,10 @@ if [ "$MODE" = "story" ]; then
 
   # Rule 22: a UI story (a `design:` list in its note) is done only on the owner's
   # verdict on its captures. A story whose match AC says "none" is exempt.
-  NOTE="${STORIES_DIR}/${ID}.md"
+  # The note sits in its status folder (`stories/<status>/S<N>.md`, scripts/backlog-vault/vault.ts
+  # storyNotePath), which moves as the story is finished, so it is found by name; a flat
+  # `stories/S<N>.md` (the layout before 2026-11-17, and the tests' BT_AUDIT_STORIES) is found too.
+  NOTE="$(find "$STORIES_DIR" -maxdepth 2 -type f -name "${ID}.md" 2>/dev/null | sort | head -n 1)"
   needs_match=0
   if [ -f "$NOTE" ] && awk '/^---$/{n++;next} n==1' "$NOTE" | grep -qE '^design:$' &&
     ! grep -qF 'Design match (rule 22): none' "$NOTE"; then
@@ -224,9 +290,14 @@ if [ "$MODE" = "story" ]; then
     match_rows="$(design_match_rows "$ID")" || exit 2
   fi
 
-  TITLE="$(grep -m1 -E "^\| [0-9]+ \| \[${ID}\]" "$BACKLOG" |
-    awk -F' \\| ' '{print $3}' | sed 's/[[:space:]]*$//')"
-  [ -n "$TITLE" ] || TITLE="(title not found in ${BACKLOG} status table)"
+  # The story's title: its note's frontmatter `title` (the notes are the backlog since S156
+  # retired the generated backlog view).
+  TITLE=""
+  if [ -f "$NOTE" ]; then
+    TITLE="$(awk '/^---$/{n++;next} n==1 && /^title: /{sub(/^title: /,""); print; exit}' "$NOTE" |
+      sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/; s/[[:space:]]*$//')"
+  fi
+  [ -n "$TITLE" ] || TITLE="(title not found in ${ID}'s note)"
 
   grader_log="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-grader.XXXXXX")"
   verify_log="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-verify.XXXXXX")"
@@ -262,15 +333,17 @@ if [ "$MODE" = "story" ]; then
   if [ -n "$COMMIT" ]; then
     SHIPPED="\`$(git rev-parse --short "$COMMIT")\` — $(git log -1 --format=%s "$COMMIT")"
   elif [ "$LABEL" = "reverify" ]; then
-    SHIPPED="(see this story's completion entry above)"
+    SHIPPED="(see this story's completion entry)"
   else
     SHIPPED="the commit that adds this entry"
   fi
 
+  case "$LABEL" in
+    reverify) new_fragment "$ID" reverified || exit 2 ;;
+    backfill) new_fragment "$ID" backfill || exit 2 ;;
+    *)        new_fragment "$ID" completed || exit 2 ;;
+  esac
   {
-    echo
-    echo "---"
-    echo
     case "$LABEL" in
       reverify) echo "## ${TODAY} — ${ID} re-verified at \`${SHIP}\`" ;;
       backfill) echo "## ${TODAY} — ${ID} verified (backfill)" ;;
@@ -329,19 +402,20 @@ if [ "$MODE" = "story" ]; then
       echo
       echo "</details>"
     fi
-  } >>"$LEDGER"
+  } >"$FRAG_TMP"
+  finish_fragment || exit 2
 
   rm -f "$grader_log" "$verify_log"
 
   echo
-  echo "audit ${ID}: appended to ${LEDGER}"
+  echo "audit ${ID}: wrote ${FRAG}"
   echo
   echo "--- commit message summary (paste into the commit body) ---"
   echo "Verification (${GRADER}, exit ${grader_exit}; pnpm verify, ${verify_exit}):"
   if [ -n "$check_lines" ]; then
     echo "$check_lines" | sed 's/^/  /'
   fi
-  echo "Ledger: ${LEDGER}"
+  echo "Ledger: ${FRAG}"
   echo "---"
 
   if [ "$grader_exit" -ne 0 ]; then exit 1; fi
@@ -352,8 +426,8 @@ fi
 # --- answers -------------------------------------------------------------------
 if [ "$MODE" = "answers" ]; then
   case "${1:-}" in
-    backlog) KIND="backlog review" ;;
-    parity) KIND="doc parity review" ;;
+    backlog) KIND="backlog review"; RID=backlog ;;
+    parity) KIND="doc parity review"; RID=parity ;;
     *) echo "audit: answers needs 'backlog' or 'parity' (which review was answered)" >&2; exit 2 ;;
   esac
   shift
@@ -362,22 +436,20 @@ if [ "$MODE" = "answers" ]; then
   APPLIED_IN="the commit that adds this entry"
   while [ $# -gt 0 ]; do
     case "$1" in
-      --review) REVIEW_DATE="${2:-}"; shift 2 ;;
-      --answers) ANSWERS="$(read_arg "${2:-}")"; shift 2 ;;
-      --commit) APPLIED_IN="\`$(git rev-parse --short "${2:-}")\` — $(git log -1 --format=%s "${2:-}")"; shift 2 ;;
+      --review) REVIEW_DATE="${2:-}"; shift 2 || usage ;;
+      --answers) ANSWERS="$(read_arg "${2:-}")"; shift 2 || usage ;;
+      --commit) APPLIED_IN="\`$(git rev-parse --short "${2:-}")\` — $(git log -1 --format=%s "${2:-}")"; shift 2 || usage ;;
       *) echo "audit: unknown option $1" >&2; usage ;;
     esac
   done
   [ -n "$REVIEW_DATE" ] || { echo "audit: --review <date of the review answered> is required" >&2; exit 2; }
-  grep -qE "^## ${REVIEW_DATE} — ${KIND} \(" "$LEDGER" || {
-    echo "audit: no ${KIND} entry dated ${REVIEW_DATE} in ${LEDGER}" >&2
+  review_exists "^## ${REVIEW_DATE} — ${KIND} \(" || {
+    echo "audit: no ${KIND} entry dated ${REVIEW_DATE} in ${LEDGER} or ${FRAGMENTS}/" >&2
     exit 2
   }
   [ -n "$ANSWERS" ] || { echo "audit: --answers is required (quote the owner, then what was applied)" >&2; exit 2; }
+  new_fragment "$RID" answers || exit 2
   {
-    echo
-    echo "---"
-    echo
     echo "## ${TODAY} — ${KIND} answers (${REVIEW_DATE})"
     echo
     echo "| | |"
@@ -390,8 +462,9 @@ if [ "$MODE" = "answers" ]; then
     echo "**Answers and what was applied**"
     echo
     echo "$ANSWERS"
-  } >>"$LEDGER"
-  echo "audit answers: appended the owner's answers to the ${REVIEW_DATE} ${KIND} to ${LEDGER}"
+  } >"$FRAG_TMP"
+  finish_fragment || exit 2
+  echo "audit answers: wrote the owner's answers to the ${REVIEW_DATE} ${KIND} to ${FRAG}"
   exit 0
 fi
 
@@ -401,8 +474,8 @@ fi
 # ("— <kind> (`verdict`)"), so the stories-done count runs on through it.
 if [ "$MODE" = "skip" ]; then
   case "${1:-}" in
-    backlog) KIND="backlog review" ;;
-    parity) KIND="doc parity review" ;;
+    backlog) KIND="backlog review"; RID=backlog ;;
+    parity) KIND="doc parity review"; RID=parity ;;
     *) echo "audit: skip needs 'backlog' or 'parity' (which review was declined)" >&2; exit 2 ;;
   esac
   shift
@@ -410,16 +483,14 @@ if [ "$MODE" = "skip" ]; then
   APPLIED_IN="the commit that adds this entry"
   while [ $# -gt 0 ]; do
     case "$1" in
-      --answers) ANSWERS="$(read_arg "${2:-}")"; shift 2 ;;
-      --commit) APPLIED_IN="\`$(git rev-parse --short "${2:-}")\` — $(git log -1 --format=%s "${2:-}")"; shift 2 ;;
+      --answers) ANSWERS="$(read_arg "${2:-}")"; shift 2 || usage ;;
+      --commit) APPLIED_IN="\`$(git rev-parse --short "${2:-}")\` — $(git log -1 --format=%s "${2:-}")"; shift 2 || usage ;;
       *) echo "audit: unknown option $1" >&2; usage ;;
     esac
   done
   [ -n "$ANSWERS" ] || { echo "audit: --answers is required (what changed, then the owner's \"no\", quoted)" >&2; exit 2; }
+  new_fragment "$RID" skip || exit 2
   {
-    echo
-    echo "---"
-    echo
     echo "## ${TODAY} — ${KIND} skipped"
     echo
     echo "| | |"
@@ -432,31 +503,36 @@ if [ "$MODE" = "skip" ]; then
     echo "**What changed, and the owner's answer**"
     echo
     echo "$ANSWERS"
-  } >>"$LEDGER"
-  echo "audit skip: appended the owner's skip of a ${KIND} to ${LEDGER}"
+  } >"$FRAG_TMP"
+  finish_fragment || exit 2
+  echo "audit skip: wrote the owner's skip of a ${KIND} to ${FRAG}"
   exit 0
 fi
 
 # --- review / parity -----------------------------------------------------------
 if [ "$MODE" = "parity" ]; then
   KIND="doc parity review"
+  RID=parity
 else
   KIND="backlog review"
+  RID=backlog
 fi
 
 TRIGGER=""
 SINCE=""
 VERDICT=""
 FINDINGS=""
+IN_FLIGHT=""
 DATE="$TODAY"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --trigger) TRIGGER="$(read_arg "${2:-}")"; shift 2 ;;
-    --since) SINCE="$(read_arg "${2:-}")"; shift 2 ;;
-    --verdict) VERDICT="${2:-}"; shift 2 ;;
-    --findings) FINDINGS="$(read_arg "${2:-}")"; shift 2 ;;
-    --date) DATE="${2:-}"; shift 2 ;;
-    --commit) HEAD_SHA="$(git rev-parse --short "${2:-}")"; shift 2 ;;
+    --trigger) TRIGGER="$(read_arg "${2:-}")"; shift 2 || usage ;;
+    --since) SINCE="$(read_arg "${2:-}")"; shift 2 || usage ;;
+    --verdict) VERDICT="${2:-}"; shift 2 || usage ;;
+    --findings) FINDINGS="$(read_arg "${2:-}")"; shift 2 || usage ;;
+    --in-flight) IN_FLIGHT="${2:-}"; shift 2 || usage ;;
+    --date) DATE="${2:-}"; shift 2 || usage ;;
+    --commit) HEAD_SHA="$(git rev-parse --short "${2:-}")"; shift 2 || usage ;;
     *) echo "audit: unknown option $1" >&2; usage ;;
   esac
 done
@@ -467,11 +543,18 @@ case "$VERDICT" in
 esac
 [ -n "$TRIGGER" ] || { echo "audit: --trigger is required" >&2; exit 2; }
 [ -n "$FINDINGS" ] || { echo "audit: --findings is required (a verdict with no cited evidence does not count as a review)" >&2; exit 2; }
+# The in-flight items (S156 AC 13): comma-separated IDs, recorded as "S9, S12" ("none" when none).
+if [ -n "$IN_FLIGHT" ]; then
+  # in-flight.ts holds the one item-ID pattern (S, B, F or V and digits); comma-separated, no spaces.
+  node scripts/backlog-vault/in-flight.ts check "$IN_FLIGHT" ||
+    { echo "audit: --in-flight takes comma-separated item IDs (S9,S12,B87,F1), not '${IN_FLIGHT}'" >&2; exit 2; }
+  IN_FLIGHT_ROW="${IN_FLIGHT//,/, }"
+else
+  IN_FLIGHT_ROW="none"
+fi
 
+new_fragment "$RID" review || exit 2
 {
-  echo
-  echo "---"
-  echo
   echo "## ${DATE} — ${KIND} (\`${VERDICT}\`)"
   echo
   echo "| | |"
@@ -481,14 +564,16 @@ esac
   echo "| HEAD at review | \`${HEAD_SHA}\` (tree ${TREE}) |"
   echo "| Trigger | ${TRIGGER} |"
   echo "| Stories \`done\` since last review | ${SINCE:-—} |"
+  echo "| In flight | ${IN_FLIGHT_ROW} |"
   echo "| Verdict | \`${VERDICT}\` |"
   echo
   echo "**Findings / amendments**"
   echo
   echo "$FINDINGS"
-} >>"$LEDGER"
+} >"$FRAG_TMP"
+finish_fragment || exit 2
 
-echo "audit ${MODE}: appended a \`${VERDICT}\` ${KIND} entry to ${LEDGER}"
+echo "audit ${MODE}: wrote a \`${VERDICT}\` ${KIND} entry to ${FRAG}"
 if [ "$VERDICT" = "blocked" ]; then
   echo "audit ${MODE}: verdict is 'blocked' — stop and ask the user. Do not start a story." >&2
   exit 1

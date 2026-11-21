@@ -11,8 +11,144 @@ theme rather than version number. **Most of what's below is backend work you can
 yet** in the running app; it's the pipe that later screens will read from. Entries say so
 explicitly where that's the case. For what's still ahead, see
 [`docs/v3/BACKLOG.md`](docs/v3/BACKLOG.md).
+That file was retired by S156: the stories and bugs ahead are listed in
+the built `docs/v3/INDEX.md`, from the backlog notes in [`docs/v3/backlog/`](docs/v3/backlog/).
 
 ---
+
+## Checks on a proposed change finish faster
+
+- **Before, a proposed change waited up to about 9 minutes for all its automatic checks, however small, because they
+  rebuilt and retested the whole app and reinstalled the test browser each time. Now the checks reuse the passing
+  results of the parts of the app a change doesn't touch and keep the test browser between runs, so the whole set
+  finished in about 6 minutes on both a website-only and a server-only change; a website-only change's main check
+  dropped from about 7.5 minutes to 2. A server change's own tests take about as long as before, now split in two.** Every change merged into staging still reruns everything from scratch, so a reused result can't
+  hide a problem. Nothing in the app changes. Details: **S152** — Turborepo per-package caching (read only on pull
+  requests), the Playwright browser cached, `functions`' tests sharded with merged coverage when a change reaches
+  them, browser specs scoped to the change (for now every spec declares both targets, so it selects them all), ESLint and tsc caches, law P11 reworded; measured on pull requests #113
+  and #114.
+
+## The approved footer and its links
+
+- **Before, nothing approved showed what the bottom of each page would look like or which links it would hold. Now
+  the owner has approved it: every page ends in a footer with two short columns of links, "Baseball Theater" (About,
+  Changelog, Support & Community, which opens the r/BaseballTheater community) and "Legal" (Privacy policy, Terms of
+  use, and Your data for signed-in fans), then "© 2026 Baseball Theater".** Nothing in the app changes yet: later
+  stories build the footer and the About, Privacy policy and Terms of use pages. Details: **S141** — shell-scoreboard
+  amendment A14 ratified with eight hashed frames; FEATURES' Site footer row and VISUAL-DESIGN's footer line record
+  the list; S142 builds it after S134's Changelog page, and S154 adds its three pages and their links.
+
+## The approved look for "this page is live"
+
+- **Before, nothing approved showed what would replace the "Fetched 12s ago · baseball.theater" line at the foot of
+  each page. Now the owner has approved it: a page that is receiving live updates opens its footer with a slightly
+  darker strip reading "● Live Data · Active", its red dot glowing and slowly blinking (steady for anyone who asks
+  for less motion), and no footer says "Fetched … ago", "baseball.theater" or "Offline · saved …" any more.**
+  Nothing in the app changes yet: the next story builds it. Details: **S147** — shell-scoreboard amendment A13
+  ratified with seven hashed frames; every Figma footer is one shared `site-footer` component; VISUAL-DESIGN D9,
+  ADR-014 and FEATURES' Live marker row updated; S148 builds it.
+
+## The standings data names the World Series champion
+
+- **Before, nothing Baseball Theater served said who won the World Series. Now, from the day the Series is won
+  until the next spring training starts, the standings data names the champion and the day they won it, so the
+  Standings page can celebrate them above the regular season's table; asking for a past day gives the answer that
+  day would have had.** Nothing on the page changes yet: the celebratory box comes with the Standings views.
+  Details: **S140** — `GET /api/v1/standings` gains `champion` (`{ season, teamId, name, wonOn }` or `null`, by
+  `standingsChampion` in `packages/domain/src/standings-phase.ts`), read from the World Series schedule the season
+  calendar already fetches (`worldSeriesChampion`, `functions/src/mappers/season-calendar.ts`), so MLB is asked
+  nothing more.
+
+## Standings data covers spring training, the regular season and the playoffs at once
+
+- **Before, the standings data held one table, chosen by the calendar: in spring training there was no way to get
+  the regular season's, in the playoffs no way to get the teams that made it, and nothing said when each part of
+  the season starts and ends. Now one answer holds the day's spring training, regular season and playoffs standings,
+  each with the days it runs, and the app can ask for only the parts it will show; before opening day the regular
+  season lists every team at 0-0, and the playoffs list the teams that have clinched. Past days' standings are now
+  kept at the edge for up to 30 days once their season is over, instead of being fetched from MLB on every visit.** Nothing on the Standings
+  page changes yet: the page that lets fans switch between the three comes next. Details: **S139** —
+  `GET /api/v1/standings` gains `phases` (`StandingsPhases`, from `standingsPhases` in
+  `packages/domain/src/standings-phase.ts`) and `includePhases` (comma or repeated; 400 `include_phases_invalid`),
+  S128's fields unchanged at the top; edge `Cache-Control` from `STANDINGS_CACHE_LIFETIME_LADDER` (ADR-021's
+  ladder to a 30-day cap for a finished season, counted from the end of the day asked; 48 hours while the season
+  is played, the floor in its postseason or when MLB couldn't give a season calendar); season calendars kept a day by
+  `functions/src/adapters/cached-season-calendars.ts`; MLB's answers recorded under `fixtures/raw/`.
+
+## The team's checks no longer trip over file names with accented letters or dashes
+
+- **Before, the automatic check that a change touched only the files it was meant to could wrongly fail when a file's
+  name had a character outside plain English letters, such as the long dash in one of the backlog's planning notes,
+  so legitimate work had to be patched around by hand. Now those files are listed by their real names and the check
+  judges them like any other, which keeps the team's work moving without one-off workarounds.** Nothing on the site
+  changes. Details: B87, fixes #87. `story_diff` and `story_changed_files` in `scripts/lib/checks.sh` run git with
+  `core.quotepath=false`, so a path with a non-ASCII character prints as itself instead of quoted and octal-escaped,
+  and a grader's fence pattern such as `^docs/v3/backlog/` can match it.
+
+## The month's game counts also say which teams play each day
+
+- **Before, the month answer behind the coming calendar said how many games each day has but not who plays, so the
+  calendar couldn't mark the days your favorite teams play without asking about every day separately. Now the same
+  single request also lists the teams playing each day, so the calendar can mark those days, and it can tell a month
+  with no games (the off-season) from one Baseball Theater simply doesn't know yet.** Nothing on screen uses it yet:
+  the calendar date picker comes next. Details: **S136** — each day of `GET /api/v1/schedule/month/:month` gains
+  `teamIds` (read by the same `ScheduleRepository.listGameCounts` query, `jsonb_path_query_array` in Postgres,
+  de-duplicated and sorted by `distinctTeamIds`; `null` exactly when `count` is), plus `dayHasFavoriteTeam` and
+  `monthGamesState` in `packages/domain/src/schedule-month.ts` for the calendar to call.
+
+## You can sign in on the staging site, and test sites without sign-in hide the button
+
+- **Before, nobody could sign in on the staging site: its Sign in button did nothing, so nothing that needs an
+  account (Settings, favorites, deleting your account) could be tried there before a release. Now Sign in on staging
+  signs you straight in, with no emailed code and no page change, as one shared test account, and everything an
+  account does works as it will on the real site. On a pull request's test site, which offers no sign-in at all, the
+  button is gone instead of doing nothing.** Details: S143. A mock `IdentityProvider` (`functions/src/adapters/mock/`)
+  accepts one fixed credential (`MOCK_SIGN_IN_CREDENTIAL`) for the account `tester@stage.baseball.theater` and goes
+  through the same `signIn` and `POST /api/v1/sign-in` as Logto; it is wired only where `BT_MOCK_SIGN_IN` is `"1"`
+  and no Logto tenant is named (`LOGTO_ENDPOINT` or `LOGTO_APP_ID`; `env.staging` alone). `GET /api/v1/sign-in` gains `mock`, and the web app reads that answer
+  once per page load (`web/src/session/signInWay.ts`) for both the header and the sign-in, loading Logto's SDK only
+  when a Logto sign-in or sign-out starts, never on page load.
+
+## A deploy stops when the database's setup doesn't match the code
+
+- **Before, a site's database could quietly end up set up differently from the code it runs: a change tried out
+  on a pull request's preview could linger in it, or a change could be skipped because a newer one had already run.
+  The deploy carried on, and the site could then break in ways that were hard to trace. Now every deploy (preview,
+  staging and production) checks the database before and after updating it and stops, before the new version goes
+  live, naming each change that doesn't match. Rolling production back to an earlier release still works, with a
+  warning, and so does a pull request's preview built before a newer change reached staging.** Details: B48, fixes #48. `migrateDatabaseAt` in `functions/src/adapters/postgres/migrate.ts` (what
+  `pnpm db:migrate` runs) compares `drizzle.__drizzle_migrations` (created_at, hash) with the committed migrations
+  (`migrationDrift`) before migrating, so a drifted database fails before any DDL, and again after. A database only
+  ahead of the code (newer migrations, as after a rollback) passes with a warning where `BT_MIGRATIONS_MAY_BE_AHEAD=1`,
+  which the production and preview deploys set (a preview's database is reset from staging, ahead of a pull
+  request built before `stage` gained a newer migration) and staging's never does; every other difference fails everywhere. The readers it uses moved there
+  from the baseball-data copy, which shares them.
+
+## The video player's Download button is gone for now
+
+- **Before, the player's Download button didn't download: browsers open another site's video file instead of
+  saving it, so it did the same as Direct link. Now there's no Download button; Direct link opens the video, where
+  your browser's own save works, until a real download arrives.** Details: owner, 2026-11-12 ("Remove the download
+  button for now, but make a story to do the service worker in the future"); `PlayerActions`
+  (`web/src/components/videos`); S151 saves the file through the app's service worker.
+
+## Plan checks no longer miss changes after branches are merged
+
+- **Before, when two lines of work were merged together, the check that says when the plan is due for another
+  review could start counting from the merge instead of from the last review, so a change to a story's
+  requirements made on the other line went unseen and a review that was due read as not due. Now it counts from
+  the review itself, so those changes are caught and the plan gets the review it needs.** Details: B40, fixes #40.
+  `ledgerBase` in `scripts/backlog-vault/ledger.ts` now returns the commit that added the newest review, answers or
+  skip entry (its ledger holds it, none of its parents' do) instead of comparing each commit with the one before it
+  in date order.
+
+## A game paused for a replay review still looks live
+
+- **Before, whenever a manager challenged a call or the umpires reviewed one, a live game looked as if it hadn't
+  started: its Live tab and the scoreboard's inning disappeared until the review ended, and a review late in a long
+  game could stop its live updates. Now a game under review stays live, with its Live tab, its inning and its
+  updates.** Details: B74, fixes #74. MLB codes a manager challenge `M` and an umpire review `N`; `isLiveStatus`
+  in `@bt/domain` now counts both as in progress, and `normalizeStatusCode` maps them to `I`.
 
 ## The day's top highlights lead with the plays that mattered, and keep up during games
 
@@ -116,12 +252,6 @@ explicitly where that's the case. For what's still ahead, see
   `ScheduleRepository.listGameCounts`), filled through one `MlbStatsClient.fetchScheduleRange` request and
   `storeSchedule` with no game hydrated, cached by the month's last change (ADR-021); months after December of next
   year are refused (`month_too_late`).
-- **Before, the only way to reach a date long ago on the scoreboard was to tap back one day at a time. Now there
-  is an approved design for a calendar that opens from the date: type a date or pick one, switch the month and
-  year with your device's own pickers, see the weekdays and each day's game count, and spot the days your
-  favorite teams are off. The app doesn't show it yet; S125 builds it.** Details: S123 — shell-scoreboard amendment
-  A8, ratified by the owner 2026-11-19; the date control and every part of the calendar are now shared Figma
-  components (`date-selector`, `calendar-panel`, `calendar-day` and their parts). _(2026-11-19)_
 
 ## Testing on staging
 
@@ -272,6 +402,7 @@ explicitly where that's the case. For what's still ahead, see
 
 ## A game's videos are easy to browse
 
+- **Before, the approved design put a video's link to its play on an extra line under the card, reading "Play · Top 6th →". Now the approved design moves it onto the card's date line as a small, quiet pill with the inning, "Top 6 →", the same pill in the video player and on Search's results, so a clip with a play takes no more room than one without; a clip with no play still says "Highlight".** Nothing on screen changes yet: S145 builds it. Details: S144 — game-shell A6, ratified by the owner ("the one in figma looks good"); shared Figma components `play-inning-pill` and `video-meta`. _(2026-11-19)_
 - **Before, a video didn't say which play it showed. Now a clip with a play carries a small "Play · Top 6th →" link, on its card, in the list and in the player, and following it opens the Plays room right on that at-bat, marked. Every play that has a clip says so with a "Video:" line, and thumbnails no longer show a play icon.** Details: S97 — `videoPlayLink` from S95's links, the `?play=` arrival in `PlaysPanel`; built to game-shell A5 and game-rooms A6; design matched by the owner. _(2026-11-04)_
 - **Before, nothing showed how a video should lead to the play it shows. Now there's an approved design for it, ready to build: a small "Play · Top 6th →" link on each clip that has a play, the Plays room opening right on that at-bat, and a "Video:" line on every play that has a clip. Video thumbnails also lose their play icon.** Details: S96 — game-shell A5 and game-rooms A6, ratified by the owner; built by S97. _(2026-11-04)_
 - **Before, "biggest moments first" was a guess from each clip's title, so any home run beat a game-saving

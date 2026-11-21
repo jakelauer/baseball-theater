@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * The capture helpers themselves (S81 AC 2): a stubbed API answer reaches a
  * state the dev app can't, and the frozen clock holds. Captures nothing.

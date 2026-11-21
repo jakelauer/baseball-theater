@@ -148,7 +148,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The number of games on each day of one month, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, distinct from a day with no games (`0`). */
+        /** The number of games on each day of one month, and the teams playing it, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null` and `teamIds: null`, distinct from a day with no games (`0` and `[]`). */
         get: operations["getScheduleMonth"];
         put?: never;
         post?: never;
@@ -182,10 +182,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** How this deployment signs fans in: its Logto tenant's address and the web app's ID, or `logto: null` where it offers no Logto sign-in (local dev, previews, and staging until its own tenant exists). */
+        /** How this deployment signs fans in: its Logto tenant's address and the web app's ID, or `logto: null` where it offers no Logto sign-in; and `mock: true` where it signs in as one shared test account instead (staging). Where both say no, it offers no sign-in (previews, and local dev, which signs in as `dev:`). */
         get: operations["getSignInConfig"];
         put?: never;
-        /** Finishes a sign-in: takes the ID token Logto's hosted sign-in gave the web app (checked against the tenant's keys, issuer, the app's ID and expiry), finds or creates the BT account linked to it, and answers with BT's own session token, sent from then on as `Authorization: Bearer <token>`. */
+        /** Finishes a sign-in: takes the ID token Logto's hosted sign-in gave the web app (checked against the tenant's keys, issuer, the app's ID and expiry), or, where `GET /api/v1/sign-in` answers `mock: true`, the mock sign-in credential, finds or creates the BT account linked to it, and answers with BT's own session token, sent from then on as `Authorization: Bearer <token>`. */
         post: operations["signIn"];
         delete?: never;
         options?: never;
@@ -200,7 +200,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The division standings for one day of the season — the regular season's table, the final table once it has ended, or spring training's (see `phase`): each division's teams in rank order, with wins, losses, winning percentage and games back (null for the leader). */
+        /** The division standings for one day of the season — the regular season's table, the final table once it has ended, or spring training's (see `phase`): each division's teams in rank order, with wins, losses, winning percentage and games back (null for the leader). `phases` (S139) carries every season phase of the day's season — spring training, the regular season and the playoffs (the teams that have clinched) — with the days it runs and, for the phases `includePhases` names, its table. Cached at the edge by how long the day asked has been over: up to 30 days once the answer's season (the one `phases` is for) is over; at most 48 hours while it is still being played or has no season calendar; briefly during its postseason, when MLB couldn't give a season calendar, or for today. */
         get: operations["getStandings"];
         put?: never;
         post?: never;
@@ -426,6 +426,8 @@ export interface components {
             recap?: components["schemas"]["GameRecap"];
             /** @description mlb.com stories about the game (S94); absent, like `videoPlayRefs`, when the source failed or had none. */
             relatedArticles?: components["schemas"]["RelatedArticle"][];
+            /** @description First pitch as an ISO instant, from the live feed's `gameData.datetime.dateTime`. The active window is measured from it (`isGameInActiveWindow`, #71); absent on snapshots stored before it existed, which fall back to a mid-afternoon assumption. */
+            startTime?: string;
             status: {
                 abstractGameState: string;
                 codedGameState: components["schemas"]["GameStatusCode"] | string;
@@ -653,12 +655,14 @@ export interface components {
             /** @enum {string} */
             windowMode: "active" | "cache";
         };
-        /** @description A day of the month view: its date and its number of games. */
+        /** @description A day of the month view: its date, its number of games and the teams playing it (S136). */
         ScheduleDayCount: {
             /** @description How many games the day has; `0` for a stored day with none. `null` when BT holds no schedule for the day (a past day nothing has stored, or one MLB couldn't be asked for), so a client can tell "no games" from "not known". */
             count: number | null;
             /** @description The day, `YYYY-MM-DD`. */
             date: string;
+            /** @description The MLB team IDs playing that day (away and home of every game counted in `count`, each once, ascending; S136), so a client can mark the days a fan's favorites play without one request per day. `[]` for a stored day with no games; `null` exactly when `count` is. Every team is sent, not "a favorite plays", because favorites are personal and the month answer is one shared, cached response (ADR-021). */
+            teamIds: number[] | null;
         };
         ScheduleDayResponse: components["schemas"]["ScheduleDay"];
         ScheduleGameSummary: {
@@ -706,9 +710,9 @@ export interface components {
             };
             strikes: number | null;
         };
-        /** @description Games per day for one month (S124), from BT's stored schedule days, for S125's calendar date picker: one entry per day of the month, in order. */
+        /** @description Games per day for one month (S124) and the teams playing each day (S136), from BT's stored schedule days, for S125's calendar date picker: one entry per day of the month, in order. */
         ScheduleMonthResponse: {
-            /** @description Every day of the month, first to last; `count` is null for a day BT holds no schedule for. */
+            /** @description Every day of the month, first to last; `count` and `teamIds` are null for a day BT holds no schedule for. */
             days: components["schemas"]["ScheduleDayCount"][];
             /** @description The month, `YYYY-MM`. */
             month: string;
@@ -742,7 +746,7 @@ export interface components {
         };
         /** @description The signed-in user's settings document (ADR-027); the house defaults until they first save. */
         SettingsResponse: components["schemas"]["AccountSettings"];
-        /** @description How this deployment signs fans in (S116; ADR-019): its Logto tenant's address and the web app's ID, read from the Worker's `vars` (`LOGTO_ENDPOINT`, `LOGTO_APP_ID`) so the web app keeps no second copy. `logto` is null where the Worker offers no Logto sign-in: local dev (which signs in as `dev:`), previews, and staging until its own tenant exists. */
+        /** @description How this deployment signs fans in (S116, S143; ADR-019). `logto` is its Logto tenant's address and the web app's ID, read from the Worker's `vars` (`LOGTO_ENDPOINT`, `LOGTO_APP_ID`) so the web app keeps no second copy; null where the Worker offers no Logto sign-in. `mock` is true only where the Worker signs in with the shared test account instead (staging, `BT_MOCK_SIGN_IN`). Where both say no, the deployment offers no sign-in at all: previews, and local dev, which signs in as `dev:` without asking. */
         SignInConfigResponse: {
             logto: {
                 /** @description The single-page app's ID, the ID token's audience. */
@@ -750,8 +754,10 @@ export interface components {
                 /** @description The tenant's address, e.g. `https://auth.baseball.theater`. */
                 endpoint: string;
             } | null;
+            /** @description Whether `POST /api/v1/sign-in` takes  {@link  MOCK_SIGN_IN_CREDENTIAL }  for the shared test account (staging only, S143). */
+            mock: boolean;
         };
-        /** @description A sign-in hand-off: the ID token Logto's hosted sign-in gave the web app, sent once. */
+        /** @description A sign-in hand-off, sent once: the ID token Logto's hosted sign-in gave the web app, or, where `GET /api/v1/sign-in` answers `mock: true` (staging, S143), `MOCK_SIGN_IN_CREDENTIAL`. */
         SignInRequest: {
             idToken: string;
         };
@@ -759,19 +765,52 @@ export interface components {
         SignInResponse: {
             token: string;
         };
+        /** @description A season's World Series winner as the standings answer names it (S140): the champion and its season. */
+        StandingsChampion: {
+            name: string;
+            season: number;
+            teamId: number;
+            /** @description The deciding game's day, `YYYY-MM-DD`. */
+            wonOn: string;
+        };
         StandingsDivision: {
             divisionId: number | null;
             leagueId: number | null;
             name: string | null;
             teams: components["schemas"]["StandingsTeamRecord"][];
         };
+        /** @description One season phase in a standings answer (S139): the first and last day the phase runs in the season the answer is for, and its table when the request included the phase (`includePhases`). The dates are always there, so a caller can choose which phases to ask for without their tables. `startDate` and `endDate` are null only on `regularSeason` when the day has no season calendar. `table` keeps S128's meaning of `phase`, `season` and `date` (for `playoffs`, those of the regular-season table its teams come from). */
+        StandingsPhaseAnswer: {
+            endDate: string | null;
+            startDate: string | null;
+            table?: components["schemas"]["StandingsSnapshot"];
+        };
         /**
          * @description Which table a standings payload is (S128): the day's regular-season standings, a season's final regular-season table (after the regular season until the next spring), or spring training's standings as of the day.
          * @enum {string}
          */
         StandingsPhaseName: "regularSeason" | "final" | "spring";
-        /** @description The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the regular season's as of that day, the season's final table after it ends, spring training's in the spring (see `phase`). */
-        StandingsResponse: components["schemas"]["StandingsSnapshot"];
+        /** @description Every season phase's answer for the day, keyed by phase; null for a phase the day's season can't answer. */
+        StandingsPhases: {
+            playoffs: components["schemas"]["StandingsPhaseAnswer"] | null;
+            regularSeason: components["schemas"]["StandingsPhaseAnswer"] | null;
+            spring: components["schemas"]["StandingsPhaseAnswer"] | null;
+        };
+        /** @description The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the regular season's as of that day, the season's final table after it ends, spring training's in the spring (see `phase`). S128's fields stay at the top unchanged (ADR-015: additive only), so a client that doesn't know phases keeps its table; `phases` (S139) carries each season phase's dates and, when asked for, its table. `champion` (S140) names the World Series winner in the off-season, from the day it was won (`standingsChampion`), and is null otherwise; it doesn't depend on `includePhases`. */
+        StandingsResponse: {
+            champion: components["schemas"]["StandingsChampion"] | null;
+            /** @description The day the table stands as of; for a `final` table, its season's `regularSeasonEndDate`. */
+            date: string;
+            divisions: components["schemas"]["StandingsDivision"][];
+            fetchedAt: string;
+            /** @description Which table this is (S128); absent on snapshots read before S128 (recorded fixtures). */
+            phase?: components["schemas"]["StandingsPhaseName"];
+            phases: components["schemas"]["StandingsPhases"];
+            /** @description MLB's season id of the table (S128): the year it was played. */
+            season?: number;
+            /** @enum {string} */
+            windowMode: "active" | "cache";
+        };
         StandingsSnapshot: {
             /** @description The day the table stands as of; for a `final` table, its season's `regularSeasonEndDate`. */
             date: string;
@@ -1421,7 +1460,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
-            /** @description `sign_in_refused`: the ID token doesn't verify, is malformed, has expired, is for another app or tenant, or carries no email. */
+            /** @description `sign_in_refused`: the ID token doesn't verify, is malformed, has expired, is for another app or tenant, or carries no email; or, where the mock sign-in is offered, it isn't the mock credential. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1430,7 +1469,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
-            /** @description `sign_in_unavailable`: this deployment offers no Logto sign-in. */
+            /** @description `sign_in_unavailable`: this deployment offers no provider sign-in (neither Logto nor the mock). */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1462,8 +1501,10 @@ export interface operations {
     getStandings: {
         parameters: {
             query?: {
-                /** @description The day to show standings for, `YYYY-MM-DD`; MLB's today when absent. After the regular season the answer is that season's final table, dated its `regularSeasonEndDate`; during spring training it is spring training's table (see `phase`). */
+                /** @description The day to show standings for, a real date as `YYYY-MM-DD`; MLB's today when absent. After the regular season the answer is that season's final table, dated its `regularSeasonEndDate`; during spring training it is spring training's table (see `phase`). */
                 date?: string;
+                /** @description The season phases whose tables `phases` carries (S139), comma-separated (`spring,regularSeason`); the parameter repeated (`includePhases=spring&includePhases=regularSeason`), or both forms mixed, is accepted too. Names match exactly and a name given twice counts once. Absent: every phase's table. Every phase's dates are in `phases` either way, and the top-level fields are the same whatever it names. */
+                includePhases?: ("spring" | "regularSeason" | "playoffs")[];
             };
             header?: never;
             path?: never;
@@ -1480,7 +1521,7 @@ export interface operations {
                     "application/json": components["schemas"]["StandingsResponse"];
                 };
             };
-            /** @description `date` is not `YYYY-MM-DD`. */
+            /** @description `date_invalid`: `date` is not a real `YYYY-MM-DD` date (checked first). `include_phases_invalid`: an `includePhases` name isn't `spring`, `regularSeason` or `playoffs`, is empty, or has spaces around it; MLB is asked nothing. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1491,6 +1532,15 @@ export interface operations {
             };
             /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
             426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `standings_unavailable`: MLB couldn't answer a standings table; never cached, so trying again shortly may succeed. A season calendar MLB couldn't give is not this error: the answer is then the day's table without phase dates, cached only briefly. */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

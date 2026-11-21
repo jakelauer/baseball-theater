@@ -53,7 +53,7 @@ pnpm lint
 
 Still run **`pnpm verify`** before marking a goal/story complete.
 
-When finishing a backlog story, also set `status: done` in its note `docs/v3/backlog/stories/<ID>.md` and run `pnpm backlog:build` (which regenerates `docs/v3/BACKLOG.md`), then commit the note and `BACKLOG.md` with the code. Verify alone is not enough if the backlog is stale — and `pnpm verify` itself runs `pnpm backlog:check`, so notes edited without a build fail it.
+When finishing a backlog story, also set `status: done` in its note `docs/v3/backlog/stories/<status>/<ID>.md`, add its one-paragraph `**Baseline:**` line (rule 17), write its changelog fragment `changelog.d/<ID>.md` (rule 16), and run `pnpm backlog:build` (which moves the note into `stories/done/` and rebuilds the git-ignored `docs/v3/INDEX.md` and `docs/v3/audit.jsonl`; the generated `BACKLOG.md` is retired), then commit the note and the fragment with the code. Verify alone is not enough if the backlog is stale — and `pnpm verify` itself runs `pnpm backlog:check`, so notes edited without a build fail it.
 
 ## Capture the run (required to call a story done)
 
@@ -63,7 +63,7 @@ When finishing a backlog story, also set `status: done` in its note `docs/v3/bac
 scripts/audit.sh story S14
 ```
 
-This runs `scripts/verify-S14.sh` and `pnpm verify` for real, appends an entry to `docs/v3/AUDIT.md` listing every check the grader performed with its PASS/FAIL, and prints a summary block for the commit body. Commit the ledger entry **with** the story's code — the entry says the story shipped in "the commit that adds this entry", which is only true if they land together.
+This runs `scripts/verify-S14.sh` and `pnpm verify` for real, writes a new ledger fragment, `docs/v3/audit/<YYYY-MM-DD>/<stamp>-<ID>-completed.md` (never appending to the frozen `docs/v3/AUDIT.md`), listing every check the grader performed with its PASS/FAIL, and prints a summary block for the commit body. Commit the ledger entry **with** the story's code — the entry says the story shipped in "the commit that adds this entry" (`shipping_commit` finds it by the commit that added the fragment), which is only true if they land together.
 
 Never hand-write a ledger entry. A hand-written entry is indistinguishable from a fabricated one, which is the whole thing the file exists to rule out.
 

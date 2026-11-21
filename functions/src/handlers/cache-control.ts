@@ -1,3 +1,4 @@
+import type { CacheLifetimeStep } from "@bt/domain";
 import { CACHE_LIFETIME_FLOOR_MS, cacheLifetimeMs } from "@bt/domain";
 
 /**
@@ -20,10 +21,11 @@ export const STALE_WHILE_REVALIDATE_S = CACHE_LIFETIME_FLOOR_MS / 1000;
  * and the in-window path is ingest's (ADR-002), so the edge never holds it past the floor.
  */
 export function edgeCacheControl(entity: { windowMode?: "active" | "cache";
-	lastChangedAt?: string; }, now: Date): string
+	lastChangedAt?: string; }, now: Date, ladder?: readonly CacheLifetimeStep[]): string
 {
 	const changedAt = entity.lastChangedAt ? Date.parse(entity.lastChangedAt) : Number.NaN;
 	if (entity.windowMode !== "cache" || Number.isNaN(changedAt)) return "no-store";
-	const lifetimeS = cacheLifetimeMs(now.getTime() - changedAt) / 1000;
+	// `ladder` is the standings' own (S139); everything else keeps ADR-021's default.
+	const lifetimeS = cacheLifetimeMs(now.getTime() - changedAt, ladder) / 1000;
 	return `public, s-maxage=${lifetimeS}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`;
 }

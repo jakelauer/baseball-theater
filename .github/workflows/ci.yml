@@ -13,15 +13,21 @@ concurrency:
     group: ci-${{ github.ref }}
     cancel-in-progress: true
 
+# Turborepo (S152) runs offline here: no usage reports from CI.
+env:
+    TURBO_TELEMETRY_DISABLED: "1"
+
 # S89: the checks run as separate jobs that start together, so a push learns sooner whether it
 # is green. Each job sets itself up the same way (checkout, pnpm, Node from .nvmrc, install).
 jobs:
     # Docs-only changes (Markdown, docs/, .claude/) skip the build, tests, browsers and Lighthouse
     # and run only the docs checks below (owner, 2026-11-07, of docs-only changes: "Things like this
-    # shouldn't trigger CI."). Law P11: anything else runs all of pnpm verify. A pull request is
-    # compared with its base; a push with the last commit on its branch whose CI run passed, so a
+    # shouldn't trigger CI."). Law P11: anything else runs the whole gate, a push all of pnpm verify
+    # fresh and a pull request reusing what unchanged packages already passed (S152). A pull request
+    # is compared with its base; a push with the last commit on its branch whose CI run passed, so a
     # docs merge right after an unchecked code merge still gets the full gate. scripts/ci-changes.sh
-    # decides, for CI and Deploy alike.
+    # decides `code`, for CI and Deploy alike; `functions` says whether a pull request's change
+    # reaches the functions package, so its tests run in the shard jobs (S152 AC 4).
     changes:
         runs-on: ubuntu-latest
         permissions:
@@ -29,10 +35,15 @@ jobs:
             actions: read
         outputs:
             code: ${{ steps.diff.outputs.code }}
+            functions: ${{ steps.functions.outputs.functions }}
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: ".nvmrc"
 
             - name: Does this change anything besides docs?
               id: diff
@@ -46,6 +57,28 @@ jobs:
                       checked="$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=${{ github.ref_name }}&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' || true)"
                       scripts/ci-changes.sh push "$checked" "${{ github.sha }}"
                   fi
+
+            # S152 AC 4: on a pull request whose change reaches the functions package (the same rule
+            # that scopes the browser specs, e2e/select-specs.ts), its tests run split across the
+            # functions-shard jobs instead of inside verify. A push never splits them: verify runs
+            # the whole suite there, fresh.
+            # The answer is assigned before it is written, so a selector that crashes fails this step
+            # (and so ci-passed) instead of deciding "no".
+            - name: Does this change reach the functions package?
+              id: functions
+              env:
+                  BASE: ${{ github.event.pull_request.base.sha }}
+                  HEAD: ${{ github.sha }}
+              run: |
+                  if [ "${{ github.event_name }}" = pull_request ]; then
+                      functions="$(node e2e/select-specs.ts functions "$BASE" "$HEAD")"
+                  else
+                      functions=false
+                  fi
+                  case "$functions" in
+                      true | false) echo "functions=$functions" >> "$GITHUB_OUTPUT" ;;
+                      *) echo "::error::e2e/select-specs.ts answered '$functions', not true or false"; exit 1 ;;
+                  esac
 
     # What a docs-only change can break: the generated backlog (pnpm backlog:check, also the first
     # step of pnpm lint), the backlog vault's own tests (ledger, laws, index) and the format of the
@@ -100,6 +133,43 @@ jobs:
             - name: Install
               run: pnpm install --frozen-lockfile
 
+            # S152 AC 3: a pull request reuses what an unchanged package already passed, from its
+            # own last run or else stage's newest (each run saves under a key of its own, which
+            # GitHub scopes to its branch). A push reads nothing (owner, 2026-11-19: "Stage reruns
+            # everything (Recommended)"), so a wrong cache hit can't reach stage unnoticed.
+            - name: Restore Turborepo's cache (pull requests only)
+              if: github.event_name == 'pull_request'
+              uses: actions/cache/restore@v4
+              with:
+                  path: .turbo/cache
+                  key: turbo-${{ runner.os }}-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: |
+                      turbo-${{ runner.os }}-pr-${{ github.event.pull_request.number }}-
+                      turbo-${{ runner.os }}-stage-
+
+            # S152 AC 6: ESLint's cache (content strategy, since a checkout resets every file's time)
+            # and each package's tsc build info, kept between pull-request runs like Turborepo's.
+            # `pnpm lint` uses ESLint's cache only under GitHub Actions; a push restores none, so it
+            # lints fresh and saves the cache for later pull requests. The key hashes ESLint's config,
+            # its own rules, the lockfile (its plugins) and every tsconfig in the repository (its
+            # type-aware rules read each file's own, scripts/ and scripts/backlog-vault/ included),
+            # so a change to any of them starts afresh. A pull request can still replay a file's
+            # pass whose type-aware result another file's change altered; the next push's fresh lint
+            # is the backstop (owner, 2026-11-19: "Keep it on pull requests (Recommended)").
+            - name: Restore the ESLint and tsc caches (pull requests only)
+              if: github.event_name == 'pull_request'
+              uses: actions/cache/restore@v4
+              with:
+                  path: |
+                      .eslintcache
+                      packages/*/tsconfig.tsbuildinfo
+                      functions/tsconfig.tsbuildinfo
+                      web/tsconfig.tsbuildinfo
+                  key: lint-tsc-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'tools/eslint-rules/**', 'pnpm-lock.yaml', '**/tsconfig*.json', '!**/node_modules/**') }}-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: |
+                      lint-tsc-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'tools/eslint-rules/**', 'pnpm-lock.yaml', '**/tsconfig*.json', '!**/node_modules/**') }}-pr-${{ github.event.pull_request.number }}-
+                      lint-tsc-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'tools/eslint-rules/**', 'pnpm-lock.yaml', '**/tsconfig*.json', '!**/node_modules/**') }}-stage-
+
             # The docs job's Markdown check, run for code changes too (Claude's review of PR #14):
             # pnpm verify runs no Prettier, so without it a code change could merge unformatted
             # Markdown and the next docs-only change would fail on a file it never touched.
@@ -108,9 +178,22 @@ jobs:
 
             # The one gate (S62; law P11): build (lint, then each package's typecheck
             # and build), dup:check, test:coverage and size — every law pnpm verify
-            # holds also holds here.
+            # holds also holds here. A push to stage or main runs it all fresh (S152).
             - name: Verify
+              if: github.event_name != 'pull_request'
               run: pnpm verify
+
+            # On a pull request the same gate reads Turborepo's cache (BT_TURBO_CACHE_READ, set
+            # nowhere else), so an unchanged package replays its passing result; when the change
+            # reaches functions, its tests are left to the functions-shard jobs (S152 AC 3, AC 4).
+            - name: Verify (pull request, reusing unchanged packages)
+              if: github.event_name == 'pull_request'
+              env:
+                  BT_TURBO_CACHE_READ: "1"
+                  FUNCTIONS: ${{ needs.changes.outputs.functions }}
+              run: |
+                  if [ "$FUNCTIONS" = true ]; then export BT_FUNCTIONS_SHARDED=1; fi
+                  pnpm verify
 
             - name: OpenAPI spec is up to date
               run: pnpm api:spec --check
@@ -126,6 +209,25 @@ jobs:
                   path: "**/coverage/coverage-summary.json"
                   if-no-files-found: ignore
 
+            # Every run saves what it built, a push to stage as the base later pull requests reuse.
+            - name: Save Turborepo's cache
+              if: always()
+              uses: actions/cache/save@v4
+              with:
+                  path: .turbo/cache
+                  key: turbo-${{ runner.os }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+            - name: Save the ESLint and tsc caches
+              if: always()
+              uses: actions/cache/save@v4
+              with:
+                  path: |
+                      .eslintcache
+                      packages/*/tsconfig.tsbuildinfo
+                      functions/tsconfig.tsbuildinfo
+                      web/tsconfig.tsbuildinfo
+                  key: lint-tsc-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'tools/eslint-rules/**', 'pnpm-lock.yaml', '**/tsconfig*.json', '!**/node_modules/**') }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+
     # The main flows on several workers (S89), each run twice so no flow depends on another's
     # order. Browsers run only here and in the design-spec job, never in pnpm verify (law P8).
     flows:
@@ -135,6 +237,8 @@ jobs:
         timeout-minutes: 30
         steps:
             - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
               with:
@@ -148,40 +252,159 @@ jobs:
             - name: Install
               run: pnpm install --frozen-lockfile
 
-            - name: Install the Playwright browser
-              run: pnpm exec playwright install --with-deps chromium
+            # S152 AC 5: a pull request runs only the specs its change can affect (each spec names
+            # its targets; e2e/select-specs.ts walks the workspace graph); a push runs them all. The
+            # list is assigned before it is written, so a selector that crashes fails the step
+            # instead of selecting nothing.
+            - name: Pick the specs this change can affect
+              id: specs
+              if: github.event_name == 'pull_request'
+              env:
+                  BASE: ${{ github.event.pull_request.base.sha }}
+                  HEAD: ${{ github.sha }}
+              run: |
+                  list="$(node e2e/select-specs.ts specs flows "$BASE" "$HEAD")"
+                  echo "list=$list" >> "$GITHUB_OUTPUT"
+
+            # S152 AC 1: the browser download is kept between runs, keyed on the Playwright version
+            # the lockfile installed and the runner image, so a new ubuntu-latest downloads afresh.
+            # Its system libraries are installed every run (they live outside the cached folder). The
+            # version is assigned first, so failing to read it fails the step, not a version-less key.
+            - name: Browser cache key
+              id: browser-key
+              if: github.event_name != 'pull_request' || steps.specs.outputs.list != ''
+              run: |
+                  version="$(node -p 'require("@playwright/test/package.json").version')"
+                  echo "key=playwright-$RUNNER_OS-$ImageOS-$version" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the Playwright browser
+              id: browser-cache
+              if: github.event_name != 'pull_request' || steps.specs.outputs.list != ''
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: ${{ steps.browser-key.outputs.key }}
+
+            - name: Download the Playwright browser (cache miss only)
+              if: (github.event_name != 'pull_request' || steps.specs.outputs.list != '') && steps.browser-cache.outputs.cache-hit != 'true'
+              run: pnpm exec playwright install chromium
+
+            - name: Install the browser's system libraries
+              if: github.event_name != 'pull_request' || steps.specs.outputs.list != ''
+              run: pnpm exec playwright install-deps chromium
 
             - name: Main flows (Playwright, fixtures)
+              if: github.event_name != 'pull_request'
               run: pnpm e2e --repeat-each=2
 
-    # Every design-capture spec still runs in CI, without BT_DESIGN_CAPTURE, so nothing is
-    # written to the tree but a spec that breaks fails the push (S89 AC 2; it caught S97's at
-    # 2b4de06). Taking the captures is `pnpm design:capture`, on request.
-    design-specs:
+            - name: Main flows (pull request, selected specs)
+              if: github.event_name == 'pull_request' && steps.specs.outputs.list != ''
+              run: pnpm exec playwright test --config e2e/playwright.config.ts --workers=4 --repeat-each=2 ${{ steps.specs.outputs.list }}
+
+    # S152 AC 4: on a pull request whose change reaches functions, its Node tests run here in two
+    # shards (verify skips them), with the coverage floors off for each shard's partial coverage;
+    # the workerd tests run once, in shard 1. Otherwise every step skips and the job still passes,
+    # since ci-passed needs success. Docs-only changes skip the job like the others.
+    functions-shard:
         needs: changes
         if: needs.changes.outputs.code == 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 30
+        strategy:
+            fail-fast: false
+            matrix:
+                shard: [1, 2]
         steps:
             - uses: actions/checkout@v4
+              if: needs.changes.outputs.functions == 'true'
 
             - uses: pnpm/action-setup@v4
+              if: needs.changes.outputs.functions == 'true'
               with:
                   version: 9.15.0
 
             - uses: actions/setup-node@v4
+              if: needs.changes.outputs.functions == 'true'
               with:
                   node-version-file: ".nvmrc"
                   cache: pnpm
 
             - name: Install
+              if: needs.changes.outputs.functions == 'true'
               run: pnpm install --frozen-lockfile
 
-            - name: Install the Playwright browser
-              run: pnpm exec playwright install --with-deps chromium
+            - name: Functions tests, shard ${{ matrix.shard }} of 2
+              if: needs.changes.outputs.functions == 'true'
+              working-directory: functions
+              env:
+                  BT_COVERAGE_SHARD: "1"
+              run: pnpm exec vitest run --shard=${{ matrix.shard }}/2 --reporter=blob --reporter=dot --silent=passed-only --coverage
 
-            - name: Design-capture specs (no captures written)
-              run: pnpm e2e:design
+            - name: Functions workerd tests (once, in shard 1)
+              if: needs.changes.outputs.functions == 'true' && matrix.shard == 1
+              working-directory: functions
+              run: pnpm exec vitest run --config vitest.workers.config.ts --reporter=dot --silent=passed-only
+
+            - name: Upload the shard's report
+              if: needs.changes.outputs.functions == 'true'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: functions-blob-${{ matrix.shard }}
+                  path: functions/.vitest-reports/
+                  include-hidden-files: true
+                  if-no-files-found: error
+
+    # The shards' reports merged into one coverage run, checked against functions/vitest.config.ts's
+    # floors (no BT_COVERAGE_SHARD here), so the floors mean what they always have (law L6).
+    functions-coverage:
+        needs: [changes, functions-shard]
+        if: needs.changes.outputs.code == 'true'
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@v4
+              if: needs.changes.outputs.functions == 'true'
+
+            - uses: pnpm/action-setup@v4
+              if: needs.changes.outputs.functions == 'true'
+              with:
+                  version: 9.15.0
+
+            - uses: actions/setup-node@v4
+              if: needs.changes.outputs.functions == 'true'
+              with:
+                  node-version-file: ".nvmrc"
+                  cache: pnpm
+
+            - name: Install
+              if: needs.changes.outputs.functions == 'true'
+              run: pnpm install --frozen-lockfile
+
+            - name: Download the shards' reports
+              if: needs.changes.outputs.functions == 'true'
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: functions-blob-*
+                  path: functions/.vitest-reports
+                  merge-multiple: true
+
+            - name: Merge coverage and check the floors
+              if: needs.changes.outputs.functions == 'true'
+              working-directory: functions
+              run: pnpm exec vitest --merge-reports --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary
+
+            # The verify job's coverage upload has no functions summary when the shards ran it.
+            - name: Upload the functions coverage summary
+              if: always() && needs.changes.outputs.functions == 'true'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-functions
+                  path: functions/coverage/coverage-summary.json
+                  if-no-files-found: ignore
+
+    # No design-capture specs here (owner, 2026-11-20: "We don't need to do this in CI; it can be
+    # something we run manually."): they only photograph screens for a design match, so a story
+    # running `pnpm design:capture` (or design-capture.yml) fixes a spec that has broken since.
 
     # Budgets on the built app (ADR-026): LCP warns over 2.5 s and fails at 5 s (owner,
     # 2026-10-29); TBT and layout shift fail over budget. Alone on its runner, so nothing else
@@ -236,11 +459,13 @@ jobs:
 
     # One check that stands for all of them, for a branch rule to require (so the rule needn't
     # change when the jobs do). It passes only when the jobs this change needed ran and passed:
-    # all four for code, the docs job for a docs-only change; a skipped job is fine only when the
-    # change didn't need it. A pull request into stage also needs its milestone (#47).
+    # verify, flows, lighthouse, functions-shard and functions-coverage for code, the
+    # docs job for a docs-only change; a skipped job is fine only when the change didn't need it,
+    # and a `code` that is neither true nor false fails. A pull request into stage also needs its
+    # milestone (#47).
     ci-passed:
         if: always()
-        needs: [changes, docs, verify, flows, design-specs, lighthouse, milestone]
+        needs: [changes, docs, verify, flows, functions-shard, functions-coverage, lighthouse, milestone]
         runs-on: ubuntu-latest
         steps:
             - name: Every CI job this change needed passed
@@ -250,15 +475,29 @@ jobs:
                   DOCS: ${{ needs.docs.result }}
                   VERIFY: ${{ needs.verify.result }}
                   FLOWS: ${{ needs.flows.result }}
-                  DESIGN: ${{ needs.design-specs.result }}
                   LIGHTHOUSE: ${{ needs.lighthouse.result }}
+                  SHARDS: ${{ needs.functions-shard.result }}
+                  MERGE: ${{ needs.functions-coverage.result }}
                   MILESTONE: ${{ needs.milestone.result }}
                   INTO_STAGE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'stage' }}
               run: |
+                  # GitHub runs this as bash -e without pipefail, where a failing test before && doesn't
+                  # stop the script, so each test stands alone and a missing code fails outright.
+                  case "$CODE" in
+                      true | false) ;;
+                      *) echo "::error::changes gave code='$CODE', not true or false"; exit 1 ;;
+                  esac
                   test "$CHANGES" = success
                   if [ "$INTO_STAGE" = true ]; then test "$MILESTONE" = success; else test "$MILESTONE" = skipped; fi
                   if [ "$CODE" = true ]; then
-                      test "$VERIFY $FLOWS $DESIGN $LIGHTHOUSE" = "success success success success"
+                      test "$VERIFY $FLOWS $LIGHTHOUSE" = "success success success"
+                  fi
+                  # The functions shards and their merge (S152): they pass for every code change
+                  # (their steps skip when the change doesn't reach functions) and are skipped only
+                  # for a docs-only one.
+                  if [ "$CODE" = true ]; then
+                      test "$SHARDS $MERGE" = "success success"
                   else
-                      test "$CODE" = false && test "$DOCS" = success
+                      test "$DOCS" = success
+                      test "$SHARDS $MERGE" = "skipped skipped"
                   fi

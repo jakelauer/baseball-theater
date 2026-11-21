@@ -32,6 +32,12 @@ describe("gamePhase", () =>
 		expect(gamePhase(code) === "final").toBe(isFinalStatus(code));
 	});
 
+	it("shows Live during a manager challenge (`M`) or umpire review (`N`) (#74)", () =>
+	{
+		expect(gamePhase("M")).toBe("live");
+		expect(gamePhase("N")).toBe("live");
+	});
+
 	it("treats a code MLB adds later as pre-game", () =>
 	{
 		expect(gamePhase("Z")).toBe("pregame");

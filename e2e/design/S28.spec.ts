@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S28's design match (rule 22): the stale-client prompt — shell-scoreboard `shell-notice-mobile`,
  * `-medium` and `-desktop` (desktop at 1200px, owner 2026-10-28), as shell-scoreboard A6

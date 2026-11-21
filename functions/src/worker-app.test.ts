@@ -4,7 +4,8 @@
  * settings included. The Worker builds the same composition on `scopedDatabase`, which this
  * also exercises through `inDatabaseScope`.
  */
-import { DEFAULT_SETTINGS } from "@bt/domain";
+import { readFileSync } from "node:fs";
+import { DEFAULT_SETTINGS, MOCK_SIGN_IN_CREDENTIAL } from "@bt/domain";
 import { sql } from "drizzle-orm";
 import {
 	afterEach, describe, expect, it, vi,
@@ -23,7 +24,9 @@ import {
 	createTestTenant, TEST_LOGTO_APP_ID, TEST_LOGTO_ENDPOINT,
 } from "./test/logto-tokens.js";
 import type { WorkerEnv } from "./worker-app.js";
-import { createWorkerApp, logtoAdmin } from "./worker-app.js";
+import {
+	createWorkerApp, devSignInAllowed, logtoAdmin, mockSignInAllowed,
+} from "./worker-app.js";
 
 async function count(db: PostgresDb, table: string): Promise<number>
 {
@@ -315,5 +318,166 @@ describe("POST /api/v1/sign-in failures (S120)", () =>
 		// Logged by error name only (ADR-028: no token, no account subject).
 		expect(logged.mock.calls.every((call) => call.join(" ").startsWith("sign-in failed:"))).toBe(true);
 		expect(logged).toHaveBeenCalledTimes(3);
+	});
+});
+
+describe("staging's mock sign-in (S143)", () =>
+{
+	it("S143 AC 2: mockSignInAllowed is on with BT_MOCK_SIGN_IN \"1\" alone, and off without it, with any other value, or beside LOGTO_ENDPOINT or LOGTO_APP_ID (either one)", () =>
+	{
+		expect(mockSignInAllowed({
+			BT_MOCK_SIGN_IN: "1",
+		})).toBe(true);
+		expect(mockSignInAllowed({})).toBe(false);
+		for (const value of ["0", "true", "yes", "", " 1"])
+		{
+			expect(mockSignInAllowed({
+				BT_MOCK_SIGN_IN: value,
+			})).toBe(false);
+		}
+		// A whole tenant, or half of one: never the shared test account.
+		expect(mockSignInAllowed({
+			BT_MOCK_SIGN_IN: "1",
+			LOGTO_ENDPOINT: TEST_LOGTO_ENDPOINT,
+			LOGTO_APP_ID: TEST_LOGTO_APP_ID,
+		})).toBe(false);
+		expect(mockSignInAllowed({
+			BT_MOCK_SIGN_IN: "1",
+			LOGTO_ENDPOINT: TEST_LOGTO_ENDPOINT,
+		})).toBe(false);
+		expect(mockSignInAllowed({
+			BT_MOCK_SIGN_IN: "1",
+			LOGTO_APP_ID: TEST_LOGTO_APP_ID,
+		})).toBe(false);
+		// dev: sign-in stays local only, whatever the mock does (S114 AC 7).
+		expect(devSignInAllowed({
+			BT_MOCK_SIGN_IN: "1",
+		})).toBe(false);
+		expect(devSignInAllowed({
+			BT_LOCAL: "1",
+		})).toBe(true);
+	});
+
+	it("S143 AC 2: wrangler.jsonc sets BT_MOCK_SIGN_IN in env.staging's vars only, and env.staging names no Logto var", () =>
+	{
+		// Line comments only (the file has no block comments); a `//` inside a string isn't at a line's start.
+		const wrangler = JSON.parse(readFileSync(new URL("../../wrangler.jsonc", import.meta.url), "utf8").replace(/^\s*\/\/.*$/gm, "")) as {
+			vars?: Record<string, string>;
+			env: Record<string, { vars?: Record<string, string> }>;
+		};
+		expect(wrangler.vars?.BT_MOCK_SIGN_IN).toBeUndefined();
+		const staging = wrangler.env.staging?.vars ?? {};
+		expect(staging.BT_MOCK_SIGN_IN).toBe("1");
+		expect(Object.keys(staging).filter((k) => k.startsWith("LOGTO_"))).toEqual([]);
+		expect(mockSignInAllowed(staging)).toBe(true);
+		for (const [name, block] of Object.entries(wrangler.env))
+		{
+			if (name === "staging") continue;
+			expect(JSON.stringify(block), `env.${name}`).not.toContain("BT_MOCK_SIGN_IN");
+			expect(mockSignInAllowed(block.vars ?? {}), `env.${name}`).toBe(false);
+		}
+	});
+
+	/** A composition on its own PGlite, and the sign-in route's answers. */
+	async function signInRoute(env: WorkerEnv)
+	{
+		const { db } = await migratedPglite();
+		const tenant = await createTestTenant();
+		const app = createWorkerApp(env, db, {
+			fetch: tenant.fetch,
+		});
+		const call = (path: string, init: RequestInit = {}) => handleApiRequest(new Request(`http://bt.test${path}`, init), app.context);
+		return {
+			db,
+			config: async () => await (await call("/api/v1/sign-in")).json() as unknown,
+			signIn: async (idToken: string) =>
+			{
+				const response = await call("/api/v1/sign-in", {
+					method: "POST",
+					body: JSON.stringify({
+						idToken,
+					}),
+				});
+				return {
+					status: response.status,
+					body: await response.json() as Record<string, unknown>,
+				};
+			},
+			me: async (token: string) => await (await call("/api/v1/me", {
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			})).json() as { uid: string;
+				email: string; },
+		};
+	}
+
+	it("S143 AC 3: where the mock is wired, GET answers mock true and the credential signs in through signIn, creating the account once", async () =>
+	{
+		const route = await signInRoute({
+			BT_MOCK_SIGN_IN: "1",
+		});
+		expect(await route.config()).toEqual({
+			logto: null,
+			mock: true,
+		});
+		const first = await route.signIn(MOCK_SIGN_IN_CREDENTIAL);
+		expect(first.status).toBe(200);
+		const token = first.body.token as string;
+		expect(typeof token).toBe("string");
+		const account = await route.me(token);
+		expect(account.email).toBe("tester@stage.baseball.theater");
+		expect(await count(route.db, "users")).toBe(1);
+		expect(await count(route.db, "identity_links")).toBe(1);
+		// The next sign-in finds the account the first one linked.
+		const second = await route.signIn(MOCK_SIGN_IN_CREDENTIAL);
+		expect(second.status).toBe(200);
+		expect((await route.me(second.body.token as string)).uid).toBe(account.uid);
+		expect(await count(route.db, "users")).toBe(1);
+		// Any other credential is refused.
+		expect(await route.signIn("dev:test-user")).toEqual({
+			status: 401,
+			body: {
+				error: "sign_in_refused",
+			},
+		});
+	});
+
+	it("S143 AC 3: where the mock isn't wired, GET answers mock false, and the credential is refused (Logto) or unavailable (no provider)", async () =>
+	{
+		const logto = await signInRoute({
+			BT_MOCK_SIGN_IN: "1",
+			LOGTO_ENDPOINT: TEST_LOGTO_ENDPOINT,
+			LOGTO_APP_ID: TEST_LOGTO_APP_ID,
+		});
+		expect(await logto.config()).toEqual({
+			logto: {
+				endpoint: TEST_LOGTO_ENDPOINT,
+				appId: TEST_LOGTO_APP_ID,
+			},
+			mock: false,
+		});
+		expect(await logto.signIn(MOCK_SIGN_IN_CREDENTIAL)).toEqual({
+			status: 401,
+			body: {
+				error: "sign_in_refused",
+			},
+		});
+		for (const env of [{}, {
+			BT_LOCAL: "1",
+		}])
+		{
+			const none = await signInRoute(env);
+			expect(await none.config()).toEqual({
+				logto: null,
+				mock: false,
+			});
+			expect(await none.signIn(MOCK_SIGN_IN_CREDENTIAL)).toEqual({
+				status: 404,
+				body: {
+					error: "sign_in_unavailable",
+				},
+			});
+		}
 	});
 });

@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S68's design match (rule 22): collapse non-favorites and Hide Scores in the
  * shell-scoreboard frames they build. The day is S66's (SF @ NYM final; 823823, CHC @ MIA,

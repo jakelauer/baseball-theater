@@ -1,6 +1,6 @@
 ---
 name: backlog-review
-description: Re-evaluate docs/v3/BACKLOG.md against the current state of the repo and decide whether work may continue. Use when review debt is due (6 stories done since the last review, or any drift event), before starting the next story, or when a loop asks whether the plan is still right.
+description: Re-evaluate the backlog (the notes in docs/v3/backlog/, indexed by docs/v3/INDEX.md) against the current state of the repo and decide whether work may continue. Use when review debt is due (6 stories done since the last review, or any drift event), before starting the next story, or when a loop asks whether the plan is still right.
 ---
 
 # Backlog review
@@ -22,17 +22,26 @@ The story count was doubled from 3 by the owner on 2026-10-21; a single drift ev
 
 1. A **scope fence was widened** mid-run, or rule 10 stop-and-report fired.
 2. A **turn cap** was hit or exceeded.
-3. A story's **acceptance criteria had to be rewritten** to be runnable (BACKLOG rule: tighten the backlog, not just the code).
+3. A story's **acceptance criteria had to be rewritten** to be runnable (LOOP.md §4: tighten the backlog, not just the code).
 4. A **new ADR** was accepted in `docs/v3/ARCHITECTURE.md`, or an existing one materially changed.
 5. A **new workspace package** appeared.
 6. A story was **inserted or re-prioritized** outside a review — unless the owner directed it in the session and then said it needs no review (see below).
 7. **`pnpm verify` itself changed** — the gate moved.
 
-**A backlog change the owner directs in the session asks the owner whether it needs a review** (owner, 2026-10-29: "Change it so owner directed backlog changes trigger question about whether review is needed or not"). Apply and commit it with the owner's words, then ask. If yes, it is a drift event and the reviews run. If no, log it with `scripts/audit.sh skip backlog --commit <sha> --answers -` (and `skip parity` when it adds a story or changes a Source line), quoting the answer, so the debt scripts measure drift from it; the next review still checks it. A skip never resets the count of stories done since the last review — only a review does (owner, 2026-11-03: "Skip notes should not reset the counter").
+**A backlog change the owner directs in the session asks the owner whether it needs a review** (owner, 2026-10-29: "Change it so owner directed backlog changes trigger question about whether review is needed or not"). Apply and commit it with the owner's words, then decide: when you are confident a skip is right, log the skip yourself without asking, quoting that rule and saying why no review is needed; ask only when there is a good argument either way (owner, 2026-11-19: "I also want you to start skipping reviews when you're confident in the choice. Ask when you can see a good argument either way"). Never ask and never skip when a review is already due by story count: run that one review and let it cover the change. When asked: if yes, it is a drift event and the reviews run. If no, log it with `scripts/audit.sh skip backlog --commit <sha> --answers -` (and `skip parity` when it adds a story or changes a Source line), quoting the answer, so the debt scripts measure drift from it; the next review still checks it. A skip never resets the count of stories done since the last review — only a review does (owner, 2026-11-03: "Skip notes should not reset the counter").
 
 **Applying the owner's answers to a review's questions is not a drift event.** It finishes that review. Log it with `scripts/audit.sh answers backlog --review <date of the review> --commit <sha> --answers -`, quoting the owner and naming what was applied. Only a change that goes beyond what the owner answered counts as drift. Without this rule, every review that asks a question would set up the next one.
 
 Count triggers are cheap to satisfy and easy to ignore; the event list is the part that actually catches drift. Prefer over-reviewing to discovering a missing concern four stories later.
+
+## Beside the items in flight
+
+A review runs beside the items a `/run-backlog` run has in flight, never pausing them (S156; owner, 2026-11-20, asked "Should backlog and doc parity reviews run in parallel with in-flight items? …": _"Run them in parallel (Recommended)"_). `scripts/review-debt.sh` reads the in-flight items from `.run/` (or `--in-flight <IDs>`) and prints the `done` count and the in-flight count; a drift event an in-flight item raises (a turn cap hit, a fence widened) makes a review due the same way. While items are in flight:
+
+- **Edit only notes of items not in flight** (not claimed in `.run/claims/`). Before committing, check it: `git diff --name-only <base> | node scripts/backlog-vault/claims.ts review-edits --root "$MAIN"` (`MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")`, the main checkout, where `.run/` lives) reports an edit to an in-flight item's note (exit 1); undo that edit and report it as a finding instead.
+- **Findings on an in-flight item go to the overseer**, in the reply, not into its note: the overseer hands each to that item's worker as an acceptance-criteria update before it ships (rule 7).
+- **`blocked` stops new dispatches only**: in-flight items finish.
+- **Log the in-flight IDs**: `scripts/audit.sh review … --in-flight <IDs>`.
 
 ## Fresh context is required
 
@@ -46,11 +55,12 @@ Run all four. Each produces findings or cited evidence — never a bare "looks f
 
 Scope: the **next 3** stories by Priority with Status `todo`, plus the concerns they touch.
 
-- Does the carried product loop have a gap that no story owns? Compare `docs/v3/FEATURES.md`, `VISUAL-DESIGN.md`, and the accepted ADRs against the Gap map (`docs/v3/backlog/frame/05 Gap map (doc → story).md`). Find the ADRs and the rest through `docs/v3/INDEX.md`, reading each by its line range, and read stories from their notes rather than `BACKLOG.md` (~1 MB).
+- Does the carried product loop have a gap that no story owns? Compare `docs/v3/FEATURES.md`, `VISUAL-DESIGN.md`, and the accepted ADRs against the Gap map (`docs/v3/backlog/frame/05 Gap map (doc → story).md`). Find the ADRs and the rest through `docs/v3/INDEX.md`, reading each by its line range, and read stories from their notes (the generated `BACKLOG.md` is retired).
 - Did a recently accepted ADR create work that no story carries?
 - Is a story about to be built on something that does not exist and is not a listed dependency?
 - Is there a **Later theme** that recent work has promoted into a real blocker?
-- Did the newest **doc parity review** entry in `docs/v3/AUDIT.md` queue items **For the next backlog review**? Answer each one in this review's findings, as an amendment or as a reason none is needed.
+- **Bugs and issues, not just stories** (owner, 2026-11-20: "backlog reviews need to include bugs/issues, not just stories"): read every open bug note (`docs/v3/backlog/bugs/`) and every open GitHub issue, whatever its label (`gh api "repos/<repo>/issues?state=open&per_page=100"`, REST, leaving out pull requests). For each, ask whether a bug's priority still fits the stories around it, whether an issue is already fixed at HEAD (propose closing it, citing the commit), and whether an enhancement hides a latent bug or work no story owns. Amend a bug's priority in its note (never drift); closing an issue, and an enhancement, which enters the backlog only as a story the owner asks for, go to the owner as questions (`.pending/needs-input.md`).
+- Did the newest **doc parity review** entry in the ledger (found through `docs/v3/audit.jsonl`) queue items **For the next backlog review**? Answer each one in this review's findings, as an amendment or as a reason none is needed.
 
 ### 2. Ground truth — do the next stories still hold at HEAD?
 
@@ -72,7 +82,7 @@ Each finding names the **exact input or sequence that breaks the criterion** (fo
 
 ### 3. Prioritization challenge — the whole backlog, not just the next few
 
-Argue **against** the current order, using what has changed since the last logged review:
+Argue **against** the current order, bugs included (they share it with the stories), using what has changed since the last logged review:
 
 - Does anything now block something above it?
 - Did a dependency landing make a lower story cheap, or a higher story pointless?
@@ -80,9 +90,9 @@ Argue **against** the current order, using what has changed since the last logge
 - Has anything become obsolete, or been quietly done by another story?
 - Do the `done` stories suggest a class of work being systematically underestimated?
 
-**All backlog edits go to the notes, not `BACKLOG.md`** (it is generated): story text and fences in `docs/v3/backlog/stories/S<N>.md`, priority and status in that note's frontmatter, everything else (reviews, baseline, gap map, rules) in `docs/v3/backlog/frame/`. Run `pnpm backlog:build` after editing — it regenerates `docs/v3/BACKLOG.md` with the **Story status** table re-sorted from each note's `priority`, so re-prioritizing is just changing those numbers. A new story is a new note plus an `![[S<N>]]` line where it belongs in a frame note.
+**All backlog edits go to the notes** (the generated `BACKLOG.md` is retired): story text and fences in `docs/v3/backlog/stories/<status>/S<N>.md` (found through `docs/v3/INDEX.md`'s link), priority and status in that note's frontmatter (`pnpm backlog:build` moves the note into the folder its status names), everything else (reviews, baseline, gap map, rules) in `docs/v3/backlog/frame/`. Run `pnpm backlog:build` after editing — it rebuilds `docs/v3/INDEX.md` (git-ignored) with the story list re-sorted from each note's `priority`, so re-prioritizing is just changing those numbers. A new story is a new note plus an `![[S<N>]]` line where it belongs in a frame note.
 
-Check the **Current baseline** table (`docs/v3/backlog/frame/01 Current baseline.md`) against HEAD (rule 17): every **Done** row names something that exists, every `done` story since the **As of** line is reflected, and any amendment this review makes (insert, remove, re-scope) is reflected too. Fix drifted rows as part of the amendment.
+Check the **Current baseline** table (`docs/v3/backlog/frame/01 Current baseline.md`) against HEAD (rule 17): every **Done** row names something that exists, every `done` story since the **As of** line (built into `docs/v3/INDEX.md` from the newest completion's `**Baseline:**` line) is reflected, each `done` story since S156 has its `**Baseline:**` line, and any amendment this review makes (insert, remove, re-scope) is reflected too. Fix drifted rows as part of the amendment.
 
 ### Duplication sweep (ADR-025)
 
@@ -120,21 +130,22 @@ Findings that are real but out of scope to fix now become **backlog amendments**
 
 ## Log it
 
-Append an entry to the verification ledger, `docs/v3/AUDIT.md`, and commit it with any amendment:
+Write an entry to the verification ledger (a new fragment under `docs/v3/audit/<date>/`; `docs/v3/AUDIT.md` is frozen history) and commit it with any amendment:
 
 ```bash
 scripts/audit.sh review \
   --trigger "6 stories done since last review" \
   --since "S23, S21, S13" \
   --verdict amended \
-  --findings -   # reads the findings body from stdin
+  --findings - \
+  --in-flight S160,S161   # only while items are in flight; findings body from stdin
 ```
 
 The script records date, HEAD short SHA, tree state, trigger, stories `done` since, and the verdict; you supply the findings. It refuses a verdict with no findings, and exits nonzero on `blocked`.
 
-That ledger defines "since the last review" — it holds the story completion entries too, so the counter reads off one file. Without the entry the next review has no baseline and the story counter cannot be trusted.
+That ledger defines "since the last review" — it holds the story completion entries too, so the counter reads off it (through `scripts/backlog-vault/ledger.ts`). Without the entry the next review has no baseline and the story counter cannot be trusted.
 
-Then update the **Backlog reviews** scheduling notes (in `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md`, then `pnpm backlog:build` to regenerate `docs/v3/BACKLOG.md`): what is now due next, and any drift the following review must weigh.
+Then update the **Backlog reviews** scheduling notes (in `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md`, then `pnpm backlog:build`): what is now due next, and any drift the following review must weigh.
 
 ## Write scope vs. the doc parity review
 

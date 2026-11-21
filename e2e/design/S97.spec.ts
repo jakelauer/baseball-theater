@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S97's design match (rule 22): the video play links and the Plays room opened on a play —
  * game-shell A5's `game-videos-{grid,list}-playlink-*` and `video-player-dialog-playlink-*`,
