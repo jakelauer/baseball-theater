@@ -94,7 +94,9 @@ export function scriptCacheProblems(scripts: Record<string, string>): string[]
 	}).toString().trim();
 	for (const name of ["build", "test:coverage"])
 	{
-		const turbo = /turbo run [^&|;]+/.exec(scripts[name] ?? "")?.[0];
+		// The turbo command ends at a shell separator or, when a runner such as `concurrently` quotes it
+		// beside other commands, at its closing quote.
+		const turbo = /turbo run [^&|;"']+/.exec(scripts[name] ?? "")?.[0];
 		if (!turbo)
 		{
 			problems.push(`root ${name} doesn't call turbo run`);
