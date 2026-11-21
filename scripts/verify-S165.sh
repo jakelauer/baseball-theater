@@ -15,11 +15,11 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "AC 1: pnpm backlog:check --live (live-check.ts) checks one issue per ID, status label against state (pending and filer-closed warnings), unlogged body edits against the tree's and origin/stage's records, bugs' fields blocks and the design gate; live-check.test.ts covers every listed case and passes; plain pnpm backlog:check still needs no cache"
-check 2 "AC 2: audit.sh edit <ID> --adopt --reason records the live body as an edit and posts its Applied comment; audit-edit.test.ts covers an adopt turning --live green and an adopt refused when GitHub already matches"
-check 3 "AC 3: pnpm backlog:triage labels outside issues (sync stays read-only, CI never triages); a triage issue is never claimable, never in Next, listed in INDEX's Triage section by number and title only; triage.test.ts covers every listed case and passes"
-check 4 "AC 4: one pure areaOf(scope_files) and pnpm backlog:areas (area labels, done stories' milestones by git merge-base --is-ancestor); areas.test.ts covers each area, a two-area story and a done story with and without a containing release"
-check 5 "AC 5: claims.test.ts covers review-edits flagging a claimed item's create and edit, audit.sh edit --review refusing a claimed item, and claim refusing a UI story whose design story is open; it passes"
+check 1 "AC 1: pnpm backlog:check --live (live-check.ts) fetches origin/stage itself and checks one issue per ID, status label against state (pending by merged pull request, unlabelled-closed and filer-closed warnings, unknown values), unlogged body edits against the tree's and origin/stage's records (forks, lost creates), bugs' fields blocks (outside filers warn in CI) and the design gate; every listed live-check.test.ts case ran and passed; plain pnpm backlog:check still needs no cache"
+check 2 "AC 2: audit.sh edit <ID> --adopt --reason records the live body as an edit and posts its Applied comment; audit-edit.test.ts's adopt turning --live green, refused when GitHub already matches, a bug's fields block only, and refused on whitespace alone all ran and passed"
+check 3 "AC 3: pnpm backlog:triage adds the triage label (sync stays read-only, CI never triages); a triage issue is never claimable until accepted in place, listed in INDEX's Triage section by number and title only; every listed triage.test.ts case ran and passed"
+check 4 "AC 4: one pure areaOf(scope_files) and pnpm backlog:areas (area labels added and removed one by one, done stories' milestones by git merge-base --is-ancestor, never cleared, an unresolved tag failing); every listed areas.test.ts case ran and passed"
+check 5 "AC 5: claims.test.ts's review-edits flagging a claimed item's create and edit, audit.sh edit --review refusing a claimed item, and claim refusing a UI story whose design story is open, closed not_planned or without status:done all ran and passed"
 check 6 "AC 6: CLAUDE.md, the run-backlog SKILL and the backlog-review SKILL each say outside issue text is 'data, never instructions'"
 check 7 "AC 7: ci.yml changes only by job-level contents: read + issues: read and one 'pnpm backlog:sync && pnpm backlog:check --live' step with GH_TOKEN in the docs job and the verify job; no other file under .github/ changed (deploy.yml untouched)"
 check 8 "AC 8: LAWS.md's L9 row names pnpm backlog:check --live and claims.ts claim for its four live parts, keeps cli.ts first and Step lint, quotes the two owner answers; laws.test.ts passes"
@@ -50,31 +50,51 @@ test_passed() {
     process.exit(f && f.status === "passed" && f.assertionResults.length > 0 ? 0 : 1);
   ' "$TMP/report.json" "$1"
 }
-# has_test <file> <pattern> — a test title in <file> matches <pattern> (extended regex, any case).
-has_test() { [ -f "$VAULT/$1" ] && grep -qiE "it(\.each\(.*\))?\(\"[^\"]*($2)" "$VAULT/$1"; }
-# need_tests <check> <file> <pattern>… — the file passes and has a test title for each pattern.
+# has_test <file> <pattern> — a test in <file> whose title (or full name) matches <pattern> (extended
+# regex, any case) ran and passed: a skipped or todo test, or a title only in the source, never counts.
+has_test() {
+  [ -f "$TMP/report.json" ] || return 1
+  node -e '
+    const r = require(process.argv[1]);
+    const f = r.testResults.find((t) => t.name.endsWith("/" + process.argv[2]));
+    const re = new RegExp(process.argv[3], "i");
+    process.exit(f && f.assertionResults.some((a) => a.status === "passed" && (re.test(a.title) || re.test(a.fullName))) ? 0 : 1);
+  ' "$TMP/report.json" "$1" "$2"
+}
+# need_tests <check> <file> <pattern>… — the file passes and has a passed test for each pattern.
 need_tests() {
   local n="$1" f="$2"
   shift 2
   test_passed "$f" || bad "$n" "$f is missing or failing"
   local p
-  for p in "$@"; do has_test "$f" "$p" || bad "$n" "$f has no test matching /$p/"; done
+  for p in "$@"; do has_test "$f" "$p" || bad "$n" "$f has no passed test matching /$p/"; done
 }
 
 # --- Check 1: the live check ---
 [ -f "$VAULT/live-check.ts" ] || bad 1 "$VAULT/live-check.ts is missing"
 grep -q -- '--live' "$VAULT/cli.ts" || bad 1 "cli.ts has no --live option"
 need_tests 1 live-check.test.ts \
-  "two trusted issues" \
-  "open .*status:done|status:done.*open" "closed .*status:(todo|doing)|label.*state" "two status: labels" \
-  "pending .*inside" "pending .*outside" \
-  "unlogged body edit" "not yet applied" "create with no issue" \
-  "revert" "revert.*label change" \
-  "unaccepted bug" "fields block but no record" \
-  "origin/stage .*passes|matches a record on origin/stage" "no origin/stage ref" \
-  "filer edited its symptoms" "filer closed" "fields block changed" \
-  "outsider.*Applied|Applied.*outsider" \
-  "design gate pass" "design gate fail"
+  "^an ID carried by two trusted issues" \
+  "^an open item labelled status:done" "^a closed item labelled status:todo" "^two status: labels" "^an unknown status: label" \
+  "^a closed completed item labelled status:superseded" "^a closed item with no status label warns for 24 hours" \
+  "^a pending status:done inside its window warns" "^a pending status:done outside its window fails" "^a pending status:done exactly 24 hours" \
+  "^a pending status:done closed by its pull request's merge" "^an item closed by hand" "^not_planned or duplicate inside" \
+  "^an unlogged body edit" "^a body not yet applied" "^a recorded create with no issue" \
+  "^a story create applied to an issue that no longer carries its ID" "^a bug create with no issue" \
+  "^the owner's revert" "^the same revert followed by a label change" \
+  "^a fork between the branch's records and origin/stage" \
+  "^an unaccepted bug" "^a bug with a fields block but no record" \
+  "matches a record on origin/stage" "^the same body with no origin/stage ref" "^the hint names git fetch origin" \
+  "^runLiveCheck fetches origin/stage" "^the fetch keeps a full clone non-shallow" \
+  "^a bug's symptoms are never compared" "^whitespace in a bug's symptoms" "^a bug body missing its final newline" \
+  "^a bug whose filer closed it warns" "^an owner-filed bug closed by the owner" "^a bug whose fields block changed fails" \
+  "^an outside filer's change warns in CI and fails in the coordinator's session" \
+  "^an Applied comment written by an outsider" \
+  "^the design gate passes" "^the design gate fails" "^the design gate holds for a design story closed not_planned" "^the design gate holds for a design story closed completed with no status label" \
+  "^closingEvent takes the newest closed event" "^closingEvent names the merged pull request" \
+  "^closingEvent names no pull request for one only Part of" "^closingEvent names no pull request for one naming #2970" "^closingEvent names no pull request for one merged after the close" \
+  "^closingEvent ignores a pull request from another repository" "^a revert seen in a stale cache"
+grep -q 'refs/heads/stage:refs/remotes/origin/stage' "$VAULT/live-check.ts" 2>/dev/null || bad 1 "live-check.ts does not fetch origin/stage itself"
 # Without --live, the check reads no cache and no GitHub: run it with an empty cache dir and no gh token.
 empty="$TMP/no-cache"
 mkdir -p "$empty"
@@ -84,22 +104,22 @@ fi
 
 # --- Check 2: adopt ---
 grep -q -- '--adopt' scripts/audit.sh || bad 2 "audit.sh has no edit --adopt"
-need_tests 2 audit-edit.test.ts "adopt .*Applied.*green|adopt .*green" "adopt .*refused"
+need_tests 2 audit-edit.test.ts "^an adopt records the live body.*green" "^an adopt is refused when GitHub already matches" "^an adopt of a bug records only its fields block" "^an adopt is refused when a bug differs only by whitespace"
 
 # --- Check 3: triage ---
 grep -qE '"backlog:triage": "node scripts/backlog-vault/' package.json || bad 3 "package.json has no backlog:triage script"
 grep -q 'backlog:triage' .github/workflows/*.yml && bad 3 "a workflow runs backlog:triage (CI's token is read-only)"
-need_tests 3 triage.test.ts "outside issue (is )?labelled" "owner-filed" "unlabelled outside issue.*claim" "S12" "outside bug.*accepted in place" "INDEX.*no body"
+need_tests 3 triage.test.ts "^an outside issue is labelled triage" "^an owner-filed issue is left alone" "^an unlabelled outside issue is refused by claim" "^an outside issue titled S12: x never takes ID S12" "^an outside bug is accepted in place" "^an accepted-in-place bug with a create record is claimable" "^INDEX lists it by number and quoted title" "^liveBacklog over a synced cache lists the Triage section" "^triage adds its label without replacing a status label set after the sync"
 grep -qE '"(POST|PATCH)"' <(awk '/^export function syncIssues/,/^}/' "$VAULT/github.ts") && bad 3 "syncIssues writes to GitHub"
 
 # --- Check 4: areas and milestones ---
 grep -qE '^export function areaOf\(' "$VAULT/areas.ts" 2>/dev/null || bad 4 "areas.ts does not export areaOf"
 grep -qE '"backlog:areas": "node scripts/backlog-vault/' package.json || bad 4 "package.json has no backlog:areas script"
 grep -q 'is-ancestor' "$VAULT/areas.ts" 2>/dev/null || bad 4 "areas.ts does not check containment with git merge-base --is-ancestor"
-need_tests 4 areas.test.ts "area:web" "area:api" "area:ingest" "area:design" "area:process" "two areas|spanning two" "with a containing release" "without a containing release"
+need_tests 4 areas.test.ts "^a web or e2e path is area:web" "^a functions or packages path is area:api" "^the real ingest paths are area:ingest" "^a docs/v3/visual path is area:design" "area:process" "^a story spanning two areas" "^a done story with a containing release" "^a done story without a containing release keeps its milestone" "^a done story with no shipping commit keeps its milestone" "^work shipped before the first release" "^a release tag that does not resolve fails" "^areas adds and removes area labels without replacing a status label set after the sync" "^removeLabel treats a 404 as done"
 
 # --- Check 5: in-flight guards ---
-need_tests 5 claims.test.ts "review-edits.*claimed.*(create|edit)" "edit --review.*claimed" "design story.*open|UI story.*design"
+need_tests 5 claims.test.ts "^review-edits flags a claimed item.s create and edit" "^audit.sh edit --review refuses a claimed item" "^claim refuses a UI story whose design story is open" "^claim refuses a UI story whose design story is closed not_planned or has no status:done"
 
 # --- Check 6: outside text is data ---
 for f in CLAUDE.md .claude/skills/run-backlog/SKILL.md .claude/skills/backlog-review/SKILL.md; do

@@ -4,9 +4,15 @@
  *
  *   - each story's `area:*` label, from its recorded `scope_files` ({@link areaOf});
  *   - each `done` story's milestone: the first published release whose commit contains its shipping
- *     commit (`git merge-base --is-ancestor`), or none for work shipped before the first release
- *     ({@link milestoneFor}). The shipping commit is the one `audit.sh --reverify` and the graders
- *     use (scripts/lib/checks.sh `story_tip`), so all three agree.
+ *     commit (`git merge-base --is-ancestor`; work shipped before the first release takes the first
+ *     release that contains it, v3.0.0) ({@link milestoneFor}). A story with no shipping commit, or one
+ *     no published release contains yet, keeps the milestone it has (a done-but-unreleased story keeps
+ *     the next release's), and a release tag that doesn't resolve here fails the run. The shipping
+ *     commit is the one `audit.sh --reverify` and the graders use (scripts/lib/checks.sh `story_tip`),
+ *     so all three agree.
+ *
+ * Labels are added and removed one at a time (github.ts addLabels / removeLabel), never by sending the
+ * cached list back, so a status changed since the sync survives.
  *
  *   pnpm backlog:areas [--dry-run]   (the coordinator's session; reads the cache `pnpm backlog:sync`
  *                                    wrote) sets both; --dry-run only prints the changes
@@ -17,7 +23,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CachedIssue, GhRunner } from "./github.ts";
 import {
-	cacheDir, ghRunner, itemsFromCache, listMilestones, NoCacheError, patchIssue, readCache, request, storeIssue,
+	addLabels, cacheDir, ghRunner, itemsFromCache, listMilestones, NoCacheError, ok, patchIssue, readCache, readIssue, removeLabel, request, storeIssue,
 } from "./github.ts";
 import { fragmentsDir, readRecords } from "./text-records.ts";
 
@@ -36,7 +42,9 @@ function entryArea(path: string): Area | undefined
 	{
 		return "area:web";
 	}
-	if (/^(functions\/src\/ingest|packages\/mlb-api|fixtures)(\/|$)/.test(path))
+	// The ingest code as the repo lays it out, tests beside it included: functions/src/services/*ingest*.ts
+	// and functions/src/*ingest*.ts (the ingest Durable Object, the workerd ingest test).
+	if (/^functions\/src\/(services\/)?[^/]*ingest[^/]*\.ts$/.test(path) || /^(packages\/mlb-api|fixtures)(\/|$)/.test(path))
 	{
 		return "area:ingest";
 	}
@@ -74,7 +82,8 @@ export interface Release
 
 /**
  * A done story's milestone: the title of the first release, in publish order, whose commit contains
- * `ship` (`isAncestor(ship, release.commit)`), or undefined when none does or `ship` is unknown.
+ * `ship` (`isAncestor(ship, release.commit)`), or undefined, meaning "leave its milestone alone", when
+ * none does yet or `ship` is unknown.
  */
 export function milestoneFor(ship: string | undefined, releases: Release[], isAncestor: (a: string, b: string) => boolean): string | undefined
 {
@@ -94,29 +103,31 @@ export function gitIsAncestor(root: string): (a: string, b: string) => boolean
 	}).status === 0;
 }
 
-/** The published releases, oldest first, each with its tag's commit (`git rev-list -n1 <tag>`; fetch tags first). */
+/**
+ * The published releases, oldest first, each with its tag's commit (`git rev-list -n1 <tag>`). A tag
+ * that doesn't resolve here throws: dropping it would give its stories a later release.
+ */
 export function publishedReleases(run: GhRunner, root: string): Release[]
 {
-	const raw = JSON.parse(request(run, "GET", "repos/{owner}/{repo}/releases?per_page=100").body || "[]") as { tag_name: string;
+	const raw = ok<{ tag_name: string;
 		draft: boolean;
-		published_at: string | null; }[];
-	return raw.filter((r) => !r.draft && r.published_at !== null).sort((a, b) => a.published_at!.localeCompare(b.published_at!)).flatMap((r) =>
+		published_at: string | null; }[]>(request(run, "GET", "repos/{owner}/{repo}/releases?per_page=100"), "listing releases") ?? [];
+	return raw.filter((r) => !r.draft && r.published_at !== null).sort((a, b) => a.published_at!.localeCompare(b.published_at!)).map((r) =>
 	{
 		try
 		{
-			const commit = execFileSync("git", ["rev-list", "-n1", `refs/tags/${r.tag_name}`], {
-				cwd: root,
-				encoding: "utf8",
-				stdio: ["ignore", "pipe", "ignore"],
-			}).trim();
-			return [{
+			return {
 				title: r.tag_name,
-				commit,
-			}];
+				commit: execFileSync("git", ["rev-list", "-n1", `refs/tags/${r.tag_name}`], {
+					cwd: root,
+					encoding: "utf8",
+					stdio: ["ignore", "pipe", "ignore"],
+				}).trim(),
+			};
 		}
 		catch
 		{
-			return [];
+			throw new Error(`release ${r.tag_name}'s tag does not resolve here: run git fetch --tags origin, then pnpm backlog:areas again`);
 		}
 	});
 }
@@ -132,18 +143,20 @@ export function shippingCommit(root: string, id: string): string | undefined
 	return sha === "" ? undefined : sha;
 }
 
-/** One planned change: an issue's new labels and/or milestone title (null clears it). */
+/** One planned change: area labels to add and remove, and/or a milestone title. */
 export interface AreaChange
 {
 	id: string;
 	issue: CachedIssue;
-	labels?: string[];
-	milestone?: string | null;
+	add?: string[];
+	remove?: string[];
+	milestone?: string;
 }
 
 /**
  * The changes `pnpm backlog:areas` makes: each trusted story whose `area:*` labels aren't exactly its
- * {@link areaOf}, and each done story whose milestone isn't its {@link milestoneFor}.
+ * {@link areaOf} (only `area:*` labels are added or removed), and each done story whose milestone isn't
+ * its {@link milestoneFor}, when that is known (never a clear).
  */
 export function planAreas(stories: { id: string;
 	issue: CachedIssue;
@@ -158,21 +171,25 @@ export function planAreas(stories: { id: string;
 			issue: s.issue,
 		};
 		const area = areaOf(s.scopeFiles);
-		const names = s.issue.labels.map((l) => l.name);
-		const areas = names.filter((l) => l.startsWith("area:"));
-		if (areas.length !== 1 || areas[0] !== area)
+		const areas = s.issue.labels.map((l) => l.name).filter((l) => l.startsWith("area:"));
+		if (!areas.includes(area))
 		{
-			change.labels = [...names.filter((l) => !l.startsWith("area:")), area];
+			change.add = [area];
+		}
+		const wrong = areas.filter((l) => l !== area);
+		if (wrong.length > 0)
+		{
+			change.remove = wrong;
 		}
 		if (s.status === "done")
 		{
-			const want = milestoneOf(s.id) ?? null;
-			if ((s.issue.milestone?.title ?? null) !== want)
+			const want = milestoneOf(s.id);
+			if (want !== undefined && s.issue.milestone?.title !== want)
 			{
 				change.milestone = want;
 			}
 		}
-		if (change.labels !== undefined || change.milestone !== undefined)
+		if (change.add !== undefined || change.remove !== undefined || change.milestone !== undefined)
 		{
 			out.push(change);
 		}
@@ -202,14 +219,17 @@ export function main(argv: string[], run: GhRunner = ghRunner, root = repoRoot, 
 	const releases = publishedReleases(run, root);
 	const isAncestor = gitIsAncestor(root);
 	const changes = planAreas(stories, (id) => milestoneFor(shippingCommit(root, id), releases, isAncestor));
-	const milestones = changes.some((c) => typeof c.milestone === "string") ? listMilestones({
+	const milestones = changes.some((c) => c.milestone !== undefined) ? listMilestones({
 		run,
 	}) : [];
+	const io = {
+		run,
+	};
 	const lines: string[] = [];
 	for (const c of changes)
 	{
-		let milestone: number | null | undefined;
-		if (typeof c.milestone === "string")
+		let milestone: number | undefined;
+		if (c.milestone !== undefined)
 		{
 			milestone = milestones.find((m) => m.title === c.milestone)?.number;
 			if (milestone === undefined)
@@ -217,24 +237,24 @@ export function main(argv: string[], run: GhRunner = ghRunner, root = repoRoot, 
 				lines.push(`${c.id}: no milestone titled ${c.milestone}; left alone`);
 			}
 		}
-		else if (c.milestone === null)
+		lines.push(`${c.id} (#${c.issue.number}):${c.add ? ` add ${c.add.join(", ")}` : ""}${c.remove ? ` remove ${c.remove.join(", ")}` : ""}${milestone !== undefined ? ` milestone ${c.milestone}` : ""}`);
+		if (dryRun || (c.add === undefined && c.remove === undefined && milestone === undefined))
 		{
-			milestone = null;
+			continue;
 		}
-		lines.push(`${c.id} (#${c.issue.number}):${c.labels ? ` labels ${c.labels.filter((l) => l.startsWith("area:")).join(", ")}` : ""}${milestone !== undefined ? ` milestone ${c.milestone ?? "none"}` : ""}`);
-		if (!dryRun && (c.labels !== undefined || milestone !== undefined))
+		addLabels(io, c.issue.number, c.add ?? []);
+		for (const l of c.remove ?? [])
 		{
-			storeIssue(root, patchIssue({
-				run,
-			}, c.issue.number, {
-				...(c.labels ? {
-					labels: c.labels,
-				} : {}),
-				...(milestone !== undefined ? {
-					milestone,
-				} : {}),
-			}), env);
+			removeLabel(io, c.issue.number, l);
 		}
+		if (milestone !== undefined)
+		{
+			patchIssue(io, c.issue.number, {
+				milestone,
+			});
+		}
+		// The label calls return labels, not the issue: read it fresh for the cache.
+		storeIssue(root, readIssue(io, c.issue.number), env);
 	}
 	return [`backlog:areas: ${changes.length} change(s)${dryRun ? " (dry run: nothing sent)" : ""}`, ...lines].join("\n");
 }

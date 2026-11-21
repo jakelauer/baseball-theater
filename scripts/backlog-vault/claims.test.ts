@@ -661,6 +661,37 @@ describe("CLI in a temp root", () =>
 		});
 		expect(cli(["claim", "S2", "--file", "web/x.tsx"]).status).toBe(0);
 	});
+
+	it("claim refuses a UI story whose design story is closed not_planned or has no status:done", () =>
+	{
+		const ui = "**Gap:** a screen\n\n### Backlog fields\n\n```yaml\npriority: 1\ndesign:\n  - \"S1\"\n```\n";
+		for (const design of [{
+			state: "closed",
+			state_reason: "not_planned",
+			labels: [{
+				name: "story",
+			}, {
+				name: "status:done",
+			}],
+		}, {
+			state: "closed",
+			state_reason: "completed",
+			labels: [{
+				name: "story",
+			}],
+		}])
+		{
+			stubCache({
+				S1: design,
+				S2: {
+					body: ui,
+				},
+			});
+			const held = cli(["claim", "S2", "--file", "web/x.tsx"]);
+			expect(held.status).toBe(1);
+			expect(held.stderr).toContain("its design story S1 (#1) is not closed completed with status:done");
+		}
+	});
 });
 
 describe("one item ID pattern (in-flight.ts ITEM_ID)", () =>

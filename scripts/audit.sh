@@ -115,7 +115,7 @@ grep -qF "$MARKER" "$LEDGER" || {
 # every reader of the ledger would fail), only a dot file. If the name is taken (two entries for
 # one ID and kind within one second) it waits for the next second rather than overwrite one.
 FRAG_TMP=""
-trap 'rm -f "${FRAG_TMP:-}" "${FRAG_TMP:+${FRAG_TMP%.tmp}.new.tmp}"' EXIT
+trap 'rm -f "${FRAG_TMP:-}" "${FRAG_TMP:+${FRAG_TMP%.tmp}.new.tmp}" "${ADOPT_TMP:-}"' EXIT
 new_fragment() {
   FRAG_ID="$1"
   FRAG_KIND="$2"
@@ -265,12 +265,15 @@ if [ "$MODE" = "create" ] || [ "$MODE" = "edit" ] || [ "$MODE" = "migration" ]; 
     fi
   fi
   # S165: --adopt records the live body (a bug's live fields block) GitHub holds now, an edit the owner
-  # made there, as an edit chained from the newest record; its Applied comment is posted after.
+  # made there, as an edit chained from the newest record; its Applied comment is posted after. That
+  # comment is the one GitHub write recording ever makes, so run an adopt on its own branch and open its
+  # record as a docs-only pull request at once: other pull requests' live checks clear once it merges.
   if [ -n "$ADOPT" ]; then
     [ "$MODE" = "edit" ] || { echo "audit: --adopt is an edit's (audit.sh edit <ID> --adopt --reason <the owner's words>)" >&2; exit 2; }
     [ -z "$BODY_FILE" ] || { echo "audit: --adopt takes the body from GitHub, not --body-file" >&2; exit 2; }
     [ -n "$REASON" ] || { echo "audit: edit --adopt needs --reason quoting the owner" >&2; exit 2; }
     BODY_FILE="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-adopt.XXXXXX")"
+    ADOPT_TMP="$BODY_FILE" # removed by the EXIT trap
     ISSUE="$(node scripts/backlog-vault/github.ts adopt-body "$ID" --out "$BODY_FILE")" || exit 2
   fi
   [ -f "$BODY_FILE" ] || { echo "audit: ${MODE} needs --body-file <file> holding the text" >&2; exit 2; }

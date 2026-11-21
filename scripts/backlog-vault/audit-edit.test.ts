@@ -673,10 +673,10 @@ writeFileSync(file, JSON.stringify({ owner: fake.owner, viewer: fake.viewer, rep
 		};
 	}
 
-	function adopt(gh: ReturnType<typeof shim>): ReturnType<typeof spawnSync>
+	function adopt(gh: ReturnType<typeof shim>, id = "S170"): ReturnType<typeof spawnSync>
 	{
 		gh.save();
-		const r = spawnSync("bash", [join(repo, "scripts/audit.sh"), "edit", "S170", "--adopt", "--reason", "owner, 2026-11-21: \"keep my wording\""], {
+		const r = spawnSync("bash", [join(repo, "scripts/audit.sh"), "edit", id, "--adopt", "--reason", "owner, 2026-11-21: \"keep my wording\""], {
 			cwd: repo,
 			encoding: "utf8",
 			env: {
@@ -723,6 +723,67 @@ writeFileSync(file, JSON.stringify({ owner: fake.owner, viewer: fake.viewer, rep
 		});
 		const before = records().length;
 		const r = adopt(gh);
+		expect(r.status).toBe(2);
+		expect(String(r.stderr)).toContain("nothing to adopt");
+		expect(records().length).toBe(before);
+	});
+
+	/** An outside bug, B140, accepted in place (its fields block recorded), with the live body `live`. */
+	function bugWith(live: (fields: string) => string): { fake: FakeGithub;
+		gh: ReturnType<typeof shim>; }
+	{
+		const bin = setup();
+		const fields = renderFields({
+			priority: 61.5,
+		});
+		writeFileSync(join(repo, "bug.md"), `Steps: play a clip.\n\n${fields}`);
+		expect(audit(bin, ["create", "B140", "--issue", "140", "--body-file", "bug.md"]).status).toBe(0);
+		const fake = new FakeGithub();
+		fake.add({
+			number: 140,
+			title: "Video stalls",
+			labels: [{
+				name: "bug",
+			}],
+			body: live(fields),
+			user: {
+				login: "stranger",
+			},
+		});
+		syncIssues(repo, {
+			run: fake.run,
+			env: env(),
+		});
+		return {
+			fake,
+			gh: shim(fake),
+		};
+	}
+
+	it("an adopt of a bug records only its fields block, never the symptoms", () =>
+	{
+		const { fake, gh } = bugWith(() => `Steps, as the filer wrote them.\n\n${renderFields({
+			priority: 2,
+		})}`);
+		const r = adopt(gh, "B140");
+		expect(r.status, String(r.stderr)).toBe(0);
+		const edit = records().at(-1)!;
+		expect(edit.kind).toBe("edit");
+		expect(edit.body).toBe(renderFields({
+			priority: 2,
+		}));
+		expect(edit.body).not.toContain("Steps");
+		expect(fake.issues.get(140)!.comments.at(-1)!.body).toBe(appliedComment(edit));
+	});
+
+	it.each([
+		["in its symptoms", (f: string) => `Steps: play a clip.  \n\n\n\n${f}`],
+		["a missing final newline", (f: string) => `Steps: play a clip.\n\n${f.replace(/\n$/, "")}`],
+	])("an adopt is refused when a bug differs only by whitespace (%s)", (_what, live) =>
+	{
+		const { gh } = bugWith(live);
+		const before = records().length;
+		const r = adopt(gh, "B140");
 		expect(r.status).toBe(2);
 		expect(String(r.stderr)).toContain("nothing to adopt");
 		expect(records().length).toBe(before);

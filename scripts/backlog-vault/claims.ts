@@ -551,7 +551,10 @@ export function claimable(cache: IssueCache, id: string, records: TextRecord[] =
 				: `no trusted issue carries ${id} (pnpm backlog:sync, then try again)`,
 		};
 	}
-	if (issue.labels.some((l) => l.name === TRIAGE_LABEL))
+	// An outside bug accepted in place (its create record exists) may still carry the triage label it
+	// had before; only an unaccepted one is refused.
+	const accepted = records.some((r) => r.kind === "create" && r.id.toLowerCase() === id.toLowerCase());
+	if (issue.labels.some((l) => l.name === TRIAGE_LABEL) && !accepted)
 	{
 		return {
 			error: `${id} (#${issue.number}) is labelled ${TRIAGE_LABEL}: nothing is built from it until the owner accepts it and the label comes off`,

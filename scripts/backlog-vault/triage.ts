@@ -11,7 +11,11 @@
  * then writes a new story in its own words (`scripts/audit.sh create`, quoting the outside text only
  * as data, with a link back) and closes the triage issue with a comment naming it, so the filer can't
  * later edit an accepted story's text. An outside bug report is accepted in place instead: labelled
- * `bug`, its fields block recorded with `audit.sh create B<N> --issue <n>`.
+ * `bug` first (so it carries B<N>), its fields block then recorded with `audit.sh create B<N> --issue
+ * <n>`, and its `triage` label removed (`github.ts label B<N> --remove triage`); `claims.ts claim`
+ * ignores a leftover `triage` label once the create record exists. It stays its filer's issue, so
+ * their later edit or reopen warns in CI and fails the coordinator's live check (owner, 2026-11-21:
+ * "Warn in CI, fail for me (Recommended)").
  *
  *   pnpm backlog:triage [--dry-run]   (the coordinator's session only, never CI, whose token is
  *                                     read-only) syncs, then adds the `triage` label on GitHub to each
@@ -24,7 +28,7 @@ import type {
 	CachedIssue, GhRunner, GithubWriter, IssueCache,
 } from "./github.ts";
 import {
-	ghRunner, patchIssue, storeIssue, syncIssues, trustedId,
+	addLabels, ghRunner, readIssue, storeIssue, syncIssues, trustedId,
 } from "./github.ts";
 
 /** The label a triage issue carries on GitHub. */
@@ -43,7 +47,11 @@ export function triageIssues(cache: IssueCache): CachedIssue[]
 	return cache.issues.filter((i) => isTriage(i, cache.trusted)).sort((a, b) => a.number - b.number);
 }
 
-/** Adds the triage label to each triage issue that lacks it (none with `dryRun`); returns what it labelled, or would. */
+/**
+ * Adds the triage label to each triage issue that lacks it (none with `dryRun`); returns what it
+ * labelled, or would. The label is added on its own (github.ts addLabels), never by sending the cached
+ * list back, so a label changed since the sync survives; the issue is then read fresh for the cache.
+ */
 export function labelTriage(cache: IssueCache, io: GithubWriter, dryRun: boolean, store: (issue: CachedIssue) => void = () => undefined): number[]
 {
 	const unlabelled = triageIssues(cache).filter((i) => !i.labels.some((l) => l.name === TRIAGE_LABEL));
@@ -51,9 +59,8 @@ export function labelTriage(cache: IssueCache, io: GithubWriter, dryRun: boolean
 	{
 		for (const issue of unlabelled)
 		{
-			store(patchIssue(io, issue.number, {
-				labels: [...issue.labels.map((l) => l.name), TRIAGE_LABEL],
-			}));
+			addLabels(io, issue.number, [TRIAGE_LABEL]);
+			store(readIssue(io, issue.number));
 		}
 	}
 	return unlabelled.map((i) => i.number);
