@@ -1,19 +1,31 @@
 #!/usr/bin/env bash
-# Grader for BACKLOG story S133 — design amendment: the changelist page, the update-available
-# notice (A6) with its link and big additions, the after-update notification, and the rail's
-# release version line, on the shell-scoreboard surface (rule 18; S134 and S135 build them).
-# Contract: docs/v3/BACKLOG.md#verify-script-contract
+# Grader for backlog story S133 — design amendment: the change log page, its link at the foot of
+# the menu, the update-available notice (A6) with its link, the pointer after updating, and the
+# rail's release version line, on the shell-scoreboard surface (rule 18; S134 and S135 build them).
+#
+# Updated before shipping (rule 7) to AC 1 as rewritten for the owner's answers of 2026-11-09 and
+# 2026-11-10 (S133's note): the page is "Change log" at /changelog, reached from a link at the foot
+# of the menu; the update notice shows no addition; after updating a pointer replaces the box;
+# never both; kinds feature / enhancement / bug fix; a gold "Major Feature" header; no "Fetched"
+# line; the version line keeps its commit.
+# Updated again before shipping (rule 7), 2026-11-20, for S156 and the owner's 2026-11-16 answer
+# ("Performance"): check 7 reads the note's frontmatter status and its done/ folder (the generated
+# docs/v3/BACKLOG.md is retired); check 6's fence lets in the story's own records, its ledger
+# fragments docs/v3/audit/<date>/<stamp>-S133-<kind>.md and changelog.d/S133.md (backlog rule 13);
+# check 3's kinds gain performance, as AC 1 now names it. Shown red first (5/7: checks 6 and 7).
+# Contract: the Verify-script contract in docs/v3/backlog/frame/ (frame note 00).
 # No network. No writes outside /tmp. Does its own checking (never `pnpm verify`).
 #
 # Modeled on scripts/verify-S129.sh. S133's own changes are its first-parent, non-merge commits
 # after BASE (plus uncommitted and untracked files while it is unshipped), so a later merge of
 # stage into this branch, or the stories this branch stacks on, never count as S133's.
 #
-# What AC 1 says the amendment must *say* (the page's address, where else it is reached from,
-# how long the after-update notification stays, what A6 shows for a retired version and whether
-# its link shows, where the after-update notification sits beside another notice, and the rail's
-# version line) is read from one structured line each in ## Decisions, each citing and quoting the
-# owner, so the outcome the owner chose is what the grader reads.
+# What AC 1 says the amendment must *say* (the page's name and address, how it is reached, its
+# kinds and its "Major Feature" header, that the update notice shows no addition and whether a
+# retired version's notice shows its link, how long the pointer stays and whether it keeps a
+# countdown and a close control, what shows when the update notice is up, and the rail's version
+# line) is read from one structured line each in ## Decisions, each citing and quoting the owner,
+# so the outcome the owner chose is what the grader reads.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -22,12 +34,12 @@ cd "$(dirname "$0")/.."
 source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "shell-scoreboard has its next free amendments/A<N>.md (new in S133) headed '(S133)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames"
-check 2 "the changelist page (releases, empty, loading, error), A6 with its link (no additions, one, more than fit, retired version) and the after-update notification (no additions, additions, beside A6, beside a marker) drawn at mobile, medium and desktop, and the rail's release version line at desktop: real PNGs at the ratified pairing width, listed in ## Frames, which names the buckets, kinds and states; every frame ## Frames names is one of its own; no earlier frame's name.png anywhere in the amendment"
-check 3 "## Decisions says, one cited and quoted line each: the page's Address (a new route), where else it is Reached from, how long the after-update notification stays (Dismisses after: N seconds), the Retired version case (additions none; link shown and where it goes, or hidden), its place With another notice, and the Rail version line (semver)"
+check 2 "the change log page (releases, empty, loading, error), A6 with its link (which ## Frames says also draws the retired-version notice) and on the change log page, and the pointer after updating (plain, beside a marker, on the change log page) drawn at mobile, medium and desktop; the menu opened while the pointer shows and the drawer's change log link at mobile and medium; the rail's change log link and release version line at desktop: real PNGs at the ratified pairing width, listed in ## Frames, which names the buckets, kinds, states and the pointer's words, and never the old name or a Fetched line; every frame ## Frames names is one of its own; no earlier frame's name.png anywhere in the amendment"
+check 3 "## Decisions says, one cited and quoted line each: the page's Name (Change log) and Address (/changelog, a new route), where it is Reached from (the foot of the menu), its Kinds (feature, enhancement, performance, bug fix) and its Major Feature header (gold), the Update notice additions (none), the Retired version case (link hidden, or shown and where it goes), how long the pointer stays (Pointer goes after: N seconds), its Pointer countdown and close, what shows With the update notice (the update notice, not the pointer), and the Rail version line (semver with the commit)"
 check 4 "the amendment's ## Ratification names Jake Lauer, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left"
 check 5 "no sealed file in shell-scoreboard changed or deleted (RATIFIED.md manifest verifies; RATIFIED.md, ratified frames and every other amendment untouched by S133; every amendment's sealed frames present and unchanged)"
-check 6 "S133 changes no file outside its fence (scripts/verify-S133.sh aside)"
-check 7 "backlog Status is done (story heading and Story status table)"
+check 6 "S133 changes no file outside its fence (scripts/verify-S133.sh, its ledger fragments and changelog.d/S133.md aside)"
+check 7 "S133's Status is done (its note's frontmatter status done, the note in docs/v3/backlog/stories/done/)"
 
 V="docs/v3/visual"
 S="shell-scoreboard"
@@ -52,10 +64,10 @@ TIP=$(story_tip S133)
 # under both names, so a rename can't hide a deletion.
 s133_changed() {
 	{
-		git log --first-parent --no-merges --no-renames --format= --name-only "$BASE..${TIP:-HEAD}" -- "$@"
+		git -c core.quotepath=off log --first-parent --no-merges --no-renames --format= --name-only "$BASE..${TIP:-HEAD}" -- "$@"
 		if [ -z "$TIP" ]; then
-			git diff --no-renames --name-only HEAD -- "$@"
-			git ls-files --others --exclude-standard -- "$@"
+			git -c core.quotepath=off diff --no-renames --name-only HEAD -- "$@"
+			git -c core.quotepath=off ls-files --others --exclude-standard -- "$@"
 		fi
 	} | sed '/^$/d' | sort -u
 }
@@ -159,9 +171,18 @@ not_the_question() {
 }
 
 PAIRINGS="mobile medium desktop"
-# Every state AC 1 names, drawn at every pairing.
-STATES="changelist changelist-empty changelist-loading changelist-error update-notice-link update-notice-headline update-notice-headline-more update-notice-retired updated-notice updated-notice-headline updated-notice-with-update updated-notice-with-marker"
-# The rail's version line is drawn where the rail is, on desktop.
+# Every state AC 1 names, drawn at every pairing. (A6's box beside the pointer is not drawn: only
+# the update notice shows then, and a frame of it would copy an A6 frame; ## Decisions says so.)
+# The retired-version notice is not a frame set of its own either (updated before shipping, rule 7,
+# 2026-11-19): since the owner's Q14 answer (2026-11-16: "I don't think this matters. Shouldn't be a
+# way to update to a retired version.") it is the same box, link included, so its frames rendered
+# byte for byte as update-notice-link-*, which the identical-frames check below rightly rejects.
+# ## Frames must instead say in words that update-notice-link-* draws the retired case (RETIRED_RE).
+STATES="changelog changelog-empty changelog-loading changelog-error update-notice-link update-notice-on-changelog updated-pointer updated-pointer-with-marker updated-pointer-on-changelog"
+RETIRED_RE='retired.*update-notice-link-|update-notice-link-.*retired'
+# The drawer is where the menu is behind the menu button: mobile and medium.
+DRAWER_STATES="drawer-changelog-link updated-pointer-menu-open"
+# The rail's change log link and version line are drawn where the rail is, on desktop.
 RAIL_FRAME="rail-version-release-desktop.png"
 NAME_RE='^[a-z]+(-[a-z]+)*-(mobile|medium|desktop)\.png$'
 
@@ -169,6 +190,9 @@ required_frames() {
 	local s p
 	for s in $STATES; do
 		for p in $PAIRINGS; do echo "$s-$p.png"; done
+	done
+	for s in $DRAWER_STATES; do
+		for p in mobile medium; do echo "$s-$p.png"; done
 	done
 	echo "$RAIL_FRAME"
 }
@@ -374,9 +398,18 @@ else
 	# shellcheck disable=SC2086
 	refs_unchanged $own
 	# AC 1's buckets, kinds and states are drawn, so ## Frames (what each export shows) names them.
-	for term in "fixes and polish" "feature" "setting" "fix" "design" "empty" "loading" "error" "link" "retired" "dismiss" "more" "marker" "version"; do
+	for term in "Change log" "Major Feature" "fixes and polish" "feature" "enhancement" "bug fix" "empty" "loading" "error" "retired" "pointer" "highlighted" "Update complete" "countdown" "marker" "reduced motion" "version"; do
 		echo "$frames_table" | grep -qiF "$term" || bad 2 "## Frames never mentions '$term'"
 	done
+	# The retired-version notice is A6's box with its link (Q14), drawn by update-notice-link-*: one
+	# line of ## Frames says so.
+	echo "$frames_table" | grep -qiE "$RETIRED_RE" ||
+		bad 2 "## Frames never says, on one line, that update-notice-link-* draws the retired-version notice"
+	# The owner renamed the page and dropped its fetch line (2026-11-10), so ## Frames draws neither.
+	for term in "What's new" "changelist" "Fetched"; do
+		echo "$frames_table" | grep -qiF "$term" && bad 2 "## Frames still draws '$term' (owner, 2026-11-10: the page is the change log, with no Fetched line)"
+	done
+	head -1 "$A" | grep -qiF "changelist" && bad 2 "$A's heading still says changelist"
 
 	# --- Check 3: what AC 1 says the amendment says -----------------------------------
 	# decision_line <label> — sets DL to the one "- <label>: …" line of ## Decisions and returns 0;
@@ -405,7 +438,7 @@ else
 	if decision_line "Address"; then
 		addr=$(echo "$DL" | grep -oE '^- Address: `/[a-z0-9-]+`' | grep -oE '/[a-z0-9-]+')
 		if [ -z "$addr" ]; then
-			bad 3 "the '- Address:' line does not start with a backticked path like \`/whats-new\`"
+			bad 3 "the '- Address:' line does not start with a backticked path like \`/changelog\`"
 		else
 			seg=${addr#/}
 			taken=$({
@@ -427,27 +460,47 @@ else
 				bad 3 "the address $addr is already taken (a route, a Worker path or a served file)"
 			fi
 		fi
+		# The owner chose the address (2026-11-10: "The changelog will just be at /changelog.").
+		[ "${addr:-}" = "/changelog" ] || bad 3 "the '- Address:' line is not \`/changelog\` (owner, 2026-11-10)"
+	fi
+	if decision_line "Name"; then
+		echo "$DLPRE" | grep -qE '^- Name: "?Change log"?\.?$' || bad 3 "the '- Name:' line is not 'Change log' before its citation"
 	fi
 	if decision_line "Reached from"; then
-		[ "$(printf '%s' "${DLPRE#- Reached from:}" | tr -d '[:space:]' | wc -c)" -ge 3 ] ||
-			bad 3 "the '- Reached from:' line says nothing before the owner's citation"
+		echo "$DLPRE" | grep -qi 'foot of the menu' || bad 3 "the '- Reached from:' line does not name the link at the foot of the menu"
 	fi
-	if decision_line "Dismisses after"; then
-		secs=$(echo "$DL" | grep -oE '^- Dismisses after: [0-9]+ seconds' | grep -oE '[0-9]+')
-		[ -n "$secs" ] && [ "$secs" -ge 1 ] && [ "$secs" -le 120 ] ||
-			bad 3 "the '- Dismisses after:' line does not start with '<N> seconds' (1 to 120)"
+	if decision_line "Kinds"; then
+		for k in feature enhancement performance "bug fix"; do
+			echo "$DLPRE" | grep -qiF "$k" || bad 3 "the '- Kinds:' line does not name the kind '$k'"
+		done
+	fi
+	if decision_line "Major Feature"; then
+		echo "$DLPRE" | grep -qi 'gold' || bad 3 "the '- Major Feature:' line does not say the header is gold"
+		echo "$DLPRE" | grep -qiE 'no box' || bad 3 "the '- Major Feature:' line does not say no feature has a box"
+	fi
+	if decision_line "Update notice additions"; then
+		echo "$DLPRE" | grep -qiE '^- Update notice additions: none\.?$' || bad 3 "the '- Update notice additions:' line is not 'none' before its citation"
 	fi
 	# Read only before the citation, in one of two exact forms, so a question or quote can't pass it.
 	if decision_line "Retired version"; then
-		echo "$DLPRE" | grep -qiE '^- Retired version: no additions; link hidden\.?$|^- Retired version: no additions; link shown, goes to .{3,}$' ||
-			bad 3 "the '- Retired version:' line is not 'no additions; link hidden' or 'no additions; link shown, goes to …' before its citation"
+		echo "$DLPRE" | grep -qiE '^- Retired version: link hidden\.?$|^- Retired version: link shown, goes to .{3,}$' ||
+			bad 3 "the '- Retired version:' line is not 'link hidden' or 'link shown, goes to …' before its citation"
 	fi
-	if decision_line "With another notice"; then
-		echo "$DLPRE" | grep -qE 'A6|update notice' || bad 3 "the '- With another notice:' line does not say where it sits beside A6 (the update notice)"
-		echo "$DLPRE" | grep -qi 'marker' || bad 3 "the '- With another notice:' line does not say where it sits beside a marker"
+	if decision_line "Pointer goes after"; then
+		secs=$(echo "$DL" | grep -oE '^- Pointer goes after: [0-9]+ seconds' | grep -oE '[0-9]+')
+		[ -n "$secs" ] && [ "$secs" -ge 1 ] && [ "$secs" -le 120 ] ||
+			bad 3 "the '- Pointer goes after:' line does not start with '<N> seconds' (1 to 120)"
+	fi
+	if decision_line "Pointer countdown and close"; then
+		[ "$(printf '%s' "${DLPRE#- Pointer countdown and close:}" | tr -d '[:space:]' | wc -c)" -ge 3 ] ||
+			bad 3 "the '- Pointer countdown and close:' line says nothing before the owner's citation"
+	fi
+	if decision_line "With the update notice"; then
+		echo "$DLPRE" | grep -qiE 'update notice shows' || bad 3 "the '- With the update notice:' line does not say the update notice shows"
+		echo "$DLPRE" | grep -qiE "pointer (doesn't|does not|is not|isn't)" || bad 3 "the '- With the update notice:' line does not say the pointer doesn't show"
 	fi
 	if decision_line "Rail version"; then
-		echo "$DLPRE" | grep -qE '^- Rail version: `?v[0-9]+\.[0-9]+\.[0-9]+' || bad 3 "the '- Rail version:' line shows no semver version line (\`vMAJOR.MINOR.PATCH …\`)"
+		echo "$DLPRE" | grep -qE '^- Rail version: `?v[0-9]+\.[0-9]+\.[0-9]+ \([0-9a-f]{7,}\)' || bad 3 "the '- Rail version:' line shows no semver version with its commit (\`vMAJOR.MINOR.PATCH (<commit>)\`)"
 		# Today's build counter (v3.0.<Actions run>, three or more digits) is not a release version.
 		echo "$DLPRE" | grep -qE '^- Rail version: `?v3\.0\.[0-9]{3,}' && bad 3 "the '- Rail version:' line shows the build counter (v3.0.<Actions run>), not the release"
 	fi
@@ -459,13 +512,17 @@ else
 	quotes "$(echo "$rat" | grep -E '^Go-ahead:')" || bad 4 "## Ratification has no quoted 'Go-ahead: … \"…\"' line"
 	# Draft markers sit in the header (before the first ##) and in ## Ratification; a body sentence may
 	# say what was a draft when it was drawn (A7, A8) without failing this.
-	{ awk '/^## /{exit} {print}' "$A"; echo "$rat"; } | grep -qiE '(^|[^[:alpha:]])draft([^[:alpha:]]|$)|not (yet )?ratified' &&
+	# Each text is read into a variable before grep -q: under pipefail, grep -q exiting at its first match
+	# can kill the writer with SIGPIPE and turn a found marker into a pass.
+	head_rat=$(awk '/^## /{exit} {print}' "$A"; echo "$rat")
+	printf '%s\n' "$head_rat" | grep -qiE '(^|[^[:alpha:]])draft([^[:alpha:]]|$)|not (yet )?ratified' &&
 		bad 4 "the amendment still says it is a draft or not ratified"
 	grep -qi 'awaiting the owner' "$A" && bad 4 "the amendment still says it is awaiting the owner"
 	section "$A" Manifest | grep -qi 'pending' && bad 4 "## Manifest is still pending"
 	# Outside the owner's words (## Decisions and the Go-ahead line), where "pending on Q5" may be a
 	# quote; "Depending on Q5" is not a marker.
-	awk '$0=="## Decisions"{f=1;next} /^## /{f=0} !f && !/^Go-ahead:/' "$A" | grep -qiE '(^|[^[:alpha:]])pending:?[[:space:]]+Q[0-9]+' &&
+	outside=$(awk '$0=="## Decisions"{f=1;next} /^## /{f=0} !f && !/^Go-ahead:/' "$A")
+	printf '%s\n' "$outside" | grep -qiE '(^|[^[:alpha:]])pending:?[[:space:]]+Q[0-9]+' &&
 		bad 4 "the amendment still has text pending an open question"
 	grep -qi 'awaiting ratification' "$A" && bad 4 "the amendment still says awaiting ratification"
 	grep -qF 'will be a 1×' "$A" && bad 4 "## Frames still says the exports will be made"
@@ -522,18 +579,24 @@ while IFS= read -r f; do
 	case "$f" in
 		"$DIR/"* | docs/v3/VISUAL-DESIGN.md | docs/v3/FEATURES.md | docs/v3/BACKLOG.md | docs/v3/backlog/* | \
 			docs/v3/AUDIT.md | docs/v3/audit.jsonl | docs/v3/INDEX.md | CHANGELOG.md | scripts/verify-S133.sh) ;;
+		# The story's own records since S156 (backlog rule 13): its ledger fragments and changelog fragment.
+		docs/v3/audit/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/*-S133-[a-z]*.md | changelog.d/S133.md) ;;
 		# Obsidian editor state: never committed (CLAUDE.md), so only ever an uncommitted change.
 		docs/v3/.obsidian/workspace.json) [ -z "$TIP" ] || bad 6 "S133 committed $f" ;;
 		*) bad 6 "S133 changed $f, outside its fence" ;;
 	esac
 done <<< "$(s133_changed .)"
 
-# --- Check 7: backlog Status is done -------------------------------------------------
-grep -qE '^\| [0-9]+ \| \[S133\].*\| `done` \|' docs/v3/BACKLOG.md ||
-	bad 7 "S133 row in the Story status table is not \`done\`"
-awk '/^### S133 —/{f=1;next} /^### S[0-9]/{f=0} f' docs/v3/BACKLOG.md |
-	grep -qE '^\*\*Status:\*\* `done`$' ||
-	bad 7 "S133 story heading Status is not \`done\`"
+# --- Check 7: Status is done --------------------------------------------------------
+# The note is the truth since S156: its frontmatter status, and pnpm backlog:build keeps it in the
+# folder that status names. Exactly one note for S133, in done/.
+notes=$(ls docs/v3/backlog/stories/*/S133.md 2>/dev/null)
+if [ "$notes" != "docs/v3/backlog/stories/done/S133.md" ]; then
+	bad 7 "S133's note is not (only) in docs/v3/backlog/stories/done/: ${notes:-none}"
+else
+	fm=$(awk 'NR==1&&$0=="---"{f=1;next} f&&$0=="---"{exit} f' "$notes")
+	printf '%s\n' "$fm" | grep -qxE 'status: done' || bad 7 "S133's note's frontmatter status is not done"
+fi
 
 report "verify-S133"
 exit $?
