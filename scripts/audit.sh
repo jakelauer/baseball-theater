@@ -17,6 +17,17 @@
 #   scripts/audit.sh parity --trigger "S40 inserted" --verdict amended --findings -
 #   scripts/audit.sh answers backlog --review 2026-10-09 --commit 6a46b62 --answers -
 #   scripts/audit.sh skip backlog --commit 5470524 --answers -   # owner: no review needed
+#   scripts/audit.sh create S170 --title "…" --body-file f --reason "…"   # a new story's text (S164)
+#   scripts/audit.sh create B140 --issue 140 --body-file f          # an accepted bug's fields block
+#   scripts/audit.sh edit S158 --body-file f --reason "…"           # a story's new text, chained
+#   scripts/audit.sh migration S12 --issue 40 --base <sha> --body-file f [--rewrite-file d]
+#   scripts/audit.sh apply                                          # send merged records to GitHub
+#
+# Story text (S164): GitHub owns each item's state; the repository records only its text, one-way.
+# create, edit and migration write a text record (scripts/backlog-vault/text-records.ts renders it)
+# without touching GitHub; `apply`, run on an up-to-date stage once the records' ledger pull request
+# merged, sends them (github.ts). `story` writes a snapshot (the newest text and `done`) before it
+# runs the grader. No record path takes a status, label or milestone.
 #
 # An answers entry records the owner's answers to a review's questions and what
 # was applied from them. Applying them is part of finishing that review, not new
@@ -78,7 +89,7 @@ else
 fi
 
 usage() {
-  sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 2
 }
 
@@ -202,8 +213,102 @@ case "$MODE" in
   parity) ;;
   answers) ;;
   skip) ;;
+  create) ;;
+  edit) ;;
+  migration) ;;
+  apply) ;;
   *) usage ;;
 esac
+
+RECORDS=scripts/backlog-vault/text-records.ts
+
+# write_record <kind> <ID> <render flags…> — one text record, rendered by text-records.ts from the
+# flags (its body from --body-file), written through new_fragment/finish_fragment like every entry.
+write_record() {
+  local kind="$1" id="$2"
+  shift 2
+  new_fragment "$id" "$kind" || return 1
+  node "$RECORDS" render "$kind" "$id" --stamp "$STAMP" --date "$TODAY" --head "${HEAD_SHA} (tree ${TREE})" "$@" >"$FRAG_TMP" || return 1
+  finish_fragment || return 1
+}
+
+# --- create / edit / migration (S164) ---------------------------------------------
+if [ "$MODE" = "create" ] || [ "$MODE" = "edit" ] || [ "$MODE" = "migration" ]; then
+  ID="${1:-}"
+  [[ "$ID" =~ ^[SB][0-9]+$ ]] || { echo "audit: ${MODE} needs a story or bug ID (S170, B140)" >&2; exit 2; }
+  shift
+  BODY_FILE="" REASON="" TITLE_ARG="" ISSUE="" BASE_ARG="" REWRITE="" STAGE=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --body-file) BODY_FILE="${2:-}"; shift 2 || usage ;;
+      --reason) REASON="$(read_arg "${2:-}")"; shift 2 || usage ;;
+      --title) TITLE_ARG="${2:-}"; shift 2 || usage ;;
+      --issue) ISSUE="${2:-}"; shift 2 || usage ;;
+      --base) BASE_ARG="${2:-}"; shift 2 || usage ;;
+      --stage) STAGE="${2:-}"; shift 2 || usage ;;
+      --rewrite-file) REWRITE="${2:-}"; shift 2 || usage ;;
+      --status | --label | --milestone) echo "audit: GitHub owns state; change it with github.ts status|label|milestone, never a record (S164)" >&2; exit 2 ;;
+      *) echo "audit: unknown option $1" >&2; usage ;;
+    esac
+  done
+  [ -f "$BODY_FILE" ] || { echo "audit: ${MODE} needs --body-file <file> holding the text" >&2; exit 2; }
+  [ -z "$ISSUE" ] || [[ "$ISSUE" =~ ^[0-9]+$ ]] || { echo "audit: --issue takes an issue number" >&2; exit 2; }
+  flags=(--body-file "$BODY_FILE")
+  [ -n "$ISSUE" ] && flags+=(--issue "$ISSUE")
+  [ -n "$REASON" ] && flags+=(--reason "$REASON")
+  [ -n "$TITLE_ARG" ] && flags+=(--title "$TITLE_ARG")
+  [ -n "$BASE_ARG" ] && flags+=(--base "$(git rev-parse --short "$BASE_ARG")")
+  [ -n "$STAGE" ] && flags+=(--base "$(git rev-parse --short "$STAGE")" --base-label stage)
+  [ -n "$REWRITE" ] && flags+=(--rewrite-file "$REWRITE")
+  existing="$(node "$RECORDS" newest "$ID" --field file 2>/dev/null || true)"
+  case "$MODE" in
+    create)
+      [ -z "$existing" ] || { echo "audit: ${ID} is already recorded (${existing}); change its text with audit.sh edit" >&2; exit 2; }
+      if [[ "$ID" == B* ]]; then
+        [ -n "$ISSUE" ] || { echo "audit: create ${ID} records an accepted bug's fields block: --issue <n> is required" >&2; exit 2; }
+        # Only the fields block is recorded: the symptoms stay whoever filed them wrote them.
+        fields_only="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-fields.XXXXXX")"
+        node "$RECORDS" fields "$BODY_FILE" "$ID" >"$fields_only" || exit 2
+        [ -s "$fields_only" ] || { echo "audit: ${BODY_FILE} holds no ### Backlog fields section" >&2; exit 2; }
+        flags[1]="$fields_only"
+      else
+        [ -n "$TITLE_ARG" ] || { echo "audit: create ${ID} needs --title (its issue is titled '${ID}: <title>')" >&2; exit 2; }
+        [ -n "$REASON" ] || { echo "audit: create needs --reason" >&2; exit 2; }
+      fi
+      ;;
+    edit)
+      [ -n "$existing" ] || { echo "audit: ${ID} has no text record to edit (audit.sh create, or pnpm backlog:migrate)" >&2; exit 2; }
+      [ -n "$REASON" ] || { echo "audit: edit needs --reason" >&2; exit 2; }
+      problems="$(node "$RECORDS" newest "$ID" --field problems)"
+      [ -z "$problems" ] || { echo "audit: ${ID}'s records are inconsistent; fix them first:" >&2; echo "$problems" >&2; exit 2; }
+      from="$(node "$RECORDS" newest "$ID" --field hash)"
+      [ "$(shasum -a 256 <"$BODY_FILE" | cut -d' ' -f1)" != "$from" ] || { echo "audit: ${BODY_FILE} is ${ID}'s text already; nothing to record" >&2; exit 2; }
+      flags+=(--from "$from")
+      [ -n "$ISSUE" ] || { ISSUE="$(node "$RECORDS" newest "$ID" --field issue)"; [ -n "$ISSUE" ] && flags+=(--issue "$ISSUE"); }
+      ;;
+    migration)
+      [ -n "$ISSUE" ] || { echo "audit: migration needs --issue <n>" >&2; exit 2; }
+      [ -n "$BASE_ARG" ] || [ -n "$STAGE" ] || { echo "audit: migration needs --base <the commit the notes were read from>" >&2; exit 2; }
+      ;;
+  esac
+  # A story's text must carry a fields block that parses (an accepted bug's is the block itself).
+  node "$RECORDS" fields "${flags[1]}" "$ID" >/dev/null || { echo "audit: ${ID}'s text has no parsable ### Backlog fields block" >&2; exit 2; }
+  write_record "$MODE" "$ID" "${flags[@]}" || exit 2
+  echo "audit ${ID}: recorded its ${MODE} in ${FRAG}"
+  exit 0
+fi
+
+# --- apply (S164) ------------------------------------------------------------------
+# Sends each recorded create and edit GitHub doesn't have yet (github.ts apply), on an up-to-date
+# stage: the records are applied only once their ledger pull request merged.
+if [ "$MODE" = "apply" ]; then
+  if [ -z "${BT_APPLY_ANY_HEAD:-}" ] && [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/stage 2>/dev/null)" ]; then
+    echo "audit: apply runs on an up-to-date stage (git fetch origin && git switch stage && git merge --ff-only origin/stage)" >&2
+    exit 2
+  fi
+  node scripts/backlog-vault/github.ts apply
+  exit $?
+fi
 
 # --- design --------------------------------------------------------------------
 # A design-match verdict on its own (S84): no grader run, and not a completion — the
@@ -276,6 +381,11 @@ if [ "$MODE" = "story" ]; then
   # `stories/S<N>.md` (the layout before 2026-11-17, and the tests' BT_AUDIT_STORIES) is found too.
   NOTE="$(find "$STORIES_DIR" -maxdepth 2 -type f -name "${ID}.md" 2>/dev/null | sort | head -n 1)"
   needs_match=0
+  # Since S164 the story's text is its newest text record: a `design` list in its fields block.
+  if [ ! -f "$NOTE" ] && [ -n "$(node "$RECORDS" newest "$ID" --field design 2>/dev/null)" ] &&
+    ! node "$RECORDS" newest "$ID" 2>/dev/null | grep -qF 'Design match (rule 22): none'; then
+    needs_match=1
+  fi
   if [ -f "$NOTE" ] && awk '/^---$/{n++;next} n==1' "$NOTE" | grep -qE '^design:$' &&
     ! grep -qF 'Design match (rule 22): none' "$NOTE"; then
     needs_match=1
@@ -298,7 +408,8 @@ if [ "$MODE" = "story" ]; then
     TITLE="$(awk '/^---$/{n++;next} n==1 && /^title: /{sub(/^title: /,""); print; exit}' "$NOTE" |
       sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/; s/[[:space:]]*$//')"
   fi
-  [ -n "$TITLE" ] || TITLE="(title not found in ${ID}'s note)"
+  [ -n "$TITLE" ] || TITLE="$(node "$RECORDS" newest "$ID" --field title 2>/dev/null || true)"
+  [ -n "$TITLE" ] || TITLE="(title not found in ${ID}'s note or text records)"
 
   grader_log="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-grader.XXXXXX")"
   verify_log="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-verify.XXXXXX")"
@@ -313,6 +424,23 @@ if [ "$MODE" = "story" ]; then
     reverify_at "$SHIP" "$GRADER" "$grader_log"
     grader_exit=$?
   else
+    if [ "$LABEL" = "completion" ]; then
+      # S164 AC 5: the ship-time snapshot, written before the grader runs, so the grader reads the
+      # story's text and status from it (checks.sh story_snapshot / story_snapshot_status).
+      # A story with no text record yet (its note is still its text, before the migration) has no
+      # snapshot; once migrated, every story has one, and new graders require it (story_snapshot_status).
+      snap_body="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-snapshot.XXXXXX")"
+      if node "$RECORDS" newest "$ID" >"$snap_body" 2>/dev/null; then
+      snap_flags=(--body-file "$snap_body" --status done --record "$(node "$RECORDS" newest "$ID" --field file)")
+      ISSUE="$(node "$RECORDS" newest "$ID" --field issue)"
+      [ -n "$ISSUE" ] && snap_flags+=(--issue "$ISSUE")
+      new_fragment "$ID" snapshot || exit 2
+      node "$RECORDS" render snapshot "$ID" --stamp "$STAMP" --date "$TODAY" --head "${HEAD_SHA} (tree ${TREE})" "${snap_flags[@]}" >"$FRAG_TMP" || exit 2
+      finish_fragment || exit 2
+      SNAPSHOT="$FRAG"
+      fi
+      rm -f "$snap_body"
+    fi
     echo "audit ${ID}: running ${GRADER}…"
     "$GRADER" >"$grader_log" 2>&1
     grader_exit=$?
@@ -364,6 +492,16 @@ if [ "$MODE" = "story" ]; then
     echo "| Shipped in | ${SHIPPED} |"
     echo "| HEAD at capture | \`${HEAD_SHA}\` (tree ${TREE}) |"
     echo "| Grader | \`${GRADER}\` — exit \`${grader_exit}\` |"
+    if [ -n "${SNAPSHOT:-}" ]; then
+      echo "| Snapshot | \`${SNAPSHOT}\` — SHA-256 \`$(shasum -a 256 "$SNAPSHOT" | cut -d' ' -f1)\` |"
+    elif [ "$LABEL" = "reverify" ]; then
+      snap="$(find "$FRAGMENTS" -type f -name "*-${ID}-snapshot.md" 2>/dev/null | awk -F/ '{ print $NF "\t" $0 }' | LC_ALL=C sort | tail -1 | cut -f2)"
+      if [ -n "$snap" ]; then
+        echo "| Snapshot | \`${snap}\` — SHA-256 \`$(shasum -a 256 "$snap" | cut -d' ' -f1)\` (the text and status its grader read) |"
+      else
+        echo "| Snapshot | none — shipped before S164, so its grader read its note at the shipping commit |"
+      fi
+    fi
     if [ "$RUN_VERIFY" -eq 1 ]; then
       echo "| \`pnpm verify\` | exit \`${verify_exit}\` |"
     else
@@ -372,6 +510,7 @@ if [ "$MODE" = "story" ]; then
     echo
     echo "**What was tested and verified**"
     echo
+    [ -n "${ISSUE:-}" ] && { echo; echo "Issue: #${ISSUE}"; echo; }
     if [ -n "$check_lines" ]; then
       echo '```'
       echo "$check_lines"

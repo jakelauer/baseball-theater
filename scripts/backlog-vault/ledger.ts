@@ -52,7 +52,11 @@ export type LedgerKind =
 	| "design-match" // an owner's design-match verdict on its own (`audit.sh design`)
 	| "review" // a backlog or doc parity review pass (`audit.sh review` / `parity`)
 	| "answers" // the owner's answers to a review's questions (`audit.sh answers`)
-	| "skip"; // the owner declined a review for a drift event (`audit.sh skip`)
+	| "skip" // the owner declined a review for a drift event (`audit.sh skip`)
+	| "migration" // a story's or bug's text as `pnpm backlog:migrate` recorded it (`audit.sh migration`, S164)
+	| "create" // a new story's text, or an accepted bug's fields block (`audit.sh create`)
+	| "edit" // a story's new text, chained to the one before it (`audit.sh edit`)
+	| "snapshot"; // a story's newest text and the status it ships with, at ship time (`audit.sh story`)
 
 /** One ledger entry, from its heading. Optional fields are present only for the kinds that carry them. */
 export interface LedgerEntry
@@ -84,6 +88,11 @@ export interface LedgerEntry
 	 * Absent when the row is missing or says `none`.
 	 */
 	inFlight?: string[];
+	/**
+	 * The GitHub issue an item's fragment names (its `Issue: #<n>` line, S164): every story or bug
+	 * fragment but a story's `create`, whose issue is found by its ID once `audit.sh apply` makes it.
+	 */
+	issue?: number;
 	heading: string;
 }
 
@@ -126,6 +135,14 @@ const SHAPES: { pattern: RegExp;
 			story: m[1],
 		}),
 	},
+	// The text records (S164; text-records.ts writes their headings, RECORD_HEADINGS).
+	...([["migrated", "migration"], ["created", "create"], ["edited", "edit"], ["snapshot", "snapshot"]] as const).map(([word, kind]) => ({
+		pattern: new RegExp(`^([SB]\\d+) ${word}$`),
+		entry: (m: RegExpExecArray) => ({
+			kind,
+			story: m[1],
+		}),
+	})),
 	{
 		pattern: /^(backlog|doc parity) review \(`([a-z]+)`\)$/,
 		entry: (m) => ({
@@ -227,6 +244,10 @@ export const FRAGMENT_KINDS: Record<LedgerKind, string> = {
 	"review": "review",
 	"answers": "answers",
 	"skip": "skip",
+	"migration": "migration",
+	"create": "create",
+	"edit": "edit",
+	"snapshot": "snapshot",
 };
 
 /**
@@ -257,7 +278,8 @@ export function parseFragment(text: string, file: string): LedgerEntry
 		throw new LedgerParseError(`${file}: a ledger fragment is named <stamp>-<ID>-<kind>.md (scripts/audit.sh)`);
 	}
 	const [, , id, kind] = name as unknown as [string, string, string, string];
-	const lines = text.split("\n");
+	// A text record's body (S164) is story text, not ledger entries: only the lines above it are read.
+	const lines = text.split("<!-- bt-body:begin -->")[0]!.split("\n");
 	const found: LedgerEntry[] = [];
 	for (let i = 0; i < lines.length; i++)
 	{
@@ -297,6 +319,12 @@ export function parseFragment(text: string, file: string): LedgerEntry
 	if (inFlight && inFlight !== "none")
 	{
 		entry.inFlight = inFlight.split(/,\s*/).filter(Boolean);
+	}
+	// An item's issue (S164): the `Issue: #<n>` line above any body a text record holds.
+	const issue = /^Issue: #(\d+)$/m.exec(text.split("<!-- bt-body:begin -->")[0]!)?.[1];
+	if (issue)
+	{
+		entry.issue = Number(issue);
 	}
 	return entry;
 }
@@ -558,6 +586,7 @@ export function renderLedgerIndex(entries: LedgerEntry[]): string
 		answers: e.answers,
 		at: e.at,
 		inFlight: e.inFlight,
+		issue: e.issue,
 		heading: e.heading,
 	})).join("\n") + (entries.length > 0 ? "\n" : "");
 }

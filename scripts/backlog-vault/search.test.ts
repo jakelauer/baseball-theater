@@ -21,7 +21,7 @@ import type {
 } from "./search.ts";
 import {
 	auditLedgerPath, changedRows, citedIssues, cites, dependents, deps, design, isFrontendAdr, issueLine, issuesWindowStart, item, itemsFromNotes, listIssues, main,
-	neighbors, next, nextPage, nextTodo, path, SearchUsageError, seedBacklog, seedInFlight, seedIntake, seedParity, text,
+	neighbors, next, nextTodo, path, SearchUsageError, seedBacklog, seedInFlight, seedIntake, seedParity, text,
 } from "./search.ts";
 import { featureNames, pillarNames } from "./source.ts";
 
@@ -363,9 +363,12 @@ function stubIo(over: Partial<SeedDeps> & { report?: DebtReport } = {}): SeedDep
 	};
 }
 
-/** A `gh api -i` response: headers, a blank line, the JSON body. */
+/**
+ * A `gh api -i` response: headers, a blank line, the JSON body. Its Link header names pages by path:
+ * nextPage (github.ts, tested in github.test.ts with GitHub's own host) passes a path through as it is.
+ */
 const response = (body: unknown, next?: string, date?: string) => `HTTP/2.0 200 OK\nContent-Type: application/json\n${date ? `Date: ${date}\n` : ""}${
-	next ? `Link: <https://api.github.com/${next}>; rel="next", <https://api.github.com/x?page=9>; rel="last"\n` : ""}\n${JSON.stringify(body)}`;
+	next ? `Link: <${next}>; rel="next", <x?page=9>; rel="last"\n` : ""}\n${JSON.stringify(body)}`;
 
 describe("issues by change, through REST (S163 AC 4)", () =>
 {
@@ -437,13 +440,6 @@ describe("issues by change, through REST (S163 AC 4)", () =>
 		});
 		expect(requestsAtStart).toBe(0);
 		expect(none.started).toBe("2026-11-20T10:00:00.000Z");
-	});
-
-	it("nextPage reads the Link header's next page, and none on the last page", () =>
-	{
-		expect(nextPage("Link: <https://api.github.com/repositories/1/issues?page=2>; rel=\"next\"")).toBe("repositories/1/issues?page=2");
-		expect(nextPage("Link: <https://api.github.com/x?page=1>; rel=\"prev\"")).toBeUndefined();
-		expect(nextPage("")).toBeUndefined();
 	});
 
 	it("the window starts at the design intake's issues line when one was logged after the last backlog review, else the fallback", () =>
@@ -1114,7 +1110,7 @@ describe("the seed's reach outside the notes (S163 AC 2)", () =>
 			}
 			if (n === "31")
 			{
-				throw new Error("Command failed: gh api repos/{owner}/{repo}/issues/31\nerror connecting to api.github.com");
+				throw new Error("Command failed: gh api repos/{owner}/{repo}/issues/31\nerror connecting to the API host");
 			}
 			return JSON.stringify({
 				state: "open",

@@ -31,6 +31,10 @@
  */
 
 import { execFileSync } from "node:child_process";
+import type {
+	GhRunner, IssueSummary, IssuesResult,
+} from "./github.ts";
+import { ghRunner, listIssues } from "./github.ts";
 import { readFileSync } from "node:fs";
 import {
 	dirname, join, relative, resolve,
@@ -64,8 +68,10 @@ export interface BacklogItem
 	source: string | null;
 	body: string;
 	scopeFiles: string[];
-	/** Where its note is, relative to docs/v3/backlog/. */
+	/** Where its text is: its note, relative to docs/v3/backlog/ (notesSource), or `issue #<n>` (github.ts). */
 	note: string;
+	/** Its GitHub issue's number, when it was read from one (github.ts, S164). */
+	issue?: number;
 }
 
 /** Where the queries read the backlog from. */
@@ -258,107 +264,13 @@ export function text(items: BacklogItem[], pattern: string, open = false): Backl
 	return items.filter((i) => i.kind === "story" && (!open || isOpen(i)) && re.test(i.body));
 }
 
-/** One GitHub issue as a review lists it: never its body, which anyone can write. */
-export interface IssueSummary
-{
-	number: number;
-	state: string;
-	labels: string[];
-	title: string;
-}
-
-/** Runs `gh` with these arguments and returns its stdout; injected so tests never reach GitHub. */
-export type GhRunner = (args: string[]) => string;
-
-/** The issues query's result: the issues, and the time it started, which the next review's window starts from. */
-export interface IssuesResult
-{
-	issues: IssueSummary[];
-	since: string;
-	started: string;
-	query: string;
-}
-
-/** `gh api -i` output: the headers, then a blank line, then the JSON body. */
-function splitResponse(raw: string): { headers: string;
-	body: string }
-{
-	const at = raw.search(/\r?\n\r?\n/);
-	return at === -1 ? {
-		headers: "",
-		body: raw,
-	} : {
-		headers: raw.slice(0, at),
-		body: raw.slice(at).replace(/^\r?\n\r?\n/, ""),
-	};
-}
-
-/** The `rel="next"` page of a `Link` header, as a path `gh api` takes, or undefined on the last page. */
-export function nextPage(headers: string): string | undefined
-{
-	const link = /^link:\s*(.+)$/im.exec(headers)?.[1] ?? "";
-	const url = /<([^>]+)>;\s*rel="next"/.exec(link)?.[1];
-	return url?.replace(/^https:\/\/api\.github\.com\//, "");
-}
-
-/** How far before GitHub's clock on the first response the recorded start time goes, so it is no later than the first request. */
-export const ISSUES_WINDOW_MARGIN_MS = 5 * 60_000;
-
-/** A response's `Date` header (any case) as a time, or undefined. */
-function responseDate(headers: string): number | undefined
-{
-	const at = Date.parse(/^date:\s*(.+?)\s*$/im.exec(headers)?.[1] ?? "");
-	return Number.isNaN(at) ? undefined : at;
-}
-
-/**
- * The issues opened, updated or closed since `since`, through REST (GraphQL is blocked in Claude Code
- * sessions): `repos/{owner}/{repo}/issues?state=all&since=…`, every page the `Link` header names,
- * pull requests left out (the issues endpoint lists them too). The recorded start time is GitHub's
- * own clock, the first response's `Date` header less {@link ISSUES_WINDOW_MARGIN_MS}, so a skewed
- * local clock can't push it past the first request; with no Date header it is the local clock read
- * before the first request. Either way an issue changed while the review runs falls in the next
- * review's window, and one changed just before it may be read twice, which is harmless (owner,
- * 2026-11-20: "Yes, once per change (Recommended)").
- */
-export function listIssues(since: string, run: GhRunner, now: () => Date = () => new Date()): IssuesResult
-{
-	const before = now().getTime();
-	let started: string | undefined;
-	const issues: IssueSummary[] = [];
-	let page: string | undefined = `repos/{owner}/{repo}/issues?state=all&since=${encodeURIComponent(since)}&per_page=100`;
-	while (page !== undefined)
-	{
-		const { headers, body } = splitResponse(run(["api", "-i", page]));
-		if (started === undefined)
-		{
-			const github = responseDate(headers);
-			started = new Date(github === undefined ? before : github - ISSUES_WINDOW_MARGIN_MS).toISOString();
-		}
-		for (const raw of JSON.parse(body) as Record<string, unknown>[])
-		{
-			if (raw.pull_request !== undefined)
-			{
-				continue;
-			}
-			issues.push({
-				number: raw.number as number,
-				state: raw.state as string,
-				labels: ((raw.labels ?? []) as { name: string }[]).map((l) => l.name),
-				title: raw.title as string,
-			});
-		}
-		page = nextPage(headers);
-	}
-	const ids = issues.map((i) => `#${i.number}`).join(", ") || "none";
-	const asOf = started ?? new Date(before).toISOString();
-	return {
-		issues,
-		since,
-		started: asOf,
-		query: `query: issues --since ${since} → ${ids} (as of ${asOf})`,
-	};
-}
+// The issues paging (`listIssues`, `nextPage`) moved into github.ts with S164, the one module that talks to GitHub.
+export type {
+	GhRunner, IssueSummary, IssuesResult,
+} from "./github.ts";
+export {
+	ISSUES_WINDOW_MARGIN_MS, listIssues, nextPage,
+} from "./github.ts";
 
 /** An issue as a line: its title quoted as data (JSON string), since anyone can write it; never its body. */
 export function issueLine(issue: IssueSummary): string
@@ -787,7 +699,7 @@ export const realDeps: SeedDeps = {
 	debtReport: (kind, since, inFlight) => JSON.parse(run("bash", [
 		join(repoRoot, kind === "parity" ? "scripts/parity-debt.sh" : "scripts/review-debt.sh"), "--json", "--since", since, "--in-flight", inFlight.join(","),
 	])) as DebtReport,
-	gh: (args) => run("gh", args),
+	gh: ghRunner,
 	git: (args) => run("git", args),
 	ledgerTexts: readLedgerTexts,
 	inFlight: (flag) => seedInFlight(repoRoot, flag),

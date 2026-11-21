@@ -4,7 +4,10 @@
  *   pnpm backlog:build    rewrite the notes canonically (derived fields refreshed, each note moved to
  *                         its status folder) and write docs/v3/INDEX.md and docs/v3/audit.jsonl
  *   pnpm backlog:check    exit 1 if build would change a note, or a finished story's records are
- *                         missing (records.ts); builds INDEX.md in memory, never reads it from disk
+ *                         missing (records.ts), or the story text records are inconsistent (law L9's
+ *                         tree-reproducible part, S164: text-records.ts); builds INDEX.md in memory,
+ *                         never reads it from disk, the issue cache or GitHub, so its verdict at a
+ *                         commit is the same wherever and whenever it runs
  *   cli.ts pre-commit     (the Husky hook) canonicalize the staged notes and re-stage them
  *   cli.ts ledger-base backlog|parity   the commit the debt checks measure drift from (ledger.ts)
  *   cli.ts review-base backlog|parity   the commit that logged the newest review itself, past later skips and
@@ -42,16 +45,21 @@ import { docIndexFor, isIndexedDoc } from "./doc-index.ts";
 import { inFlightIds } from "./in-flight.ts";
 import type { LedgerEntry, ReviewKind } from "./ledger.ts";
 import {
-	ledgerBase, parseLedger, readLedger, renderLedgerIndex, reviewBlocked, storiesDoneSince,
+	fragmentsDirFor, ledgerBase, parseLedger, readLedger, renderLedgerIndex, reviewBlocked, storiesDoneSince,
 } from "./ledger.ts";
 import {
 	misplacedNotes, readNotes, writeNotes,
 } from "./notes-dir.ts";
-import { parseBacklog } from "./parse.ts";
+import { designMatchProblems, parseBacklog } from "./parse.ts";
 import { runPrecommit } from "./precommit.ts";
 import type { ChangelogState } from "./records.ts";
 import { frozenCompletions, recordProblems } from "./records.ts";
 import type { SourceDocs } from "./source.ts";
+import { sourceProblems } from "./source.ts";
+import type { TextRecord } from "./text-records.ts";
+import {
+	BODY_KINDS, chains, parseFields, readRecords, textRecordProblems,
+} from "./text-records.ts";
 
 const repoRoot = resolve(import.meta.dirname, "../..");
 
@@ -211,7 +219,10 @@ async function check()
 			stale.push(join(dir, path));
 		}
 	}
-	const problems = recordProblems(parseBacklog(built.backlog).stories, frozenCompletions(await frozenEntries()), changelogState);
+	const problems = [
+		...recordProblems(parseBacklog(built.backlog).stories, frozenCompletions(await frozenEntries()), changelogState),
+		...(await recordedTextProblems(notes)),
+	];
 	if (stale.length > 0)
 	{
 		const misplaced = misplacedNotes(notes, built.notes);
@@ -221,13 +232,61 @@ async function check()
 	}
 	if (problems.length > 0)
 	{
-		console.error(`backlog: finished stories with missing records:\n- ${problems.join("\n- ")}`);
+		console.error(`backlog: finished stories with missing records, or inconsistent story text records:\n- ${problems.join("\n- ")}`);
 		process.exitCode = 1;
 	}
 	if (stale.length === 0 && problems.length === 0)
 	{
 		log("the notes are consistent");
 	}
+}
+
+/** The story or bug notes still in the notes dir (stories/<status>/S<N>.md, bugs/<status>/B<N>.md). */
+function itemNotes(notes: Map<string, string>): string[]
+{
+	return [...notes.keys()].filter((p) => /^(stories|bugs)\/([^/]+\/)?[SB]\d+\.md$/.test(p)).map((p) => join(dir, p));
+}
+
+/**
+ * Law L9's tree-reproducible part over the text records (S164 AC 2), read from the ledger's fragments
+ * alone (never the cache or GitHub): the chain, hashes and fields blocks (text-records.ts), and, for
+ * text recorded since the migration (a `create` or `edit` tip; migrated text already passed these
+ * checks as a note at the migration's base), rule 19's Source and L8's design-match criterion. A
+ * snapshot recording `done` needs the story's changelog fragment and its `**Baseline:**` line.
+ */
+async function recordedTextProblems(notes: Map<string, string>): Promise<string[]>
+{
+	const records: TextRecord[] = readRecords(fragmentsDirFor(auditPath));
+	const problems = textRecordProblems(records, itemNotes(notes));
+	const changed = [...chains(records).values()]
+		.map((c) => c.records.at(-1)!)
+		.filter((tip) => tip.kind !== "migration" && tip.id.startsWith("S") && BODY_KINDS.includes(tip.kind));
+	const stories = changed.flatMap((tip) =>
+	{
+		try
+		{
+			const fields = parseFields(tip.body, tip.id);
+			return [{
+				id: tip.id,
+				status: "todo",
+				source: /^\*\*Source:\*\*\s*(.+)$/m.exec(tip.body)?.[1]?.trim() ?? null,
+				design: fields.design,
+				body: tip.body,
+			}];
+		}
+		catch
+		{
+			return []; // textRecordProblems already names a broken fields block
+		}
+	});
+	problems.push(...sourceProblems(stories, await readSourceDocs()), ...designMatchProblems(stories));
+	const snapshots = records.filter((r) => r.kind === "snapshot" && r.status === "done");
+	problems.push(...recordProblems(snapshots.map((r) => ({
+		id: r.id,
+		status: "done",
+		body: r.body,
+	})), frozenCompletions(await frozenEntries()), changelogState));
+	return problems;
 }
 
 async function preCommit()

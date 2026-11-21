@@ -105,3 +105,52 @@ describe("story_own_changed_files / story_own_diff", () =>
 		expect(helper(`story_own_diff S9 ${base} --unified=0`)).toContain("+own line two");
 	});
 });
+
+describe("ship-time snapshot helpers (S164 AC 5)", () =>
+{
+	/** Writes a snapshot fragment of `body` (stating `stated` as its hash, by default the body's own) into the throwaway repository. */
+	async function snapshot(id: string, body: string, stamp: string, stated?: string): Promise<void>
+	{
+		const { renderRecord, sha256 } = await import("./text-records.ts");
+		const { mkdirSync } = await import("node:fs");
+		mkdirSync(join(repo, "docs/v3/audit/2026-11-21"), {
+			recursive: true,
+		});
+		let text = renderRecord({
+			kind: "snapshot",
+			id,
+			date: "2026-11-21",
+			stamp,
+			head: "abc",
+			body,
+			status: "done",
+			record: "2026-11-21/x-S9-migration.md",
+		});
+		if (stated)
+		{
+			text = text.replace(sha256(body), stated);
+		}
+		writeFileSync(join(repo, `docs/v3/audit/2026-11-21/${stamp}-${id}-snapshot.md`), text);
+	}
+
+	it("story_snapshot prints the newest snapshot's body byte-exact, and nothing for a story without one", async () =>
+	{
+		await snapshot("S41", "old\n", "20261121T000001Z");
+		await snapshot("S41", "**Gap:** g\n\n**Baseline:** b\n```text\n/goal S41 (S41). x\n```", "20261121T000002Z");
+		expect(helper("story_snapshot S41")).toBe("**Gap:** g\n\n**Baseline:** b\n```text\n/goal S41 (S41). x\n```");
+		expect(helper("story_snapshot S42 || echo none").trim()).toBe("none");
+	});
+
+	it("story_snapshot_status prints the status the story ships with", async () =>
+	{
+		await snapshot("S43", "x", "20261121T000003Z");
+		expect(helper("story_snapshot_status S43").trim()).toBe("done");
+		expect(helper("story_snapshot_status S44")).toBe("");
+	});
+
+	it("story_snapshot refuses a snapshot whose body doesn't match the hash it states", async () =>
+	{
+		await snapshot("S45", "body", "20261121T000004Z", "0".repeat(64));
+		expect(helper("story_snapshot S45 || echo refused").trim()).toBe("refused");
+	});
+});

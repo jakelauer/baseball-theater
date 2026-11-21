@@ -75,3 +75,6 @@ docs/v3/INDEX.md
 docs/v3/audit.jsonl
 # A ledger entry scripts/audit.sh was killed while writing (it writes `.<name>.<pid>.tmp`, then links it into place)
 docs/v3/audit/**/.*.tmp
+
+# The backlog issue cache (S164): pnpm backlog:sync writes it in the main checkout; never committed.
+.backlog-cache/
