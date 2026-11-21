@@ -39,7 +39,9 @@
  *   node scripts/backlog-vault/claims.ts review-edits [--file <p>…]
  *       a review's changed files (stdin when no --file): exit 1 if any is an in-flight item's note
  *   node scripts/backlog-vault/claims.ts findings [--findings <file>]   merge findings by class and file
- *   node scripts/backlog-vault/claims.ts questions [--pending <file>]   owner questions, most-blocking first
+ *   node scripts/backlog-vault/claims.ts questions [--pending <file>]   owner questions, most-blocking first,
+ *       then `no question: <ID> is blocked` for each story or bug note in a `blocked/` folder that no
+ *       question's `Blocks:` line names, with the local branches whose name holds its ID
  *
  * `claim` and `release` run under a lock, the directory `.run/claims.lock` holding the holder's pid, so two
  * claims made at once can't both be admitted against an empty in-flight set. A command that can't take it
@@ -472,6 +474,41 @@ export function orderQuestions(questions: Question[]): Question[]
 	})).sort((a, b) => b.q.blocks.length - a.q.blocks.length || a.i - b.i).map(({ q }) => q);
 }
 
+/**
+ * The blocked items no question names, by ID. `/pending` writes a question for each before it asks anything,
+ * so the owner never learns by chance that something is stuck (owner, 2026-11-20: "I want to stop finding out
+ * things are blocked by chance. Pending should never show as empty as long as something is blocked.").
+ */
+export function uncoveredBlocked(blocked: string[], questions: Question[]): string[]
+{
+	const named = new Set(questions.flatMap((q) => q.blocks));
+	return [...new Set(blocked)].filter((id) => !named.has(id)).sort((a, b) => a.localeCompare(b, "en", {
+		numeric: true,
+	}));
+}
+
+/** The IDs of the story and bug notes in the backlog's `blocked/` folders (`docs/v3/backlog/{stories,bugs}/blocked/`). */
+export function blockedItems(root: string): string[]
+{
+	return ["stories", "bugs"].flatMap((kind) =>
+	{
+		const dir = join(root, "docs", "v3", "backlog", kind, "blocked");
+		if (!existsSync(dir)) return [];
+		return readdirSync(dir).filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3)).filter((id) => ITEM_ID.test(id));
+	});
+}
+
+/**
+ * The local branches whose name holds `id` as a whole ID (`story/S133-redraw` for S133, never S1330), so a
+ * blocked item's question can say where its stranded work is (S107, S123, S129 and S133 sat ratified on
+ * unpushed branches for a day).
+ */
+export function branchesNaming(branches: string[], id: string): string[]
+{
+	const whole = new RegExp(`(^|[^A-Za-z0-9])${id}($|[^0-9])`);
+	return branches.filter((b) => whole.test(b));
+}
+
 /** A claim file that can't be read as a claim: every command stops on it rather than skip it. */
 export class ClaimsError extends Error
 {
@@ -763,9 +800,19 @@ function main(argv: string[]): number
 			{
 				// No pending file: no questions.
 			}
-			for (const q of orderQuestions(parseQuestions(text)))
+			const questions = parseQuestions(text);
+			for (const q of orderQuestions(questions))
 			{
 				console.log(`${q.blocks.length} blocked (${q.blocks.join(", ") || "none"}): ${q.heading}`);
+			}
+			const refs = spawnSync("git", ["-C", root, "for-each-ref", "--format=%(refname:short)", "refs/heads/"], {
+				encoding: "utf8",
+			});
+			const branches = refs.status === 0 ? refs.stdout.split("\n").filter(Boolean) : [];
+			for (const id of uncoveredBlocked(blockedItems(root), questions))
+			{
+				const named = branchesNaming(branches, id);
+				console.log(`no question: ${id} is blocked${named.length ? ` (local branches: ${named.join(", ")})` : ""}`);
 			}
 			return 0;
 		}
