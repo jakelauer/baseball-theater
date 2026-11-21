@@ -728,7 +728,8 @@ function targetBody(record: TextRecord, current: string | null): string
 		return record.body;
 	}
 	parseFields(record.body, record.file);
-	const symptoms = withoutFields(current ?? "");
+	// Trailing whitespace trimmed, as the migration writes it (migrate.ts desiredFor).
+	const symptoms = withoutFields(current ?? "").replace(/\s+$/, "");
 	return `${symptoms === "" ? "" : `${symptoms}\n\n`}${record.body}`;
 }
 

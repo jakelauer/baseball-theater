@@ -34,14 +34,16 @@ import {
 	mkdtempSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import {
+	join, posix, resolve,
+} from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import type {
 	CachedIssue, GhRunner, IssueCache, Sleep,
 } from "./github.ts";
 import {
-	appliedComment, createIssue, findIssue, ghRunner, patchIssue, postComment, sleepSync, stateFor, syncIssues,
+	appliedComment, createIssue, findIssue, ghRunner, patchIssue, postComment, sleepSync, stateFor, syncIssues, trustedId,
 } from "./github.ts";
 import { readLedger } from "./ledger.ts";
 import type { BacklogFields, TextRecord } from "./text-records.ts";
@@ -145,14 +147,21 @@ export interface Shipped
 	commit?: string;
 	/** The pull request that merged it, or undefined when it was pushed directly (before S121). */
 	pr?: number;
-	/** Its ledger entry: a fragment path under docs/v3/, or `docs/v3/AUDIT.md#L<line>`. */
+	/** Its ledger entry when it is a fragment: the path under docs/v3/. */
 	ledger?: string;
+	/** Its ledger entry when it is in the frozen docs/v3/AUDIT.md: the entry's line in that file. */
+	frozenLine?: number;
 	grader?: string;
 	changelog?: string;
 }
 
-/** A done story's `### Shipped` section, every link at its shipping commit in `repo`. */
-export function shippedSection(s: Shipped, repo: string): string
+/**
+ * A done story's `### Shipped` section: the commit, fragment, grader and changelog links at its
+ * shipping commit in `repo`. An entry in the frozen AUDIT.md is linked at `base`, the commit the
+ * migration read, as plain text (`?plain=1`, so `#L<line>` jumps to the line): its line number is
+ * a line of today's file, and at the shipping commit the entry is often not in the file yet.
+ */
+export function shippedSection(s: Shipped, repo: string, base: string): string
 {
 	const at = (path: string) => `[\`${path.replace(/#.*$/, "")}\`](https://github.com/${repo}/blob/${s.commit}/${path})`;
 	const lines = ["### Shipped", ""];
@@ -163,7 +172,9 @@ export function shippedSection(s: Shipped, repo: string): string
 	}
 	lines.push(`- **Shipping commit:** [\`${s.commit.slice(0, 8)}\`](https://github.com/${repo}/commit/${s.commit})`);
 	lines.push(`- **Pull request:** ${s.pr === undefined ? "pushed directly, before S121" : `#${s.pr}`}`);
-	lines.push(`- **Ledger entry:** ${s.ledger ? at(s.ledger) : "none"}`);
+	const frozen = s.frozenLine === undefined ? undefined
+		: `[\`docs/v3/AUDIT.md\` line ${s.frozenLine}](https://github.com/${repo}/blob/${base}/docs/v3/AUDIT.md?plain=1#L${s.frozenLine})`;
+	lines.push(`- **Ledger entry:** ${s.ledger ? at(s.ledger) : frozen ?? "none"}`);
 	lines.push(`- **Grader:** ${s.grader ? at(s.grader) : "none"}`);
 	lines.push(`- **Changelog:** ${s.changelog ? at(s.changelog) : "none (shipped before changelog fragments)"}`);
 	return `${lines.join("\n")}\n`;
@@ -185,12 +196,31 @@ export interface Desired
 	rewrites: string[];
 }
 
+/**
+ * A story body's relative Markdown links (`./VISUAL-DESIGN.md#videos`, written for docs/v3/, where the
+ * backlog text was read) as links to that file at `base`, anchors kept, so they still work in an
+ * issue. Absolute URLs, `#anchors`, `/paths` and wiki links are left alone.
+ */
+export function absoluteLinks(body: string, repo: string, base: string): string
+{
+	return body.replace(/\]\(([^)\s]+)\)/g, (whole, target: string) =>
+	{
+		if (/^([a-z][a-z0-9+.-]*:|#|\/)/i.test(target))
+		{
+			return whole;
+		}
+		const [path, anchor] = target.split(/(?=#)/);
+		return `](https://github.com/${repo}/blob/${base}/${posix.normalize(posix.join("docs/v3", path!))}${anchor ?? ""})`;
+	});
+}
+
 /** GitHub caps an issue title at 256 characters. */
 const titleOf = (id: string, title: string) => `${id}: ${title}`.slice(0, 256);
 
 /** The issue a note becomes. `live` is a bug's current issue (its symptoms stay). */
 export function desiredFor(item: NoteItem, ctx: { shipped: (id: string) => Shipped;
 	repo: string;
+	base: string;
 	unshipped: (id: string) => string | undefined; }, live?: CachedIssue): Desired
 {
 	const status = item.status;
@@ -199,7 +229,8 @@ export function desiredFor(item: NoteItem, ctx: { shipped: (id: string) => Shipp
 		const fields = renderFields({
 			priority: Number(item.frontmatter.priority),
 		});
-		const symptoms = withoutFields(live?.body ?? "");
+		// Trailing whitespace trimmed, as github.ts targetBody does, so a re-run finds the body already in line.
+		const symptoms = withoutFields(live?.body ?? "").replace(/\s+$/, "");
 		const keep = (live?.labels ?? []).map((l) => l.name).filter((l) => !l.startsWith("status:") && l !== "bug");
 		const closing = status === "done" || status === "superseded";
 		return {
@@ -215,7 +246,7 @@ export function desiredFor(item: NoteItem, ctx: { shipped: (id: string) => Shipp
 			rewrites: [],
 		};
 	}
-	let text = item.body.replace(/\s+$/, "");
+	let text = absoluteLinks(item.body.replace(/\s+$/, ""), ctx.repo, ctx.base);
 	let rewrites: string[] = [];
 	if (OPEN.has(status))
 	{
@@ -226,7 +257,7 @@ export function desiredFor(item: NoteItem, ctx: { shipped: (id: string) => Shipp
 	const sections = [text];
 	if (status === "done")
 	{
-		sections.push(shippedSection(ctx.shipped(item.id), ctx.repo).replace(/\n$/, ""));
+		sections.push(shippedSection(ctx.shipped(item.id), ctx.repo, ctx.base).replace(/\n$/, ""));
 	}
 	sections.push(renderFields(storyFields(item.frontmatter)));
 	return {
@@ -336,6 +367,16 @@ export function migrate(notes: Map<string, string>, base: string, io: MigrateIO,
 		run: io.run,
 		sleep: io.sleep,
 	};
+	// Writes are paced, one second apart, to stay clear of GitHub's secondary rate limit.
+	let wrote = false;
+	const pace = () =>
+	{
+		if (wrote)
+		{
+			io.sleep(1000);
+		}
+		wrote = true;
+	};
 	for (const item of noteItems(notes))
 	{
 		const existing = item.kind === "story" ? findIssue(cache, item.id) : cache.issues.find((i) => i.number === Number(item.id.slice(1)));
@@ -345,7 +386,18 @@ export function migrate(notes: Map<string, string>, base: string, io: MigrateIO,
 			io.log(`${item.id}: no issue #${item.id.slice(1)} on GitHub to fold its note into; skipped`);
 			continue;
 		}
-		const want = desiredFor(item, io, existing);
+		const want = desiredFor(item, {
+			...io,
+			base,
+		}, existing);
+		const checked = (written: CachedIssue): CachedIssue =>
+		{
+			if (trustedId(written, cache.trusted) !== item.id)
+			{
+				throw new Error(`${item.id}: issue #${written.number} as GitHub returned it carries no trusted ID ${item.id} (labels ${written.labels.map((l) => l.name).join(", ") || "none"}); fix it on GitHub before re-running, or the next run makes a duplicate`);
+			}
+			return written;
+		};
 		const newest = newestBody(records, item.id);
 		const recordedText = item.kind === "bug" ? want.fields! : want.body;
 		const textChanged = newest !== undefined && newest.hash !== sha256(recordedText);
@@ -363,7 +415,8 @@ export function migrate(notes: Map<string, string>, base: string, io: MigrateIO,
 			io.log(`${item.id}: create "${want.title!.slice(0, 70)}" (${want.status})`);
 			if (!opts.dryRun)
 			{
-				issue = createIssue(writer, want.title!, want.body, want.labels);
+				pace();
+				issue = checked(createIssue(writer, want.title!, want.body, want.labels));
 			}
 		}
 		const change = issue ? difference(issue, want, bodyToo) : undefined;
@@ -376,7 +429,8 @@ export function migrate(notes: Map<string, string>, base: string, io: MigrateIO,
 			}
 			if (!opts.dryRun)
 			{
-				issue = patchIssue(writer, issue.number, change);
+				pace();
+				issue = checked(patchIssue(writer, issue.number, change));
 			}
 		}
 		else if (existing)
@@ -417,6 +471,7 @@ export function migrate(notes: Map<string, string>, base: string, io: MigrateIO,
 		if (kind === "edit")
 		{
 			// Sent live already, so apply must skip it: the same trusted comment apply would post.
+			pace();
 			postComment(writer, issue.number, appliedComment({
 				id: item.id,
 				kind: "edit",
@@ -516,8 +571,11 @@ function realShipped(): (id: string) => Shipped
 			...(prOf.has(commit) ? {
 				pr: prOf.get(commit)!,
 			} : {}),
-			...(entry ? {
-				ledger: entry.file ? `docs/v3/${entry.file}` : `docs/v3/AUDIT.md#L${entry.line}`,
+			...(entry?.file ? {
+				ledger: `docs/v3/${entry.file}`,
+			} : {}),
+			...(entry && !entry.file ? {
+				frozenLine: entry.line,
 			} : {}),
 			...(there.includes(`scripts/verify-${id}.sh`) ? {
 				grader: `scripts/verify-${id}.sh`,

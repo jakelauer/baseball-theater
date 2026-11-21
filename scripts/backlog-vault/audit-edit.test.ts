@@ -403,4 +403,26 @@ describe("apply (AC 6)", () =>
 			priority: 61.5,
 		})}`);
 	});
+
+	it("a bug's symptoms ending in newlines get the fields block after one blank line, as the migration writes it", () =>
+	{
+		const fake = new FakeGithub();
+		fake.add({
+			number: 141,
+			title: "Clip stalls",
+			labels: [{
+				name: "bug",
+			}],
+			body: "Steps: play a clip.\n\n",
+		});
+		const fields = rec("create", "B141", renderFields({
+			priority: 2,
+		}), {
+			issue: 141,
+		});
+		applyRecords([fields], io(fake));
+		expect(fake.issues.get(141)!.body).toBe(`Steps: play a clip.\n\n${renderFields({
+			priority: 2,
+		})}`);
+	});
 });

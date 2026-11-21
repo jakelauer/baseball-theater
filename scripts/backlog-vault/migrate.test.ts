@@ -58,7 +58,7 @@ function harness(fake = new FakeGithub())
 		},
 		S4: {
 			commit: "b".repeat(40),
-			ledger: "docs/v3/AUDIT.md#L120",
+			frozenLine: 120,
 		},
 	};
 	let clock = 0;
@@ -176,8 +176,8 @@ describe("backlog:migrate (AC 4)", () =>
 		expect(s1).toContain("changelog.d/S1.md");
 		const s4 = byTitle(fake, "S4")[0]!.body!;
 		expect(s4).toContain("- **Pull request:** pushed directly, before S121");
-		expect(s4).toContain(`[\`docs/v3/AUDIT.md\`](https://github.com/owner/bt/blob/${"b".repeat(40)}/docs/v3/AUDIT.md#L120)`);
-		expect(shippedSection({}, "o/r")).toContain("not recorded in the ledger");
+		expect(s4).toContain("[`docs/v3/AUDIT.md` line 120](https://github.com/owner/bt/blob/b/docs/v3/AUDIT.md?plain=1#L120)");
+		expect(shippedSection({}, "o/r", "b")).toContain("not recorded in the ledger");
 	});
 
 	it("closes a superseded story not_planned with status:superseded", () =>
@@ -287,7 +287,7 @@ describe("backlog:migrate (AC 4)", () =>
 			return undefined;
 		};
 		migrate(NOTES(), "b", h.io);
-		expect(h.sleeps).toEqual([7000]);
+		expect(h.sleeps.filter((ms) => ms !== 1000)).toEqual([7000]);
 		expect(byTitle(fake, "S1")).toHaveLength(1);
 	});
 
@@ -351,5 +351,69 @@ describe("backlog:migrate (AC 4)", () =>
 		expect(h.records).toHaveLength(records);
 		expect(fake.calls.slice(calls).filter((c) => c.method !== "GET")).toEqual([]);
 		expect(s.recorded).toEqual([]);
+	});
+
+	it("links a frozen-ledger entry at the migration's base commit as plain text (?plain=1), not at the shipping commit", () =>
+	{
+		const { fake, io } = harness(withBug());
+		migrate(NOTES(), "base123", io);
+		const s4 = byTitle(fake, "S4")[0]!.body!;
+		expect(s4).toContain("https://github.com/owner/bt/blob/base123/docs/v3/AUDIT.md?plain=1#L120");
+		expect(s4).not.toContain(`blob/${"b".repeat(40)}/docs/v3/AUDIT.md`);
+		// The fragment, grader and changelog links stay at the shipping commit.
+		expect(byTitle(fake, "S1")[0]!.body).toContain(`blob/${"a".repeat(40)}/docs/v3/audit/2026-11-01/x-S1-completed.md`);
+	});
+
+	it("a second run makes no write for a bug whose symptoms end in a newline", () =>
+	{
+		const fake = withBug();
+		fake.issues.get(50)!.body = "Steps: open a live game.\n\n";
+		const h = harness(fake);
+		migrate(NOTES(), "b", h.io);
+		const calls = fake.calls.length;
+		migrate(NOTES(), "b", h.io);
+		expect(fake.calls.slice(calls).filter((c) => c.method !== "GET")).toEqual([]);
+	});
+
+	it("throws when a write returns an issue that no longer carries the item's ID, rather than leave a duplicate for the next run", () =>
+	{
+		const fake = withBug();
+		const h = harness(fake);
+		fake.intercept = (call, f) =>
+		{
+			if (call.method === "POST" && call.path.endsWith("/issues"))
+			{
+				f.intercept = undefined;
+				const issue = f.add({
+					title: "S1: x",
+					labels: [],
+				});
+				return FakeGithub.respond(201, f.view(issue));
+			}
+			return undefined;
+		};
+		expect(() => migrate(NOTES(), "b", h.io)).toThrow(/S1: issue #\d+ as GitHub returned it carries no trusted ID S1/);
+		expect(h.records).toEqual([]);
+	});
+
+	it("rewrites links relative to the backlog into links at the base commit, keeping anchors and leaving absolute URLs alone", () =>
+	{
+		const { fake, io } = harness(withBug());
+		migrate(new Map([story("S7", "todo", "\nSee [VD](./VISUAL-DESIGN.md#videos), [A5](./visual/game-shell/amendments/A5.md), [web](https://example.test/a) and [here](#local).\n")]), "base9", io);
+		const body = byTitle(fake, "S7")[0]!.body!;
+		expect(body).toContain("[VD](https://github.com/owner/bt/blob/base9/docs/v3/VISUAL-DESIGN.md#videos)");
+		expect(body).toContain("[A5](https://github.com/owner/bt/blob/base9/docs/v3/visual/game-shell/amendments/A5.md)");
+		expect(body).toContain("[web](https://example.test/a)");
+		expect(body).toContain("[here](#local)");
+	});
+
+	it("paces writes: one second between write requests", () =>
+	{
+		const fake = withBug();
+		const h = harness(fake);
+		migrate(NOTES(), "b", h.io);
+		const writes = fake.calls.filter((c) => c.method !== "GET").length;
+		expect(writes).toBeGreaterThan(4);
+		expect(h.sleeps.filter((ms) => ms === 1000)).toHaveLength(writes - 1);
 	});
 });
