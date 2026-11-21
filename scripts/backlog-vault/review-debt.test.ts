@@ -514,8 +514,11 @@ function report(script: string, args: string[] = []): Report
 	return JSON.parse(run.stdout) as Report;
 }
 
-/** The base commit S163 started from: the debt scripts' text output must not change from it. */
-const S163_BASE = "9bebb01f";
+/**
+ * The debt scripts as they were at S163's base commit (9bebb01f), committed as fixtures (README there):
+ * their text output must not change. Read from files, not `git show`, which fails in CI's depth-1 checkout.
+ */
+const S163_BASE = join(VAULT, "fixtures/s163-base");
 
 describe("review-debt.sh and parity-debt.sh --json: the events behind a review's seed (S163 AC 3)", () =>
 {
@@ -718,12 +721,7 @@ describe("review-debt.sh and parity-debt.sh --json: the events behind a review's
 				[`${STORIES}/todo/S8.md`]: note("todo").replace("id: S7", "id: S8"),
 				"docs/v3/ARCHITECTURE.md": "# ADRs\n\n### ADR-021 — x\n\nOld body.\n",
 			});
-			const old = spawnSync("git", ["show", `${S163_BASE}:scripts/${script}`], {
-				cwd: ROOT,
-				encoding: "utf8",
-			});
-			expect(old.status, old.stderr).toBe(0);
-			write(`scripts/old-${script}`, old.stdout);
+			write(`scripts/old-${script}`, readFileSync(join(S163_BASE, `${script}.txt`), "utf8"));
 			write(".gitignore", "node_modules\nscripts/old-*\n");
 			commit("ignore the old copy");
 			SCENARIOS[scenario]!();

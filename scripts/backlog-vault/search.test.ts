@@ -7,7 +7,7 @@
  */
 import { execFileSync } from "node:child_process";
 import {
-	mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
+	copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -867,10 +867,8 @@ describe("changedRows: FEATURES and INTENT as source.ts reads them (S163 AC 2)",
 	it("featureNames and pillarNames, rebuilt on the entries, read the real FEATURES.md and INTENT.md as S163's base did", () =>
 	{
 		const dir = temp("source-base-");
-		writeFileSync(join(dir, "source.ts"), execFileSync("git", ["show", "9bebb01f:scripts/backlog-vault/source.ts"], {
-			cwd: REPO_ROOT,
-			encoding: "utf8",
-		}));
+		// S163's base source.ts (9bebb01f), a committed fixture: `git show` fails in CI's depth-1 checkout.
+		copyFileSync(join(REPO_ROOT, "scripts/backlog-vault/fixtures/s163-base/source.ts.txt"), join(dir, "source.ts"));
 		const features = readFileSync(join(REPO_ROOT, "docs/v3/FEATURES.md"), "utf8");
 		const intent = readFileSync(join(REPO_ROOT, "docs/v3/INTENT.md"), "utf8");
 		// The base module runs in plain node (type stripping), outside the test's module graph.
