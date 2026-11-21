@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Grader for BACKLOG story S123 — design amendment: the scoreboard's calendar date picker
-# (closed and open, typed date and its invalid state, month grid with weekday row and each
-# day's game count, dimmed no-game days, year and decade views, a month still loading its
-# counts, an off-season month, and the 1901-04-18 bound), with the Mantine / custom split
+# Grader for backlog story S123 — design amendment: the scoreboard's calendar date picker
+# (closed and open, typed date and its invalid states, month grid with weekday row and each
+# day's game count, dimmed no-game days, native month and year pickers, the favorite-team
+# mark, a month still loading its counts, one whose counts failed, an off-season month, the
+# 1901-04-18 bound and the short-screen sheet), with the Mantine / native / custom split
 # S125 builds from (rule 18).
-# Contract: docs/v3/BACKLOG.md#verify-script-contract
+# Contract: the Verify-script contract, in the backlog rules (docs/v3/backlog/frame/00)
 # No network. No writes outside /tmp. Does its own checking (never `pnpm verify`).
 #
 # Updated before shipping (2026-11-09, S123 pre-PR review G1–G9): S123's own changes are
@@ -13,8 +14,36 @@
 # pairing's width; the ratification record is read from its own section with the draft
 # markers and pending wording gone; the AC-1 terms must be in ## Frames; every frame
 # ## Frames lists must exist as one of its own; and every open question the draft asked has
-# its answer in ## Decisions. Each change only tightens a check: check 5 still fails on any
-# change S123 makes to another amendment.
+# its answer in ## Decisions. Each of those changes only tightened a check.
+#
+# Updated before shipping (2026-11-16, the redraw): the owner's 2026-11-09 review chose
+# native month and year pickers over drawn year and decade views ("Native month + year
+# (Recommended)"), and the owner's 2026-11-10 answers added AC 1's nested list, so AC 1 and
+# AC 2 were rewritten (S123's note). This is the one change that drops checks rather than
+# tightening them, because the ACs they proved no longer exist: the year, decade and
+# earliest-decade states leave the required list (check 2 now fails if any is drawn), and
+# check 3's "DatePicker line naming its month, year and decade levels" is replaced by AC 2's
+# own parts (the month grid, DateInput with its drop-down off, renderDay for the count and
+# the favorite-team mark, DatesProvider's consistentWeeks, the native month and year
+# pickers). Every other change tightens: the favorite and short-screen frames are required,
+# ## Frames must name AC 1's newly drawn parts, and the amendment must state what AC 1 says
+# it states (Esc, the URL and Back, Today, the arrows' ends, the slide's duration, the
+# short-screen height, months past next year and unknown months).
+#
+# Updated before shipping (2026-11-16, the owner's off-day mark): the owner replaced the
+# corner mark on days a favorite plays with a tiny ✕ on days the favorites don't ("show a
+# tiny red X icon in the same spot for days the favorite team does NOT play ... If >1 team
+# plays but not all, show a yellow x. Hovering over a day with an X shows a tooltip showing
+# "Off day: " ..."), and AC 1 was rewritten in those words. The required `favorite` state
+# becomes `offday`, and ## Frames must also name the "Off day" tooltip and the yellow ✕.
+# Both only tighten.
+#
+# Updated before shipping (2026-11-20, merged forward past S156): S156 retired the generated
+# docs/v3/BACKLOG.md, so check 6 could never pass again. It now reads S123's status where S156
+# keeps it, as AC 4 says: the note's frontmatter `status: done` and the note sitting in
+# docs/v3/backlog/stories/done/ (rule 7; rule 13; the 2026-11-20 backlog review). The same two
+# facts, from their new home, so nothing is loosened. The grader has no fence check, so the
+# story's own records (rule 13) need no exception.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -23,11 +52,11 @@ cd "$(dirname "$0")/.."
 source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "shell-scoreboard has its next free amendments/A<N>.md (new in S123) headed '(S123)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames"
-check 2 "frames at mobile, medium and desktop (PNGs at the ratified scoreboard frame's width): calendar closed and open, an invalid typed date and one before 1901-04-18, the year and decade views, a month loading its counts and one whose counts failed, an off-season month, and the earliest bound (April 1901 and the 1900s decade) — named <screen>[-<state>]-<pairing>.png and listed in ## Frames (every frame listed there exists as one of its own), which also covers the date field, weekday row, per-day game count, dimmed-but-pickable no-game days, future dates pickable and nothing before 1901-04-18"
-check 3 "the amendment's ## Components section says which parts are @mantine/dates (DatePicker month/year/decade levels, DateInput, renderDay for the count) and which are custom"
+check 2 "frames at mobile, medium and desktop (PNGs at the ratified scoreboard frame's width): calendar closed and open, the favorite teams' off-day ✕ (red, yellow) and its "Off day:" tooltip, an invalid typed date and one before 1901-04-18, a month loading its counts and one whose counts failed, an off-season month, and the earliest bound (April 1901), plus the short-screen sheet at mobile; no year, decade or earliest-decade view — named <screen>[-<state>]-<pairing>.png and listed in ## Frames (every frame listed there exists as one of its own), which also covers the date field, weekday row, per-day game count (bold day, count at 50%), dimmed-but-pickable no-game days, the native month and year pickers, the favorite-team mark, the six week rows, the mobile ✕, Today, future dates pickable and nothing before 1901-04-18; and the amendment states Esc, the URL and Back, Today off-season, the arrows' ends, the slide's duration, the short-screen height, a month past next year (month_too_late) and an unknown month (null counts)"
+check 3 "the amendment's ## Components section says which parts are @mantine/dates (the month grid, DateInput with its own drop-down off, renderDay for the count and the favorite-team mark, DatesProvider's consistentWeeks), which are native (the month and year pickers) and which are custom"
 check 4 "the amendment's ## Ratification names who ratified, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left"
 check 5 "no sealed file in shell-scoreboard changed (RATIFIED.md manifest still verifies; RATIFIED.md, ratified frames and every other amendment untouched by S123; every amendment's sealed frames present and unchanged)"
-check 6 "backlog Status is done (story heading and Story status table)"
+check 6 "S123's Status is done (its note's frontmatter status done, the note in docs/v3/backlog/stories/done/)"
 
 V="docs/v3/visual"
 S="shell-scoreboard"
@@ -109,7 +138,11 @@ png_ok() {
 	[ "$w" = "$want" ] || { echo "${w}px wide, not ${want}px"; return 1; }
 }
 
-STATES="closed open invalid tooearly year decade loading failed offseason earliest earliest-decade"
+STATES="closed open offday invalid tooearly loading failed offseason earliest"
+# Drawn at mobile only: the short-screen sheet (AC 1, Height) is a phone rule.
+MOBILE_ONLY="short"
+# Views AC 1 now rules out (native month and year pickers instead; owner, 2026-11-09).
+GONE="year decade earliest-decade"
 PAIRINGS="mobile medium desktop"
 
 if [ -z "$A" ]; then
@@ -170,6 +203,22 @@ else
 			echo "$frames_table" | grep -qF "\`$f\`" || bad 2 "$f not in ## Frames"
 		done
 	done
+	for st in $MOBILE_ONLY; do
+		f="scoreboard-calendar-$st-mobile.png"
+		if [ -f "$DIR/$f" ]; then
+			why=$(png_ok "$DIR/$f" mobile) || bad 2 "frame $f: $why"
+		else
+			bad 2 "frame $f missing"
+		fi
+		echo "$frames_table" | grep -qF "\`$f\`" || bad 2 "$f not in ## Frames"
+	done
+	for st in $GONE; do
+		for p in $PAIRINGS; do
+			f="scoreboard-calendar-$st-$p.png"
+			[ -f "$DIR/$f" ] && bad 2 "frame $f is drawn, but AC 1 draws no year or decade view"
+			echo "$frames_table" | grep -qF "$f" && bad 2 "$f is in ## Frames, but AC 1 draws no year or decade view"
+		done
+	done
 	own=$(own_frames)
 	# Every frame ## Frames names (backticked or not, any case or spelling) is drawn, exported as
 	# one of this amendment's own frames and named by the rule, so a row can't promise a state
@@ -193,17 +242,30 @@ else
 		echo "$frames_table" | grep -qF "\`$f\`" || bad 2 "$f not in ## Frames"
 	done
 	# AC 1's parts are drawn, so ## Frames (what each export shows) names them, not prose elsewhere.
-	for term in "date field" "weekday" "game count" "dimmed" "pickable" "future" "1901-04-18"; do
+	for term in "date field" "weekday" "game count" "dimmed" "pickable" "future" "1901-04-18" \
+		"gm" "50%" "bold" "favorite" "Off day" "yellow" "native" "six week rows" "✕" "Today"; do
 		echo "$frames_table" | grep -qiF "$term" || bad 2 "## Frames never mentions '$term'"
 	done
+	# What AC 1 says the amendment states in words, wherever in it.
+	for term in "Esc" "URL" "Back" "month_too_late" "null" "December 2019" "next year" "April 1901"; do
+		grep -qF "$term" "$A" || bad 2 "the amendment never states '$term' (AC 1)"
+	done
+	# The slide's duration and the short-screen height as numbers, not bare "ms"/"px" (which "items" or any
+	# width matches; Claude's review of #127, tightened before shipping, rule 7).
+	grep -qE 'slide is [0-9]+ ?ms' "$A" || bad 2 "the amendment never states the slide's duration in ms (AC 1)"
+	grep -qE 'short-screen line is [0-9]+ ?px' "$A" || bad 2 "the amendment never states the short-screen height in px (AC 1)"
 
 	# --- Check 3: Mantine vs custom -----------------------------------------------
 	comps=$(section "$A" Components)
 	echo "$comps" | grep -qF "@mantine/dates" || bad 3 "## Components never names '@mantine/dates'"
-	echo "$comps" | grep -E 'DatePicker([^I]|$)' | grep -i month | grep -i year | grep -qi decade ||
-		bad 3 "## Components has no DatePicker line naming its month, year and decade levels"
-	echo "$comps" | grep -qF "DateInput" || bad 3 "## Components never names 'DateInput'"
-	echo "$comps" | grep -F "renderDay" | grep -qi "count" || bad 3 "## Components has no renderDay line for the game count"
+	echo "$comps" | grep -i "month grid" | grep -qF "@mantine/dates" ||
+		echo "$comps" | grep -qiE '^- \*\*Mantine `?(Month|DatePicker)`?' ||
+		bad 3 "## Components never names Mantine's month grid of days"
+	echo "$comps" | grep -F "DateInput" | grep -qiE 'drop-?down|popover' || bad 3 "## Components has no DateInput line turning its own drop-down off"
+	echo "$comps" | grep -F "renderDay" | grep -i "count" | grep -qi "favorite" || bad 3 "## Components has no renderDay line for the game count and the favorite-team mark"
+	echo "$comps" | grep -F "DatesProvider" | grep -qF "consistentWeeks" || bad 3 "## Components has no DatesProvider consistentWeeks line"
+	echo "$comps" | grep -i "native" | grep -i "month" | grep -qi "year" || bad 3 "## Components has no line naming the native month and year pickers"
+	echo "$comps" | grep -qiE 'level|decade' && bad 3 "## Components still names DatePicker levels or a decade view"
 	echo "$comps" | grep -qE '^- \*\*Custom:\*\*' || bad 3 "## Components has no '- **Custom:**' line"
 
 	# --- Check 4: ratification record ---------------------------------------------
@@ -269,12 +331,13 @@ for a in "$DIR"/A[0-9]*.md; do
 	done <<< "$(section "$a" Manifest | grep -E '^[0-9a-f]{64}  ')"
 done
 
-# --- Check 6: backlog Status is done -------------------------------------------------
-grep -qE '^\| [0-9]+ \| \[S123\].*\| `done` \|' docs/v3/BACKLOG.md ||
-	bad 6 "S123 row in the Story status table is not \`done\`"
-awk '/^### S123 —/{f=1;next} /^### S[0-9]/{f=0} f' docs/v3/BACKLOG.md |
-	grep -qE '^\*\*Status:\*\* `done`$' ||
-	bad 6 "S123 story heading Status is not \`done\`"
+# --- Check 6: S123's Status is done ---------------------------------------------------
+NOTE="docs/v3/backlog/stories/done/S123.md"
+if [ -f "$NOTE" ]; then
+	awk '/^---$/{n++;next} n==1' "$NOTE" | grep -qE '^status: done$' || bad 6 "S123's note's frontmatter status is not done"
+else
+	bad 6 "S123's note is not in docs/v3/backlog/stories/done/"
+fi
 
 report "verify-S123"
 exit $?
