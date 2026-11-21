@@ -14,6 +14,11 @@
  * A note sits in `bugs/<status>/B<N>.md`, the folder named by its status, like a story note
  * (vault.ts storyNotePath). Build moves it there and keeps its text as written; there is nothing
  * derived to refresh.
+ *
+ * Since S164 the notes are retired: a bug is its GitHub issue, labelled `bug`, with its priority in
+ * its recorded fields block once accepted (text-records.ts) and its status on GitHub; the bugs as
+ * they are now are read through github.ts's overlay (itemsFromCache). The note readers here stay for
+ * history at older commits (search.ts notesSource).
  */
 
 import { parse } from "yaml";

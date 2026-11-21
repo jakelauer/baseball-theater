@@ -42,6 +42,51 @@ story_changes()
     }' | sort -t $'\t' -k2,2
 }
 
+# record_changes <base> — the story text records (S164: a story's text is its GitHub issue, and the
+# repository keeps its text as ledger fragments, scripts/backlog-vault/text-records.ts) added since
+# <base>, one tab-separated line each, sorted by ID (text-records.ts `changes`):
+#   A <id> <path>                   a story created (an `inserted` event)
+#   R <id> <before path> <path>     a story's text edited: compare the two bodies (read at HEAD)
+#   X <id> <path>                   a migration that rewrote the story's text (an `ac-rewritten` event)
+# A migration fragment is never an insertion, so the migrated IDs don't flood a review.
+record_changes()
+{
+  local added
+  added="$(git diff --name-only --diff-filter=A "$1" HEAD -- docs/v3/audit |
+    grep -E -- '-S[0-9]+-(create|edit|migration)\.md$' || true)"
+  [ -z "$added" ] && return 0
+  # shellcheck disable=SC2086
+  node scripts/backlog-vault/text-records.ts changes $added | sort -t $'\t' -k2,2
+}
+
+# migrated_ids <base> — the IDs whose migration fragment was added since <base>: their notes' deletion
+# (S164 retired the notes) is the migration, not a removal.
+migrated_ids()
+{
+  git diff --name-only --diff-filter=A "$1" HEAD -- docs/v3/audit |
+    sed -nE 's#.*-([SB][0-9]+)-migration\.md$#\1#p'
+}
+
+# migrated_deletions <base> — one `D<TAB><id><TAB>` line per migrated ID, the story_changes lines the
+# debt scripts drop (a note the migration deleted is not a removal). Built with printf, never with
+# `sed 's/^/D\t/'`: BSD sed (macOS) reads that `\t` as a literal `t`, so nothing would match.
+migrated_deletions() { migrated_ids "$1" | while IFS= read -r id; do printf 'D\t%s\t\n' "$id"; done; }
+
+# record_body <path> — a text record's body at HEAD (between its markers).
+record_body() { git show "HEAD:$1" 2>/dev/null | awk '/^<!-- bt-body:end -->$/ { on = 0 } on { print } /^<!-- bt-body:begin -->$/ { on = 1 }'; }
+
+# record_fields <path> — the text of a record's `### Backlog fields` section (its last one), so a
+# `priority:` line elsewhere in the body is never read as the story's priority.
+record_fields() { record_body "$1" | awk '/^### Backlog fields$/ { buf = ""; on = 1; next } on { buf = buf $0 "\n" } END { printf "%s", buf }'; }
+
+# cache_removed <base> — the stories closed not_planned since <base>'s commit time, one ID a line, from
+# the issue cache (S164: GitHub owns state, so the `removed` drift event lives there, not in a record).
+# With no cache github.ts says "no cache: removed events not counted" on stderr and prints nothing.
+cache_removed() {
+  [ -f scripts/backlog-vault/github.ts ] || return 0
+  node scripts/backlog-vault/github.ts removed --since "$(git show -s --format=%cI "$1")" || true
+}
+
 # The debt scripts' `--json` report (S163): `pnpm backlog:search seed` reads it to start a review
 # from what changed. Values here are story IDs, repo paths, shas and ADR numbers, so escaping
 # backslashes and double quotes is enough.

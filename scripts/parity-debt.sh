@@ -17,7 +17,8 @@
 # is logged the same way, so none counts as debt. The stories-done count resets only on
 # a review itself, never on answers or a skip (owner, 2026-11-03: "Skip notes should
 # not reset the counter").
-# Due when, since then: a product doc changed, a story note was added or removed, a
+# Due when, since then: a product doc changed, a story was created (a `create` text record) or
+# closed not_planned (removed, from the issue cache when there is one), a
 # story's **Source:** line changed, a pillar-cited story's purpose changed (its Gap,
 # Impact or acceptance criteria — the owner's approval may no longer cover it), or 6
 # stories went `done` (doubled from 3 by the owner, 2026-10-21). Other story-text edits
@@ -25,7 +26,8 @@
 # pillar story's scope list, goal-line paths, work items or notes don't change what it is
 # for (owner, 2026-10-23: narrowed after scope-list edits alone kept making it due).
 #
-# Reads committed history only (HEAD); uncommitted edits are not counted.
+# Reads committed history (HEAD; uncommitted edits are not counted) and, for the `removed` event,
+# the issue cache when there is one (scripts/lib/story-notes.sh cache_removed).
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -110,7 +112,33 @@ while IFS=$'\t' read -r change id before_path after_path; do
     reasons+=("${id}'s Gap, Impact or acceptance criteria changed, and it cites a pillar")
     json_event purpose-changed id "$id"
   fi
-done < <(story_changes "$base" HEAD "$STORIES")
+done < <(story_changes "$base" HEAD "$STORIES" | grep -vFf <(migrated_deletions "$base") )
+
+# Since S164 a story's text changes through its text records (scripts/lib/story-notes.sh record_changes).
+while IFS=$'\t' read -r change id before_path after_path; do
+  [ -z "$id" ] && continue
+  case "$change" in
+    A) reasons+=("${id} added"); json_event inserted id "$id"; continue ;;
+    R) ;;
+    *) continue ;;
+  esac
+  before="$(record_body "$before_path")"
+  after="$(record_body "$after_path")"
+  if [ "$(grep '^\*\*Source:\*\*' <<<"$before")" != "$(grep '^\*\*Source:\*\*' <<<"$after")" ]; then
+    reasons+=("${id}'s **Source:** changed")
+    json_event source-changed id "$id"
+  fi
+  if grep -q '^\*\*Source:\*\* Pillar:' <<<"$before$after" &&
+    [ "$(purpose <<<"$before")" != "$(purpose <<<"$after")" ]; then
+    reasons+=("${id}'s Gap, Impact or acceptance criteria changed, and it cites a pillar")
+    json_event purpose-changed id "$id"
+  fi
+done < <(record_changes "$base")
+
+# A story closed not_planned since the base: GitHub owns state, so this comes from the issue cache.
+while IFS= read -r id; do
+  [ -n "$id" ] && reasons+=("${id} removed (closed not_planned)") && json_event removed id "$id"
+done < <(cache_removed "$base")
 
 # Stories completed since the newest parity entry, by ledger order (re-verifications don't count).
 done_since="$("${LEDGER_CLI[@]}" done-since parity)" || { echo "could not read ${LEDGER}" >&2; exit 2; }

@@ -21,7 +21,7 @@ import type {
 } from "./search.ts";
 import {
 	auditLedgerPath, changedRows, citedIssues, cites, dependents, deps, design, isFrontendAdr, issueLine, issuesWindowStart, item, itemsFromNotes, listIssues, main,
-	neighbors, next, nextPage, nextTodo, path, SearchUsageError, seedBacklog, seedInFlight, seedIntake, seedParity, text,
+	neighbors, next, nextTodo, path, SearchUsageError, seedBacklog, seedInFlight, seedIntake, seedParity, text,
 } from "./search.ts";
 import { featureNames, pillarNames } from "./source.ts";
 
@@ -363,9 +363,12 @@ function stubIo(over: Partial<SeedDeps> & { report?: DebtReport } = {}): SeedDep
 	};
 }
 
-/** A `gh api -i` response: headers, a blank line, the JSON body. */
+/**
+ * A `gh api -i` response: headers, a blank line, the JSON body. Its Link header names pages by path:
+ * nextPage (github.ts, tested in github.test.ts with GitHub's own host) passes a path through as it is.
+ */
 const response = (body: unknown, next?: string, date?: string) => `HTTP/2.0 200 OK\nContent-Type: application/json\n${date ? `Date: ${date}\n` : ""}${
-	next ? `Link: <https://api.github.com/${next}>; rel="next", <https://api.github.com/x?page=9>; rel="last"\n` : ""}\n${JSON.stringify(body)}`;
+	next ? `Link: <${next}>; rel="next", <x?page=9>; rel="last"\n` : ""}\n${JSON.stringify(body)}`;
 
 describe("issues by change, through REST (S163 AC 4)", () =>
 {
@@ -437,13 +440,6 @@ describe("issues by change, through REST (S163 AC 4)", () =>
 		});
 		expect(requestsAtStart).toBe(0);
 		expect(none.started).toBe("2026-11-20T10:00:00.000Z");
-	});
-
-	it("nextPage reads the Link header's next page, and none on the last page", () =>
-	{
-		expect(nextPage("Link: <https://api.github.com/repositories/1/issues?page=2>; rel=\"next\"")).toBe("repositories/1/issues?page=2");
-		expect(nextPage("Link: <https://api.github.com/x?page=1>; rel=\"prev\"")).toBeUndefined();
-		expect(nextPage("")).toBeUndefined();
 	});
 
 	it("the window starts at the design intake's issues line when one was logged after the last backlog review, else the fallback", () =>
@@ -552,6 +548,56 @@ describe("the review seeds (S163 AC 2)", () =>
 		expect(seed.picks.find((p) => p.id === "S101")?.reasons).toContain("depends on S800, removed");
 		expect(seed.picks.find((p) => p.id === "S102")?.reasons).toContain("prefers after S800, removed");
 		expect(ids(seed.picks)).not.toContain("S800");
+	});
+
+	it("seed backlog reads a story closed not_planned through the debt report's removed event, never the issues window, and seeds an issue that is an item once, by its ID", () =>
+	{
+		const items = backlog([{
+			id: "S800",
+			priority: 40,
+			status: "superseded",
+		}, {
+			id: "S101",
+			priority: 50,
+			depends: ["S800"],
+		}, {
+			id: "S102",
+			priority: 60,
+			preferAfter: ["S800"],
+		}]).map((i) => (i.id === "S800" ? {
+			...i,
+			issue: 812,
+		} : i.id === "S101" ? {
+			...i,
+			issue: 813,
+		} : i));
+		const issues = [{
+			number: 812,
+			state: "closed",
+			labels: ["story", "status:superseded"],
+			title: "S800: dropped",
+		}, {
+			number: 813,
+			state: "open",
+			labels: ["story"],
+			title: "S101: x",
+		}];
+		// Only touched since the window (updated_at), not closed in it: no removed event, so its dependents aren't read for it.
+		const touched = seedBacklog(items, report([]), {
+			issues,
+		});
+		expect(touched.picks.find((p) => p.id === "S101")?.reasons ?? []).not.toContain("depends on S800, removed");
+		const removed = seedBacklog(items, report([{
+			kind: "removed",
+			id: "S800",
+		}]), {
+			issues,
+		});
+		expect(removed.picks.find((p) => p.id === "S101")?.reasons).toContain("depends on S800, removed");
+		expect(removed.picks.find((p) => p.id === "S102")?.reasons).toContain("prefers after S800, removed");
+		expect(ids(removed.picks)).not.toContain("#812");
+		expect(ids(removed.picks)).not.toContain("#813");
+		expect(removed.picks.find((p) => p.id === "S101")?.reasons).toContain("issue opened or updated since the last window");
 	});
 
 	it("an evented item far down the order gets its own neighbors", () =>
@@ -904,6 +950,22 @@ describe("the seed command (S163 AC 2)", () =>
 		expect(out.queries[0]).toMatch(/^query: seed parity --since abc1234 → /);
 	});
 
+	it("prints each picked item with its issue link, and an unaccepted bug as unaccepted, not a fake note path or pInfinity", async () =>
+	{
+		const out = await main(["seed", "backlog", "--since", "abc1234"], {
+			items: async () => backlog([]).map((i) => ({
+				...i,
+				issue: Number(i.id.slice(1)) + 100,
+				...(i.id === "S9" ? {
+					priority: Number.POSITIVE_INFINITY,
+				} : {}),
+			})),
+		}, stubIo());
+		expect(out).toMatch(/^S9 `todo` unaccepted .* — #109$/m);
+		expect(out).not.toContain("pInfinity");
+		expect(out).not.toMatch(/— docs\/v3\/backlog\/issue #/);
+	});
+
 	it("refuses an empty --since (no review logged yet) with exit 2", async () =>
 	{
 		await expect(main(["seed", "parity", "--since", ""], source(), stubIo())).rejects.toThrow(/no parity review logged/);
@@ -1114,7 +1176,7 @@ describe("the seed's reach outside the notes (S163 AC 2)", () =>
 			}
 			if (n === "31")
 			{
-				throw new Error("Command failed: gh api repos/{owner}/{repo}/issues/31\nerror connecting to api.github.com");
+				throw new Error("Command failed: gh api repos/{owner}/{repo}/issues/31\nerror connecting to the API host");
 			}
 			return JSON.stringify({
 				state: "open",

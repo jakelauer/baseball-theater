@@ -14,7 +14,7 @@ Rule 19 (frame note `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable 
 `pnpm parity:debt` exits 1 and says why when, since the commit that logged the last parity review or the owner's answers to it:
 
 - a product doc changed (INTENT, ORIGIN, FEATURES, VISUAL-DESIGN, ARCHITECTURE),
-- a story note was added or removed,
+- a story was added (a `create` record) or removed (closed `not_planned`),
 - a story's `**Source:**` line changed,
 - a **pillar-cited** story's Gap, Impact or acceptance criteria changed (the approval may no longer cover it), or
 - **6** stories went `done` (doubled from 3 by the owner, 2026-10-21; any single change above still makes it due).
@@ -23,14 +23,14 @@ Other story-text edits don't count: a feature citation is checked against FEATUR
 
 Do not start a story while it is due. Run it with **fresh context** (a separate agent or session; as a subagent, the `doc-parity-reviewer` agent type, which loads this skill). An agent that wrote a story will defend its citation.
 
-**It runs beside the items in flight, never pausing them** (S156; owner, 2026-11-20, asked "Should backlog and doc parity reviews run in parallel with in-flight items? …": _"Run them in parallel (Recommended)"_). `pnpm parity:debt` reads the in-flight items from `.run/` (or `--in-flight <IDs>`) and prints the `done` count and the in-flight count. While items are in flight, edit only notes of items not in flight (not claimed in `.run/claims/`): before committing, `git diff --name-only <base> | node scripts/backlog-vault/claims.ts review-edits --root "$MAIN"` (`MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")`, the main checkout, where `.run/` lives) reports an edit to an in-flight item's note (exit 1), which you undo and report instead. A finding on an in-flight item's `**Source:**` line goes to the overseer, who hands it to that item's worker before it ships; a `blocked` verdict stops new dispatches only, and in-flight items finish; log the IDs with `scripts/audit.sh parity … --in-flight <IDs>`.
+**It runs beside the items in flight, never pausing them** (S156; owner, 2026-11-20, asked "Should backlog and doc parity reviews run in parallel with in-flight items? …": _"Run them in parallel (Recommended)"_). `pnpm parity:debt` reads the in-flight items from `.run/` (or `--in-flight <IDs>`) and prints the `done` count and the in-flight count. While items are in flight, edit only the text of items not in flight (not claimed in `.run/claims/`): before committing, `git diff --name-only <base> | node scripts/backlog-vault/claims.ts review-edits --root "$MAIN"` (`MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")`, the main checkout, where `.run/` lives) reports a text record of an in-flight item (exit 1), which you undo and report instead. A finding on an in-flight item's `**Source:**` line goes to the overseer, who hands it to that item's worker before it ships; a `blocked` verdict stops new dispatches only, and in-flight items finish; log the IDs with `scripts/audit.sh parity … --in-flight <IDs>`.
 
 ## Write scope: this is what prevents thrash
 
 You may edit **only**:
 
 - `docs/v3/FEATURES.md` and `docs/v3/INTENT.md`
-- the `**Source:**` line of story notes in `docs/v3/backlog/stories/<status>/` (then `pnpm backlog:build`), except notes of items in flight (below)
+- the `**Source:**` line of a story's text, through `scripts/audit.sh edit` (applied with `scripts/audit.sh apply` after the merge), except items in flight (below)
 - the ledger (a new fragment under `docs/v3/audit/<date>/`), via `scripts/audit.sh parity` only
 
 And only to **record a decision the owner has already made**: their words in this session, a story they asked for, or a commit or ledger entry that records their call. Cite it in the finding. Never write product intent yourself.

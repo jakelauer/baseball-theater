@@ -147,3 +147,32 @@ story_own_changed_files() {
     [ -z "$(story_tip "$id")" ] && git -c core.quotepath=false ls-files --others --exclude-standard -- "$@"
   } | grep -v '^$' | sort -u
 }
+
+# story_snapshot_file <ID> — the story's newest ship-time snapshot fragment (S164), or nothing.
+# `audit.sh story` writes it before it runs the grader, so the grader always finds its own.
+story_snapshot_file() {
+  # The fragments folder beside the ledger audit.sh writes (`BT_AUDIT_LEDGER`'s lower-case sibling).
+  local ledger="${BT_AUDIT_LEDGER:-docs/v3/AUDIT.md}"
+  find "$(dirname "$ledger")/$(basename "$ledger" .md | tr '[:upper:]' '[:lower:]')" -type f -name "*-$1-snapshot.md" 2>/dev/null | awk -F/ '{ print $NF "\t" $0 }' | LC_ALL=C sort | tail -1 | cut -f2
+}
+
+# story_snapshot <ID> — the story's text as it shipped: its newest snapshot's body, byte-exact
+# (S164 AC 5). Fails (exit 1, nothing printed) when there is no snapshot or its body doesn't hash to
+# the SHA-256 the snapshot states. Graders written after S164 read a story's text here, never from
+# the network or the issue cache, so they prove the same thing wherever and whenever they run.
+story_snapshot() {
+  local f
+  f="$(story_snapshot_file "$1")"
+  [ -n "$f" ] || return 1
+  node "${BASH_SOURCE[0]%/*}/../backlog-vault/text-records.ts" body "$f" 2>/dev/null
+}
+
+# story_snapshot_status <ID> — the status the story ships with, from its newest snapshot (`done`,
+# written by `audit.sh story`), or nothing when it has none. Its passing grader and pnpm verify are
+# what make the story done; GitHub's label follows after the merge.
+story_snapshot_status() {
+  local f
+  f="$(story_snapshot_file "$1")"
+  [ -n "$f" ] || return 0
+  grep -m1 '^| Status | `' "$f" | sed -E 's/^\| Status \| `([^`]*)`.*$/\1/'
+}

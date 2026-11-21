@@ -1,17 +1,18 @@
 /**
  * Law L13 (S156, AC 10; owner, 2026-11-20: "Add both (Recommended)"): story records are
  * merge-safe. Three stories finished on three branches cut from one base each write every record
- * a finished story writes — its note flipped to `done` with a `**Baseline:**` line (rule 17), a
- * completion fragment written by the real `scripts/audit.sh` (a new file under docs/v3/audit/),
- * a `changelog.d/<ID>.md` fragment (rule 16) and an edit to its own Current baseline area row —
+ * a finished story writes since S164 — an `edit` text record adding its `**Baseline:**` line (rule 17),
+ * then a ship-time `snapshot` and a completion fragment written by the real `scripts/audit.sh` (new
+ * files under docs/v3/audit/), a `changelog.d/<ID>.md` fragment (rule 16) and an edit to its own
+ * Current baseline area row — and each branch also records a `create` for a new story of its own;
  * and the branches merge in all six orders with no conflict, `pnpm backlog:check` passing after
  * every merge. Before S156 the same three would have conflicted on AUDIT.md, CHANGELOG.md, the
  * As of line and the generated files.
  *
- * Runs in a throwaway repository under the OS temp directory holding a copy of today's notes,
+ * Runs in a throwaway repository under the OS temp directory holding a copy of today's frame notes and text records,
  * FEATURES/INTENT (rule 19's **Source:** check), the frozen AUDIT.md (which draws the pre-S156
  * line for records.ts) and changelog.d/, so it checks the real record formats rather than a
- * fixture's. The three stories are the first `todo` notes with no design and no dependencies,
+ * fixture's. The three stories are the first migrated open stories with no design and no dependencies,
  * so the test keeps working as the backlog moves. Child processes get an environment built
  * from scratch (no user git config, hooks or signing), so the developer's setup can't change
  * the result.
@@ -19,7 +20,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-	chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync,
+	chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -28,6 +29,9 @@ import {
 	afterAll, beforeAll, describe, expect, it,
 } from "vitest";
 import { FROZEN_AUDIT_SHA256, readLedger } from "./ledger.ts";
+import {
+	parseFields, readRecords, renderFields,
+} from "./text-records.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const CLI = join(ROOT, "scripts/backlog-vault/cli.ts");
@@ -73,18 +77,17 @@ function backlog(command: "check" | "build"): { status: number | null;
 	return run(process.execPath, [CLI, command, "--quiet", "--dir", join(repo, "docs/v3/backlog"), "--audit", join(repo, "docs/v3/AUDIT.md"), "--index", join(repo, "docs/v3/audit.jsonl")]);
 }
 
-/** The first three `todo` notes with no design and no dependencies (no gate stops them going `done`). */
+/** The first three open stories (a migration record with a rewrite) with no design and no dependencies (no gate stops them going `done`). */
 function pickStories(): string[]
 {
-	const dir = join(repo, "docs/v3/backlog/stories/todo");
-	return readdirSync(dir)
-		.filter((f) => /^S\d+\.md$/.test(f))
-		.filter((f) =>
+	return readRecords(join(repo, "docs/v3/audit"))
+		.filter((r) => r.kind === "migration" && r.id.startsWith("S") && r.rewrites.length > 0)
+		.filter((r) =>
 		{
-			const text = readFileSync(join(dir, f), "utf8");
-			return /^design: \[\]$/m.test(text) && /^depends_on: \[\]$/m.test(text);
+			const fields = parseFields(r.body, r.id);
+			return fields.design.length === 0 && fields.depends_on.length === 0;
 		})
-		.map((f) => f.replace(/\.md$/, ""))
+		.map((r) => r.id)
 		.sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)))
 		.slice(0, 3);
 }
@@ -113,11 +116,17 @@ function editRow(index: number, marker: string): void
 function finishOnBranch(id: string, base: string, row: number): void
 {
 	git(["switch", "-q", "-c", `story/${id}`, base]);
-	const note = join(repo, `docs/v3/backlog/stories/todo/${id}.md`);
-	const text = readFileSync(note, "utf8")
-		.replace(/^status: todo$/m, "status: done")
-		.replace(/^(\*\*Impact:\*\*.*)$/m, `$1\n\n**Baseline:** ${id} finished in the merge-safety test; the baseline row it reaches says so.`);
-	writeFileSync(note, text);
+	const newest = readRecords(join(repo, "docs/v3/audit")).filter((r) => r.id === id).at(-1)!;
+	writeFileSync(join(tmp, `${id}.md`), newest.body.replace(/^(\*\*Impact:\*\*.*)$/m, `$1\n\n**Baseline:** ${id} finished in the merge-safety test; the baseline row it reaches says so.`));
+	const edit = run("bash", ["scripts/audit.sh", "edit", id, "--body-file", join(tmp, `${id}.md`), "--reason", "its Baseline line"]);
+	expect(edit.status, edit.out).toBe(0);
+	// A new story of the branch's own, so a create fragment merges too.
+	const created = `S${9000 + Number(id.slice(1))}`;
+	writeFileSync(join(tmp, `${created}.md`), `**Gap:** g\n\n**Source:** ${/^\*\*Source:\*\*.*$/m.exec(newest.body)![0].replace("**Source:** ", "")}\n\n${renderFields({
+		priority: 500,
+	})}`);
+	const create = run("bash", ["scripts/audit.sh", "create", created, "--title", "a new story", "--body-file", join(tmp, `${created}.md`), "--reason", "merge-safety"]);
+	expect(create.status, create.out).toBe(0);
 	editRow(row, `(${id} merge-safety)`);
 	mkdirSync(join(repo, "changelog.d"), {
 		recursive: true,
@@ -170,13 +179,16 @@ beforeAll(() =>
 			});
 		}
 	}
-	for (const path of ["docs/v3/FEATURES.md", "docs/v3/INTENT.md", "docs/v3/AUDIT.md", "scripts/audit.sh", "scripts/lib/checks.sh", "scripts/lib/reverify.sh"])
+	for (const path of ["docs/v3/FEATURES.md", "docs/v3/INTENT.md", "docs/v3/AUDIT.md", "scripts/audit.sh", "scripts/lib/checks.sh", "scripts/lib/reverify.sh",
+		"scripts/backlog-vault/text-records.ts", "scripts/backlog-vault/ledger.ts"])
 	{
 		mkdirSync(dirname(join(repo, path)), {
 			recursive: true,
 		});
 		cpSync(join(ROOT, path), join(repo, path));
 	}
+	// audit.sh runs text-records.ts, which needs yaml: this checkout's node_modules, linked (and git-ignored).
+	spawnSync("ln", ["-s", join(ROOT, "node_modules"), join(repo, "node_modules")]);
 	// The built files are git-ignored by the real repository's own .gitignore (AC 8), copied rather than
 	// restated, so a .gitignore that stopped ignoring them would fail here.
 	cpSync(join(ROOT, ".gitignore"), join(repo, ".gitignore"));
@@ -243,7 +255,10 @@ describe("story records merge in any order (law L13)", () =>
 		expect(completed.sort()).toEqual([...ids].sort());
 		for (const id of ids)
 		{
-			expect(readFileSync(join(repo, `docs/v3/backlog/stories/done/${id}.md`), "utf8")).toMatch(/^\*\*Baseline:\*\* /m);
+			const snapshot = readRecords(join(repo, "docs/v3/audit")).filter((r) => r.kind === "snapshot" && r.id === id).at(-1)!;
+			expect(snapshot.status).toBe("done");
+			expect(snapshot.body).toMatch(/^\*\*Baseline:\*\* /m);
+			expect(readRecords(join(repo, "docs/v3/audit")).some((r) => r.kind === "create" && r.id === `S${9000 + Number(id.slice(1))}`)).toBe(true);
 			expect(existsSync(join(repo, `changelog.d/${id}.md`))).toBe(true);
 			expect(readFileSync(join(repo, BASELINE_NOTE), "utf8")).toContain(`(${id} merge-safety)`);
 		}

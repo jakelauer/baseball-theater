@@ -244,3 +244,119 @@ describe("audit.sh arguments and fragment writes (S156)", () =>
 		expect(day[0]).toMatch(/\/\.\d{8}T\d{6}Z-S9001-completed\.md\.\d+\.tmp$/);
 	});
 });
+
+describe("ship-time snapshots (S164 AC 5)", () =>
+{
+	/** Adds the text-record tooling to the throwaway repository (with this checkout's node_modules, for yaml). */
+	function withRecords(): void
+	{
+		for (const f of ["backlog-vault/text-records.ts", "backlog-vault/ledger.ts"]) copyFileSync(join(SCRIPTS, f), join(mkdirOf(`scripts/${f}`), f.split("/").pop()!));
+		spawnSync("ln", ["-s", join(SCRIPTS, "../node_modules"), join(repo, "node_modules")]);
+	}
+
+	it("a completion writes the snapshot before the grader runs, so the grader reads its status from it, and the completion names it", () =>
+	{
+		shippedThenBroken();
+		withRecords();
+		write("scripts/verify-S902.sh", [
+			"#!/usr/bin/env bash",
+			"cd \"$(dirname \"$0\")/..\"",
+			"source scripts/lib/checks.sh",
+			"check 1 \"S902's snapshot records done\"",
+			"[ \"$(story_snapshot_status S902)\" = done ] || bad 1 \"no snapshot yet\"",
+			"story_snapshot S902 | grep -q '^\\*\\*Baseline:\\*\\* b$' || bad 1 \"snapshot text\"",
+			"report \"verify-S902\"",
+			"exit $?",
+			"",
+		].join("\n"));
+		spawnSync("chmod", ["+x", join(repo, "scripts/verify-S902.sh")]);
+		write("body.md", "**Gap:** g\n\n**Baseline:** b\n\n### Backlog fields\n\n```yaml\npriority: 3\n```\n");
+		const created = audit(["create", "S902", "--title", "nine oh two", "--body-file", "body.md", "--reason", "new"]);
+		expect(created.status, String(created.stderr)).toBe(0);
+		const run = audit(["story", "S902", "--no-verify"]);
+		expect(run.status, String(run.stdout) + String(run.stderr)).toBe(0);
+		const ledger = written();
+		expect(ledger).toMatch(/S902 snapshot[\s\S]*\| Status \| `done` \|/);
+		expect(ledger).toMatch(/S902 completed[\s\S]*\| Snapshot \| `docs\/v3\/audit\/[^`]+-S902-snapshot\.md` — SHA-256 `[0-9a-f]{64}` \|/);
+		expect(ledger).toContain("**nine oh two**");
+	});
+
+	it("a failed grader leaves no snapshot behind, and its completion entry names none", () =>
+	{
+		shippedThenBroken();
+		withRecords();
+		write("scripts/verify-S903.sh", "#!/usr/bin/env bash\nexit 1\n");
+		spawnSync("chmod", ["+x", join(repo, "scripts/verify-S903.sh")]);
+		write("body.md", "**Gap:** g\n\n### Backlog fields\n\n```yaml\npriority: 3\n```\n");
+		expect(audit(["create", "S903", "--title", "nine oh three", "--body-file", "body.md", "--reason", "new"]).status).toBe(0);
+		const run = audit(["story", "S903", "--no-verify"]);
+		expect(run.status).toBe(1);
+		expect(String(run.stdout)).toContain("so its snapshot");
+		expect(spawnSync("find", [join(repo, "docs/v3/audit"), "-name", "*-S903-snapshot.md"], {
+			encoding: "utf8",
+		}).stdout.trim()).toBe("");
+		expect(written()).not.toMatch(/S903 completed[\s\S]*\| Snapshot \|/);
+	});
+
+	it("refuses a story whose text records fork, writing no snapshot", () =>
+	{
+		shippedThenBroken();
+		withRecords();
+		write("scripts/verify-S904.sh", "#!/usr/bin/env bash\nexit 0\n");
+		spawnSync("chmod", ["+x", join(repo, "scripts/verify-S904.sh")]);
+		write("body.md", "**Gap:** g\n\n### Backlog fields\n\n```yaml\npriority: 3\n```\n");
+		expect(audit(["create", "S904", "--title", "nine oh four", "--body-file", "body.md", "--reason", "new"]).status).toBe(0);
+		// Relative to the repository (cwd), as audit.sh runs it: an absolute /var/… path doesn't match the
+		// module's real /private/var/… path on macOS, so its CLI guard wouldn't run.
+		const from = spawnSync(process.execPath, ["scripts/backlog-vault/text-records.ts", "newest", "S904", "--field", "hash"], {
+			cwd: repo,
+			encoding: "utf8",
+		}).stdout.trim();
+		expect(from).toMatch(/^[0-9a-f]{64}$/);
+		// Two edits from the same body, stamped t1 < t2: a fork.
+		for (const [stamp, gap] of [["2099-01-01T00:00:01Z", "t1"], ["2099-01-01T00:00:02Z", "t2"]] as const)
+		{
+			write(`${gap}.md`, `**Gap:** ${gap}\n\n### Backlog fields\n\n\`\`\`yaml\npriority: 3\n\`\`\`\n`);
+			const text = spawnSync(process.execPath, ["scripts/backlog-vault/text-records.ts", "render", "edit", "S904", "--stamp", stamp, "--head", "h",
+				"--from", from, "--body-file", join(repo, `${gap}.md`)], {
+				cwd: repo,
+				encoding: "utf8",
+			});
+			expect(text.stdout).toContain("S904 edited");
+			expect(text.status, text.stderr).toBe(0);
+			write(`docs/v3/audit/2099-01-01/${stamp.replace(/[-:]/g, "")}-S904-edit.md`, text.stdout);
+		}
+		const run = audit(["story", "S904", "--no-verify"]);
+		expect(run.status).toBe(2);
+		expect(String(run.stderr)).toMatch(/S904's text records are inconsistent[\s\S]*forks/);
+		expect(spawnSync("find", [join(repo, "docs/v3/audit"), "-name", "*-S904-snapshot.md"], {
+			encoding: "utf8",
+		}).stdout.trim()).toBe("");
+	});
+
+	it("--reverify records a story's snapshot path and SHA-256 beside the grader's result", () =>
+	{
+		const ship = shippedThenBroken();
+		withRecords();
+		write("body.md", "**Gap:** g\n\n### Backlog fields\n\n```yaml\npriority: 3\n```\n");
+		expect(audit(["create", "S900", "--title", "nine hundred", "--body-file", "body.md", "--reason", "r"]).status).toBe(0);
+		write("scripts/verify-S900.sh", readFileSync(join(repo, "scripts/verify-S900.sh"), "utf8"));
+		// The snapshot as audit.sh story would have written it: rendered by the same code, then committed with the story.
+		const snap = spawnSync(process.execPath, [join(repo, "scripts/backlog-vault/text-records.ts"), "render", "snapshot", "S900", "--stamp", "2026-01-02T03:04:06Z",
+			"--head", ship, "--status", "done", "--body-file", join(repo, "body.md")], {
+			encoding: "utf8",
+		}).stdout;
+		write("docs/v3/audit/2026-01-02/20260102T030406Z-S900-snapshot.md", snap);
+		const run = audit(["story", "S900", "--reverify", "--no-verify"]);
+		expect(run.status, String(run.stderr)).toBe(0);
+		expect(written()).toMatch(/S900 re-verified[\s\S]*\| Snapshot \| `docs\/v3\/audit\/2026-01-02\/20260102T030406Z-S900-snapshot\.md` — SHA-256 `[0-9a-f]{64}`/);
+	});
+
+	it("--reverify of a story shipped before S164 says it has no snapshot: its grader read its note at the shipping commit", () =>
+	{
+		shippedThenBroken();
+		const run = audit(["story", "S900", "--reverify", "--no-verify"]);
+		expect(run.status, String(run.stderr)).toBe(0);
+		expect(written()).toContain("| Snapshot | none — shipped before S164");
+	});
+});

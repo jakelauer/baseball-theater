@@ -324,10 +324,7 @@ export function parseBacklog(markdown: string): Backlog
 	}
 	problems.push(...designGateProblems(stories));
 	problems.push(...designMatchProblems(stories));
-	if (stories.length === 0)
-	{
-		problems.push("no `### S<N> — …` story headings found");
-	}
+	// No story headings is no longer a problem: since S164 the stories are GitHub issues and the notes hold only the frame.
 
 	if (problems.length > 0)
 	{

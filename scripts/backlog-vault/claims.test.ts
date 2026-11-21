@@ -19,6 +19,8 @@ import {
 	branchesNaming, ClaimsError, compareClaim, isBarrierPath, lockDir, makeClaim, mergeFindings, orderQuestions, outsideClaim, parseFindings, parseQuestions,
 	readClaims, reviewEditsToInFlight, reviewerFlags, uncoveredBlocked, withClaimsLock, writeClaim,
 } from "./claims.ts";
+import type { CachedIssue } from "./github.ts";
+import { writeCache } from "./github.ts";
 import { inFlightIds, invalidInFlight } from "./in-flight.ts";
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), "claims.ts");
@@ -156,10 +158,12 @@ describe("outsideClaim (commit time)", () =>
 		});
 		const touched = [
 			"web/src/a.tsx", "packages/domain/src/pitch.ts", "packages/domain/src/inning.ts",
-			"docs/v3/backlog/stories/done/S7.md", "scripts/verify-S7.sh", "changelog.d/S7.md", "docs/v3/audit/2026-11-20/1200-S7-story.md",
-			"docs/v3/backlog/stories/todo/S8.md",
+			"scripts/verify-S7.sh", "changelog.d/S7.md", "docs/v3/audit/2026-11-20/1200-S7-story.md", "docs/v3/audit/2026-11-20/1201-S7-edit.md",
+			"docs/v3/audit/2026-11-20/1200-S8-edit.md",
+			// Since S164 retired the notes, a note path is no longer the item's own record.
+			"docs/v3/backlog/stories/done/S7.md",
 		];
-		expect(outsideClaim(c, touched)).toEqual(["packages/domain/src/inning.ts", "docs/v3/backlog/stories/todo/S8.md"]);
+		expect(outsideClaim(c, touched)).toEqual(["packages/domain/src/inning.ts", "docs/v3/audit/2026-11-20/1200-S8-edit.md", "docs/v3/backlog/stories/done/S7.md"]);
 	});
 });
 
@@ -167,6 +171,8 @@ describe("reviewEditsToInFlight", () =>
 {
 	it("a review's edit to an in-flight item's note is reported; other notes are free", () =>
 	{
+		expect(reviewEditsToInFlight(["docs/v3/audit/2026-11-21/20261121T000000Z-S9-edit.md", "docs/v3/audit/2026-11-21/20261121T000000Z-S8-edit.md"], ["S9"]))
+			.toEqual(["docs/v3/audit/2026-11-21/20261121T000000Z-S9-edit.md"]);
 		const changed = ["docs/v3/backlog/stories/doing/S5.md", "docs/v3/backlog/stories/todo/S6.md", "docs/v3/backlog/bugs/todo/B87.md", "docs/v3/audit/x.md"];
 		expect(reviewEditsToInFlight(changed, ["S5", "B87"])).toEqual(["docs/v3/backlog/stories/doing/S5.md", "docs/v3/backlog/bugs/todo/B87.md"]);
 	});
@@ -235,9 +241,55 @@ describe("CLI in a temp root", () =>
 {
 	let root: string;
 
+	/** The issue cache the claims read GitHub state from (S164): S1–S9 open `status:todo` stories unless `over` says otherwise. */
+	const stubCache = (over: Record<string, Partial<CachedIssue>> = {}) =>
+	{
+		const issues: CachedIssue[] = Array.from({
+			length: 9,
+		}, (_, k): CachedIssue => ({
+			number: k + 1,
+			title: `S${k + 1}: story`,
+			state: "open",
+			state_reason: null,
+			labels: [{
+				name: "story",
+			}, {
+				name: "status:todo",
+			}],
+			user: {
+				login: "o",
+			},
+			body: "### Backlog fields\n\n```yaml\npriority: 1\n```\n",
+			...over[`S${k + 1}`],
+		}));
+		for (const [id, issue] of Object.entries(over).filter(([id]) => id.startsWith("B")))
+		{
+			issues.push({
+				number: Number(id.slice(1)),
+				title: "a bug",
+				state: "open",
+				labels: [{
+					name: "bug",
+				}],
+				user: {
+					login: "stranger",
+				},
+				body: "",
+				...issue,
+			});
+		}
+		writeCache(join(root, "cache"), {
+			repo: "o/r",
+			trusted: ["o"],
+			syncedAt: "x",
+			issues,
+		});
+	};
+
 	beforeEach(() =>
 	{
 		root = mkdtempSync(join(tmpdir(), "claims-"));
+		stubCache();
 	});
 
 	afterEach(() =>
@@ -253,7 +305,75 @@ describe("CLI in a temp root", () =>
 		input,
 		env: {
 			PATH: process.env["PATH"] ?? "/usr/bin:/bin",
+			BT_BACKLOG_CACHE: join(root, "cache"),
+			// No text records: the stub cache's bodies are the items' text, never the repository's records.
+			BT_AUDIT_LEDGER: join(root, "AUDIT.md"),
 		},
+	});
+
+	it("claim refuses a skipped ID, quoting its problem (a story whose fields block doesn't parse)", () =>
+	{
+		stubCache({
+			S5: {
+				body: "**Gap:** no fields block",
+			},
+		});
+		const refused = cli(["claim", "S5", "--file", "a.ts"]);
+		expect(refused.status).toBe(1);
+		expect(refused.stderr).toContain("S5 is skipped by the backlog");
+		expect(refused.stderr).toContain("no ### Backlog fields section");
+		expect(cli(["claim", "S6", "--file", "b.ts"]).status).toBe(0);
+	});
+
+	it("claim B<N> resolves the bug from GitHub state: an open status:todo issue is admitted and recorded with its issue, a closed or blocked one is refused", () =>
+	{
+		stubCache({
+			B74: {
+				labels: [{
+					name: "bug",
+				}, {
+					name: "status:todo",
+				}],
+			},
+			B75: {
+				state: "closed",
+				state_reason: "completed",
+				labels: [{
+					name: "bug",
+				}],
+			},
+			B76: {
+				labels: [{
+					name: "bug",
+				}, {
+					name: "status:blocked",
+				}],
+			},
+		});
+		expect(cli(["claim", "B74", "--file", "a.ts"]).status).toBe(0);
+		expect(JSON.parse(readFileSync(join(root, ".run/claims/B74.json"), "utf8")).issue).toBe(74);
+		const closed = cli(["claim", "B75", "--file", "b.ts"]);
+		expect(closed.status).toBe(1);
+		expect(closed.stderr).toContain("closed");
+		expect(cli(["claim", "B76", "--file", "c.ts"]).stderr).toContain("status:blocked");
+		expect(cli(["claim", "B77", "--file", "d.ts"]).stderr).toContain("no trusted issue carries B77");
+	});
+
+	it("claim refuses a closed story and, with no cache, exits 2 saying to run pnpm backlog:sync", () =>
+	{
+		stubCache({
+			S3: {
+				state: "closed",
+				state_reason: "completed",
+			},
+		});
+		expect(cli(["claim", "S3", "--file", "a.ts"]).status).toBe(1);
+		rmSync(join(root, "cache"), {
+			recursive: true,
+		});
+		const none = cli(["claim", "S1", "--file", "a.ts"]);
+		expect(none.status).toBe(2);
+		expect(none.stderr).toContain("run pnpm backlog:sync");
 	});
 
 	it("writes one .run/claims/<ID>.json per admitted item and holds a conflicting one", () =>
@@ -299,13 +419,25 @@ describe("CLI in a temp root", () =>
 		writeFileSync(join(root, ".pending/needs-input.md"), "## A: q?\nBlocks: S1\n\n## B: q?\nBlocks: S1, S2\n");
 		expect(cli(["findings"]).stdout).toContain("shared fix [8] a.ts: S1, S2");
 		expect(cli(["questions"]).stdout.split("\n")[0]).toBe("2 blocked (S1, S2): B: q?");
-		mkdirSync(join(root, "docs/v3/backlog/stories/blocked"), {
-			recursive: true,
+		// Blocked items are the open issues labelled status:blocked (S164: GitHub owns state).
+		const blocked = {
+			labels: [{
+				name: "story",
+			}, {
+				name: "status:blocked",
+			}],
+		};
+		stubCache({
+			S1: blocked,
+			S9: blocked,
+			B4: {
+				labels: [{
+					name: "bug",
+				}, {
+					name: "status:blocked",
+				}],
+			},
 		});
-		mkdirSync(join(root, "docs/v3/backlog/bugs/blocked"), {
-			recursive: true,
-		});
-		for (const n of ["stories/blocked/S1.md", "stories/blocked/S9.md", "bugs/blocked/B4.md"]) writeFileSync(join(root, "docs/v3/backlog", n), "---\n---\n");
 		const lines = cli(["questions"]).stdout.trim().split("\n");
 		expect(lines.slice(2)).toEqual(["no question: B4 is blocked", "no question: S9 is blocked"]);
 		expect(cli(["release", "S1"]).status).toBe(0);
@@ -415,6 +547,9 @@ describe("CLI in a temp root", () =>
 		const child = spawn(process.execPath, [CLI, "--root", root, "claim", "S2", "--file", "b.ts", "--symbol", "useThing"], {
 			env: {
 				PATH: process.env["PATH"] ?? "/usr/bin:/bin",
+				BT_BACKLOG_CACHE: join(root, "cache"),
+				// No text records: hermetic, never the repository's.
+				BT_AUDIT_LEDGER: join(root, "AUDIT.md"),
 			},
 		});
 		let out = "";

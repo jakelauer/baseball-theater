@@ -1,11 +1,15 @@
 /**
- * The backlog's Obsidian notes (docs/v3/VAULT-MIGRATION.md, V3).
+ * The backlog's frame notes (docs/v3/VAULT-MIGRATION.md, V3) and, since S164, the story text records
+ * (text-records.ts): the stories and bugs themselves are GitHub issues (github.ts), with no notes.
  *
- *   pnpm backlog:build    rewrite the notes canonically (derived fields refreshed, each note moved to
- *                         its status folder) and write docs/v3/INDEX.md and docs/v3/audit.jsonl
+ *   pnpm backlog:build    rewrite the frame notes canonically and write docs/v3/INDEX.md (its open
+ *                         table from the issue cache, when there is one) and docs/v3/audit.jsonl
  *   pnpm backlog:check    exit 1 if build would change a note, or a finished story's records are
- *                         missing (records.ts); builds INDEX.md in memory, never reads it from disk
- *   cli.ts pre-commit     (the Husky hook) canonicalize the staged notes and re-stage them
+ *                         missing (records.ts), or the story text records are inconsistent (law L9's
+ *                         tree-reproducible part, S164: text-records.ts); builds INDEX.md in memory,
+ *                         never reads it from disk, the issue cache or GitHub, so its verdict at a
+ *                         commit is the same wherever and whenever it runs
+ *   cli.ts pre-commit     (the Husky hook) canonicalize the staged frame notes and re-stage them
  *   cli.ts ledger-base backlog|parity   the commit the debt checks measure drift from (ledger.ts)
  *   cli.ts review-base backlog|parity   the commit that logged the newest review itself, past later skips and
  *                                       answers: the base a review's seed measures from (S163; search.ts)
@@ -17,7 +21,7 @@
  * review-debt lines; doc-index.ts) and audit.jsonl (the ledger's index) are built and git-ignored,
  * never committed (S156; owner, 2026-11-20: "Stop committing them (Recommended)"), and the
  * generated docs/v3/BACKLOG.md is retired (owner, same day: "Retire it (Recommended)"): tools
- * read the notes themselves.
+ * read the frame notes, the text records and the issue cache themselves.
  *
  * `--dir <notes dir>` (default docs/v3/backlog; its parent is the docs dir INDEX.md is written to),
  * `--audit <file>` (default docs/v3/AUDIT.md, the frozen ledger) and `--index <file>` (default
@@ -38,20 +42,27 @@ import type { BuiltBacklog } from "./assemble.ts";
 import { buildFromNotes } from "./assemble.ts";
 import { changelogFragmentFor } from "./changelog.ts";
 import type { IndexedDoc, LedgerState } from "./doc-index.ts";
-import { docIndexFor, isIndexedDoc } from "./doc-index.ts";
+import {
+	docIndexFor, isIndexedDoc, liveBacklog,
+} from "./doc-index.ts";
 import { inFlightIds } from "./in-flight.ts";
 import type { LedgerEntry, ReviewKind } from "./ledger.ts";
 import {
-	ledgerBase, parseLedger, readLedger, renderLedgerIndex, reviewBlocked, storiesDoneSince,
+	fragmentsDirFor, ledgerBase, parseLedger, readLedger, renderLedgerIndex, reviewBlocked, storiesDoneSince,
 } from "./ledger.ts";
 import {
 	misplacedNotes, readNotes, writeNotes,
 } from "./notes-dir.ts";
-import { parseBacklog } from "./parse.ts";
+import { designMatchProblems, parseBacklog } from "./parse.ts";
 import { runPrecommit } from "./precommit.ts";
 import type { ChangelogState } from "./records.ts";
 import { frozenCompletions, recordProblems } from "./records.ts";
 import type { SourceDocs } from "./source.ts";
+import { sourceProblems } from "./source.ts";
+import type { TextRecord } from "./text-records.ts";
+import {
+	BODY_KINDS, chains, parseFields, readRecords, textRecordProblems,
+} from "./text-records.ts";
 
 const repoRoot = resolve(import.meta.dirname, "../..");
 
@@ -173,14 +184,29 @@ function log(message: string)
 	}
 }
 
-/** INDEX.md's text for a build, from the notes, the docs and the ledger. */
-async function docIndex(built: BuiltBacklog, entries: LedgerEntry[]): Promise<string>
+/**
+ * INDEX.md's text for a build, from the frame notes, the text records, the docs and the ledger. `live`
+ * reads the issue cache (build only): `pnpm backlog:check` builds it with none, so it never reads the
+ * cache and its verdict is the same at any commit (S164 AC 2).
+ */
+async function docIndex(built: BuiltBacklog, entries: LedgerEntry[], live = false): Promise<string>
 {
 	const ledger: LedgerState = {
 		entries,
 		head: head(),
 	};
-	return docIndexFor(built.backlog, built.notes, await readIndexedDocs(), ledger);
+	const records = readRecords(fragmentsDirFor(auditPath));
+	const backlog = live ? liveBacklog(notesRoot(), records) : undefined;
+	if (live && backlog === undefined)
+	{
+		// To stderr, so the hooks (which silence stdout) still say it; the build itself succeeds.
+		console.error("backlog: no issue cache, so INDEX.md lists only the recorded items: run pnpm backlog:sync");
+	}
+	for (const p of backlog?.problems ?? [])
+	{
+		console.error(`backlog: skipped issue #${p.issue}${p.id ? ` (${p.id})` : ""}: ${p.message}`);
+	}
+	return docIndexFor(built.notes, records, await readIndexedDocs(), ledger, backlog);
 }
 
 async function build()
@@ -188,7 +214,7 @@ async function build()
 	const notes = await readNotes(dir);
 	const built = buildFromNotes(notes, await readSourceDocs());
 	const entries = await ledgerEntries();
-	const index = await docIndex(built, entries);
+	const index = await docIndex(built, entries, true);
 	await writeNotes(dir, notes, built.notes, log);
 	log(`built ${built.notes.size} notes in ${dir}`);
 	await writeFile(indexPath, renderLedgerIndex(entries));
@@ -211,7 +237,10 @@ async function check()
 			stale.push(join(dir, path));
 		}
 	}
-	const problems = recordProblems(parseBacklog(built.backlog).stories, frozenCompletions(await frozenEntries()), changelogState);
+	const problems = [
+		...recordProblems(parseBacklog(built.backlog).stories, frozenCompletions(await frozenEntries()), changelogState),
+		...(await recordedTextProblems(notes)),
+	];
 	if (stale.length > 0)
 	{
 		const misplaced = misplacedNotes(notes, built.notes);
@@ -221,13 +250,61 @@ async function check()
 	}
 	if (problems.length > 0)
 	{
-		console.error(`backlog: finished stories with missing records:\n- ${problems.join("\n- ")}`);
+		console.error(`backlog: finished stories with missing records, or inconsistent story text records:\n- ${problems.join("\n- ")}`);
 		process.exitCode = 1;
 	}
 	if (stale.length === 0 && problems.length === 0)
 	{
-		log("the notes are consistent");
+		log("the frame notes and the story text records are consistent");
 	}
+}
+
+/** The story or bug notes still in the notes dir (stories/<status>/S<N>.md, bugs/<status>/B<N>.md). */
+function itemNotes(notes: Map<string, string>): string[]
+{
+	return [...notes.keys()].filter((p) => /^(stories|bugs)\/([^/]+\/)?[SB]\d+\.md$/.test(p)).map((p) => join(dir, p));
+}
+
+/**
+ * Law L9's tree-reproducible part over the text records (S164 AC 2), read from the ledger's fragments
+ * alone (never the cache or GitHub): the chain, hashes and fields blocks (text-records.ts), and, for
+ * text recorded since the migration (a `create` or `edit` tip; migrated text already passed these
+ * checks as a note at the migration's base), rule 19's Source and L8's design-match criterion. A
+ * snapshot recording `done` needs the story's changelog fragment and its `**Baseline:**` line.
+ */
+async function recordedTextProblems(notes: Map<string, string>): Promise<string[]>
+{
+	const records: TextRecord[] = readRecords(fragmentsDirFor(auditPath));
+	const problems = textRecordProblems(records, itemNotes(notes));
+	const changed = [...chains(records).values()]
+		.map((c) => c.records.at(-1)!)
+		.filter((tip) => tip.kind !== "migration" && tip.id.startsWith("S") && BODY_KINDS.includes(tip.kind));
+	const stories = changed.flatMap((tip) =>
+	{
+		try
+		{
+			const fields = parseFields(tip.body, tip.id);
+			return [{
+				id: tip.id,
+				status: "todo",
+				source: /^\*\*Source:\*\*\s*(.+)$/m.exec(tip.body)?.[1]?.trim() ?? null,
+				design: fields.design,
+				body: tip.body,
+			}];
+		}
+		catch
+		{
+			return []; // textRecordProblems already names a broken fields block
+		}
+	});
+	problems.push(...sourceProblems(stories, await readSourceDocs()), ...designMatchProblems(stories));
+	const snapshots = records.filter((r) => r.kind === "snapshot" && r.status === "done");
+	problems.push(...recordProblems(snapshots.map((r) => ({
+		id: r.id,
+		status: "done",
+		body: r.body,
+	})), frozenCompletions(await frozenEntries()), changelogState));
+	return problems;
 }
 
 async function preCommit()

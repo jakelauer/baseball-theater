@@ -20,3 +20,9 @@ openapi/bt-api.v1.baseline.json
 **/*.mjs
 **/*.cjs
 !eslint.config.js
+
+# Story text records (S164): each body is byte-exact, so its stated SHA-256 holds.
+docs/v3/audit/**/*-migration.md
+docs/v3/audit/**/*-create.md
+docs/v3/audit/**/*-edit.md
+docs/v3/audit/**/*-snapshot.md

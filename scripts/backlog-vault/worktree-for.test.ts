@@ -5,7 +5,7 @@
  */
 import { spawnSync } from "node:child_process";
 import {
-	copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
+	copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -88,5 +88,41 @@ describe("worktree-for.sh --no-install", () =>
 		const again = run("bash", ["scripts/worktree-for.sh", "--no-install", "S1", "HEAD"]);
 		expect(again).toContain("already exists");
 		expect(env("S1")).toBe(first);
+	});
+});
+
+describe("with no issue cache (S164 AC 3)", () =>
+{
+	it("worktree-for.sh and pnpm backlog:build (what the post-checkout and post-merge hooks run) exit 0 with no cache, saying to sync", () =>
+	{
+		const noCache = {
+			...process.env,
+			BT_BACKLOG_CACHE: join(repo, "no-cache"),
+		};
+		const made = spawnSync("bash", ["scripts/worktree-for.sh", "--no-install", "S5", "HEAD"], {
+			cwd: repo,
+			encoding: "utf8",
+			env: noCache,
+		});
+		expect(made.status, made.stderr).toBe(0);
+		// It made the worktree, with no network and no cache.
+		expect(existsSync(join(repo, ".claude/worktrees/S5/.git"))).toBe(true);
+		// The backlog as this checkout has it (git archive, not history: CI's checkout is shallow), built with no cache.
+		const ROOT = join(dirname(SCRIPT), "..");
+		const archive = spawnSync("git", ["archive", "HEAD", "docs/v3", "changelog.d"], {
+			cwd: ROOT,
+			maxBuffer: 256 * 1024 * 1024,
+		});
+		spawnSync("tar", ["-x", "-C", repo], {
+			input: archive.stdout,
+		});
+		const build = spawnSync(process.execPath, [join(ROOT, "scripts/backlog-vault/cli.ts"), "build", "--dir", join(repo, "docs/v3/backlog"),
+			"--audit", join(repo, "docs/v3/AUDIT.md"), "--index", join(repo, "docs/v3/audit.jsonl"), "--quiet"], {
+			encoding: "utf8",
+			env: noCache,
+		});
+		expect(build.status, build.stderr).toBe(0);
+		expect(build.stderr).toContain("run pnpm backlog:sync");
+		expect(readFileSync(join(repo, "docs/v3/INDEX.md"), "utf8")).toContain("No issue cache: run `pnpm backlog:sync`");
 	});
 });
