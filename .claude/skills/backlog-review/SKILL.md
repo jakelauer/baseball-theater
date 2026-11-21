@@ -53,6 +53,7 @@ The review reads what changed, not the whole backlog (S163; owner, 2026-11-20: "
 
 ```bash
 pnpm backlog:search seed backlog --since "$(node scripts/backlog-vault/cli.ts review-base backlog)"
+scripts/review-debt.sh --json > "${TMPDIR:-/tmp}/review-debt.json"   # saved beside the seed, for --debt-json below
 ```
 
 It lists each item to read and why (an in-flight item's findings go to the overseer). Checks 1, 2, 2b and 3 read only those and what further `pnpm backlog:search` queries reach from them. Copy every `query:` line into the findings; `scripts/audit.sh review` requires one.
@@ -148,8 +149,11 @@ scripts/audit.sh review \
   --since "S23, S21, S13" \
   --verdict amended \
   --findings - \
-  --in-flight S160,S161   # only while items are in flight; findings body from stdin
+  --in-flight S160,S161 \ # only while items are in flight; findings body from stdin
+  --debt-json "${TMPDIR:-/tmp}/review-debt.json"   # the report saved with the seed
 ```
+
+`--debt-json` copies each turn-cap hit in the saved report onto the entry's `Turn-cap hits read` row (S158 AC 7): only a review that lists a hit stops it making a review due, so a seeded `turn-cap` story is read like any other pick (a design intake passes none and clears none).
 
 The script records date, HEAD short SHA, tree state, trigger, stories `done` since, and the verdict; you supply the findings. It refuses a verdict with no findings, and exits nonzero on `blocked`.
 

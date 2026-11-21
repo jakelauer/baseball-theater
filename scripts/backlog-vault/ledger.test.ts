@@ -493,6 +493,47 @@ describe("ledger fragments (S156)", () =>
 		}
 	});
 
+	const runFragment = (id: string) => fragment(`## 2026-11-21 — run ${id}`, "| C | 3 |\n| Findings per pull request | 0.5 |\n| Turn-cap hits | S9 @ 2026-11-21T10:00:00.000Z, S12 @ 2026-11-21T11:00:00.000Z |\n| Counted | yes |\n| Clean | no |");
+
+	it("parses a run fragment: its run ID, C, counted, clean, findings per pull request and turn-cap hits (S158)", () =>
+	{
+		const e = parseFragment(runFragment("R20261121T101500Z"), "a/20261121T120000Z-R20261121T101500Z-run.md");
+		expect(e).toMatchObject({
+			kind: "run",
+			run: "R20261121T101500Z",
+			runC: 3,
+			counted: true,
+			clean: false,
+			findingsPerPr: 0.5,
+			turnCaps: [{
+				id: "S9",
+				at: "2026-11-21T10:00:00.000Z",
+			}, {
+				id: "S12",
+				at: "2026-11-21T11:00:00.000Z",
+			}],
+		});
+		expect(JSON.parse(renderLedgerIndex([e]))).toMatchObject({
+			kind: "run",
+			run: "R20261121T101500Z",
+		});
+	});
+
+	it("rejects a run fragment whose name and heading disagree", () =>
+	{
+		expect(() => parseFragment(runFragment("R20261121T101500Z"), "a/20261121T120000Z-R20261121T101501Z-run.md")).toThrow(LedgerParseError);
+		expect(() => parseFragment(runFragment("R20261121T101500Z"), "a/20261121T120000Z-R20261121T101500Z-review.md")).toThrow(LedgerParseError);
+	});
+
+	it("reads the turn-cap hits a backlog review lists (S158 AC 7)", () =>
+	{
+		const e = parseFragment(fragment("## 2026-11-21 — backlog review (`continue`)", "| Turn-cap hits read | S9 @ 2026-11-21T10:00:00.000Z |"), "a/20261121T000000Z-backlog-review.md");
+		expect(e.turnCaps).toEqual([{
+			id: "S9",
+			at: "2026-11-21T10:00:00.000Z",
+		}]);
+	});
+
 	it("throw on a fragment audit.sh couldn't have written", () =>
 	{
 		const bad: [string, string][] = [

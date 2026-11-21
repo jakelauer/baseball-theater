@@ -311,6 +311,175 @@ describe("CLI in a temp root", () =>
 		},
 	});
 
+	// The run journal (S158 AC 1).
+	const journal = () => JSON.parse(readFileSync(join(root, ".run", "run.json"), "utf8")) as { id: string;
+		n: number;
+		c: number;
+		events: { kind: string;
+			id?: string;
+			pr?: number;
+			path?: string;
+			barrier?: boolean;
+			at: string }[] };
+	const started = () => expect(cli(["run", "start", "--n", "5", "--c", "2"]).status).toBe(0);
+
+	it("run start writes run.json", () =>
+	{
+		started();
+		const j = journal();
+		expect(j).toMatchObject({
+			n: 5,
+			c: 2,
+			events: [],
+		});
+		expect(j.id).toMatch(/^R\d{8}T\d{6}Z$/);
+	});
+
+	it("run start refuses a missing --n or --c", () =>
+	{
+		expect(cli(["run", "start", "--n", "5"]).status).toBe(1);
+		expect(cli(["run", "start", "--c", "2"]).status).toBe(1);
+		expect(existsSync(join(root, ".run", "run.json"))).toBe(false);
+	});
+
+	it("run start refuses a second run, naming the open one", () =>
+	{
+		started();
+		const { id } = journal();
+		const again = cli(["run", "start", "--n", "3", "--c", "3"]);
+		expect(again.status).toBe(1);
+		expect(again.stderr).toContain(id);
+		expect(journal().n).toBe(5);
+	});
+
+	it("run start --resume keeps the journal and appends run-resume", () =>
+	{
+		started();
+		expect(cli(["run", "event", "item-start", "S1"]).status).toBe(0);
+		expect(cli(["run", "start", "--resume", "--c", "3"]).status).toBe(1);
+		expect(cli(["run", "start", "--resume"]).status).toBe(0);
+		const j = journal();
+		expect(j.c).toBe(2);
+		expect(j.events.map((e) => e.kind)).toEqual(["item-start", "run-resume"]);
+	});
+
+	const itemKinds = ["item-start", "needs-lead", "park", "resume", "held", "pr-open", "ready", "merged", "conflict", "duplicate", "turn-cap"];
+	it.each([...itemKinds, "gate-open", "gate-close", "interrupted"])("run event %s is appended", (kind) =>
+	{
+		started();
+		const item = itemKinds.includes(kind);
+		const args = ["run", "event", kind, ...(item ? ["S3"] : []), ...(kind === "pr-open" ? ["--pr", "42"] : []), ...(kind === "conflict" ? ["--path", "docs/x.md"] : []),
+			...(kind === "item-start" ? ["--barrier"] : [])];
+		expect(cli(args).status).toBe(0);
+		const [event] = journal().events;
+		expect(event).toMatchObject({
+			kind,
+			...(item ? {
+				id: "S3",
+			} : {}),
+			...(kind === "pr-open" ? {
+				pr: 42,
+			} : {}),
+			...(kind === "conflict" ? {
+				path: "docs/x.md",
+			} : {}),
+			...(kind === "item-start" ? {
+				barrier: true,
+			} : {}),
+		});
+		expect(Number.isNaN(Date.parse(event!.at))).toBe(false);
+	});
+
+	it("run event refuses an unknown kind", () =>
+	{
+		started();
+		expect(cli(["run", "event", "lunch", "S1"]).status).toBe(1);
+		expect(cli(["run", "event", "claim", "S1"]).status).toBe(1);
+		expect(journal().events).toEqual([]);
+	});
+
+	it("run event refuses an item kind without an ID", () =>
+	{
+		started();
+		expect(cli(["run", "event", "park"]).status).toBe(1);
+	});
+
+	it("run event refuses an ID that fails ITEM_ID", () =>
+	{
+		started();
+		expect(cli(["run", "event", "park", "s1"]).status).toBe(1);
+		expect(cli(["run", "event", "park", "../x"]).status).toBe(1);
+	});
+
+	it("run event refuses pr-open without --pr", () =>
+	{
+		started();
+		expect(cli(["run", "event", "pr-open", "S1"]).status).toBe(1);
+		expect(cli(["run", "event", "pr-open", "S1", "--pr", "x"]).status).toBe(1);
+	});
+
+	it("run event refuses conflict without --path", () =>
+	{
+		started();
+		expect(cli(["run", "event", "conflict", "S1"]).status).toBe(1);
+	});
+
+	it("run event refuses an ID on a run kind, and any event with no run open", () =>
+	{
+		expect(cli(["run", "event", "gate-open"]).status).toBe(1);
+		started();
+		expect(cli(["run", "event", "gate-open", "S1"]).status).toBe(1);
+		expect(journal().events).toEqual([]);
+	});
+
+	it("claim appends claim to the journal", () =>
+	{
+		started();
+		expect(cli(["claim", "S1", "--file", "a.ts"]).status).toBe(0);
+		expect(journal().events).toMatchObject([{
+			kind: "claim",
+			id: "S1",
+		}]);
+	});
+
+	it("claim appends claim-refused on exit 1", () =>
+	{
+		started();
+		expect(cli(["claim", "S1", "--file", "a.ts", "--symbol", "useX"]).status).toBe(0);
+		expect(cli(["claim", "S2", "--file", "b.ts", "--symbol", "useX"]).status).toBe(1);
+		expect(journal().events.map((e) => `${e.kind} ${e.id}`)).toEqual(["claim S1", "claim-refused S2"]);
+	});
+
+	it("claim without a journal writes no event", () =>
+	{
+		expect(cli(["claim", "S1", "--file", "a.ts"]).status).toBe(0);
+		expect(existsSync(join(root, ".run", "run.json"))).toBe(false);
+	});
+
+	it("claim --dry-run writes no event", () =>
+	{
+		started();
+		expect(cli(["claim", "S1", "--file", "a.ts", "--dry-run"]).status).toBe(0);
+		expect(journal().events).toEqual([]);
+	});
+
+	it("two appends at once keep both events", async () =>
+	{
+		started();
+		const env = {
+			PATH: process.env["PATH"] ?? "/usr/bin:/bin",
+		};
+		const once = (id: string) => new Promise<number | null>((done) =>
+		{
+			spawn(process.execPath, [CLI, "--root", root, "run", "event", "item-start", id], {
+				env,
+			}).on("close", done);
+		});
+		const codes = await Promise.all(["S1", "S2", "S3", "S4"].map(once));
+		expect(codes).toEqual([0, 0, 0, 0]);
+		expect(journal().events.map((e) => e.id).sort()).toEqual(["S1", "S2", "S3", "S4"]);
+	});
+
 	it("claim refuses a skipped ID, quoting its problem (a story whose fields block doesn't parse)", () =>
 	{
 		stubCache({

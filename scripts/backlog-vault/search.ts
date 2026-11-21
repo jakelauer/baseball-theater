@@ -322,6 +322,8 @@ export interface DebtEvent
 	path?: string;
 	adrs?: string[];
 	done?: string[];
+	/** A `turn-cap` event's hits no backlog review has listed yet: each hit's `at` (S158 AC 7). */
+	hits?: string[];
 }
 
 /** A debt script's `--json` report. */
@@ -375,7 +377,8 @@ function collector(inFlight: string[])
 }
 
 /** The event kinds that name one story whose note a review reads. */
-const STORY_EVENTS = ["inserted", "removed", "reprioritized", "ac-rewritten", "source-changed", "purpose-changed"];
+// `turn-cap` (S158 AC 7): a story that hit its turn cap mid-run, read from the run journals and run entries.
+const STORY_EVENTS = ["inserted", "removed", "reprioritized", "ac-rewritten", "source-changed", "purpose-changed", "turn-cap"];
 
 /** Extra input a backlog seed needs beyond the notes and the events. */
 export interface BacklogSeedContext

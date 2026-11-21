@@ -522,6 +522,16 @@ describe("the review seeds (S163 AC 2)", () =>
 		expect(small.picks.length).toBeLessThan(20);
 	});
 
+	it("a turn-cap event seeds its ID", () =>
+	{
+		const seed = seedBacklog(sized(30, () => undefined), report([{
+			kind: "turn-cap",
+			id: "S110",
+			hits: ["2026-11-21T10:00:00Z"],
+		}]));
+		expect(seed.picks.find((p) => p.id === "S110")?.reasons).toContain("turn-cap");
+	});
+
 	it("a seed with no events: only the next 3 todo stories and their links", () =>
 	{
 		const seed = seedBacklog(sized(30, () => undefined), report([]));

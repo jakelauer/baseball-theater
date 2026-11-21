@@ -43,7 +43,14 @@
  *       then `no question: <ID> is blocked` for each story or bug note in a `blocked/` folder that no
  *       question's `Blocks:` line names, with the local branches whose name holds its ID
  *
- * `claim` and `release` run under a lock, the directory `.run/claims.lock` holding the holder's pid, so two
+ *   node scripts/backlog-vault/claims.ts run start --n <N> --c <C> | run start --resume
+ *   node scripts/backlog-vault/claims.ts run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier]
+ *       the run journal, `.run/run.json` (S158 AC 1; see {@link RunJournal}): `start` opens one (exit 1 naming
+ *       the run when one is open), `--resume` keeps it and logs `run-resume`; `event` appends one event
+ *       (exit 1 on an unknown kind, a missing ID or flag, or an ID that fails `ITEM_ID`). `claim` appends
+ *       its own `claim` or `claim-refused` event when a journal exists and it is not a `--dry-run`.
+ *
+ * `claim`, `release` and every journal write run under a lock, the directory `.run/claims.lock` holding the holder's pid, so two
  * claims made at once can't both be admitted against an empty in-flight set. A command that can't take it
  * within 10 s exits 2 naming the holder's pid and whether that process is alive; a dead holder's lock is
  * the overseer's to remove (never broken automatically). Claims are written to a temp file and renamed,
@@ -110,6 +117,135 @@ const BARRIER_FILES = ["CLAUDE.md", "docs/v3/LOOP.md"];
 const BARRIER_DIRS = [".claude/"];
 
 const PLAN_REVIEW = join(dirname(fileURLToPath(import.meta.url)), "../claude-review/plan-review.py");
+
+/**
+ * A `/run-backlog` run's journal, `.run/run.json` (S158 AC 1; owner, 2026-11-20, asked whether to write up
+ * a definition of a run: "Yes"): the run's ID (`R<stamp>`, no `-`, so a ledger fragment's name can carry
+ * it), how many items it starts (`n`), its concurrency (`c`), and what happened, in order. runs.ts
+ * summarizes it, and `scripts/audit.sh run` turns it into a ledger entry when the run ends.
+ */
+export interface RunJournal
+{
+	id: string;
+	n: number;
+	c: number;
+	startedAt: string;
+	events: RunEvent[];
+}
+
+/** One journal event; `id` for an item's events, `pr` for `pr-open`, `path` for `conflict`, `barrier` on a barrier's `item-start`. */
+export interface RunEvent
+{
+	kind: string;
+	id?: string;
+	pr?: number;
+	path?: string;
+	barrier?: boolean;
+	at: string;
+}
+
+/** The item events `run event` takes, each needing an item ID (run-backlog steps 2–5 say where each is logged). */
+export const RUN_ITEM_KINDS = ["item-start", "needs-lead", "park", "resume", "held", "pr-open", "ready", "merged", "conflict", "duplicate", "turn-cap"];
+/** The run events `run event` takes, which name no item. `run-resume`, `claim` and `claim-refused` are written only by `run start --resume` and `claim`. */
+export const RUN_KINDS = ["gate-open", "gate-close", "interrupted"];
+
+/** A refused journal command: the CLI prints it and exits 1. */
+export class RunError extends Error
+{
+	override name = "RunError";
+}
+
+/** The journal file under a repository root. */
+export function runJournalPath(root: string): string
+{
+	return join(runDir(root), "run.json");
+}
+
+/** The `R<stamp>` run ID for a start time: `2026-11-21T10:15:00.000Z` → `R20261121T101500Z`. */
+export function runIdFor(at: string): string
+{
+	return `R${at.replace(/\.\d+Z$/, "Z").replace(/[-:]/g, "")}`;
+}
+
+/** The event `run event <kind>` would append, or a {@link RunError} saying what is wrong with the input. */
+export function makeRunEvent(kind: string, input: { id?: string;
+	pr?: string;
+	path?: string;
+	barrier?: boolean; }, at: string): RunEvent
+{
+	const item = RUN_ITEM_KINDS.includes(kind);
+	if (!item && !RUN_KINDS.includes(kind))
+	{
+		throw new RunError(`unknown event kind '${kind}' (item: ${RUN_ITEM_KINDS.join(", ")}; run: ${RUN_KINDS.join(", ")})`);
+	}
+	if (item && !input.id)
+	{
+		throw new RunError(`${kind} needs an item ID`);
+	}
+	if (!item && input.id)
+	{
+		throw new RunError(`${kind} is a run event and takes no ID`);
+	}
+	if (input.id && !ITEM_ID.test(input.id))
+	{
+		throw new RunError(`not an item ID: '${input.id}' (S<N>, B<N>, F<N> or V<N>)`);
+	}
+	if (kind === "pr-open" && !/^[1-9][0-9]*$/.test(input.pr ?? ""))
+	{
+		throw new RunError("pr-open needs --pr <n>");
+	}
+	if (kind === "conflict" && !input.path)
+	{
+		throw new RunError("conflict needs --path <p>");
+	}
+	return {
+		kind,
+		...(input.id ? {
+			id: input.id,
+		} : {}),
+		...(kind === "pr-open" ? {
+			pr: Number(input.pr),
+		} : {}),
+		...(input.path ? {
+			path: input.path,
+		} : {}),
+		...(input.barrier ? {
+			barrier: true,
+		} : {}),
+		at,
+	};
+}
+
+/** The open run's journal, or undefined when no run is open. */
+export function readRunJournal(root: string): RunJournal | undefined
+{
+	const path = runJournalPath(root);
+	return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) as RunJournal : undefined;
+}
+
+/** Write the journal through a temp file and a rename, so a crash never leaves half a journal. Hold the claims lock. */
+export function writeRunJournal(root: string, journal: RunJournal): void
+{
+	mkdirSync(runDir(root), {
+		recursive: true,
+	});
+	const tmp = join(runDir(root), `.run.json.${process.pid}.tmp`);
+	writeFileSync(tmp, `${JSON.stringify(journal, null, "\t")}\n`);
+	renameSync(tmp, runJournalPath(root));
+}
+
+/** Append `event` to the open run's journal; false (nothing written) when no run is open. Hold the claims lock. */
+export function appendRunEvent(root: string, event: RunEvent): boolean
+{
+	const journal = readRunJournal(root);
+	if (!journal)
+	{
+		return false;
+	}
+	journal.events.push(event);
+	writeRunJournal(root, journal);
+	return true;
+}
 
 /** The `.run/` directory and claims directory under a repository root. */
 export function runDir(root: string): string
@@ -753,6 +889,74 @@ function formatReport(claim: Claim, report: ClaimReport): string
 	return lines.join("\n");
 }
 
+/** `run start` and `run event`, under the claims lock; throws {@link RunError} on refused input. */
+function runCommand(root: string, sub: string, rest: string[], values: { n?: string;
+	c?: string;
+	resume?: boolean;
+	pr?: string;
+	path?: string;
+	barrier?: boolean; }): number
+{
+	const at = new Date().toISOString();
+	const open = readRunJournal(root);
+	if (sub === "start" && values.resume)
+	{
+		if (values.n !== undefined || values.c !== undefined)
+		{
+			throw new RunError("run start --resume takes no --n or --c: the journal's stand");
+		}
+		if (!open)
+		{
+			throw new RunError("run start --resume: no run is open (.run/run.json is missing)");
+		}
+		appendRunEvent(root, {
+			kind: "run-resume",
+			at,
+		});
+		console.log(`run ${open.id} resumed (n ${open.n}, c ${open.c})`);
+		return 0;
+	}
+	if (sub === "start")
+	{
+		if (open)
+		{
+			throw new RunError(`run ${open.id} is already open (started ${open.startedAt}): resume it (run start --resume) or record it (scripts/audit.sh run [--abandoned])`);
+		}
+		const n = Number(values.n);
+		const c = Number(values.c);
+		if (!/^[1-9][0-9]*$/.test(values.n ?? "") || !/^[1-9][0-9]*$/.test(values.c ?? ""))
+		{
+			throw new RunError("run start needs --n <N> and --c <C>, both positive whole numbers");
+		}
+		const journal: RunJournal = {
+			id: runIdFor(at),
+			n,
+			c,
+			startedAt: at,
+			events: [],
+		};
+		writeRunJournal(root, journal);
+		console.log(`run ${journal.id} started (n ${n}, c ${c})`);
+		return 0;
+	}
+	if (sub === "event")
+	{
+		const [kind = "", id] = rest;
+		const event = makeRunEvent(kind, {
+			id,
+			pr: values.pr,
+			path: values.path,
+			barrier: values.barrier,
+		}, at);
+		if (!appendRunEvent(root, event))
+		{
+			throw new RunError("no run is open (.run/run.json is missing): run start first");
+		}
+		return 0;
+	}
+	throw new RunError("usage: claims.ts run start --n <N> --c <C> | run start --resume | run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier]");
+}
+
 function main(argv: string[]): number
 {
 	const { values, positionals } = parseArgs({
@@ -783,6 +987,24 @@ function main(argv: string[]): number
 			"pending": {
 				type: "string",
 			},
+			"n": {
+				type: "string",
+			},
+			"c": {
+				type: "string",
+			},
+			"resume": {
+				type: "boolean",
+			},
+			"pr": {
+				type: "string",
+			},
+			"path": {
+				type: "string",
+			},
+			"barrier": {
+				type: "boolean",
+			},
 		},
 	});
 	const root = resolve(values.root ?? process.cwd());
@@ -809,9 +1031,16 @@ function main(argv: string[]): number
 				console.error(`claims.ts claim: ${(error as Error).message}`);
 				return 2;
 			}
+			// The journal (S158 AC 1): a claim logs itself, refused or admitted, unless it is a dry run.
+			const log = (kind: "claim" | "claim-refused") => values["dry-run"] || appendRunEvent(root, {
+				kind,
+				id,
+				at: new Date().toISOString(),
+			});
 			if (state.error)
 			{
 				console.error(`claims.ts claim: ${state.error}`);
+				withClaimsLock(root, () => log("claim-refused"));
 				return 1;
 			}
 			const files = normalizeEntries(root, values.file ?? []);
@@ -827,8 +1056,10 @@ function main(argv: string[]): number
 				console.log(formatReport(claim, report));
 				if (!report.ok)
 				{
+					log("claim-refused");
 					return 1;
 				}
+				log("claim");
 				if (!values["dry-run"])
 				{
 					writeClaim(root, {
@@ -842,6 +1073,20 @@ function main(argv: string[]): number
 				return 0;
 			});
 		}
+		case "run":
+			try
+			{
+				return withClaimsLock(root, () => runCommand(root, id, positionals.slice(2), values));
+			}
+			catch (e)
+			{
+				if (!(e instanceof RunError))
+				{
+					throw e;
+				}
+				console.error(`claims.ts run: ${e.message}`);
+				return 1;
+			}
 		case "list":
 			for (const c of readClaims(root))
 			{
@@ -927,7 +1172,7 @@ function main(argv: string[]): number
 			return 0;
 		}
 		default:
-			console.error("usage: claims.ts claim|list|release|touched|review-edits|findings|questions … (see the file's header)");
+			console.error("usage: claims.ts claim|list|release|touched|review-edits|findings|questions|run … (see the file's header)");
 			return 2;
 	}
 }

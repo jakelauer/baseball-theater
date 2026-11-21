@@ -56,7 +56,30 @@ export type LedgerKind =
 	| "migration" // a story's or bug's text as `pnpm backlog:migrate` recorded it (`audit.sh migration`, S164)
 	| "create" // a new story's text, or an accepted bug's fields block (`audit.sh create`)
 	| "edit" // a story's new text, chained to the one before it (`audit.sh edit`)
-	| "snapshot"; // a story's newest text and the status it ships with, at ship time (`audit.sh story`)
+	| "snapshot" // a story's newest text and the status it ships with, at ship time (`audit.sh story`)
+	| "run"; // a /run-backlog run's record, read to set the next run's concurrency (`audit.sh run`, S158)
+
+/** One turn-cap hit (S158 AC 7): the item that stopped at its turn cap, and the journal event's time. */
+export interface TurnCapHit
+{
+	id: string;
+	at: string;
+}
+
+/** A row's list of hits, `S9 @ <at>, S12 @ <at>`, or `none`: how run and review entries write them. */
+export function formatHits(hits: TurnCapHit[]): string
+{
+	return hits.map((h) => `${h.id} @ ${h.at}`).join(", ") || "none";
+}
+
+/** The hits a {@link formatHits} row holds; none for `none` or a missing row. */
+export function parseHits(row: string | undefined): TurnCapHit[]
+{
+	return [...(row ?? "").matchAll(/([SBFV]\d+) @ (\S+?)(?=,|$)/g)].map((m) => ({
+		id: m[1]!,
+		at: m[2]!,
+	}));
+}
 
 /** One ledger entry, from its heading. Optional fields are present only for the kinds that carry them. */
 export interface LedgerEntry
@@ -93,6 +116,20 @@ export interface LedgerEntry
 	 * fragment but a story's `create`, whose issue is found by its ID once `audit.sh apply` makes it.
 	 */
 	issue?: number;
+	/** A run entry's run ID (`R20261121T101500Z`, S158), which its fragment's name carries. */
+	run?: string;
+	/** A run entry's concurrency (its `| C |` row). */
+	runC?: number;
+	/** A run entry's `| Counted |` and `| Clean |` rows (runs.ts summarizeRun). */
+	counted?: boolean;
+	clean?: boolean;
+	/** A run entry's Claude-review findings per pull request; null when it opened none. */
+	findingsPerPr?: number | null;
+	/**
+	 * Turn-cap hits (S158 AC 7): a run entry's `| Turn-cap hits |` row, or a backlog review's
+	 * `| Turn-cap hits read |` row, the hits that review read and so clears.
+	 */
+	turnCaps?: TurnCapHit[];
 	heading: string;
 }
 
@@ -157,6 +194,13 @@ const SHAPES: { pattern: RegExp;
 			kind: "answers",
 			review: REVIEW_NAMES[m[1]!],
 			answers: m[2],
+		}),
+	},
+	{
+		pattern: /^run (R\d{8}T\d{6}Z)$/,
+		entry: (m) => ({
+			kind: "run",
+			run: m[1],
 		}),
 	},
 	{
@@ -248,6 +292,7 @@ export const FRAGMENT_KINDS: Record<LedgerKind, string> = {
 	"create": "create",
 	"edit": "edit",
 	"snapshot": "snapshot",
+	"run": "run",
 };
 
 /**
@@ -310,7 +355,7 @@ export function parseFragment(text: string, file: string): LedgerEntry
 		throw new LedgerParseError(`${file}: a ledger fragment holds exactly one entry heading, not ${found.length}`);
 	}
 	const entry = found[0]!;
-	const entryId = entry.story ?? entry.review;
+	const entryId = entry.story ?? entry.review ?? entry.run;
 	if (entryId !== id || FRAGMENT_KINDS[entry.kind] !== kind)
 	{
 		throw new LedgerParseError(`${file}: its name says ${id} ${kind}, but its entry is "${entry.heading}"`);
@@ -319,6 +364,20 @@ export function parseFragment(text: string, file: string): LedgerEntry
 	if (inFlight && inFlight !== "none")
 	{
 		entry.inFlight = inFlight.split(/,\s*/).filter(Boolean);
+	}
+	const row = (name: string) => new RegExp(`^\\| ${name} \\| (.*) \\|$`, "m").exec(text)?.[1]?.trim();
+	if (entry.kind === "run")
+	{
+		entry.runC = Number(row("C"));
+		entry.counted = row("Counted") === "yes";
+		entry.clean = row("Clean") === "yes";
+		const f = row("Findings per pull request");
+		entry.findingsPerPr = f === undefined || f === "none" ? null : Number(f);
+		entry.turnCaps = parseHits(row("Turn-cap hits"));
+	}
+	if (entry.kind === "review")
+	{
+		entry.turnCaps = parseHits(row("Turn-cap hits read"));
 	}
 	// An item's issue (S164): the `Issue: #<n>` line in the entry's header, before a text record's body
 	// or a completion's grader output (`<details>`), either of which may quote such a line.
@@ -588,6 +647,10 @@ export function renderLedgerIndex(entries: LedgerEntry[]): string
 		at: e.at,
 		inFlight: e.inFlight,
 		issue: e.issue,
+		run: e.run,
+		counted: e.counted,
+		clean: e.clean,
+		turnCaps: e.turnCaps?.length ? e.turnCaps : undefined,
 		heading: e.heading,
 	})).join("\n") + (entries.length > 0 ? "\n" : "");
 }

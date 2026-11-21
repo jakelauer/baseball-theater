@@ -24,6 +24,16 @@
 #   (create|edit … --review: a review's record; refused, exit 1, for an item claimed in .run/claims/)
 #   scripts/audit.sh migration S12 --issue 40 --base <sha> --body-file f [--rewrite-file d]
 #   scripts/audit.sh apply                                          # send merged records to GitHub
+#   scripts/audit.sh run [--abandoned]   # S158: the run journal (.run/run.json) as a run entry
+#
+# A run entry (S158) records a /run-backlog run: runs.ts summarizes the main checkout's .run/run.json
+# (found through git's common dir, so it works the same from a worktree), counting the inline comments
+# on each opened pull request's "Claude review of" reviews (gh api, REST), and the entry is read back
+# through ledger.ts to set the next run's concurrency (`runs.ts concurrency`). The journal then moves to
+# .run/ended/<run id>.json, kept so review-debt.sh still sees its turn-cap hits until the entry reaches
+# stage. --abandoned records a run the owner chose not to finish: its entry never counts. A backlog
+# review's --debt-json <file> (its saved `review-debt.sh --json`) lists the turn-cap hits it read, the
+# only way such a hit stops making a review due (S158 AC 7).
 #
 # Story text (S164): GitHub owns each item's state; the repository records only its text, one-way.
 # create, edit and migration write a text record (scripts/backlog-vault/text-records.ts renders it)
@@ -91,7 +101,7 @@ else
 fi
 
 usage() {
-  sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,54p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 2
 }
 
@@ -219,6 +229,7 @@ case "$MODE" in
   edit) ;;
   migration) ;;
   apply) ;;
+  run) ;;
   *) usage ;;
 esac
 
@@ -673,6 +684,50 @@ if [ "$MODE" = "answers" ]; then
   exit 0
 fi
 
+# --- run -----------------------------------------------------------------------
+# A /run-backlog run's entry (S158 AC 4), from the main checkout's journal; see the header.
+if [ "$MODE" = "run" ]; then
+  ABANDONED=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --abandoned) ABANDONED=(--abandoned); shift ;;
+      *) echo "audit: unknown option $1" >&2; usage ;;
+    esac
+  done
+  main_checkout="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+  JOURNAL="${main_checkout}/.run/run.json"
+  [ -f "$JOURNAL" ] || { echo "audit: no run is open (${JOURNAL} is missing)" >&2; exit 2; }
+  RUNS=(node scripts/backlog-vault/runs.ts --audit "$LEDGER")
+  RUN_ID="$("${RUNS[@]}" id --journal "$JOURNAL")" || exit 2
+  # The Claude-review findings on each pull request the run opened: inline comments on its reviews whose
+  # body starts "Claude review of" (CLAUDE.md, "Claude's review is handled before a pull request merges").
+  FINDINGS_FILE="$(mktemp)"
+  {
+    printf '{'
+    sep=""
+    for pr in $(node -e 'const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log([...new Set(j.events.filter((e) => e.kind === "pr-open").map((e) => e.pr))].join(" "))' "$JOURNAL"); do
+      count=0
+      reviews="$(gh api "repos/{owner}/{repo}/pulls/${pr}/reviews" --paginate --jq '.[] | select(.body | startswith("Claude review of")) | .id')" ||
+        { echo "audit: could not read pull request #${pr}'s reviews" >&2; rm -f "$FINDINGS_FILE"; exit 2; }
+      for rid in $reviews; do
+        n="$(gh api "repos/{owner}/{repo}/pulls/${pr}/reviews/${rid}/comments" --paginate --jq '.[].id' | grep -c .)"
+        count=$((count + n))
+      done
+      printf '%s"%s":%s' "$sep" "$pr" "$count"
+      sep=","
+    done
+    printf '}\n'
+  } >"$FINDINGS_FILE"
+  new_fragment "$RUN_ID" run || exit 2
+  "${RUNS[@]}" fragment --journal "$JOURNAL" --findings "$FINDINGS_FILE" --date "$TODAY" --stamp "$STAMP" \
+    --head "\`${HEAD_SHA}\` (tree ${TREE})" ${ABANDONED[@]+"${ABANDONED[@]}"} >"$FRAG_TMP" || { rm -f "$FINDINGS_FILE"; exit 2; }
+  rm -f "$FINDINGS_FILE"
+  finish_fragment || exit 2
+  mkdir -p "${main_checkout}/.run/ended" && mv "$JOURNAL" "${main_checkout}/.run/ended/${RUN_ID}.json" || exit 2
+  echo "audit run: wrote run ${RUN_ID}'s entry to ${FRAG}; its journal is now ${main_checkout}/.run/ended/${RUN_ID}.json"
+  exit 0
+fi
+
 # --- skip ----------------------------------------------------------------------
 # The owner declined a review for a drift event. The heading "— <kind> skipped" moves
 # the debt scripts' drift base (it starts "— <kind>") but is not a review heading
@@ -728,6 +783,7 @@ SINCE=""
 VERDICT=""
 FINDINGS=""
 IN_FLIGHT=""
+DEBT_JSON=""
 DATE="$TODAY"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -736,6 +792,7 @@ while [ $# -gt 0 ]; do
     --verdict) VERDICT="${2:-}"; shift 2 || usage ;;
     --findings) FINDINGS="$(read_arg "${2:-}")"; shift 2 || usage ;;
     --in-flight) IN_FLIGHT="${2:-}"; shift 2 || usage ;;
+    --debt-json) DEBT_JSON="${2:-}"; shift 2 || usage ;;
     --date) DATE="${2:-}"; shift 2 || usage ;;
     --commit) HEAD_SHA="$(git rev-parse --short "${2:-}")"; shift 2 || usage ;;
     *) echo "audit: unknown option $1" >&2; usage ;;
@@ -762,6 +819,13 @@ else
   IN_FLIGHT_ROW="none"
 fi
 
+# The turn-cap hits the review read (S158 AC 7): copied from its saved `review-debt.sh --json`; none without one.
+HITS_READ="none"
+if [ -n "$DEBT_JSON" ]; then
+  HITS_READ="$(node scripts/backlog-vault/runs.ts debt-hits --debt-json "$DEBT_JSON")" ||
+    { echo "audit: --debt-json ${DEBT_JSON} is not a review-debt.sh --json report" >&2; exit 2; }
+fi
+
 new_fragment "$RID" review || exit 2
 {
   echo "## ${DATE} — ${KIND} (\`${VERDICT}\`)"
@@ -774,6 +838,7 @@ new_fragment "$RID" review || exit 2
   echo "| Trigger | ${TRIGGER} |"
   echo "| Stories \`done\` since last review | ${SINCE:-—} |"
   echo "| In flight | ${IN_FLIGHT_ROW} |"
+  echo "| Turn-cap hits read | ${HITS_READ} |"
   echo "| Verdict | \`${VERDICT}\` |"
   echo
   echo "**Findings / amendments**"

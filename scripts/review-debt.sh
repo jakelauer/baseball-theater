@@ -41,8 +41,12 @@
 #   - a story's acceptance criteria rewritten
 #   - the `verify` script in package.json changed (the gate moved)
 #   - 6 stories went `done` (doubled from 3 by the owner, 2026-10-21)
-# Not detectable here, so still the agent's to notice: a scope fence widened or a
-# turn cap hit mid-run (rule 10 stop-and-report).
+#   - a turn cap hit (S158 AC 7; owner, 2026-11-21: "Yes, add it to S158 (Recommended)"): each `turn-cap`
+#     event in a run entry, in the main checkout's live `.run/run.json` or in its `.run/ended/*.json`
+#     (runs whose entry may not have reached stage yet), until a backlog review entry lists that exact
+#     (ID, time) in its `Turn-cap hits read` row (`audit.sh review --debt-json`). No time cutoff, and a
+#     skip or answers entry never clears one (scripts/backlog-vault/runs.ts turn-caps)
+# Not detectable here, so still the agent's to notice: a scope fence widened.
 #
 # Reads committed history (HEAD; uncommitted edits are not counted) and, for the `removed` event,
 # the issue cache when there is one (scripts/lib/story-notes.sh cache_removed).
@@ -224,6 +228,17 @@ if [ "$done_count" -ge "$BACKSTOP" ]; then
   reasons+=("${done_count} stories done since (${done_since})")
   json_event count done "$done_since"
 fi
+
+# Turn-cap hits no backlog review has listed (S158 AC 7): one reason and one `turn-cap` event per item,
+# the event carrying each unlisted hit's time. `.run/` is the main checkout's, found through git's common dir.
+main_checkout="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+caps="$(node scripts/backlog-vault/runs.ts turn-caps --audit "$LEDGER" --run-dir "${main_checkout}/.run")" ||
+  { echo "review: could not read the turn-cap hits" >&2; exit 2; }
+while IFS=$'\t' read -r id event; do
+  [ -z "$id" ] && continue
+  reasons+=("turn cap hit: ${id}")
+  events+=("$event")
+done <<<"$caps"
 
 # The counts line, printed whether or not a review is due: stories done since the last review and
 # the items in flight (read through cli.ts in-flight, scripts/backlog-vault/in-flight.ts).
