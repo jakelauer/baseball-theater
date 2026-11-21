@@ -3,6 +3,10 @@
 #
 #   pnpm parity:debt          # prints why or why not; exit 1 when due, 0 when not
 #   pnpm parity:debt --in-flight S160,S161   # the items in flight in a parallel run
+#   scripts/parity-debt.sh --json   # one JSON object: { due, base, done, inFlight, events } (S163),
+#                                   # as scripts/review-debt.sh --json; seeds `pnpm backlog:search seed parity`
+#   scripts/parity-debt.sh --json --since <sha>   # the same, with the events and `due` measured from <sha>
+#                                   # (the seed passes `cli.ts review-base parity`, past later skips/answers)
 #
 # Always prints the `done` count and the in-flight count, as scripts/review-debt.sh does (S156).
 #
@@ -27,6 +31,8 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 in_flight_flag=()
+json=""
+since=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --in-flight)
@@ -34,11 +40,23 @@ while [ $# -gt 0 ]; do
       [ $# -ge 2 ] || { echo "usage: $0 [--in-flight S1,S2]" >&2; exit 2; }
       in_flight_flag=(--in-flight "$2"); shift 2 ;;
     --in-flight=*) in_flight_flag=(--in-flight "${1#--in-flight=}"); shift ;;
-    *) echo "usage: $0 [--in-flight S1,S2]" >&2; exit 2 ;;
+    --json) json=1; shift ;;
+    --since)
+      # A value, not the next flag: `--since --json` is a usage error, never a base named "--json".
+      { [ $# -ge 2 ] && [ "${2#--}" = "$2" ] && [ -n "$2" ]; } || { echo "usage: $0 [--in-flight S1,S2] [--json [--since <sha>]]" >&2; exit 2; }
+      since="$2"; shift 2 ;;
+    *) echo "usage: $0 [--in-flight S1,S2] [--json [--since <sha>]]" >&2; exit 2 ;;
   esac
 done
+# --since only re-bases the JSON report (a review's seed); the text and exit codes keep the ledger's base.
+[ -n "$since" ] && [ -z "$json" ] && { echo "usage: $0 [--in-flight S1,S2] [--json [--since <sha>]] — --since needs --json" >&2; exit 2; }
 # shellcheck source=lib/story-notes.sh
 . scripts/lib/story-notes.sh
+
+# --json: each event the text below reports, as a JSON object (json_event), and the report (json_report).
+events=()
+# shellcheck disable=SC2329
+json_event() { events+=("$(event_json "$@")"); }
 
 LEDGER="${BT_AUDIT_LEDGER:-docs/v3/AUDIT.md}"
 STORIES="docs/v3/backlog/stories"
@@ -49,7 +67,13 @@ BACKSTOP=6
 # commit that logged a doc parity review, its answers or a skip of one.
 LEDGER_CLI=(node scripts/backlog-vault/cli.ts --audit "$LEDGER")
 base="$("${LEDGER_CLI[@]}" ledger-base parity)" || { echo "parity: could not read ${LEDGER}" >&2; exit 2; }
+# `--json --since <sha>`: measure from that commit instead (S163: the seed passes the newest review itself,
+# `cli.ts review-base`, so a change a skip or answers entry passed over is still reported).
+if [ -n "$since" ]; then
+  base="$(git rev-parse --short "${since}^{commit}" 2>/dev/null)" || { echo "parity: --since ${since} is not a commit" >&2; exit 2; }
+fi
 if [ -z "$base" ]; then
+  [ -n "$json" ] && { json_report true "" "" ""; exit 0; }
   echo "parity: no doc parity review logged in ${LEDGER} yet — one is due."
   exit 1
 fi
@@ -57,7 +81,7 @@ fi
 reasons=()
 
 while IFS= read -r doc; do
-  [ -n "$doc" ] && reasons+=("${doc} changed")
+  [ -n "$doc" ] && reasons+=("${doc} changed") && json_event doc-changed path "$doc"
 done < <(git diff --name-only "$base" HEAD -- "${DOCS[@]}")
 
 # Notes are matched by story ID, not path (scripts/lib/story-notes.sh): a note moving to its new
@@ -72,17 +96,19 @@ purpose() {
 while IFS=$'\t' read -r change id before_path after_path; do
   [ -z "$id" ] && continue
   case "$change" in
-    A) reasons+=("${id} added"); continue ;;
-    D) reasons+=("${id} removed"); continue ;;
+    A) reasons+=("${id} added"); json_event inserted id "$id"; continue ;;
+    D) reasons+=("${id} removed"); json_event removed id "$id"; continue ;;
   esac
   before="$(body "$base" "$before_path")"
   after="$(body HEAD "$after_path")"
   if [ "$(grep '^\*\*Source:\*\*' <<<"$before")" != "$(grep '^\*\*Source:\*\*' <<<"$after")" ]; then
     reasons+=("${id}'s **Source:** changed")
+    json_event source-changed id "$id"
   fi
   if grep -q '^\*\*Source:\*\* Pillar:' <<<"$before$after" &&
     [ "$(purpose <<<"$before")" != "$(purpose <<<"$after")" ]; then
     reasons+=("${id}'s Gap, Impact or acceptance criteria changed, and it cites a pillar")
+    json_event purpose-changed id "$id"
   fi
 done < <(story_changes "$base" HEAD "$STORIES")
 
@@ -92,6 +118,7 @@ done_count=0
 [ -n "$done_since" ] && done_count="$(tr ',' '\n' <<<"$done_since" | wc -l | tr -d ' ')"
 if [ "$done_count" -ge "$BACKSTOP" ]; then
   reasons+=("${done_count} stories done since (${done_since})")
+  json_event count done "$done_since"
 fi
 
 # The counts line, printed whether or not a review is due: stories done since the last review and
@@ -104,6 +131,13 @@ if [ "$done_count" -eq "$((BACKSTOP - 1))" ]; then
   counts="${counts} A review is due at the next \`done\`; it starts beside the in-flight items, never pausing them."
 fi
 print_counts() { printf "${counts}\n" "parity" "doc parity review"; }
+
+if [ -n "$json" ]; then
+  due=false
+  [ "${#reasons[@]}" -gt 0 ] && due=true
+  json_report "$due" "$base" "$done_since" "$in_flight"
+  exit 0
+fi
 
 if [ "${#reasons[@]}" -eq 0 ]; then
   echo "parity: not due — nothing changed since the last doc parity review or its answers (logged in ${base}); ${done_count} of ${BACKSTOP} stories done since."

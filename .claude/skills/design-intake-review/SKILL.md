@@ -1,6 +1,6 @@
 ---
 name: design-intake-review
-description: Treat ratified designs as undocumented UI features and amend the backlog to build them — inventory every screen, component, state, layout and data need in the ratified surfaces (DESIGN.md, PNGs, Figma), plan the shared frontend component layer against the accepted frontend ADRs, map it to existing stories, and slice what no story owns. Use when a surface is newly ratified or a ratified amendment lands, when frontend ADRs change, or when asked whether the backlog actually builds the designs.
+description: Treat ratified designs as undocumented UI features and amend the backlog to build them — inventory every screen, component, state, layout and data need in the seeded designs (DESIGN.md, PNGs, Figma), plan the shared frontend component layer against the accepted frontend ADRs, map it to existing stories, and slice what no story owns. Use when a surface is newly ratified or a ratified amendment lands, when frontend ADRs change, or when asked whether the backlog actually builds the designs.
 ---
 
 # Design intake review
@@ -21,18 +21,26 @@ It counts as the backlog review for that drift event; log it with `scripts/audit
 
 Run it **without** the transcript that wrote the stories or the designs. For a full intake (several surfaces, or new frontend ADRs), run **two independent reviewers** that do not see each other's work, each producing a report (two `design-intake-reviewer` subagents started at once: read-only, with the Figma tools, each loading this skill). The coordinating agent (or the `design-intake-merger` it hands both reports to) merges them: union the findings (coverage), and for every disagreement state both positions and the resolution, or put it to the owner. Reviewers report; they do not edit. The coordinator applies the merged result, or hands both reports to a `design-intake-merger` subagent (always under `/run-backlog`), which merges, applies, logs and commits, so the merge stays out of the coordinating thread.
 
-## Inputs — read all of them
+## Inputs — what the seed names
 
-| Source                                                                                                                                                                                                              | What to take from it                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `docs/v3/visual/<surface>/DESIGN.md`, `RATIFIED.md`, `REVISIONS.md`                                                                                                                                                 | The ratified frames, their states and variants, and decisions recorded on them                                             |
-| `docs/v3/visual/<surface>/*.png`                                                                                                                                                                                    | What is actually drawn — read the images, do not trust the prose alone                                                     |
-| Figma file `wqGKEFlvyxq0ObWZhRJdPF` (Figma MCP: `get_metadata`, `get_screenshot`; `get_design_context` only after loading the `/figma-design-to-code` skill)                                                        | Component structure, variants and instances the PNGs flatten — the evidence for what is one shared component vs. a one-off |
-| `docs/v3/VISUAL-DESIGN.md`                                                                                                                                                                                          | Tokens, host pairings (mobile / medium / desktop), §5a settings that change presentation, §9 decisions                     |
-| `docs/v3/FEATURES.md`, `docs/v3/INTENT.md`                                                                                                                                                                          | What each drawn thing is for                                                                                               |
-| `docs/v3/ARCHITECTURE.md` — ADR-003, 008, 014, 016, 020–026, each by its line range in `docs/v3/INDEX.md`                                                                                                           | The frontend rules the stories must be sliced against                                                                      |
-| The backlog through `docs/v3/INDEX.md`: the Gap map and Later themes frame notes, every UI story's note (`grep -rl "^design:" docs/v3/backlog/stories/`), and `web/src/` at HEAD — the retired `BACKLOG.md` is gone | What is already owned or built                                                                                             |
-| `packages/domain`, `openapi/bt-api.v1.json`                                                                                                                                                                         | What data exists today, to find what the frames need that the API lacks                                                    |
+First step (S163):
+
+```bash
+pnpm backlog:search seed intake --since "$(node scripts/backlog-vault/cli.ts review-base backlog)"
+```
+
+Read what it names, not every surface (a surface's first ratification still has its whole surface inventoried: all of it is new), and copy each `query:` line into the findings. Backlog items it seeds get the backlog review's checks too.
+
+| Source                                                                                                                                                       | What to take from it                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| The seeded amendment or surface files, and the frames each amendment adds, overrides or repeals                                                              | The ratified frames, their states and variants, and decisions recorded on them                                             |
+| Those frames' PNGs                                                                                                                                           | What is actually drawn — read the images, do not trust the prose alone                                                     |
+| Figma file `wqGKEFlvyxq0ObWZhRJdPF` (Figma MCP: `get_metadata`, `get_screenshot`; `get_design_context` only after loading the `/figma-design-to-code` skill) | Component structure, variants and instances the PNGs flatten — the evidence for what is one shared component vs. a one-off |
+| `docs/v3/VISUAL-DESIGN.md`                                                                                                                                   | Tokens, host pairings (mobile / medium / desktop), §5a settings that change presentation, §9 decisions                     |
+| `docs/v3/FEATURES.md`, `docs/v3/INTENT.md`                                                                                                                   | What each drawn thing is for                                                                                               |
+| `docs/v3/ARCHITECTURE.md` — ADR-003, 008, 014, 016, 020–026, each by its line range in `docs/v3/INDEX.md`                                                    | The frontend rules the stories must be sliced against                                                                      |
+| The seeded stories (`design`), their Gap map rows and `web/src/` at HEAD                                                                                     | What is already owned or built                                                                                             |
+| `packages/domain`, `openapi/bt-api.v1.json`                                                                                                                  | What data exists today, to find what the frames need that the API lacks                                                    |
 
 Never treat an unratified frame as a decision. A frame in Figma that is not in a ratified surface is an open question for the owner, not work.
 
@@ -42,7 +50,7 @@ Each produces findings with cited evidence (file, line, frame or node id), never
 
 ### 1. Inventory — what the designs contain
 
-Per surface, list:
+Per seeded amendment (or newly ratified surface), list:
 
 - **Screens and rooms**, per host pairing (mobile / medium / desktop).
 - **Components**, marking which recur across surfaces (team-color module, linescore, at-bat accordion, tab bar, notice, empty/loading/error room …). Recurrence is judged from Figma instances and the PNGs, not names.
@@ -76,7 +84,7 @@ Propose, as backlog amendments, not prose:
 - Slice every unowned item into stories that follow the backlog rules (frame note 00, `docs/v3/backlog/frame/`): Gap, Impact, Source, Design line, Depends on, scope fence, ACs that map to commands/tests, `/goal` line, turn cap, verify-script work item 0. A story should be the smallest thing that moves the loop (rule 4).
 - **Source lines (rule 19):** cite a feature FEATURES already names (most ratified frames are carried features — scoreboard, game rooms, standings, search, settings). If none fits, write `Open:` with the question. Never edit FEATURES or INTENT here — that is the [doc parity review](../doc-parity-review/SKILL.md)'s scope; queue the gap under **For the parity review** in the findings instead.
 - Re-scope existing UI stories whose ACs miss drawn states, rather than adding a parallel story.
-- Run the backlog review's checks 2 (ground truth for the next 3 stories), 2b (the adversarial pass, on every story this intake inserts or re-scopes as well) and 3 (argue against the whole order) on the amended backlog.
+- Run the backlog review's checks 2 (ground truth for the next 3 stories), 2b (the adversarial pass, on every story this intake inserts or re-scopes as well) and 3 (argue against the order around what changed) on the amended backlog.
 
 ### 5. Verdict
 
@@ -92,4 +100,4 @@ Same as the backlog review: story notes, frame notes, `pnpm backlog:build`, the 
 scripts/audit.sh review --trigger "design intake: <surfaces / ADRs>" --since "<done stories since last review>" --verdict amended --findings -
 ```
 
-The findings body records the inventory summary per surface, the ownership map (counts of owned / unowned / re-scoped), each new or re-scoped story with the evidence that motivated it, the merged reviewers' disagreements and their resolution, items queued for the parity review, and the owner questions. Inserting stories makes a parity review due; run it after.
+The findings body records the `query:` lines (the earliest `as of` among the reviewers' seeds), the inventory summary per surface, the ownership map (counts of owned / unowned / re-scoped), each new or re-scoped story with the evidence that motivated it, the merged reviewers' disagreements and their resolution, items queued for the parity review, and the owner questions. Inserting stories makes a parity review due; run it after.

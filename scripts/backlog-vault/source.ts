@@ -45,20 +45,35 @@ function plain(cell: string): string
 	return cell.replace(/[*`]/g, "").trim();
 }
 
-/**
- * Feature names FEATURES.md gives: the first cell of each table row and each `####` heading
- * (minus a trailing goal tag like "(G2, G4)") in the feature sections. Rows with a **Drop**
- * verdict are returned separately — citing a dropped feature is a problem, not a source.
- */
-export function featureNames(features: string): { live: Set<string>;
-	dropped: Set<string> }
+/** One feature FEATURES.md names, with the text that describes it. */
+export interface FeatureEntry
 {
-	const live = new Set<string>();
-	const dropped = new Set<string>();
+	name: string;
+	/** A **Drop** verdict: citing it is a problem, not a source. */
+	dropped: boolean;
+	/** Its table row, or its `####` heading and the lines under it up to the next heading. */
+	text: string;
+}
+
+/**
+ * The features FEATURES.md gives, the one reading of it (ADR-025): the first cell of each table row
+ * and each `####` heading (minus a trailing goal tag like "(G2, G4)") in the feature sections, each
+ * with its text, so `pnpm backlog:search seed parity` (search.ts changedRows) can tell which ones a
+ * change touched, including a plain-name row or a line inside a `####` feature's body.
+ */
+export function featureEntries(features: string): FeatureEntry[]
+{
+	const entries: FeatureEntry[] = [];
 	const lines = features.split("\n");
 	let inSection = false;
+	/** The `####` feature whose body the lines below belong to, until the next heading. */
+	let open: FeatureEntry | undefined;
 	lines.forEach((line, i) =>
 	{
+		if (/^#{1,4} /.test(line))
+		{
+			open = undefined;
+		}
 		if (line.startsWith("## "))
 		{
 			inSection = FEATURE_SECTIONS.some((s) => line.slice(3).startsWith(s));
@@ -71,8 +86,18 @@ export function featureNames(features: string): { live: Set<string>;
 		const heading = /^#### (.+?)(?: \([^)]*\))?$/.exec(line)?.[1];
 		if (heading !== undefined)
 		{
-			live.add(plain(heading));
+			open = {
+				name: plain(heading),
+				dropped: false,
+				text: line,
+			};
+			entries.push(open);
 			return;
+		}
+		// A line under a `####` feature is part of its text; a table there still names features, as it always has.
+		if (open !== undefined)
+		{
+			open.text += `\n${line}`;
 		}
 		const isHeaderRow = SEPARATOR_ROW.test(lines[i + 1] ?? "");
 		if (!line.startsWith("|") || SEPARATOR_ROW.test(line) || isHeaderRow)
@@ -83,22 +108,47 @@ export function featureNames(features: string): { live: Set<string>;
 		const name = plain(cells[0] ?? "");
 		if (name !== "")
 		{
-			(cells.some((c) => c.trim().startsWith("**Drop")) ? dropped : live).add(name);
+			entries.push({
+				name,
+				dropped: cells.some((c) => c.trim().startsWith("**Drop")),
+				text: line,
+			});
 		}
 	});
+	return entries;
+}
+
+/**
+ * Feature names FEATURES.md gives ({@link featureEntries}). Rows with a **Drop** verdict are
+ * returned separately — citing a dropped feature is a problem, not a source.
+ */
+export function featureNames(features: string): { live: Set<string>;
+	dropped: Set<string> }
+{
+	const live = new Set<string>();
+	const dropped = new Set<string>();
+	for (const entry of featureEntries(features))
+	{
+		(entry.dropped ? dropped : live).add(entry.name);
+	}
 	return {
 		live,
 		dropped,
 	};
 }
 
-/** Pillar names from INTENT.md's `## Pillars` bullets (`- **Name** — …`). */
-export function pillarNames(intent: string): Set<string>
+/** INTENT.md's pillars (`## Pillars` bullets, `- **Name** — …`), each with its bullet's text: the one reading of them. */
+export function pillarEntries(intent: string): Map<string, string>
 {
-	const names = new Set<string>();
+	const pillars = new Map<string, string>();
 	let inPillars = false;
+	let open: string | undefined;
 	for (const line of intent.split("\n"))
 	{
+		if (line.startsWith("#"))
+		{
+			open = undefined;
+		}
 		if (line.startsWith("## "))
 		{
 			inPillars = line === "## Pillars";
@@ -107,13 +157,45 @@ export function pillarNames(intent: string): Set<string>
 		const name = inPillars ? /^- \*\*(.+?)\*\* —/.exec(line)?.[1] : undefined;
 		if (name !== undefined)
 		{
-			names.add(name);
+			open = name;
+			pillars.set(name, line);
+		}
+		else if (open !== undefined && /^\s+\S/.test(line))
+		{
+			// An indented continuation of the bullet belongs to it.
+			pillars.set(open, `${pillars.get(open)!}\n${line}`);
+		}
+		else
+		{
+			open = undefined;
 		}
 	}
-	return names;
+	return pillars;
+}
+
+/** Pillar names from INTENT.md's `## Pillars` bullets ({@link pillarEntries}). */
+export function pillarNames(intent: string): Set<string>
+{
+	return new Set(pillarEntries(intent).keys());
 }
 
 const PILLAR = /^Pillar: (.+?) — (.+?)\s+Approved by owner (\d{4}-\d{2}-\d{2}): "(.+)"$/;
+
+/**
+ * The FEATURES rows or INTENT pillar a `**Source:**` line names: each `;`-separated feature name, or
+ * the pillar's name; none for an `Open:` line. The one reading of a citation (ADR-025), used by
+ * {@link sourceProblems} and by `pnpm backlog:search cites` (search.ts).
+ */
+export function sourceCitations(source: string | null): string[]
+{
+	const kind = sourceKind(source);
+	if (kind === "feature")
+	{
+		return (source ?? "").slice("Feature:".length).split(";").map((n) => n.trim()).filter((n) => n !== "");
+	}
+	const pillar = kind === "pillar" ? /^Pillar: (.+?) — /.exec(source ?? "")?.[1] : undefined;
+	return pillar === undefined ? [] : [pillar];
+}
 const RAISED = /Raised \d{4}-\d{2}-\d{2}\.?$/;
 
 export function sourceProblems(stories: Pick<Story, "id" | "status" | "source">[], docs: SourceDocs): string[]
@@ -132,7 +214,7 @@ export function sourceProblems(stories: Pick<Story, "id" | "status" | "source">[
 		}
 		else if (kind === "feature")
 		{
-			const names = source.slice("Feature:".length).split(";").map((n) => n.trim()).filter((n) => n !== "");
+			const names = sourceCitations(source);
 			if (names.length === 0)
 			{
 				problems.push(`${id}'s **Source:** names no feature`);
