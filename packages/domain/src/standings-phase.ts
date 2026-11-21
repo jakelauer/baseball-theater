@@ -22,8 +22,10 @@
  * table is the previous season's, which only the calendars can say.
  */
 import { addDays } from "./calendar-date.js";
-import type { SeasonCalendar } from "./scoreboard-date.js";
-import type { StandingsPhaseName } from "./types.js";
+import type { SeasonCalendar, SeasonChampion } from "./scoreboard-date.js";
+import type {
+	StandingsPhaseName, StandingsSnapshot, StandingsTeamRecord,
+} from "./types.js";
 
 /** The table to ask MLB for: which kind, for which season, and the day it stands as of. */
 export interface StandingsPick {
@@ -115,4 +117,213 @@ export function previousStandingsPhase(pick: StandingsPick, seasons: readonly Se
 		};
 	}
 	return null;
+}
+
+/**
+ * One season phase's plan for a day (S139): the days the phase runs in the answer's season, and
+ * the table to ask MLB for, or null when the phase has no MLB table of its own that day (the
+ * regular season on a spring day, which the service answers with the new season's teams at 0-0).
+ * For `playoffs` the pick is the regular season's (AC 2 has every phase name its table): its teams
+ * are the regular season phase's table's clinched ones, so the service reads that phase's table
+ * (the 0-0 list before the first game included) rather than fetching this pick on its own.
+ */
+export interface SeasonPhasePlan {
+	startDate: string | null;
+	endDate: string | null;
+	pick: StandingsPick | null;
+}
+
+/** What each season phase holds on a day (S139): the season the answer is for and each phase's plan, or null. */
+export interface StandingsPhasesPlan {
+	season: number;
+	spring: SeasonPhasePlan | null;
+	regularSeason: SeasonPhasePlan;
+	playoffs: SeasonPhasePlan | null;
+	/**
+	 * From spring's first day through opening day, when the regular season may not have played a
+	 * game yet (S139 AC 4): the table that lists the new season's teams if spring's has none yet —
+	 * MLB's season table with no date (`fetchFinalStandings`), which before the season's first game
+	 * lists every team at 0-0 (recorded 2026-11-18 for 2027). The regular season is the 0-0 list on
+	 * these days only, when its own table is missing (a spring day) or empty (opening day's
+	 * morning). Null on every other day and with no calendar.
+	 */
+	newSeasonTeams: StandingsPick | null;
+}
+
+/**
+ * What the spring, regular season and playoffs hold on `day`, from the season calendars only, never
+ * the clock (owner, 2026-11-10, of a past date: "Same rules as if that date were today."). The
+ * season is the one `standingsPhase` picks the day's table from: a season runs from its
+ * `springStartDate` to the day before the next known season's.
+ *
+ * - **spring:** `springStartDate` through the day before `regularSeasonStartDate`; that spring's
+ *   table as of the day, or as of its last day once the day is past it.
+ * - **regularSeason:** `regularSeasonStartDate` through `regularSeasonEndDate`; the day's table
+ *   inside those dates, the season's `final` after them, and no MLB table on a spring day (MLB has
+ *   none before opening day).
+ * - **playoffs:** the day after `regularSeasonEndDate` through `lastGameDate`; the regular season's
+ *   table, whose clinched teams the service keeps. Null for a season with no postseason day
+ *   (`lastGameDate` on or before `regularSeasonEndDate`), never a phase that ends before it starts.
+ *
+ * With no calendar for the day's season (none given, one missing a regular-season date, or a day
+ * before every known season) spring and playoffs are null and the regular season is the day's
+ * table with no dates, as `standingsPhase` answers there.
+ */
+export function standingsPhases(day: string, seasons: readonly SeasonCalendar[]): StandingsPhasesPlan
+{
+	const pick = standingsPhase(day, seasons);
+	const calendar = knownSeasons(seasons).find((s) => s.season === pick.season && s.springStartDate <= day);
+	if (!calendar)
+	{
+		return {
+			season: pick.season,
+			spring: null,
+			regularSeason: {
+				startDate: null,
+				endDate: null,
+				pick,
+			},
+			playoffs: null,
+			newSeasonTeams: null,
+		};
+	}
+	const springEnd = addDays(calendar.regularSeasonStartDate, -1);
+	const regularPick: StandingsPick | null = day < calendar.regularSeasonStartDate
+		? null
+		: day <= calendar.regularSeasonEndDate
+			? {
+				phase: "regularSeason",
+				season: calendar.season,
+				date: day,
+			}
+			: finalOf(calendar);
+	const playoffsStart = addDays(calendar.regularSeasonEndDate, 1);
+	return {
+		season: calendar.season,
+		spring: {
+			startDate: calendar.springStartDate,
+			endDate: springEnd,
+			pick: {
+				phase: "spring",
+				season: calendar.season,
+				date: day < springEnd ? day : springEnd,
+			},
+		},
+		regularSeason: {
+			startDate: calendar.regularSeasonStartDate,
+			endDate: calendar.regularSeasonEndDate,
+			pick: regularPick,
+		},
+		playoffs: calendar.lastGameDate < playoffsStart
+			? null
+			: {
+				startDate: playoffsStart,
+				endDate: calendar.lastGameDate,
+				pick: regularPick,
+			},
+		newSeasonTeams: day <= calendar.regularSeasonStartDate ? finalOf(calendar) : null,
+	};
+}
+
+/**
+ * Where a season stands on `today` (MLB's day), for anything cached from its calendar (S139 AC 8):
+ * `ongoing` before its `regularSeasonEndDate`, or when that date isn't known (a season with no
+ * calendar is never settled); `postseason` from `regularSeasonEndDate` through the day after
+ * `lastGameDate`, while the postseason can still move the last game's day and S140's winner;
+ * `settled` after that, when nothing in its calendar changes any more. With no `lastGameDate` the
+ * last game is taken to be `regularSeasonEndDate`. The calendar cache and the standings' edge
+ * cache both judge a season by this one rule (ADR-025).
+ */
+export function seasonSettling(regularSeasonEndDate: string | null | undefined, lastGameDate: string | null | undefined, today: string): "ongoing" | "postseason" | "settled"
+{
+	if (!regularSeasonEndDate || today < regularSeasonEndDate) return "ongoing";
+	return today <= addDays(lastGameDate ?? regularSeasonEndDate, 1) ? "postseason" : "settled";
+}
+
+/**
+ * The playoffs phase's table (S139 AC 2): the regular season's table keeping only the teams that
+ * have clinched, in the same division order, a division with none left out, with the table's own
+ * labels (owner, 2026-11-10: "it'll just be a list of teams with no with no numbers"). MLB's
+ * `clinched` is the source: its own playoff type (`wildCard`, recorded 2026-11-18) only ranks the
+ * non-leaders and marks a subset of the same teams, so it costs no request of its own.
+ */
+export function playoffsTable(regularSeason: StandingsSnapshot): StandingsSnapshot
+{
+	return {
+		...regularSeason,
+		divisions: regularSeason.divisions
+			.map((division) => ({
+				...division,
+				teams: division.teams.filter((team) => team.clinched),
+			}))
+			.filter((division) => division.teams.length > 0),
+	};
+}
+
+/** A team before its season's first game (S139 AC 4): its name and division, 0-0, every other figure blank. */
+function blankRecord(team: StandingsTeamRecord): StandingsTeamRecord
+{
+	return {
+		teamId: team.teamId,
+		name: team.name,
+		abbreviation: team.abbreviation,
+		wins: 0,
+		losses: 0,
+		pct: null,
+		gamesBack: null,
+		divisionRank: null,
+		streak: null,
+		runsScored: null,
+		runsAllowed: null,
+		runDifferential: null,
+		divisionLeader: false,
+		clinched: false,
+		eliminationNumber: null,
+	};
+}
+
+/**
+ * The regular season before its first game (S139 AC 4; owner: "even though like in spring
+ * training, it's going to be all, you know, blank for the regular season, we should still show
+ * it"): `source`'s teams in their divisions, in name order, with blank records, labelled as
+ * `season`'s regular season on `day`. `source` is spring's table, or the new season's team list
+ * (`StandingsPhasesPlan.newSeasonTeams`) while spring has no team yet; it is left unchanged.
+ */
+export function blankRegularSeasonTable(source: StandingsSnapshot, season: number, day: string): StandingsSnapshot
+{
+	return {
+		...source,
+		date: day,
+		phase: "regularSeason",
+		season,
+		divisions: source.divisions.map((division) => ({
+			...division,
+			teams: [...division.teams].sort((a, b) => a.name.localeCompare(b.name)).map(blankRecord),
+		})),
+	};
+}
+
+/** A season's World Series winner as the standings answer names it (S140): the champion and its season. */
+export interface StandingsChampion extends SeasonChampion {
+	season: number;
+}
+
+/**
+ * The World Series winner the standings name on `day` (S140 AC 2), from the season calendars only,
+ * never the clock, so a past date gets the answer it would have had that day. It is the winner of
+ * the season whose `final` table `standingsPhase` picks (the off-season: the day after
+ * `regularSeasonEndDate` until the next season's spring), from the day the Series was won
+ * (`wonOn`) on; null on every other day, before the Series is decided (the playoffs are part of the
+ * off-season), and for a season with no winner.
+ */
+export function standingsChampion(day: string, seasons: readonly SeasonCalendar[]): StandingsChampion | null
+{
+	const pick = standingsPhase(day, seasons);
+	if (pick.phase !== "final") return null;
+	const champion = seasons.find((s) => s.season === pick.season)?.champion;
+	if (!champion || day < champion.wonOn) return null;
+	return {
+		season: pick.season,
+		...champion,
+	};
 }

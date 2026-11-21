@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S69's design match (rule 22): the Videos room in the game-shell frames it builds —
  * `game-videos-grid-mobile`, `-medium`, `-desktop` (grid mode, two / three / four

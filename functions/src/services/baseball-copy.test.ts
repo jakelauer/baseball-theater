@@ -4,10 +4,7 @@
  * personal table, and any delete or truncate at all, fail the copy outright, so "never written,
  * not even for a moment" is checked as it happens, not only by what is left at the end.
  */
-import {
-	cpSync, mkdtempSync, readFileSync, writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import type { GameSnapshot } from "@bt/domain";
@@ -30,6 +27,7 @@ import {
 	baseballTables, checkCopyRules, copyBaseballData, CopyRefused, tablesNamedIn,
 } from "./baseball-copy.js";
 import { DATA_CLASSIFICATION } from "./data-classification.js";
+import { FIRST_WHEN, migrationsWith } from "../test/migrations-folder.js";
 
 const PERSONAL_TABLES = Object.entries(DATA_CLASSIFICATION.postgresTables).filter(([, label]) => label.kind !== "none").map(([table]) => table);
 
@@ -187,35 +185,6 @@ function copy(source: PostgresDb, target: PostgresDb, extra: Partial<CopyDeps> =
 }
 
 const NOW = new Date("2026-11-13T12:00:00.000Z");
-
-/** The committed migration's `when`, so a test's own migrations sort before or after it as needed. */
-const FIRST_WHEN = (JSON.parse(readFileSync(join(MIGRATIONS_FOLDER, "meta", "_journal.json"), "utf8")) as { entries: { when: number }[] }).entries.at(-1)!.when;
-
-/** A copy of the committed migrations folder with `extra` migrations after them, as a checkout ahead of production would hold. */
-function migrationsWith(extra: { tag: string;
-	sql: string;
-	when: number; }[]): string
-{
-	const folder = mkdtempSync(join(tmpdir(), "bt-migrations-"));
-	cpSync(MIGRATIONS_FOLDER, folder, {
-		recursive: true,
-	});
-	const journalPath = join(folder, "meta", "_journal.json");
-	const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries: Record<string, unknown>[] };
-	for (const migration of extra)
-	{
-		writeFileSync(join(folder, `${migration.tag}.sql`), migration.sql);
-		journal.entries.push({
-			idx: journal.entries.length,
-			version: "7",
-			when: migration.when,
-			tag: migration.tag,
-			breakpoints: true,
-		});
-	}
-	writeFileSync(journalPath, JSON.stringify(journal));
-	return folder;
-}
 
 /** A fresh PGlite migrated from `folder`. */
 async function migratedFrom(folder: string): Promise<PostgresDb>

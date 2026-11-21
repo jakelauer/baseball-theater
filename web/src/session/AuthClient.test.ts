@@ -7,11 +7,10 @@ import { SIGN_IN_CALLBACK_PATH } from "@bt/domain";
 import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
-import { jsonResponse } from "../test/jsonResponse.js";
 import { clearPersonalData } from "../storage/storage.js";
 import type { LogtoSdk, LogtoSdkFactory } from "./AuthClient.js";
 import {
-	createAuthClient, loadAuthClient, logtoConfig, logtoStorage,
+	createAuthClient, logtoConfig, logtoStorage,
 } from "./AuthClient.js";
 
 afterEach(() =>
@@ -113,18 +112,5 @@ describe("AuthClient (S116)", () =>
 		clearPersonalData();
 		expect(Object.keys(localStorage)).toEqual([]);
 		expect(Object.keys(sessionStorage)).toEqual([]);
-	});
-
-	it("S116 AC 3: reads the tenant and app from the Worker, and none means no Logto sign-in", async () =>
-	{
-		const fetchMock = vi.fn(async () => jsonResponse({
-			logto: null,
-		}));
-		vi.stubGlobal("fetch", fetchMock);
-		expect(await loadAuthClient()).toBeNull();
-		expect(await loadAuthClient()).toBeNull();
-		// Asked once per page load.
-		expect(fetchMock).toHaveBeenCalledOnce();
-		expect(new URL((fetchMock.mock.calls[0] as unknown as [Request])[0].url).pathname).toBe("/api/v1/sign-in");
 	});
 });

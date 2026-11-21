@@ -30,6 +30,12 @@ name: Deploy
 # idempotent so it can happen with every deployment. All the bootstrapping should be like that."),
 # so a re-run changes nothing; a preview's re-run resets its branch from staging and rewrites its
 # Hyperdrive config, ending as the first run did. Secrets come only from GitHub secrets; agents never run this.
+# `pnpm db:migrate` stops the deploy, before any migration runs and before the Worker goes live, when the
+# database's migrations differ from the code's (#48); its error says how to fix it for each environment and kind,
+# as the README does (production: stop and ask the owner, never reset or edit it by hand). Production and
+# previews pass a database ahead of the code (newer migrations only), with a warning: re-running an older
+# release's Deploy run is production's rollback, and a preview's database is reset from staging, which is ahead
+# of a pull request built before stage gained a newer migration (a re-run, or no push since). Staging stays strict.
 # The version line (#47; owner, 2026-11-13: "Yes, build it that way"): every deploy build first looks
 # up its release with scripts/build-release.sh, the milestone of the pull request whose merge commit it
 # builds (a preview: its own pull request's milestone and head commit), and prints it with the commit,
@@ -194,6 +200,11 @@ jobs:
 
             - name: Migrate the preview's database
               if: steps.open.outputs.open == 'true'
+              # Its database is reset from staging, which is ahead of a pull request built before stage gained a newer
+              # migration (a re-run, or no push since), so newer migrations
+              # pass with a warning; the pull request's own migration older than staging's newest still fails (#48).
+              env:
+                  BT_MIGRATIONS_MAY_BE_AHEAD: "1"
               run: pnpm db:migrate
 
             - name: Re-apply deletions
@@ -302,7 +313,8 @@ jobs:
             # reads the commit staging serves (bt-commit.txt, written into the build below) and deploys
             # unless staging already serves this commit or one that contains it. Deciding from what is
             # served, not from what is on stage, means a newer run that fails or is cancelled never
-            # strands an older commit that passed.
+            # strands an older commit that passed, unless the newer run already migrated the database:
+            # then the older run's migrate step finds it ahead and fails (#48), so re-run the newest run.
             # - A 200 with a sha: compare. Read twice, a few seconds apart, so a deploy still spreading to
             #   the edge is seen; either read showing a commit containing this one skips.
             # - A 404, or a 200 without a sha (the SPA's index.html for a missing file): no marker yet
@@ -503,6 +515,10 @@ jobs:
               run: pnpm run deploy:bootstrap production
 
             - name: Migrate the production database
+              # A database ahead of the code (newer migrations only) passes with a warning here alone: re-running
+              # an older release's Deploy run is the rollback, and production never gets a preview's migrations (#48).
+              env:
+                  BT_MIGRATIONS_MAY_BE_AHEAD: "1"
               run: pnpm db:migrate
 
             - name: Re-apply deletions

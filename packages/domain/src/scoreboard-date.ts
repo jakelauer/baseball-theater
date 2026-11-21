@@ -12,6 +12,17 @@
 /** The zone MLB's day turns over in: a game's `officialDate` is its Eastern date. */
 const MLB_TIME_ZONE = "America/New_York";
 
+/**
+ * Who won a season's World Series (S140), from the World Series schedule the calendar reads:
+ * the team (MLB's ID and name) and `wonOn`, the day of the game that decided it.
+ */
+export interface SeasonChampion {
+	teamId: number;
+	name: string;
+	/** The deciding game's day, `YYYY-MM-DD`. */
+	wonOn: string;
+}
+
 /** The days that bound one season, as BT needs them. */
 export interface SeasonCalendar {
 	season: number;
@@ -30,6 +41,8 @@ export interface SeasonCalendar {
 	regularSeasonStartDate?: string;
 	/** The last scheduled regular-season day (MLB's `regularSeasonEndDate`; S128), optional as above. */
 	regularSeasonEndDate?: string;
+	/** The World Series winner (S140), once the Series is decided; absent before then, for a season with none, or when MLB's schedule can't say. */
+	champion?: SeasonChampion;
 }
 
 /**
@@ -47,6 +60,23 @@ export function mlbToday(instant: Date): string
 	}).formatToParts(instant);
 	const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value;
 	return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+/**
+ * The instant MLB's day `day` (`YYYY-MM-DD`) ends: when the next day begins in
+ * `America/New_York`, the zone `mlbToday` uses (S139: a past day's standings count how long
+ * they have been still from here). Midnight Eastern is 04:00 or 05:00 UTC depending on daylight
+ * time, so it tries both and keeps the one `mlbToday` places on the next day.
+ */
+export function mlbDayEndsAt(day: string): Date
+{
+	const [year, month, date] = day.split("-").map(Number) as [number, number, number];
+	for (const hour of [4, 5])
+	{
+		const instant = new Date(Date.UTC(year, month - 1, date + 1, hour));
+		if (mlbToday(instant) !== day && mlbToday(new Date(instant.getTime() - 1)) === day) return instant;
+	}
+	return new Date(Date.UTC(year, month - 1, date + 1, 5));
 }
 
 /**

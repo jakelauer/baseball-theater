@@ -26,13 +26,20 @@ export type AuthDeps = {
 	 * The deployed sign-in (S116): Logto, wherever the Worker's vars name its tenant
 	 * (`LOGTO_ENDPOINT`, `LOGTO_APP_ID`). The web app reads `config` to start a sign-in and hands
 	 * the ID token it gets back to `POST /api/v1/sign-in` ({@link completeProviderSignIn}).
-	 * Absent locally, on previews, and on staging until its own tenant exists.
+	 * Absent locally, on previews, and on staging, which signs in with {@link AuthDeps.mock}.
 	 */
 	logto?: {
 		provider: IdentityProvider;
 		config: { endpoint: string;
 			appId: string; };
 	};
+	/**
+	 * Staging's mock sign-in (S143; `MockIdentityProvider`): one fixed credential traded at
+	 * `POST /api/v1/sign-in` for a session as the one shared test account. Wired only where
+	 * `mockSignInAllowed` says, which is never beside `logto`; absent in production, on previews
+	 * and locally.
+	 */
+	mock?: IdentityProvider;
 	now?: () => Date;
 };
 
@@ -124,18 +131,21 @@ export async function signIn(
 }
 
 /**
- * A sign-in hand-off (S116 AC 2): the provider checks `credential` (Logto's ID token) and BT
- * finds or creates the user and issues its own session, through the same {@link signIn} the dev
- * provider uses. Null when this deployment offers no provider sign-in; throws a
- * {@link CredentialRefusedError} when the credential doesn't verify or carries no email, and
- * anything else when BT itself fails. A `dev:` token never signs in here: it isn't a Logto ID
- * token. Trading the same ID token again issues a new session but keeps the token's `auth_time`,
- * so it never makes a sign-in look recent (S120).
+ * A sign-in hand-off (S116 AC 2, S143 AC 3): the deployment's provider checks `credential`
+ * (Logto's ID token, or staging's mock credential) and BT finds or creates the user and issues its
+ * own session, through the same {@link signIn} the dev provider uses. Logto and the mock are never
+ * both wired (`mockSignInAllowed`), so whichever is wired is the one asked. Null when this
+ * deployment offers no provider sign-in; throws a {@link CredentialRefusedError} when the
+ * credential doesn't verify or carries no email (so where Logto is wired the mock credential is
+ * refused like any token it can't verify), and anything else when BT itself fails. A `dev:` token
+ * never signs in here. Trading the same ID token again issues a new session but keeps the token's
+ * `auth_time`, so it never makes a sign-in look recent (S120).
  */
 export async function completeProviderSignIn(deps: AuthDeps, credential: string): Promise<SignedIn | null>
 {
-	if (!deps.logto) return null;
-	return signIn(deps, await deps.logto.provider.completeSignIn(credential));
+	const provider = deps.logto?.provider ?? deps.mock;
+	if (!provider) return null;
+	return signIn(deps, await provider.completeSignIn(credential));
 }
 
 /**

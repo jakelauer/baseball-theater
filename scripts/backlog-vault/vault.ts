@@ -15,7 +15,7 @@ import { sourceKind } from "./source.ts";
 const STATUS_LINE = /^\*\*Status:\*\* `[a-z]+`$/;
 
 /**
- * The editable part of a story body. BACKLOG.md lays every story out as a blank line,
+ * The editable part of a story body. The assembled backlog document lays every story out as a blank line,
  * the content, a blank line, and the Status line; anything else is refused rather than
  * silently reshaped.
  */
@@ -54,10 +54,63 @@ export function renderStory(story: Story): string
 	return `---\n${frontmatter}---\n\n${storyContent(story)}\n`;
 }
 
-/** Obsidian Bases views over the story notes. Written once if missing; yours to edit after. */
+/**
+ * Every status a story may have, so each names a folder. The build refuses any other value
+ * (assemble.ts readStoryNote), so a typo like `dnoe` fails instead of making a folder.
+ */
+export const STORY_STATUSES: readonly string[] = ["todo", "doing", "blocked", "done", "superseded"];
+
+/**
+ * Where a story's note lives: `stories/<status>/S<N>.md`, the folder named by its frontmatter
+ * `status` (owner, 2026-11-17: "I would like the backlog folder organization to put stories into
+ * folders by state if possible (and if obsidian won't break). the flat list is getting huge.").
+ * The frontmatter stays the source of truth; `pnpm backlog:build` moves the note to match it.
+ */
+export function storyNotePath(id: string, status: string): string
+{
+	return `stories/${status}/${id}.md`;
+}
+
+/**
+ * A story note's key relative to the notes dir: `stories/<status>/S<N>.md`, or the flat
+ * `stories/S<N>.md` the vault used before 2026-11-17 (still read, so build can move it).
+ * Groups: 1 the folder (undefined when flat), 2 the ID.
+ */
+export const STORY_NOTE_KEY = /^stories\/(?:([a-z]+)\/)?(S\d+)\.md$/;
+
+/** Where a bug's note lives: `bugs/<status>/B<N>.md`, `B` + its GitHub issue number (bugs.ts). */
+export function bugNotePath(id: string, status: string): string
+{
+	return `bugs/${status}/${id}.md`;
+}
+
+/** A bug note's key relative to the notes dir. Groups: 1 the folder (undefined when flat), 2 the ID. */
+export const BUG_NOTE_KEY = /^bugs\/(?:([a-z]+)\/)?(B\d+)\.md$/;
+
+/** The ID of a story or bug note's key (`S5`, `B74`), or undefined for any other key. Story and bug IDs never collide. */
+export function noteId(key: string): string | undefined
+{
+	return STORY_NOTE_KEY.exec(key)?.[2] ?? BUG_NOTE_KEY.exec(key)?.[2];
+}
+
+/**
+ * True for the note keys the build reads: story notes (flat or in a status folder), frame notes, and every
+ * `.md` under `bugs/`. A misnamed or misfiled bug note (`bugs/todo/b74.md`, `bugs/Todo/B74.md`) is read too,
+ * so the build refuses it (bugs.ts readBugNotes) rather than dropping it and leaving the bug out of the order.
+ */
+export function isNoteKey(key: string): boolean
+{
+	return STORY_NOTE_KEY.test(key) || /^bugs\/.+\.md$/.test(key) || /^frame\/[^/]+\.md$/.test(key);
+}
+
+/**
+ * Obsidian Bases views over the story notes. Written once if missing; yours to edit after.
+ * Paths are relative to the vault root, docs/v3. The filter is a path prefix, which covers every
+ * status folder under backlog/stories/ whether or not `file.inFolder` would include subfolders.
+ */
 export const BACKLOG_BASE = `filters:
   and:
-    - file.inFolder("stories")
+    - file.path.startsWith("backlog/stories/")
 properties:
   note.title:
     displayName: Title
@@ -141,7 +194,7 @@ export function renderNotes(backlog: Backlog): Map<string, string>
 	const files = new Map<string, string>();
 	for (const story of backlog.stories)
 	{
-		files.set(`stories/${story.id}.md`, renderStory(story));
+		files.set(storyNotePath(story.id, story.status), renderStory(story));
 	}
 	backlog.frame.forEach((part, i) => files.set(framePath(part, i), part.text));
 	return files;

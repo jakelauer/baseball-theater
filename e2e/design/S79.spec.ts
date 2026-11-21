@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S79's design match (rule 22): Settings' download and delete, in the state and
  * pairing of each standings-search-settings A4 frame. States the dev app can't

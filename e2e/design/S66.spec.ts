@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S66's design match (rule 22): the scoreboard in the state and pairing of each
  * shell-scoreboard frame it builds — `scoreboard-*` (a final, a live and a scheduled

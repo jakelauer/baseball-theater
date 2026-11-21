@@ -22,6 +22,11 @@ export default defineWorkersConfig({
 		name: "functions-workerd",
 		include: ["src/**/*.workerd.test.ts"],
 		globalSetup: ["./src/test/pglite-server.ts"],
+		// The PGlite port as this config read it (a worktree's PGLITE_PORT, S156): global setup
+		// runs with an empty environment, so it listens where this says.
+		provide: {
+			pglitePort: PGLITE_PORT,
+		},
 		poolOptions: {
 			workers: {
 				// The real Worker (main, compatibility date and flags) as wrangler would run it.

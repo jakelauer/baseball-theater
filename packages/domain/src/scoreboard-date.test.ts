@@ -2,7 +2,9 @@ import {
 	describe, expect, it,
 } from "vitest";
 import type { SeasonCalendar } from "./scoreboard-date.js";
-import { defaultScoreboardDate, mlbToday } from "./scoreboard-date.js";
+import {
+	defaultScoreboardDate, mlbDayEndsAt, mlbToday,
+} from "./scoreboard-date.js";
 
 // MLB's published calendars, with 2026's final from its World Series schedule (fixtures/raw/).
 const S2025: SeasonCalendar = {
@@ -76,5 +78,16 @@ describe("mlbToday", () =>
 		// In standard time the turn is 05:00 UTC.
 		expect(mlbToday(new Date("2026-12-01T04:59:00Z"))).toBe("2026-11-30");
 		expect(mlbToday(new Date("2026-12-01T05:00:00Z"))).toBe("2026-12-01");
+	});
+});
+
+describe("mlbDayEndsAt (S139)", () =>
+{
+	it("is midnight Eastern: 05:00 UTC in standard time, 04:00 UTC in daylight time", () =>
+	{
+		expect(mlbDayEndsAt("2026-11-10").toISOString()).toBe("2026-11-11T05:00:00.000Z");
+		expect(mlbDayEndsAt("2026-09-05").toISOString()).toBe("2026-09-06T04:00:00.000Z");
+		// 2026-11-01 is the day clocks fall back: it ends at midnight standard time.
+		expect(mlbDayEndsAt("2026-11-01").toISOString()).toBe("2026-11-02T05:00:00.000Z");
 	});
 });

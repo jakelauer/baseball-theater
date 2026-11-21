@@ -1,6 +1,6 @@
 import type { ScoreboardDefaultDateResponse, SeasonCalendar } from "@bt/domain";
 import { defaultScoreboardDate, mlbToday } from "@bt/domain";
-import type { IngestDeps } from "./ingest.js";
+import type { IngestDeps, SeasonCalendarSource } from "./ingest.js";
 
 /**
  * The calendars a day is judged against (S111): the day's year's and the year before's, the
@@ -24,13 +24,25 @@ export async function calendarsAround(mlb: IngestDeps["mlb"], day: string): Prom
  * would show last season's final table on a mid-season day. An unreachable calendar for the
  * year before is left out: without it a January day has no earlier season to stay on, so it is
  * the day's own table too, never another season's final.
+ *
+ * `complete` is false when either calendar was unreachable (S139 AC 8): the answer is then built
+ * without a calendar MLB will give later, so it must not be cached past the floor. An unpublished
+ * season (`null`) is an answer, so it leaves `complete` true.
  */
-export async function standingsCalendars(mlb: IngestDeps["mlb"], day: string): Promise<SeasonCalendar[]>
+export async function standingsCalendars(mlb: SeasonCalendarSource, day: string): Promise<{ seasons: SeasonCalendar[];
+	complete: boolean; }>
 {
 	const year = Number(day.slice(0, 4));
 	const [previous, current] = await Promise.allSettled([year - 1, year].map((season) => mlb.fetchSeasonCalendar(season)));
-	if (current?.status !== "fulfilled") return [];
-	return [previous, current].flatMap((result) => result?.status === "fulfilled" && result.value ? [result.value] : []);
+	const complete = previous?.status === "fulfilled" && current?.status === "fulfilled";
+	if (current?.status !== "fulfilled") return {
+		seasons: [],
+		complete,
+	};
+	return {
+		seasons: [previous, current].flatMap((result) => result?.status === "fulfilled" && result.value ? [result.value] : []),
+		complete,
+	};
 }
 
 /**

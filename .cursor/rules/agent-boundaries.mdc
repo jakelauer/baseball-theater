@@ -1,5 +1,5 @@
 ---
-description: Hard boundaries for automated / loop agents on baseball-theater-v3
+description: Hard boundaries for automated / loop agents on baseball-theater
 alwaysApply: true
 ---
 
@@ -15,10 +15,10 @@ alwaysApply: true
 ## Always
 
 - Prefer fixtures + in-memory ports over live MLB/Patreon/Cloudflare/Neon/Logto
-- Prove work with `pnpm verify` (and story-specific tests from `docs/v3/BACKLOG.md`)
-- Update `docs/v3/BACKLOG.md` Status (`doing` → `done`) and the top Story status table in the same change set as the story
+- Prove work with `pnpm verify` (and the story's grader, `scripts/verify-<ID>.sh`, from its note in `docs/v3/backlog/stories/`)
+- Update the story note's `status` (`doing` → `done`) and run `pnpm backlog:build` in the same change set as the story (the generated `BACKLOG.md` is retired)
 - Refuse the next story/goal while prior story work is still uncommitted (`git status` dirty for that work)
-- Refuse the next story/goal while a **backlog review** is due — 3 `done` stories since the last row in the BACKLOG **Backlog reviews** table, or any drift event (`.claude/skills/backlog-review/SKILL.md`). Fresh context; `blocked` verdict stops work
+- Refuse the next story/goal while a **backlog review** is due — 6 `done` stories since the last backlog review in the ledger, or any drift event (`.claude/skills/backlog-review/SKILL.md`). Fresh context; `blocked` verdict stops work
 - Keep domain (`packages/domain`) free of Cloudflare/Postgres/Logto/HTTP SDKs
 - Follow `CLAUDE.md` conventions; if wrong, update that file — don’t rely on chat memory
 

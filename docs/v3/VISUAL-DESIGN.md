@@ -41,7 +41,7 @@ If a visual choice doesn’t serve one of these, cut it.
 | D6 | **Insight is visible product** | G2, G4 | Impact order and inning notes are modules with rank/label — not a wall of equal rows |
 | D7 | **Respect attention** | G5 | Live updates patch in place; motion is rare; presentation settings (spoilers, emphasis, entry room, …) are obeyed |
 | D8 | **Patronage is power, not a lock screen** | G3 | Free experience is complete; paid depth is extra, not a greyed-out homepage |
-| D9 | **Honest about data** | FEATURES principle 6 | Freshness and source are readable; we don’t costume ourselves as MLB.com |
+| D9 | **Honest about data** | FEATURES principle 6 | Freshness and source are readable; we don’t costume ourselves as MLB.com. Freshness is shown by a Live marker (a glowing, slowly blinking red dot and "Live Data · Active", centred in a slightly darker strip at the top of the footer) on any page with an open live WebSocket, not by a "Fetched … ago" label, and no footer reads "baseball.theater" (owner, 2026-11-16: *"Remove the fetch label and replace it with a red dot and Live at the bottom of any page that has an active websocket, with the red dot glowing and slowly blinking"*; 2026-11-19: *"baseball.theater is supposed to be removed"*; shell-scoreboard [A13](./visual/shell-scoreboard/amendments/A13.md), ratified 2026-11-19) |
 | D10 | **Three host pairings** | G5 | **mobile** (compact status, no box on Live) · **medium** (standalone) · **desktop** (medium + nav rail). Design mobile first. Do not invent a fourth pairing |
 | D11 | **Presentation is personal** | Settings | Views read settings they care about (sort, default tab, hide scores, game-row slot, collapse non-favorites, …). Don’t invent a second store between settings and the view |
 
@@ -224,7 +224,7 @@ Stay on Mantine’s type scale. Opinionated uses:
 | Page title | `Title` order 2 |
 | Score (revealed) | Extra-large, heavy, tabular (`fw={700}`, `size="xl"` or larger) |
 | Matchup | **Abbr** first for glance (NYY @ BOS); **city + name** as secondary (`New York Yankees at Boston Red Sox`) |
-| Meta (venue, date, fetched-at) | `sm`, muted |
+| Meta (venue, date) | `sm`, muted; the Live marker's words (A13) are 11px IBM Plex Sans Medium, primary text |
 | Tables (box, standings) | Tabular nums (`font-variant-numeric: tabular-nums`) |
 | Recap / insight prose | Body size, roomier line-height; recap *title* is document title, not a homepage headline |
 
@@ -284,12 +284,12 @@ Mantine `AppShell` stays as chrome, not as a content metaphor.
 
 Drop `v3 · local fixtures` on public builds.
 
-**Footer:** optional, quiet — copyright / report a problem. Not a second nav, not headlines.
+**Footer:** every page the shell draws ends in the site footer ([shell-scoreboard A14](./visual/shell-scoreboard/amendments/A14.md), ratified 2026-11-19): on a page with an open live WebSocket, A13's Live strip first; then a 12% Light hairline, two columns of links under muted uppercase headings, "Baseball Theater" (About, Changelog, Support & Community) and "Legal" (Privacy policy, Terms of use, and Your data for a signed-in fan), and a centred, muted "© {year} Baseball Theater". Just links and the copyright: no "Fetched" age, no "baseball.theater" mark, no offline line. It sits right after the content, never pinned to the screen's bottom. Not a second nav, not headlines.
 
 ### Scoreboard (summary)
 
 - Date control (prev / today / next / picker) first — not buried.
-- Quiet meta: date, window mode, last fetched (D9).
+- Quiet meta: date and window mode; freshness is the footer's Live marker (D9, shell-scoreboard A13), and no page shows the data's age (A14).
 - Each game is a **module-as-link** (the matchup/score side opens the game).
 - Anatomy: away (color, **abbr + record when scores show** — e.g. `NYY (91-71)`) · score · home (same) · time · **right-hand slot** (see below). **No logo, no photo hero, no headline.** Do not use city + full name as the scoreboard subheader under the score.
 - **Venue / game location on the list only while scheduled (pre-game).** Once live or final, location leaves the scoreboard row — it appears on **Box** (and only there among list vs rooms for location).
@@ -526,7 +526,7 @@ Tooltips are extra; accordion rows carry the same facts.
 | Allowed | Disallowed |
 |---------|------------|
 | Pitch / batted-ball flight (user-started) | Auto-animating lists, parallax, gradient motion |
-| Slow live-indicator blink (Accent 2 dot only; label has no colored bg/pill) | Module throb, staggered entrances, live status pill fills |
+| Slow live-indicator blink (Accent 2 dot only; label has no colored bg/pill); the footer's Live marker dot (`Primary Light`, a 2s fade cycle, steady under reduced motion; shell-scoreboard A13) | Module throb, staggered entrances, live status pill fills |
 | Hover: 0.3s border/lift, 0.4s still zoom, on Material's standard curve (owner, 2026-11-12) | Springy overshoot |
 | Tab / accordion height | Layout thrash on every live tick |
 

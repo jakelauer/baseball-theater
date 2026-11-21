@@ -3,7 +3,8 @@
  * `node:fs`, so the files the API serves are static JSON imports, and the fixture
  * client reads them through the same `FixtureFiles` port Node uses. Only what
  * `FixtureClient` reads by name is here — schedules, games, plays, standings,
- * players, play metrics, season calendars and each season's final and spring standings (S128). The recorded replay walk (`raw/`, 5+ MB) is for the Node capture tool,
+ * players, play metrics, season calendars and each season's final and spring standings (S128; S139 adds 2027's
+ * season table, which lists the new season's teams before its first game, and 2026-09-12's mapped table). The recorded replay walk (`raw/`, 5+ MB) is for the Node capture tool,
  * which the Worker never runs. `bundled.test.ts` fails when a fixture the client
  * would read is missing from this list.
  */
@@ -20,12 +21,14 @@ import seasons2026 from "../../../../fixtures/raw/seasons-2026.json" with { type
 import seasons2027 from "../../../../fixtures/raw/seasons-2027.json" with { type: "json" };
 import standings2026Final from "../../../../fixtures/raw/standings-2026-final.json" with { type: "json" };
 import standings2026Spring from "../../../../fixtures/raw/standings-2026-spring.json" with { type: "json" };
+import standings2027Final from "../../../../fixtures/raw/standings-2027-final.json" with { type: "json" };
 import worldSeries2025 from "../../../../fixtures/raw/worldseries-2025.json" with { type: "json" };
 import worldSeries2026 from "../../../../fixtures/raw/worldseries-2026.json" with { type: "json" };
 import worldSeries2027 from "../../../../fixtures/raw/worldseries-2027.json" with { type: "json" };
 import schedule20240704 from "../../../../fixtures/schedule-2024-07-04.json" with { type: "json" };
 import schedule20260905 from "../../../../fixtures/schedule-2026-09-05.json" with { type: "json" };
 import standings20260905 from "../../../../fixtures/standings-2026-09-05.json" with { type: "json" };
+import standings20260912 from "../../../../fixtures/standings-2026-09-12.json" with { type: "json" };
 import { FixtureClient } from "./fixture-client.js";
 import type { FixtureFiles } from "./fixture-client.js";
 
@@ -47,12 +50,14 @@ export const BUNDLED_FIXTURES: Readonly<Record<string, unknown>> = {
 	"raw/seasons-2027.json": seasons2027,
 	"raw/standings-2026-final.json": standings2026Final,
 	"raw/standings-2026-spring.json": standings2026Spring,
+	"raw/standings-2027-final.json": standings2027Final,
 	"raw/worldseries-2025.json": worldSeries2025,
 	"raw/worldseries-2026.json": worldSeries2026,
 	"raw/worldseries-2027.json": worldSeries2027,
 	"schedule-2024-07-04.json": schedule20240704,
 	"schedule-2026-09-05.json": schedule20260905,
 	"standings-2026-09-05.json": standings20260905,
+	"standings-2026-09-12.json": standings20260912,
 };
 
 /** The bundled fixtures as a fixture source; an unknown name rejects, like a missing file. */

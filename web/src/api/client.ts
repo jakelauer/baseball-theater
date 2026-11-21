@@ -1,4 +1,4 @@
-import type { AccountSettings } from "@bt/domain";
+import type { AccountSettings, SeasonPhaseName } from "@bt/domain";
 import createClient from "openapi-fetch";
 import { getSessionToken } from "../session/token.js";
 import type { paths } from "./generated/bt-api.v1.js";
@@ -68,8 +68,9 @@ export async function fetchSchedule(date: string)
 }
 
 /**
- * The number of games on each day of `month` (`YYYY-MM`, S124), for the calendar date picker
- * (S125); `count` is null for a day BT doesn't know yet, distinct from a day with no games.
+ * The number of games on each day of `month` (`YYYY-MM`, S124) and the teams playing it (S136),
+ * for the calendar date picker (S125); `count` and `teamIds` are null for a day BT doesn't know
+ * yet, distinct from a day with no games (`0` and `[]`).
  */
 export async function fetchScheduleMonth(month: string)
 {
@@ -82,14 +83,32 @@ export async function fetchScheduleMonth(month: string)
 	}));
 }
 
-/** The division standings as of `date` (S4); the server's today when it is absent. */
-export async function fetchStandings(date?: string)
+/**
+ * The division standings as of `date` (S4); the server's today when it is absent. `phases` names
+ * the season phases whose tables to include (S139), sent in the comma form
+ * (`includePhases=spring,playoffs`); with none, or an empty list, it asks as before S139, which
+ * answers every phase: the API has no "no tables" form, so `[]` here means every phase. (The
+ * service's own `getStandings(…, [])` means no phase tables, on purpose: that is S128's table alone,
+ * which no client asks for.)
+ */
+export async function fetchStandings(date?: string, phases?: readonly SeasonPhaseName[])
 {
 	return unwrap(await api.GET("/api/v1/standings", {
 		params: {
-			query: date ? {
-				date,
-			} : {},
+			query: {
+				...date && {
+					date,
+				},
+				...phases?.length && {
+					includePhases: [...phases],
+				},
+			},
+		},
+		querySerializer: {
+			array: {
+				style: "form",
+				explode: false,
+			},
 		},
 	}));
 }
@@ -231,15 +250,19 @@ export async function fetchAccountDeleted(): Promise<boolean>
 	return result.response.status === 401 && result.error?.error === "account_deleted";
 }
 
-/** How this deployment signs fans in (S116): its Logto tenant and app, or `logto: null` where it offers no Logto sign-in. */
+/**
+ * How this deployment signs fans in (S116, S143): its Logto tenant and app, or `logto: null`, and
+ * whether it offers staging's mock sign-in. Read through `signInWay.ts`, once per page load.
+ */
 export async function fetchSignInConfig()
 {
 	return unwrap(await api.GET("/api/v1/sign-in"));
 }
 
 /**
- * Hands Logto's ID token to BT, once per sign-in (S116), and answers with BT's own session
- * token. A refused token (401) or a deployment without Logto (404) throws, as any failure does.
+ * Hands Logto's ID token (or, on staging, the mock credential, S143) to BT, once per sign-in
+ * (S116), and answers with BT's own session token. A refused token (401) or a deployment without
+ * sign-in (404) throws, as any failure does.
  */
 export async function exchangeIdToken(idToken: string): Promise<string>
 {

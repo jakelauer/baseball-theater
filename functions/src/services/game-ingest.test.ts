@@ -4,8 +4,10 @@
  * the game leaves its window. Fixture 745001 is a game in progress, so it is always in
  * its window.
  */
-import type { GameSnapshot } from "@bt/domain";
-import { DEFAULT_CADENCE, isGameInActiveWindow } from "@bt/domain";
+import type { GameSnapshot, ScheduleDay } from "@bt/domain";
+import {
+	DEFAULT_CADENCE, isGameInActiveWindow, stampVersion,
+} from "@bt/domain";
 import {
 	describe, expect, it, vi,
 } from "vitest";
@@ -20,6 +22,7 @@ import {
 	ensureIngestRunning, GameIngest, gameIngestName,
 } from "./game-ingest.js";
 import type { IngestDeps } from "./ingest.js";
+import { refreshTodaysWindow } from "./ingest.js";
 
 const T0 = new Date("2026-10-30T12:00:00Z");
 
@@ -160,6 +163,22 @@ describe("GameIngest", () =>
 		expect(published).toHaveLength(1);
 	});
 
+	it("a postponed game (`D`) stops its ingest on the next poll, whatever the clock (#72)", async () =>
+	{
+		const { ingest, storage } = setup((game) => ({
+			...game,
+			status: {
+				abstractGameState: "Final",
+				detailedState: "Postponed: Rain",
+				codedGameState: "D",
+			},
+		}));
+		await ingest.ensureRunning(745001, T0);
+		await ingest.alarm(T0);
+		expect(storage.alarmAt).toBeNull();
+		expect(storage.armed).toEqual([T0.getTime()]);
+	});
+
 	it("a failed MLB call writes nothing and keeps the cadence", async () =>
 	{
 		const {
@@ -188,6 +207,140 @@ describe("ensureIngestRunning", () =>
 		expect(await deps.schedules.getByDate("2024-07-04")).not.toBeNull();
 		ensure.mockRejectedValueOnce(new Error("object busy"));
 		expect(await ensureIngestRunning(deps, ensure, now)).toEqual(inWindow.slice(1));
+	});
+});
+
+describe("ensureIngestRunning reads MLB's dates, not the UTC date (#73)", () =>
+{
+	// The recorded 2026-09-05 slate runs to a 01:40Z (6:40 PM PDT) first pitch, on the next UTC day.
+	const EVENING = "2026-09-05";
+	const LATEST = 823094;
+
+	function counted()
+	{
+		const { deps } = setup();
+		const real = new FixtureMlbStatsClient();
+		const fetchSchedule = vi.fn((date: string) => real.fetchSchedule(date));
+		deps.mlb.fetchSchedule = fetchSchedule;
+		return {
+			deps,
+			fetchSchedule,
+		};
+	}
+
+	async function expectedInWindow(now: Date): Promise<number[]>
+	{
+		const day = await new FixtureMlbStatsClient().fetchSchedule(EVENING);
+		return day.games.filter((g) => isGameInActiveWindow(g, now)).map((g) => g.gamePk);
+	}
+
+	it("at 01:00Z (9 PM EDT) the evening's in-window games are ensured and its stored day refreshed", async () =>
+	{
+		const now = new Date("2026-09-06T01:00:00Z");
+		const { deps, fetchSchedule } = counted();
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		const ensured = await ensureIngestRunning(deps, ensure, now);
+		expect(ensured).toContain(LATEST);
+		expect(ensured).toEqual(await expectedInWindow(now));
+		expect(fetchSchedule.mock.calls.map(([date]) => date)).toContain(EVENING);
+		const stored = await deps.schedules.getByDate(EVENING);
+		expect(stored?.fetchedAt).toBe(now.toISOString());
+		expect(stored?.windowMode).toBe("active");
+	});
+
+	it("after US midnight (05:00Z) the day before's game still in its trail stays ensured", async () =>
+	{
+		const now = new Date("2026-09-06T05:00:00Z");
+		const { deps, fetchSchedule } = counted();
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		const ensured = await ensureIngestRunning(deps, ensure, now);
+		expect(ensured).toContain(LATEST);
+		expect(fetchSchedule.mock.calls.map(([date]) => date).sort()).toEqual([EVENING, "2026-09-06"]);
+	});
+
+	it("run minute by minute past the last trail, the day before is re-stored as cache, then skipped", async () =>
+	{
+		const { deps, fetchSchedule } = counted();
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		// 823094's trail ends 08:40Z (01:40Z + 4h assumed end + 3h).
+		for (let t = Date.parse("2026-09-06T05:00:00Z"); t <= Date.parse("2026-09-06T12:00:00Z"); t += 60_000)
+		{
+			await ensureIngestRunning(deps, ensure, new Date(t));
+		}
+		expect((await deps.schedules.getByDate(EVENING))?.windowMode).toBe("cache");
+		fetchSchedule.mockClear();
+		// 15:00Z: every 2026-09-05 game is final and past its trail, and the stored day says so.
+		expect(await ensureIngestRunning(deps, ensure, new Date("2026-09-06T15:00:00Z"))).toEqual([]);
+		expect(fetchSchedule.mock.calls.map(([date]) => date)).toEqual(["2026-09-06"]);
+	}); // 421 cron runs: well under a second, within the default timeout even under coverage.
+
+	it("a stored day before that is settled but still has a game in its trail is fetched again", async () =>
+	{
+		const { deps, fetchSchedule } = counted();
+		const recorded = await new FixtureMlbStatsClient().fetchSchedule(EVENING);
+		// Every game final, stored as cache: only 823094's trail (to 08:40Z) keeps the day in play.
+		await deps.schedules.upsert(stampVersion<ScheduleDay>(null, {
+			...recorded,
+			windowMode: "cache",
+		}, "2026-09-06T04:00:00Z"));
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		const ensured = await ensureIngestRunning(deps, ensure, new Date("2026-09-06T05:00:00Z"));
+		expect(fetchSchedule.mock.calls.map(([date]) => date)).toContain(EVENING);
+		expect(ensured).toContain(LATEST);
+	});
+
+	it("a failed day-before fetch still refreshes today, and the next run retries it", async () =>
+	{
+		const { deps, fetchSchedule } = counted();
+		const real = new FixtureMlbStatsClient();
+		fetchSchedule.mockImplementation(async (date: string) =>
+		{
+			if (date === EVENING) throw new Error("MLB down");
+			return real.fetchSchedule(date);
+		});
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		const now = new Date("2026-09-06T05:00:00Z");
+		expect(await ensureIngestRunning(deps, ensure, now)).toEqual([]);
+		expect((await deps.schedules.getByDate("2026-09-06"))?.fetchedAt).toBe(now.toISOString());
+		fetchSchedule.mockImplementation((date: string) => real.fetchSchedule(date));
+		expect(await ensureIngestRunning(deps, ensure, new Date(now.getTime() + 60_000))).toContain(LATEST);
+	});
+
+	it("a game listed on both dates (a suspended game resumed) is ensured once", async () =>
+	{
+		const { deps, fetchSchedule } = counted();
+		const recorded = await new FixtureMlbStatsClient().fetchSchedule(EVENING);
+		const resumed = {
+			...recorded.games[0]!,
+			status: {
+				abstractGameState: "Live",
+				codedGameState: "I",
+				detailedState: "In Progress",
+			},
+		};
+		const now = new Date("2026-09-06T18:00:00Z");
+		// Both copies in window: ensured once.
+		fetchSchedule.mockImplementation(async (date: string) => ({
+			...recorded,
+			date,
+			games: [resumed],
+		}));
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		expect(await ensureIngestRunning(deps, ensure, now)).toEqual([resumed.gamePk]);
+		expect(ensure).toHaveBeenCalledTimes(1);
+
+		// Today's copy in window, the day before's (the suspended original, final, its
+		// trail long over) out: active once, and never also counted as skipped.
+		const original = recorded.games[0]!;
+		expect(isGameInActiveWindow(original, now)).toBe(false);
+		fetchSchedule.mockImplementation(async (date: string) => ({
+			...recorded,
+			date,
+			games: [date === EVENING ? original : resumed],
+		}));
+		const { active, skipped } = await refreshTodaysWindow(deps, now);
+		expect(active.map((g) => g.gamePk)).toEqual([resumed.gamePk]);
+		expect(skipped).not.toContain(resumed.gamePk);
 	});
 });
 

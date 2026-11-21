@@ -58,3 +58,20 @@ e2e/playwright-report/
 docs/v3/.obsidian/workspace.json
 # The Obsidian Bases view of the backlog: Obsidian rewrites it on open; `pnpm backlog:build` seeds a default when it is missing
 docs/v3/backlog/Backlog.base
+
+# ESLint's cache (S152: `pnpm lint` runs it with --cache; CI keeps it between runs)
+.eslintcache
+# Vitest shard reports, merged by CI's functions-coverage job (S152)
+.vitest-reports/
+
+# A parallel /run-backlog's overseer state: in-flight claims and gathered findings (S156, scripts/backlog-vault/claims.ts)
+.run/
+# Other checkouts of this repository, one per backlog item (S156, #110: scripts/worktree-for.sh), and
+# each one's ports and Compose project name (already covered by `.env.*`; named so the reason is here)
+.claude/worktrees/
+.env.worktree
+# Built by pnpm backlog:build (the post-checkout and post-merge hooks run it), never committed (S156)
+docs/v3/INDEX.md
+docs/v3/audit.jsonl
+# A ledger entry scripts/audit.sh was killed while writing (it writes `.<name>.<pid>.tmp`, then links it into place)
+docs/v3/audit/**/.*.tmp

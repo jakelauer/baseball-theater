@@ -1,4 +1,5 @@
 # Baseball Theater v3 — verification ledger
+> **Frozen history (S156, 2026-11-20).** Nothing is appended here any more: every entry since is its own file under [`audit/`](./audit/) (`audit/<YYYY-MM-DD>/<stamp>-<ID>-<kind>.md`, written by `scripts/audit.sh`), and `scripts/backlog-vault/ledger.ts` reads this file, then those fragments in stamp order, as one ledger. Never edit this file.
 
 The append-only record of **what was actually proven, and when**. Two kinds of entry, interleaved in chronological order:
 
@@ -18618,9 +18619,84 @@ Design intake made due only by PR #64, which added ?node-id= to the Figma Source
 | | |
 |---|---|
 | Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
-| Captured (UTC) | `2026-11-17T00:10:16Z` |
-| HEAD at capture | `d688e95` (tree clean) |
-| Change | `d688e95` — S129 checkpoint (parked for ratification): clinch marks and the box until Jan 31 (owner) |
+| Captured (UTC) | `2026-11-17T00:26:44Z` |
+| HEAD at capture | `741f691` (tree clean) |
+| Change | `741f691` — S146: the release rule's input check, spelled out (pre-PR review) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
+
+---
+
+## 2026-11-16 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:26:44Z` |
+| HEAD at capture | `741f691` (tree dirty) |
+| Change | `741f691` — S146: the release rule's input check, spelled out (pre-PR review) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:36:41Z` |
+| HEAD at capture | `0396a14` (tree dirty) |
+| Change | `261f1fe` — Rename the workspace to baseball-theater; delete branches once merged (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
+
+---
+
+## 2026-11-16 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:36:41Z` |
+| HEAD at capture | `0396a14` (tree dirty) |
+| Change | `261f1fe` — Rename the workspace to baseball-theater; delete branches once merged (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; this one comes from an owner-directed change, so it is skipped.
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T00:45:02Z` |
+| HEAD at capture | `41d23fa` (tree dirty) |
+| Change | `c6f1ee4` — review-debt ignores Source-link-only amendment edits; sealed design links point at pages (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories, so these change-triggered reviews (backlog, design intake and doc parity) are skipped.
+
+---
+
+## 2026-11-16 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T01:05:15Z` |
+| HEAD at capture | `a4d2a22` (tree dirty) |
+| Change | `3105ef0` — Frame note: ADR-014's "Fetched … ago" question marked answered (S147/S148) |
 
 **What changed, and the owner's answer**
 
@@ -18633,9 +18709,9 @@ Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the rev
 | | |
 |---|---|
 | Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
-| Captured (UTC) | `2026-11-17T00:10:17Z` |
-| HEAD at capture | `d688e95` (tree dirty) |
-| Change | `d688e95` — S129 checkpoint (parked for ratification): clinch marks and the box until Jan 31 (owner) |
+| Captured (UTC) | `2026-11-17T01:05:15Z` |
+| HEAD at capture | `a4d2a22` (tree dirty) |
+| Change | `3105ef0` — Frame note: ADR-014's "Fetched … ago" question marked answered (S147/S148) |
 
 **What changed, and the owner's answer**
 
@@ -18643,49 +18719,186 @@ Owner, 2026-11-16, shown the list of what the day's answers rewrote: "do the rev
 
 ---
 
-## 2026-11-19 — S129 completed
+## 2026-11-16 — backlog review skipped
 
-**Design: Standings views**
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T01:23:12Z` |
+| HEAD at capture | `2175a4a` (tree clean) |
+| Change | `2175a4a` — S149: the scoreboard gets a live connection while a game on its day is live (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; these (design intake and doc parity) come from the owner-directed S149 change, so they are skipped.
+
+---
+
+## 2026-11-16 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T01:23:12Z` |
+| HEAD at capture | `2175a4a` (tree dirty) |
+| Change | `2175a4a` — S149: the scoreboard gets a live connection while a game on its day is live (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". Review debt by count is 0 of 6 stories; these (design intake and doc parity) come from the owner-directed S149 change, so they are skipped.
+
+---
+
+## 2026-11-17 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T22:14:05Z` |
+| HEAD at capture | `63dcc7f` (tree clean) |
+| Change | `63dcc7f` — S150: each game's state stored once, fed by one switch; S149's day hub only reads it (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". These are change-triggered (S150 inserted, S147/S148/S149 rewritten, ADR-020 amendment, FEATURES Live marker row); the story count is 0 of 6. Note on b6f0a65: its body said "design intake and doc parity", but the entries it recorded were backlog and parity skips.
+
+---
+
+## 2026-11-17 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T22:14:05Z` |
+| HEAD at capture | `63dcc7f` (tree dirty) |
+| Change | `63dcc7f` — S150: each game's state stored once, fed by one switch; S149's day hub only reads it (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-16: "do the reviews if they have been triggered by the normal recurrence trigger, but skip them if they were triggered by changes". These are change-triggered (S150 inserted, S147/S148/S149 rewritten, ADR-020 amendment, FEATURES Live marker row); the story count is 0 of 6. Note on b6f0a65: its body said "design intake and doc parity", but the entries it recorded were backlog and parity skips.
+
+---
+
+## 2026-11-17 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-17T22:29:13Z` |
+| HEAD at capture | `7adcbcb` (tree clean) |
+| Change | `7adcbcb` — S150 AC 6: the served day's windowMode is computed from the joined games (Claude's review of #76) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-07, on acceptance criteria rewritten to answer a pull request's review: "This shouldn't even trigger a question. Always skip." S150 AC 6 rewritten for Claude's review of #76 (served windowMode).
+
+---
+
+## 2026-11-18 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T06:29:19Z` |
+| HEAD at capture | `db58c1c` (tree clean) |
+| Change | `db58c1c` — Video player: Download removed for now; S151 saves it through the service worker |
+
+**What changed, and the owner's answer**
+
+S151 (service-worker video download) inserted in db58c1c at the owner's direction (owner, 2026-11-12: "Remove the download button for now, but make a story to do the service worker in the future. Include instructions to remind me to explore other ways a service worker could be used"). Asked whether it needed a backlog review: "Skip it".
+
+---
+
+## 2026-11-18 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T06:29:19Z` |
+| HEAD at capture | `db58c1c` (tree dirty) |
+| Change | `db58c1c` — Video player: Download removed for now; S151 saves it through the service worker |
+
+**What changed, and the owner's answer**
+
+S151 added and the FEATURES Videos row says Download waits for it, in db58c1c, at the owner's direction (owner, 2026-11-12: "Remove the download button for now, but make a story to do the service worker in the future"). Asked whether the story needed a review: "Skip it".
+
+---
+
+## 2026-11-18 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T06:46:27Z` |
+| HEAD at capture | `8759fc1` (tree clean) |
+| Change | `8759fc1` — S151 and Download removal: pre-PR review fixes |
+
+**What changed, and the owner's answer**
+
+S151 acceptance criteria rewritten in 8759fc1 to answer the pre-PR review and change reviews of this pull request (LOOP §7). Skipped under the owner's rule (owner, 2026-11-07, asked whether ACs rewritten to answer a pull request's review need a backlog review: "This shouldn't even trigger a question. Always skip.").
+
+---
+
+## 2026-11-18 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-18T21:38:37Z` |
+| HEAD at capture | `4210072` (tree clean) |
+| Change | `4210072` — Backlog: fix pre-PR review findings on bugs in the backlog order |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-18, asked whether bugs in the backlog order and the /run-stories → /run-backlog rename (0dfd5be, 4210072) need a backlog review: "No, log a skip (Recommended)".
+
+---
+
+## 2026-11-18 — S143 completed
+
+**Mock sign-in on staging**
 
 | | |
 |---|---|
 | Entry | story completion |
-| Captured (UTC) | `2026-11-20T00:37:21Z` |
+| Captured (UTC) | `2026-11-18T23:53:25Z` |
 | Shipped in | the commit that adds this entry |
-| HEAD at capture | `cddc80b` (tree dirty) |
-| Grader | `scripts/verify-S129.sh` — exit `0` |
+| HEAD at capture | `346537b` (tree dirty) |
+| Grader | `scripts/verify-S143.sh` — exit `0` |
 | `pnpm verify` | exit `0` |
 
 **What was tested and verified**
 
 ```
-check 1 PASS: standings-search-settings has its next free amendments/A<N>.md (new in S129) headed '(S129)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
-check 2 PASS: frames standings-spring-{mobile,medium,desktop}.png (real PNGs at the ratified standings frame's width) listed in ## Frames, which names each view AC 1 draws, with a frame set per state at every pairing; every frame ## Frames names exists as one of its own; any final-table frames come as all three pairings
-check 3 PASS: the amendment says whether the off-season final table (phase "final") is marked: a quoted owner decision in ## Decisions; if it is marked, FEATURES' Standings row (changed by S129) records it
-check 4 PASS: the amendment's ## Ratification names Jake Lauer, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left
-check 5 PASS: no sealed file in standings-search-settings changed or deleted (RATIFIED.md manifest verifies; RATIFIED.md, ratified frames and every other amendment untouched by S129; every amendment's sealed frames present and unchanged)
-check 6 PASS: S129 changes no file outside its fence (scripts/verify-S129.sh aside)
-check 7 PASS: backlog Status is done (story heading and Story status table)
-check 8 PASS: the amendment answers every AC 1 bullet in words: the view switch (and whether it shows with the regular season alone), the hidden games-behind column, the regular season before its first game, the playoffs list, the 'Standings as of' line, the World Series box (how long it stays, reduced motion), the heading and browser tab title, the off-season's final table, the first spring morning, full width on mobile, loading/empty/error
+check 1 PASS: a mock IdentityProvider under functions/src/adapters/ signs in with one exported fixed credential (not dev:) as provider "mock", one fixed subject, a fixed email on stage.baseball.theater, emailVerified true and authTime from an injected clock; any other credential (another string, empty, dev:test-user) throws CredentialRefusedError (tests 'S143 AC 1')
+check 2 PASS: one exported function in functions/src/worker-app.ts wires the mock only where BT_MOCK_SIGN_IN is "1" and neither LOGTO_ENDPOINT nor LOGTO_APP_ID is set; wrangler.jsonc sets BT_MOCK_SIGN_IN in env.staging's vars only, and env.staging names no LOGTO_* var; dev: sign-in still gated on BT_LOCAL (tests 'S143 AC 2')
+check 3 PASS: GET /api/v1/sign-in answers mock true/false beside logto; POST with the mock credential answers 200 { token } through signIn where wired, 401 sign_in_refused where another provider is wired, 404 where none is (tests 'S143 AC 3'); the spec carries mock and is up to date (pnpm api:spec), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it again
+check 4 PASS: in workerd, with BT_MOCK_SIGN_IN=1 and no BT_LOCAL: the mock signs in, /me answers the test account, settings save and read back, a second sign-in finds the same uid and settings, deletion works with no Logto admin and the next sign-in makes a new account with house defaults; without the var the mock is refused; Bearer dev:test-user refused either way (workerd tests 'S143 AC 4')
+check 5 PASS: web: where the Worker says mock: true, Sign in (and Settings' Sign in again) hands the mock credential to POST /api/v1/sign-in, keeps the token and shows the account with no navigation and no Logto SDK; sign-out returns to signed out with no Logto sign-out; the deployed loader with mock: true never imports AuthClient.ts (RTL tests 'S143 AC 5')
+check 6 PASS: web: the header shows no Sign in where a production build's Worker answers logto: null and mock: false, shows it for Logto, the mock and a dev build, hides it while the answer loads, shows it when the request fails (a click asks again); one read of the answer per page load serves header and sign-in (RTL tests 'S143 AC 6')
+check 7 PASS: none of wrangler.jsonc, README.md, worker-app.ts, accounts.ts, openapi.ts, api-routes.ts, openapi/bt-api.v1.json, web/src/api/generated/ says 'until its own', 'tenant of its own' or 'own tenant's once it exists'; wrangler.jsonc, WorkerEnv's comment and README say staging signs in with the mock test account and previews have none
+check 8 PASS: backlog Status is done (story heading and Story status table)
+check 9 PASS: the story changed nothing outside its fence (functions/src/, functions/vitest*.config.ts, openapi/, packages/domain/src/api-routes.ts, web/src/, web/vitest.config.ts, wrangler.jsonc, README.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, scripts/verify-S143.sh)
 ```
 
-**8/8 checks passed**
+**9/9 checks passed**
 
 <details><summary>Grader output</summary>
 
 ```
 
---- verify-S129 check results ---
-check 1 PASS: standings-search-settings has its next free amendments/A<N>.md (new in S129) headed '(S129)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
-check 2 PASS: frames standings-spring-{mobile,medium,desktop}.png (real PNGs at the ratified standings frame's width) listed in ## Frames, which names each view AC 1 draws, with a frame set per state at every pairing; every frame ## Frames names exists as one of its own; any final-table frames come as all three pairings
-check 3 PASS: the amendment says whether the off-season final table (phase "final") is marked: a quoted owner decision in ## Decisions; if it is marked, FEATURES' Standings row (changed by S129) records it
-check 4 PASS: the amendment's ## Ratification names Jake Lauer, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left
-check 5 PASS: no sealed file in standings-search-settings changed or deleted (RATIFIED.md manifest verifies; RATIFIED.md, ratified frames and every other amendment untouched by S129; every amendment's sealed frames present and unchanged)
-check 6 PASS: S129 changes no file outside its fence (scripts/verify-S129.sh aside)
-check 7 PASS: backlog Status is done (story heading and Story status table)
-check 8 PASS: the amendment answers every AC 1 bullet in words: the view switch (and whether it shows with the regular season alone), the hidden games-behind column, the regular season before its first game, the playoffs list, the 'Standings as of' line, the World Series box (how long it stays, reduced motion), the heading and browser tab title, the off-season's final table, the first spring morning, full width on mobile, loading/empty/error
---- verify-S129: 8/8 checks passed ---
-verify-S129: all checks passed
+--- verify-S143 check results ---
+check 1 PASS: a mock IdentityProvider under functions/src/adapters/ signs in with one exported fixed credential (not dev:) as provider "mock", one fixed subject, a fixed email on stage.baseball.theater, emailVerified true and authTime from an injected clock; any other credential (another string, empty, dev:test-user) throws CredentialRefusedError (tests 'S143 AC 1')
+check 2 PASS: one exported function in functions/src/worker-app.ts wires the mock only where BT_MOCK_SIGN_IN is "1" and neither LOGTO_ENDPOINT nor LOGTO_APP_ID is set; wrangler.jsonc sets BT_MOCK_SIGN_IN in env.staging's vars only, and env.staging names no LOGTO_* var; dev: sign-in still gated on BT_LOCAL (tests 'S143 AC 2')
+check 3 PASS: GET /api/v1/sign-in answers mock true/false beside logto; POST with the mock credential answers 200 { token } through signIn where wired, 401 sign_in_refused where another provider is wired, 404 where none is (tests 'S143 AC 3'); the spec carries mock and is up to date (pnpm api:spec), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it again
+check 4 PASS: in workerd, with BT_MOCK_SIGN_IN=1 and no BT_LOCAL: the mock signs in, /me answers the test account, settings save and read back, a second sign-in finds the same uid and settings, deletion works with no Logto admin and the next sign-in makes a new account with house defaults; without the var the mock is refused; Bearer dev:test-user refused either way (workerd tests 'S143 AC 4')
+check 5 PASS: web: where the Worker says mock: true, Sign in (and Settings' Sign in again) hands the mock credential to POST /api/v1/sign-in, keeps the token and shows the account with no navigation and no Logto SDK; sign-out returns to signed out with no Logto sign-out; the deployed loader with mock: true never imports AuthClient.ts (RTL tests 'S143 AC 5')
+check 6 PASS: web: the header shows no Sign in where a production build's Worker answers logto: null and mock: false, shows it for Logto, the mock and a dev build, hides it while the answer loads, shows it when the request fails (a click asks again); one read of the answer per page load serves header and sign-in (RTL tests 'S143 AC 6')
+check 7 PASS: none of wrangler.jsonc, README.md, worker-app.ts, accounts.ts, openapi.ts, api-routes.ts, openapi/bt-api.v1.json, web/src/api/generated/ says 'until its own', 'tenant of its own' or 'own tenant's once it exists'; wrangler.jsonc, WorkerEnv's comment and README say staging signs in with the mock test account and previews have none
+check 8 PASS: backlog Status is done (story heading and Story status table)
+check 9 PASS: the story changed nothing outside its fence (functions/src/, functions/vitest*.config.ts, openapi/, packages/domain/src/api-routes.ts, web/src/, web/vitest.config.ts, wrangler.jsonc, README.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, scripts/verify-S143.sh)
+--- verify-S143: 9/9 checks passed ---
+verify-S143: all checks passed
 ```
 
 </details>
@@ -18693,33 +18906,1625 @@ verify-S129: all checks passed
 <details><summary><code>pnpm verify</code> (tail)</summary>
 
 ```
- ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 9ms
- ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 30ms
- ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 31ms
- ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 31ms
- ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 35ms
- ✓ |tools| jscpd/jscpd.test.js (2 tests) 670ms
-   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  347ms
-   ✓ jscpd duplication gate (.jscpd.json) > fails when a 30-line block is copied into a second file  322ms
- ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 462ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 10ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 39ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 39ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 49ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 47ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 705ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  343ms
+   ✓ jscpd duplication gate (.jscpd.json) > fails when a 30-line block is copied into a second file  361ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 588ms
    ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
 declare const game: Game;
-export const label = game.abbreviation + " @ ";  443ms
+export const label = game.abbreviation + " @ ";  563ms
 
  Test Files  8 passed (8)
       Tests  42 passed (42)
-   Start at  16:38:56
-   Duration  1.29s (transform 130ms, setup 0ms, collect 3.25s, tests 1.41s, environment 1ms, prepare 397ms)
+   Start at  15:55:38
+   Duration  1.47s (transform 71ms, setup 0ms, collect 3.43s, tests 1.63s, environment 1ms, prepare 459ms)
 
 
-> baseball-theater-v3@0.0.0 size /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/agent-a587e84dbfe076b39
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
 > size-limit --json
 
 [
   {
     "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
     "passed": true,
-    "size": 162463,
+    "size": 162795,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+
+---
+
+## 2026-11-18 — S136 completed
+
+**Teams per day in the month counts**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T00:30:42Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `86e4b2f` (tree dirty) |
+| Grader | `scripts/verify-S136.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: each month day gains teamIds (away and home team IDs of every stored game, each once, ascending; [] for a stored day with none; null exactly when count is null), read by listGameCounts in one query (repository contract on PGlite and memory: doubleheader lists each team once, empty day []; route: unknown day count null and teamIds null; 2024-07 one listGameCounts call, no getByDate)
+check 2 PASS: a day S124's fill stores answers with its teamIds in the same response, with still one schedule request for the range and no game request
+check 3 PASS: one named, tested domain function answers whether a day's teamIds include a favorite: false for null, [], no favorites, and a day with no teamIds at all
+check 4 PASS: one named, tested domain function answers a month's game state: games (a day above 0), none (at least one day, all 0), unknown (a null day with none above 0, or no days)
+check 5 PASS: the OpenAPI spec carries teamIds (pnpm api:spec up to date), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it so fetchScheduleMonth's result carries teamIds
+check 6 PASS: backlog Status is done (story heading and Story status table), and the story stays inside its scope files
+```
+
+**6/6 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S136 check results ---
+check 1 PASS: each month day gains teamIds (away and home team IDs of every stored game, each once, ascending; [] for a stored day with none; null exactly when count is null), read by listGameCounts in one query (repository contract on PGlite and memory: doubleheader lists each team once, empty day []; route: unknown day count null and teamIds null; 2024-07 one listGameCounts call, no getByDate)
+check 2 PASS: a day S124's fill stores answers with its teamIds in the same response, with still one schedule request for the range and no game request
+check 3 PASS: one named, tested domain function answers whether a day's teamIds include a favorite: false for null, [], no favorites, and a day with no teamIds at all
+check 4 PASS: one named, tested domain function answers a month's game state: games (a day above 0), none (at least one day, all 0), unknown (a null day with none above 0, or no days)
+check 5 PASS: the OpenAPI spec carries teamIds (pnpm api:spec up to date), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it so fetchScheduleMonth's result carries teamIds
+check 6 PASS: backlog Status is done (story heading and Story status table), and the story stays inside its scope files
+--- verify-S136: 6/6 checks passed ---
+verify-S136: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 135ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 8ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 26ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 31ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 24ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 28ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 606ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  315ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 367ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  352ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  16:32:40
+   Duration  1.12s (transform 62ms, setup 0ms, collect 2.94s, tests 1.22s, environment 1ms, prepare 455ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162798,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+
+---
+
+## 2026-11-19 — S144 completed
+
+**Design: inning pill play link**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T18:25:28Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `09a04bc` (tree dirty) |
+| Grader | `scripts/verify-S144.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: game-shell has its next free amendments/A<N>.md headed '(S144)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (the owner's 2026-11-10 words quoted), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames of the Videos room's cards in grid and list at mobile, medium and desktop, the floating player at mobile and medium and Search's results at mobile, medium and desktop, named <screen>[-<state>]-<pairing>.png and listed in ## Frames, which says each shows a clip with a play and one without
+check 3 PASS: ## Decisions says which part of the meta line is the link, what the rest of the line reads, names the pill's colour tokens (its fill and its text, the date's), the link's hover and focus look, the line for another or missing kind and for no date, that a clip with no play keeps 'Highlight · Sep 5, 2026' (recap and condensed keep their word), that the rest of the card is unchanged, how a touch screen chooses the play, and where else the change applies (the player's overlay row, Search)
+check 4 PASS: the amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead
+check 5 PASS: no sealed game-shell file changed (RATIFIED.md's manifest and every earlier amendment's manifest still verify; S144 changed neither RATIFIED.md nor A1–A5)
+check 6 PASS: S144 changed no file outside its fence (docs/v3/visual/game-shell/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, plus creating scripts/verify-S144.sh)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+```
+
+**7/7 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S144 check results ---
+check 1 PASS: game-shell has its next free amendments/A<N>.md headed '(S144)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (the owner's 2026-11-10 words quoted), ## Open questions = None., and a SHA-256 manifest of exactly its own frames
+check 2 PASS: frames of the Videos room's cards in grid and list at mobile, medium and desktop, the floating player at mobile and medium and Search's results at mobile, medium and desktop, named <screen>[-<state>]-<pairing>.png and listed in ## Frames, which says each shows a clip with a play and one without
+check 3 PASS: ## Decisions says which part of the meta line is the link, what the rest of the line reads, names the pill's colour tokens (its fill and its text, the date's), the link's hover and focus look, the line for another or missing kind and for no date, that a clip with no play keeps 'Highlight · Sep 5, 2026' (recap and condensed keep their word), that the rest of the card is unchanged, how a touch screen chooses the play, and where else the change applies (the player's overlay row, Search)
+check 4 PASS: the amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead
+check 5 PASS: no sealed game-shell file changed (RATIFIED.md's manifest and every earlier amendment's manifest still verify; S144 changed neither RATIFIED.md nor A1–A5)
+check 6 PASS: S144 changed no file outside its fence (docs/v3/visual/game-shell/amendments/, docs/v3/VISUAL-DESIGN.md, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, plus creating scripts/verify-S144.sh)
+check 7 PASS: backlog Status is done (story heading and Story status table)
+--- verify-S144: 7/7 checks passed ---
+verify-S144: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 136ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 9ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 25ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 27ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 27ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 30ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 620ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  330ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 406ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  389ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  10:27:15
+   Duration  1.19s (transform 97ms, setup 0ms, collect 2.95s, tests 1.28s, environment 3ms, prepare 594ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162796,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+
+---
+
+## 2026-11-19 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-19T18:40:40Z` |
+| HEAD at review | `3153b39` (tree dirty) |
+| Trigger | design intake: game-shell A6 ratified (S144); S127, S144, S145 acceptance criteria rewritten |
+| Stories `done` since last review | S144 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Design intake review of game-shell A6 (the inning pill, ratified 2026-11-19, S144), with check 2b on S127, S144 and S145, whose acceptance criteria were rewritten since `ee64d0d`. Two independent design-intake reviewers (read-only, HEAD `3153b39`), merged by the merger, who checked each disputed claim against the source.
+
+**Inventory (game-shell A6).** 11 frames: `game-videos-{grid,list}-playmeta-{mobile,medium,desktop}`, `video-player-dialog-playmeta-{mobile,medium}`, `search-playmeta-{mobile,medium,desktop}`. Two shared Figma components: `play-inning-pill` (724:10189) and `video-meta` (724:10197, Play yes/no). States: date muted then pill; no play `Kind · date`; pill alone with no date; a play wins over any kind; Search no-play `Highlight · date` in primary colour. Described, not drawn: pill hover fill `raised-current` with no zoom, focus card then pill, ≥24×24 tap area, the date plays the clip, Hide Scores unchanged. Data: cards and player via `Video.playId` + `atBatOfPlay` (owned); Search rows need a play id and inning no route returns (missing).
+
+**Ownership map:** owned 9, re-scoped 6 (all in S145), unowned 3 (Search's rows, Search's route data, Search's player build). Search's rows and data -> new S153; Search's player stays with S127's own intake (S127 is not ratified).
+
+**Amendments.**
+- **S145** (grader not yet written): AC 1 adds A6's other kinds (`video`-kind and recap with a play read date + pill; play + date, no kind). AC 3 rewritten to behaviour: the pill navigates without `onPlay`, the title and the date each call `onPlay`, `pill.closest("button") === null`, `pill.closest(".bt-zoom-host") === null` (`web/src/styles.css`'s `.bt-zoom-host:hover .bt-zoom img` would otherwise zoom the still), button then pill in tab order, hit area ≥24×24, hover rule `var(--bt-raised-current)`; layout left to the builder. AC 4 names S97 AC 2's `VideoPlayLinks.test.tsx:127-140` (expects `conineLabel`, built at :45 as `Play · … →`) as moved, checks kept, and `e2e/design/S97.spec.ts:63,71,88`; Search goes to S153 and S127's intake. New AC 5: one `PlayInningPill.tsx` used by `VideoCard` and `PlayerDialog`, one shared meta line, one domain label taking `{ halfInning, inning }` that replaces `atBatInningLabel` and that `PlaysPanel.tsx`'s private `inningTag` (`web/src/components/pitch/PlaysPanel.tsx:51-54`, the same `Top 3` / `Bot 7`, found by the merger's grep) calls; fence gains that one file. AC 6 (design match) names the eight non-Search frames. Notes "Why the link sat outside the button" and "One label" corrected. Cap 8 -> 10.
+- **S153 inserted** (priority 91, after S5, beside S72; Source: Feature: Video play links; Design S144, S34, S56; depends S5, S145, S81): the route returns `playId` / `halfInning` / `inning` from S5's recording; rows reuse S145's pill and meta line; pill navigates without opening the player; no-play or `gamePk: -1` rows keep `Highlight · date` in `--bt-light`; Hide Scores unchanged; design match on `search-playmeta-*` judging only the meta line.
+- **S5:** AC 8 adds that the search request asks MLB for `mediaPlayback { guid playInfo { inning inningHalf gamePk } }` beside `ClipDetails.id` so the recording carries them, without parsing them, and carries on if MLB omits them. The 2026-11-19 note now points at S153; a note cites `playInfo.teams` for AC 8's team-field check.
+- **S127:** AC 2's "(A6)" now says standings-search-settings A6 (game-shell A6 is a different amendment); AC 1 names `play-inning-pill` (724:10189), asks what a `gamePk: -1` clip shows and whether the `•` stays; Gates and Builds-after lines point Search's rows at S153; reuse check adds game-shell A6.
+- **S144:** done and frozen; its AC 1's "It names the red" is a superseded draft leftover, recorded here only.
+
+**Disagreements and resolutions.**
+1. `atBatInningLabel`'s callers. Reviewer 1: its only non-test caller is `playLink.ts:22`, so the new function replaces it. Reviewer 2: it "stays for its other callers". Checked: `grep -rn atBatInningLabel packages web functions` finds only `inning.ts:44`, `playLink.ts:22` and `video-play-context.test.ts:26-30`. Reviewer 1 is right; S145 AC 5 replaces it. The merger also found `PlaysPanel.tsx:51-54`'s `inningTag`, a second spelling of the same label, folded into AC 5.
+2. The play id field. Reviewer 1: `ClipDetails.id`. Reviewer 2: `MediaPlayback.guid`. Checked: BT's content feed reads `guid` as a video's `playId` (`packages/domain/src/types.ts:123`, `packages/mlb-api/src/parse.ts:708`); `ClipDetails.id` is the search hit's own id, unverified as a play id. S5 asks for both; S153 AC 1 takes the field that equals a `PitchEvent.playId`, expected `guid`.
+3. Where Search's data lands. Reviewer 1: S5 returns `playId` / `halfInning` / `inning`. Reviewer 2: a new story parses them from S5's recording. Resolved: S5 only asks for them (one request field, no parse, no stop), S153 parses and returns them, so S5 isn't held by a pill-only field and no re-recording is needed.
+4. Who builds Search's player. Reviewer 1: the new story, designed by S127. Reviewer 2: S127's own intake. Resolved for reviewer 2: S127 isn't ratified, and gating S153 on it would hold Search's rows behind an unratified design.
+5. S145 card layout. Reviewer 1: the meta line beside the button is wrong; Reviewer 2: reuse `.bt-above-card-link`. Resolved (coordinator's direction): AC 3 states the behaviour (date plays, pill outside button and `.bt-zoom-host`, tab order); the note offers the stretched-card pattern as an option.
+6. Priority of the new story: 90.5 vs 90. Priorities are integers (`pnpm backlog:check`); 91, after S5 (90).
+7. Turn cap of S145: 9 or 10; 10, since AC 5 adds `PlaysPanel.tsx`.
+
+**Check 2 (next 3).** S125 (74): design S123 `blocked`, can't start. S145 (75): depends S97, S81 done; design S144 done; `VideosRoom.test.tsx:79-87`, `VideoPlayLinks.test.tsx:93-140`, `HideScoresRooms.test.tsx:245-251`, `PlaysPanel.tsx:51-54`, `inning.ts:44`, `playLink.ts:22`, `e2e/design/S97.spec.ts` exist at HEAD; `scripts/verify-S145.sh` absent (red-first); fence now covers every AC path. S139 (76): depends S128 done; not re-grounded beyond its AC list.
+**Check 2b.** S145: a test the AC moves but doesn't name (player test, fixed); a premise false at HEAD (`atBatInningLabel`'s callers, fixed); a layout passing the AC but breaking the design (the dead date, the zooming still, fixed); one implementation (pill, meta line, label, `inningTag`, fixed); stale comment (`inning.ts:40-42`, moves with AC 5); a vague grep ("no other file renders a link", tightened to named imports). S127: ambiguous reference ("A6"), an owner quote overtaken by a later answer (the `•`), an undrawn input (`gamePk: -1`). S5: data a frame needs that no route provides. S153: an AC unmeetable on the recording (a "result without play fields" may not exist; the test may strip them), a design frame that doesn't match its own surface (A6's Search frames are pre-A2 copies: "Search Plays & Highlights", "Search games, players…", ACTIVE FILTERS chips, confirmed in `search-playmeta-mobile.png`; listed as expected differences), a Figma overrun (`video-meta` 220 wide in a 188-wide frame at mobile; noted).
+**Check 3.** S145 after S125 (which can't start) is right; S127 (89) before S5 (90) before S153 / S72 (91) holds; nothing obsolete. Duplication sweep: `PlaysPanel.tsx:51-54` `inningTag` duplicates the pill's label (folded into S145 AC 5); `inning.ts:46` and `PlaysPanel.tsx:35` (`Top`/`Bottom`, a different form) checked. Personal-data sweep: S153 adds no store; none found in S144's design-only diff.
+
+**For the parity review:** FEATURES' Video play links row still names `Play · Top 6th →`, red "Play" and S127's `Go to: Game →  •  At-Bat →`; it should describe the inning pill after the date on cards, list rows, Search's results and both players, and Search's player as `Go to: Game →` plus the pill. The Current baseline's "the Video play links row says so" holds only after that. S153 is new and cites Feature: Video play links.
+
+**Owner questions.**
+1. Should the day digest's player (`DayDigest.tsx:109-116`, "Go to game: … →" only) and the stage-mode player (`PlayerHost.tsx:30-33`, no link) also show the pill? No ratified frame draws them; yes needs a design amendment first.
+2. What should a screen reader say for the pill? `Top 6 →` reads "Top 6 right arrow"; until answered S145 uses the visible words.
+3. If MLB's free-text search carries no play id or inning, should S153 fall back to loading each result's game (one extra upstream request per result), or show no pill on Search?
+4. In Search's player, does a `•` stay between `Go to: Game →` and the pill?
+
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-19T18:44:09Z` |
+| HEAD at capture | `fb4c508` (tree clean) |
+| Applied in | `fb4c508` — Apply the owner's answers to the game-shell A6 design intake review |
+
+**Answers and what was applied**
+
+Owner's answers, 2026-11-19, to the game-shell A6 design intake review's questions (ledger entry committed in ff01df2):
+
+1. Q: "Should the play's inning pill also appear in the day digest's player and the stage-mode player, which A6 doesn't draw?"
+   A (owner): "all players always"
+   Applied: S127 AC 2 (new) draws the inning pill in the scoreboard day digest's player (DayDigest.tsx:109-116) and the stage-mode player (PlayerHost.tsx:30-33) in the same standings-search-settings amendment; coordinator's reading stated in the note (players outside the game's Videos room show both pills; the Videos room player only the inning pill; the stage player follows its context). No build story invented: S127's ratification intake slices the digest and stage players, as it does Search's. Title, Impact, Gates and Builds-after lines follow.
+
+2. Q: "What should a screen reader say for the pill? (visible `Top 6 →` reads 'Top 6 right arrow')"
+   A (owner): "\"Open play - Top of 6th inning\""
+   Applied: S145 AC 1 asserts the accessible name "Open play - <Top|Bottom> of <ordinal> inning" on the card and in the player (RTL getByRole link names for a top-6 and a bottom-3 play), visible words unchanged (Top 6 → / Bot 3 →); AC 5 puts the spoken words in packages/domain/src/inning.ts beside the visible label, reusing its ordinal(), with the "Open play - " prefix added once beside the arrow. Agent's reading: the spoken name spells "Bottom" (visible keeps "Bot") and restores the ordinal, as the owner wrote "6th". S127 AC 3 names it.
+
+3. Q: "In Search's player, does a `•` stay between 'Go to: Game →' and the pill?"
+   A (owner): "Change Game -> to a pill as well, but change the label to \"More from game ->\" and link to the videos tab of that game, and remove the \"Go to:\" label"
+   Applied: S127 AC 1 draws a "More from game →" pill then the inning pill, no "Go to:" label, separator question removed; AC 3 says it opens /game/:gamePk/videos (the /game/:gamePk/:tab route). gamePk: -1 left as the amendment's question (no note settles it for the player). S153's "Not Search's player" note follows. FEATURES' Video play links row still says "Go to: Game →  •  At-Bat →": left for the doc parity review.
+
+Still open (not answered): whether Search should load each result's game when MLB's search lacks the play id or inning (S153's notes).
+
+---
+
+## 2026-11-19 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-19T18:46:37Z` |
+| HEAD at review | `f5c03c1` (tree dirty) |
+| Trigger | S153 added (2026-11-19 design intake review of game-shell A6, ff01df2) |
+| Stories `done` since last review | S144 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+**Scope.** S153 (named by `pnpm parity:debt`), plus the next 3 `todo` stories by priority in `docs/v3/INDEX.md`: S125 (74), S145 (75), S139 (76; S140 ties at 76 and was read too). No `doing` story. No story cites `Open:` (`grep -rln "Source:\*\* Open" docs/v3/backlog/stories/` empty). The only pillar-cited open story is S146 (priority 118), outside this scope and not changed since the last review.
+
+**1. Citation honesty**
+
+- **S153** (Feature: Video play links). The Gap and Impact deliver game-shell A6's inning pill on Search's result rows, opening the play. Before this review the cited row didn't describe that: it still said a card, list row and the player show `Play · Top 6th →`, then that "Play" in red replaces "Highlight" (S144 designs it, S145 builds it), and said nothing of Search's results. So the citation pointed at the right feature, but the row described a superseded plan. **Amended** (below). After the edit the row describes the pill on Search's results and names S153 as its builder, so the citation holds.
+- **S145** (Feature: Video play links). Same stale row: its Gap and ACs build A6's date-then-pill meta line, its spoken name (`Open play - Top of 6th inning`) and the pill in the player. Fixed by the same amendment; the citation holds now.
+- **S125** (Feature: Calendar date picker). FEATURES:101 quotes the same 2026-11-07 owner words the Gap quotes (calendar, year switching, typed date, game counts) and names S123/S124. Holds.
+- **S139 / S140** (Feature: Standings). FEATURES:65 records the owner's `includePhases` words and the World Series box and names S139 and S140. Holds.
+
+**2. Doc reflects reality**
+
+- FEATURES' Video play links row (FEATURES:98) contradicted decisions the owner had already made and recorded:
+  - game-shell A6 ratified 2026-11-19 (owner: "the one in figma looks good"; S144's ledger entry at AUDIT line 18981, `docs/v3/visual/game-shell/amendments/A6.md`). It replaces A5's `Play · Top 6th →` and the 2026-11-10 red "Play" with the date followed by a `Top 6 →` pill, on cards, list rows, the game's floating player and Search's results. The owner's words on S144's draft are quoted in S145's Gap and S144's note.
+  - The owner's answers to the A6 intake, 2026-11-19 (ledger entry "backlog review answers (2026-11-19)", f5c03c1; applied in fb4c508): "all players always"; "\"Open play - Top of 6th inning\""; "Change Game -> to a pill as well, but change the label to \"More from game ->\" and link to the videos tab of that game, and remove the \"Go to:\" label". The row still said Search's player gets `Go to: Game →  •  At-Bat →`.
+- **Edit (FEATURES:98, owner's words only).**
+  - S96's ratification and S97's shipped `Play · Top 6th →` are kept as history.
+  - The 2026-11-10 red-"Play" decision, the 2026-11-19 S144-draft decisions and A6's ratification are recorded, each in the owner's quoted words.
+  - The row says what A6 draws, with the clip with no play keeping `Highlight · <date>`, and gives the pill's spoken name.
+  - S145 and S153 are named as the builders, and the row says neither has shipped.
+  - It records "all players always" (the day digest's and stage player included).
+  - Search's player: the 2026-11-07 `At-Bat →` plan is kept as superseded, and the planned `More from game →` pill (opening the game's Videos tab) is described, followed by the inning pill with no "Go to:" label.
+  - S127 is described as an unratified draft that designs those players, and the row says no story builds them yet.
+- The Current baseline frame note's "the Video play links row says so" (`docs/v3/backlog/frame/01 Current baseline.md:3`) is true as of this edit. No other FEATURES/INTENT/VISUAL-DESIGN/ARCHITECTURE text names `Top 6th`, `At-Bat →` or `Go to: Game` (grep).
+- No relic found in the rows read. The Game → Videos row (FEATURES:59) only points to Video play links and still holds.
+
+**3. Coverage — For the next backlog review**
+
+1. **The inning pill in the scoreboard day digest's player and the stage-mode player** ("all players always"): FEATURES now records it, S127 (draft) designs it, and no story builds it. As S127's Gates line says, the intake that runs when S127 is ratified must slice it; confirm that nothing builds these players before then.
+2. **Search's floating player's `More from game →` pill plus the inning pill**: designed by S127 (draft), and no build story. Same as item 1.
+3. **Frame note `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md:179`**: "Parity review due: S153 inserted; FEATURES' Video play links row still describes `Play · Top 6th →` and `At-Bat →`" is stale after this review. It is outside the parity write scope; the backlog review should clear it.
+4. Still open with the owner from the A6 intake (not a parity question): whether Search should load each result's game when MLB's search lacks the play id or inning (S153's notes, "Data source unverified").
+
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T00:19:37Z` |
+| HEAD at capture | `73343fa` (tree clean) |
+| Applied in | `73343fa` — S153, S127: no pill when MLB gives no play, or the clip no game (owner) |
+
+**Answers and what was applied**
+
+Owner, 2026-11-19, through /pending, answering the game-shell A6 design intake review's open questions. Asked whether, when MLB gives a search result no play id or inning, search should fetch that clip's game to find them or show no inning pill: chose "Show no pill (Recommended)". Applied: S153 AC 1, AC 4 and its data-source note say such a result shows no pill and the game is never fetched. Asked whether a clip that belongs to no game should show the "More from game →" pill: chose "No pill (Recommended)". Applied: S127 AC 1 says a clip with no game draws no "More from game →" pill.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T00:45:37Z` |
+| HEAD at capture | `5868e64` (tree clean) |
+| Change | `5868e64` — S144 review fixes: one builder for the play pill's link (S145, S153), answered questions struck, A6's Search-player words superseded (S127) |
+
+**What changed, and the owner's answer**
+
+S145 AC 5, S153 AC 1/2/4/5 and S127 notes rewritten to answer the pre-PR review of PR #94; owner, 2026-11-07, asked whether such a rewrite needed a backlog review: "This shouldn't even trigger a question. Always skip."
+
+---
+
+## 2026-11-19 — doc parity review (`continue`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T00:50:10Z` |
+| HEAD at review | `6bdb0b8` (tree clean) |
+| Trigger | FEATURES.md changed (6bdb0b8: Video play links row gains the owner's two no-pill answers) |
+| Stories `done` since last review | none |
+| Verdict | `continue` |
+
+**Findings / amendments**
+
+**Scope.** `pnpm parity:debt` at `6bdb0b8` named only "docs/v3/FEATURES.md changed" (since `05567f4`): 6bdb0b8 added two sentences to FEATURES' Video play links row (FEATURES:98). No story note was added or removed and no `**Source:**` line changed since `05567f4` (`git diff --name-status 05567f4..HEAD -- docs/v3/backlog/stories/` shows only S127, S145, S153 modified; no `Source` line in that diff). Stories in scope: the three citing the changed row (S145, S153, S127), plus the next 3 `todo` by priority in `docs/v3/INDEX.md`: S125 (74), S145 (75), S139 (76; S140 ties at 76 and was read too). No `doing` story. No story cites `Open:` (`grep -rln "Source:\*\* Open" docs/v3/backlog/stories/` empty). The only pillar-cited open story is S146 (priority 118), unchanged since the last review and outside scope.
+
+**1. Citation honesty**
+
+- **The FEATURES change itself.** Both added sentences record decisions the owner already made, in the owner's own chosen words, and both are logged: the ledger entry "backlog review answers (2026-11-19)" at AUDIT line 19190 (committed in `3042ef0`, applied in `73343fa`) quotes the owner, through /pending, choosing "Show no pill (Recommended)" (a Search result MLB gives no play id or inning shows no inning pill; the clip's game is never fetched) and "No pill (Recommended)" (a clip that belongs to no game shows no `More from game →` pill). The row's wording matches S153 AC 1 / AC 4 and S127 AC 1 as applied in `73343fa`. Holds.
+  - Observation, no edit: the row says "no play id, half-inning or inning", where the ledger's question named "play id or inning". The half-inning case was added by PR #94's pre-PR review (`5868e64`, S153 notes "2026-11-19 pre-PR review"), since the pill's visible `Top`/`Bot` can't be drawn without it; it is a direct consequence of the owner's answer, not new intent.
+- **S153** (Feature: Video play links). Gap/Impact: A6's inning pill on Search's result rows, opening the play. The row says the pill appears on "Search's results", that S153 builds it, and now that a result without the play fields shows none (S153 AC 4). Holds.
+- **S145** (Feature: Video play links). Gap/Impact: the date-then-pill meta line on cards and the game's player, spoken name `Open play - Top of 6th inning`, a clip with no play keeps "Highlight". The row states each of these and names S145 as their builder. Holds.
+- **S127** (Feature: Video play links). Its AC 1 now draws no `More from game →` pill for a clip with no game, which the row now states. The row describes S127 as an unratified draft designing Search's, the day digest's and the stage player's pills. Holds.
+- **S125** (Feature: Calendar date picker). FEATURES:101 quotes the same 2026-11-07 owner words as the Gap and names S123/S124; note unchanged since the last review. Holds.
+- **S139 / S140** (Feature: Standings). FEATURES:65 records the `includePhases` words (naming S139) and the World Series box; notes unchanged since the last review. Holds.
+
+**2. Doc reflects reality**
+
+- The Video play links row no longer contradicts S153 or S127 on either question: the last parity review's open item ("whether Search should load each result's game when MLB's search lacks the play id or inning") is settled in the row, S153 and S127 alike.
+- No other FEATURES/INTENT text names the Search fallback or `gamePk: -1`; game-shell A6 and VISUAL-DESIGN don't cover either case (grep), so no conflict with a ratified file.
+- The frame note's stale "Parity review due: S153 inserted…" line (queued by the last parity review) is gone from `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md`.
+- No relic found in the rows read.
+
+**3. Coverage — For the next backlog review**
+
+1. **The inning pill in the scoreboard day digest's player and the stage-mode player** ("all players always") and **Search's floating player's `More from game →` pill plus the inning pill**: FEATURES records them, S127 (draft) designs them, and still no story builds them (carried from the 2026-11-19 parity review). The intake S127's ratification triggers must slice them.
+
+No edits: every citation checked holds and the docs match.
+
+---
+
+## 2026-11-19 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-20T01:14:49Z` |
+| HEAD at review | `762a30d` (tree dirty) |
+| Trigger | S152 inserted outside a review (PR #102), since e761701 |
+| Stories `done` since last review | S143, S136 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Fresh-context review at `762a30d` (`scripts/review-debt.sh`: S152 inserted outside a review, PR #102). Scope of check 2b: the next 3 `todo` stories at HEAD (S152, S125, S144) and every story inserted or rewritten since the 2026-11-16 review (`6f7b5ec`) that the open stacked pull requests #95–#98 don't carry: S146, S150, S151. S144 merged into `stage` (#94, `0470e27`) after this branch's base, done there with its own design intake; S139, S140, S141, S142, S145, S147, S148, S149 are rewritten by #94–#98 and left to their reviews. Done since the last review: S143, S136 (2 of 6). Code since `af098ea`: S143, S136, B40, B48, B74, Download removed (#99), stacked-PR and shared-Figma-component rules (#100, #101).
+
+**Check 1: coverage**
+
+1. The 2026-11-16 parity review's queue: (1) FEATURES' Videos row (quality picker, actions row, larger desktop) and Plays row (no at-bat open) shipped in #58: FEATURES line 59 now also says Download waits for S151's service worker (`db58c1c`); S151 AC 4 restores Download in `PlayerActions`; S145 (on `stage`) changes the card's meta line, not the player's actions; no `todo` note opens an at-bat by default (grep "expanded|open by default": none). No story needed. (2) nothing queued.
+2. No new ADR, no new workspace package (`pnpm-workspace.yaml`: `packages/*`, `functions`, `web`). **Open bug with no note:** issue #87 (open, `bug`, milestone v3.3.0) has no `B87` note at HEAD, on `stage` or on any remote branch (checked with `git ls-tree` over every `origin/*`), against CLAUDE.md's "every open issue labelled `bug` has a note". **Amended:** `docs/v3/backlog/bugs/todo/B87.md`, priority 70.9, before S152 (a story whose commits touch `docs/v3/backlog/frame/00 … — Checkable backlog.md` fails its own grader's fence check, as S143's did). Issues #71 and #72, which S150 assumes fixed, are closed (2026-11-17); `GameSnapshot.startTime` (`packages/domain/src/types.ts:216`) and the postponed exit in `isGameInActiveWindow` (`window.ts:112`) are at HEAD.
+
+**Check 2: ground truth at HEAD (`762a30d`)**
+
+3. **S152.** No dependencies. Paths: `.github/workflows/ci.yml` (jobs `changes`, `docs`, `verify`, `flows`, `design-specs`, `lighthouse`, `milestone`, `ci-passed`; line 261 is AC 3's unchanged `ci-passed` line), `functions/vitest.config.ts` (floors 97/96/92/97; excludes `*.workerd.test.ts`), `functions/vitest.workers.config.ts`, every package's `package.json` (`build` = `tsc -p tsconfig.json --noEmit`, web's `&& vite build`; `test:coverage`; functions' runs both halves), `e2e/flows/` (2 specs), `e2e/design/` (24 specs + `harness.spec.ts`, `helpers.ts`), `scripts/backlog-vault/verify-chain.ts`, `ci-law.test.ts`, `laws.test.ts` exist; `turbo.json` absent (AC 2 creates it); `turbo` not in any manifest. Commands: `pnpm verify` = `pnpm build && pnpm dup:check && pnpm test:coverage && pnpm size`; `e2e` = `playwright test … flows/ design/harness.spec.ts`; `@playwright/test` 1.64.1. `ci-law.test.ts:59-61` slices `verify` to `flows:` and counts 8-space `if:` (so shard jobs after `flows` and step-level `if:` keep it green, as AC 3/4 say). Workspace graph: web → domain; functions → domain, mlb-api, ports; ports → domain, mlb-api (AC 2's domain-edit expectation holds).
+4. **S125.** Depends on S124, S136 (`done`, `701e5db`), S81 (`done`); design S123 `blocked`, so `pnpm backlog:check` keeps it from `doing`. `DateControl.tsx:15`, `layout/variant.ts:17` `useLayoutVariant`, `api/scoreboardDate.ts:20` `useScoreboardDefaultDate`, `routes.tsx:83` one `/games/:date` element, `schedule-month.ts` `dayHasFavoriteTeam` (:89), `monthGamesState` (:103), `latestScheduleMonth` (:151); `@mantine/dates` still absent (AC 4 adds it). Holds.
+5. **S144.** No dependencies; `docs/v3/visual/game-shell/amendments/` holds A1–A5, `VideoCard.tsx:91,98` builds the meta line as AC 1 says. Done on `stage` by #94 (ratified A6, which applies CLAUDE.md's new shared-component rule, `34ebb34`, to the card): nothing to amend here.
+
+**Check 2b: review-class checklist (LOOP.md §7, items 1–26)**
+
+6. **S152 AC 7, items 1, 3, 11: unmeetable.** Input: S152's own pull request, second push touching only `web/`: `git diff base...head` and Turborepo both see `.github/workflows/ci.yml`, `turbo.json`, `package.json`, `pnpm-lock.yaml` changed (global inputs), `stage` has no Turborepo cache before S152 merges, and AC 3 never had pull-request runs save one, so nothing replays. **Amended:** pull-request runs save their cache (scoped to the PR) and restore their own newest first; S152 parks after its pull request merges and is measured on two pull requests opened after `stage`'s first push run with it.
+7. **S152 AC 4 vs Gap/AC 7, items 11, 18: contradiction.** AC 4 skipped `functions`' tests in `verify` on every pull request and ran the shards on every code pull request, so a web-only change still ran the whole suite (split), while AC 7 wanted them "replayed from the cache" and the Gap names the web-only case. **Amended:** the shards run only when the change reaches `functions` (AC 5's selector rule, one function); otherwise `verify` leaves the task to Turborepo (replays `stage`'s pass on a hash match) and the shard and merge jobs skip their steps and end `success`; on pushes the same; grader cases `web/src/` no, `packages/domain/src/`, `functions/src/`, `fixtures/`, `scripts/preview-pr-open.sh` yes.
+8. **S152 AC 2, items 3, 24.** (a) Outputs named only coverage: a `functions/`-only pull request replays `web#build`, and in a fresh checkout `pnpm size` (law L5, `.size-limit.json`: `web/dist/assets/index-*.js`) has no file. (b) `functions/src/deploy/deploy-workflow.test.ts:36` runs `scripts/preview-pr-open.sh`, missing from the "at least" global inputs. **Amended** both, with a grader check on `dist/**`.
+9. **S152 AC 6, items 12, 16: caches nothing it claims.** `typecheck` is in no `pnpm verify` path (root `build` runs each package's `build`, whose `tsc --noEmit` is the typecheck that runs); ESLint's default `metadata` cache strategy keys on mtimes, which `actions/checkout` resets every run; and "as Turborepo outputs" can't carry either (lint is a root task; outputs restore only on a hit, when `tsc` doesn't run). **Amended:** flags on `build` and `typecheck`, `--cache-strategy content` with a fixed location, `actions/cache` only.
+10. **S152 AC 3, items 4, 17.** With a local `.turbo/` cache, `scripts/audit.sh story`'s `pnpm verify` (and `deploy.yml`'s) would replay earlier passes, so a ledger entry could record a replay as the gate having run, and an input missing from `turbo.json` would replay a stale pass. **Amended:** only `ci.yml`'s pull-request `verify` step turns cache reading on (agent's reading of *"avoid a full rebuild for PR checks"* with *"Stage reruns everything"*).
+11. **S152 AC 5, items 3, 14, 26.** (a) A later story's spec with no declaration (S125's `e2e/design/S125.spec.ts`, after S152 ships) had no defined selection: it now runs on every pull request (grader input, no file written). (b) "every API request it makes is mocked" was checked only as "calls `page.route`": `S106.spec.ts` routes two endpoints and lets others through; `harness.spec.ts` mocks through `stubApi` (`helpers.ts:83`), which the grep missed. A `web`-only spec now routes all of `**/api/**` (directly or via `stubApi`).
+12. **S152 laws, items 6, 17.** P11's row (`docs/v3/LAWS.md:36`) says every law `pnpm verify` holds also holds in CI at step "Verify"; after S152 a pull request holds L3, L4 (functions' `data-classification.test.ts`, `route-table.test.ts`) and functions' L6 floor in the shard jobs or by replay. A law change is the owner's: **new AC 8** applies the owner's answer (reword or keep, quoted); `docs/v3/LAWS.md` joins the scope files, Goal condition and `/goal` (item 9). Held: L5/L7/L9/P8 stay in the root chain (`verify-chain.ts` follows root `pnpm` scripts only); `ci-law.test.ts` expectations survive AC 3/4 as written. AC 1: the browser key also names the runner image (`runner.os`, `ImageOS`). Turn cap 16 → 18 with its assumption (rule 12). Items 10 (frontmatter diffed after build: only `turn_cap` and `docs/v3/LAWS.md` changed), 19 applied.
+13. **S125, items 3, 9–12, 14, 18:** nothing broke at HEAD; note added that its design spec declares targets once S152 ships (an undeclared one still runs).
+14. **S146, items 4, 24 (ADR-025):** S152's `turbo.json` will list the files outside the packages that builds read; S146 AC 1 records build inputs by module graph. Not a duplicate (different grain, a test-only change moves turbo's hash), but two lists of "what a build reads" can disagree: its reuse check now compares them. Its 2026-11-16 owner answer (*"(a) Release may target Y"*) is in AC 4 and `CLAUDE.md` is in its fence: holds.
+15. **S150, items 1–6, 10, 21 and db-reviewer's list:** `game_states` keyed by `game_pk` (one row per game, a suspended game on two days reads one row), version-guarded write plus a feed-time tie-break (ADR-022), copy rule by `lastChangedAt` with the target's own feed time kept (item 21), `served_base` so a day's version never falls when a game drops (items 1, 2: written in the same statement), migration backfill with `DISTINCT ON … ORDER BY lastChangedAt DESC` and a PGlite test, manifest entry (ADR-028, non-personal), README/`GAME_TABLES`. Reads join by the day's gamePks (an index on the primary key serves it). Postponed handled through #72's fix. Nothing broke; no amendment.
+16. **S151, items 3, 13, 14, 22, 23:** the host allow-list is decided on the parsed URL with seven named bypass inputs; the 502 path keeps an error page from being saved; the controller ping covers an older worker under `registerType: "prompt"`; FEATURES line 59 matches. Nothing broke.
+
+**Check 3: prioritization**
+
+17. B87 (70.9) before S152 (71): cheap, and S152's own done flip and every backlog-touching story can hit it. S152 stays first: it speeds every later pull request, and with AC 7 it now parks after merging rather than holding the queue. S125 waits on S123 (blocked on the owner); S144 is done on `stage`; S139/S140 (76, time-bound by spring 2027) are next startable, in #95/#96. S146 (118) overlaps S152 in subject but not in mechanism: no reorder. Nothing obsolete. Current baseline: S152's line records the re-scope.
+
+**Duplication sweep (ADR-025):** `pnpm dup:check` at HEAD: 0 clones over 243 files. S136's per-day teams are one domain function (`distinctTeamIds`, `dayHasFavoriteTeam` in `schedule-month.ts`), used by both adapters; S143's `web/src/session/signInWay.ts` decides which sign-in to offer and derives nothing from BT data; S143 reuses `logtoAppUris` for the redirect (closed 2026-11-18 in the scheduling notes). B74's change stays in `packages/domain/src/window.ts`/`game-phase.ts`. None found.
+
+**Personal-data sweep (ADR-028):** S143's mock account is a synthetic staging address (`tester@stage.baseball.theater`) in the already-inventoried users store; its new `adapters/mock/` directory is labeled (law L3 green in `pnpm verify`). B48 logs a database host and migration warnings, no personal fields. S136 adds team IDs only. S152 caches build outputs, coverage and a browser (no personal data); S150's `game_states` is baseball data with a manifest entry (AC 3); S151 stores nothing. None found.
+
+**Questions for the owner (non-blocking):** (1) Law P11's wording after S152 (S152 AC 8). (2) B87's priority 70.9 (just before S152), named to the owner as the bug rule asks.
+
+**Verdict: `amended`.** No question blocks the next item (B87, then S152; S152's AC 8 is applied when it finishes).
+
+---
+
+## 2026-11-19 — doc parity review (`continue`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T01:18:02Z` |
+| HEAD at review | `76b101a` (tree clean) |
+| Trigger | docs/v3/FEATURES.md changed (Fast PR checks row); S152 added |
+| Stories `done` since last review | S143, S136 |
+| Verdict | `continue` |
+
+**Findings / amendments**
+
+Fresh-context review at `76b101a` (`pnpm parity:debt`, since `876b651`: `docs/v3/FEATURES.md` changed; S152 added). FEATURES' only change since then is the new **Fast PR checks** row (`1034315`, PR #102); INTENT unchanged (`git diff 876b651 HEAD -- docs/v3/INTENT.md`: empty). The only `**Source:**` line added or changed is S152's (`+**Source:** Feature: Fast PR checks`); the other story diffs since `876b651` are generated `order:` bumps and backlog-review notes (S125, S146, S151), none on a pillar-cited story's Gap, Impact or ACs. Scope: S152, plus the next 3 `todo` stories after it in `docs/v3/INDEX.md` (S125 at 74, S144 and S145 at 75; B87 at 70.9 is a bug note with no **Source:** line).
+
+**Check 1: citation honesty**
+
+1. **S152 → Feature: Fast PR checks (FEATURES line 106). Holds.** The row quotes the owner (2026-11-19: *"Can we get scoped build caching somehow so we can avoid a full rebuild for PR checks"*; *"The point would be to only build the stuff that changes"*; *"Yes, scope them too"*; *"Stage reruns everything (Recommended)"*), and the same quotes are recorded in commit `1034315`'s message and PR #102's body. S152's Gap quotes them word for word, and each AC delivers part of the row: AC 2/3 skip unchanged packages and keep `stage` uncached; AC 1 the browser cache; AC 4 the split tests; AC 5 the scoped browser specs; AC 6 lint and typecheck caches. The 2026-11-19 backlog review's amendments (`76b101a`) stay inside the row: shards only when a change reaches `functions` is "builds only what a change touches"; reading the cache only on pull requests (not local `pnpm verify`) is consistent with a row that speaks only of "a pull request's checks". Impact ("a change to one part of the app reuses the passing results of the parts it doesn't touch") matches the row.
+2. **S125 → Feature: Calendar date picker. Holds.** Gap quotes the owner's 2026-11-07 words that open the row (FEATURES line 101); Impact (open a calendar, type a date, jump years, game counts) is the row's first sentence.
+3. **S144, S145 → Feature: Video play links. Hold.** Both quote the owner's 2026-11-10 *"Move hte play link to the 2nd line. Replace "Highlight" with "Play" in red. If there's no play, just keep "Highlight""*, which the row (FEATURES line 98) records and closes with "S144 designs it and S145 builds it".
+4. **Pillar citations near the new feature.** S89 (done, Delightful: "faster checks on every change", approved 2026-10-29 *"It's more about perf and customer benefit"* / *"Delightful"*) and S146 (todo, Delightful, approved 2026-11-11 *"delightful"*) are the stories closest to the new row. Is a feature now available for them? No: the row is about not rebuilding or retesting what a pull request didn't change; S89 ran CI jobs in parallel (all of them, every change) and S146 skips deploys by recorded build inputs, neither of which the row describes. Both approvals stand; neither story's Gap/Impact/ACs changed since `876b651` (S146's diff is a reuse-check note only).
+5. **`Open:` stories:** none (`grep -h '^\*\*Source:\*\* Open' docs/v3/backlog/stories/*/*.md`: no match).
+
+**Check 2: doc reflects reality**
+
+6. **Fast PR checks row, browser image (finding, non-blocking).** The row says the owner "chose all four" of the offered speed-ups, including "a prebuilt browser image", then states as settled that "the browser is cached between runs rather than run from a prebuilt image, which can't start the app's database". That substitution is the agent's (pre-PR review of #102), not an owner decision: S152's Notes say "The owner is told when the story is opened", and no ledger entry, commit or PR text records the owner accepting it (grep `prebuilt` in AUDIT.md: none; PR #102 body states it as a choice made). Backlog and FEATURES agree with each other, so this is not a doc-backlog conflict, and the technical reason (Playwright's image has no Docker for `pnpm dev`'s `docker compose`) is recorded in S152 AC 1. Not edited: rewriting it either way would be writing intent. Asked of the owner below.
+7. **ADR-013 vs S152 (for the backlog review).** ADR-013's decision table (`docs/v3/ARCHITECTURE.md:775`) says CI runs "on PR/push: install → lint → test (coverage) → build", and its tooling stack (:808–817) lists no build orchestrator; after S152 a pull request replays unchanged packages' passing results through Turborepo and runs `functions`' tests in shards. Not a contradiction of a requirement ("Tests must pass before merge" still holds, and `stage` runs everything), but the ADR's CI line will no longer describe pull requests. ARCHITECTURE is outside this review's write scope.
+8. **Law P11 vs S152:** already raised by the 2026-11-19 backlog review (S152 AC 8, owner question 1); not re-asked here.
+9. **Relics:** none found in the changed row. INTENT's CI/CD row (line 62, ADR-013) names "Vitest coverage gates; Husky; GitHub Actions", which S152 keeps.
+
+**Check 3: coverage**
+
+10. Fast PR checks is served by S152 only, and every clause of the row maps to an S152 AC (item 1). No feature was added by this review.
+
+**For the next backlog review**
+
+1. ADR-013's CI row and tooling list don't describe S152's pull-request runs (Turborepo replay, sharded `functions` tests, scoped browser specs). Decide whether S152's finishing commit should carry an ADR-013 note (an ADR change is the owner's call) or whether the law P11 answer covers it.
+2. FEATURES' Fast PR checks row records the cached-browser substitution for the owner's "prebuilt browser image" without an owner quote; if the owner rejects it when asked, S152 AC 1 changes with it.
+
+**Questions for the owner (non-blocking):** (1) Accept the browser cache in place of the prebuilt browser image for S152 (item 6).
+
+**Verdict: `continue`.** Every citation checked holds; no `Open:` story; the one unconfirmed clause (item 6) agrees with the backlog and doesn't block B87 or S152.
+
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T01:31:39Z` |
+| HEAD at capture | `3f0a6d2` (tree clean) |
+| Applied in | `3f0a6d2` — Owner's answers: P11 reworded, browser cached, B87 first (S152); Room Menu keeps its pre-game links (S108) |
+
+**Answers and what was applied**
+
+Answers to the 2026-11-19 backlog review (owner, 2026-11-19, through /pending):
+1. Law P11: asked "May S152 reword law P11 so pull requests reuse unchanged packages' last passing results and split the functions tests, while every push to stage or main still runs all of pnpm verify fresh?", the owner chose "Reword P11 (Recommended)". S152 AC 8 now requires the reworded P11 row, quoted in its P11 wording note; LAWS.md changes when S152 is built.
+2. B87 order: asked "Should bug #87 (graders reject file names with non-ASCII characters …) be fixed before S152?", the owner chose "Before S152 (Recommended)". B87 keeps priority 70.9, ahead of S152 (71); the frame note marks both answered.
+
+---
+
+## 2026-11-19 — doc parity review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 doc parity review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T01:31:39Z` |
+| HEAD at capture | `3f0a6d2` (tree dirty) |
+| Applied in | `3f0a6d2` — Owner's answers: P11 reworded, browser cached, B87 first (S152); Room Menu keeps its pre-game links (S108) |
+
+**Answers and what was applied**
+
+Answer to the 2026-11-19 doc parity review (owner, 2026-11-19, through /pending): asked "Is caching the test browser between runs acceptable for S152's fast PR checks, instead of the prebuilt browser image you picked?", the owner chose "Cache the browser (Recommended)". Quoted in FEATURES' Fast PR checks row and S152's browser note.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T01:31:39Z` |
+| HEAD at capture | `3f0a6d2` (tree dirty) |
+| Change | `3f0a6d2` — Owner's answers: P11 reworded, browser cached, B87 first (S152); Room Menu keeps its pre-game links (S108) |
+
+**What changed, and the owner's answer**
+
+S108 AC 3 rewritten to answer a pre-PR review finding on S107's branch (A7 says a scheduled row draws no slot box "whichever occupant the reader chose", while A3 draws Room Menu on a scheduled row as pre-game "Videos · Plays · Box"). Asked "On a game that hasn't started, should the Room Menu slot keep its "Videos · Plays · Box" links, or show no box like the other slot choices?", the owner answered (2026-11-19): "Keep the links, but continue to hide recap". Skipped without asking, per the owner (2026-11-07, on acceptance criteria rewritten to answer a pull request's review: "This shouldn't even trigger a question. Always skip.").
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T01:33:32Z` |
+| HEAD at capture | `cf5e905` (tree clean) |
+| Change | `cf5e905` — Pre-PR review fixes: S152's Status AC on its own line; the baseline records the P11 answer |
+
+**What changed, and the owner's answer**
+
+S152 AC 9 restored to its own line (a lost line break), answering the pre-PR review of the backlog/review-2026-11-19 pull request. Owner, 2026-11-07, asked whether an AC rewrite answering a pull request's review needed a backlog review: "This shouldn't even trigger a question. Always skip."
+
+---
+
+## 2026-11-19 — doc parity review (`continue`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T01:44:09Z` |
+| HEAD at review | `202bb1d` (tree clean) |
+| Trigger | docs/v3/FEATURES.md changed (Standings row: S137 superseded, picker is the scoreboard's) |
+| Stories `done` since last review | — |
+| Verdict | `continue` |
+
+**Findings / amendments**
+
+Fresh-context review at `202bb1d` (`pnpm parity:debt`, since `1998de5`: `docs/v3/FEATURES.md` changed). Commits since: `cf5e905`, `ee41b4a` (S152 AC split, baseline, ledger skip) and `202bb1d` (S137 superseded, S138 re-scoped to the scoreboard's A8 control). FEATURES' one change (`git diff 1998de5 HEAD -- docs/v3/FEATURES.md`) is the Standings row's last clause: it adds *"the picker is the scoreboard's control and calendar, unchanged (owner, 2026-11-19, shown a separate design story for it: "The standings date picker is exactly the same")"* and its story list goes from "— S137, S138" to "— S138". INTENT unchanged (diff empty). No `**Source:**` line changed (`git diff 1998de5 HEAD -- docs/v3/backlog/stories/ | grep '^[-+]\*\*Source'`: none); no pillar-cited story's Gap, Impact or ACs changed (the story diffs are S129/S130 notes, S137's supersede and S138's Design line, ACs and notes, all `Feature: Standings`). Scope: S138 and S137 (the stories the changed row names), plus the next 3 `todo` stories in `docs/v3/INDEX.md`: S152 (71), S125 (74), S144 (75) and S145 (75, same priority); B87 (70.9) is a bug note with no **Source:** line.
+
+**Check 1: citation honesty**
+
+1. **S138 -> Feature: Standings. Holds.** The row's last sentence (FEATURES line 65) is S138's whole job: "The page gets the scoreboard's date picker and shows the standings as they were on any date", "a past date offers and opens the views it would have on that day", and now "the picker is the scoreboard's control and calendar, unchanged". S138's Gap quotes the same 2026-11-09 words; its Impact ("fans pick or type a date on Standings, with the same calendar the scoreboard has") restates the row; AC 1 (S125's control and calendar imported, no second calendar), AC 2 (pick drops `?view=`, "Same rules as if that date were today.") and AC 5 (captures paired with A8's scoreboard frames and A9's Standings frames) each map to a clause. The new quote is the owner's: recorded in `202bb1d`'s message ("The owner, shown S137 ... and S138 ... (2026-11-19): "The standings date picker is exactly the same"") and in the coordinator's brief for this review, and it is the same quote on S138's **Design:** line and S137's supersede note.
+2. **S137 -> Feature: Standings.** Superseded and never started; its citation was honest for a design story and no longer matters. The row no longer names it (correct: it builds nothing). Remaining mentions are history only (`docs/v3/backlog/frame/02 Stories.md` embed, gap map, review frames).
+3. **S152 -> Feature: Fast PR checks; S125 -> Feature: Calendar date picker; S144, S145 -> Feature: Video play links. Hold**, unchanged since the 2026-11-19 parity review (AUDIT.md:19097-19099): no Source, Gap, Impact or cited row changed since (`cf5e905` moved S152's Status AC onto its own line, AC 9; the cited rows at FEATURES:98, :101, :106 are untouched).
+4. **`Open:` stories:** none (`grep -rn 'Source:\*\* *Open' docs/v3/backlog/stories/{todo,doing,blocked}`: no match). The one pillar citation in open stories, S146 (Delightful, approved 2026-11-11), is unchanged and was re-checked against Fast PR checks in the last review.
+
+**Check 2: doc reflects reality**
+
+5. **"unchanged" and A8's state on this branch (no conflict).** FEATURES now says the Standings picker is the scoreboard's control and calendar, unchanged. On this branch `docs/v3/visual/shell-scoreboard/amendments/A8.md:3` still says "Draft, not ratified" and S123 is `blocked` (INDEX:532); A8 is ratified on `story/S123-redraw` (`2c39156`, "Ratified 2026-11-19"), not yet an ancestor of HEAD (`git merge-base --is-ancestor`: no). S138's notes say exactly this ("ratified 2026-11-19 on `story/S123-redraw`"), and rule 18 holds S138 until S123 is `done`, so FEATURES and the backlog agree; no edit.
+6. **The agent's readings of "exactly the same" are owner questions, not doc conflicts.** S138's Notes list them (placement above the heading and view switch; off-season `Today`; an invalid address `date`) plus seasons before 1969. FEATURES says nothing that contradicts any reading: it says "unchanged", and the readings take A8 as drawn. One reading interacts with other Standings clauses and is worth the owner's eye: A8's `Today` is the scoreboard's opening day (`useScoreboardDefaultDate`, A8 Choices: "the footer's `Today` goes to the day the scoreboard opens on"), which in the off-season is the last season's final regular-season day, so on Standings in, say, December, `Today` opens that September day: the regular-season table "as of" it (FEATURES: the "as of" line shows "only if the date is not today"), with no World Series box (the row: from "the day after the last World Series game") and whatever views that day had, a different page from Standings with no date. Not edited (writing either answer would be writing intent); carried as a question below.
+7. **Seasons before 1969.** FEATURES' "shows the standings as they were on any date" and the calendar's 1901-04-18 bound (Calendar date picker row; S125 AC 3) let a fan pick 1950; nothing says what the page shows when the leagues had no divisions (`functions/src/mappers/standings.ts` groups by division). Open, already in S138's notes, and now with no design story to settle it (S137 was to). Question below.
+8. **Relics:** none. "Add as its own stories" (plural, 2026-11-09) is still the history of why the work is its own story; S137's supersede is recorded with the owner's later words, so the row doesn't read as promising a separate design.
+
+**Check 3: coverage**
+
+9. The Standings row's date-picker clause is served by S138 alone (design gate S123/A8, built by S125). No feature was added by this review. Video play links' Search-player link (S127 designs, no build story) remains the known item from the 2026-11-14 entry (AUDIT.md:16378), still gated on S127's intake; not re-raised.
+
+**For the next backlog review**
+
+1. S138's design gate is S123, which is `blocked` on this branch while its ratification (`2c39156`) lives on `story/S123-redraw`; check S123 is `done` and A8 merged before S138 (or S125) goes to `doing`.
+2. S138's open questions (placement, off-season `Today`, an invalid address `date`, seasons before 1969) must be answered before S138 starts; a pre-1969 answer that needs API or mapper work is its own story (S138's fence is `web/src/`), and S130's function would have to say which views a pre-1969 day offers.
+
+**Questions for the owner (non-blocking; S138 is not next up):** (1) off-season `Today` on Standings (item 6); (2) what Standings shows before 1969 (item 7); (3) placement of the control above the heading and view switch (S138 AC 1).
+
+**Verdict: `continue`.** Every citation checked holds; FEATURES' one change records the owner's own words and agrees with S138; no `Open:` story; S138's open questions are recorded in its notes and don't block B87, S152 or S125.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T01:47:14Z` |
+| HEAD at capture | `3db754f` (tree clean) |
+| Change | `202bb1d` — S137 superseded: Standings' date picker is the scoreboard's (A8); S138 builds it (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19: "I also want you to start skipping reviews when you're confident in the choice. Ask when you can see a good argument either way." Confident skip: S137 superseded and S138's ACs rewritten on the owner's word ("The standings date picker is exactly the same"), building ratified A8 with no new design; a doc parity review (4503fe8, continue) already checked the same change set, and S138's remaining readings are open owner questions it can't start before.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T01:47:15Z` |
+| HEAD at capture | `3db754f` (tree dirty) |
+| Change | `b4775a2` — S131 restarted: v3.1.0 is published; its kinds gain Performance (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19: "I also want you to start skipping reviews when you're confident in the choice. Ask when you can see a good argument either way." Confident skip: S131 restarted after its park reason cleared (v3.1.0 published 2026-11-11; owner: "Ok yeah restart s131 asap") and its kinds gained "Performance", applying the owner's 2026-11-16 answer already recorded in S133; no new decision.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T01:47:15Z` |
+| HEAD at capture | `3db754f` (tree dirty) |
+| Change | `7203438` — S131: priority 78 → 72, after B87 and S152 (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19: "I also want you to start skipping reviews when you're confident in the choice. Ask when you can see a good argument either way." Confident skip: S131 moved from priority 78 to 72 on the owner's word ("Just put 131 wherever it best belongs"), after B87 and S152 and before S145; no AC or dependency changed.
+
+---
+
+## 2026-11-19 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-20T02:03:15Z` |
+| HEAD at review | `ebbb4f6` (tree dirty) |
+| Trigger | S138's acceptance criteria rewritten; S155 inserted outside a review (ebbb4f6), since 5ab35d1 |
+| Stories `done` since last review | — |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Fresh-context review at `ebbb4f6` (`scripts/review-debt.sh`: S138's acceptance criteria rewritten; S155 inserted outside a review, since `5ab35d1`). Scope of check 2b: S138 and S155 (rewritten or inserted since the morning review at `762a30d`), and the next 3 `todo` stories at HEAD, S152 (71), S131 (72) and S125 (74); B87 (70.9) is a bug note, outside the review. S131's restart, re-priority and Performance kind (`b4775a2`, `7203438`) were logged as confident skips; this review checks them as part of the next 3. Done since the last review: none. Code since `762a30d` (`git diff --stat 762a30d HEAD -- . ':!docs' ':!CHANGELOG.md'`): `CLAUDE.md` only (the skip-when-confident rule). This branch is 21 commits behind `origin/stage` (S144 done, S153 added there, A12 ratified); none of them touches S131, S138, S152, S155 or S125's code paths, and S155's ID is unique on every remote branch (`S154` lives only on `origin/story/S141`).
+
+**Check 1: coverage**
+
+1. **The 2026-11-19 parity review's queue.** (1) S138's and S125's design gate S123 is `blocked` here; A8's ratification (`2c39156`) is on the local branch `story/S123-redraw` only (not on `origin`). `pnpm backlog:check` keeps both from `doing` until S123 is `done`; S123's merge makes a design intake due. No amendment. (2) S138's open questions: answered by the owner in `ebbb4f6` (placement, pre-1969, off-season `Today`); only the invalid-address reading stays the agent's, said so in AC 3. The pre-1969 answer's API work is S155. Which views a pre-1969 day offers needs no S130 change: S130's function reads S139's phases, and its own case "An answer whose `spring` and `playoffs` are `null` (before every known season, or no calendar): only `regularSeason`" (`S130.md:55`) covers 1950 with no calendar; with one, the same rules as any day apply (owner, 2026-11-10: "Same rules as if that date were today.").
+2. **Release notes against the backlog (S131).** Every published release's GitHub body (REST, `releases/tags/<tag>`, read 2026-11-19) opens "A pre-launch release: fan-facing notes start with the public launch release" (v3.1.0; v3.2.0 adds "v4.0.0 (owner, 2026-11-11: "Yes, make all of those changes")"; v3.1.1, v3.2.1 the same). That decision is recorded nowhere in the backlog (`grep -rln "public launch\|v4\.0\.0" docs CLAUDE.md`: only S114's launch checklist). See item 9.
+3. No new ADR, workspace package or `pnpm verify` change since `762a30d`. FEATURES' Standings row gained the owner's three answers and S155 in `ebbb4f6` (parity scope; `pnpm parity:debt` says a parity review is due: FEATURES changed, S155 added).
+
+**Check 2: ground truth at HEAD (`ebbb4f6`)**
+
+4. **S152.** No dependencies. Unchanged since the morning review's check (2026-11-19 review, item 3): no file it names changed (`git diff 762a30d HEAD` outside `docs/`: `CLAUDE.md` only); `turbo.json` still absent (AC 2 creates it), `scripts/verify-S152.sh` absent (work item 0). Owner answers recorded (AC 8's P11 wording, B87 first). Holds.
+5. **S131.** No dependencies. `.github/workflows/deploy.yml`: `production:` at :411, its Install at :484, the `scripts/build-release.sh` lookup at :498, "Build the web app" at :506 (AC 4's place exists, and the grader skips the lookup); `isCalendarDate` at `packages/domain/src/calendar-date.ts:26`; `releases/` absent (AC 6 creates); `scripts/verify-S131.sh` exists (checkpoint), its fence (:253) allows editing itself, so the rule 7 update for `performance` fits. Root `verify` unchanged. AC 6 fails against the published releases: item 9.
+6. **S125.** Depends on S124, S136, S81: `done`. Design S123: `blocked` (gate holds). Nothing it reads changed since `762a30d`. `@mantine/dates` still absent. Holds.
+7. **S155** (inserted). Depends on S139 (`todo`, priority 76, same as S155; S155 can't start first). Paths: `functions/src/mappers/standings.ts` (`mapStandingsDivision` :54-67, `DIVISION_ORDER` :74, `mapStandings` :83-98), `functions/src/scripts/record-fixtures.ts` (`--date` requires `--game`, :49-55; `--season` form :41-46), `functions/src/services/recorder.ts` (`seasonEndpoints` :115, `recordNormalized` writes the mapped table through `client.fetchStandings` :229-233), `fixture-client.ts` (`fetchStandings` reads the mapped file :161-182; final and spring map from raw at read time :247-275), `packages/mlb-api/src/standings.ts` (`leagueRank` :52, `leagueGamesBack` :57), `divisionName` (`team-colors.ts:129`), `DivisionTable.tsx:30`, `StandingsPage.tsx:45`, `StandingsPage.test.tsx` (answers `fixtures/standings-2026-09-05.json`), `functions/src/adapters/fixtures/bundled.ts` and its guard (`bundled.test.ts:22-24`). Standings URLs: `standingsUrl`/`finalStandingsUrl` (`functions/src/adapters/http/mlb.ts:115-128`, `leagueId=103,104&season=…&hydrate=team`). The fence covers every file the ACs touch (recorder and mapper under `functions/src/`, the league-name function under `packages/domain/`, fixtures, web); no `openapi/` change (shape unchanged). Turn cap 8 kept, its assumption now names the re-recording and bundle entries.
+8. **S138.** Depends on S125, S130, S155 (`todo`), S81; design S123, S129 (`blocked`). Fence `web/src/` + captures: every AC is web code, tests and captures. Holds after item 17.
+
+**Check 2b: review-class checklist (LOOP.md §7)**
+
+9. **S131 AC 6, items 3, 4, 11, 17: unmeetable.** Input: copy v3.1.0's GitHub Release notes, as AC 6 says: they hold no fan-facing entries (the pre-launch line and a pull request list), so `releases/v3.1.0.json` has no `headline`, no `items` and no `fixesAndPolish`, which AC 1's parser rejects ("notes with nothing in any bucket, which are rejected"), so `pnpm release:check` fails and the grader with it; v3.1.1's body also has no approval. Writing fan-facing items for v3.1.0 now would contradict the owner's 2026-11-11 choice to start fan-facing notes at v4.0.0, which itself contradicts S131's note "The page starts at v3.1.0" (owner, 2026-11-08). A product call: **S131 parked** (`status: blocked`) with the evidence in its notes; it returns to `todo` with its ACs updated to the owner's answer (rule 7). Other items checked on S131: 12 (version rules: `v3.01.0`, `v3.0.0`, `v3.10.0` newer than `v3.9.0`, all tested), 11 (AC 1's four kinds match AC 5's bucketing), 9 (fence holds `releases/`, `package.json`, `deploy.yml`, `CLAUDE.md`), 6 (deploy step only in `production:`; the grader reads that block). FEATURES' Update / change log row still says the page starts at v3.1.0 and that the fourth kind is open (S131 AC 1 has Performance, owner 2026-11-16): queued for the parity review.
+10. **S155 AC 1-3, items 4, 11, 1: stale mapped recording.** Input: record 1950-07-04 first (AC 1 says stop before writing the mapper), then change the mapper (AC 2): `fixtures/standings-1950-07-04.json` was written by `recordNormalized` through the old mapper (name `null` or a division's), and the fixture client serves it as it is, so `GET /api/v1/standings?date=1950-07-04` answers the old groups and AC 3's route test fails, or passes only with the file edited by hand. **Amended:** the mapped file is written by the recorder's day form after AC 2's change, and AC 2 adds a test that its `divisions` equal `mapStandings(parseStandingsResponse(raw), "1950-07-04").divisions`.
+11. **S155 AC 3, items 3, 12: no 1950 calendar.** Input: MLB's 1950 season with no `springStartDate`; the calendar mapper returns `null` (`season-calendar.ts:27`), so `?date=1950-12-01` asks `fetchStandings("1950-12-01")`, which nothing recorded: an empty table, "No standings for this date." for every pre-1969 off-season day, while AC 3 only had the test "say so". **Amended:** record that day too; if MLB answers it with no team, stop and report (rule 10).
+12. **S155 AC 4, the fixtures rule (CLAUDE.md, Data & fixtures):** the RTL answer is the committed `fixtures/standings-1950-07-04.json`, as `StandingsPage.test.tsx` answers 2026-09-05's, never a typed payload. AC 1's "recorded with S14's recorder, never written by hand" is the right form; its grader can't prove "not typed" from a file's existence, so item 10's equality test is what makes the mapped file checkable.
+13. **S155, item 14 (guard pattern):** `bundled.test.ts:22-24` matches `standings-\d{4}-\d{2}-\d{2}`, `raw/seasons-\d{4}`, `raw/worldseries-\d{4}`, `raw/standings-\d{4}-(?:final|spring)`, so the new 1950 files fail `pnpm verify` unless listed in `bundled.ts`; the raw dated file isn't read by name and isn't matched. **Amended:** AC 1 names the `bundled.ts` entries.
+14. **S155, ADR-025:** nothing in the repo names a league (`grep -rn "American League\|National League\|leagueName" packages/domain/src web/src functions/src`: one comment in `backfill.ts`). **Amended:** the league names are one `packages/domain` function beside `divisionName`, which the mapper calls.
+15. **S155, rule 18: no `**Design:**` line, kept.** S155 builds and restyles nothing: it changes the data the ratified `DivisionTable` draws, as S128 put the final and spring tables on the page with no design story (S128 has no Design line). `DivisionTable` already heads a table with no division id by its `name` (:30), and once the mapper names the leagues the two keys at `StandingsPage.tsx:45` differ (`divisionId ?? name`), so AC 4 may need no page code. Any new element (a league label, a sub-heading, a layout change) stops and asks; recorded in its notes. The headings' words are a design choice the frames don't settle (they draw short names, "AL East"; the owner's chosen option said "AL and NL"; AC 2 says "American League"): asked of the owner, non-blocking (S155 waits on S139).
+16. **S155 fence and ordering, items 9, 10:** fence includes `functions/src/` (recorder day form, mapper), `packages/domain/`, `fixtures/`, `web/src/`; no generated file (`openapi/`, `web/src/api/generated/`) changes, since the answer's shape is the same. Order: S139 (76) → S155 (76, depends on S139) → S130 (77, depends on S139, S140) and S138 (77, depends on S125, S130, S155): consistent. S155 lands before S130 rewrites `StandingsPage`; its RTL test keeps S130 honest about league tables. Items 7 (no new MLB request at serve time; recording is offline-only), 26 (S139 AC 8's empty-table floor and its `playoffs` exception: 1950 league tables with `clinched` give a `playoffs` table of league groups; nothing new) applied.
+17. **S138 AC 2, items 11, 12: `Today` contradiction.** Input: clock 2026-11-19 (off-season), address `?date=2026-09-05`, open the calendar (it shows September), press `Today`: A8's rule, kept by the same AC, says off today's month it only moves to November, while the test expected one press to navigate to `/standings`. **Amended:** the test presses twice from an earlier month (first moves, second navigates), and the AC states that `Today` acts only while the calendar shows today's month.
+18. **S138, item 10:** the body's **Design:** line named S123 only while the frontmatter and AC 5 also gate on S129 (A9 frames). **Amended** to name both. S155 on **Depends on** is a hard dependency on purpose (the owner's option: the API work "before S138"; if S155 stops at its rule 10 check, S138 waits). Items 3 (invalid address `date`: `garbage`, `2026-02-30`, `1850-01-01` each tested), 12 (1901-04-18 bound; future days; off-season `Today` drops `date`), 15 (one calendar given two destinations, the pick's and `Today`'s, by prop), 18 (notes no longer list the answered questions as open), 19 (spliced sentences re-read) applied.
+19. **S152, S125:** re-checked against HEAD (items 4, 6); no input breaks them that the morning review's amendments didn't already cover; nothing they read changed.
+
+**Check 3: prioritization**
+
+20. B87 (70.9) → S152 (71) → S131 (72, now parked) → S125 (74, gated on S123) → S144/S145 (75; S144 done on `stage`) → S139, S140, S155 (76) → S130, S138 (77). Argued against: S155 could go before S139 (fixing the mapper doesn't need phases), but AC 3 tests S139's `regularSeason` phase, and S155 only has to land before S138, which waits on two blocked designs; no change. S131's park holds the release-notes chain (S132, S134, S135, S142) behind the owner's answer; nothing else depends on it. No story became obsolete. Class of underestimate: stories written from an owner's answer (S155, S131's restart) assumed facts that the code and GitHub contradict; both caught only by reading the code and the release bodies.
+21. **Baseline (rule 17):** the Standings row now names S155; S131's park needs no row change. The gap map's Standings row names S155.
+
+**Duplication sweep (ADR-025):** no code added since `762a30d` (`git diff --stat 762a30d HEAD -- . ':!docs' ':!CHANGELOG.md'`: `CLAUDE.md` only). In planned code: S155's league names had no home (item 14, amended); S155's page work reuses `DivisionTable` (AC 4 forbids a second table); S138 reuses S125's components (AC 1). None found otherwise.
+
+**Personal-data sweep (ADR-028):** S155 adds no table, stored field, outside service, browser key or log line (standings are cached, not stored, S139 AC 8; the recorder's `console.log` lines print file names only, `record-fixtures.ts:44,68`). S138 adds no browser key (the calendar state is in the address, AC 2). S152 caches build outputs only. S131's `approval` holds a date and the owner's quoted words, no contact field. S125 unchanged. None found.
+
+**Questions for the owner:** (1) where the change log starts, v4.0.0 (as the published releases say) or v3.1.0 (as S131 says); S131 is parked until answered. (2) S155's table headings: "American League" / "National League" or "AL" / "NL" (non-blocking).
+
+**Verdict: `amended`.** S155 (AC 1-4, notes, reuse check, turn-cap assumption), S138 (AC 2, Design line, notes) and S131 (parked) amended; baseline and gap map updated. B87 and S152 may start; S131 waits for the owner.
+
+---
+
+## 2026-11-19 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T02:06:11Z` |
+| HEAD at review | `bd48f8a` (tree dirty) |
+| Trigger | S155 added; FEATURES.md changed (Standings: S138 answers, pre-1969 by league) |
+| Stories `done` since last review | none (0 stories done since 4503fe8) |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Scope from `pnpm parity:debt` at bd48f8a (since 4503fe8): FEATURES.md changed; S155 added. Plus the next 3 `todo` stories by priority (INDEX: B87 is a bug with no Source line, then S152, S125, S144) and S138, whose FEATURES row text changed.
+
+**1. Citation honesty**
+
+- **S155** (Source: Feature: Standings). The Standings row now ends with the owner's 2026-11-19 answer, "One table per league (Recommended)", for a date before 1969, tagged `— S155`. S155's Gap and Impact (two tables, American League and National League, for a day before 1969) are exactly that sentence. Holds. The words on each table's heading ("American League" or "AL") are still open with the owner, as S155's note says. FEATURES names the leagues in prose and doesn't settle the heading, so nothing conflicts.
+- **S138** (Feature: Standings). The row records the owner's 2026-11-19 answers on where the date control sits ("Same as scoreboard (Recommended)") and what Today shows off-season ("Standings' own today (Recommended)"), tagged `— S138`. That matches S138's Gap and Impact (pick a date on Standings with the scoreboard's calendar). Holds.
+- **S152** (Feature: Fast PR checks). The row (FEATURES l.106) quotes the owner's 2026-11-19 ask and their choice of all four speed-ups. S152's Gap and Impact deliver exactly that. Holds.
+- **S125** (Feature: Calendar date picker). The row (l.101) quotes the owner's 2026-11-07 ask word for word, the same quote S125's Gap uses. Holds.
+- **S144** (Feature: Video play links). The row (l.98) covers a clip of a play linking to the play. S144 is the design amendment that moves that link onto the meta line (owner, 2026-11-10: "Move hte play link to the 2nd line…"). It serves that feature. Holds.
+- **Open citations:** none. `grep '^**Source:** Open'` over todo/blocked/doing returns nothing. The only pillar citation among open stories is S146 (Delightful, approved 2026-11-11). It was not named by parity:debt (its note changed only `order`), so it is not re-checked here.
+
+**2. Doc reflects reality**
+
+- **Amended. The change log's fourth kind is decided.** FEATURES' Update / change log UX row said the fourth kind was "undecided" and ended "For a fourth kind the owner asked for pitches…; still open". The owner answered on 2026-11-16, "Performance" (asked whether to add a fourth and which, pitched performance, more baseball data or removed). That answer is recorded in S131 on HEAD (AC 1's kinds `feature`, `enhancement`, `performance`, `fix`, and its note "the fourth kind is performance", commit b4775a2) and in the owner's Q12 answer in commit 17b6142's message. The Kinds sentence now lists the four kinds and quotes the 2026-11-16 answer, the pitch request moved into it, and the stale "still open" sentence is removed. Cited `— S131`.
+- **Left as is, open with the owner: the change log's first release.** The row and S131 both say "the page starts at v3.1.0" (owner, 2026-11-08). The published GitHub Release bodies say fan-facing notes start with the public launch release, v4.0.0 (owner, 2026-11-11). The bd48f8a backlog review already asked the owner which one holds, and parked S131 on it. No recorded decision settles it, so FEATURES is unchanged. S131 is `blocked` and not next up, so this does not block.
+- **Found: S133 on HEAD still says the fourth kind is undecided.** S133 note l.64 says "a possible fourth for performance undecided". The local, unpushed branch `story/S133-redraw` (17b6142, then 7657479 "A9 is ratified", 2026-11-19) carries the owner's Q12–Q14 answers into S133, A9 and this FEATURES row. That branch also records Q13 on the after-update pointer, "Keep the bar, remove the x, don't pause on hover, dismiss on click", which this row's "whether the pointer keeps them is asked when the redrawn draft is shown" still predates. Story text and the pointer sentence are left to that branch, and its FEATURES edit will conflict with this one on the same table line. Its version of the row also kept the stale "still open" sentence, which this review removes.
+
+**3. Coverage.** No feature was added this review. The pre-1969 sentence is served by S155, and the date-control answers by S138.
+
+**For the next backlog review**
+- S133's note on HEAD (l.64) still calls the fourth kind undecided. The owner answered "Performance" on 2026-11-16, and S131 AC 1 already has it. Check that `story/S133-redraw` (17b6142, 7657479, unpushed) lands, or bring S133 into line, and keep this FEATURES row's Kinds sentence when merging that branch's row edit.
+- The pointer's countdown and close button (owner Q13, 2026-11-16: "Keep the bar, remove the x, don't pause on hover, dismiss on click") are recorded only on that branch. Check that S135 and FEATURES pick them up when it lands.
+- The change log's first release (v3.1.0 or v4.0.0) is still open with the owner. S131 stays parked on it.
+
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T04:09:10Z` |
+| HEAD at capture | `71fa6d6` (tree clean) |
+| Applied in | `71fa6d6` — Owner's answers: change log starts at v4.0.0; pre-1969 tables say "American League" |
+
+**Answers and what was applied**
+
+Owner, 2026-11-19 (through /pending), answering the 2026-11-19 backlog review's two questions:
+1. Asked "Should the fan-facing change log start at v4.0.0 (the public launch) or at v3.1.0?": chose "Start at v4.0.0 (Recommended)". Applied: S131 AC 6 requires no notes file below v4.0.0 (the grader's v3.1.0 check is updated before shipping, red first, rule 7), AC 5 drops its exception for AC 6's copies, the note "starts at v3.1.0" is replaced, S131 back to todo at priority 72; FEATURES' Update / change log UX row, S134's Impact and S135's note (f) follow.
+2. Asked "Should the pre-1969 standings tables be headed "American League" and "National League", or "AL" and "NL"?": chose "American League (Recommended)". Applied: S155's open-question note recorded as settled; AC 2 and AC 4 already say the full names, unchanged.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T04:19:55Z` |
+| HEAD at capture | `76f9ea7` (tree clean) |
+| Change | `76f9ea7` — #106 Claude review fixes: pre-launch releases deploy with no notes; backlog-review skill matches the confident-skip rule |
+
+**What changed, and the owner's answer**
+
+S131's AC 3 and AC 4 rewritten to answer Claude's review of PR #106 (a pre-launch release below v4.0.0 would fail its deploy on the notes file AC 6 forbids). Always skipped (owner, 2026-11-07, asked whether such a rewrite needed a backlog review: "This shouldn't even trigger a question. Always skip.").
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T04:23:27Z` |
+| HEAD at capture | `7ca70ad` (tree clean) |
+| Change | `7ca70ad` — #106 Claude review fix, round 3: S131 AC 3 rejects a malformed tag before the pre-launch pass |
+
+**What changed, and the owner's answer**
+
+S131's AC 3 rewritten to answer Claude's review of PR #106 (round 3: a malformed tag such as 3.3.0 must fail before the below-v4.0.0 pass). Always skipped (owner, 2026-11-07: "This shouldn't even trigger a question. Always skip.").
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T05:33:01Z` |
+| HEAD at capture | `6603b2d` (tree clean) |
+| Change | `6603b2d` — S135: the owner keeps the after-update pointer before v4.0.0 |
+
+**What changed, and the owner's answer**
+
+Owner-directed backlog change (owner, 2026-11-19, asked whether S135's after-update pointer should stay hidden before v4.0.0: chose "Show it anyway (Recommended)"). Confident skip, no question (owner, 2026-11-19: "I also want you to start skipping reviews when you're confident in the choice. Ask when you can see a good argument either way"): it records the owner's answer in one S135 note, keeps the behavior the note already described, and changes no acceptance criterion.
+
+---
+
+## 2026-11-18 — S139 completed
+
+**Standings by season phase in the API**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T01:52:24Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `1a08f51` (tree dirty) |
+| Grader | `scripts/verify-S139.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: season phases spring, regularSeason, playoffs: one exported type and ordered list in packages/domain beside StandingsPhaseName; StandingsResponse keeps S128's fields and gains phases ({ startDate, endDate, table? } | null per phase); generated.types.test.ts lists the new types
+check 2 PASS: one domain function beside standingsPhase answers the season and each phase's dates and pick for a day from the calendars only (2027-02-18, 2027-02-19, 2027-03-24, 2027-03-25, 2026-09-05, 2026-09-27, 2026-09-28, after lastGameDate, before every season, no calendar, missing regularSeasonEndDate, lastGameDate = regularSeasonEndDate)
+check 3 PASS: GET /api/v1/standings takes includePhases (comma, repeated, mixed; duplicates once; exact names); bad names, empty names and spaces answer 400 include_phases_invalid naming the phases and ask MLB nothing; date is checked first; top-level fields identical whatever includePhases names
+check 4 PASS: the regular season before its first game lists the new season's teams by division in name order at 0-0 with null figures (spring teams when spring has any; on the first spring morning MLB's new-season team list, never last season's); S128's top-level table keeps its fallback
+check 5 PASS: MLB's answers recorded under fixtures/raw/ and drift-scanned (spring+regular in one request on a spring and an April day, playoffs types, the new season's teams); the request budget is tested with a counting client; bundled.ts lists every recording the fixture client reads and its guard fails without it
+check 6 PASS: fixtures/raw/standings-2026-09-12.json and fixtures/standings-2026-09-12.json: 1 to 11 teams clinched; its playoffs list is tested, and 2026-09-05's playoffs table has no division
+check 7 PASS: fetchStandings/useStandings take an optional phase list sent comma-joined, keyed in phase order; the spec has includePhases (form, explode false), phases and the 400; pnpm api:breaking exits 0; generated types re-rendered
+check 8 PASS: cached, not stored: no standings repository or table; cacheLifetimeMs takes a ladder, STANDINGS_CACHE_LIFETIME_LADDER caps at 30 days; the route's Cache-Control follows the day asked; calendars kept 24 hours (the floor in the postseason window, rejections never kept); a workerd test shows the Workers Cache serves them
+check 9 PASS: no visual change: nothing under web/src outside web/src/api changes, and nothing outside the story's scope files
+check 10 PASS: backlog Status is done (story heading and Story status table)
+```
+
+**10/10 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+S139 notes (not checked by this grader beyond what check 5 asserts of the recordings and the budget test) —
+MLB's answers, recorded 2026-11-18 with the repo's recorder (verbatim, fixtures/raw/, drift-scanned):
+- springTraining,regularSeason in one request (standings-2026-03-10-spring-regular, standings-2026-04-05-spring-regular):
+  it answers only the table the day has: six springTraining records on 2026-03-10, six regularSeason records on 2026-04-05
+  (no spring table, though spring's last-day table exists). So it is two requests, as the owner asked to check.
+- Playoffs: standingsTypes=postseason answers no records (standings-2026-postseason). wildCard
+  (standings-2026-09-20-wildcard, standings-2026-final-wildcard) comes in the same request as the regular season but
+  only ranks the non-division-leaders; its clinched teams are a subset of the regular-season table's (2026-09-20:
+  BOS, NYY of 6; final: 6 of 12), so it names no different set. The playoffs phase is the regular-season table's
+  clinched teams, at no request of its own.
+- The new season's teams before its first game: the season's table with no date (standings-2027-final, the URL
+  fetchFinalStandings asks) lists all 30 teams at 0-0, regularSeason type. So AC 4's first-spring-morning list is
+  fetchFinalStandings(new season).
+- AC 6: standings-2026-09-12 has 2 teams clinched (TB, MIL); 2026-09-20 has 6 (standings-2026-09-20-wildcard's
+  regular-season records), and 2026's final table all 12.
+- Verified budget (standings requests beyond the two calendars): regular-season day 2, spring day 1, off-season 2,
+  first spring morning 3, no calendar 1; includePhases=playoffs or regularSeason on 2026-09-05 1; spring on a spring day 1.
+Reuse check (ADR-025): standingsPhase, previousStandingsPhase, StandingsPick (standingsPhases is built on them, the
+  pick type reused for every phase), StandingsPhaseName's spring/regularSeason reused as SeasonPhaseName's, addDays,
+  SeasonCalendar, mlbToday (the new mlbDayEndsAt sits beside it, the one place BT knows MLB's zone), fetchPick and
+  isEmpty in the standings service (kept; picks are memoized per request so a shared table is asked once),
+  standingsCalendars (now takes any fetchSeasonCalendar source, the cache adapter's, and says whether every calendar
+  answered), cacheLifetimeMs (gains a ladder argument, not copied) and edgeCacheControl (gains the same), the route's
+  withCacheControl, isCalendarDate for the date check, the S128 standings fixtures and recordedClient;
+  fetchStandings/standingsKey extended rather than duplicated, with SEASON_PHASES/SeasonPhaseName from the domain.
+  New in the domain beside standingsPhases: playoffsTable and blankRegularSeasonTable (the playoffs list and AC 4's
+  0-0 list), and seasonSettling, the postseason window the calendar cache already used (calendarKeepMs now calls it)
+  and the standings' edge cache now judges an answer's season by. Nothing fit the calendar cache, so
+  cached-season-calendars.ts is new, an adapter around the unchanged port.
+Grader changed before shipping (pre-PR review, 2026-11-18): check 5 now asserts the recording claims above and that
+  every counting-client case carries its verified count; tightening only.
+
+--- verify-S139 check results ---
+check 1 PASS: season phases spring, regularSeason, playoffs: one exported type and ordered list in packages/domain beside StandingsPhaseName; StandingsResponse keeps S128's fields and gains phases ({ startDate, endDate, table? } | null per phase); generated.types.test.ts lists the new types
+check 2 PASS: one domain function beside standingsPhase answers the season and each phase's dates and pick for a day from the calendars only (2027-02-18, 2027-02-19, 2027-03-24, 2027-03-25, 2026-09-05, 2026-09-27, 2026-09-28, after lastGameDate, before every season, no calendar, missing regularSeasonEndDate, lastGameDate = regularSeasonEndDate)
+check 3 PASS: GET /api/v1/standings takes includePhases (comma, repeated, mixed; duplicates once; exact names); bad names, empty names and spaces answer 400 include_phases_invalid naming the phases and ask MLB nothing; date is checked first; top-level fields identical whatever includePhases names
+check 4 PASS: the regular season before its first game lists the new season's teams by division in name order at 0-0 with null figures (spring teams when spring has any; on the first spring morning MLB's new-season team list, never last season's); S128's top-level table keeps its fallback
+check 5 PASS: MLB's answers recorded under fixtures/raw/ and drift-scanned (spring+regular in one request on a spring and an April day, playoffs types, the new season's teams); the request budget is tested with a counting client; bundled.ts lists every recording the fixture client reads and its guard fails without it
+check 6 PASS: fixtures/raw/standings-2026-09-12.json and fixtures/standings-2026-09-12.json: 1 to 11 teams clinched; its playoffs list is tested, and 2026-09-05's playoffs table has no division
+check 7 PASS: fetchStandings/useStandings take an optional phase list sent comma-joined, keyed in phase order; the spec has includePhases (form, explode false), phases and the 400; pnpm api:breaking exits 0; generated types re-rendered
+check 8 PASS: cached, not stored: no standings repository or table; cacheLifetimeMs takes a ladder, STANDINGS_CACHE_LIFETIME_LADDER caps at 30 days; the route's Cache-Control follows the day asked; calendars kept 24 hours (the floor in the postseason window, rejections never kept); a workerd test shows the Workers Cache serves them
+check 9 PASS: no visual change: nothing under web/src outside web/src/api changes, and nothing outside the story's scope files
+check 10 PASS: backlog Status is done (story heading and Story status table)
+--- verify-S139: 10/10 checks passed ---
+verify-S139: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 133ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 8ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 20ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 24ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 26ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 32ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 578ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  313ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 349ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  333ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  17:54:36
+   Duration  1.07s (transform 89ms, setup 0ms, collect 2.84s, tests 1.17s, environment 1ms, prepare 330ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162825,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+
+---
+
+## 2026-11-18 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-19T01:56:09Z` |
+| HEAD at capture | `1cb42a7` (tree clean) |
+| Change | `1cb42a7` — S139: standings answer spring training, the regular season and the playoffs at once |
+
+**What changed, and the owner's answer**
+
+S139 AC 8 was tightened to answer the S139 pre-PR review (an answer whose season is not over yet is kept the floor in its postseason window and 48 hours before it, and one built while MLB could not give a calendar the floor). CLAUDE.md: a story's acceptance criteria rewritten to answer a review are always skipped, without asking (owner, 2026-11-07, asked whether an AC rewrite answering a review needed a backlog review: "This shouldn't even trigger a question. Always skip.").
+
+---
+
+## 2026-11-18 — S140 completed
+
+**World Series winner in standings**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T02:19:54Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `b34cce6` (tree dirty) |
+| Grader | `scripts/verify-S140.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: one exported function, worldSeriesChampion, decides the winner from the World Series schedule mapSeasonCalendar already reads: the team whose series wins in the last final, not-cancelled game exceed half its gamesInSeries; none while under way, with no Series, an empty schedule, or no gamesInSeries/series records (tests 'S140 AC 1': 2025 Dodgers, 2026 Brewers, 2027 empty none, 2026 cut to four games none, neither field none)
+check 2 PASS: GET /api/v1/standings answers a top-level champion { season, teamId, name, wonOn } on off-season days on or after wonOn, null otherwise, the same for every includePhases (route tests 'S140 AC 2': 2025-11-15 Dodgers 2025-11-01; 2026-11-10 and 2026-10-28 Brewers 2026-10-28; 2026-10-27, 2026-10-01, 2026-09-05 and a spring day null), with the day's rule one tested domain function (domain tests 'S140 AC 2')
+check 3 PASS: a standings request asks MLB nothing more than before (counting-client tests 'S140 AC 3'), and the season calendar still asks only the seasons and World Series URLs
+check 4 PASS: openapi/bt-api.v1.json's StandingsResponse carries a required, nullable champion with season, teamId, name and wonOn; the spec is up to date (pnpm api:spec), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it again
+check 5 PASS: no visual change: the story changes nothing under web/src/ outside web/src/api/
+check 6 PASS: backlog Status is done (story heading and Story status table)
+check 7 PASS: the story changed nothing outside its fence (functions/src/, functions/vitest.config.ts, packages/domain/, packages/ports/, openapi/, fixtures/, web/src/api/, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, scripts/verify-S140.sh)
+```
+
+**7/7 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+S140 notes (design reasoning, not checked by this grader beyond checks 1-3) —
+Reuse check (ADR-025): mapSeasonCalendar's walk of the World Series games (worldSeriesFinal) is now one helper,
+  seriesGamesOn (not-cancelled games with their day, in order), read by both worldSeriesFinal and the new
+  worldSeriesChampion, so the winner comes from the same payload with no new request (worldSeriesUrl unchanged).
+  SeasonCalendar (scoreboard-date.ts) gains an optional champion rather than a second calendar type; the day's rule,
+  standingsChampion, is built on standingsPhase's final pick (the off-season as S128 defines it), beside
+  standingsPhases in standings-phase.ts; getStandings reads it from the calendars standingsCalendars already returns.
+  The mlb-api schedule types already carried gamesInSeries, isWinner and leagueRecord; nothing new was modelled.
+  The counting client (standingsClient) and the S139 route-test helpers were reused for AC 2 and AC 3.
+Freshness: nothing changed. The calendar cache (calendarKeepMs) and the standings' edge cache (standingsFreshness) both
+  keep a season's answer only for the floor from regularSeasonEndDate through the day after lastGameDate
+  (seasonSettling's postseason window), which covers the day the Series is decided (wonOn is on or before lastGameDate), so the
+  winner appears within the floor; a past off-season date before wonOn is cached as settled with null, its correct
+  answer for that day.
+
+--- verify-S140 check results ---
+check 1 PASS: one exported function, worldSeriesChampion, decides the winner from the World Series schedule mapSeasonCalendar already reads: the team whose series wins in the last final, not-cancelled game exceed half its gamesInSeries; none while under way, with no Series, an empty schedule, or no gamesInSeries/series records (tests 'S140 AC 1': 2025 Dodgers, 2026 Brewers, 2027 empty none, 2026 cut to four games none, neither field none)
+check 2 PASS: GET /api/v1/standings answers a top-level champion { season, teamId, name, wonOn } on off-season days on or after wonOn, null otherwise, the same for every includePhases (route tests 'S140 AC 2': 2025-11-15 Dodgers 2025-11-01; 2026-11-10 and 2026-10-28 Brewers 2026-10-28; 2026-10-27, 2026-10-01, 2026-09-05 and a spring day null), with the day's rule one tested domain function (domain tests 'S140 AC 2')
+check 3 PASS: a standings request asks MLB nothing more than before (counting-client tests 'S140 AC 3'), and the season calendar still asks only the seasons and World Series URLs
+check 4 PASS: openapi/bt-api.v1.json's StandingsResponse carries a required, nullable champion with season, teamId, name and wonOn; the spec is up to date (pnpm api:spec), pnpm api:breaking exits 0, and web/src/api/generated/ is rendered from it again
+check 5 PASS: no visual change: the story changes nothing under web/src/ outside web/src/api/
+check 6 PASS: backlog Status is done (story heading and Story status table)
+check 7 PASS: the story changed nothing outside its fence (functions/src/, functions/vitest.config.ts, packages/domain/, packages/ports/, openapi/, fixtures/, web/src/api/, docs/v3/BACKLOG.md, docs/v3/backlog/, docs/v3/AUDIT.md, docs/v3/audit.jsonl, docs/v3/INDEX.md, CHANGELOG.md, scripts/verify-S140.sh)
+--- verify-S140: 7/7 checks passed ---
+verify-S140: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 134ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 9ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 21ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 22ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 24ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 24ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 578ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  304ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 390ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  372ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  18:21:31
+   Duration  1.11s (transform 103ms, setup 0ms, collect 2.83s, tests 1.20s, environment 1ms, prepare 313ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162824,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+
+---
+
+## 2026-11-19 — S147 completed
+
+**Design: Live marker**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-19T18:53:29Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `292cfc9` (tree dirty) |
+| Grader | `scripts/verify-S147.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: shell-scoreboard A13 headed '(S147)' names what it adds/overrides/repeals, quotes the owner's 2026-11-16 words, draws the marker's two blink states, a live game page and the live scoreboard ending in it, and a page with no socket and no 'Fetched', at mobile and desktop, and says the blink's length, reduced motion, which pages open a socket, reconnecting and polling fallback, medium, and the marker's place in S141's footer of links
+check 2 PASS: every open question in A13 is answered by the owner, quoted
+check 3 PASS: A13's ratification record names who ratified, the date and quotes the owner's in-session go-ahead; its ## Manifest hashes exactly its own PNGs; D9 and the type table's meta row describe the ratified marker
+check 4 PASS: backlog Status is done (story heading and Story status table)
+check 5 PASS: no sealed shell-scoreboard file changed (RATIFIED.md and A1–A12 with their manifests)
+check 6 PASS: S147 changed no file outside its fence (plus creating scripts/verify-S147.sh)
+```
+
+**6/6 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S147 check results ---
+check 1 PASS: shell-scoreboard A13 headed '(S147)' names what it adds/overrides/repeals, quotes the owner's 2026-11-16 words, draws the marker's two blink states, a live game page and the live scoreboard ending in it, and a page with no socket and no 'Fetched', at mobile and desktop, and says the blink's length, reduced motion, which pages open a socket, reconnecting and polling fallback, medium, and the marker's place in S141's footer of links
+check 2 PASS: every open question in A13 is answered by the owner, quoted
+check 3 PASS: A13's ratification record names who ratified, the date and quotes the owner's in-session go-ahead; its ## Manifest hashes exactly its own PNGs; D9 and the type table's meta row describe the ratified marker
+check 4 PASS: backlog Status is done (story heading and Story status table)
+check 5 PASS: no sealed shell-scoreboard file changed (RATIFIED.md and A1–A12 with their manifests)
+check 6 PASS: S147 changed no file outside its fence (plus creating scripts/verify-S147.sh)
+--- verify-S147: 6/6 checks passed ---
+verify-S147: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 131ms
+ ✓ |tools| comments-stale/comments-stale.test.js (4 tests) 7ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 19ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 23ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 24ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 23ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 578ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  310ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 353ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  337ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  10:55:07
+   Duration  1.08s (transform 88ms, setup 0ms, collect 2.86s, tests 1.16s, environment 1ms, prepare 380ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162821,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+
+---
+
+## 2026-11-19 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-19T19:07:01Z` |
+| HEAD at review | `4c94350` (tree dirty) |
+| Trigger | design intake: shell-scoreboard A13 (Live marker), ADR-014 row amended, S148 ACs rewritten |
+| Stories `done` since last review | S147 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Design intake review of shell-scoreboard A13 (Live marker, ratified 2026-11-19 at 4c94350), ADR-014's amended "Freshness is visible" row, and S148's rewritten ACs. Two independent fresh-context reviewers (read-only, Figma tools), merged here; disputed claims checked against source.
+
+**Inventory (shell-scoreboard A13).** Frames: `live-marker-scoreboard-live-*`, `live-marker-scoreboard-quiet-*`, `live-marker-game-*` at mobile and desktop (medium = mobile footer centred, A13:25), plus `live-marker-states`. Components: `live-marker` (set 658:21788; 8px #FF5247 dot with glow, "Live Data · Active" 11px Plex Medium; `Phase=Bright|Dim`), `footer-live-strip` (705:23499/705:23516; black 40% over Dark, 10px above/below), `site-footer` (705:23532; `Live=Off|On` x `Width=Mobile|Wide`; its body is A14's draft, not ratified, A13:13). States: socket open -> strip, 2s eased blink; reduced motion -> Bright, no blink; no socket, reconnecting, polling fallback, offline -> no strip; no footer shows "Fetched … ago", "baseball.theater" or "Offline · saved …". Interactions none; settings only `prefers-reduced-motion`. Data: game socket-open state missing (`useLiveGame` returns `inWindow`, `web/src/api/live.ts:53`; `onopen` only resets failures) -> S148 AC 2; day socket and its open state missing -> S149 AC 5-6. No new domain value: "day has a game in its window" is `scheduleWindowMode` (`packages/domain/src/window.ts:142`); `fetchedAgo` stays (S74's banner).
+
+**Ownership map.** Owned 9 (marker, blink, reduced motion, game strip, game socket state, label removal, "baseball.theater" removal, hidden while reconnecting/polling, day socket state). Unowned 4, now owned: accessible name (A13:33) -> S148 AC 3; design match of `live-marker-scoreboard-live-*` (S148 only if `useLiveDay` exists, S149 had `design: []`) -> S149 AC 8; one footer component tying S148 to S142 (ADR-025) -> S148 AC 3 `SiteFooter`, S142 AC 1; Gap map row -> frame 05. Contradicted/stale, re-scoped: S74 AC 2 still built "Offline · saved {age} · baseball.theater"; S148 AC 1 would delete `fetchedAgo` that S74 AC 2 and its turn cap need; S142 AC 2 tied `fetchedAgo` to an offline footer; S134 note (c) "the footer reads baseball.theater alone"; S141 AC 1 What goes partly settled. Stories re-scoped: S148, S149, S74, S142, S141 (note), S134 (note). None inserted.
+
+**Re-scopes, with evidence.**
+- S148 AC 1: no-socket pages end with no footer line (A13:39), or in S142's footer if it shipped; A14 columns not built; "baseball.theater" checked on the footer element (Settings keeps `support@baseball.theater`, `AccountData.tsx:258`); `FooterMeta` removed, no `fetchedAt` prop; `fetchedAgo` kept (only caller `FooterMeta.tsx:20`; S74 AC 2 `S74.md:50` and turn cap line 71 need it), its comment rewritten; offline check is a grep (no offline UI exists, so the RTL passed vacuously).
+- S148 AC 2 (2b): breaks found: (1) a flag set in `connect()` passes "open -> shown" -> before-`onopen` case; (2) back from polling via `retryNow` (`live-stream.ts:151-159`) untested; (3) `GamePage.tsx:35-38` passes `useLiveGame`'s return to `useGame` as `streaming`, which disables `refetchInterval` (`game.ts:34`) - replacing it with open state would start query polling in every reconnect wait. AC now returns both flags and tests each.
+- S148 AC 3: `SiteFooter` (`web/src/layout/`, replaces `FooterMeta`, `live` prop) is the only strip host and the component S142 grows; dot `aria-hidden`, words accessible; every room of an in-window game (socket is the page's, A13 Which pages); strip spans the content column; `LiveIndicator` "One component for every live marker (S60)" comment rewritten.
+- S148 AC 6: frames named; reduced-motion emulation; `routeWebSocket` as `e2e/design/S19.spec.ts:61`; expected differences: A14 columns, and short-page footer after content (owner, 2026-11-19, asked to pin the footer to the screen's bottom on short pages or follow A13: "A13"). Turn cap 12 -> 14.
+- S149: `design: [S147]`, depends on S81, AC 8 rule-22 match of `live-marker-scoreboard-live-*`, fence +`e2e/design/`, `docs/v3/design-checks/`, turn cap 18 -> 20; AC 5 and AC 6 name `scheduleWindowMode` (ADR-025); AC 6 (2b): "stops re-asking while the socket is open, as game.ts does" contradicted game.ts (in-window flag) -> rewritten; added break: a day loaded before its first game's window never connects (stored `windowMode` "cache", no refetch) -> re-judged each minute, unit test.
+- S74 AC 2: no footer line offline (A13:6, :43, owner "yes"); design gains S147; note.
+- S142 AC 1 grows S148's `SiteFooter`; AC 2 keeps `fetchedAgo` and checks no "baseball.theater"; note: strip first row, socket state via `useState` in `AppShellLayout` + outlet context (ADR-024), placement per owner "A13".
+- S141 note: A13 settles three What-goes items; owner "A13" on placement/alignment; A14 draft on `origin/story/S141` still has a "baseball.theater" bottom line (A14:5, :21, :23, :40) and a pinned short footer, both to be redrawn before ratification; AC 3's VISUAL-DESIGN change set adds the red blink to the motion budget.
+- S134 note (c): Pending Q9 read per A13.
+- Gap map: Live marker row. Current baseline: App shell row names `SiteFooter`.
+
+**Reviewers' disagreements and resolutions.**
+1. Footer component name (`PageFooter` vs `SiteFooter`): `SiteFooter`, matching Figma's `site-footer`; ACs state behaviour (one component, reused by S142).
+2. S148 AC 2: reviewer 2 said it holds (`stop()` nulls `onclose`, unmount test load-bearing); reviewer 1 found three uncovered cases. Checked `GamePage.tsx:35-38` and `game.ts:34`: the `streaming` break is real; reviewer 1's cases added.
+3. VISUAL-DESIGN rows: reviewer 1 read the motion-budget row (:529) and Live row (:457) as contradicting A13 and asked the owner; reviewer 2 queued only :292 for parity. Checked: :457 is the scoreboard card's green indicator (unchanged by A13); :529 lists only the green blink, so it is incomplete, not contradicted; :292 is S141 AC 3's already. Resolved without a question: S141's AC 3 change set (its fence has VISUAL-DESIGN.md) adds the red blink; noted in S148.
+4. Figma frames outside A13 carrying A14's draft columns and `Live=On` strips: reviewer 2 asked the owner (optional). Resolved: the owner directed shared footer components everywhere (A13 One component everywhere, 2026-11-19); S148's note says PNGs are the record, don't build the columns, and A13's text wins over a non-A13 frame (e.g. Box room `Live=Off`).
+5. Marker on every room (reviewer 2 only): applied per A13 Which pages (the socket is the page's; `useLiveGame` runs in `GamePage` for every room).
+6. `scheduleWindowMode` in S149 (reviewer 2 only): verified at `window.ts:142`, applied.
+7. Short-page placement (reviewer 1's owner question 1): answered by the owner this session, "A13"; applied, not re-asked.
+
+**Check 2 (next 3 startable; S125, S145, S130, S137, S138, S132, S134, S135 above S148 wait on designs not done).** S148: `FooterMeta` called from `ScoreboardPage.tsx:116`, `GamePage.tsx:134`, `StandingsPage.tsx:46`; `useLiveGame` returns `inWindow`; S81 done; S147 done; S60 AC 4 pinned, not a law (`LAWS.md:332`); fence covers web/src, e2e/design, design-checks. S141: work on its branch, unmerged; A14 a draft (no intake due). S150: no design dependency; precedes S149 (forced). Check 2b applied to S148, S149, S74, S142, S141, S134: closing-class (fake-open flag), state-coupling (`streaming`), dead/vacuous test (offline RTL), duplication (ADR-025: footer, window mode, `fetchedAgo`), stale-doc (comments of `fetchedAgo`, `LiveIndicator`), clock edge (window opening after load), each recorded above. Check 3: S148 (82) before S141/S150 (83), S142/S149 (84); S74 (94) after S148 fine; no order change. Duplication sweep: only `LiveIndicator` vs the new `LiveMarker` (kept apart, reason recorded). Personal-data sweep: none (no store, field, service, browser key or log line added; files checked: S148, S149, S74, S142 ACs).
+
+**For the parity review.** FEATURES.md:103 (Live marker): the story list "— S147 (design), S148, S150, S149" sits mid-row before "Shown the draft, the owner moved it…"; move it to the end. FEATURES.md:102 (Site footer) doesn't say "baseball.theater" goes from every footer. FEATURES Installable app `Design:` bullet (:221) names an offline state without saying its footer line is gone (optional).
+
+**Owner question.** May an agent update the Figma `live-marker` component description (658:21788), which still reads "A13 (draft): the Live marker — a red dot and "Live" …", to A13's ratified wording, with no drawing change?
+
+---
+
+## 2026-11-19 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-19T19:09:48Z` |
+| HEAD at review | `03264f6` (tree dirty) |
+| Trigger | ARCHITECTURE.md, FEATURES.md, VISUAL-DESIGN.md changed (S147 checkpoints c6e3383, 4c94350; A13 intake 03264f6) |
+| Stories `done` since last review | S147 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Scope: the product-doc changes since 48dcf31 (c6e3383 and 4c94350 on FEATURES' Live marker row, VISUAL-DESIGN D9 and the Meta type row, ARCHITECTURE ADR-014's freshness row), read with the A13 design intake (03264f6); the stories they touch (S147, S148, S149, S150, S141, S142, S74); and the next 3 `todo` stories by priority (S125, S145, S130). The game-shell A6 change set (S144, S145's design) was reviewed on `story/S144`, which isn't an ancestor of this branch; it is not reviewed again here.
+
+**1. Citation honesty**
+- S147, S148, S149, S150 cite "Feature: Live marker" (FEATURES:103). The row describes the marker replacing "Fetched … ago" (S147 draws it, S148 builds it), the scoreboard's day socket (S149) and one stored state per game behind one source switch (S150). Each story's Gap/Impact matches the clause it serves. Holds.
+- S141, S142 cite "Feature: Site footer" (FEATURES:102): a footer of links ratified before it is built, with "Fetched … ago" gone. Matches both Gaps. Holds.
+- S74 cites "Feature: PWA / installability" (FEATURES:70), which says offline reading is at launch; its Gap is ADR-023's offline reading, marked with its age. Holds.
+- S125 cites "Feature: Calendar date picker" (FEATURES:101): calendar from the scoreboard's date, typed dates, year switching, game counts. These are S125's Impact word for word. Holds.
+- S145 cites "Feature: Video play links" (FEATURES:98): "'Play' in red replaces 'Highlight'; a clip with no play keeps 'Highlight'" with the owner's 2026-11-10 quote. This is S145's Gap. Holds.
+- S130 cites "Feature: Standings" (FEATURES:65): spring training, regular season and playoffs, "as of" a past day, and the World Series winner. This matches S130's Impact. Holds.
+- Pillar citations: one open story cites a pillar (S146, "Pillar: Delightful"). Its Gap, Impact and ACs did not change since 48dcf31 (`pnpm parity:debt` named no such change), so it is out of scope here.
+- Open questions: no open, blocked or todo story has an `Open:` Source (grep of `**Source:**` over stories/todo and stories/blocked: every line is Feature or Pillar).
+
+**2. Doc reflects reality**
+- ADR-014 freshness row (ARCHITECTURE:918) now says A13 was "ratified 2026-11-19 ... built by S148". This agrees with shell-scoreboard A13's ratification record (A13:55–58) and with FEATURES:103. No conflict.
+- VISUAL-DESIGN D9 (:44) gives "Live Data · Active" centred in a darker strip at the top of the footer, and "no footer reads 'baseball.theater'". This agrees with A13:34 and :39 and with FEATURES:103. The Meta type row (:227) dropped "fetched-at", which is consistent. D9 cites "FEATURES principle 6" (FEATURES:29, "we don't pretend to be MLB"), which is unchanged and consistent.
+- VISUAL-DESIGN :292 "Quiet meta: date, window mode, last fetched (D9)" still names a fetched age. Left alone, as the intake directed: S141 AC 3 owns it.
+- Finding (amended): FEATURES:103, the Live marker row, had its story list "— S147 (design), S148, S150, S149" in the middle of the row, running into "Shown the draft, the owner moved it…". The list now ends the row, as every other row's does. No wording changed.
+- Finding (amended): FEATURES:102, the Site footer row, said only that "Fetched … ago" goes. Ratified A13 (A13:6, :34, :39) and FEATURES:103 also remove "baseball.theater" from every footer. The row now records that, quoting the owner (2026-11-19: "baseball.theater is supposed to be removed, which I've asked for twice"; ratification answer recorded in 4c94350 and A13:58).
+- Finding (amended): the FEATURES Installable app (PWA) Design bullet (:221) listed an "offline state" without saying that its footer line goes. It now says so, quoting the owner (2026-11-19, asked whether to drop the "Offline · saved …" footer line: "yes"; A13:43; 4c94350's message). The User-visible bullet's "marked with their age" still holds, because the offline banner carries the age (A13:43; S74 AC 2).
+- Relics: none found. INTENT has no Fetched/footer statement (grep of "fetched" and "baseball.theater" over INTENT, FEATURES, VISUAL-DESIGN: the only remaining hits are VISUAL-DESIGN:292, which is S141's, and FEATURES:322, the cutover domain, which is unrelated).
+
+**3. Coverage**
+No feature was added in this review, and every FEATURES row touched has stories: Site footer is served by S141 and S142, Live marker by S147–S150, Installable app's offline state by S74.
+
+**For the next backlog review**
+- Does S142 (or S141's AC 1, whose notes at S141:68 already record it) have a checkable AC that no footer reads "baseball.theater"? FEATURES' Site footer row now says so, but S142's ACs (S142:50) speak only of "Fetched … ago".
+- S74 AC 2 and its 2026-11-19 intake note (S74:66) drop the offline footer line. Confirm that an AC, and not only a note, forbids "Offline · saved …" in the footer, since FEATURES' Installable app Design bullet now states it.
+
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-19T23:53:09Z` |
+| HEAD at capture | `1b5f7b5` (tree dirty) |
+| Change | `fcbe48a` — S141 checkpoint (parked for ratification): the owner's six answers applied to the site footer (A14) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19, asked through /pending whether the S141 and S154 backlog changes the owner directed (S141's acceptance criteria rewritten to the footer answers, the new S154) need a review or a skip: chose "Skip (Recommended)".
+---
+
+## 2026-11-19 — doc parity review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a doc parity review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-19T23:53:09Z` |
+| HEAD at capture | `1b5f7b5` (tree dirty) |
+| Change | `fcbe48a` — S141 checkpoint (parked for ratification): the owner's six answers applied to the site footer (A14) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19, asked through /pending whether the S141 and S154 backlog changes the owner directed (S141's acceptance criteria rewritten to the footer answers, the new S154) need a review or a skip: chose "Skip (Recommended)".
+---
+
+## 2026-11-19 — S141 completed
+
+**Design: site footer**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-20T00:03:33Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `7d81df1` (tree dirty) |
+| Grader | `scripts/verify-S141.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: shell-scoreboard A14 headed '(S141)' draws the footer at mobile, medium and desktop, on a game page, a short page, in the installed app, offline and signed out, and decides its columns, how they fold at mobile, its copyright line and that nothing else is in it, every kind of page it shows on, the installed app, a short page right after the content (A13), the 'Fetched' line gone, A13's Live strip at the top of the footer, 'baseball.theater' gone from every footer, the recap's 'Source: MLB', the offline footer line gone and the other surfaces' frames
+check 2 PASS: A14's ## Decisions holds the list of links (column, words, destination: a BT path, an https address or a mailto), with About, Privacy policy and Terms of use built by one story, one 'Support & Community' link to r/BaseballTheater and no Contact or Report a problem, the data link for a signed-in fan and a signed-out visitor, no 'how the site is made' link, and no dead links (each unbuilt BT path's story is on S142's Depends on, or that story's ACs add the link); FEATURES' Site footer row records the ratified list with the owner's words
+check 3 PASS: every open question in A14 is answered by the owner, quoted
+check 4 PASS: A14's ratification record names who ratified, the date and quotes the owner's go-ahead; its ## Manifest hashes exactly its own PNGs; VISUAL-DESIGN's old footer line is gone, the new one names A14, and the quiet-meta line no longer lists 'last fetched'
+check 5 PASS: backlog Status is done (story heading and Story status table)
+check 6 PASS: no sealed file changed on the four surfaces (RATIFIED.md and earlier amendments with their manifests)
+check 7 PASS: S141 changed no file outside its fence (plus creating scripts/verify-S141.sh)
+```
+
+**7/7 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S141 check results ---
+check 1 PASS: shell-scoreboard A14 headed '(S141)' draws the footer at mobile, medium and desktop, on a game page, a short page, in the installed app, offline and signed out, and decides its columns, how they fold at mobile, its copyright line and that nothing else is in it, every kind of page it shows on, the installed app, a short page right after the content (A13), the 'Fetched' line gone, A13's Live strip at the top of the footer, 'baseball.theater' gone from every footer, the recap's 'Source: MLB', the offline footer line gone and the other surfaces' frames
+check 2 PASS: A14's ## Decisions holds the list of links (column, words, destination: a BT path, an https address or a mailto), with About, Privacy policy and Terms of use built by one story, one 'Support & Community' link to r/BaseballTheater and no Contact or Report a problem, the data link for a signed-in fan and a signed-out visitor, no 'how the site is made' link, and no dead links (each unbuilt BT path's story is on S142's Depends on, or that story's ACs add the link); FEATURES' Site footer row records the ratified list with the owner's words
+check 3 PASS: every open question in A14 is answered by the owner, quoted
+check 4 PASS: A14's ratification record names who ratified, the date and quotes the owner's go-ahead; its ## Manifest hashes exactly its own PNGs; VISUAL-DESIGN's old footer line is gone, the new one names A14, and the quiet-meta line no longer lists 'last fetched'
+check 5 PASS: backlog Status is done (story heading and Story status table)
+check 6 PASS: no sealed file changed on the four surfaces (RATIFIED.md and earlier amendments with their manifests)
+check 7 PASS: S141 changed no file outside its fence (plus creating scripts/verify-S141.sh)
+--- verify-S141: 7/7 checks passed ---
+verify-S141: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+ ✓ |tools| size-limit/size-limit.test.js (2 tests) 208ms
+ ✓ |tools| eslint-rules/no-mlb-in-web.test.js (5 tests) 26ms
+ ✓ |tools| eslint-rules/no-personal-data-in-logs.test.js (8 tests) 26ms
+ ✓ |tools| eslint-rules/no-viewport-outside-layout.test.js (6 tests) 29ms
+ ✓ |tools| eslint-rules/no-browser-storage.test.js (9 tests) 29ms
+ ✓ |tools| jscpd/jscpd.test.js (2 tests) 624ms
+   ✓ jscpd duplication gate (.jscpd.json) > passes a tree with no copied code  317ms
+   ✓ jscpd duplication gate (.jscpd.json) > fails when a 30-line block is copied into a second file  305ms
+ ✓ |tools| eslint-rules/no-domain-arithmetic.test.js (6 tests) 428ms
+   ✓ bt/no-domain-arithmetic > valid > import type { Game } from "./packages/domain/game.js";
+declare const game: Game;
+export const label = game.abbreviation + " @ ";  410ms
+
+ Test Files  8 passed (8)
+      Tests  42 passed (42)
+   Start at  16:05:48
+   Duration  1.24s (transform 119ms, setup 0ms, collect 3.20s, tests 1.38s, environment 1ms, prepare 382ms)
+
+
+> baseball-theater@0.0.0 size /private/tmp/claude-501/-Users-jakelauer-Repos-baseball-theater/9a3a2193-33ad-4d6e-9301-8a978618993e/scratchpad/wt2
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162827,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+---
+
+## 2026-11-19 — backlog review (`amended`)
+
+| | |
+|---|---|
+| Entry | backlog review pass |
+| Captured (UTC) | `2026-11-20T00:16:06Z` |
+| HEAD at review | `c7731fc` (tree dirty) |
+| Trigger | design intake: shell-scoreboard A14 (S141) |
+| Stories `done` since last review | S141 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Design intake review of shell-scoreboard A14 (site footer of links, S141, ratified 2026-11-19). Two independent fresh-context reviewers; this entry is the merge, applied by a merger agent at c7731fc.
+
+**Inventory (A14).** One Figma component set `site-footer` (705:23532), variants Live=Off|On x Width=Mobile|Wide (16px / 24px side padding); Live=On nests A13's `footer-live-strip` (705:23499) with `live-marker` (705:23500); body `site-footer-body` (705:23503): two `site-footer-column` and `site-footer-copyright` (734:8895). Signed-out is an instance override hiding "Your data". Eight sealed PNGs: site-footer-mobile, -medium, -desktop, -game-mobile, -short-desktop, -standalone-mobile, -offline-mobile, -signed-out-mobile. Links (A14:53-60): About /about, Changelog /changelog, Support & Community https://www.reddit.com/r/BaseballTheater/ (new tab, rel noopener noreferrer, no icon, A14:47), Privacy policy /privacy, Terms of use /terms, Your data /settings (signed-in only, A14:46). Copyright "(c) {year} Baseball Theater" centred muted (A14:5, :35). Shows on every shell page, not in dialogs/drawers, not on the account-deleted Settings page (A14:37). Short page: right after the content (A14:39). States not drawn: hover/focus (site-wide rule, styles.css:67-110), session loading, a column with no links (signed-out "Legal" before S154), a third column wrapping. Data: copyright year has no domain function (mlbToday at packages/domain/src/scoreboard-date.ts:53); socket state from S148 useLiveGame / S149 useLiveDay; session from useSession.
+
+**Ownership.** 24 items: 18 owned as written, 6 re-scoped, 0 unowned, no story inserted. S148: strip, LiveMarker, first SiteFooter, FooterMeta and "baseball.theater" removed. S149: scoreboard socket. S142: columns, headings, hairline, Changelog link (Depends on S134), copyright, shell placement. S154: About/Privacy/Terms pages and links. S74: offline frame. Recap "Source: MLB" built (RecapRoom.tsx:42); standalone safe area built (styles.css:59-65).
+
+**Re-scoped, with evidence.**
+- S142 Gap: "the evening answers made the footer just links" superseded by the ratified copyright (A14:35).
+- S142 AC 1: Search and the change log page added to the RTL list; footer found by role contentinfo, rendered outside `<main>` (a `<footer>` inside `<main>` has no contentinfo role; `<main>` has px="md" and flex:1 in a minHeight:100vh column, AppShellLayout.tsx:43-46, 92-94, which would inset the strip, A14:41, and pin the footer to the bottom of a short page, A14:39); no footer on the deleted page (queryByRole("contentinfo") null, replacing DeletedAccount.test.tsx:142's queryByText(/baseball\.theater$/), trivial once S148 removes the mark), none in the open drawer; page state through the render prop (App.tsx:103-105 `children(variant)`; web/src has no Outlet/useOutletContext) with cleanup on unmount (else the strip persists live game -> Standings); width from `variant`; `copyrightYear(instant)` = year of mlbToday, unit at 2027-01-01T03:00Z -> 2026 and 05:00Z -> 2027 (restores S142 note (b)).
+- S142 AC 3: Support & Community href, target=_blank, rel=noopener noreferrer, no icon; BT links same tab; site-wide hover via Mantine Anchor or bt-hover (owner 2026-11-12); no About/Privacy/Terms until S154.
+- S142 AC 4: requires the copyright line from copyrightYear; "nothing else" (A14:36) kept as an exact-text RTL check.
+- S142 AC 5: "Your data" -> /settings exactly (A14:46; was "Settings' data section", reuse check named an anchor); left out signed out and while loading (routes.tsx SignedInOnly renders null while loading, then redirects signed-out visitors); signed-out "Legal" before S154 is owner Q2.
+- S142 AC 7: names seven frames; standalone via S73's CDP display-mode emulation (e2e/design/S73.spec.ts:106-112); expected differences: About/Privacy/Terms until S154, scoreboard strip without useLiveDay, game strip without S148; offline is S74's.
+- S142: prefer_after S148; turn cap 12 -> 14; note's outlet-context sentence corrected; reuse check updated.
+- S154: Gap "a draft" -> ratified; S141 on Design line (done); AC 4 order (About first; Privacy policy, Terms of use before Your data), one link list, signed-out RTL; AC 5 captures site-footer-mobile, -desktop, -signed-out-mobile with all six links.
+- S148 AC 1 and note: "A14's draft" -> ratified, columns are S142's.
+- S74: S141 on Design line (done, gates nothing); AC 7 names site-footer-offline-mobile, columns an expected difference until S142.
+- Gap map Site footer row and Current baseline As of updated; Backlog reviews notes updated.
+
+**Disagreements and resolutions.**
+1. Standalone frame: reviewer 1 said not capturable (emulateMedia lacks display-mode); reviewer 2 said reuse S73's emulation. Checked e2e/design/S73.spec.ts:13, 106-112: it sets display-mode standalone over the DevTools protocol. Resolved for reviewer 2: S142 captures it.
+2. State channel: reviewer 1 `children(variant, {setLive, setFooter})` including the deleted page's hide; reviewer 2 `children(variant, setLive)` with unmount cleanup. Resolved as the union: props through the render prop carry both the live state and the deleted page's no-footer, each cleared on unmount; the exact signature is left to the implementer, the outcomes are RTL-checked.
+3. Placement fix: reviewer 1 footer outside `<main>`; reviewer 2 outside `<main>` or flex:1 moved to a wrapper. Resolved: outside `<main>`, since a `<footer>` inside `<main>` loses its contentinfo role (HTML-AAM) and is inset by px="md"; flex:1 must move so leftover height falls below the footer; proven by the short-desktop and desktop captures.
+4. Session loading: both read "left out"; reviewer 2 offered it to the owner. Resolved without a question: A14:46 shows the link to a signed-in fan only, and routes.tsx renders nothing for /settings while loading.
+5. S74: reviewer 1 left the offline frame unassigned in S142; reviewer 2 re-scoped S74. Union: S74 re-scoped.
+6. S148: reviewer 1 re-scoped wording; reviewer 2 judged S148 owned correctly. Union: wording only, no behaviour change.
+7. Verdict: reviewer 2 noted Q1/Q2 could block the footer chain. Resolved `amended`: the plan is consistent under every answer, S142 can't start before S131/S133 (blocked) anyway, and S142's note gates `doing` on the answers.
+
+**Check 2 (next 3 by priority: S125, S145, S130).** Untouched by this intake. Depends: S124, S136, S81 done; S97, S81 done; S128, S139, S140, S81 done. Designs S123, S144, S129 all `blocked`, so none can start. Fence paths exist (web/src/components/videos/, packages/domain/, e2e/design/); scripts/verify-S125/S145/S130.sh absent, as each story's work item 0 creates. Turn caps unchanged (no code landed since the 2026-11-19 review). HEAD facts for the footer: FooterMeta still called in ScoreboardPage.tsx, GamePage.tsx, StandingsPage.tsx; no SiteFooter/LiveMarker; routes.tsx serves no /changelog, /about, /privacy, /terms; LAWS.md pins S60's FooterMeta AC as a pinned grader, not a law.
+
+**Check 2b (re-scoped stories).** S142: AC 1 passed a footer inside `<main>` with an inset strip, pinned on a short page (fixed: contentinfo role + captures); AC 1's deleted-page check went trivial after S148 (fixed: contentinfo null); state persisted across navigation (fixed: cleanup RTL); AC 3 passed without new tab/rel (fixed); AC 4 passed without the copyright (fixed); AC 5 passed with /settings#data and a flashed link while loading (fixed); AC 7 passed with zero frames (fixed: seven named). S154: AC 4 passed with About after Support & Community and no signed-out check (fixed); AC 5 never compared the footer (fixed). S148: wording only. S74: AC 7 frame list predated A14 (fixed). Checklist items applied: undrawn states, trivially passing assertions, wrong mechanism named (outlet context), cross-story ordering, external-link safety, exact destinations.
+
+**Check 3 (order).** S148 (82) -> S142 (84) -> S154 (85) holds; S149 either side. S142 -> S134 -> S132 -> S131 (blocked) and S134's design S133 (blocked): the footer of links waits on approved release notes, which is Q1. Startable now: S148, S150.
+
+**Duplication / personal-data sweeps.** No code landed since the last review (S141 is design-only): none found. No story here adds a store, field, outside service, browser key or log line.
+
+**For the parity review.** FEATURES row 66 (Update / change log UX) says the change log is reached from "the footer, I think, or the foot of the menu": the site footer's "Changelog" link (A14) now settles it. FEATURES row 102 (Site footer): "which of these the list keeps is settled when it is ratified" is now settled; its story list (S141, S142, S154) omits S148 (SiteFooter, strip) and S134 (the Changelog page S142 depends on); "asked whether he ratified" should read "the owner ... they" by house style. No Source line changes.
+
+**Owner questions.**
+Q1. Should the site footer wait for the change log page, or ship first with S134 adding its own Changelog link? A14's ratified No dead links puts S134 on S142's Depends on, and S134 waits on S131 (approved release notes) and S133 (its design), both blocked; shipping first changes A14's ratified wording.
+Q2. Before the About/Privacy/Terms pages (S154) ship, what should a signed-out visitor's "Legal" column show? It would have no links: hide the column and its heading, show the heading alone, or build S154's pages before the footer turns on.
+Q3. At medium and desktop, should the footer's columns start 24px in, as the frames draw, or line up with the page content at 16px, as A14's Columns words say?
+---
+
+## 2026-11-19 — doc parity review (`amended`)
+
+| | |
+|---|---|
+| Entry | doc parity review pass |
+| Captured (UTC) | `2026-11-20T00:18:14Z` |
+| HEAD at review | `351d191` (tree dirty) |
+| Trigger | FEATURES.md and VISUAL-DESIGN.md changed (S141 ratified shell-scoreboard A14, 7d81df1/c7731fc; A14 design intake 351d191) |
+| Stories `done` since last review | S141 |
+| Verdict | `amended` |
+
+**Findings / amendments**
+
+Scope: `pnpm parity:debt` named no story (only FEATURES.md and VISUAL-DESIGN.md changed since 1c11438), so check 1 covers the next 3 `todo` stories by priority (INDEX.md: S125 p74, S145 p75, S130 p77) plus the footer stories the changes touch (S141 done, S142, S148, S154, S134, S74).
+
+1. Citation honesty
+- S125 `Feature: Calendar date picker`: holds. Gap/Impact (a calendar from the scoreboard date, type a date, jump years, games per day) are what FEATURES row "Calendar date picker" describes, quoting the same 2026-11-07 owner words.
+- S145 `Feature: Video play links`: holds. FEATURES row "Video play links" ends with the card's play link moving onto its second line as a red "Play" in place of "Highlight", which is S145's Gap and Impact.
+- S130 `Feature: Standings`: holds. FEATURES row "Standings" names S129/S130 for the season-phase views and mobile full width; S130's Gap cites that row.
+- S141 / S142 / S154 `Feature: Site footer`: hold. The row describes the footer of links (S141 design, S142 build) and the privacy, terms and about pages built together (owner, 2026-11-19: "add one story for all of them together, not one each"; S154).
+- S148 `Feature: Live marker`: holds (the "Live Data · Active" strip at the top of the footer, owner 2026-11-19 quote in the row).
+- S134 `Feature: Update / change log UX`: holds (the row's Change log page at `/changelog`).
+- S74 `Feature: PWA / installability`: holds; unchanged by this drift (its Design line gained S147/S141, not its Source).
+- No pillar-cited story in scope; `grep -rln '^\*\*Source:\*\* *Open' docs/v3/backlog/stories` finds no `Open:` story.
+
+2. Doc reflects reality (edits, FEATURES.md only)
+- Update / change log UX row: said the change log is reached "from a link at the foot of the menu" only. Ratified A14 adds a footer link to `/changelog` reading "Changelog" (owner, 2026-11-19, asked "Do you ratify A14, the site footer as drawn in Figma now?": "Make Changelog one word, then ratify"; commit 7d81df1, A14 decision "Changelog"). Recorded the footer link and its one-word label, citing A14, and that A14 renames only the footer link (A14: "Only the footer link's words change; the page it opens and every other surface keep their names"), so the row's **Named "Change log"** stays true on this branch.
+- Site footer row: "which of these the list keeps is settled when it is ratified" was stale after ratification; now "the ratified list below settles which of these it keeps". "asked whether he ratified A14" now "asked whether to ratify A14" (the owner is never "he"/"she"; the commit records the question as "Do you ratify A14 …"). Its story list (S141, S142, S154) omitted S148, which builds `SiteFooter` with the Live strip that S142 grows (S142 AC 1), and S134, which S142 now depends on for the Changelog link's page (S142 **Depends on**; A14 No dead links); both added.
+- VISUAL-DESIGN's new footer paragraph, quiet-meta line and motion row (7d81df1) match FEATURES' Site footer and Live marker rows (no fetched age, no "baseball.theater", no offline line, Live strip first). FEATURES row 221 (offline footer has no "Offline · saved" line) agrees. No contradiction with INTENT or ARCHITECTURE found; no relic theme found.
+- Not recorded: the brief reports that S133's change log design was ratified today with the menu link also renamed "Changelog" ("changelog should be fixed in both places"). No commit or ledger entry on this branch or on story/S133-redraw (8408c0b) records that answer (`git grep "both places"`), and S133 is still `blocked` here, so FEATURES keeps "Change log" for the page and menu until S133's ratification lands with its own record.
+
+3. Coverage
+For the next backlog review:
+- When S133's ratification (menu link "Changelog", owner: "changelog should be fixed in both places") lands, FEATURES' Update / change log UX row's **Named "Change log"** sentence and the footer-only rename recorded here need updating to match, and S134/S135 ACs checked against the one-word label.
+- FEATURES' Video play links row still says Search's floating player's `Go to: Game → • At-Bat →` has a design story (S127) and "no story builds it yet": a feature no build story serves.
+- No feature was added by this review.
+---
+
+## 2026-11-19 — backlog review answers (2026-11-19)
+
+| | |
+|---|---|
+| Entry | owner's answers to the 2026-11-19 backlog review — part of finishing that review, not new drift |
+| Captured (UTC) | `2026-11-20T00:29:08Z` |
+| HEAD at capture | `749f918` (tree dirty) |
+| Applied in | `749f918` — S142: the owner's answers to the A14 design intake's three questions |
+
+**Answers and what was applied**
+
+Owner, 2026-11-19, through /pending, answering the shell-scoreboard A14 design intake review's three questions. (Q1) Asked whether the site footer waits for the change log page (S134) or ships first with S134 adding its own "Changelog" link: chose "Wait for S134 (Recommended)". Applied: S134 stays on S142's Depends on; A14 unchanged. (Q2) Asked what a signed-out visitor's "Legal" column shows before the Privacy policy and Terms of use pages exist: chose "Heading alone". Applied: S142 AC 5 says the heading renders with no link under it, with an RTL check. (Q3) Asked whether the columns start 24px in as drawn or line up with the content at 16px: chose "24px, as drawn (Recommended)". Applied: recorded in S142's notes; AC 7's frames already show it.
+---
+
+## 2026-11-19 — backlog review skipped
+
+| | |
+|---|---|
+| Entry | the owner declined a backlog review for this change — its drift no longer makes one due; the stories-done count is unchanged |
+| Captured (UTC) | `2026-11-20T00:29:45Z` |
+| HEAD at capture | `58ed8e8` (tree clean) |
+| Change | `1b5f7b5` — S154: the pages reuse the change log page's layout (owner) |
+
+**What changed, and the owner's answer**
+
+Owner, 2026-11-19, through /pending, asked whether S154's design change (its pages reuse the change log layout, so it names S133 as its design and gained a design match check) needs a backlog review or a skip: chose "Skip (Recommended)".
+
+---
+
+## 2026-11-20 — S152 completed
+
+**Fast PR checks (scoped caching)**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-20T09:01:45Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `49931f52` (tree dirty) |
+| Grader | `scripts/verify-S152.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: flows and design-specs restore ~/.cache/ms-playwright with actions/cache keyed on the lockfile's @playwright/test version and the runner image (RUNNER_OS, ImageOS; two images give two keys, no literal version, a failing node fails the key step), download the browser only on a cache miss, and install its system libraries (install-deps) every run
+check 2 PASS: turbo.json: typecheck/build/test:coverage each depend on ^ of themselves, coverage/** in test:coverage outputs, web#build outputs dist/**, the global inputs AC 2 lists, every env var a task reads declared in its env; offline dry runs prove web/src, packages/domain/src and global-file edits change exactly the right hashes (tree untouched)
+check 3 PASS: pnpm verify's script unchanged; root build and test:coverage call turbo, read no cache unless BT_TURBO_CACHE_READ is set (which ci.yml sets only in a pull_request step) and write one only in CI; test:coverage runs pnpm test:selector; verify job keeps one job-level if, the Markdown step, a 'pnpm verify' step and the ci-passed line; Turborepo cache restored on pull requests (own PR first, then stage) and saved by every run, whatever its event; law tests pass
+check 4 PASS: functions' test:coverage skips on BT_FUNCTIONS_SHARDED; functions/vitest.config.ts turns floors off on BT_COVERAGE_SHARD; >=2 shard jobs after flows run vitest --shard and a merge job merges reports with the floors on and uploads them; the pull-request verify step exports BT_FUNCTIONS_SHARDED only when functions=true and the push step neither variable (run with a stub pnpm); vitest.workers.config.ts runs in exactly one job on a pull request for each decision, indirect runs included; step-level ifs on the functions decision; ci-passed, run over each outcome, requires shards and merge (skipped only for code=false) and fails on a missing code; the decision is reachesFunctions in e2e/select-specs.ts, and its step fails when the selector does
+check 5 PASS: every spec under e2e/flows and e2e/design declares targets (web/functions only; web alone only when it routes all of **/api/**, with no fallback, method limit or comment); e2e/select-specs.ts selects per AC 5's cases and the pre-PR review's; its unit tests pass from a config of their own, which Playwright doesn't collect; ci.yml runs it on pull requests only, fails the step when it crashes, passes the list in place of a fixed path, step-level skips, every spec on push
+check 6 PASS: ESLint runs with --cache --cache-strategy content and a fixed --cache-location (git-ignored) in CI only (GITHUB_ACTIONS); its CI cache keys hash the ESLint config, its rules and the lockfile, restored on pull requests only and saved on every run; every package's typecheck and build tsc pass --incremental with the same --tsBuildInfoFile; CI keeps both with actions/cache restored before pnpm verify
+check 7 PASS: the note names two measured pull-request runs (URLs and job times)
+check 8 PASS: the note carries a **P11 wording:** line quoting the owner; LAWS.md's P11 row names the pull-request reuse and the fresh full run on every push to stage or main
+check 9 PASS: backlog Status is done (story heading and Story status table)
+check 10 PASS: S152 changed no file outside its fence (plus creating scripts/verify-S152.sh and updating scripts/backlog-vault/ci-law.test.ts)
+```
+
+**10/10 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S152 check results ---
+check 1 PASS: flows and design-specs restore ~/.cache/ms-playwright with actions/cache keyed on the lockfile's @playwright/test version and the runner image (RUNNER_OS, ImageOS; two images give two keys, no literal version, a failing node fails the key step), download the browser only on a cache miss, and install its system libraries (install-deps) every run
+check 2 PASS: turbo.json: typecheck/build/test:coverage each depend on ^ of themselves, coverage/** in test:coverage outputs, web#build outputs dist/**, the global inputs AC 2 lists, every env var a task reads declared in its env; offline dry runs prove web/src, packages/domain/src and global-file edits change exactly the right hashes (tree untouched)
+check 3 PASS: pnpm verify's script unchanged; root build and test:coverage call turbo, read no cache unless BT_TURBO_CACHE_READ is set (which ci.yml sets only in a pull_request step) and write one only in CI; test:coverage runs pnpm test:selector; verify job keeps one job-level if, the Markdown step, a 'pnpm verify' step and the ci-passed line; Turborepo cache restored on pull requests (own PR first, then stage) and saved by every run, whatever its event; law tests pass
+check 4 PASS: functions' test:coverage skips on BT_FUNCTIONS_SHARDED; functions/vitest.config.ts turns floors off on BT_COVERAGE_SHARD; >=2 shard jobs after flows run vitest --shard and a merge job merges reports with the floors on and uploads them; the pull-request verify step exports BT_FUNCTIONS_SHARDED only when functions=true and the push step neither variable (run with a stub pnpm); vitest.workers.config.ts runs in exactly one job on a pull request for each decision, indirect runs included; step-level ifs on the functions decision; ci-passed, run over each outcome, requires shards and merge (skipped only for code=false) and fails on a missing code; the decision is reachesFunctions in e2e/select-specs.ts, and its step fails when the selector does
+check 5 PASS: every spec under e2e/flows and e2e/design declares targets (web/functions only; web alone only when it routes all of **/api/**, with no fallback, method limit or comment); e2e/select-specs.ts selects per AC 5's cases and the pre-PR review's; its unit tests pass from a config of their own, which Playwright doesn't collect; ci.yml runs it on pull requests only, fails the step when it crashes, passes the list in place of a fixed path, step-level skips, every spec on push
+check 6 PASS: ESLint runs with --cache --cache-strategy content and a fixed --cache-location (git-ignored) in CI only (GITHUB_ACTIONS); its CI cache keys hash the ESLint config, its rules and the lockfile, restored on pull requests only and saved on every run; every package's typecheck and build tsc pass --incremental with the same --tsBuildInfoFile; CI keeps both with actions/cache restored before pnpm verify
+check 7 PASS: the note names two measured pull-request runs (URLs and job times)
+check 8 PASS: the note carries a **P11 wording:** line quoting the owner; LAWS.md's P11 row names the pull-request reuse and the fresh full run on every push to stage or main
+check 9 PASS: backlog Status is done (story heading and Story status table)
+check 10 PASS: S152 changed no file outside its fence (plus creating scripts/verify-S152.sh and updating scripts/backlog-vault/ci-law.test.ts)
+--- verify-S152: 10/10 checks passed ---
+verify-S152: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+      Tests  42 passed (42)
+   Start at  01:03:30
+   Duration  1.38s (transform 98ms, setup 0ms, collect 2.95s, tests 1.64s, environment 1ms, prepare 610ms)
+
+
+> baseball-theater@0.0.0 test:selector /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish
+> cd e2e && vitest run
+
+
+ RUN  v3.2.7 /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish/e2e
+
+ ✓ select-specs.test.ts (38 tests) 379ms
+
+ Test Files  1 passed (1)
+      Tests  38 passed (38)
+   Start at  01:03:32
+   Duration  598ms (transform 27ms, setup 0ms, collect 31ms, tests 379ms, environment 0ms, prepare 42ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162825,
+    "sizeLimit": 200000
+  }
+]
+```
+
+</details>
+
+---
+
+## 2026-11-20 — S152 completed
+
+**Fast PR checks (scoped caching)**
+
+| | |
+|---|---|
+| Entry | story completion |
+| Captured (UTC) | `2026-11-20T09:06:48Z` |
+| Shipped in | the commit that adds this entry |
+| HEAD at capture | `7f15fcbc` (tree clean) |
+| Grader | `scripts/verify-S152.sh` — exit `0` |
+| `pnpm verify` | exit `0` |
+
+**What was tested and verified**
+
+```
+check 1 PASS: flows and design-specs restore ~/.cache/ms-playwright with actions/cache keyed on the lockfile's @playwright/test version and the runner image (RUNNER_OS, ImageOS; two images give two keys, no literal version, a failing node fails the key step), download the browser only on a cache miss, and install its system libraries (install-deps) every run
+check 2 PASS: turbo.json: typecheck/build/test:coverage each depend on ^ of themselves, coverage/** in test:coverage outputs, web#build outputs dist/**, the global inputs AC 2 lists, every env var a task reads declared in its env; offline dry runs prove web/src, packages/domain/src and global-file edits change exactly the right hashes (tree untouched)
+check 3 PASS: pnpm verify's script unchanged; root build and test:coverage call turbo, read no cache unless BT_TURBO_CACHE_READ is set (which ci.yml sets only in a pull_request step) and write one only in CI; test:coverage runs pnpm test:selector; verify job keeps one job-level if, the Markdown step, a 'pnpm verify' step and the ci-passed line; Turborepo cache restored on pull requests (own PR first, then stage) and saved by every run, whatever its event; law tests pass
+check 4 PASS: functions' test:coverage skips on BT_FUNCTIONS_SHARDED; functions/vitest.config.ts turns floors off on BT_COVERAGE_SHARD; >=2 shard jobs after flows run vitest --shard and a merge job merges reports with the floors on and uploads them; the pull-request verify step exports BT_FUNCTIONS_SHARDED only when functions=true and the push step neither variable (run with a stub pnpm); vitest.workers.config.ts runs in exactly one job on a pull request for each decision, indirect runs included; step-level ifs on the functions decision; ci-passed, run over each outcome, requires shards and merge (skipped only for code=false) and fails on a missing code; the decision is reachesFunctions in e2e/select-specs.ts, and its step fails when the selector does
+check 5 PASS: every spec under e2e/flows and e2e/design declares targets (web/functions only; web alone only when it routes all of **/api/**, with no fallback, method limit or comment); e2e/select-specs.ts selects per AC 5's cases and the pre-PR review's; its unit tests pass from a config of their own, which Playwright doesn't collect; ci.yml runs it on pull requests only, fails the step when it crashes, passes the list in place of a fixed path, step-level skips, every spec on push
+check 6 PASS: ESLint runs with --cache --cache-strategy content and a fixed --cache-location (git-ignored) in CI only (GITHUB_ACTIONS); its CI cache keys hash the ESLint config, its rules and the lockfile, restored on pull requests only and saved on every run; every package's typecheck and build tsc pass --incremental with the same --tsBuildInfoFile; CI keeps both with actions/cache restored before pnpm verify
+check 7 PASS: the note names two measured pull-request runs (URLs and job times)
+check 8 PASS: the note carries a **P11 wording:** line quoting the owner; LAWS.md's P11 row names the pull-request reuse and the fresh full run on every push to stage or main
+check 9 PASS: backlog Status is done (story heading and Story status table)
+check 10 PASS: S152 changed no file outside its fence (plus creating scripts/verify-S152.sh and updating scripts/backlog-vault/ci-law.test.ts)
+```
+
+**10/10 checks passed**
+
+<details><summary>Grader output</summary>
+
+```
+
+--- verify-S152 check results ---
+check 1 PASS: flows and design-specs restore ~/.cache/ms-playwright with actions/cache keyed on the lockfile's @playwright/test version and the runner image (RUNNER_OS, ImageOS; two images give two keys, no literal version, a failing node fails the key step), download the browser only on a cache miss, and install its system libraries (install-deps) every run
+check 2 PASS: turbo.json: typecheck/build/test:coverage each depend on ^ of themselves, coverage/** in test:coverage outputs, web#build outputs dist/**, the global inputs AC 2 lists, every env var a task reads declared in its env; offline dry runs prove web/src, packages/domain/src and global-file edits change exactly the right hashes (tree untouched)
+check 3 PASS: pnpm verify's script unchanged; root build and test:coverage call turbo, read no cache unless BT_TURBO_CACHE_READ is set (which ci.yml sets only in a pull_request step) and write one only in CI; test:coverage runs pnpm test:selector; verify job keeps one job-level if, the Markdown step, a 'pnpm verify' step and the ci-passed line; Turborepo cache restored on pull requests (own PR first, then stage) and saved by every run, whatever its event; law tests pass
+check 4 PASS: functions' test:coverage skips on BT_FUNCTIONS_SHARDED; functions/vitest.config.ts turns floors off on BT_COVERAGE_SHARD; >=2 shard jobs after flows run vitest --shard and a merge job merges reports with the floors on and uploads them; the pull-request verify step exports BT_FUNCTIONS_SHARDED only when functions=true and the push step neither variable (run with a stub pnpm); vitest.workers.config.ts runs in exactly one job on a pull request for each decision, indirect runs included; step-level ifs on the functions decision; ci-passed, run over each outcome, requires shards and merge (skipped only for code=false) and fails on a missing code; the decision is reachesFunctions in e2e/select-specs.ts, and its step fails when the selector does
+check 5 PASS: every spec under e2e/flows and e2e/design declares targets (web/functions only; web alone only when it routes all of **/api/**, with no fallback, method limit or comment); e2e/select-specs.ts selects per AC 5's cases and the pre-PR review's; its unit tests pass from a config of their own, which Playwright doesn't collect; ci.yml runs it on pull requests only, fails the step when it crashes, passes the list in place of a fixed path, step-level skips, every spec on push
+check 6 PASS: ESLint runs with --cache --cache-strategy content and a fixed --cache-location (git-ignored) in CI only (GITHUB_ACTIONS); its CI cache keys hash the ESLint config, its rules and the lockfile, restored on pull requests only and saved on every run; every package's typecheck and build tsc pass --incremental with the same --tsBuildInfoFile; CI keeps both with actions/cache restored before pnpm verify
+check 7 PASS: the note names two measured pull-request runs (URLs and job times)
+check 8 PASS: the note carries a **P11 wording:** line quoting the owner; LAWS.md's P11 row names the pull-request reuse and the fresh full run on every push to stage or main
+check 9 PASS: backlog Status is done (story heading and Story status table)
+check 10 PASS: S152 changed no file outside its fence (plus creating scripts/verify-S152.sh and updating scripts/backlog-vault/ci-law.test.ts)
+--- verify-S152: 10/10 checks passed ---
+verify-S152: all checks passed
+```
+
+</details>
+
+<details><summary><code>pnpm verify</code> (tail)</summary>
+
+```
+      Tests  42 passed (42)
+   Start at  01:08:24
+   Duration  984ms (transform 81ms, setup 0ms, collect 2.32s, tests 1.16s, environment 1ms, prepare 323ms)
+
+
+> baseball-theater@0.0.0 test:selector /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish
+> cd e2e && vitest run
+
+
+ RUN  v3.2.7 /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish/e2e
+
+ ✓ select-specs.test.ts (38 tests) 305ms
+
+ Test Files  1 passed (1)
+      Tests  38 passed (38)
+   Start at  01:08:26
+   Duration  474ms (transform 21ms, setup 0ms, collect 24ms, tests 305ms, environment 0ms, prepare 39ms)
+
+
+> baseball-theater@0.0.0 size /Users/jakelauer/Repos/baseball-theater/.claude/worktrees/s152-finish
+> size-limit --json
+
+[
+  {
+    "name": "web/dist/assets/index-*.js — entry JavaScript, loads before the page is usable (ADR-026)",
+    "passed": true,
+    "size": 162822,
     "sizeLimit": 200000
   }
 ]

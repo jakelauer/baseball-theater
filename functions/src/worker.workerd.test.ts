@@ -4,12 +4,18 @@
  * S114 AC 7: deployed (no `BT_LOCAL`), the same composition refuses a `dev:` sign-in.
  * S116 AC 2: where the vars name a Logto tenant, a Logto ID token signs in through
  * `POST /api/v1/sign-in` (the tenant is a stand-in serving a locally made key).
+ * S143 AC 4: with `BT_MOCK_SIGN_IN=1` (staging), the mock credential signs in as the shared test
+ * account and the whole account API works behind it, deletion included.
+ * S139 AC 8: the standings' season calendars are kept in the Workers Cache between requests.
  * Run with `pnpm --filter @bt/functions test:workerd`.
  */
 import { env, SELF } from "cloudflare:test";
+import { DEFAULT_SETTINGS, MOCK_SIGN_IN_CREDENTIAL } from "@bt/domain";
 import {
 	describe, expect, it,
 } from "vitest";
+import type { WorkersCacheLike } from "./adapters/cached-season-calendars.js";
+import { seasonCalendarCacheKey } from "./adapters/cached-season-calendars.js";
 import { inDatabaseScope, scopedDatabase } from "./adapters/postgres/connect.js";
 import { handleApiRequest } from "./handlers/api.js";
 import {
@@ -36,6 +42,36 @@ describe("the Worker on workerd (S45)", () =>
 		expect(res.status).toBe(200);
 		const game = await res.json() as { gamePk: number };
 		expect(game.gamePk).toBe(744834);
+	});
+});
+
+describe("the standings' calendars in the Workers Cache (S139)", () =>
+{
+	it("S139 AC 8: standings calendars come from the Workers Cache on the second request", async () =>
+	{
+		// workerd's `caches.default`, which this package's types don't declare.
+		const cache = (globalThis as unknown as { caches: { default: WorkersCacheLike } }).caches.default;
+		const first = await SELF.fetch("http://bt.test/api/v1/standings?date=2026-09-05");
+		expect(first.status).toBe(200);
+		const kept = await cache.match(seasonCalendarCacheKey(2026));
+		expect(kept).toBeDefined();
+		const { calendar } = await kept!.json() as { calendar: { springStartDate: string } };
+		expect(calendar.springStartDate).toBe("2026-02-20");
+
+		// Change what the cache holds: the next request's spring dates can only come from it, not from MLB's recording.
+		await cache.put(seasonCalendarCacheKey(2026), new Response(JSON.stringify({
+			calendar: {
+				...calendar,
+				springStartDate: "2026-02-01",
+			},
+		}), {
+			headers: {
+				"cache-control": "max-age=3600",
+			},
+		}));
+		const second = await SELF.fetch("http://bt.test/api/v1/standings?date=2026-07-01&includePhases=regularSeason");
+		expect(second.status).toBe(200);
+		expect(((await second.json()) as { phases: { spring: { startDate: string } } }).phases.spring.startDate).toBe("2026-02-01");
 	});
 });
 
@@ -96,6 +132,7 @@ describe("Logto sign-in on deployed Workers (S116)", () =>
 				endpoint: TEST_LOGTO_ENDPOINT,
 				appId: TEST_LOGTO_APP_ID,
 			},
+			mock: false,
 		});
 
 		const subject = `logto-${crypto.randomUUID()}`;
@@ -131,13 +168,14 @@ describe("Logto sign-in on deployed Workers (S116)", () =>
 		})).status).toBe(400);
 	});
 
-	it("S116 AC 2: without Logto vars there is no Logto sign-in (local dev, previews, staging until its tenant exists)", async () =>
+	it("S116 AC 2: without Logto vars there is no Logto sign-in (local dev, previews)", async () =>
 	{
 		const workerEnv = env as unknown as WorkerEnv;
 		const app = createWorkerApp(workerEnv, scopedDatabase);
 		const call = (path: string, init: RequestInit = {}) => inDatabaseScope(workerEnv.HYPERDRIVE, () => handleApiRequest(new Request(`http://bt.test${path}`, init), app.context));
 		expect(await (await call("/api/v1/sign-in")).json()).toEqual({
 			logto: null,
+			mock: false,
 		});
 		expect((await call("/api/v1/sign-in", {
 			method: "POST",
@@ -145,5 +183,108 @@ describe("Logto sign-in on deployed Workers (S116)", () =>
 				idToken: "dev:test-user",
 			}),
 		})).status).toBe(404);
+	});
+});
+
+describe("staging's mock sign-in on deployed Workers (S143)", () =>
+{
+	/** The Worker's own composition on `workerEnv` (deployed: no BT_LOCAL), and calls through it. */
+	function deployedApp(workerEnv: WorkerEnv)
+	{
+		const app = createWorkerApp(workerEnv, scopedDatabase);
+		const call = (path: string, init: RequestInit = {}) => inDatabaseScope(workerEnv.HYPERDRIVE, () => handleApiRequest(new Request(`http://bt.test${path}`, init), app.context));
+		const auth = (token: string) => ({
+			Authorization: `Bearer ${token}`,
+		});
+		return {
+			signIn: (idToken: string) => call("/api/v1/sign-in", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					idToken,
+				}),
+			}),
+			token: async (res: Response) =>
+			{
+				expect(res.status).toBe(200);
+				return (await res.json() as { token: string }).token;
+			},
+			me: (token: string) => call("/api/v1/me", {
+				headers: auth(token),
+			}),
+			settings: async (token: string) => await (await call("/api/v1/me/settings", {
+				headers: auth(token),
+			})).json() as unknown,
+			putSettings: (token: string, body: unknown) => call("/api/v1/me/settings", {
+				method: "PUT",
+				headers: {
+					...auth(token),
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(body),
+			}),
+			deleteAccount: (token: string) => call("/api/v1/me/delete", {
+				method: "POST",
+				headers: auth(token),
+				body: JSON.stringify({
+					phrase: "delete my account",
+				}),
+			}),
+		};
+	}
+
+	const { BT_LOCAL: _local, ...deployed } = env as unknown as WorkerEnv;
+
+	it("S143 AC 4: with BT_MOCK_SIGN_IN=1 the mock signs in, and /me, settings, a second sign-in and deletion all work behind it", async () =>
+	{
+		const app = deployedApp({
+			...deployed,
+			BT_MOCK_SIGN_IN: "1",
+		});
+		const token = await app.token(await app.signIn(MOCK_SIGN_IN_CREDENTIAL));
+		const me = await app.me(token);
+		expect(me.status).toBe(200);
+		const account = await me.json() as { uid: string;
+			email: string; };
+		expect(account.email).toBe("tester@stage.baseball.theater");
+
+		const saved = {
+			...DEFAULT_SETTINGS,
+			favoriteTeamIds: [121],
+			hideScores: true,
+			version: 1,
+		};
+		expect((await app.putSettings(token, saved)).status).toBe(200);
+		expect(await app.settings(token)).toEqual(saved);
+
+		// A second sign-in is the same account, with its saved settings.
+		const again = await app.token(await app.signIn(MOCK_SIGN_IN_CREDENTIAL));
+		expect(await (await app.me(again)).json()).toMatchObject({
+			uid: account.uid,
+		});
+		expect(await app.settings(again)).toEqual(saved);
+
+		// No Logto admin is wired, and deletion doesn't need one (S116 AC 4).
+		expect((await app.deleteAccount(again)).status).toBe(200);
+		expect((await app.me(again)).status).toBe(401);
+
+		// The next sign-in makes a new account, with the house defaults.
+		const fresh = await app.token(await app.signIn(MOCK_SIGN_IN_CREDENTIAL));
+		const next = await (await app.me(fresh)).json() as { uid: string };
+		expect(next.uid).not.toBe(account.uid);
+		expect(await app.settings(fresh)).toEqual(DEFAULT_SETTINGS);
+
+		// The mock never makes dev: sign-in work on a deployed Worker (S114 AC 7).
+		expect((await app.me("dev:test-user")).status).toBe(401);
+		expect((await app.signIn("dev:test-user")).status).toBe(401);
+	});
+
+	it("S143 AC 4: without BT_MOCK_SIGN_IN the mock credential is refused, and dev:test-user with it", async () =>
+	{
+		const app = deployedApp(deployed);
+		expect((await app.signIn(MOCK_SIGN_IN_CREDENTIAL)).status).toBe(404);
+		expect((await app.me("dev:test-user")).status).toBe(401);
 	});
 });

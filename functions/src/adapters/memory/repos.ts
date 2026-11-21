@@ -1,7 +1,7 @@
 import type {
 	AccountSettings, Entitlements, GameProjection, GameSnapshot, ScheduleDay, ScheduleDayTally, UserProfile,
 } from "@bt/domain";
-import { downloadExpired } from "@bt/domain";
+import { distinctTeamIds, downloadExpired } from "@bt/domain";
 import type {
 	DataDownload,
 	ExportStore,
@@ -90,6 +90,7 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 			.map((day) => ({
 				date: day.date,
 				gameCount: day.games.length,
+				teamIds: distinctTeamIds(day.games.flatMap((game) => [game.teams.away.id, game.teams.home.id])),
 				fetchedAt: day.fetchedAt,
 				lastChangedAt: day.lastChangedAt,
 			}));

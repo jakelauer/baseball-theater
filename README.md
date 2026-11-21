@@ -161,8 +161,31 @@ when the owner says so (S114, S121).
    made by hand on 2026-11-02 with `npx wrangler hyperdrive create bt-production`). The tables come
    from `pnpm db:migrate`, which every deploy runs against its own database before the new Worker
    takes traffic. It applies every committed migration the database hasn't had, and running it again
-   changes nothing, so the first deploy creates the tables and later ones apply only what's new. To
-   run it yourself (to check a database, say): `BT_DATABASE_URL="<connection string>" pnpm db:migrate`.
+   changes nothing, so the first deploy creates the tables and later ones apply only what's new. It
+   also stops the deploy, before any migration runs and before the new Worker goes live, when the
+   database's migrations differ from the code's (#48): one the database ran that the code doesn't have,
+   or one the code has that the database skipped. A database only ahead of the code (newer migrations)
+   passes with a warning on production (a rollback) and on a preview, whose database is reset from
+   staging, which is ahead of a pull request built before `stage` gained a newer migration (a re-run, or
+   no push since); staging stays strict. To fix a stopped deploy:
+    - **Production:** stop and ask the owner; never reset or edit it by hand.
+    - **Staging, newer migrations only:** if `stage`'s newest code commit has them (a newer deploy
+      migrated it, then failed or was cancelled), re-run its Deploy run; otherwise they came from no
+      commit on `stage` (a preview before #42, a reverted migration): treat them as a migration the code
+      doesn't have, below.
+    - **Staging, a migration the code doesn't have:** tear down the previews' Neon branches, delete the
+      `staging` branch and deploy again, which recreates it schema-only (never reset it from production,
+      which copies fans' data); or undo that migration's changes by hand and then delete its row from
+      `drizzle.__drizzle_migrations`. Never delete the row alone: its tables stay, and the same
+      migration later fails "already exists".
+    - **Staging, one it never ran:** apply that file's SQL and its row by hand, or recreate the branch
+      as above.
+    - **A preview:** if staging's own deploy fails the same way, fix staging first (above), then push
+      again; else if the pull request's own migration is older than staging's newest, merge `stage` into
+      it and regenerate the migration so it is newer; otherwise push again (a re-run reuses the same
+      merge).
+
+    To run it yourself (to check a database, say): `BT_DATABASE_URL="<connection string>" pnpm db:migrate`.
 
 **Restoring a backup** (a Neon point-in-time restore or branch reset): restore, then deploy
 again (re-run the last production deploy in GitHub Actions). Every deploy runs
@@ -279,6 +302,10 @@ automatically 2. Mirror"):
   and 2 both yes"). Production goes back but `main` does not: the mirror job fails red on purpose
   ("main … is not an ancestor"), because `main` never moves backwards; the next forward release
   fast-forwards it again. No rollback undoes a migration, which is another reason they stay additive.
+  So a rollback over a release that added one finds production's database ahead of the code: its
+  migrate step passes with a warning naming the newer migrations (production's and previews' set
+  `BT_MIGRATIONS_MAY_BE_AHEAD=1`), while staging still refuses (#48). On a forward release that warning
+  means something is wrong: stop and ask the owner.
 - **Production's address until the cutover** (S119; owner, 2026-11-07: "Do the temporary address").
   `baseball.theater` still points at the Elastic Beanstalk (v2) site, and that DNS change, not
   publishing a release, is the real release gate. So production's Worker serves at
@@ -303,7 +330,8 @@ the env's Neon branch (production's default branch, or `staging`, created schema
 a preview's `preview-pr-<number>`, made from `staging` or reset from it), finds its Hyperdrive config
 by name (`bt-production`, `bt-staging`, or a preview's `bt-preview-pr-<number>`, whose origin is
 rewritten every deploy) or creates it, and writes the Worker config with that config's id; then `pnpm db:migrate` and
-`pnpm db:reapply-deletions` run on that database; then `wrangler deploy` pushes the Worker and every
+`pnpm db:reapply-deletions` run on that database (the migrate step stops the deploy when the
+database's migrations differ from the code's, as above); then `wrangler deploy` pushes the Worker and every
 Worker secret from GitHub secrets (`--secrets-file`), so none is ever set by hand with
 `wrangler secret put`. Every deployed env serves live MLB, names its own address as `BT_APP_ORIGIN`,
 and refuses `dev:` sign-in (no `BT_LOCAL`); production signs in through Logto (S116, below), and
@@ -405,7 +433,7 @@ refuses and says to deploy staging first, and never creates a branch itself.
 A local target (`localhost`, compose.yaml's `postgres`) is always allowed; a hosted one only when
 `NEON_API_KEY` and `NEON_PROJECT_ID` show it is a Neon branch other than production's.
 
-### Sign-in (Logto)
+### Sign-in (Logto, and staging's mock)
 
 Fans sign in with Logto (ADR-019, S116): Logto's hosted page emails a one-time code, and Baseball
 Theater has no sign-in screen of its own. The web app reads each env's tenant and app from the
@@ -422,10 +450,19 @@ Worker (`GET /api/v1/sign-in`), which reads them from that env's `vars` in `wran
   differs, so a repeat deploy changes nothing, and the DNS cutover (above) moves the addresses with
   the origin. Its ID and secret are the GitHub secrets `LOGTO_S2S_APP_ID` and `LOGTO_S2S_SECRET`,
   which only the `production` job reads and pushes as Worker secrets.
-- **Staging** has no sign-in until it has a staging tenant of its own (owner, 2026-11-06: "We will use
-  a staging one or a fake shim"); it never uses production's tenant, so a fan's real account never
-  works there. Its accounts are test accounts in staging's own database.
-- **Previews** offer no sign-in (owner, 2026-11-07: "Yes", to previews without sign-in); staging is
+- **Staging** signs in with the mock test account (S143; owner, 2026-11-06: "We will use a staging
+  one or a fake shim"): `BT_MOCK_SIGN_IN` is `"1"` in `env.staging`'s `vars` and nowhere else, and
+  the Worker wires the mock only where its vars name no Logto tenant (neither `LOGTO_ENDPOINT` nor
+  `LOGTO_APP_ID`). "Sign in" there signs straight in, with no
+  emailed code and no page change, as one shared test account (`tester@stage.baseball.theater`):
+  the web app hands the fixed mock credential to `POST /api/v1/sign-in`, which issues an ordinary BT
+  session through the same sign-in Logto's tokens go through, so Settings, favorites and account
+  deletion all work as in production. Everyone who signs in on staging is that same account; deleting
+  it means the next sign-in starts a new one with default settings. Staging never uses production's
+  tenant, so a fan's real account never works there; its accounts are test accounts in staging's own
+  database. Patreon linking is not mocked.
+- **Previews** have no sign-in at all (owner, 2026-11-07: "Yes", to previews without sign-in): the
+  Worker answers `logto: null` and `mock: false`, so the header shows no "Sign in" button. Staging is
   where sign-in is tested.
 
 **What stays manual, in Logto's console** (the owner's, once):
@@ -442,8 +479,9 @@ Worker (`GET /api/v1/sign-in`), which reads them from that env's `vars` in `wran
    (Logto's "Logto Management API access" role, scope `all`); copy its app ID and secret into the
    GitHub secrets `LOGTO_S2S_APP_ID` and `LOGTO_S2S_SECRET` (repository or `production` environment).
 4. The hosted page's branding (logo, colors), if wanted.
-5. **When a staging tenant exists:** its own single-page app; add its `LOGTO_ENDPOINT` and
-   `LOGTO_APP_ID` to `env.staging`'s `vars` (never production's values). Staging has no
+5. **If staging ever moves from the mock to a Logto tenant:** its own single-page app; add its
+   `LOGTO_ENDPOINT` and `LOGTO_APP_ID` to `env.staging`'s `vars` (never production's values) and
+   remove `BT_MOCK_SIGN_IN` (the mock is off wherever `LOGTO_ENDPOINT` or `LOGTO_APP_ID` is set anyway). Staging has no
    machine-to-machine app (the plan includes one, production's), so enter its redirect URI
    `https://stage.baseball.theater/sign-in/callback` and sign-out URIs `https://stage.baseball.theater/`
    and `https://stage.baseball.theater/settings` once by hand in its console. Without an admin there, a
@@ -485,7 +523,7 @@ Still to finish before a public launch (the _Cloudflare deploy_ Later theme):
 | `pnpm api:spec`         | Regenerate the OpenAPI spec (see below)          |
 | `pnpm api:breaking`     | Breaking-change gate against the baseline        |
 
-Loop / agent automation: [docs/v3/LOOP.md](./docs/v3/LOOP.md) · backlog [docs/v3/BACKLOG.md](./docs/v3/BACKLOG.md) · conventions `CLAUDE.md`.
+Loop / agent automation: [docs/v3/LOOP.md](./docs/v3/LOOP.md) · backlog [docs/v3/INDEX.md](./docs/v3/INDEX.md) (built by `pnpm backlog:build`) and the notes in [docs/v3/backlog/](./docs/v3/backlog/) · conventions `CLAUDE.md`.
 
 ## Packages
 
@@ -618,4 +656,4 @@ the cache when ingest knows it changed, which isn't built yet.
 
 - [INTENT](./docs/v3/INTENT.md) · [FEATURES](./docs/v3/FEATURES.md) · [ARCHITECTURE](./docs/v3/ARCHITECTURE.md)
 - [CHANGELOG](./CHANGELOG.md) — what shipped, in plain language, grouped by effort
-- [BACKLOG](./docs/v3/BACKLOG.md) — what's next
+- [Backlog notes](./docs/v3/backlog/) — what's next (one note per story; `docs/v3/INDEX.md`, built by `pnpm backlog:build`, lists them in order)

@@ -15,6 +15,13 @@ function gitShort(): string
 
 const BUILD = buildInfo(process.env, gitShort);
 
+// The dev server's port and the API it proxies to: today's 5173 and 8787, unless a worktree's
+// `.env.worktree` (S156, `scripts/worktree-for.sh`) gives this checkout its own, so two
+// checkouts' `pnpm dev` can run at once. The same variables set `functions`' `dev` port and
+// Playwright's base URL. Set but empty counts as unset (`||`), never port 0 or a URL with no port.
+const WEB_PORT = Number(process.env.BT_WEB_PORT || 5173);
+const API_ORIGIN = `http://localhost:${process.env.BT_API_PORT || 8787}`;
+
 export default defineConfig({
 	// The installed app (ADR-023, S73): manifest, icons and the service worker, from src/pwa/options.ts.
 	plugins: [react(), VitePWA(PWA_OPTIONS)],
@@ -27,7 +34,7 @@ export default defineConfig({
 		__BT_COMMIT__: JSON.stringify(BUILD.commit),
 	},
 	server: {
-		port: 5173,
+		port: WEB_PORT,
 		// Bind all interfaces so the dev server is reachable from another device
 		// on the LAN (phone, tablet) — Vite's default is loopback only.
 		host: true,
@@ -37,11 +44,11 @@ export default defineConfig({
 		allowedHosts: [".local"],
 		proxy: {
 			"/api": {
-				target: "http://localhost:8787",
+				target: API_ORIGIN,
 				changeOrigin: true,
 			},
 			"/health": {
-				target: "http://localhost:8787",
+				target: API_ORIGIN,
 				changeOrigin: true,
 			},
 		},

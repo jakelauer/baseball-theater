@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S67's design match (rule 22): the scoreboard's game-row slot in the frames it builds —
  * `scoreboard-mobile`, `-medium`, `-desktop` with the default Status occupants (pitchers
