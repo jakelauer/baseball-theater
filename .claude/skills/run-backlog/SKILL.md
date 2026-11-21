@@ -127,4 +127,5 @@ End with one summary:
 - **Not eligible:** items skipped, and the unresolved dependency, design or claim conflict for each.
 - **Concurrency:** this run's `C` (2 or 3) and whether it was clean (step 3), so the next run knows whether to move to 3.
 - **Next run:** what `/run-backlog` would pick up first.
+- **Next 20:** the next 20 open stories and bugs by priority (owner, 2026-11-21: "Whenever run backlog ends, I want you to print the next 20 items in the backlog by priority"). Print them after this run's merged items are set `done` and a fresh `pnpm backlog:sync`, as `pnpm backlog:search next 20` lists them (ID, status, priority, title, issue). Mark any that waits on an unfinished dependency outside the 20: `pnpm backlog:search deps <ID>`, then `item` on each dependency for its status.
 - **Budget:** the Claude review runs for the run's pull requests (`gh run list --workflow claude-review.yml --event pull_request_target`, matched by title) and how many local reviewers ran on Opus and on Sonnet.
