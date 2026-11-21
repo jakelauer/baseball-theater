@@ -2,7 +2,7 @@
 # Grader for BACKLOG story S107 — design amendment: the scoreboard's Win Probability slot
 # occupant on live and final rows, a scheduled row, and with Hide Scores on (rule 18; S108
 # builds it).
-# Contract: docs/v3/BACKLOG.md#verify-script-contract
+# Contract: the Verify-script contract (docs/v3/backlog/frame/, backlog rule 9).
 # No network. No writes outside /tmp. Does its own checking (never `pnpm verify`).
 
 set -uo pipefail
@@ -15,7 +15,7 @@ check 1 "shell-scoreboard has their next free amendments/A<N>.md headed '(S107)'
 check 2 "frames at mobile, medium and desktop with the Win Probability occupant on a live, a final and a scheduled row, and one with Hide Scores on; the amendment repeals the pre-game drawing — named <screen>[-<state>]-<pairing>.png and listed in ## Frames"
 check 3 "each amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead"
 check 4 "no sealed file in those surfaces changed (each RATIFIED.md manifest still verifies, RATIFIED.md and earlier amendments untouched by S107)"
-check 5 "backlog Status is done (story heading and Story status table)"
+check 5 "S107's Status is done (its note's frontmatter status, the note in docs/v3/backlog/stories/done/)"
 
 V="docs/v3/visual"
 SURFACES="shell-scoreboard"
@@ -175,12 +175,19 @@ for s in $SURFACES; do
 	done
 done
 
-# --- Check 5: backlog Status is done -------------------------------------------------
-grep -qE '^\| [0-9]+ \| \[S107\].*\| `done` \|' docs/v3/BACKLOG.md ||
-	bad 5 "S107 row in the Story status table is not \`done\`"
-awk '/^### S107 —/{f=1;next} /^### S[0-9]/{f=0} f' docs/v3/BACKLOG.md |
-	grep -qE '^\*\*Status:\*\* `done`$' ||
-	bad 5 "S107 story heading Status is not \`done\`"
+# --- Check 5: the note's Status is done ----------------------------------------------
+# AC 3 after S156: the backlog is the notes, each in the folder its frontmatter status names
+# (`pnpm backlog:build` moves it), and the generated docs/v3/BACKLOG.md this check read is retired.
+NOTE=docs/v3/backlog/stories/done/S107.md
+if [ -f "$NOTE" ]; then
+	awk '/^---$/{n++;next} n==1' "$NOTE" | grep -qE '^status: done$' ||
+		bad 5 "S107's note frontmatter status is not done"
+else
+	bad 5 "S107's note is not in docs/v3/backlog/stories/done/"
+fi
+for other in docs/v3/backlog/stories/*/S107.md; do
+	[ -f "$other" ] && [ "$other" != "$NOTE" ] && bad 5 "another S107 note sits at $other"
+done
 
 report "verify-S107"
 exit $?
