@@ -387,6 +387,8 @@ export interface Chain
 {
 	id: string;
 	records: TextRecord[];
+	/** The longest valid chain: the start and each edit that chains from the body before it (no fork, gap or misplaced edit). */
+	valid: TextRecord[];
 	problems: string[];
 }
 
@@ -407,6 +409,7 @@ export function chains(records: TextRecord[]): Map<string, Chain>
 		const chain = byId.get(r.id) ?? {
 			id: r.id,
 			records: [],
+			valid: [],
 			problems: [],
 		};
 		chain.records.push(r);
@@ -451,20 +454,21 @@ export function chains(records: TextRecord[]): Map<string, Chain>
 				: `${chain.id}'s edit ${e.file} chains from ${e.from?.slice(0, 12) ?? "nothing"}, which is not the body before it (a gap in the chain)`);
 			lost.push(e);
 		}
+		chain.valid = ordered;
 		chain.records = [...ordered, ...lost];
 	}
 	return byId;
 }
 
-/** The newest body record of `id` (the chain's tip), or undefined when it has none. */
+/**
+ * The newest body record of `id`: the tip of its valid chain, or undefined when it has none. With a
+ * fork or gap that is still the valid chain's tip, never the forked edit, which `apply` refuses and
+ * GitHub never carried (`audit.sh story` refuses a chain with problems before it snapshots).
+ */
 export function newestBody(records: TextRecord[], id: string): TextRecord | undefined
 {
 	const chain = chains(records).get(id);
-	if (!chain || chain.problems.length > 0)
-	{
-		return chain?.records.filter((r) => r.kind === "edit").at(-1) ?? chain?.records[0];
-	}
-	return chain.records.at(-1);
+	return chain?.valid.at(-1) ?? chain?.records[0];
 }
 
 /** A story's `/goal` line in its body (the first `/goal ` line inside a ```text block), or undefined. */

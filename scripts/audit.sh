@@ -446,6 +446,13 @@ if [ "$MODE" = "story" ]; then
       # story's text and status from it (checks.sh story_snapshot / story_snapshot_status).
       # A story with no text record yet (its note is still its text, before the migration) has no
       # snapshot; once migrated, every story has one, and new graders require it (story_snapshot_status).
+      # A chain with a fork or gap has no one text to ship: fix the records first (audit.sh edit refuses it too).
+      problems="$(node "$RECORDS" newest "$ID" --field problems 2>/dev/null || true)"
+      if [ -n "$problems" ]; then
+        echo "audit: ${ID}'s text records are inconsistent; fix them first:" >&2
+        echo "$problems" >&2
+        exit 2
+      fi
       snap_body="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-snapshot.XXXXXX")"
       if node "$RECORDS" newest "$ID" >"$snap_body" 2>/dev/null; then
         snap_flags=(--body-file "$snap_body" --status done --record "$(node "$RECORDS" newest "$ID" --field file)")

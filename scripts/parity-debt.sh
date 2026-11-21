@@ -112,7 +112,7 @@ while IFS=$'\t' read -r change id before_path after_path; do
     reasons+=("${id}'s Gap, Impact or acceptance criteria changed, and it cites a pillar")
     json_event purpose-changed id "$id"
   fi
-done < <(story_changes "$base" HEAD "$STORIES" | grep -vFf <(migrated_ids "$base" | sed 's/^/D\t/; s/$/\t/') )
+done < <(story_changes "$base" HEAD "$STORIES" | grep -vFf <(migrated_deletions "$base") )
 
 # Since S164 a story's text changes through its text records (scripts/lib/story-notes.sh record_changes).
 while IFS=$'\t' read -r change id before_path after_path; do

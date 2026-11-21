@@ -184,6 +184,19 @@ describe("text records (AC 2)", () =>
 		expect(problems).not.toContain(e1.file);
 	});
 
+	it("a forked chain's newest body is the tip of its valid chain (the first edit, t1), never the forked edit (t2) apply refuses", () =>
+	{
+		const a = rec("migration", "S17", body("A"));
+		const t1 = rec("edit", "S17", body("B"), {
+			from: a.hash,
+		});
+		const t2 = rec("edit", "S17", body("C"), {
+			from: a.hash,
+		});
+		expect(textRecordProblems([a, t1, t2], []).join("\n")).toMatch(/forks/);
+		expect(newestBody([t2, a, t1], "S17")!.file).toBe(t1.file);
+	});
+
 	it("a bug record holding more than its fields block is reported (its symptoms are the issue's, never recorded)", () =>
 	{
 		const fields = renderFields({

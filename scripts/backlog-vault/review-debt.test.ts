@@ -611,6 +611,44 @@ describe("review-debt.sh and parity-debt.sh --json: the events behind a review's
 		}
 	}, TIMEOUT);
 
+	it("a note the migration deleted is not a removal, even under a sed that reads \\t as a literal t (BSD sed)", () =>
+	{
+		reviewed({
+			[`${STORIES}/todo/S7.md`]: note("todo"),
+		});
+		git("rm", "-q", `${STORIES}/todo/S7.md`);
+		write("docs/v3/audit/2026-11-21/20261121T000001Z-S7-migration.md", renderRecord({
+			kind: "migration",
+			id: "S7",
+			date: "2026-11-21",
+			stamp: "2026-11-21T00:00:01Z",
+			head: "h",
+			body: `**Gap:** a\n\n${renderFields({
+				priority: 3,
+			})}`,
+			issue: 7,
+			base: "abc1234",
+		}));
+		commit("the migration");
+		// A sed on PATH that, like BSD sed, reads "\t" in a script as a plain "t".
+		const bin = join(repo, ".bsd-sed");
+		mkdirSync(bin);
+		const realSed = spawnSync("bash", ["-c", "command -v sed"], {
+			encoding: "utf8",
+		}).stdout.trim();
+		write(".bsd-sed/sed", `#!/usr/bin/env bash\nargs=()\nfor a in "$@"; do args+=("\${a//\\\\t/t}"); done\nexec ${realSed} "\${args[@]}"\n`);
+		spawnSync("chmod", ["+x", join(bin, "sed")]);
+		for (const script of ["review-debt.sh", "parity-debt.sh"])
+		{
+			const run = debt(script, ["--json"], {
+				PATH: `${bin}:${process.env.PATH}`,
+			});
+			expect(run.status, run.stdout).toBe(0);
+			const events = (JSON.parse(run.stdout) as Report).events;
+			expect(events.filter((e) => e.kind === "removed"), script).toEqual([]);
+		}
+	}, TIMEOUT);
+
 	it("a body line starting priority: outside the fields block isn't a re-prioritization (records read their fields block)", () =>
 	{
 		const text = (gap: string) => `**Gap:** ${gap}\n\n**Source:** Feature: X\n\n${renderFields({

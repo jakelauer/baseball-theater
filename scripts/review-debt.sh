@@ -193,7 +193,7 @@ while IFS=$'\t' read -r change id before after; do
       [ "$(acs "$base" "$before")" != "$(acs HEAD "$after")" ] && reasons+=("${id}'s acceptance criteria rewritten") && json_event ac-rewritten id "$id"
       ;;
   esac
-done < <(story_changes "$base" HEAD "$STORIES" | grep -vFf <(migrated_ids "$base" | sed 's/^/D\t/; s/$/\t/') )
+done < <(story_changes "$base" HEAD "$STORIES" | grep -vFf <(migrated_deletions "$base") )
 
 # Since S164 a story's text changes through its text records (scripts/lib/story-notes.sh record_changes).
 rprio() { record_fields "$1" | grep -m1 '^priority:'; }

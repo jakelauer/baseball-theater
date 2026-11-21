@@ -67,6 +67,11 @@ migrated_ids()
     sed -nE 's#.*-([SB][0-9]+)-migration\.md$#\1#p'
 }
 
+# migrated_deletions <base> — one `D<TAB><id><TAB>` line per migrated ID, the story_changes lines the
+# debt scripts drop (a note the migration deleted is not a removal). Built with printf, never with
+# `sed 's/^/D\t/'`: BSD sed (macOS) reads that `\t` as a literal `t`, so nothing would match.
+migrated_deletions() { migrated_ids "$1" | while IFS= read -r id; do printf 'D\t%s\t\n' "$id"; done; }
+
 # record_body <path> — a text record's body at HEAD (between its markers).
 record_body() { git show "HEAD:$1" 2>/dev/null | awk '/^<!-- bt-body:end -->$/ { on = 0 } on { print } /^<!-- bt-body:begin -->$/ { on = 1 }'; }
 

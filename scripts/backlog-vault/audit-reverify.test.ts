@@ -298,6 +298,42 @@ describe("ship-time snapshots (S164 AC 5)", () =>
 		expect(written()).not.toMatch(/S903 completed[\s\S]*\| Snapshot \|/);
 	});
 
+	it("refuses a story whose text records fork, writing no snapshot", () =>
+	{
+		shippedThenBroken();
+		withRecords();
+		write("scripts/verify-S904.sh", "#!/usr/bin/env bash\nexit 0\n");
+		spawnSync("chmod", ["+x", join(repo, "scripts/verify-S904.sh")]);
+		write("body.md", "**Gap:** g\n\n### Backlog fields\n\n```yaml\npriority: 3\n```\n");
+		expect(audit(["create", "S904", "--title", "nine oh four", "--body-file", "body.md", "--reason", "new"]).status).toBe(0);
+		// Relative to the repository (cwd), as audit.sh runs it: an absolute /var/… path doesn't match the
+		// module's real /private/var/… path on macOS, so its CLI guard wouldn't run.
+		const from = spawnSync(process.execPath, ["scripts/backlog-vault/text-records.ts", "newest", "S904", "--field", "hash"], {
+			cwd: repo,
+			encoding: "utf8",
+		}).stdout.trim();
+		expect(from).toMatch(/^[0-9a-f]{64}$/);
+		// Two edits from the same body, stamped t1 < t2: a fork.
+		for (const [stamp, gap] of [["2099-01-01T00:00:01Z", "t1"], ["2099-01-01T00:00:02Z", "t2"]] as const)
+		{
+			write(`${gap}.md`, `**Gap:** ${gap}\n\n### Backlog fields\n\n\`\`\`yaml\npriority: 3\n\`\`\`\n`);
+			const text = spawnSync(process.execPath, ["scripts/backlog-vault/text-records.ts", "render", "edit", "S904", "--stamp", stamp, "--head", "h",
+				"--from", from, "--body-file", join(repo, `${gap}.md`)], {
+				cwd: repo,
+				encoding: "utf8",
+			});
+			expect(text.stdout).toContain("S904 edited");
+			expect(text.status, text.stderr).toBe(0);
+			write(`docs/v3/audit/2099-01-01/${stamp.replace(/[-:]/g, "")}-S904-edit.md`, text.stdout);
+		}
+		const run = audit(["story", "S904", "--no-verify"]);
+		expect(run.status).toBe(2);
+		expect(String(run.stderr)).toMatch(/S904's text records are inconsistent[\s\S]*forks/);
+		expect(spawnSync("find", [join(repo, "docs/v3/audit"), "-name", "*-S904-snapshot.md"], {
+			encoding: "utf8",
+		}).stdout.trim()).toBe("");
+	});
+
 	it("--reverify records a story's snapshot path and SHA-256 beside the grader's result", () =>
 	{
 		const ship = shippedThenBroken();
