@@ -12,8 +12,20 @@
  *
  * Everything but the CLI is pure (runs.test.ts). CLI (from the repository root):
  *
- *   node scripts/backlog-vault/runs.ts concurrency [--audit <ledger>]   prints 2 or 3 from the run entries
+ *   node scripts/backlog-vault/runs.ts concurrency [--audit <ledger>] [--run-dir <main checkout>/.run]
+ *       prints 2 or 3 from the run entries; 2, naming the run on stderr, while an ended run's journal
+ *       (`.run/ended/`, the main checkout's by default, found through git's common dir) has no entry in the tree
+ *       (oldest to newest by run ID, which is the run's start time, so a run re-recorded later keeps its place;
+ *       a run recorded twice is read once, its newest entry standing)
  *   node scripts/backlog-vault/runs.ts id --journal <run.json>          prints the journal's run ID
+ *   node scripts/backlog-vault/runs.ts prs --journal <run.json>         the run's pull requests, space-separated
+ *   node scripts/backlog-vault/runs.ts check-end --journal <run.json> --run-dir <main checkout>/.run [--audit <ledger>]
+ *       [--abandoned] [--rerecord]   exit 1, saying why, when `audit.sh run` can't record the run truly:
+ *       (a) an ended run has no entry in this tree (its entry is missing from the bar and from `concurrency`;
+ *       not checked for --abandoned, whose entry never counts; for --rerecord, only runs that started earlier);
+ *       (b) this run already has an entry; (c) an item is still in flight (not checked for --abandoned).
+ *       A journal marked `"abandoned": true` (claims.ts `run end --abandoned`) counts as --abandoned here and
+ *       in `fragment`. Any command that fails other than by refusing exits 2.
  *   node scripts/backlog-vault/runs.ts fragment --journal <run.json> --findings <json> --date <d> --stamp <s>
  *       --head <text> [--audit <ledger>] [--abandoned]   prints the run entry (`audit.sh run` writes it)
  *   node scripts/backlog-vault/runs.ts turn-caps [--audit <ledger>] [--run-dir <main checkout>/.run]
@@ -24,7 +36,10 @@
 import {
 	existsSync, readdirSync, readFileSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import {
+	dirname, join, resolve,
+} from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import type { RunEvent, RunJournal } from "./claims.ts";
@@ -34,6 +49,12 @@ import { formatHits, readLedger } from "./ledger.ts";
 /** S156's Phase 2 exit criteria: a counted run started at least this many items, and drained in under this long. */
 export const MIN_ITEMS = 4;
 export const MAX_DRAIN_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * A run entry's findings per pull request, rounded to 3 places: the value the entry stores, so a run is
+ * compared with the bar in the unit the bar was read back in (1 finding over 3 pull requests is 0.333 on both sides).
+ */
+export const roundFindings = (x: number) => Math.round(x * 1000) / 1000;
 
 /** What one item did in a run, every duration active time in milliseconds. */
 export interface ItemTimes
@@ -78,6 +99,8 @@ export interface RunSummary extends RunRecord
 	duplicates: number;
 	prs: number[];
 	turnCaps: TurnCapHit[];
+	/** Items still in flight at the journal's end (`audit.sh run` refuses to record such a run unless it is abandoned). */
+	inFlightAtEnd: string[];
 }
 
 const ms = (at: string) => Date.parse(at);
@@ -114,7 +137,8 @@ function stoppedSpans(events: RunEvent[], end: number): [number, number][]
  * inline comments on its Claude reviews; `earlierRuns` are the earlier run entries (any order); `abandoned`
  * is a run the owner chose not to finish, which never counts. Active time leaves out every span from
  * `interrupted` to the next `run-resume`; an item is in flight from `item-start` to its `merged`, `park` or
- * `held`, and again from each `resume` (one with no `item-start` never is).
+ * `held`, and again from each `resume` (one with no `item-start` never is). Only items this run started count
+ * toward its merges and drain: a previous run's pull request that step 0 joins to the merge train never does.
  */
 export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, number>, earlierRuns: RunRecord[], opts: { abandoned: boolean }): RunSummary
 {
@@ -181,6 +205,10 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 				open.delete(id);
 				break;
 			case "ready":
+				if (!started.has(id))
+				{
+					break;
+				}
 				if (!firstReady.has(id))
 				{
 					firstReady.set(id, t);
@@ -189,11 +217,17 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 				break;
 			case "merged":
 				open.delete(id);
+				if (!started.has(id))
+				{
+					break;
+				}
 				mergedAt.set(id, t);
 				merged++;
 				drainTo = t;
 				break;
 			case "pr-open":
+				// Every `pr-open` counts toward findings per pull request, as AC 2 defines it ("the --pr numbers of
+				// pr-open events"), an item started by an earlier run included: its pull request opened in this run.
 				if (e.pr !== undefined && !prs.includes(e.pr))
 				{
 					prs.push(e.pr);
@@ -248,11 +282,11 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 		};
 	});
 	const drain = drainFrom === undefined || drainTo === undefined ? null : active(drainFrom, drainTo);
-	const findingsPerPr = prs.length === 0 ? null : prs.reduce((sum, pr) => sum + (findingsByPr[pr] ?? 0), 0) / prs.length;
+	const findingsPerPr = prs.length === 0 ? null : roundFindings(prs.reduce((sum, pr) => sum + (findingsByPr[pr] ?? 0), 0) / prs.length);
 	const counted = started.size >= MIN_ITEMS && peak >= journal.c && merged >= 1 && !opts.abandoned;
 	// The bar (owner, 2026-11-20: "First C=2 run sets it"): the lowest findings per pull request of the earlier
 	// counted runs at C = 2. None yet, and this run meets it. A run too small to count never sets it.
-	const bars = earlierRuns.filter((r) => r.counted && r.c === 2 && r.findingsPerPr !== null).map((r) => r.findingsPerPr!);
+	const bars = earlierRuns.filter((r) => r.counted && r.c === 2 && r.findingsPerPr !== null).map((r) => roundFindings(r.findingsPerPr!));
 	const underBar = bars.length === 0 || (findingsPerPr ?? 0) <= Math.min(...bars);
 	const clean = counted && conflicts === 0 && duplicates === 0 && drain !== null && drain < MAX_DRAIN_MS && underBar;
 	return {
@@ -272,6 +306,7 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 		prs,
 		findingsPerPr,
 		turnCaps,
+		inFlightAtEnd: [...open],
 		counted,
 		clean,
 	};
@@ -329,7 +364,7 @@ export function renderRunEntry(s: RunSummary, meta: { date: string;
 		`| Peak in flight (non-barrier) | ${s.peak} |`,
 		`| Merged | ${s.merged} |`,
 		`| Pull requests | ${s.prs.map((p) => `#${p}`).join(", ") || "none"} |`,
-		`| Findings per pull request | ${s.findingsPerPr === null ? "none" : String(Math.round(s.findingsPerPr * 1000) / 1000)} |`,
+		`| Findings per pull request | ${s.findingsPerPr === null ? "none" : String(s.findingsPerPr)} |`,
 		`| Record conflicts | ${s.conflicts} |`,
 		`| Duplicate implementations | ${s.duplicates} |`,
 		`| Drain (active minutes) | ${minutes(s.drain)} |`,
@@ -358,6 +393,7 @@ const hitKey = (h: TurnCapHit) => `${h.id}@${h.at}`;
  * The turn-cap hits still making a backlog review due (S158 AC 7): every hit read (run entries, the live
  * journal, ended journals; the same `(id, at)` from more than one place is one hit) that no backlog review
  * entry lists, grouped by item in first-seen order. Only a review clears a hit: a skip or answers entry never does.
+ * Only a story's hit counts: a bug's turn cap is never drift (CLAUDE.md), so one read from anywhere is passed over.
  */
 export function unlistedTurnCaps(read: TurnCapHit[], reviews: LedgerEntry[]): Map<string, string[]>
 {
@@ -367,7 +403,7 @@ export function unlistedTurnCaps(read: TurnCapHit[], reviews: LedgerEntry[]): Ma
 	for (const h of read)
 	{
 		const key = hitKey(h);
-		if (seen.has(key) || listed.has(key))
+		if (!/^S\d+$/.test(h.id) || seen.has(key) || listed.has(key))
 		{
 			continue;
 		}
@@ -391,6 +427,29 @@ function journalHits(path: string): TurnCapHit[]
 	catch
 	{
 		return [];
+	}
+}
+
+/** The run IDs of the ended journals in `<runDir>/ended/` that `recorded` lacks, oldest first. */
+function unrecordedEnded(runDir: string, recorded: Set<string | undefined>): string[]
+{
+	const ended = join(runDir, "ended");
+	return existsSync(ended) ? readdirSync(ended).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -".json".length)).filter((id) => !recorded.has(id)).sort() : [];
+}
+
+/** The main checkout's `.run/`, through git's common dir (as review-debt.sh finds it); undefined outside a repository. */
+function mainRunDir(): string | undefined
+{
+	try
+	{
+		return join(dirname(execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim()), ".run");
+	}
+	catch
+	{
+		return undefined;
 	}
 }
 
@@ -438,24 +497,84 @@ function main(argv: string[]): number
 			"debt-json": {
 				type: "string",
 			},
+			"rerecord": {
+				type: "boolean",
+			},
 		},
 	});
 	const audit = values.audit ?? process.env["BT_AUDIT_LEDGER"] ?? "docs/v3/AUDIT.md";
-	const runs = () => readLedger(audit).filter((e) => e.kind === "run");
+	// The run entries oldest first by run ID (`R<start stamp>`), one per run, its newest entry standing.
+	const runs = () =>
+	{
+		const byRun = new Map<string, LedgerEntry>();
+		for (const e of readLedger(audit).filter((x) => x.kind === "run"))
+		{
+			byRun.set(e.run ?? "", e);
+		}
+		return [...byRun.values()].sort((a, b) => (a.run ?? "").localeCompare(b.run ?? ""));
+	};
+	const readJournal = () => JSON.parse(readFileSync(values.journal ?? "", "utf8")) as RunJournal;
 	switch (positionals[0])
 	{
 		case "concurrency":
-			console.log(concurrencyFromRuns(runs().reverse().map(runRecordOf)));
+		{
+			const entries = runs();
+			// A run that ended without its entry in this tree (its pull request unopened, open or closed
+			// unmerged) may be the newest: never move to 3 without it.
+			const runDir = values["run-dir"] ?? mainRunDir();
+			const missing = runDir === undefined ? [] : unrecordedEnded(runDir, new Set(entries.map((e) => e.run)));
+			if (missing.length > 0)
+			{
+				console.error(`runs.ts concurrency: 2, since ended run ${missing.join(", ")} has no entry in this tree`);
+				console.log(2);
+				return 0;
+			}
+			console.log(concurrencyFromRuns(entries.reverse().map(runRecordOf)));
 			return 0;
+		}
 		case "id":
-			console.log((JSON.parse(readFileSync(values.journal ?? "", "utf8")) as RunJournal).id);
+			console.log(readJournal().id);
 			return 0;
+		case "prs":
+			console.log(summarizeRun(readJournal(), {}, [], {
+				abandoned: false,
+			}).prs.join(" "));
+			return 0;
+		case "check-end":
+		{
+			const journal = readJournal();
+			const abandoned = values.abandoned === true || journal.abandoned === true;
+			const recorded = new Set(runs().map((e) => e.run));
+			const problems: string[] = [];
+			if (recorded.has(journal.id))
+			{
+				problems.push(values.rerecord ? `run ${journal.id} already has an entry in this tree` : `run ${journal.id} already has an entry in this tree; if its journal is still open, finish moving it with node scripts/backlog-vault/claims.ts run end ${journal.id} --root <main checkout>${abandoned ? " --abandoned" : ""}`);
+			}
+			if (!abandoned)
+			{
+				// A re-recorded run is judged only against runs that started before it, so only those must be in.
+				for (const id of unrecordedEnded(values["run-dir"] ?? ".run", recorded).filter((x) => !values.rerecord || x < journal.id))
+				{
+					problems.push(`run ${id} ended but its entry is not in this tree: merge its backlog/run-${id} pull request and branch from the updated origin/stage; or, if its run-${id} worktree still holds the entry uncommitted, commit it there and open its pull request; or, once gh pr view shows that pull request CLOSED (not MERGED), re-record it in a fresh backlog/run-${id} worktree with scripts/audit.sh run --journal <main checkout>/.run/ended/${id}.json (several such runs re-record oldest first, in one such worktree and one pull request)`);
+				}
+			}
+			const inFlight = summarizeRun(journal, {}, [], {
+				abandoned: false,
+			}).inFlightAtEnd;
+			if (!abandoned && inFlight.length > 0)
+			{
+				problems.push(`still in flight: ${inFlight.join(", ")} (log each one's merged, park or held first, or record the run with --abandoned)`);
+			}
+			problems.forEach((p) => console.error(`runs.ts check-end: ${p}`));
+			return problems.length > 0 ? 1 : 0;
+		}
 		case "fragment":
 		{
-			const journal = JSON.parse(readFileSync(values.journal ?? "", "utf8")) as RunJournal;
+			const journal = readJournal();
 			const findings = JSON.parse(readFileSync(values.findings ?? "", "utf8")) as Record<number, number>;
-			const summary = summarizeRun(journal, findings, runs().map(runRecordOf), {
-				abandoned: values.abandoned ?? false,
+			// Only runs that started before this one are earlier (a run re-recorded later still sits in its place).
+			const summary = summarizeRun(journal, findings, runs().filter((e) => (e.run ?? "") < journal.id).map(runRecordOf), {
+				abandoned: values.abandoned === true || journal.abandoned === true,
 			});
 			process.stdout.write(renderRunEntry(summary, {
 				date: values.date ?? "",
@@ -491,7 +610,7 @@ function main(argv: string[]): number
 			console.log(formatHits(debtHits(JSON.parse(readFileSync(values["debt-json"] ?? "", "utf8")))));
 			return 0;
 		default:
-			console.error("usage: runs.ts concurrency|id|fragment|turn-caps|debt-hits … (see the file's header)");
+			console.error("usage: runs.ts concurrency|id|prs|check-end|fragment|turn-caps|debt-hits … (see the file's header)");
 			return 2;
 	}
 }
@@ -499,5 +618,14 @@ function main(argv: string[]): number
 // No scripts/backlog-vault/run-directly.ts yet (S166): the same check the other scripts make, for S166 AC 1 to replace.
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
 {
-	process.exitCode = main(process.argv.slice(2));
+	// Exit 1 is a refusal (check-end); anything else that fails (a fragment that doesn't parse, a missing file) is 2.
+	try
+	{
+		process.exitCode = main(process.argv.slice(2));
+	}
+	catch (e)
+	{
+		console.error(`runs.ts: ${(e as Error).message}`);
+		process.exitCode = 2;
+	}
 }

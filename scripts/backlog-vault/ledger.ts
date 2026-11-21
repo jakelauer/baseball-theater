@@ -12,7 +12,8 @@
  * as data goes through it: the generated review-debt line (assemble.ts), the debt checks
  * (scripts/review-debt.sh, scripts/parity-debt.sh, through `cli.ts ledger-base` /
  * `done-since`), the review gate hook (scripts/review-gate.sh, through `cli.ts
- * review-blocked`), and the generated index docs/v3/audit.jsonl (one JSON object per entry,
+ * review-blocked`), the run records (runs.ts: `concurrency`, `check-end`, `fragment` and `turn-caps`,
+ * which `scripts/audit.sh run` and review-debt.sh call, S158), and the generated index docs/v3/audit.jsonl (one JSON object per entry,
  * for tools and agents that want an entry's kind, story, verdict or line without reading a
  * ~1.5 MB Markdown file).
  *
@@ -273,7 +274,8 @@ export function parseLedger(audit: string): LedgerEntry[]
  * A ledger fragment's file name: `<stamp>-<ID>-<kind>.md`, in a folder named for the stamp's
  * UTC date. The stamp is the entry's `Captured (UTC)` time without separators
  * (`20261121T101500Z`), so file names sort in stamp order. The ID is the story (`S9`, `B12`,
- * `V3`) for a story's entries and the review (`backlog`, `parity`) for a review's; the kind is
+ * `V3`) for a story's entries, the review (`backlog`, `parity`) for a review's, and the run
+ * (`R20261121T101500Z`, S158) for a run entry; the kind is
  * {@link FRAGMENT_KINDS}' name for the entry's {@link LedgerKind}. scripts/audit.sh writes
  * these names; this pattern is how they are read back and checked.
  */
@@ -648,6 +650,8 @@ export function renderLedgerIndex(entries: LedgerEntry[]): string
 		inFlight: e.inFlight,
 		issue: e.issue,
 		run: e.run,
+		runC: e.runC,
+		findingsPerPr: e.findingsPerPr,
 		counted: e.counted,
 		clean: e.clean,
 		turnCaps: e.turnCaps?.length ? e.turnCaps : undefined,

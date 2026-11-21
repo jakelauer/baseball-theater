@@ -25,13 +25,21 @@
 #   scripts/audit.sh migration S12 --issue 40 --base <sha> --body-file f [--rewrite-file d]
 #   scripts/audit.sh apply                                          # send merged records to GitHub
 #   scripts/audit.sh run [--abandoned]   # S158: the run journal (.run/run.json) as a run entry
+#   scripts/audit.sh run --journal <main checkout>/.run/ended/<id>.json   # re-record an ended run
 #
 # A run entry (S158) records a /run-backlog run: runs.ts summarizes the main checkout's .run/run.json
 # (found through git's common dir, so it works the same from a worktree), counting the inline comments
-# on each opened pull request's "Claude review of" reviews (gh api, REST), and the entry is read back
-# through ledger.ts to set the next run's concurrency (`runs.ts concurrency`). The journal then moves to
-# .run/ended/<run id>.json, kept so review-debt.sh still sees its turn-cap hits until the entry reaches
-# stage. --abandoned records a run the owner chose not to finish: its entry never counts. A backlog
+# on each opened pull request's "Claude review of" reviews (gh api, REST; a failed read exits 2 and
+# records nothing), and the entry is read back through ledger.ts to set the next run's concurrency
+# (`runs.ts concurrency`). The journal then moves to .run/ended/<run id>.json (`claims.ts run end`,
+# under the claims lock), kept so review-debt.sh still sees its turn-cap hits until the entry reaches
+# stage. It refuses (exit 1, nothing written; `runs.ts check-end`) a run already recorded, a run with
+# an item still in flight, and, so no run is judged without the one before it, any run while an ended
+# run's entry is missing from this tree. --abandoned records a run the owner chose not to finish: its
+# entry never counts, so it skips the in-flight and missing-entry checks. --journal re-records an ended
+# run whose entry pull request was closed unmerged, from its journal, which stays in .run/ended/; it
+# refuses only while a run that started earlier lacks its entry, and is judged only against those (an
+# abandoned run's journal is marked so there, and stays abandoned when re-recorded). A backlog
 # review's --debt-json <file> (its saved `review-debt.sh --json`) lists the turn-cap hits it read, the
 # only way such a hit stops making a review due (S158 AC 7).
 #
@@ -101,7 +109,7 @@ else
 fi
 
 usage() {
-  sed -n '2,54p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,61p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 2
 }
 
@@ -688,29 +696,48 @@ fi
 # A /run-backlog run's entry (S158 AC 4), from the main checkout's journal; see the header.
 if [ "$MODE" = "run" ]; then
   ABANDONED=()
+  REJOURNAL=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --abandoned) ABANDONED=(--abandoned); shift ;;
+      --journal) REJOURNAL="${2:-}"; shift 2 || usage ;;
       *) echo "audit: unknown option $1" >&2; usage ;;
     esac
   done
   main_checkout="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
-  JOURNAL="${main_checkout}/.run/run.json"
+  if [ -n "$REJOURNAL" ]; then
+    JOURNAL="$REJOURNAL"
+    MODE_FLAGS=(--rerecord)
+  else
+    JOURNAL="${main_checkout}/.run/run.json"
+    MODE_FLAGS=()
+  fi
   [ -f "$JOURNAL" ] || { echo "audit: no run is open (${JOURNAL} is missing)" >&2; exit 2; }
   RUNS=(node scripts/backlog-vault/runs.ts --audit "$LEDGER")
   RUN_ID="$("${RUNS[@]}" id --journal "$JOURNAL")" || exit 2
+  # What would make the entry untrue refuses before any GitHub call (runs.ts check-end prints each reason).
+  "${RUNS[@]}" check-end --journal "$JOURNAL" --run-dir "${main_checkout}/.run" ${ABANDONED[@]+"${ABANDONED[@]}"} ${MODE_FLAGS[@]+"${MODE_FLAGS[@]}"}
+  case $? in
+    0) ;;
+    1) echo "audit: run ${RUN_ID} not recorded" >&2; exit 1 ;;
+    *) exit 2 ;;
+  esac
+  PRS="$("${RUNS[@]}" prs --journal "$JOURNAL")" || { echo "audit: could not read run ${RUN_ID}'s pull requests" >&2; exit 2; }
   # The Claude-review findings on each pull request the run opened: inline comments on its reviews whose
   # body starts "Claude review of" (CLAUDE.md, "Claude's review is handled before a pull request merges").
+  # A failed read exits 2: counted as 0, it would lower the bar for every later run (runs.ts).
   FINDINGS_FILE="$(mktemp)"
   {
     printf '{'
     sep=""
-    for pr in $(node -e 'const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log([...new Set(j.events.filter((e) => e.kind === "pr-open").map((e) => e.pr))].join(" "))' "$JOURNAL"); do
+    for pr in $PRS; do
       count=0
       reviews="$(gh api "repos/{owner}/{repo}/pulls/${pr}/reviews" --paginate --jq '.[] | select(.body | startswith("Claude review of")) | .id')" ||
         { echo "audit: could not read pull request #${pr}'s reviews" >&2; rm -f "$FINDINGS_FILE"; exit 2; }
       for rid in $reviews; do
-        n="$(gh api "repos/{owner}/{repo}/pulls/${pr}/reviews/${rid}/comments" --paginate --jq '.[].id' | grep -c .)"
+        comments="$(gh api "repos/{owner}/{repo}/pulls/${pr}/reviews/${rid}/comments" --paginate --jq '.[].id')" ||
+          { echo "audit: could not read review ${rid}'s comments on pull request #${pr}" >&2; rm -f "$FINDINGS_FILE"; exit 2; }
+        n="$(grep -c . <<<"$comments" || true)"
         count=$((count + n))
       done
       printf '%s"%s":%s' "$sep" "$pr" "$count"
@@ -723,7 +750,12 @@ if [ "$MODE" = "run" ]; then
     --head "\`${HEAD_SHA}\` (tree ${TREE})" ${ABANDONED[@]+"${ABANDONED[@]}"} >"$FRAG_TMP" || { rm -f "$FINDINGS_FILE"; exit 2; }
   rm -f "$FINDINGS_FILE"
   finish_fragment || exit 2
-  mkdir -p "${main_checkout}/.run/ended" && mv "$JOURNAL" "${main_checkout}/.run/ended/${RUN_ID}.json" || exit 2
+  if [ -n "$REJOURNAL" ]; then
+    echo "audit run: re-recorded run ${RUN_ID}'s entry in ${FRAG} from ${JOURNAL}"
+    exit 0
+  fi
+  node scripts/backlog-vault/claims.ts run end "$RUN_ID" --root "$main_checkout" ${ABANDONED[@]+"${ABANDONED[@]}"} >/dev/null ||
+    { echo "audit: wrote ${FRAG}, but could not move the journal: run node scripts/backlog-vault/claims.ts run end ${RUN_ID} --root ${main_checkout}${ABANDONED[@]+ ${ABANDONED[*]}}" >&2; exit 2; }
   echo "audit run: wrote run ${RUN_ID}'s entry to ${FRAG}; its journal is now ${main_checkout}/.run/ended/${RUN_ID}.json"
   exit 0
 fi

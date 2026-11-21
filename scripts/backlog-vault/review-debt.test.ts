@@ -1065,6 +1065,37 @@ describe("review-debt.sh: a turn cap hit makes a backlog review due until a revi
 		expect(debt().status).toBe(0);
 	});
 
+	it("turn cap: a hit in the main checkout's run.json is due from a linked worktree", () =>
+	{
+		reviewed();
+		const wt = `${repo}-wt`;
+		git("worktree", "add", "-q", "-b", "story/S9", wt);
+		try
+		{
+			symlinkSync(join(ROOT, "node_modules"), join(wt, "node_modules"));
+			journal(".run/run.json", [turnCap("S9", A)]);
+			const env: Record<string, string | undefined> = {
+				...process.env,
+				BT_BACKLOG_CACHE: cache(),
+			};
+			delete env.BT_AUDIT_LEDGER;
+			const r = spawnSync("bash", [join(wt, "scripts/review-debt.sh")], {
+				cwd: wt,
+				encoding: "utf8",
+				env,
+			});
+			expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+			expect(r.stdout).toContain("turn cap hit: S9");
+		}
+		finally
+		{
+			rmSync(wt, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
 	it("turn cap: a live run.json hit is due", () =>
 	{
 		reviewed();

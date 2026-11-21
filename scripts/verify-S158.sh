@@ -83,33 +83,45 @@ need_tests 1 claims.test.ts "${kinds[@]}" \
   "^run event refuses an unknown kind" "^run event refuses an item kind without an ID" "^run event refuses an ID that fails ITEM_ID" \
   "^run event refuses pr-open without --pr" "^run event refuses conflict without --path" "^run event refuses an ID on a run kind" \
   "^claim appends claim to the journal" "^claim appends claim-refused on exit 1" "^claim without a journal writes no event" \
-  "^claim --dry-run writes no event" "^two appends at once keep both events"
+  "^claim --dry-run writes no event" "^two appends at once keep both events" \
+  "^a journal write waits for the claims lock" "^run event refuses an event while the run is interrupted" \
+  "^run event refuses turn-cap on an item that is not a story" "^run event refuses a flag its kind doesn't take" \
+  "^run start refuses a --c other than 2 or 3" "^run end moves the journal to ended/ under the lock" \
+  "^a corrupt run.json exits 2" "^a refused claim with no journal takes no lock"
 
 # --- Check 2: summarizeRun ---
 [ -f "$VAULT/runs.ts" ] || bad 2 "$VAULT/runs.ts is missing"
 grep -qE '^export function summarizeRun\(' "$VAULT/runs.ts" 2>/dev/null || bad 2 "runs.ts does not export summarizeRun"
-grep -qE '^import .*node:(fs|child_process)' <(sed -n '/^export function summarizeRun/,/^}/p' "$VAULT/runs.ts" 2>/dev/null) && bad 2 "summarizeRun is not pure"
+sed -n '/^export function summarizeRun/,/^}/p' "$VAULT/runs.ts" 2>/dev/null |
+  grep -qE 'readFileSync|writeFileSync|existsSync|readdirSync|execSync|spawn|process\.(env|argv|cwd)|Date\.now|new Date\(\)' && bad 2 "summarizeRun is not pure"
 need_tests 2 runs.test.ts "^summary: a resumed item" "^summary: an interrupted-then-resumed run" "^summary: a barrier" \
-  "^summary: an item parked to the end" "^summary: a run with no pull request"
+  "^summary: an item parked to the end" "^summary: a run with no pull request" "^summary: park ends flight" "^summary: held ends flight"
 
 # --- Check 3: counted and clean ---
 need_tests 3 runs.test.ts "^uncounted: 3 items started" "^uncounted: a non-barrier peak below C" "^uncounted: no pull request merged" \
   "^uncounted: an abandoned run" "^clean: the first counted run at 2" "^not clean: more findings per pull request" \
   "^not clean: a record conflict" "^not clean: a duplicate" "^not clean: a 3-hour active drain" \
-  "^clean: an interrupted gap over 3 hours" "^clean: a claim-refused event"
+  "^clean: an interrupted gap over 3 hours" "^clean: a claim-refused event" \
+  "^clean: 1 finding over 3 pull requests against a stored 1/3 bar" "^uncounted: a leftover's ready and merged never count" \
+  "^uncounted: at C=2, an item that overlaps only a parked one" "^clean: an earlier counted run at 3 never sets the bar"
 
 # --- Check 4: the run ledger entry ---
 grep -qE '^  run\)|run\)$|"run"\)' scripts/audit.sh || grep -qE '^[[:space:]]*run\)' scripts/audit.sh || bad 4 "audit.sh has no run command"
 grep -qE '"run"' "$VAULT/ledger.ts" || bad 4 "ledger.ts has no run kind"
 need_tests 4 ledger.test.ts "^parses a run fragment" "^rejects a run fragment whose name and heading disagree"
-need_tests 4 audit-run.test.ts "^audit.sh run writes the entry and moves the journal" "^audit.sh run --abandoned" "^audit.sh run from a linked worktree"
+need_tests 4 audit-run.test.ts "^audit.sh run writes the entry and moves the journal" "^audit.sh run --abandoned" "^audit.sh run from a linked worktree" \
+  "^audit.sh run exits 2 when a review's comments can't be read" "^audit.sh run refuses while an ended run has no entry in the tree" \
+  "^audit.sh run --journal re-records an ended run" "^audit.sh run --abandoned ends past an ended run with no entry" \
+  "^audit.sh run refuses a run already recorded" "^audit.sh run refuses a run with an item in flight" \
+  "^audit.sh run --abandoned records a run with an item in flight" "^audit.sh run: a held item is not in flight"
 test_passed merge-safety.test.ts || bad 4 "merge-safety.test.ts is missing or failing"
 grep -q -- '-run\.md' "$VAULT/merge-safety.test.ts" || bad 4 "merge-safety.test.ts has no run fragment among its records"
 
 # --- Check 5: concurrency from the records ---
 need_tests 5 runs.test.ts "^concurrency: no entries" "^concurrency: one clean at 2" "^concurrency: two clean at 2" \
   "^concurrency: clean then unclean at 2" "^concurrency: two clean at 2 with an uncounted run between" "^concurrency: clean at 3" \
-  "^concurrency: unclean at 3$" "^concurrency: unclean at 3 then one clean at 2" "^concurrency: unclean at 3 then two clean at 2"
+  "^concurrency: unclean at 3$" "^concurrency: unclean at 3 then one clean at 2" "^concurrency: unclean at 3 then two clean at 2" \
+  "^concurrency CLI reads the run entries newest first"
 
 # --- Check 6: the skill and CLAUDE.md ---
 for p in 'runs.ts concurrency' 'claims.ts run start --n' 'run start --resume' 'scripts/audit.sh run --abandoned' 'backlog/run-<id>' '**Time:**' 'run event' 'interrupted'; do
@@ -122,7 +134,9 @@ after="$(cat CLAUDE.md "$SKILL" | wc -w | tr -d ' ')"
 [ "$((after - before))" -le 400 ] || bad 6 "CLAUDE.md and the SKILL grew by $((after - before)) words (over 400)"
 
 # --- Check 7: turn-cap hits make a review due ---
-grep -q 'Not detectable here' scripts/review-debt.sh && grep -iq 'turn cap.*Not detectable here\|Not detectable here.*turn cap' scripts/review-debt.sh && bad 7 "review-debt.sh still says a turn cap is not detectable"
+grep -q 'a turn cap hit (S158 AC 7' scripts/review-debt.sh || bad 7 "review-debt.sh's header does not name the turn-cap event"
+grep -q 'turn cap hit mid-run (rule 10 stop-and-report)' scripts/review-debt.sh && bad 7 "review-debt.sh still says a turn cap is not detectable"
+grep -qE '\\ +[^ ]' "$REVIEW_SKILL" && bad 7 "the backlog-review SKILL has a line continuation followed by more text (a broken command)"
 grep -q -- '--debt-json' scripts/audit.sh || bad 7 "audit.sh review takes no --debt-json"
 grep -q -- '--debt-json' "$REVIEW_SKILL" || bad 7 "the backlog-review SKILL does not pass --debt-json"
 grep -qE 'STORY_EVENTS.*turn-cap|"turn-cap"' "$VAULT/search.ts" || bad 7 "search.ts STORY_EVENTS has no turn-cap"
@@ -130,10 +144,11 @@ need_tests 7 review-debt.test.ts "^turn cap: an unlisted run-entry hit is due" "
   "^turn cap: a skip and an answers entry do not clear a hit" "^turn cap: a hit stamped after the review's commit but listed is not due" \
   "^turn cap: a run entry committed after the review that listed its hit is not due" "^turn cap: a live run.json hit is due" \
   "^turn cap: an ended journal's hit is due" "^turn cap: the same hit from three places is one" "^turn cap: two hits on one ID are one event" \
-  "^turn cap: a run with no turn-cap event is not due" "^turn cap: --json prints the event"
+  "^turn cap: a run with no turn-cap event is not due" "^turn cap: --json prints the event" \
+  "^turn cap: a hit in the main checkout's run.json is due from a linked worktree"
 need_tests 7 audit-run.test.ts "^audit.sh review --debt-json lists the hits"
 need_tests 7 search.test.ts "^a turn-cap event seeds its ID"
-need_tests 7 runs.test.ts "^summary: turn-cap hits in event order"
+need_tests 7 runs.test.ts "^summary: turn-cap hits in event order" "ignores a hit on a bug"
 
 # --- Check 8: Status done, from S158's own snapshot ---
 snap="$(find "$AUDIT_DIR" -type f -name '*-S158-snapshot.md' 2>/dev/null | awk -F/ '{ print $NF "\t" $0 }' | LC_ALL=C sort | tail -1 | cut -f2)"

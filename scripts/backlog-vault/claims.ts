@@ -19,7 +19,14 @@
  *
  * The file name is the in-flight record: `scripts/review-debt.sh` and `scripts/parity-debt.sh` read the
  * in-flight IDs from `.run/claims/*.json` names alone, so a claim is removed (`release`) once its item
- * merges or parks. Two more files are inputs, never written here:
+ * merges or parks. A `/run-backlog` run's journal sits beside them (S158; see {@link RunJournal}):
+ *
+ *   .run/run.json               the open run's journal (`run start|event`)
+ *   .run/ended/<run id>.json    an ended run's journal (`run end`, which `scripts/audit.sh run` calls), kept so
+ *                               review-debt.sh still reads its turn-cap hits and `audit.sh run` can tell
+ *                               whether its entry has reached the tree
+ *
+ * Two more files are inputs, never written here:
  *
  *   .run/findings.md          one finding a line: `- <ID> | <checklist class> | <path>[:<line>] | <text>`
  *   .pending/needs-input.md   the owner's questions (`.claude/skills/pending/SKILL.md`), each `##` section
@@ -43,12 +50,16 @@
  *       then `no question: <ID> is blocked` for each story or bug note in a `blocked/` folder that no
  *       question's `Blocks:` line names, with the local branches whose name holds its ID
  *
- *   node scripts/backlog-vault/claims.ts run start --n <N> --c <C> | run start --resume
+ *   node scripts/backlog-vault/claims.ts run start --n <N> --c <2|3> | run start --resume
  *   node scripts/backlog-vault/claims.ts run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier]
+ *   node scripts/backlog-vault/claims.ts run end <run id> [--abandoned]
  *       the run journal, `.run/run.json` (S158 AC 1; see {@link RunJournal}): `start` opens one (exit 1 naming
  *       the run when one is open), `--resume` keeps it and logs `run-resume`; `event` appends one event
- *       (exit 1 on an unknown kind, a missing ID or flag, or an ID that fails `ITEM_ID`). `claim` appends
- *       its own `claim` or `claim-refused` event when a journal exists and it is not a `--dry-run`.
+ *       (exit 1 on an unknown kind, a missing ID or flag, a flag its kind doesn't take, an ID that fails
+ *       `ITEM_ID`, a `turn-cap` on an item that isn't a story, or any event while the run is interrupted:
+ *       an `interrupted` with no later `run-resume`); `end` moves the journal to `.run/ended/<run id>.json`
+ *       (exit 1 when no run, or another, is open), with `"abandoned": true` written into it for `--abandoned`. `claim` appends its own `claim` or `claim-refused`
+ *       event when a journal exists and it is not a `--dry-run`. A journal that doesn't parse exits 2.
  *
  * `claim`, `release` and every journal write run under a lock, the directory `.run/claims.lock` holding the holder's pid, so two
  * claims made at once can't both be admitted against an empty in-flight set. A command that can't take it
@@ -131,6 +142,8 @@ export interface RunJournal
 	c: number;
 	startedAt: string;
 	events: RunEvent[];
+	/** Set by `run end --abandoned` in the ended journal, so a re-recorded run stays abandoned (runs.ts). */
+	abandoned?: boolean;
 }
 
 /** One journal event; `id` for an item's events, `pr` for `pr-open`, `path` for `conflict`, `barrier` on a barrier's `item-start`. */
@@ -190,6 +203,11 @@ export function makeRunEvent(kind: string, input: { id?: string;
 	{
 		throw new RunError(`not an item ID: '${input.id}' (S<N>, B<N>, F<N> or V<N>)`);
 	}
+	// A turn cap hit on a story is a drift event (review-debt.sh reports it); a bug's never is (CLAUDE.md).
+	if (kind === "turn-cap" && !/^S\d+$/.test(input.id ?? ""))
+	{
+		throw new RunError(`turn-cap is logged for a story only (a bug's turn cap is never drift), not '${input.id}'`);
+	}
 	if (kind === "pr-open" && !/^[1-9][0-9]*$/.test(input.pr ?? ""))
 	{
 		throw new RunError("pr-open needs --pr <n>");
@@ -197,6 +215,11 @@ export function makeRunEvent(kind: string, input: { id?: string;
 	if (kind === "conflict" && !input.path)
 	{
 		throw new RunError("conflict needs --path <p>");
+	}
+	// A flag on a kind that doesn't take it would be dropped silently, so it is refused.
+	if ((input.pr !== undefined && kind !== "pr-open") || (input.path !== undefined && kind !== "conflict") || (input.barrier && kind !== "item-start"))
+	{
+		throw new RunError(`${kind} takes no ${input.pr !== undefined && kind !== "pr-open" ? "--pr" : input.path !== undefined && kind !== "conflict" ? "--path" : "--barrier"}`);
 	}
 	return {
 		kind,
@@ -216,11 +239,29 @@ export function makeRunEvent(kind: string, input: { id?: string;
 	};
 }
 
-/** The open run's journal, or undefined when no run is open. */
+/** The open run's journal, or undefined when no run is open. A journal that doesn't parse throws {@link ClaimsError} (exit 2), never a refusal's exit 1. */
 export function readRunJournal(root: string): RunJournal | undefined
 {
 	const path = runJournalPath(root);
-	return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) as RunJournal : undefined;
+	if (!existsSync(path))
+	{
+		return undefined;
+	}
+	try
+	{
+		return JSON.parse(readFileSync(path, "utf8")) as RunJournal;
+	}
+	catch (e)
+	{
+		throw new ClaimsError(`${path} is not a run journal: ${(e as Error).message}`);
+	}
+}
+
+/** Whether the run is interrupted: its newest `interrupted` has no later `run-resume` (run-backlog step 6). */
+export function isInterrupted(journal: RunJournal): boolean
+{
+	const last = [...journal.events].reverse().find((e) => e.kind === "interrupted" || e.kind === "run-resume");
+	return last?.kind === "interrupted";
 }
 
 /** Write the journal through a temp file and a rename, so a crash never leaves half a journal. Hold the claims lock. */
@@ -889,13 +930,14 @@ function formatReport(claim: Claim, report: ClaimReport): string
 	return lines.join("\n");
 }
 
-/** `run start` and `run event`, under the claims lock; throws {@link RunError} on refused input. */
+/** `run start`, `run event` and `run end`, under the claims lock; throws {@link RunError} on refused input. */
 function runCommand(root: string, sub: string, rest: string[], values: { n?: string;
 	c?: string;
 	resume?: boolean;
 	pr?: string;
 	path?: string;
-	barrier?: boolean; }): number
+	barrier?: boolean;
+	abandoned?: boolean; }): number
 {
 	const at = new Date().toISOString();
 	const open = readRunJournal(root);
@@ -924,9 +966,10 @@ function runCommand(root: string, sub: string, rest: string[], values: { n?: str
 		}
 		const n = Number(values.n);
 		const c = Number(values.c);
-		if (!/^[1-9][0-9]*$/.test(values.n ?? "") || !/^[1-9][0-9]*$/.test(values.c ?? ""))
+		// C is 2 or 3 (run-backlog step 3, **Concurrency**; runs.ts concurrency prints one of them).
+		if (!/^[1-9][0-9]*$/.test(values.n ?? "") || !/^[23]$/.test(values.c ?? ""))
 		{
-			throw new RunError("run start needs --n <N> and --c <C>, both positive whole numbers");
+			throw new RunError("run start needs --n <N>, a positive whole number, and --c <C>, 2 or 3");
 		}
 		const journal: RunJournal = {
 			id: runIdFor(at),
@@ -948,13 +991,49 @@ function runCommand(root: string, sub: string, rest: string[], values: { n?: str
 			path: values.path,
 			barrier: values.barrier,
 		}, at);
-		if (!appendRunEvent(root, event))
+		if (!open)
 		{
 			throw new RunError("no run is open (.run/run.json is missing): run start first");
 		}
+		// An interrupted run's time is stopped until `run start --resume` (AC 2's active time), so nothing is
+		// logged inside that span. Only `run event` refuses: `run start --resume` and `claim` still append.
+		if (isInterrupted(open))
+		{
+			throw new RunError(`run ${open.id} is interrupted: run start --resume first`);
+		}
+		appendRunEvent(root, event);
 		return 0;
 	}
-	throw new RunError("usage: claims.ts run start --n <N> --c <C> | run start --resume | run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier]");
+	if (sub === "end")
+	{
+		const [runId] = rest;
+		if (!open || open.id !== runId)
+		{
+			throw new RunError(open ? `run ${open.id} is open, not ${runId ?? "(none named)"}` : "no run is open (.run/run.json is missing)");
+		}
+		const ended = join(runDir(root), "ended");
+		mkdirSync(ended, {
+			recursive: true,
+		});
+		if (values.abandoned)
+		{
+			// The abandonment travels with the journal: re-recording it later (audit.sh run --journal) stays abandoned.
+			const tmp = join(ended, `.${open.id}.${process.pid}.tmp`);
+			writeFileSync(tmp, `${JSON.stringify({
+				...open,
+				abandoned: true,
+			}, null, "\t")}\n`);
+			renameSync(tmp, join(ended, `${open.id}.json`));
+			rmSync(runJournalPath(root));
+		}
+		else
+		{
+			renameSync(runJournalPath(root), join(ended, `${open.id}.json`));
+		}
+		console.log(`run ${open.id} ended: its journal is .run/ended/${open.id}.json`);
+		return 0;
+	}
+	throw new RunError("usage: claims.ts run start --n <N> --c <C> | run start --resume | run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier] | run end <run id>");
 }
 
 function main(argv: string[]): number
@@ -1005,6 +1084,9 @@ function main(argv: string[]): number
 			"barrier": {
 				type: "boolean",
 			},
+			"abandoned": {
+				type: "boolean",
+			},
 		},
 	});
 	const root = resolve(values.root ?? process.cwd());
@@ -1040,7 +1122,11 @@ function main(argv: string[]): number
 			if (state.error)
 			{
 				console.error(`claims.ts claim: ${state.error}`);
-				withClaimsLock(root, () => log("claim-refused"));
+				// The lock only when there is something to log: a dry run, or no run, refuses as it did before S158.
+				if (!values["dry-run"] && existsSync(runJournalPath(root)))
+				{
+					withClaimsLock(root, () => log("claim-refused"));
+				}
 				return 1;
 			}
 			const files = normalizeEntries(root, values.file ?? []);

@@ -7,14 +7,16 @@
 #   scripts/review-debt.sh --json   # one JSON object: { due, base, done, inFlight, events } (S163)
 #   scripts/review-debt.sh --json --since <sha>   # the same, measured from <sha> instead of the ledger's base
 #
-# `--json` prints the same detection as data, each event a `{ kind, id?, path?, adrs? }` (`count`
-# carries `done` instead), so `pnpm backlog:search seed backlog|intake` (scripts/backlog-vault/search.ts)
-# starts a review from what changed. It exits 0 whenever it printed the report (`due` says whether one
-# is due); without it the text and exit codes are exactly as before. With `--since` (JSON only) the
-# events and `due` are measured from that commit: the seed passes the newest review itself (`cli.ts
-# review-base backlog`), past any later skip or answers entry, so a change a skip passed over is still
-# seeded; `done` still counts from the newest review. An `adr-changed` event's `adrs` names each ADR
-# a changed line names and each ADR whose `### ADR-NNN` section holds a changed line.
+# `--json` prints the same detection as data, each event a `{ kind, id?, path?, adrs?, hits? }` (`count`
+# carries `done` instead; `turn-cap` carries `hits`, its unlisted hits' times), so `pnpm backlog:search
+# seed backlog|intake` (scripts/backlog-vault/search.ts) starts a review from what changed. It exits 0
+# whenever it printed the report (`due` says whether one is due); without it the text and exit codes are
+# exactly as before. With `--since` (JSON only) the events and `due` are measured from that commit: the
+# seed passes the newest review itself (`cli.ts review-base backlog`), past any later skip or answers
+# entry, so a change a skip passed over is still seeded; `done` still counts from the newest review.
+# `--since` never moves a `turn-cap` event: a hit is due until a backlog review lists it, whatever the
+# base. An `adr-changed` event's `adrs` names each ADR a changed line names and each ADR whose
+# `### ADR-NNN` section holds a changed line.
 #
 # Always prints the `done` count since the last review and the in-flight count (S156): the items
 # workers have claimed (`--in-flight`, else the run's .run/claims/<ID>.json files). A review that
@@ -46,10 +48,13 @@
 #     (runs whose entry may not have reached stage yet), until a backlog review entry lists that exact
 #     (ID, time) in its `Turn-cap hits read` row (`audit.sh review --debt-json`). No time cutoff, and a
 #     skip or answers entry never clears one (scripts/backlog-vault/runs.ts turn-caps)
-# Not detectable here, so still the agent's to notice: a scope fence widened.
+# Not detectable here, so still the agent's to notice: a scope fence widened, and a turn cap hit
+# logged in no journal (one outside a /run-backlog run).
 #
 # Reads committed history (HEAD; uncommitted edits are not counted) and, for the `removed` event,
-# the issue cache when there is one (scripts/lib/story-notes.sh cache_removed).
+# the issue cache when there is one (scripts/lib/story-notes.sh cache_removed). Turn-cap hits are the
+# exception: they are read from the working tree's ledger (AUDIT.md and its fragments, committed or
+# not) and the main checkout's live `.run/run.json` and `.run/ended/*.json`.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."

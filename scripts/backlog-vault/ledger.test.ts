@@ -516,6 +516,8 @@ describe("ledger fragments (S156)", () =>
 		expect(JSON.parse(renderLedgerIndex([e]))).toMatchObject({
 			kind: "run",
 			run: "R20261121T101500Z",
+			runC: 3,
+			findingsPerPr: 0.5,
 		});
 	});
 
