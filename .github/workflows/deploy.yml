@@ -97,7 +97,12 @@ jobs:
                       scripts/ci-changes.sh push "$checked" "${{ github.sha }}"
                   fi
 
-    # The same gate CI runs (pnpm verify), plus a dry run of every env's Worker bundle.
+    # The same gate CI runs (pnpm verify), plus a dry run of every env's Worker bundle. On a pull request
+    # it skips pnpm verify: ci.yml's verify job already runs that gate on the same pull request (with
+    # Turborepo's cache) and its ci-passed is what the stage ruleset requires, so running it here too only
+    # doubled every code pull request's wait (owner, 2026-11-21, asked whether Deploy's pull-request
+    # verify should stop re-running the full pnpm verify: "Yes, drop the duplicate (Recommended)").
+    # A push to stage and a release still run the full gate here before anything deploys.
     verify:
         needs: changes
         if: needs.changes.outputs.code == 'true'
@@ -119,6 +124,7 @@ jobs:
               run: pnpm install --frozen-lockfile
 
             - name: Verify
+              if: github.event_name != 'pull_request'
               run: pnpm verify
 
             - name: Build the web app
