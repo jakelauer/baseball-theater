@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Grader for BACKLOG story S133 — design amendment: the change log page, its link at the foot of
+# Grader for backlog story S133 — design amendment: the change log page, its link at the foot of
 # the menu, the update-available notice (A6) with its link, the pointer after updating, and the
 # rail's release version line, on the shell-scoreboard surface (rule 18; S134 and S135 build them).
 #
@@ -8,7 +8,12 @@
 # of the menu; the update notice shows no addition; after updating a pointer replaces the box;
 # never both; kinds feature / enhancement / bug fix; a gold "Major Feature" header; no "Fetched"
 # line; the version line keeps its commit.
-# Contract: docs/v3/BACKLOG.md#verify-script-contract
+# Updated again before shipping (rule 7), 2026-11-20, for S156 and the owner's 2026-11-16 answer
+# ("Performance"): check 7 reads the note's frontmatter status and its done/ folder (the generated
+# docs/v3/BACKLOG.md is retired); check 6's fence lets in the story's own records, its ledger
+# fragments docs/v3/audit/<date>/<stamp>-S133-<kind>.md and changelog.d/S133.md (backlog rule 13);
+# check 3's kinds gain performance, as AC 1 now names it. Shown red first (5/7: checks 6 and 7).
+# Contract: the Verify-script contract in docs/v3/backlog/frame/ (frame note 00).
 # No network. No writes outside /tmp. Does its own checking (never `pnpm verify`).
 #
 # Modeled on scripts/verify-S129.sh. S133's own changes are its first-parent, non-merge commits
@@ -30,11 +35,11 @@ source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "shell-scoreboard has its next free amendments/A<N>.md (new in S133) headed '(S133)', naming what it adds/overrides/repeals, with ## Frames, ## Decisions (owner's words quoted, one answer per open question the draft asked), ## Open questions = None., and a SHA-256 manifest of exactly its own frames"
 check 2 "the change log page (releases, empty, loading, error), A6 with its link (which ## Frames says also draws the retired-version notice) and on the change log page, and the pointer after updating (plain, beside a marker, on the change log page) drawn at mobile, medium and desktop; the menu opened while the pointer shows and the drawer's change log link at mobile and medium; the rail's change log link and release version line at desktop: real PNGs at the ratified pairing width, listed in ## Frames, which names the buckets, kinds, states and the pointer's words, and never the old name or a Fetched line; every frame ## Frames names is one of its own; no earlier frame's name.png anywhere in the amendment"
-check 3 "## Decisions says, one cited and quoted line each: the page's Name (Change log) and Address (/changelog, a new route), where it is Reached from (the foot of the menu), its Kinds (feature, enhancement, bug fix) and its Major Feature header (gold), the Update notice additions (none), the Retired version case (link hidden, or shown and where it goes), how long the pointer stays (Pointer goes after: N seconds), its Pointer countdown and close, what shows With the update notice (the update notice, not the pointer), and the Rail version line (semver with the commit)"
+check 3 "## Decisions says, one cited and quoted line each: the page's Name (Change log) and Address (/changelog, a new route), where it is Reached from (the foot of the menu), its Kinds (feature, enhancement, performance, bug fix) and its Major Feature header (gold), the Update notice additions (none), the Retired version case (link hidden, or shown and where it goes), how long the pointer stays (Pointer goes after: N seconds), its Pointer countdown and close, what shows With the update notice (the update notice, not the pointer), and the Rail version line (semver with the commit)"
 check 4 "the amendment's ## Ratification names Jake Lauer, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left"
 check 5 "no sealed file in shell-scoreboard changed or deleted (RATIFIED.md manifest verifies; RATIFIED.md, ratified frames and every other amendment untouched by S133; every amendment's sealed frames present and unchanged)"
-check 6 "S133 changes no file outside its fence (scripts/verify-S133.sh aside)"
-check 7 "backlog Status is done (story heading and Story status table)"
+check 6 "S133 changes no file outside its fence (scripts/verify-S133.sh, its ledger fragments and changelog.d/S133.md aside)"
+check 7 "S133's Status is done (its note's frontmatter status done, the note in docs/v3/backlog/stories/done/)"
 
 V="docs/v3/visual"
 S="shell-scoreboard"
@@ -465,7 +470,7 @@ else
 		echo "$DLPRE" | grep -qi 'foot of the menu' || bad 3 "the '- Reached from:' line does not name the link at the foot of the menu"
 	fi
 	if decision_line "Kinds"; then
-		for k in feature enhancement "bug fix"; do
+		for k in feature enhancement performance "bug fix"; do
 			echo "$DLPRE" | grep -qiF "$k" || bad 3 "the '- Kinds:' line does not name the kind '$k'"
 		done
 	fi
@@ -574,18 +579,24 @@ while IFS= read -r f; do
 	case "$f" in
 		"$DIR/"* | docs/v3/VISUAL-DESIGN.md | docs/v3/FEATURES.md | docs/v3/BACKLOG.md | docs/v3/backlog/* | \
 			docs/v3/AUDIT.md | docs/v3/audit.jsonl | docs/v3/INDEX.md | CHANGELOG.md | scripts/verify-S133.sh) ;;
+		# The story's own records since S156 (backlog rule 13): its ledger fragments and changelog fragment.
+		docs/v3/audit/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/*-S133-[a-z]*.md | changelog.d/S133.md) ;;
 		# Obsidian editor state: never committed (CLAUDE.md), so only ever an uncommitted change.
 		docs/v3/.obsidian/workspace.json) [ -z "$TIP" ] || bad 6 "S133 committed $f" ;;
 		*) bad 6 "S133 changed $f, outside its fence" ;;
 	esac
 done <<< "$(s133_changed .)"
 
-# --- Check 7: backlog Status is done -------------------------------------------------
-grep -qE '^\| [0-9]+ \| \[S133\].*\| `done` \|' docs/v3/BACKLOG.md ||
-	bad 7 "S133 row in the Story status table is not \`done\`"
-awk '/^### S133 —/{f=1;next} /^### S[0-9]/{f=0} f' docs/v3/BACKLOG.md |
-	grep -qE '^\*\*Status:\*\* `done`$' ||
-	bad 7 "S133 story heading Status is not \`done\`"
+# --- Check 7: Status is done --------------------------------------------------------
+# The note is the truth since S156: its frontmatter status, and pnpm backlog:build keeps it in the
+# folder that status names. Exactly one note for S133, in done/.
+notes=$(ls docs/v3/backlog/stories/*/S133.md 2>/dev/null)
+if [ "$notes" != "docs/v3/backlog/stories/done/S133.md" ]; then
+	bad 7 "S133's note is not (only) in docs/v3/backlog/stories/done/: ${notes:-none}"
+else
+	fm=$(awk 'NR==1&&$0=="---"{f=1;next} f&&$0=="---"{exit} f' "$notes")
+	printf '%s\n' "$fm" | grep -qxE 'status: done' || bad 7 "S133's note's frontmatter status is not done"
+fi
 
 report "verify-S133"
 exit $?
