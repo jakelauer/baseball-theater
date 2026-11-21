@@ -59,6 +59,7 @@ Scope: the **next 3** stories by Priority with Status `todo`, plus the concerns 
 - Did a recently accepted ADR create work that no story carries?
 - Is a story about to be built on something that does not exist and is not a listed dependency?
 - Is there a **Later theme** that recent work has promoted into a real blocker?
+- **Bugs and issues, not just stories** (owner, 2026-11-20: "backlog reviews need to include bugs/issues, not just stories"): read every open bug note (`docs/v3/backlog/bugs/`) and every open GitHub issue, whatever its label (`gh api "repos/<repo>/issues?state=open&per_page=100"`, REST, leaving out pull requests). For each, ask whether a bug's priority still fits the stories around it, whether an issue is already fixed at HEAD (propose closing it, citing the commit), and whether an enhancement hides a latent bug or work no story owns. Amend a bug's priority in its note (never drift); closing an issue, and an enhancement, which enters the backlog only as a story the owner asks for, go to the owner as questions (`.pending/needs-input.md`).
 - Did the newest **doc parity review** entry in the ledger (found through `docs/v3/audit.jsonl`) queue items **For the next backlog review**? Answer each one in this review's findings, as an amendment or as a reason none is needed.
 
 ### 2. Ground truth — do the next stories still hold at HEAD?
@@ -81,7 +82,7 @@ Each finding names the **exact input or sequence that breaks the criterion** (fo
 
 ### 3. Prioritization challenge — the whole backlog, not just the next few
 
-Argue **against** the current order, using what has changed since the last logged review:
+Argue **against** the current order, bugs included (they share it with the stories), using what has changed since the last logged review:
 
 - Does anything now block something above it?
 - Did a dependency landing make a lower story cheap, or a higher story pointless?
