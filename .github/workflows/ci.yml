@@ -89,6 +89,9 @@ jobs:
         if: needs.changes.outputs.code == 'false'
         runs-on: ubuntu-latest
         timeout-minutes: 10
+        permissions:
+            contents: read
+            issues: read
         steps:
             - uses: actions/checkout@v4
 
@@ -107,6 +110,11 @@ jobs:
             - name: Backlog notes and generated files in sync
               run: pnpm backlog:check
 
+            - name: Backlog issues agree with their records and state (law L9's live parts)
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: pnpm backlog:sync && pnpm backlog:check --live
+
             - name: Backlog vault tests
               run: pnpm test:backlog
 
@@ -118,6 +126,9 @@ jobs:
         if: needs.changes.outputs.code == 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 30
+        permissions:
+            contents: read
+            issues: read
         steps:
             - uses: actions/checkout@v4
 
@@ -194,6 +205,11 @@ jobs:
               run: |
                   if [ "$FUNCTIONS" = true ]; then export BT_FUNCTIONS_SHARDED=1; fi
                   pnpm verify
+
+            - name: Backlog issues agree with their records and state (law L9's live parts)
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: pnpm backlog:sync && pnpm backlog:check --live
 
             - name: OpenAPI spec is up to date
               run: pnpm api:spec --check

@@ -17,7 +17,9 @@ import {
 import {
 	appliedComment, applyRecords, syncIssues,
 } from "./github.ts";
+import type { FakeIssue } from "./github-fake.ts";
 import { FakeGithub } from "./github-fake.ts";
+import { runLiveCheck } from "./live-check.ts";
 import type { TextRecord } from "./text-records.ts";
 import {
 	parseRecord, readRecords, renderFields, renderRecord, sha256, textRecordProblems,
@@ -599,5 +601,191 @@ describe("recording guards (AC 6)", () =>
 		const own = audit(bin, ["create", "S172", "--title", "t", "--body-file", "v1.md", "--reason", "r", "--issue", "9"]);
 		expect(own.status, String(own.stderr)).toBe(0);
 		expect(existsSync(join(repo, ".gh-called"))).toBe(false);
+	});
+});
+
+describe("adopting the owner's GitHub edit (S165 AC 2)", () =>
+{
+	/** A `gh` on PATH that answers from a {@link FakeGithub} kept in a JSON file, so audit.sh's own calls reach the fake. */
+	function shim(fake: FakeGithub): { bin: string;
+		state: string;
+		load: () => void;
+		save: () => void; }
+	{
+		const bin = join(repo, ".fake-gh");
+		const state = join(repo, "fake-gh.json");
+		mkdirSync(bin, {
+			recursive: true,
+		});
+		writeFileSync(join(bin, "shim.ts"), `import { readFileSync, writeFileSync } from "node:fs";
+import { FakeGithub } from ${JSON.stringify(join(SCRIPTS, "backlog-vault/github-fake.ts"))};
+const file = process.env.FAKE_GH_STATE!;
+const saved = JSON.parse(readFileSync(file, "utf8"));
+const fake = new FakeGithub(saved.owner, saved.viewer, saved.repo);
+fake.tick = saved.tick;
+for (const i of saved.issues) fake.issues.set(i.number, i);
+process.stdout.write(fake.run(process.argv.slice(2)));
+writeFileSync(file, JSON.stringify({ owner: fake.owner, viewer: fake.viewer, repo: fake.repo, tick: fake.tick, issues: [...fake.issues.values()] }));
+`);
+		writeFileSync(join(bin, "gh"), `#!/bin/sh\nexec node ${JSON.stringify(join(bin, "shim.ts"))} "$@"\n`);
+		chmodSync(join(bin, "gh"), 0o755);
+		const save = () => writeFileSync(state, JSON.stringify({
+			owner: fake.owner,
+			viewer: fake.viewer,
+			repo: fake.repo,
+			tick: fake.tick,
+			issues: [...fake.issues.values()],
+		}));
+		const load = () =>
+		{
+			const saved = JSON.parse(readFileSync(state, "utf8")) as { tick: number;
+				issues: FakeIssue[] };
+			fake.tick = saved.tick;
+			fake.issues = new Map(saved.issues.map((i) => [i.number, i]));
+		};
+		return {
+			bin,
+			state,
+			load,
+			save,
+		};
+	}
+
+	const env = () => ({
+		BT_BACKLOG_CACHE: join(repo, "cache"),
+		BT_AUDIT_LEDGER: join(repo, "docs/v3/AUDIT.md"),
+		BT_STAGE_REF: "refs/heads/no-such-stage",
+	});
+
+	/** A story recorded, applied to the fake, then changed by the owner on GitHub. */
+	function ownerEdited(): { fake: FakeGithub;
+		gh: ReturnType<typeof shim>; }
+	{
+		const bin = setup();
+		writeFileSync(join(repo, "v1.md"), body("one"));
+		expect(audit(bin, ["create", "S170", "--title", "t", "--body-file", "v1.md", "--reason", "r"]).status).toBe(0);
+		const fake = new FakeGithub();
+		applyRecords(records(), io(fake));
+		fake.issues.get(1)!.body = body("the owner's own words");
+		return {
+			fake,
+			gh: shim(fake),
+		};
+	}
+
+	function adopt(gh: ReturnType<typeof shim>, id = "S170"): ReturnType<typeof spawnSync>
+	{
+		gh.save();
+		const r = spawnSync("bash", [join(repo, "scripts/audit.sh"), "edit", id, "--adopt", "--reason", "owner, 2026-11-21: \"keep my wording\""], {
+			cwd: repo,
+			encoding: "utf8",
+			env: {
+				...process.env,
+				...env(),
+				PATH: `${gh.bin}:${process.env.PATH}`,
+				FAKE_GH_STATE: gh.state,
+			},
+		});
+		gh.load();
+		return r;
+	}
+
+	it("an adopt records the live body, posts its Applied comment and turns a failing --live check green", () =>
+	{
+		const { fake, gh } = ownerEdited();
+		syncIssues(repo, {
+			run: fake.run,
+			env: env(),
+		});
+		expect(runLiveCheck(repo, env(), fake.run).failures).toEqual([expect.stringContaining("S170 (#1): unlogged edit")]);
+		const r = adopt(gh);
+		expect(r.status, String(r.stderr)).toBe(0);
+		const edit = records().at(-1)!;
+		expect(edit.kind).toBe("edit");
+		expect(edit.body).toBe(body("the owner's own words"));
+		expect(edit.from).toBe(sha256(body("one")));
+		expect(edit.reason).toContain("keep my wording");
+		expect(fake.issues.get(1)!.comments.at(-1)!.body).toBe(appliedComment(edit));
+		syncIssues(repo, {
+			run: fake.run,
+			env: env(),
+		});
+		expect(runLiveCheck(repo, env(), fake.run).failures).toEqual([]);
+	});
+
+	it("an adopt is refused when GitHub already matches the newest record", () =>
+	{
+		const { fake, gh } = ownerEdited();
+		fake.issues.get(1)!.body = body("one");
+		syncIssues(repo, {
+			run: fake.run,
+			env: env(),
+		});
+		const before = records().length;
+		const r = adopt(gh);
+		expect(r.status).toBe(2);
+		expect(String(r.stderr)).toContain("nothing to adopt");
+		expect(records().length).toBe(before);
+	});
+
+	/** An outside bug, B140, accepted in place (its fields block recorded), with the live body `live`. */
+	function bugWith(live: (fields: string) => string): { fake: FakeGithub;
+		gh: ReturnType<typeof shim>; }
+	{
+		const bin = setup();
+		const fields = renderFields({
+			priority: 61.5,
+		});
+		writeFileSync(join(repo, "bug.md"), `Steps: play a clip.\n\n${fields}`);
+		expect(audit(bin, ["create", "B140", "--issue", "140", "--body-file", "bug.md"]).status).toBe(0);
+		const fake = new FakeGithub();
+		fake.add({
+			number: 140,
+			title: "Video stalls",
+			labels: [{
+				name: "bug",
+			}],
+			body: live(fields),
+			user: {
+				login: "stranger",
+			},
+		});
+		syncIssues(repo, {
+			run: fake.run,
+			env: env(),
+		});
+		return {
+			fake,
+			gh: shim(fake),
+		};
+	}
+
+	it("an adopt of a bug records only its fields block, never the symptoms", () =>
+	{
+		const { fake, gh } = bugWith(() => `Steps, as the filer wrote them.\n\n${renderFields({
+			priority: 2,
+		})}`);
+		const r = adopt(gh, "B140");
+		expect(r.status, String(r.stderr)).toBe(0);
+		const edit = records().at(-1)!;
+		expect(edit.kind).toBe("edit");
+		expect(edit.body).toBe(renderFields({
+			priority: 2,
+		}));
+		expect(edit.body).not.toContain("Steps");
+		expect(fake.issues.get(140)!.comments.at(-1)!.body).toBe(appliedComment(edit));
+	});
+
+	it.each([
+		["in its symptoms", (f: string) => `Steps: play a clip.  \n\n\n\n${f}`],
+		["a missing final newline", (f: string) => `Steps: play a clip.\n\n${f.replace(/\n$/, "")}`],
+	])("an adopt is refused when a bug differs only by whitespace (%s)", (_what, live) =>
+	{
+		const { gh } = bugWith(live);
+		const before = records().length;
+		const r = adopt(gh, "B140");
+		expect(r.status).toBe(2);
+		expect(String(r.stderr)).toContain("nothing to adopt");
+		expect(records().length).toBe(before);
 	});
 });

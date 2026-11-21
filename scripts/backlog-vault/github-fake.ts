@@ -13,6 +13,8 @@ export interface FakeIssue extends CachedIssue
 	comments: { body: string;
 		user: { login: string } }[];
 	gone?: "deleted" | "transferred";
+	/** Its timeline, oldest first (S165's live check reads the newest `closed` entry and merged pull requests' cross-references). */
+	events?: Record<string, unknown>[];
 }
 
 /** A call the fake saw: method, path and its `-f`/`-F` fields. */
@@ -35,6 +37,10 @@ export class FakeGithub
 		number: 3,
 		title: "v3.1.0",
 	}];
+	/** The releases `GET …/releases` lists (S165's areas). */
+	releases: { tag_name: string;
+		draft: boolean;
+		published_at: string | null }[] = [];
 	pageSize = 100;
 	tick = 0;
 	intercept: Intercept | undefined;
@@ -82,7 +88,7 @@ export class FakeGithub
 	view(issue: FakeIssue): Record<string, unknown>
 	{
 		const {
-			comments: _comments, gone: _gone, ...rest
+			comments: _comments, gone: _gone, events: _events, ...rest
 		} = issue;
 		return rest;
 	}
@@ -157,7 +163,60 @@ export class FakeGithub
 			const more = all.length > page * this.pageSize;
 			return r(200, slice.map((i) => this.view(i)), more ? [`link: <repos/{owner}/{repo}/issues?state=all&since=${list[1]}&per_page=100&page=${page + 1}>; rel="next"`] : []);
 		}
-		const one = /^repos\/\{owner\}\/\{repo\}\/issues\/(\d+)(\/comments)?/.exec(path);
+		if (path.startsWith(`${prefix}/releases`) && method === "GET")
+		{
+			return r(200, this.releases);
+		}
+		// S165: labels added and removed one by one, and the issue's timeline (paged like the listing).
+		const labelCall = /^repos\/\{owner\}\/\{repo\}\/issues\/(\d+)\/labels(?:\/([^?]+))?$/.exec(path);
+		if (labelCall)
+		{
+			const issue = this.issues.get(Number(labelCall[1]));
+			if (!issue || issue.gone)
+			{
+				return r(404, {
+					message: "Not Found",
+				});
+			}
+			if (method === "POST" && labelCall[2] === undefined)
+			{
+				for (const [, name] of fields.filter(([n]) => n === "labels[]"))
+				{
+					if (!issue.labels.some((l) => l.name === name))
+					{
+						issue.labels.push({
+							name,
+						});
+					}
+				}
+				issue.updated_at = this.now();
+				return r(200, issue.labels);
+			}
+			if (method === "DELETE" && labelCall[2] !== undefined)
+			{
+				const name = decodeURIComponent(labelCall[2]);
+				if (!issue.labels.some((l) => l.name === name))
+				{
+					return r(404, {
+						message: "Label does not exist",
+					});
+				}
+				issue.labels = issue.labels.filter((l) => l.name !== name);
+				issue.updated_at = this.now();
+				return r(200, issue.labels);
+			}
+		}
+		const events = /^repos\/\{owner\}\/\{repo\}\/issues\/(\d+)\/timeline\?per_page=100(?:&page=(\d+))?$/.exec(path);
+		if (events && method === "GET")
+		{
+			const issue = this.issues.get(Number(events[1]));
+			const all = issue?.events ?? [];
+			const page = Number(events[2] ?? 1);
+			const more = all.length > page * this.pageSize;
+			return r(200, all.slice((page - 1) * this.pageSize, page * this.pageSize),
+				more ? [`link: <repos/{owner}/{repo}/issues/${events[1]}/timeline?per_page=100&page=${page + 1}>; rel="next"`] : []);
+		}
+		const one = /^repos\/\{owner\}\/\{repo\}\/issues\/(\d+)(\/comments)?(?:\?|$)/.exec(path);
 		if (one)
 		{
 			const issue = this.issues.get(Number(one[1]));

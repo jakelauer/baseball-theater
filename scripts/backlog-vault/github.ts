@@ -5,12 +5,19 @@
  * API, and GitHub Projects' custom fields aren't in it, so an item's fields live in its body), and
  * through an injected {@link GhRunner}, so tests never reach GitHub:
  *
+ *   GET   repos/<repo>                     the repository's name and owner (sync)
+ *   GET   user                             the token's login (sync; 403 for CI's Actions token)
  *   GET   repos/<repo>/issues?state=all&since=…&per_page=100   (every page the Link header names)
  *   GET   repos/<repo>/issues/<n>
  *   POST  repos/<repo>/issues
  *   PATCH repos/<repo>/issues/<n>            body, state, state_reason, labels, milestone
  *   POST  repos/<repo>/issues/<n>/comments   and GET the same: the `Applied` comments
+ *   POST  repos/<repo>/issues/<n>/labels     S165: adds labels, leaving the others as GitHub has them
+ *   DELETE repos/<repo>/issues/<n>/labels/<name>   S165: removes one label (a 404, already gone, is done)
+ *   GET   repos/<repo>/issues/<n>/timeline?per_page=100   S165: the live check's newest `closed` event and the merged
+ *                                 pull request that closed it (its `closed` event names no commit when a merge closes it)
  *   GET   repos/<repo>/milestones?state=all
+ *   GET   repos/<repo>/releases?per_page=100   S165: the published releases (areas.ts milestones)
  *
  * Commands (`node scripts/backlog-vault/github.ts …`):
  *
@@ -27,6 +34,9 @@
  *   next-id                       one above the highest story ID anywhere (a helper; create checks taken)
  *   removed --since <iso>         the stories closed not_planned since then, from the cache (the debt
  *                                 scripts' and the seed's `removed` drift event)
+ *   adopt-body <ID> --out <file>  S165: writes an item's live body (a bug's live fields block) for
+ *                                 `audit.sh edit <ID> --adopt`; refused when it already is the newest record
+ *   applied <ID> <fragment>       S165: posts that record's `Applied` comment (after the adopt's edit is written)
  *
  * State commands are logged in the run journal or the coordinator's output, never the ledger: only
  * story text is recorded (text-records.ts). With no cache, the readers of "now" exit 2 and say to
@@ -44,7 +54,7 @@ import { fileURLToPath } from "node:url";
 import type { BacklogItem, BacklogSource } from "./search.ts";
 import type { TextRecord } from "./text-records.ts";
 import {
-	chains, fragmentsDir, goalLine, lf, newestBody, parseFields, readRecords, recordStamp, sha256, withoutFields,
+	chains, FIELDS_HEADING, fragmentsDir, goalLine, lf, newestBody, parseFields, parseRecord, readRecords, recordStamp, sha256, withoutFields,
 } from "./text-records.ts";
 
 /** Runs `gh` with these arguments and returns its stdout (with `-i`, the status line and headers first); injected so tests never reach GitHub. */
@@ -173,8 +183,8 @@ export function request(run: GhRunner, method: string, path: string, fields: Fie
 	}
 }
 
-/** A call that must succeed (2xx): its JSON body, else a {@link GithubError}. */
-function ok<T>(response: Response, what: string): T
+/** A call that must succeed (2xx): its JSON body, else a {@link GithubError} (areas.ts reads releases through it too). */
+export function ok<T>(response: Response, what: string): T
 {
 	if (response.status !== 0 && (response.status < 200 || response.status > 299))
 	{
@@ -490,6 +500,8 @@ export function syncIssues(root: string, opts: { run?: GhRunner;
 	const info = ok<{ full_name: string;
 		owner: { login: string } }>(request(run, "GET", "repos/{owner}/{repo}", [], sleep), "reading the repository");
 	const trusted = new Set([info.owner.login, ...(env.BT_BACKLOG_TRUSTED ?? "").split(",").filter(Boolean)]);
+	// In CI `GET user` answers 403 for the Actions token, so CI trusts only the owner and
+	// BT_BACKLOG_TRUSTED (S165): an Applied comment from another login counts only in the coordinator's session.
 	const viewer = request(run, "GET", "user", [], sleep);
 	if (viewer.status === 200 || viewer.status === 0)
 	{
@@ -817,6 +829,114 @@ export function patchIssue(io: GithubWriter, n: number, change: { body?: string;
 	return slim(ok(request(io.run, "PATCH", `repos/{owner}/{repo}/issues/${n}`, fields, io.sleep), `changing issue #${n}`));
 }
 
+/** An issue read fresh from GitHub, as the cache keeps it (a label call's response is a label list, never the issue). */
+export function readIssue(io: GithubWriter, n: number): CachedIssue
+{
+	return slim(ok<Record<string, unknown>>(request(io.run, "GET", `repos/{owner}/{repo}/issues/${n}`, [], io.sleep), `reading issue #${n}`));
+}
+
+/**
+ * Adds labels to an issue (`POST …/labels`), leaving every other label as GitHub has it now, so a
+ * label set from a stale cache never undoes a status changed since the sync (S165).
+ */
+export function addLabels(io: GithubWriter, n: number, names: string[]): void
+{
+	if (names.length > 0)
+	{
+		ok(request(io.run, "POST", `repos/{owner}/{repo}/issues/${n}/labels`, names.map((l): Field => ["labels[]", l]), io.sleep), `labelling issue #${n}`);
+	}
+}
+
+/** Removes one label (`DELETE …/labels/<name>`); a 404 means it is already gone, which is what was asked. */
+export function removeLabel(io: GithubWriter, n: number, name: string): void
+{
+	const response = request(io.run, "DELETE", `repos/{owner}/{repo}/issues/${n}/labels/${encodeURIComponent(name)}`, [], io.sleep);
+	if (response.status !== 404)
+	{
+		ok(response, `removing ${name} from issue #${n}`);
+	}
+}
+
+/**
+ * An issue's newest `closed` event: who closed it, the commit that did (a `Fixes #N` commit pushed to
+ * the default branch), and the merged pull request that closed it, if any.
+ */
+export interface ClosingEvent
+{
+	actor: string | undefined;
+	commitId: string | null;
+	/** The merged pull request whose `Closes|Fixes|Resolves #N` closed it, or undefined when none did. */
+	closingPull?: number;
+}
+
+/** How close a pull request's merge must come before the issue's `closed` event for the merge to be what closed it. */
+export const CLOSE_BY_MERGE_MS = 5 * 60_000;
+
+/** One timeline entry as {@link closingEvent} reads it. */
+interface TimelineEntry
+{
+	event: string;
+	created_at?: string;
+	commit_id?: string | null;
+	actor?: { login: string } | null;
+	source?: { issue?: { number: number;
+		body?: string | null;
+		repository?: { full_name?: string };
+		pull_request?: { merged_at?: string | null } } };
+}
+
+/**
+ * The newest `closed` event of an issue (S165's live check), read from its timeline, oldest first, so
+ * the last one on the last page wins; undefined when it has none. A merge that closes an issue through
+ * its pull request's `Closes #N` leaves a `closed` event naming no commit (seen on #296, 2026-11-21), so
+ * the closing pull request is found from the timeline's `cross-referenced` entries: a merged pull
+ * request of this repository (`repo`, `owner/name`) whose body says `Closes|Fixes|Resolves #<n>` and
+ * that merged within {@link CLOSE_BY_MERGE_MS} before the close. A pull request elsewhere naming `#<n>`
+ * means another repository's issue.
+ */
+export function closingEvent(io: GithubWriter, n: number, repo: string): ClosingEvent | undefined
+{
+	let closed: TimelineEntry | undefined;
+	const pulls: { number: number;
+		mergedAt: number }[] = [];
+	const keyword = new RegExp(`\\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\\s+#${n}\\b`, "i");
+	let page: string | undefined = `repos/{owner}/{repo}/issues/${n}/timeline?per_page=100`;
+	while (page !== undefined)
+	{
+		const response = request(io.run, "GET", page, [], io.sleep);
+		for (const e of ok<TimelineEntry[]>(response, `reading issue #${n}'s timeline`))
+		{
+			if (e.event === "closed")
+			{
+				closed = e;
+			}
+			const pull = e.source?.issue;
+			const merged = Date.parse(pull?.pull_request?.merged_at ?? "");
+			if (e.event === "cross-referenced" && pull !== undefined && pull.repository?.full_name === repo && !Number.isNaN(merged) && keyword.test(pull.body ?? ""))
+			{
+				pulls.push({
+					number: pull.number,
+					mergedAt: merged,
+				});
+			}
+		}
+		page = nextPage(response.headers);
+	}
+	if (closed === undefined)
+	{
+		return undefined;
+	}
+	const at = Date.parse(closed.created_at ?? "");
+	const closer = pulls.find((p) => !Number.isNaN(at) && p.mergedAt <= at && at - p.mergedAt <= CLOSE_BY_MERGE_MS);
+	return {
+		actor: closed.actor?.login,
+		commitId: closed.commit_id ?? null,
+		...(closer ? {
+			closingPull: closer.number,
+		} : {}),
+	};
+}
+
 /** An issue's comments, every page. */
 export function listComments(io: GithubWriter, n: number): { body: string;
 	user: { login: string } | null }[]
@@ -899,11 +1019,22 @@ function targetBody(record: TextRecord, current: string | null): string
 	return `${symptoms === "" ? "" : `${symptoms}\n\n`}${record.body}`;
 }
 
-/** Whether the issue's body already is what `record` sets (a CRLF copy of it counts). */
-function isLive(record: TextRecord, body: string | null): boolean
+/**
+ * Whether the issue's body already is what `record` sets (a CRLF copy of it counts). A bug compares
+ * its fields block alone ({@link bugFieldsText}), so its filer's symptoms, whitespace included, never
+ * matter (S165: the live check, `apply` and `audit.sh edit --adopt` all read it this way).
+ */
+export function isLive(record: TextRecord, body: string | null): boolean
 {
 	const text = lf(body ?? "");
-	return record.id.startsWith("B") ? text === targetBody(record, text) : sha256(text) === record.hash;
+	if (record.id.startsWith("B"))
+	{
+		// Both sides normalized the same way: a record written byte-exact from a body file (text-records.ts
+		// fields) may lack the final newline GitHub's copy has, or the reverse.
+		const section = bugFieldsText(text);
+		return section !== undefined && section === bugFieldsText(record.body);
+	}
+	return sha256(text) === record.hash;
 }
 
 /**
@@ -981,6 +1112,80 @@ export function applyRecords(records: TextRecord[], io: GithubWriter & { sync: (
 		}
 	}
 	return result;
+}
+
+/**
+ * Law L9's design clause, "a UI story waits for its ratified design" (S165; owner, 2026-11-20: "GitHub
+ * owns state (Recommended)", which moved it from the commit check to the live one and the claim step):
+ * each design story in `design` must be carried by an issue closed `completed` with `status:done`.
+ * Returns one problem per design story that isn't. `pnpm backlog:check --live` and `claims.ts claim`
+ * both call this, so they agree (ADR-025).
+ */
+export function designGate(cache: IssueCache, id: string, design: string[]): string[]
+{
+	const problems: string[] = [];
+	for (const d of design)
+	{
+		const issue = findIssue(cache, d);
+		const done = issue !== undefined && issue.state === "closed" && (issue.state_reason ?? "completed") === "completed" && labelsOf(issue).includes("status:done");
+		if (!done)
+		{
+			problems.push(`${id} waits for its ratified design, but its design story ${d} ${issue ? `(#${issue.number}) is not closed completed with status:done` : "has no trusted issue"}`);
+		}
+	}
+	return problems;
+}
+
+/** The `### Backlog fields` section of a body, from its heading to the end (a bug's recorded text), or undefined when it has none. */
+export function fieldsSection(body: string): string | undefined
+{
+	const text = lf(body);
+	if (text.startsWith(`${FIELDS_HEADING}\n`))
+	{
+		return text;
+	}
+	const at = text.lastIndexOf(`\n${FIELDS_HEADING}\n`);
+	return at === -1 ? undefined : text.slice(at + 1);
+}
+
+/**
+ * A bug body's fields block as its record holds it: {@link fieldsSection} with trailing whitespace
+ * trimmed and one newline added, so a body GitHub returns without its final newline still matches.
+ */
+export function bugFieldsText(body: string): string | undefined
+{
+	const section = fieldsSection(body);
+	return section === undefined ? undefined : `${section.replace(/\s+$/, "")}\n`;
+}
+
+/**
+ * What `audit.sh edit <ID> --adopt` records (S165 AC 2): the item's live body as GitHub returns it, a
+ * story's whole body or a bug's fields block, so an edit the owner made on GitHub becomes a record
+ * chained from the newest one. Refused when the live text already is the newest record (nothing to
+ * adopt), when it has no record to chain from, or when a bug's body has no fields block that parses.
+ */
+export function adoptBody(id: string, issue: CachedIssue, records: TextRecord[]): string
+{
+	const tip = newestBody(records, id);
+	if (!tip)
+	{
+		throw new Error(`${id} has no text record to chain an adopted edit from (scripts/audit.sh create ${id})`);
+	}
+	if (isLive(tip, issue.body))
+	{
+		throw new Error(`issue #${issue.number} already matches ${id}'s newest record (${tip.file}): nothing to adopt`);
+	}
+	if (id.startsWith("B"))
+	{
+		const section = bugFieldsText(issue.body ?? "");
+		if (section === undefined)
+		{
+			throw new Error(`issue #${issue.number} (${id}) has no ${FIELDS_HEADING} section to adopt`);
+		}
+		parseFields(section, `issue #${issue.number} (${id})`);
+		return section;
+	}
+	return lf(issue.body ?? "");
 }
 
 /** The labels an item gets for a status: its kind's label, `status:<status>`, and any other labels it had. */
@@ -1127,7 +1332,7 @@ export function main(argv: string[], run: GhRunner = ghRunner, root = repoRoot, 
 		{
 			throw new Error(`no trusted issue carries ${id} (pnpm backlog:sync, then try again)`);
 		}
-		const fresh = slim(ok<Record<string, unknown>>(request(run, "GET", `repos/{owner}/{repo}/issues/${issue.number}`), `reading issue #${issue.number}`));
+		const fresh = readIssue(io, issue.number);
 		if (trustedId(fresh, cache.trusted)?.toLowerCase() !== id.toLowerCase())
 		{
 			throw new Error(`issue #${issue.number} no longer carries ${id} on GitHub (pnpm backlog:sync, then try again)`);
@@ -1204,21 +1409,16 @@ export function main(argv: string[], run: GhRunner = ghRunner, root = repoRoot, 
 				}
 			}
 			const issue = freshIssue(cached(), rest[0]!);
-			const labels = new Set(labelsOf(issue));
+			// Added and removed one by one (S165), so a label changed by anyone in between is kept.
+			addLabels(io, issue.number, changes.filter(([op]) => op === "--add").map(([, l]) => l));
 			for (const [op, l] of changes)
 			{
-				if (op === "--add")
+				if (op === "--remove")
 				{
-					labels.add(l);
-				}
-				else
-				{
-					labels.delete(l);
+					removeLabel(io, issue.number, l);
 				}
 			}
-			const after = patchIssue(io, issue.number, {
-				labels: [...labels],
-			});
+			const after = readIssue(io, issue.number);
 			store(after);
 			return `#${after.number} ${rest[0]}: [${labelsOf(after).join(", ")}]`;
 		}
@@ -1284,8 +1484,32 @@ export function main(argv: string[], run: GhRunner = ghRunner, root = repoRoot, 
 			}
 			return removedSince(cache, rest[at + 1] ?? "", records()).join("\n");
 		}
+		case "adopt-body":
+		{
+			const id = rest[0] ?? "";
+			const out = rest[rest.indexOf("--out") + 1];
+			if (!rest.includes("--out") || !out)
+			{
+				throw new Error("adopt-body <ID> --out <file>");
+			}
+			const issue = freshIssue(cached(), id);
+			writeFileSync(out, adoptBody(id, issue, records()));
+			return String(issue.number);
+		}
+		case "applied":
+		{
+			const [id = "", fragment = ""] = rest;
+			const record = parseRecord(readFileSync(fragment, "utf8"), fragment);
+			if (record.id !== id || sha256(record.body) !== record.hash)
+			{
+				throw new Error(`${fragment} is not an intact record of ${id}`);
+			}
+			const issue = freshIssue(cached(), id);
+			postComment(io, issue.number, appliedComment(record));
+			return `#${issue.number} ${id}: ${appliedComment(record)}`;
+		}
 		default:
-			throw new Error("usage: github.ts sync [--full] | item <ID> [goal] | status <ID> <status> | label <ID> [--add l] [--remove l] | milestone <ID> <title|none> | apply | taken <ID> [--issue <n>] | next-id | removed --since <iso>");
+			throw new Error("usage: github.ts sync [--full] | item <ID> [goal] | status <ID> <status> | label <ID> [--add l] [--remove l] | milestone <ID> <title|none> | apply | taken <ID> [--issue <n>] | next-id | removed --since <iso> | adopt-body <ID> --out <file> | applied <ID> <fragment>");
 	}
 }
 

@@ -4,6 +4,9 @@
  *
  *   pnpm backlog:build    rewrite the frame notes canonically and write docs/v3/INDEX.md (its open
  *                         table from the issue cache, when there is one) and docs/v3/audit.jsonl
+ *   pnpm backlog:check --live   law L9's live parts instead (S165; live-check.ts): reads the issue
+ *                         cache `pnpm backlog:sync` wrote and GitHub's comments, so it runs in CI and
+ *                         the coordinator's session, never in pnpm verify; exit 1 on a failure, 2 with no cache
  *   pnpm backlog:check    exit 1 if build would change a note, or a finished story's records are
  *                         missing (records.ts), or the story text records are inconsistent (law L9's
  *                         tree-reproducible part, S164: text-records.ts); builds INDEX.md in memory,
@@ -45,6 +48,7 @@ import type { IndexedDoc, LedgerState } from "./doc-index.ts";
 import {
 	docIndexFor, isIndexedDoc, liveBacklog,
 } from "./doc-index.ts";
+import { NoCacheError } from "./github.ts";
 import { inFlightIds } from "./in-flight.ts";
 import type { LedgerEntry, ReviewKind } from "./ledger.ts";
 import {
@@ -53,6 +57,7 @@ import {
 import {
 	misplacedNotes, readNotes, writeNotes,
 } from "./notes-dir.ts";
+import { formatLiveReport, runLiveCheck } from "./live-check.ts";
 import { designMatchProblems, parseBacklog } from "./parse.ts";
 import { runPrecommit } from "./precommit.ts";
 import type { ChangelogState } from "./records.ts";
@@ -85,6 +90,10 @@ const { values, positionals } = parseArgs({
 			type: "string",
 		},
 		quiet: {
+			type: "boolean",
+			default: false,
+		},
+		live: {
 			type: "boolean",
 			default: false,
 		},
@@ -225,6 +234,11 @@ async function build()
 
 async function check()
 {
+	if (values.live)
+	{
+		liveCheckCommand();
+		return;
+	}
 	const notes = await readNotes(dir);
 	const built = buildFromNotes(notes, await readSourceDocs());
 	// Built in memory so a broken index fails here; the file on disk is git-ignored and never compared.
@@ -256,6 +270,29 @@ async function check()
 	if (stale.length === 0 && problems.length === 0)
 	{
 		log("the frame notes and the story text records are consistent");
+	}
+}
+
+/**
+ * `pnpm backlog:check --live` (S165): law L9's live parts over the issue cache, the tree's and
+ * origin/stage's text records and GitHub's comments (live-check.ts). Only this reads the cache or the
+ * network; the check without `--live` never does (S164 AC 2).
+ */
+function liveCheckCommand()
+{
+	try
+	{
+		const report = runLiveCheck(repoRoot);
+		console.log(formatLiveReport(report));
+		if (report.failures.length > 0)
+		{
+			process.exitCode = 1;
+		}
+	}
+	catch (error)
+	{
+		console.error(`backlog: ${(error as Error).message}`);
+		process.exitCode = error instanceof NoCacheError ? 2 : 1;
 	}
 }
 
@@ -386,7 +423,7 @@ const commands: Record<string, () => Promise<void>> = {
 const command = commands[positionals[0] ?? ""];
 if (!command)
 {
-	console.error("usage: cli.ts <build|check|pre-commit|ledger-base|review-base|done-since|review-blocked <kind>|in-flight> [--dir <notes dir>] [--audit <file>] [--index <file>] [--in-flight <IDs>] [--quiet]");
+	console.error("usage: cli.ts <build|check|pre-commit|ledger-base|review-base|done-since|review-blocked <kind>|in-flight> [--dir <notes dir>] [--audit <file>] [--index <file>] [--in-flight <IDs>] [--quiet] [--live]");
 	process.exitCode = 2;
 }
 else
