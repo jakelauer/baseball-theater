@@ -115,3 +115,55 @@ describe("buildFromNotes with bug notes", () =>
 		expect(bugsIn(built.notes)).toEqual([B74]);
 	});
 });
+
+describe("bugsFromCache (S164)", () =>
+{
+	it("reads the bugs from the issue cache: an accepted one with its priority, an unaccepted one last", async () =>
+	{
+		const { bugsFromCache } = await import("./bugs.ts");
+		const { renderFields } = await import("./text-records.ts");
+		const bugs = bugsFromCache({
+			repo: "o/r",
+			trusted: ["o"],
+			syncedAt: "x",
+			issues: [{
+				number: 74,
+				title: "Scores freeze",
+				state: "open",
+				labels: [{
+					name: "bug",
+				}, {
+					name: "status:doing",
+				}],
+				user: {
+					login: "stranger",
+				},
+				body: `steps\n\n${renderFields({
+					priority: 4.5,
+				})}`,
+			}, {
+				number: 75,
+				title: "Not triaged",
+				state: "open",
+				labels: [{
+					name: "bug",
+				}],
+				user: null,
+				body: "steps",
+			}],
+		});
+		expect(bugs).toEqual([{
+			id: "B74",
+			issue: 74,
+			title: "Scores freeze",
+			priority: 4.5,
+			status: "doing",
+		}, {
+			id: "B75",
+			issue: 75,
+			title: "Not triaged",
+			priority: Number.POSITIVE_INFINITY,
+			status: "todo",
+		}]);
+	});
+});

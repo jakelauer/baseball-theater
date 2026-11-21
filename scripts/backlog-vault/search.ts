@@ -25,16 +25,19 @@
  * review copies into its ledger findings (scripts/audit.sh refuses a review without one). `--json`
  * prints the same as JSON. An unknown query or ID, or a malformed argument, exits 2.
  *
- * The queries are pure functions over a {@link BacklogSource}. Today's one is {@link notesSource}, the
- * Obsidian notes read through the same parser `pnpm backlog:check` uses; S164 adds a GitHub-backed
- * source behind the same interface, and no query changes.
+ * The queries are pure functions over a {@link BacklogSource}. The default is github.ts's
+ * `githubSource`, the issue cache `pnpm backlog:sync` writes (S164: the stories and bugs are GitHub
+ * issues); with no cache it exits 2 saying to sync. {@link notesSource}, the Obsidian notes read
+ * through the backlog tool's own parser, stays for history at commits before S164.
  */
 
 import { execFileSync } from "node:child_process";
 import type {
 	GhRunner, IssueSummary, IssuesResult,
 } from "./github.ts";
-import { ghRunner, listIssues } from "./github.ts";
+import {
+	ghRunner, githubSource, listIssues, NoCacheError,
+} from "./github.ts";
 import { readFileSync } from "node:fs";
 import {
 	dirname, join, relative, resolve,
@@ -876,7 +879,7 @@ async function seedCommand(kind: string | undefined, flags: Record<string, strin
 const ISO = /^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/;
 
 /** Runs one query; returns what to print. Throws {@link SearchUsageError} for exit 2. */
-export async function main(argv: string[], source: BacklogSource = notesSource(repoRoot), io: SeedDeps = realDeps): Promise<string>
+export async function main(argv: string[], source: BacklogSource = githubSource(repoRoot), io: SeedDeps = realDeps): Promise<string>
 {
 	const { words, flags } = options(argv);
 	const [name, ...rest] = words;
@@ -943,6 +946,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 	catch (error)
 	{
 		console.error(`backlog:search: ${(error as Error).message}`);
-		process.exitCode = error instanceof SearchUsageError ? 2 : 1;
+		process.exitCode = error instanceof SearchUsageError || error instanceof NoCacheError ? 2 : 1;
 	}
 }

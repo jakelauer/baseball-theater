@@ -5,17 +5,10 @@
  */
 
 import {
-	access, mkdir, readdir, readFile, rm, rmdir, writeFile,
+	mkdir, readdir, readFile, rm, rmdir, writeFile,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import {
-	BACKLOG_BASE, isNoteKey, noteId,
-} from "./vault.ts";
-
-async function exists(path: string): Promise<boolean>
-{
-	return access(path).then(() => true, () => false);
-}
+import { isNoteKey, noteId } from "./vault.ts";
 
 /**
  * Story, bug and frame notes on disk, keyed like the rendered map (`stories/done/S1.md`, `bugs/todo/B74.md`,
@@ -92,10 +85,6 @@ export async function writeNotes(dir: string, current: Map<string, string>, want
 			});
 			await writeFile(join(dir, path), content);
 		}
-	}
-	if (!(await exists(join(dir, "Backlog.base"))))
-	{
-		await writeFile(join(dir, "Backlog.base"), BACKLOG_BASE);
 	}
 	// A status folder emptied by a move goes too, so Obsidian's file tree shows only live ones. One holding
 	// nothing but macOS Finder's .DS_Store counts as empty; anything else keeps it (rmdir refuses a non-empty one).

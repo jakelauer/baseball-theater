@@ -41,7 +41,9 @@ import type { BuiltBacklog } from "./assemble.ts";
 import { buildFromNotes } from "./assemble.ts";
 import { changelogFragmentFor } from "./changelog.ts";
 import type { IndexedDoc, LedgerState } from "./doc-index.ts";
-import { docIndexFor, isIndexedDoc } from "./doc-index.ts";
+import {
+	docIndexFor, isIndexedDoc, liveBacklog,
+} from "./doc-index.ts";
 import { inFlightIds } from "./in-flight.ts";
 import type { LedgerEntry, ReviewKind } from "./ledger.ts";
 import {
@@ -181,14 +183,24 @@ function log(message: string)
 	}
 }
 
-/** INDEX.md's text for a build, from the notes, the docs and the ledger. */
-async function docIndex(built: BuiltBacklog, entries: LedgerEntry[]): Promise<string>
+/**
+ * INDEX.md's text for a build, from the frame notes, the text records, the docs and the ledger. `live`
+ * reads the issue cache (build only): `pnpm backlog:check` builds it with none, so it never reads the
+ * cache and its verdict is the same at any commit (S164 AC 2).
+ */
+async function docIndex(built: BuiltBacklog, entries: LedgerEntry[], live = false): Promise<string>
 {
 	const ledger: LedgerState = {
 		entries,
 		head: head(),
 	};
-	return docIndexFor(built.backlog, built.notes, await readIndexedDocs(), ledger);
+	const backlog = live ? liveBacklog(notesRoot()) : undefined;
+	if (live && backlog === undefined)
+	{
+		// To stderr, so the hooks (which silence stdout) still say it; the build itself succeeds.
+		console.error("backlog: no issue cache, so INDEX.md lists only the recorded items: run pnpm backlog:sync");
+	}
+	return docIndexFor(built.notes, readRecords(fragmentsDirFor(auditPath)), await readIndexedDocs(), ledger, backlog);
 }
 
 async function build()
@@ -196,7 +208,7 @@ async function build()
 	const notes = await readNotes(dir);
 	const built = buildFromNotes(notes, await readSourceDocs());
 	const entries = await ledgerEntries();
-	const index = await docIndex(built, entries);
+	const index = await docIndex(built, entries, true);
 	await writeNotes(dir, notes, built.notes, log);
 	log(`built ${built.notes.size} notes in ${dir}`);
 	await writeFile(indexPath, renderLedgerIndex(entries));

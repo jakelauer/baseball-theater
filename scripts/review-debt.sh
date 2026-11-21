@@ -191,7 +191,22 @@ while IFS=$'\t' read -r change id before after; do
       [ "$(acs "$base" "$before")" != "$(acs HEAD "$after")" ] && reasons+=("${id}'s acceptance criteria rewritten") && json_event ac-rewritten id "$id"
       ;;
   esac
-done < <(story_changes "$base" HEAD "$STORIES")
+done < <(story_changes "$base" HEAD "$STORIES" | grep -vFf <(migrated_ids "$base" | sed 's/^/D\t/; s/$/\t/') )
+
+# Since S164 a story's text changes through its text records (scripts/lib/story-notes.sh record_changes).
+rprio() { record_body "$1" | grep -m1 '^priority:'; }
+racs() { record_body "$1" | awk '/^\*\*Acceptance criteria\*\*/ { on = 1; next } on && /^\*\*/ { on = 0 } on && NF { print }'; }
+while IFS=$'\t' read -r change id before after; do
+  [ -z "$id" ] && continue
+  case "$change" in
+    A) reasons+=("${id} inserted outside a review"); json_event inserted id "$id" ;;
+    X) reasons+=("${id}'s acceptance criteria rewritten by the migration"); json_event ac-rewritten id "$id" ;;
+    R)
+      [ "$(rprio "$before")" != "$(rprio "$after")" ] && reasons+=("${id} re-prioritized outside a review") && json_event reprioritized id "$id"
+      [ "$(racs "$before")" != "$(racs "$after")" ] && reasons+=("${id}'s acceptance criteria rewritten") && json_event ac-rewritten id "$id"
+      ;;
+  esac
+done < <(record_changes "$base")
 
 # Stories completed since the newest backlog review (`## … — backlog review (\`verdict\`)`; answers
 # and skip entries don't reset it), by ledger order (re-verifications don't count).

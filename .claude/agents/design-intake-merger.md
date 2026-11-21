@@ -1,6 +1,6 @@
 ---
 name: design-intake-merger
-description: "Merges the two design-intake-reviewer reports and applies the result (`.claude/skills/design-intake-review/SKILL.md`): edits the backlog notes, logs with `scripts/audit.sh review` and commits. Give it both reports verbatim."
+description: "Merges the two design-intake-reviewer reports and applies the result (`.claude/skills/design-intake-review/SKILL.md`): records the backlog text changes (`scripts/audit.sh create|edit`), logs with `scripts/audit.sh review` and commits. Give it both reports verbatim."
 disallowedTools: Agent, Artifact, ArtifactComments, ArtifactData
 model: opus
 skills:

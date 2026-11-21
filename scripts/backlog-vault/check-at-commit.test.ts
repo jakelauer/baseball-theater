@@ -1,8 +1,8 @@
 /**
  * `pnpm backlog:check` is reproducible at any commit (S164 AC 2): it reads the tree and the ledger's
  * fragments only, never the issue cache or GitHub. A throwaway repository gets two commits: the
- * backlog as it is in this checkout's HEAD, then a later one that records a migration while its notes
- * are still there (which the check refuses). Run in a worktree at the older commit, with a cache that
+ * backlog as it is in this checkout's HEAD, then a later one that records a migration while a note is
+ * still there (which the check refuses). Run in a worktree at the older commit, with a cache that
  * holds a later `done` story and `gh` broken, the check gives the verdict it gives there with no cache.
  * The tree comes from `git archive HEAD`, not from older history, since CI's checkout is shallow.
  */
@@ -78,22 +78,27 @@ beforeAll(() =>
 	});
 	git(["add", "-A"]);
 	git(["commit", "-q", "-m", "older: the notes"]);
-	const frag = join(repo, "docs/v3/audit/2030-01-01/20300101T000000Z-S1-migration.md");
+	// A migration record for an item of its own, and a bug note left beside it: refused whether or not HEAD is migrated.
+	const frag = join(repo, "docs/v3/audit/2030-01-01/20300101T000000Z-B99999-migration.md");
 	mkdirSync(dirname(frag), {
 		recursive: true,
 	});
 	writeFileSync(frag, renderRecord({
 		kind: "migration",
-		id: "S1",
+		id: "B99999",
 		date: "2030-01-01",
 		stamp: "2030-01-01T00:00:00Z",
 		head: "abc",
-		body: `**Gap:** x\n\n${renderFields({
+		body: renderFields({
 			priority: 1,
-		})}`,
-		issue: 1,
+		}),
+		issue: 99999,
 		base: "abc",
 	}));
+	mkdirSync(join(repo, "docs/v3/backlog/bugs/todo"), {
+		recursive: true,
+	});
+	writeFileSync(join(repo, "docs/v3/backlog/bugs/todo/B99999.md"), "---\nid: B99999\nissue: 99999\ntitle: a bug\npriority: 1\nstatus: todo\n---\n\nhttps://example.test/issues/99999\n");
 	git(["add", "-A"]);
 	git(["commit", "-q", "-m", "later: a migration record with the notes still there"]);
 });

@@ -12,46 +12,6 @@ MLB  →  typed fetch (S11–S13)  →  project to BT store shapes (S21)
                                       └─ then publish  →  hub object(s) (S18)  →  one-way WebSocket  →  watched UI (S19; S20 polls the cached schedule)
 ```
 
-![[S21]]
-
----
-
-![[S16]]
-
----
-
-![[S17]]
-
----
-
-![[S43]]
-
----
-
-![[S47]]
-
----
-
-![[S48]]
-
----
-
-![[S18]]
-
----
-
-![[S19]]
-
----
-
-![[S20]]
-
----
-
-![[S28]]
-
----
-
 ### Later themes (not yet story-sliced)
 
 Keep as themes until promoted; still architecture-aligned when sliced:
@@ -76,5 +36,3 @@ Keep as themes until promoted; still architecture-aligned when sliced:
 | Web Push notifications (VAPID, from a Worker) | FEATURES Later · ADR-017 | Server transitions, not a substitute for S18 watched-game UX. Dedupe record `(gamePk, event, userId)` under a unique constraint before sending (ADR-022) **ADR-028 (2026-10-23 backlog review):** the subscription endpoint and the `(gamePk, event, userId)` dedupe record are personal: register `Push subscriptions` (ADR-028's inventory row) with `deleteFor`, label both in S76's manifest, and keep endpoints out of logs. |
 | ~~**Generated DAL adoption**~~ **Sliced into S49 by the 2026-10-18 review.** (`openapi-fetch` as the fetch layer; drop hand-written route-path literals from `web/src/api/client.ts`) | ADR-016 | Split out of **S29** by the 2026-09-16 review. S29 keeps the fidelity guard (generated types + mutual-assignability gate), which is ADR-016's stated value; this is the rest. **Owner, 2026-10-14: no trigger — "No, our own client should use it."** ADR-016 stands unamended; the next backlog review slices this into a story. (Former triggers T1 external consumer / T2 fidelity gate red or a second route family are retired.) **Carry these two when it is sliced:** (a) `web/src/api/client.ts` builds its URLs in backtick template literals (`` `/api/v1/games/${gamePk}` ``) independently of the route key it passes to `getJson`, so route and response type can disagree with nothing to catch it — a cheap non-codegen fix is to derive the path from the route key; (b) the old S29 AC 5 grep was written as `"/api/v1/` (double-quote-prefixed) and would have matched only the two assertions in `web/src/api/client.test.ts`, missing the real literals in `client.ts` — any grep here must cover backticks |
 | Internal API explorer (Swagger UI / redoc over `openapi/bt-api.v1.json`) | ADR-015 "Still open" · FEATURES carry | FEATURES carries "ApiTest / swagger explorer" as internal/dev-only, but **no story owns it** and S27 put publishing the spec explicitly out of scope. Found by the 2026-09-16 review. Slicing it is also trigger T1 for the Generated DAL adoption row above — the moment a human reads the spec as documentation, its fidelity stops being hypothetical |
-
----

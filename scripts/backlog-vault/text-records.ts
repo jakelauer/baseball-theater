@@ -619,6 +619,40 @@ export function main(argv: string[]): string
 		}
 		return tip.body;
 	}
+	if (command === "changes")
+	{
+		// For the debt scripts (scripts/lib/story-notes.sh record_changes): one tab-separated line per text
+		// record among the given fragment paths (repo-relative, the ones added since a review's base):
+		//   A <id> <path>                   a story created
+		//   R <id> <before path> <path>     a story's text edited (the record it chains from, then the edit)
+		//   X <id> <path>                   a migration that rewrote the story's text (its diffs are in it)
+		const dir = fragmentsDir();
+		const all = readRecords(dir);
+		const rel = (file: string) => `docs/v3/audit/${file}`;
+		const lines: string[] = [];
+		for (const path of rest)
+		{
+			const record = all.find((r) => rel(r.file) === path);
+			if (!record || !record.id.startsWith("S"))
+			{
+				continue;
+			}
+			if (record.kind === "create")
+			{
+				lines.push(`A\t${record.id}\t${path}`);
+			}
+			else if (record.kind === "edit")
+			{
+				const before = all.find((r) => r.id === record.id && BODY_KINDS.includes(r.kind) && r.hash === record.from);
+				lines.push(`R\t${record.id}\t${before ? rel(before.file) : ""}\t${path}`);
+			}
+			else if (record.kind === "migration" && record.rewrites.length > 0)
+			{
+				lines.push(`X\t${record.id}\t${path}`);
+			}
+		}
+		return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
+	}
 	if (command === "fields")
 	{
 		// The `### Backlog fields` section of a body file, byte-exact, once it parses (audit.sh create B<N>).

@@ -7,8 +7,13 @@
  * them as they are. This index sits on top: the backlog's generated status lines (the As of line,
  * the Next line, the review-debt line), every doc with its size, the sections of the large ones
  * with their line ranges (so a reader opens only the part it needs), the backlog rules by number,
- * and the stories and bugs by status with a link to each note. It points at the text rather than
- * summarising it, so nothing is lost by starting here.
+ * and the stories and bugs by status with a link to each one's GitHub issue. It points at the text
+ * rather than summarising it, so nothing is lost by starting here.
+ *
+ * Since S164 the stories and bugs are GitHub issues: the open table describes now, so it comes from
+ * the issue cache (`pnpm backlog:sync`, read through github.ts); with no cache it lists the recorded
+ * items and says to sync. The As of line and the Baseline history describe a commit, so they come
+ * from the story text records (text-records.ts), offline.
  *
  * Built, never committed (S156; owner, 2026-11-20: "Stop committing them (Recommended)"):
  * `pnpm backlog:build` writes it (the post-checkout and post-merge hooks run that), and it is
@@ -19,13 +24,15 @@
 import {
 	nextCandidate, nextStoryLine, reviewDebtLine,
 } from "./assemble.ts";
-import type { Bug } from "./bugs.ts";
-import { bugsIn } from "./bugs.ts";
+import {
+	cacheDir, itemsFromCache, readCache,
+} from "./github.ts";
 import type { LedgerEntry } from "./ledger.ts";
 import type { Story } from "./parse.ts";
-import { parseBacklog } from "./parse.ts";
 import { baselineText } from "./records.ts";
-import { bugNotePath, storyNotePath } from "./vault.ts";
+import type { BacklogItem } from "./search.ts";
+import type { TextRecord } from "./text-records.ts";
+import { chains } from "./text-records.ts";
 
 /** A doc the index lists: its path relative to docs/v3/ and its text. */
 export interface IndexedDoc
@@ -221,45 +228,44 @@ interface OpenRow extends OpenItem
 	cells: string;
 }
 
+/** The backlog as it is now: the items in the issue cache and the repository they are issues of. */
+export interface LiveBacklog
+{
+	items: BacklogItem[];
+	repo: string;
+}
+
 /**
  * The open stories and bugs in one table, by status then priority (owner, 2026-11-18: "We need the
- * backlog prioritization to include bugs, not just stories."), then the rest of each as linked ID lists.
+ * backlog prioritization to include bugs, not just stories."), then the rest of each as linked ID
+ * lists, each linked to its GitHub issue.
  */
-function workLines(stories: Story[], bugs: Bug[]): string[]
+function workLines(live: LiveBacklog): string[]
 {
-	// The note's real path: its status folder, the one rule for it (vault.ts storyNotePath, bugNotePath).
-	const link = (s: Story) => `[${s.id}](backlog/${storyNotePath(s.id, s.status)})`;
-	const bugLink = (b: Bug) => `[${b.id}](backlog/${bugNotePath(b.id, b.status)})`;
+	const link = (i: BacklogItem) => (i.issue === undefined ? i.id : `[${i.id}](https://github.com/${live.repo}/issues/${i.issue})`);
 	const cell = (text: string) => text.replace(/\|/g, "\\|");
-	const rows: OpenRow[] = [
-		...stories.filter((s) => OPEN.includes(s.status)).map((s) => ({
-			kind: "story" as const,
-			priority: s.priority,
-			status: s.status,
-			cells: `${link(s)} ${cell(s.tableTitle)} | \`${s.status}\` | ${s.dependsOn.join(", ") || "—"} | ${s.design.join(", ") || "—"}`,
-		})),
-		...bugs.filter((b) => OPEN.includes(b.status)).map((b) => ({
-			kind: "bug" as const,
-			priority: b.priority,
-			status: b.status,
-			cells: `${bugLink(b)} Bug #${b.issue}: ${cell(b.title)} | \`${b.status}\` | — | —`,
-		})),
-	].sort(compareOpen);
+	const rows: OpenRow[] = live.items.filter((i) => OPEN.includes(i.status)).map((i) => ({
+		kind: i.kind,
+		priority: i.priority,
+		status: i.status,
+		cells: i.kind === "story"
+			? `${link(i)} ${cell(i.title)} | \`${i.status}\` | ${i.dependsOn.join(", ") || "—"} | ${i.design.join(", ") || "—"}`
+			: `${link(i)} Bug #${i.issue}: ${cell(i.title)} | \`${i.status}\` | — | —`,
+	})).sort(compareOpen);
 	const out = [
 		"| Priority | Story or bug | Status | Depends on | Design |",
 		"|---|---|---|---|---|",
-		...rows.map((r) => `| ${r.priority} | ${r.cells} |`),
+		...rows.map((r) => `| ${Number.isFinite(r.priority) ? r.priority : "— (not accepted)"} | ${r.cells} |`),
 		"",
 	];
-	for (const status of [...new Set(stories.map((s) => s.status))].filter((st) => !OPEN.includes(st)).sort())
+	for (const kind of ["story", "bug"] as const)
 	{
-		const ids = stories.filter((s) => s.status === status).sort((a, b) => a.priority - b.priority).map(link);
-		out.push(`**\`${status}\`** (${ids.length}): ${ids.join(", ")}`, "");
-	}
-	for (const status of [...new Set(bugs.map((b) => b.status))].filter((st) => !OPEN.includes(st)).sort())
-	{
-		const ids = bugs.filter((b) => b.status === status).sort((a, b) => a.issue - b.issue).map(bugLink);
-		out.push(`**Bugs \`${status}\`** (${ids.length}): ${ids.join(", ")}`, "");
+		const of = live.items.filter((i) => i.kind === kind);
+		for (const status of [...new Set(of.map((i) => i.status))].filter((st) => !OPEN.includes(st)).sort())
+		{
+			const ids = of.filter((i) => i.status === status).sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1))).map(link);
+			out.push(`**${kind === "bug" ? "Bugs " : ""}\`${status}\`** (${ids.length}): ${ids.join(", ")}`, "");
+		}
 	}
 	return out;
 }
@@ -318,12 +324,14 @@ export function baselineHistory(stories: Pick<Story, "id" | "body">[], ledger: L
 /** The whole of docs/v3/INDEX.md. `docs` are docs/v3's own Markdown files; `frame` the backlog's frame notes. */
 export function renderDocIndex(input: { docs: IndexedDoc[];
 	frame: IndexedDoc[];
-	stories: Story[];
-	bugs?: Bug[];
+	/** The backlog now (the issue cache), or undefined with no cache. */
+	live: LiveBacklog | undefined;
+	/** Each recorded story's text at this commit (its snapshot, else its newest text record), for the As of line and Baseline history. */
+	texts: Pick<Story, "id" | "body">[];
 	ledger: LedgerState }): string
 {
 	const big = new Set(["AUDIT.md", "INDEX.md"]);
-	const history = baselineHistory(input.stories, input.ledger);
+	const history = baselineHistory(input.texts, input.ledger);
 	const docs = input.docs.filter((d) => !big.has(d.path)).sort((a, b) => a.path.localeCompare(b.path));
 	return [
 		"# Baseball Theater v3 — docs index",
@@ -334,20 +342,22 @@ export function renderDocIndex(input: { docs: IndexedDoc[];
 		+ "line range of each section, so read just that range (e.g. the Read tool's offset and limit) instead of the whole file. "
 		+ "Nothing below summarises a doc, so starting here loses nothing.",
 		"",
-		"- **A story:** its note, `backlog/stories/<status>/S<N>.md` (linked below; the folder follows "
-		+ "its status). The note holds the story's whole text — Gap, Impact, "
-		+ "Source, ACs, `/goal` line — and its status, priority and dependencies in frontmatter.",
-		"- **A bug:** its GitHub issue holds the symptoms and cause; its note, `backlog/bugs/<status>/B<issue>.md`, "
-		+ "holds only its priority and status, so bugs and stories are worked in one order (the table below).",
+		"- **A story:** its GitHub issue, `S<N>: <title>` (linked below), holds its whole text — Gap, Impact, Source, ACs, "
+		+ "`/goal` line — with its priority and dependencies in its `### Backlog fields` block; GitHub holds its status. "
+		+ "Read items with `pnpm backlog:search item <ID>` (from the cache `pnpm backlog:sync` writes) or `pnpm goal <N>`.",
+		"- **A bug:** its GitHub issue (labelled `bug`, ID `B<issue>`) holds the symptoms and, once accepted, its priority, "
+		+ "so bugs and stories are worked in one order (the table below).",
 		"- **The ledger:** [audit.jsonl](audit.jsonl), one JSON line per entry with the line it starts at in "
 		+ "[AUDIT.md](AUDIT.md) (~1 MB, frozen) or its fragment under `audit/`; read only that entry.",
 		"- **The backlog's rules and scheduling:** the frame notes below, by rule number or section.",
 		"",
 		"## Backlog status",
 		"",
-		asOfLine(input.stories, input.ledger),
+		asOfLine(input.texts, input.ledger),
 		"",
-		nextStoryLine(input.stories.map(nextCandidate)),
+		input.live === undefined
+			? "**Next (generated):** no issue cache — run `pnpm backlog:sync`, then `pnpm backlog:build`."
+			: nextStoryLine(input.live.items.filter((i) => i.kind === "story").map(nextCandidate)),
 		"",
 		reviewDebtLine(input.ledger.entries),
 		"",
@@ -369,7 +379,10 @@ export function renderDocIndex(input: { docs: IndexedDoc[];
 		"",
 		"Open stories and bugs, in order (`doing`, then `todo`, then `blocked`; by priority within each, a bug before a story at equal priority):",
 		"",
-		...workLines(input.stories, input.bugs ?? []),
+		...(input.live === undefined
+			? ["No issue cache: run `pnpm backlog:sync`, then `pnpm backlog:build`, for the open stories and bugs. "
+				+ `Recorded items at this commit: ${input.texts.map((t) => t.id).join(", ") || "none"}.`, ""]
+			: workLines(input.live)),
 	].join("\n").replace(/\n+$/, "\n");
 }
 
@@ -379,8 +392,43 @@ export function isIndexedDoc(path: string): boolean
 	return /^[^/]+\.md$/.test(path) && path !== "INDEX.md";
 }
 
-/** INDEX.md for a built backlog (the in-memory document): its frame notes, stories and bugs, the ledger, plus docs/v3's own docs (paths relative to docs/v3/). */
-export function docIndexFor(backlog: string, notes: Map<string, string>, docs: IndexedDoc[], ledger: LedgerState): string
+/**
+ * Each recorded item's text at this commit: its newest snapshot's body, else its newest text record's
+ * (S164; text-records.ts), so the As of line reads the `**Baseline:**` line a story shipped with.
+ */
+export function recordedTexts(records: TextRecord[]): Pick<Story, "id" | "body">[]
+{
+	const texts = new Map<string, string>();
+	for (const chain of chains(records).values())
+	{
+		texts.set(chain.id, chain.records.at(-1)!.body);
+	}
+	for (const snap of records.filter((r) => r.kind === "snapshot"))
+	{
+		texts.set(snap.id, snap.body);
+	}
+	return [...texts].map(([id, body]) => ({
+		id,
+		body,
+	}));
+}
+
+/** The backlog now, from the issue cache in the main checkout of `root` (github.ts), or undefined when there is none. */
+export function liveBacklog(root: string): LiveBacklog | undefined
+{
+	const cache = readCache(cacheDir(root));
+	return cache === undefined ? undefined : {
+		items: itemsFromCache(cache),
+		repo: cache.repo,
+	};
+}
+
+/**
+ * INDEX.md for the frame notes, the text records, the ledger and docs/v3's own docs (paths relative to
+ * docs/v3/). `live` is the issue cache's backlog (liveBacklog); `pnpm backlog:check` passes undefined,
+ * so the check never reads the cache.
+ */
+export function docIndexFor(notes: Map<string, string>, records: TextRecord[], docs: IndexedDoc[], ledger: LedgerState, live: LiveBacklog | undefined): string
 {
 	const frame = [...notes].filter(([key]) => key.startsWith("frame/")).sort(([a], [b]) => a.localeCompare(b)).map(([key, text]) => ({
 		path: `backlog/${key}`,
@@ -389,8 +437,8 @@ export function docIndexFor(backlog: string, notes: Map<string, string>, docs: I
 	return renderDocIndex({
 		docs: docs.filter((d) => isIndexedDoc(d.path)),
 		frame,
-		stories: parseBacklog(backlog).stories,
-		bugs: bugsIn(notes),
+		live,
+		texts: recordedTexts(records),
 		ledger,
 	});
 }

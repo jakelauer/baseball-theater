@@ -63,6 +63,10 @@ import {
 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import type { IssueCache } from "./github.ts";
+import {
+	cacheDir, findIssue, readCache, statusOf, trustedId,
+} from "./github.ts";
 import { ITEM_ID } from "./in-flight.ts";
 
 /** One in-flight item's claim, as stored in `.run/claims/<ID>.json`. */
@@ -75,6 +79,8 @@ export interface Claim
 	barrier: boolean;
 	mergeAfter: string[];
 	claimedAt: string;
+	/** The item's GitHub issue (S164): a story or bug claim resolves it through github.ts. */
+	issue?: number;
 }
 
 /** What comparing a new claim with the in-flight ones found. `ok` is false on any conflict or barrier hold. */
@@ -322,13 +328,13 @@ export function compareClaim(claim: Claim, inFlight: Claim[]): ClaimReport
 }
 
 /**
- * The item's own records, which only it writes and so never need claiming: its story or bug note, its
- * grader, its changelog fragment and its ledger fragments (named for its ID, S156 ACs 5–6).
+ * The item's own records, which only it writes and so never need claiming: its grader, its changelog
+ * fragment and its ledger fragments (named for its ID, S156 ACs 5–6), its text records among them
+ * since S164 retired the notes.
  */
 export function isOwnRecord(id: string, path: string): boolean
 {
 	const own = [
-		new RegExp(`^docs/v3/backlog/(stories|bugs)/[a-z]+/${id}\\.md$`),
 		new RegExp(`^scripts/verify-${id}\\.sh$`),
 		new RegExp(`^changelog\\.d/${id}\\.md$`),
 		new RegExp(`^docs/v3/audit/[0-9-]+/[^/]*-${id}-[a-z-]+\\.md$`),
@@ -361,7 +367,9 @@ export function reviewEditsToInFlight(changed: string[], inFlightIds: string[]):
 	const ids = new Set(inFlightIds);
 	return changed.filter((p) =>
 	{
-		const m = /^docs\/v3\/backlog\/(?:stories|bugs)\/[a-z]+\/([A-Z]+[0-9]+)\.md$/.exec(p);
+		// A story's note before S164, or since then a text record (create, edit) of its text.
+		const m = /^docs\/v3\/backlog\/(?:stories|bugs)\/[a-z]+\/([A-Z]+[0-9]+)\.md$/.exec(p)
+			?? /^docs\/v3\/audit\/[0-9-]+\/[^/]*-([A-Z]+[0-9]+)-(?:create|edit)\.md$/.exec(p);
 		return m !== null && ids.has(m[1] ?? "");
 	});
 }
@@ -487,15 +495,55 @@ export function uncoveredBlocked(blocked: string[], questions: Question[]): stri
 	}));
 }
 
-/** The IDs of the story and bug notes in the backlog's `blocked/` folders (`docs/v3/backlog/{stories,bugs}/blocked/`). */
+/** The issue cache for `root` (github.ts), or a {@link ClaimsError} saying to run `pnpm backlog:sync`. */
+function cacheOf(root: string): IssueCache
+{
+	const dir = cacheDir(root);
+	const cache = readCache(dir);
+	if (!cache)
+	{
+		throw new ClaimsError(`no issue cache in ${dir}: run pnpm backlog:sync`);
+	}
+	return cache;
+}
+
+/** The IDs of the open stories and bugs whose issues are labelled `status:blocked` (S164: GitHub owns state), from the issue cache. */
 export function blockedItems(root: string): string[]
 {
-	return ["stories", "bugs"].flatMap((kind) =>
+	const cache = cacheOf(root);
+	return cache.issues.filter((i) => i.state === "open" && statusOf(i) === "blocked")
+		.map((i) => trustedId(i, cache.trusted)).filter((id): id is string => id !== undefined);
+}
+
+/**
+ * Whether a story or bug may be claimed, from GitHub state alone (S164): its trusted issue must exist,
+ * be open and be labelled `status:todo` or `status:doing`. Returns its issue number, or why not. A fix
+ * item (`F<n>`) or a vault item (`V<n>`) has no issue and is always claimable.
+ */
+export function claimable(cache: IssueCache, id: string): { issue?: number;
+	error?: string }
+{
+	if (!/^[SB]/.test(id))
 	{
-		const dir = join(root, "docs", "v3", "backlog", kind, "blocked");
-		if (!existsSync(dir)) return [];
-		return readdirSync(dir).filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3)).filter((id) => ITEM_ID.test(id));
-	});
+		return {};
+	}
+	const issue = findIssue(cache, id);
+	if (!issue)
+	{
+		return {
+			error: `no trusted issue carries ${id} (pnpm backlog:sync, then try again)`,
+		};
+	}
+	const status = statusOf(issue);
+	if (issue.state !== "open" || (status !== "todo" && status !== "doing"))
+	{
+		return {
+			error: `${id} (#${issue.number}) is ${issue.state === "open" ? `labelled status:${status}` : "closed"}: only an open item labelled status:todo or status:doing can be claimed`,
+		};
+	}
+	return {
+		issue: issue.number,
+	};
 }
 
 /**
@@ -716,6 +764,22 @@ function main(argv: string[]): number
 	{
 		case "claim":
 		{
+			let state: { issue?: number;
+				error?: string };
+			try
+			{
+				state = claimable(cacheOf(root), id);
+			}
+			catch (error)
+			{
+				console.error(`claims.ts claim: ${(error as Error).message}`);
+				return 2;
+			}
+			if (state.error)
+			{
+				console.error(`claims.ts claim: ${state.error}`);
+				return 1;
+			}
 			const files = normalizeEntries(root, values.file ?? []);
 			// The python call runs before the lock is taken, so the lock is held only for the compare and write.
 			const claim = makeClaim(id, {
@@ -736,6 +800,9 @@ function main(argv: string[]): number
 					writeClaim(root, {
 						...claim,
 						mergeAfter: report.mergeAfter,
+						...(state.issue === undefined ? {} : {
+							issue: state.issue,
+						}),
 					});
 				}
 				return 0;
@@ -809,7 +876,16 @@ function main(argv: string[]): number
 				encoding: "utf8",
 			});
 			const branches = refs.status === 0 ? refs.stdout.split("\n").filter(Boolean) : [];
-			for (const id of uncoveredBlocked(blockedItems(root), questions))
+			let blocked: string[] = [];
+			try
+			{
+				blocked = blockedItems(root);
+			}
+			catch (error)
+			{
+				console.log(`(blocked items unknown: ${(error as Error).message})`);
+			}
+			for (const id of uncoveredBlocked(blocked, questions))
 			{
 				const named = branchesNaming(branches, id);
 				console.log(`no question: ${id} is blocked${named.length ? ` (local branches: ${named.join(", ")})` : ""}`);

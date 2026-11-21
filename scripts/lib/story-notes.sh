@@ -42,6 +42,34 @@ story_changes()
     }' | sort -t $'\t' -k2,2
 }
 
+# record_changes <base> — the story text records (S164: a story's text is its GitHub issue, and the
+# repository keeps its text as ledger fragments, scripts/backlog-vault/text-records.ts) added since
+# <base>, one tab-separated line each, sorted by ID (text-records.ts `changes`):
+#   A <id> <path>                   a story created (an `inserted` event)
+#   R <id> <before path> <path>     a story's text edited: compare the two bodies (read at HEAD)
+#   X <id> <path>                   a migration that rewrote the story's text (an `ac-rewritten` event)
+# A migration fragment is never an insertion, so the migrated IDs don't flood a review.
+record_changes()
+{
+  local added
+  added="$(git diff --name-only --diff-filter=A "$1" HEAD -- docs/v3/audit |
+    grep -E -- '-S[0-9]+-(create|edit|migration)\.md$' || true)"
+  [ -z "$added" ] && return 0
+  # shellcheck disable=SC2086
+  node scripts/backlog-vault/text-records.ts changes $added | sort -t $'\t' -k2,2
+}
+
+# migrated_ids <base> — the IDs whose migration fragment was added since <base>: their notes' deletion
+# (S164 retired the notes) is the migration, not a removal.
+migrated_ids()
+{
+  git diff --name-only --diff-filter=A "$1" HEAD -- docs/v3/audit |
+    sed -nE 's#.*-([SB][0-9]+)-migration\.md$#\1#p'
+}
+
+# record_body <path> — a text record's body at HEAD (between its markers).
+record_body() { git show "HEAD:$1" 2>/dev/null | awk '/^<!-- bt-body:end -->$/ { on = 0 } on { print } /^<!-- bt-body:begin -->$/ { on = 1 }'; }
+
 # The debt scripts' `--json` report (S163): `pnpm backlog:search seed` reads it to start a review
 # from what changed. Values here are story IDs, repo paths, shas and ADR numbers, so escaping
 # backslashes and double quotes is enough.

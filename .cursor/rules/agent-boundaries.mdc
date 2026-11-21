@@ -15,8 +15,8 @@ alwaysApply: true
 ## Always
 
 - Prefer fixtures + in-memory ports over live MLB/Patreon/Cloudflare/Neon/Logto
-- Prove work with `pnpm verify` (and the story's grader, `scripts/verify-<ID>.sh`, from its note in `docs/v3/backlog/stories/`)
-- Update the story note's `status` (`doing` → `done`) and run `pnpm backlog:build` in the same change set as the story (the generated `BACKLOG.md` is retired)
+- Prove work with `pnpm verify` (and the story's grader, `scripts/verify-<ID>.sh`, named in its GitHub issue, read with `pnpm backlog:search item <ID>`)
+- A story's status lives on its GitHub issue (the coordinator sets it); record its `**Baseline:**` line with `scripts/audit.sh edit` and run `scripts/audit.sh story <ID>` in the same change set as the story
 - Refuse the next story/goal while prior story work is still uncommitted (`git status` dirty for that work)
 - Refuse the next story/goal while a **backlog review** is due — 6 `done` stories since the last backlog review in the ledger, or any drift event (`.claude/skills/backlog-review/SKILL.md`). Fresh context; `blocked` verdict stops work
 - Keep domain (`packages/domain`) free of Cloudflare/Postgres/Logto/HTTP SDKs
