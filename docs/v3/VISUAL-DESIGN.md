@@ -296,11 +296,13 @@ Drop `v3 · local fixtures` on public builds.
 - **Mobile:** one column of game modules. **Medium / desktop:** 2–3 columns of the *same* module — not a different card.
 - Order and emphasis follow **settings**. Score *fields* can hide; title strings are not the same problem (§5a).
 
-**Right-hand slot (accepted).** Every full game row has a modular block aligned to the **right**. One setting picks what that slot shows for the list. Occupants include:
+**Right-hand slot (accepted).** Every full game row that has started (live or final) has a modular block aligned to the **right**; a game that hasn't started has one only when the occupant is the room menu. One setting picks what that slot shows for the list. Occupants include:
 
-- Game status (scheduled time / live / final)
+- **Status** (the default) — the pitchers of record on a final row, the count on a live row. The game's status itself (scheduled time / live / final) sits at the top left of every row, so it is never a slot occupant (shell-scoreboard `DESIGN.md`: "no frame draws status as the slot occupant").
 - **Room menu** — a stack of links matching the game-detail tabs available for that game’s phase (see room presence below)
-- Win probability
+- Win probability — on a live or final row only
+
+**A game that hasn't started has no slot box for Status or Win Probability** (shell-scoreboard [A7](./visual/shell-scoreboard/amendments/A7.md), ratified 2026-11-19: "A game that hasn't started draws no slot box at all, whichever occupant the reader chose (Win Probability or the default Status slot)"; owner, 2026-11-16: *"Remove the box entirely."*): the row shows its time, venue, teams and probable pitchers, and the space the box took stays empty. The room menu keeps its pre-game links on such a row, still without Recap (owner, 2026-11-19, asked whether a game that hasn't started keeps the Room Menu's links or shows no box: *"Keep the links, but continue to hide recap"*). This paragraph was brought into line with A7 at the owner's word (2026-11-21, asked "Should VISUAL-DESIGN §5 be updated to say a game that hasn't started has no slot box for Status or Win Probability, as the ratified A7 says?": chose *"Yes, match A7 (Recommended)"*).
 
 The slot is the same hole; contents swap. Do not invent a second row species for each occupant.
 
@@ -394,7 +396,7 @@ Users will have settings that change **how the same views look**. There is no li
 
 | Setting | Group (site area) | What the view does |
 |---------|-------------------|--------------------|
-| **Game-row slot** | Game list | The right-hand block on each full scoreboard row shows the chosen occupant (status, room menu, win probability — left out at launch until the owner picked a data source, owner, 2026-10-19; back from MLB's play metrics, on live and final games, owner, 2026-10-30: "Bring back win probability charts", "It is actually least useful before the game. During and after is definitely useful."; S106–S108) |
+| **Game-row slot** | Game list | The right-hand block on each full scoreboard row that has started (live or final) shows the chosen occupant; a game that hasn't started has a block only when the occupant is the room menu (§5, A7) (status, room menu, win probability — left out at launch until the owner picked a data source, owner, 2026-10-19; back from MLB's play metrics, on live and final games, owner, 2026-10-30: "Bring back win probability charts", "It is actually least useful before the game. During and after is definitely useful."; S106–S108) |
 | **Collapse non-favorites** | Game list | Games that do not involve a favorite team render as a smaller bar by default |
 | **Favorite teams** | Game list | A dropdown; drives collapse non-favorites and favorite emphasis |
 | **Hide scores** | Game list | Structured score fields show `–` and records show `▒▒-▒▒` ([S34 design](./visual/standings-search-settings/DESIGN.md)) |
@@ -420,7 +422,7 @@ Settings are their own kind of state, separate from the server read cache — se
 |-------------------|---------------------|
 | Change order / emphasis | Sort/weight from the setting. Don’t bake one order into the page |
 | Choose the first game tab | Open the tab the setting names. Don’t hardcode Videos |
-| Choose the game-row slot occupant | The right-hand block shows that occupant. Don’t hardcode status |
+| Choose the game-row slot occupant | The right-hand block shows that occupant on every row that has started; a game that hasn't started shows it only when it is the room menu (§5, A7). Don’t hardcode status |
 | Collapse non-favorites | Non-favorite games are the smaller bar by default. Don’t bake every row as the full module |
 | Tint chrome from a team | Theme overlay — not hex on each view |
 
@@ -558,7 +560,7 @@ Screens are compositions of **components**. A component has its own compact / ex
 | Pattern | Use |
 |---------|-----|
 | `Card` (module) | Scoreboard games, at-bat header, insight notes |
-| Right-hand **slot** | Modular block on each full scoreboard row; occupant is a setting |
+| Right-hand **slot** | Modular block on each full scoreboard row; occupant is a setting. None on a game that hasn't started unless the occupant is the room menu (A7; §5) |
 | Collapsed **bar** | Non-favorite game row when that setting is on |
 | `Badge` | Status, pitch count, result, impact — color from §3 |
 | `Tabs` | Game rooms |
@@ -627,7 +629,7 @@ Brand, bans, team-color-without-logos, modular summary→detail, five tokens, **
 | Color mode | **Accepted** | Dark only. No light mode, no `prefers-color-scheme` invert, no Light / Dark / System setting |
 | Live is the pitch theater | **Accepted** | No standalone Pitch Theater. Live = status + pitcher/batter above zone + zone + trajectory + accordion. **No linescore on Live.** Pitch chips are out |
 | Host pairings | **Accepted** | **mobile** (compact status, no linescore on Live) · **medium** (standalone) · **desktop** (medium + nav rail) |
-| Game-row slot | **Accepted** | Right-aligned modular block. Occupant is a setting: status, room menu (tab link stack), win probability, … |
+| Game-row slot | **Accepted** | Right-aligned modular block. Occupant is a setting: status (pitchers of record, the count), room menu (tab link stack), win probability, … A game that hasn't started has no box for status or win probability; the room menu keeps its links there, without Recap (A7; owner, 2026-11-19 and 2026-11-21; §5) |
 | Collapse non-favorites | **Accepted** | Setting: non-favorite games are a smaller bar by default. Favorites stay the full module. Off when the user has no favorites |
 | Live / Recap presence | **Accepted** | Never both. Pre-game: neither. In progress: Live only. Final: Recap when available (Live hidden) |
 | Linescore placement | **Accepted** | Plays · Box at every pairing, each inning boxed. Never on Live or Recap (owner, 2026-10-14; [score rule](./visual/game-shell/DESIGN.md)) |
