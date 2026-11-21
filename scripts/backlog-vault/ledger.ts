@@ -320,8 +320,9 @@ export function parseFragment(text: string, file: string): LedgerEntry
 	{
 		entry.inFlight = inFlight.split(/,\s*/).filter(Boolean);
 	}
-	// An item's issue (S164): the `Issue: #<n>` line above any body a text record holds.
-	const issue = /^Issue: #(\d+)$/m.exec(text.split("<!-- bt-body:begin -->")[0]!)?.[1];
+	// An item's issue (S164): the `Issue: #<n>` line in the entry's header, before a text record's body
+	// or a completion's grader output (`<details>`), either of which may quote such a line.
+	const issue = /^Issue: #(\d+)$/m.exec(text.split(/<!-- bt-body:begin -->|<details>/)[0]!)?.[1];
 	if (issue)
 	{
 		entry.issue = Number(issue);

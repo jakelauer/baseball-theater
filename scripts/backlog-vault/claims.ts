@@ -65,8 +65,10 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import type { IssueCache } from "./github.ts";
 import {
-	cacheDir, findIssue, readCache, statusOf, trustedId,
+	cacheDir, findIssue, problemsFor, readCache, statusOf, trustedId,
 } from "./github.ts";
+import type { TextRecord } from "./text-records.ts";
+import { fragmentsDir, readRecords } from "./text-records.ts";
 import { ITEM_ID } from "./in-flight.ts";
 
 /** One in-flight item's claim, as stored in `.run/claims/<ID>.json`. */
@@ -518,14 +520,23 @@ export function blockedItems(root: string): string[]
 /**
  * Whether a story or bug may be claimed, from GitHub state alone (S164): its trusted issue must exist,
  * be open and be labelled `status:todo` or `status:doing`. Returns its issue number, or why not. A fix
- * item (`F<n>`) or a vault item (`V<n>`) has no issue and is always claimable.
+ * item (`F<n>`) or a vault item (`V<n>`) has no issue and is always claimable. An item the backlog
+ * skipped (github.ts itemsFromCache: a broken fields block, two issues carrying one ID) is refused,
+ * quoting its problem; `records` are the text records its text is read from.
  */
-export function claimable(cache: IssueCache, id: string): { issue?: number;
+export function claimable(cache: IssueCache, id: string, records: TextRecord[] = []): { issue?: number;
 	error?: string }
 {
 	if (!/^[SB]/.test(id))
 	{
 		return {};
+	}
+	const problems = problemsFor(cache, records, id);
+	if (problems.length > 0)
+	{
+		return {
+			error: `${id} is skipped by the backlog, so it can't be claimed: ${problems.join("; ")}`,
+		};
 	}
 	const issue = findIssue(cache, id);
 	if (!issue)
@@ -768,7 +779,7 @@ function main(argv: string[]): number
 				error?: string };
 			try
 			{
-				state = claimable(cacheOf(root), id);
+				state = claimable(cacheOf(root), id, readRecords(fragmentsDir()));
 			}
 			catch (error)
 			{

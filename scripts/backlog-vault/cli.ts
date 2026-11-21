@@ -1,14 +1,15 @@
 /**
- * The backlog's Obsidian notes (docs/v3/VAULT-MIGRATION.md, V3).
+ * The backlog's frame notes (docs/v3/VAULT-MIGRATION.md, V3) and, since S164, the story text records
+ * (text-records.ts): the stories and bugs themselves are GitHub issues (github.ts), with no notes.
  *
- *   pnpm backlog:build    rewrite the notes canonically (derived fields refreshed, each note moved to
- *                         its status folder) and write docs/v3/INDEX.md and docs/v3/audit.jsonl
+ *   pnpm backlog:build    rewrite the frame notes canonically and write docs/v3/INDEX.md (its open
+ *                         table from the issue cache, when there is one) and docs/v3/audit.jsonl
  *   pnpm backlog:check    exit 1 if build would change a note, or a finished story's records are
  *                         missing (records.ts), or the story text records are inconsistent (law L9's
  *                         tree-reproducible part, S164: text-records.ts); builds INDEX.md in memory,
  *                         never reads it from disk, the issue cache or GitHub, so its verdict at a
  *                         commit is the same wherever and whenever it runs
- *   cli.ts pre-commit     (the Husky hook) canonicalize the staged notes and re-stage them
+ *   cli.ts pre-commit     (the Husky hook) canonicalize the staged frame notes and re-stage them
  *   cli.ts ledger-base backlog|parity   the commit the debt checks measure drift from (ledger.ts)
  *   cli.ts review-base backlog|parity   the commit that logged the newest review itself, past later skips and
  *                                       answers: the base a review's seed measures from (S163; search.ts)
@@ -20,7 +21,7 @@
  * review-debt lines; doc-index.ts) and audit.jsonl (the ledger's index) are built and git-ignored,
  * never committed (S156; owner, 2026-11-20: "Stop committing them (Recommended)"), and the
  * generated docs/v3/BACKLOG.md is retired (owner, same day: "Retire it (Recommended)"): tools
- * read the notes themselves.
+ * read the frame notes, the text records and the issue cache themselves.
  *
  * `--dir <notes dir>` (default docs/v3/backlog; its parent is the docs dir INDEX.md is written to),
  * `--audit <file>` (default docs/v3/AUDIT.md, the frozen ledger) and `--index <file>` (default
@@ -194,13 +195,18 @@ async function docIndex(built: BuiltBacklog, entries: LedgerEntry[], live = fals
 		entries,
 		head: head(),
 	};
-	const backlog = live ? liveBacklog(notesRoot()) : undefined;
+	const records = readRecords(fragmentsDirFor(auditPath));
+	const backlog = live ? liveBacklog(notesRoot(), records) : undefined;
 	if (live && backlog === undefined)
 	{
 		// To stderr, so the hooks (which silence stdout) still say it; the build itself succeeds.
 		console.error("backlog: no issue cache, so INDEX.md lists only the recorded items: run pnpm backlog:sync");
 	}
-	return docIndexFor(built.notes, readRecords(fragmentsDirFor(auditPath)), await readIndexedDocs(), ledger, backlog);
+	for (const p of backlog?.problems ?? [])
+	{
+		console.error(`backlog: skipped issue #${p.issue}${p.id ? ` (${p.id})` : ""}: ${p.message}`);
+	}
+	return docIndexFor(built.notes, records, await readIndexedDocs(), ledger, backlog);
 }
 
 async function build()
@@ -249,7 +255,7 @@ async function check()
 	}
 	if (stale.length === 0 && problems.length === 0)
 	{
-		log("the notes are consistent");
+		log("the frame notes and the story text records are consistent");
 	}
 }
 

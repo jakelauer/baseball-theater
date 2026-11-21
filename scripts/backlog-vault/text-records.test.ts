@@ -145,4 +145,66 @@ describe("text records (AC 2)", () =>
 		expect(withoutFields(twice)).toBe("steps to reproduce");
 		expect(parseFields(twice, "B1").priority).toBe(4);
 	});
+
+	it("A→B→A→C is a valid chain in stamp order: a body may come back, and the edit after it chains from it", () =>
+	{
+		const a = rec("migration", "S11", body("A"));
+		const toB = rec("edit", "S11", body("B"), {
+			from: a.hash,
+		});
+		const toA = rec("edit", "S11", body("A"), {
+			from: toB.hash,
+		});
+		const toC = rec("edit", "S11", body("C"), {
+			from: toA.hash,
+		});
+		expect(textRecordProblems([toC, a, toA, toB], [])).toEqual([]);
+		expect(chains([toC, a, toA, toB]).get("S11")!.records.map((r) => r.file)).toEqual([a.file, toB.file, toA.file, toC.file]);
+		expect(newestBody([toC, a, toA, toB], "S11")!.file).toBe(toC.file);
+	});
+
+	it("a fork after a body came back names the two edits that fork, not the earlier edit from the same body", () =>
+	{
+		const a = rec("migration", "S16", body("A"));
+		const e1 = rec("edit", "S16", body("B"), {
+			from: a.hash,
+		});
+		const e2 = rec("edit", "S16", body("A"), {
+			from: e1.hash,
+		});
+		const e3 = rec("edit", "S16", body("C"), {
+			from: e2.hash,
+		});
+		const e4 = rec("edit", "S16", body("D"), {
+			from: e2.hash,
+		});
+		const problems = textRecordProblems([a, e1, e2, e3, e4], []).join("\n");
+		expect(problems).toMatch(/forks/);
+		expect(problems).toContain(`${e3.file} and ${e4.file}`);
+		expect(problems).not.toContain(e1.file);
+	});
+
+	it("a bug record holding more than its fields block is reported (its symptoms are the issue's, never recorded)", () =>
+	{
+		const fields = renderFields({
+			priority: 3,
+		});
+		expect(textRecordProblems([rec("create", "B12", fields)], [])).toEqual([]);
+		expect(textRecordProblems([rec("create", "B13", `Steps: open a game.\n\n${fields}`)], []).join("\n")).toMatch(/B13.*more than its fields block/);
+	});
+
+	it("a title starting with a backtick and holding a bar round-trips through its row", () =>
+	{
+		const title = "`pnpm goal` prints a | in a title";
+		expect(rec("create", "S14", body("x"), {
+			title,
+		}).title).toBe(title);
+	});
+
+	it("goalLine and parseFields read a CRLF body (GitHub's web editor saves CRLF)", () =>
+	{
+		const crlf = body("**Gap:** a\n```text\n/goal S15 (S15). x\n```", 4).replace(/\n/g, "\r\n");
+		expect(goalLine(crlf)).toBe("/goal S15 (S15). x");
+		expect(parseFields(crlf, "S15").priority).toBe(4);
+	});
 });

@@ -444,7 +444,11 @@ export function seedBacklog(items: BacklogItem[], report: DebtReport, ctx: Backl
 	}
 	for (const issue of ctx.issues ?? [])
 	{
-		c.add(`#${issue.number}`, `issue ${issue.state === "closed" ? "closed" : "opened or updated"} since the last window`);
+		// An issue that is a backlog item (its trusted ID, from the items) is picked as that item, once.
+		// A story closed not_planned is a `removed` event in the debt report (github.ts removedSince, by
+		// its closed_at), handled above: this window lists issues by updated_at, which any touch moves.
+		const item = items.find((i) => i.issue === issue.number);
+		c.add(item ? item.id : `#${issue.number}`, `issue ${issue.state === "closed" ? "closed" : "opened or updated"} since the last window`);
 	}
 	return {
 		picks: c.list(),
@@ -575,7 +579,8 @@ export function queryLine(query: string, ids: string[]): string
 /** An item as one line: ID, status, priority, title and note. */
 function itemLine(i: BacklogItem): string
 {
-	return `${i.id} \`${i.status}\` p${i.priority} ${i.title} — docs/v3/backlog/${i.note}`;
+	const priority = Number.isFinite(i.priority) ? `p${i.priority}` : "unaccepted";
+	return `${i.id} \`${i.status}\` ${priority} ${i.title} — ${i.issue === undefined ? `docs/v3/backlog/${i.note}` : `#${i.issue}`}`;
 }
 
 // ---- CLI ----

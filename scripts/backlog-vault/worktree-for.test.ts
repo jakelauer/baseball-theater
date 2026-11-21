@@ -5,7 +5,7 @@
  */
 import { spawnSync } from "node:child_process";
 import {
-	copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
+	copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -104,7 +104,9 @@ describe("with no issue cache (S164 AC 3)", () =>
 			encoding: "utf8",
 			env: noCache,
 		});
-		expect(made.status).toBe(0);
+		expect(made.status, made.stderr).toBe(0);
+		// It made the worktree, with no network and no cache.
+		expect(existsSync(join(repo, ".claude/worktrees/S5/.git"))).toBe(true);
 		// The backlog as this checkout has it (git archive, not history: CI's checkout is shallow), built with no cache.
 		const ROOT = join(dirname(SCRIPT), "..");
 		const archive = spawnSync("git", ["archive", "HEAD", "docs/v3", "changelog.d"], {

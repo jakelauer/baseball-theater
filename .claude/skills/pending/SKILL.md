@@ -61,7 +61,7 @@ Ask up to 4 questions per call, most-blocking first (the order of the `N blocked
 ## 3. Record
 
 - **Skip for now** (or no answer): leave the section as it is.
-- **Any other answer**: the owner's words are the chosen label plus any notes, or their Other text. Quote them verbatim wherever the rules ask for the owner's words (ledger `--answers -`, a RATIFIED file, a story note), written as `chose "<label>"` for an option. Keep its `On answer:` line for step 4, then delete the section from the file. A free-text placeholder option (`Answer in Other`) picked with no Other text counts as no answer.
+- **Any other answer**: the owner's words are the chosen label plus any notes, or their Other text. Quote them verbatim wherever the rules ask for the owner's words (ledger `--answers -`, a RATIFIED file, a story's text through `audit.sh edit`), written as `chose "<label>"` for an option. Keep its `On answer:` line for step 4, then delete the section from the file. A free-text placeholder option (`Answer in Other`) picked with no Other text counts as no answer.
 
 An option that ratifies (e.g. "Ratify") is an explicit go-ahead for the surface its question names, and only that one; never infer ratification from any other answer.
 

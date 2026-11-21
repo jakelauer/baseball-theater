@@ -225,6 +225,37 @@ describe("renderDocIndex", () =>
 		expect(rows.map((r) => /\[([SB]\d+)\]/.exec(r)?.[1])).toEqual(["B74", "S2", "B90"]);
 		expect(index).toContain("**Bugs `done`** (2): [B71](https://github.com/o/r/issues/71), [B80](https://github.com/o/r/issues/80)");
 		expect(index).toContain("| — (not accepted) | [B90]");
+		expect(index).toContain("A bug with no record is unaccepted until its `create B<N>` merges");
+	});
+
+	it("lists the issues the backlog skipped as problems at the top, before anything else", () =>
+	{
+		const index = renderDocIndex({
+			docs: [],
+			frame: [],
+			live: {
+				...live([item("S2", "todo", 5)]),
+				problems: [{
+					id: "S9",
+					issue: 41,
+					message: "issue #41 (S9): no ### Backlog fields section",
+				}],
+			},
+			texts: [],
+			ledger: NO_LEDGER,
+		});
+		const lines = index.split("\n");
+		const at = lines.indexOf("## Problems");
+		expect(at).toBeGreaterThan(-1);
+		expect(at).toBeLessThan(lines.findIndex((l) => l.startsWith("**Start here")));
+		expect(index).toContain("- [#41](https://github.com/o/r/issues/41) (S9): issue #41 (S9): no ### Backlog fields section");
+		expect(renderDocIndex({
+			docs: [],
+			frame: [],
+			live: live([item("S2", "todo", 5)]),
+			texts: [],
+			ledger: NO_LEDGER,
+		})).not.toContain("## Problems");
 	});
 
 	it("with no issue cache, lists the recorded items and says to run pnpm backlog:sync", () =>

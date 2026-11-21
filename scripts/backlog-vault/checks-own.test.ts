@@ -148,6 +148,26 @@ describe("ship-time snapshot helpers (S164 AC 5)", () =>
 		expect(helper("story_snapshot_status S44")).toBe("");
 	});
 
+	it("story_snapshot_file reads the fragments folder beside BT_AUDIT_LEDGER, as audit.sh writes it", async () =>
+	{
+		const { renderRecord } = await import("./text-records.ts");
+		const { mkdirSync } = await import("node:fs");
+		mkdirSync(join(repo, "alt/audit/2026-11-21"), {
+			recursive: true,
+		});
+		writeFileSync(join(repo, "alt/audit/2026-11-21/20261121T000009Z-S46-snapshot.md"), renderRecord({
+			kind: "snapshot",
+			id: "S46",
+			date: "2026-11-21",
+			stamp: "20261121T000009Z",
+			head: "abc",
+			body: "x",
+			status: "done",
+		}));
+		expect(helper("export BT_AUDIT_LEDGER=alt/AUDIT.md; story_snapshot_status S46").trim()).toBe("done");
+		expect(helper("story_snapshot_status S46")).toBe("");
+	});
+
 	it("story_snapshot refuses a snapshot whose body doesn't match the hash it states", async () =>
 	{
 		await snapshot("S45", "body", "20261121T000004Z", "0".repeat(64));

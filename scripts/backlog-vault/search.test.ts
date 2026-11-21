@@ -550,6 +550,56 @@ describe("the review seeds (S163 AC 2)", () =>
 		expect(ids(seed.picks)).not.toContain("S800");
 	});
 
+	it("seed backlog reads a story closed not_planned through the debt report's removed event, never the issues window, and seeds an issue that is an item once, by its ID", () =>
+	{
+		const items = backlog([{
+			id: "S800",
+			priority: 40,
+			status: "superseded",
+		}, {
+			id: "S101",
+			priority: 50,
+			depends: ["S800"],
+		}, {
+			id: "S102",
+			priority: 60,
+			preferAfter: ["S800"],
+		}]).map((i) => (i.id === "S800" ? {
+			...i,
+			issue: 812,
+		} : i.id === "S101" ? {
+			...i,
+			issue: 813,
+		} : i));
+		const issues = [{
+			number: 812,
+			state: "closed",
+			labels: ["story", "status:superseded"],
+			title: "S800: dropped",
+		}, {
+			number: 813,
+			state: "open",
+			labels: ["story"],
+			title: "S101: x",
+		}];
+		// Only touched since the window (updated_at), not closed in it: no removed event, so its dependents aren't read for it.
+		const touched = seedBacklog(items, report([]), {
+			issues,
+		});
+		expect(touched.picks.find((p) => p.id === "S101")?.reasons ?? []).not.toContain("depends on S800, removed");
+		const removed = seedBacklog(items, report([{
+			kind: "removed",
+			id: "S800",
+		}]), {
+			issues,
+		});
+		expect(removed.picks.find((p) => p.id === "S101")?.reasons).toContain("depends on S800, removed");
+		expect(removed.picks.find((p) => p.id === "S102")?.reasons).toContain("prefers after S800, removed");
+		expect(ids(removed.picks)).not.toContain("#812");
+		expect(ids(removed.picks)).not.toContain("#813");
+		expect(removed.picks.find((p) => p.id === "S101")?.reasons).toContain("issue opened or updated since the last window");
+	});
+
 	it("an evented item far down the order gets its own neighbors", () =>
 	{
 		const seed = seedBacklog(sized(300, () => undefined), report([{
@@ -898,6 +948,22 @@ describe("the seed command (S163 AC 2)", () =>
 		const out = JSON.parse(await main(["seed", "parity", "--since", "abc1234", "--json"], source(), io)) as { queries: string[] };
 		expect(io.calls.since).toBe("abc1234");
 		expect(out.queries[0]).toMatch(/^query: seed parity --since abc1234 → /);
+	});
+
+	it("prints each picked item with its issue link, and an unaccepted bug as unaccepted, not a fake note path or pInfinity", async () =>
+	{
+		const out = await main(["seed", "backlog", "--since", "abc1234"], {
+			items: async () => backlog([]).map((i) => ({
+				...i,
+				issue: Number(i.id.slice(1)) + 100,
+				...(i.id === "S9" ? {
+					priority: Number.POSITIVE_INFINITY,
+				} : {}),
+			})),
+		}, stubIo());
+		expect(out).toMatch(/^S9 `todo` unaccepted .* — #109$/m);
+		expect(out).not.toContain("pInfinity");
+		expect(out).not.toMatch(/— docs\/v3\/backlog\/issue #/);
 	});
 
 	it("refuses an empty --since (no review logged yet) with exit 2", async () =>

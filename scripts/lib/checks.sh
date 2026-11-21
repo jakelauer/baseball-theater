@@ -151,7 +151,9 @@ story_own_changed_files() {
 # story_snapshot_file <ID> — the story's newest ship-time snapshot fragment (S164), or nothing.
 # `audit.sh story` writes it before it runs the grader, so the grader always finds its own.
 story_snapshot_file() {
-  find docs/v3/audit -type f -name "*-$1-snapshot.md" 2>/dev/null | awk -F/ '{ print $NF "\t" $0 }' | LC_ALL=C sort | tail -1 | cut -f2
+  # The fragments folder beside the ledger audit.sh writes (`BT_AUDIT_LEDGER`'s lower-case sibling).
+  local ledger="${BT_AUDIT_LEDGER:-docs/v3/AUDIT.md}"
+  find "$(dirname "$ledger")/$(basename "$ledger" .md | tr '[:upper:]' '[:lower:]')" -type f -name "*-$1-snapshot.md" 2>/dev/null | awk -F/ '{ print $NF "\t" $0 }' | LC_ALL=C sort | tail -1 | cut -f2
 }
 
 # story_snapshot <ID> — the story's text as it shipped: its newest snapshot's body, byte-exact

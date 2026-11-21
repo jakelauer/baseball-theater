@@ -14,7 +14,9 @@ import { fileURLToPath } from "node:url";
 import {
 	afterEach, beforeEach, describe, expect, it,
 } from "vitest";
-import { applyRecords, syncIssues } from "./github.ts";
+import {
+	appliedComment, applyRecords, syncIssues,
+} from "./github.ts";
 import { FakeGithub } from "./github-fake.ts";
 import type { TextRecord } from "./text-records.ts";
 import {
@@ -52,7 +54,7 @@ function git(...args: string[]): string
 function setup(): string
 {
 	git("init", "-q", "-b", "stage");
-	for (const f of ["audit.sh", "lib/reverify.sh", "lib/checks.sh", "backlog-vault/text-records.ts", "backlog-vault/ledger.ts"])
+	for (const f of ["audit.sh", "lib/reverify.sh", "lib/checks.sh", "backlog-vault/text-records.ts", "backlog-vault/ledger.ts", "backlog-vault/github.ts"])
 	{
 		mkdirSync(dirname(join(repo, "scripts", f)), {
 			recursive: true,
@@ -82,6 +84,9 @@ function audit(bin: string, args: string[]): ReturnType<typeof spawnSync>
 		env: {
 			...process.env,
 			PATH: `${bin}:${process.env.PATH}`,
+			// The test's own cache and stage ref, never the developer's .backlog-cache or origin/stage.
+			BT_BACKLOG_CACHE: join(repo, "cache"),
+			BT_STAGE_REF: "refs/heads/test-stage",
 		},
 	});
 }
@@ -144,7 +149,9 @@ describe("recording (AC 6)", () =>
 		expect(existsSync(join(repo, ".gh-called"))).toBe(false);
 		expect(audit(bin, ["create", "S170", "--title", "again", "--body-file", "v1.md", "--reason", "r"]).status).toBe(2);
 		expect(audit(bin, ["edit", "S170", "--body-file", "v2.md", "--reason", "same"]).status).toBe(2);
-		expect(audit(bin, ["edit", "S170", "--body-file", "v1.md", "--reason", "r", "--status", "done"]).status).toBe(2);
+		const status = audit(bin, ["edit", "S170", "--body-file", "v1.md", "--reason", "r", "--status", "done"]);
+		expect(status.status).toBe(2);
+		expect(String(status.stderr)).toContain("GitHub owns state");
 	});
 
 	it("an accepted bug's create B<N> --issue records its fields block alone, never the symptoms", () =>
@@ -221,7 +228,7 @@ describe("apply (AC 6)", () =>
 		});
 		fake.issues.get(1)!.body = body("v2");
 		fake.issues.get(1)!.comments.push({
-			body: `Applied S20 edit ${e1.hash}`,
+			body: appliedComment(e1),
 			user: {
 				login: "owner",
 			},
@@ -229,7 +236,7 @@ describe("apply (AC 6)", () =>
 		const result = applyRecords([migrated, e1, e2], io(fake));
 		expect(result.sent).toEqual(["S20 edit"]);
 		expect(fake.issues.get(1)!.body).toBe(body("v3"));
-		expect(fake.issues.get(1)!.comments.at(-1)!.body).toBe(`Applied S20 edit ${e2.hash}`);
+		expect(fake.issues.get(1)!.comments.at(-1)!.body).toBe(appliedComment(e2));
 	});
 
 	it("a lost POST response: the re-run finds the issue by its ID, sends no body and posts the missing comment", () =>
@@ -259,7 +266,7 @@ describe("apply (AC 6)", () =>
 		expect(after.filter((c) => c.method === "PATCH")).toHaveLength(0);
 		expect(fake.issues.size).toBe(1);
 		expect(fake.issues.get(1)!.title).toBe("S21: twenty-one");
-		expect(fake.issues.get(1)!.comments.map((c) => c.body)).toEqual([`Applied S21 create ${create.hash}`]);
+		expect(fake.issues.get(1)!.comments.map((c) => c.body)).toEqual([appliedComment(create)]);
 	});
 
 	it("a crash after a PATCH: the re-run sends no body and posts the missing Applied comment", () =>
@@ -293,7 +300,7 @@ describe("apply (AC 6)", () =>
 		const before = fake.calls.length;
 		applyRecords([migrated, edit], io(fake));
 		expect(fake.calls.slice(before).filter((c) => c.method === "PATCH")).toHaveLength(0);
-		expect(fake.issues.get(1)!.comments.map((c) => c.body)).toEqual([`Applied S22 edit ${edit.hash}`]);
+		expect(fake.issues.get(1)!.comments.map((c) => c.body)).toEqual([appliedComment(edit)]);
 	});
 
 	it("an Applied comment written by an outsider doesn't count: the record is applied again", () =>
@@ -313,7 +320,7 @@ describe("apply (AC 6)", () =>
 			}],
 			body: body("owner's revert"),
 			comments: [{
-				body: `Applied S23 edit ${edit.hash}`,
+				body: appliedComment(edit),
 				user: {
 					login: "stranger",
 				},
@@ -346,7 +353,8 @@ describe("apply (AC 6)", () =>
 			{
 				f.intercept = undefined;
 				const issue = f.issues.get(1)!;
-				issue.body = body("v2").replace(/\n/g, "\r\n");
+				// Not what was sent (a CRLF copy would count as live: GitHub's web editor saves CRLF).
+				issue.body = body("v2, mangled in between");
 				return FakeGithub.respond(200, f.view(issue));
 			}
 			return undefined;
@@ -424,5 +432,172 @@ describe("apply (AC 6)", () =>
 		expect(fake.issues.get(141)!.body).toBe(`Steps: play a clip.\n\n${renderFields({
 			priority: 2,
 		})}`);
+	});
+
+	it("A→B→A→C applies all three edits in order, each keyed to its own record", () =>
+	{
+		const fake = new FakeGithub();
+		const a = rec("migration", "S24", body("A"), {
+			issue: 1,
+		});
+		fake.add({
+			number: 1,
+			title: "S24: x",
+			labels: [{
+				name: "story",
+			}],
+			body: body("A"),
+		});
+		const toB = rec("edit", "S24", body("B"), {
+			from: a.hash,
+		});
+		const toA = rec("edit", "S24", body("A"), {
+			from: toB.hash,
+		});
+		const toC = rec("edit", "S24", body("C"), {
+			from: toA.hash,
+		});
+		expect(textRecordProblems([a, toB, toA, toC], [])).toEqual([]);
+		const result = applyRecords([a, toB, toA, toC], io(fake));
+		expect(result.commented).toEqual(["S24 edit", "S24 edit", "S24 edit"]);
+		expect(fake.issues.get(1)!.comments.map((c) => c.body)).toEqual([appliedComment(toB), appliedComment(toA), appliedComment(toC)]);
+		expect(fake.issues.get(1)!.body).toBe(body("C"));
+		const before = fake.calls.length;
+		applyRecords([a, toB, toA, toC], io(fake));
+		expect(fake.calls.slice(before).every((c) => c.method === "GET")).toBe(true);
+	});
+
+	it("apply refuses a create colliding with another issue carrying its ID", () =>
+	{
+		const fake = new FakeGithub();
+		fake.add({
+			number: 1,
+			title: "S25: someone else's story",
+			labels: [{
+				name: "story",
+			}],
+			body: body("theirs"),
+		});
+		const create = rec("create", "S25", body("mine"), {
+			title: "mine",
+		});
+		expect(() => applyRecords([create], io(fake))).toThrow(/S25: issue #1 already carries S25 with other text/);
+		expect(fake.calls.filter((c) => c.method !== "GET")).toEqual([]);
+		expect(fake.issues.get(1)!.body).toBe(body("theirs"));
+	});
+
+	it("apply skips listing comments for a chain whose only record is the migration", () =>
+	{
+		const fake = new FakeGithub();
+		fake.add({
+			number: 1,
+			title: "S26: x",
+			labels: [{
+				name: "story",
+			}],
+			body: body("v1"),
+		});
+		applyRecords([rec("migration", "S26", body("v1"), {
+			issue: 1,
+		})], io(fake));
+		expect(fake.calls.filter((c) => c.path.includes("/comments"))).toEqual([]);
+	});
+
+	it("apply refuses a dirty tree under docs/v3/audit (an untracked record fragment included), and not an unrelated edit elsewhere", () =>
+	{
+		const bin = setup();
+		const apply = () => spawnSync("bash", [join(repo, "scripts/audit.sh"), "apply"], {
+			cwd: repo,
+			encoding: "utf8",
+			env: {
+				...process.env,
+				PATH: `${bin}:${process.env.PATH}`,
+				BT_APPLY_ANY_HEAD: "1",
+				BT_BACKLOG_CACHE: join(repo, "cache"),
+			},
+		});
+		mkdirSync(join(repo, "docs/v3/audit/2026-11-21"), {
+			recursive: true,
+		});
+		writeFileSync(join(repo, "docs/v3/audit/2026-11-21/20261121T000000Z-S1-edit.md"), "unmerged\n");
+		const r = apply();
+		expect(r.status).toBe(2);
+		expect(r.stderr).toMatch(/clean tree under docs\/v3\/audit/);
+		expect(existsSync(join(repo, ".gh-called"))).toBe(false);
+		rmSync(join(repo, "docs/v3/audit"), {
+			recursive: true,
+		});
+		writeFileSync(join(repo, ".gitignore"), "node_modules\nchanged\n");
+		const elsewhere = apply();
+		expect(elsewhere.stderr).not.toMatch(/clean tree/);
+		// It went on to apply (here the stub gh fails the sync).
+		expect(existsSync(join(repo, ".gh-called"))).toBe(true);
+	});
+});
+
+describe("recording guards (AC 6)", () =>
+{
+	it("edit B<N> records only the fields block, and a body whose fields block is unchanged is already its text", () =>
+	{
+		const bin = setup();
+		const fields = (priority: number) => renderFields({
+			priority,
+		});
+		writeFileSync(join(repo, "b1.md"), `Steps: one.\n\n${fields(3)}`);
+		expect(audit(bin, ["create", "B150", "--issue", "150", "--body-file", "b1.md"]).status).toBe(0);
+		writeFileSync(join(repo, "b2.md"), `Steps: one, now with more.\n\n${fields(4)}`);
+		const e = audit(bin, ["edit", "B150", "--body-file", "b2.md", "--reason", "re-prioritized"]);
+		expect(e.status, String(e.stderr)).toBe(0);
+		const edit = records().find((r) => r.kind === "edit")!;
+		expect(edit.body).toBe(fields(4));
+		expect(textRecordProblems(records(), [])).toEqual([]);
+		writeFileSync(join(repo, "b3.md"), `Different symptoms.\n\n${fields(4)}`);
+		const same = audit(bin, ["edit", "B150", "--body-file", "b3.md", "--reason", "nothing new"]);
+		expect(same.status).toBe(2);
+		expect(same.stderr).toContain("already");
+	});
+
+	it("create S<N> refuses an ID already taken (an issue, a stage fragment) or with leading zeros", () =>
+	{
+		const bin = setup();
+		writeFileSync(join(repo, "v1.md"), body("one"));
+		mkdirSync(join(repo, "cache"));
+		writeFileSync(join(repo, "cache/issues.json"), JSON.stringify({
+			repo: "o/r",
+			trusted: ["o"],
+			syncedAt: "x",
+			issues: [{
+				number: 9,
+				title: "S172: on GitHub",
+				state: "open",
+				labels: [{
+					name: "story",
+				}],
+				user: {
+					login: "o",
+				},
+				body: body("x"),
+			}],
+		}));
+		git("switch", "-q", "-c", "test-stage");
+		mkdirSync(join(repo, "docs/v3/audit/2026-11-21"), {
+			recursive: true,
+		});
+		writeFileSync(join(repo, "docs/v3/audit/2026-11-21/20261121T000000Z-S173-create.md"), "x");
+		git("add", "docs");
+		git("commit", "-q", "-m", "stage's record");
+		git("switch", "-q", "stage");
+		const onGithub = audit(bin, ["create", "S172", "--title", "t", "--body-file", "v1.md", "--reason", "r"]);
+		expect(onGithub.status).toBe(2);
+		expect(onGithub.stderr).toContain("issue #9 carries S172");
+		expect(audit(bin, ["create", "S173", "--title", "t", "--body-file", "v1.md", "--reason", "r"]).stderr).toContain("stage's 20261121T000000Z-S173-create.md");
+		expect(audit(bin, ["create", "S0174", "--title", "t", "--body-file", "v1.md", "--reason", "r"]).status).toBe(2);
+		const free = audit(bin, ["create", "S174", "--title", "t", "--body-file", "v1.md", "--reason", "r"]);
+		expect(free.status, String(free.stderr)).toBe(0);
+		// An interrupted reconcile made #9 live first: its own create records S172 against it, and only it.
+		expect(audit(bin, ["create", "S172", "--title", "t", "--body-file", "v1.md", "--reason", "r", "--issue", "8"]).stderr).toContain("issue #9 carries S172");
+		const own = audit(bin, ["create", "S172", "--title", "t", "--body-file", "v1.md", "--reason", "r", "--issue", "9"]);
+		expect(own.status, String(own.stderr)).toBe(0);
+		expect(existsSync(join(repo, ".gh-called"))).toBe(false);
 	});
 });

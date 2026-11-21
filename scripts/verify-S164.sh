@@ -38,7 +38,8 @@ AUDIT_DIR=docs/v3/audit
 
 # The story-scoped test files, run once; each file's pass/fail read from the JSON report.
 TESTS=(github.test.ts text-records.test.ts check-at-commit.test.ts migrate.test.ts audit-edit.test.ts audit-reverify.test.ts
-  checks-own.test.ts vault.test.ts doc-index.test.ts source.test.ts bugs.test.ts claims.test.ts notes-dir.test.ts worktree-for.test.ts)
+  checks-own.test.ts vault.test.ts doc-index.test.ts source.test.ts bugs.test.ts claims.test.ts notes-dir.test.ts worktree-for.test.ts
+  review-debt.test.ts search.test.ts)
 present=()
 for t in "${TESTS[@]}"; do [ -f "$VAULT/$t" ] && present+=("$t"); done
 if [ "${#present[@]}" -gt 0 ]; then
@@ -83,7 +84,8 @@ fi
 grep -qE '"backlog:sync":\s*"node scripts/backlog-vault/github\.ts sync' package.json || bad 1 "package.json has no backlog:sync running github.ts sync"
 grep -qxE '/?\.backlog-cache/?' .gitignore || bad 1 ".gitignore does not ignore .backlog-cache/"
 need_tests 1 github.test.ts "pagination" "pull request" "outsider" "labels it .?bug" "S1 and S10" "label and state" \
-  "fields block (missing|unparseable)" "unaccepted bug" "fractional priority" "deleted" "transferred" "two syncs" "failed write" "worktree"
+  "fields block (missing|unparseable)" "unaccepted bug" "fractional priority" "deleted" "transferred" "two syncs" "failed write" "worktree" \
+  "CRLF" "broken item" "another repository" "unrecorded fields" "reads the issue fresh" "S0163" "refuses status:\*"
 talkers="$(grep -rnE "(execFile|spawn|execFileSync|spawnSync)\(\s*['\"]gh['\"]|fetch\(|api\.github\.com" "$VAULT" --include='*.ts' |
   grep -vE "^$VAULT/github(\.test)?\.ts:" || true)"
 [ -z "$talkers" ] || bad 1 "another vault file talks to GitHub: $(head -3 <<<"$talkers" | tr '\n' ' ')"
@@ -104,7 +106,8 @@ for f in cli.ts vault.ts parse.ts source.ts records.ts text-records.ts; do
   [ -f "$VAULT/$f" ] && grep -qE 'from "\./github\.ts"' "$VAULT/$f" && bad 2 "$f (the commit-reproducible check) imports github.ts"
 done
 [ -f "$VAULT/text-records.ts" ] || bad 2 "$VAULT/text-records.ts (the text record chain) is missing"
-need_tests 2 text-records.test.ts "one (recorded )?item per ID|duplicate" "hash" "fields block" "fork" "gap" "no (story or bug )?notes? (once|after)"
+need_tests 2 text-records.test.ts "one (recorded )?item per ID|duplicate" "hash" "fields block" "fork" "gap" "no (story or bug )?notes? (once|after)" \
+  "A.B.A.C" "bug record holding more"
 need_tests 2 check-at-commit.test.ts "older commit"
 l9="$(grep -E '^\| L9 ' docs/v3/LAWS.md || true)"
 grep -qiF "the backlog issues are consistent (one issue per ID, status label agreeing with state, fields block parsing, no unlogged edit to an accepted story)" <<<"$l9" ||
@@ -131,27 +134,38 @@ for t in vault.test.ts doc-index.test.ts source.test.ts bugs.test.ts notes-dir.t
 done
 need_tests 3 claims.test.ts "claim B[0-9N<]"
 need_tests 3 worktree-for.test.ts "no cache"
-s163_line="$(for f in $(records S163); do awk '/^```text$/ { f = 1; next } f && /^```/ { f = 0 } f && /^\/goal S163 / { print; exit }' "$f"; done | head -1)"
+need_tests 3 github.test.ts "newest text record over the cache" "recorded create with no issue" "refuse a skipped ID"
+need_tests 3 claims.test.ts "refuses a skipped ID"
+need_tests 3 doc-index.test.ts "problems at the top"
+s163_line="$(node "$VAULT/text-records.ts" newest S163 2>/dev/null | awk '/^```text$/ { f = 1; next } f && /^```/ { f = 0 } f && /^\/goal S163 / { print; exit }')"
 if [ -z "$s163_line" ]; then
   bad 3 "no recorded body for S163 holds its /goal line"
 else
-  # A cache holding S163's recorded body, as pnpm backlog:sync would write it.
-  mkdir -p "$TMP/cache"
+  # A cache as pnpm backlog:sync would write it: S163's issue body differs from its record (the record
+  # wins), and S99999 exists only in the cache (no record: the cache's body is the fallback).
+  mkdir -p "$TMP/cache" "$TMP/pb"
+  printf '#!/bin/sh\ncat >/dev/null\n' >"$TMP/pb/pbcopy"
+  chmod +x "$TMP/pb/pbcopy"
   node -e '
     const fs = require("fs");
-    const line = process.argv[1];
-    fs.writeFileSync(process.argv[2] + "/issues.json", JSON.stringify({ syncedAt: new Date().toISOString(), repo: "o/r", trusted: ["o"], issues: [
-      { number: 999, title: "S163: search-driven reviews", state: "closed", state_reason: "completed", labels: [{ name: "story" }, { name: "status:done" }],
-        user: { login: "o" }, body: "**`/goal` command**\n\n```text\n" + line + "\n```\n\n### Backlog fields\n\n```yaml\npriority: 68\n```\n" } ] }));
-  ' "$s163_line" "$TMP/cache"
-  got="$(BT_BACKLOG_CACHE="$TMP/cache" scripts/goal.sh 163 2>/dev/null | head -1)"
-  [ "$got" = "$s163_line" ] || bad 3 "pnpm goal 163 printed '${got:0:80}', not S163's /goal line"
+    const body = (line) => "**`/goal` command**\n\n```text\n" + line + "\n```\n\n### Backlog fields\n\n```yaml\npriority: 68\n```\n";
+    const issue = (number, title, line) => ({ number, title, state: "open", state_reason: null, labels: [{ name: "story" }, { name: "status:todo" }],
+      user: { login: "o" }, body: body(line) });
+    fs.writeFileSync(process.argv[1] + "/issues.json", JSON.stringify({ syncedAt: new Date().toISOString(), repo: "o/r", trusted: ["o"], issues: [
+      issue(999, "S163: search-driven reviews", "/goal S163 (S163). a stale GitHub copy"),
+      issue(998, "S99999: cache only", "/goal S99999 (S99999). from the cache") ] }));
+  ' "$TMP/cache"
+  got="$(PATH="$TMP/pb:$PATH" BT_BACKLOG_CACHE="$TMP/cache" scripts/goal.sh 163 2>/dev/null | head -1)"
+  [ "$got" = "$s163_line" ] || bad 3 "pnpm goal 163 printed '${got:0:80}', not S163's recorded /goal line (the record wins over the cache)"
+  got="$(PATH="$TMP/pb:$PATH" BT_BACKLOG_CACHE="$TMP/cache" scripts/goal.sh 99999 2>/dev/null | head -1)"
+  [ "$got" = "/goal S99999 (S99999). from the cache" ] || bad 3 "pnpm goal 99999 printed '${got:0:80}', not the cache's /goal line (the fallback with no record)"
 fi
 
 # --- Check 4: the migration ---
 grep -qE '"backlog:migrate":\s*"node scripts/backlog-vault/migrate\.ts' package.json || bad 4 "package.json has no backlog:migrate running migrate.ts"
 need_tests 4 migrate.test.ts "fresh run" "stopped after 50" "between create and close" "rate.limit" "Shipped.*with(out)? (a )?pull request|without a pull request" \
-  "superseded" "rewrite" "bug" "reconcile after" "second .?--reconcile"
+  "superseded" "rewrite" "bug" "reconcile after" "second .?--reconcile" "first of two changed notes" "stage moved between" "status-only move" \
+  "deleted on stage" "branch itself changed" "HEAD contains the stage commit" "stage holds a migration fragment" "CRLF"
 mig_base="$(find "$AUDIT_DIR" -type f \( -name '*-migration.md' -o -name '*-create.md' \) -exec grep -hoE '^\| (Base|Read from stage) \| `[0-9a-f]{7,40}`' {} + 2>/dev/null |
   grep -oE '[0-9a-f]{7,40}' | while read -r s; do git log -1 --format="%ct %H" "$s" 2>/dev/null; done | sort -n | tail -1 | cut -d' ' -f2)"
 if [ -z "$mig_base" ]; then
@@ -171,6 +185,11 @@ else
 fi
 left="$(git ls-files -- docs/v3/backlog/stories docs/v3/backlog/bugs | grep -E '\.md$' || true)"
 [ -z "$left" ] || bad 4 "story or bug notes remain: $(head -3 <<<"$left" | tr '\n' ' ')"
+# The removed drift event (a story closed not_planned since the base) comes from the cache, in the debt
+# scripts and the review seed; with no cache the debt scripts say so.
+need_tests 4 review-debt.test.ts "closed not_planned" "no cache: removed events not counted"
+need_tests 4 github.test.ts "reads closed_at, never updated_at" "dropped as deleted"
+need_tests 4 search.test.ts "closed not_planned"
 grep -rlF '![[S' docs/v3/backlog/frame/ >/dev/null 2>&1 && bad 4 "a frame note still embeds a story (![[S…]])"
 [ -e docs/v3/backlog/Backlog.base ] && bad 4 "docs/v3/backlog/Backlog.base remains"
 
@@ -193,7 +212,7 @@ for m in create edit apply migration; do
   grep -qE "^\s*$m\)" scripts/audit.sh || bad 6 "audit.sh has no $m mode"
 done
 need_tests 6 audit-edit.test.ts "create and an edit" "create B" "only what isn.t live" "lost .?POST" "crash after (a )?.?PATCH" "outsider" "mismatch" \
-  "second .?apply" "fork"
+  "second .?apply" "fork" "A.B.A.C" "edit B<N> records only the fields block" "already taken" "colliding" "untracked record fragment"
 grep -qF "a recorded edit answering a pull request's review" CLAUDE.md || bad 6 "CLAUDE.md's review-skip rule does not say \"a recorded edit answering a pull request's review\""
 
 # --- Check 7: the process docs and pointers ---
@@ -207,8 +226,20 @@ for f in .claude/skills/run-backlog/SKILL.md .claude/skills/pending/SKILL.md .cl
   [ -f "$f" ] || { bad 7 "$f is missing"; continue; }
   grep -qE 'backlog:sync|backlog:search|github\.ts' "$f" || bad 7 "$f does not say items are read through backlog:sync/backlog:search"
 done
-old="$(grep -rn 'stories/<status>/S<N>.md\|bugs/<status>/B<\|backlog/stories/\(done\|todo\|blocked\)/' CLAUDE.md AGENTS.md .cursor/rules/ .claude/ docs/v3/ARCHITECTURE.md docs/v3/LOOP.md "$FRAME" 2>/dev/null || true)"
+old="$(grep -rn --exclude-dir=worktrees 'stories/<status>/S<N>.md\|bugs/<status>/B<\|backlog/stories/\(done\|todo\|blocked\)/' CLAUDE.md AGENTS.md .cursor/rules/ .claude/ docs/v3/ARCHITECTURE.md docs/v3/LOOP.md "$FRAME" 2>/dev/null || true)"
 [ -z "$old" ] || bad 7 "old note-path pointers remain: $(head -3 <<<"$old" | cut -c1-120 | tr '\n' ' ')"
+# The wider net over the live instructions (all of .claude/ but a main checkout's worktrees; not the frame's or
+# LOOP's history lines, which AC 7 leaves alone):
+# any note path, however its ID is spelled, a `status:` frontmatter flip, or "story notes".
+old="$(grep -rnE --exclude-dir=worktrees 'stories/<status>/|bugs/<status>/|backlog/stories/|backlog/bugs/|status: (todo|doing|done|blocked)|story notes?\b' CLAUDE.md AGENTS.md .cursor/rules/ .claude/ 2>/dev/null || true)"
+[ -z "$old" ] || bad 7 "stale note instructions remain: $(head -3 <<<"$old" | cut -c1-120 | tr '\n' ' ')"
+for p in 'scripts/audit.sh apply' 'github.ts status <ID> done' 'Closes #<issue>' 'text-records.ts newest'; do
+  grep -qF "$p" .claude/skills/run-backlog/SKILL.md || bad 7 "the run-backlog SKILL does not name '$p'"
+done
+grep -qF 'Closes #<issue>' CLAUDE.md || bad 7 "CLAUDE.md's pull request rule does not say a story's pull request starts 'Closes #<issue>'"
+for f in .claude/agents/story-worker.md .claude/agents/backlog-reviewer.md .claude/agents/doc-parity-reviewer.md "$FRAME"; do
+  grep -qF 'text-records.ts newest' "$f" || bad 7 "$f does not point at text-records.ts newest for an item's text"
+done
 # ARCHITECTURE.md: each changed line differs from its base only in a link target.
 arch="$(git -c core.quotepath=false diff -U0 "$BASE" -- docs/v3/ARCHITECTURE.md | grep -E '^[-+][^-+]' || true)"
 if [ -n "$arch" ]; then

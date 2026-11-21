@@ -70,6 +70,18 @@ migrated_ids()
 # record_body <path> — a text record's body at HEAD (between its markers).
 record_body() { git show "HEAD:$1" 2>/dev/null | awk '/^<!-- bt-body:end -->$/ { on = 0 } on { print } /^<!-- bt-body:begin -->$/ { on = 1 }'; }
 
+# record_fields <path> — the text of a record's `### Backlog fields` section (its last one), so a
+# `priority:` line elsewhere in the body is never read as the story's priority.
+record_fields() { record_body "$1" | awk '/^### Backlog fields$/ { buf = ""; on = 1; next } on { buf = buf $0 "\n" } END { printf "%s", buf }'; }
+
+# cache_removed <base> — the stories closed not_planned since <base>'s commit time, one ID a line, from
+# the issue cache (S164: GitHub owns state, so the `removed` drift event lives there, not in a record).
+# With no cache github.ts says "no cache: removed events not counted" on stderr and prints nothing.
+cache_removed() {
+  [ -f scripts/backlog-vault/github.ts ] || return 0
+  node scripts/backlog-vault/github.ts removed --since "$(git show -s --format=%cI "$1")" || true
+}
+
 # The debt scripts' `--json` report (S163): `pnpm backlog:search seed` reads it to start a review
 # from what changed. Values here are story IDs, repo paths, shas and ADR numbers, so escaping
 # backslashes and double quotes is enough.

@@ -7,13 +7,13 @@ import {
 	describe, expect, it,
 } from "vitest";
 import type { IssueCache } from "./github.ts";
-import { appliedHashes } from "./github.ts";
+import { appliedRecords } from "./github.ts";
 import { FakeGithub } from "./github-fake.ts";
 import type {
-	MigrateIO, RecordRequest, Shipped,
+	MigrateIO, ReconcileView, RecordRequest, Shipped,
 } from "./migrate.ts";
 import {
-	migrate, rewriteOpen, shippedSection, summaryText,
+	migrate, noteItems, rewriteOpen, shippedSection, summaryText,
 } from "./migrate.ts";
 import type { TextRecord } from "./text-records.ts";
 import {
@@ -134,6 +134,22 @@ function withBug(): FakeGithub
 	});
 	return fake;
 }
+
+/**
+ * A reconcile's view of git: these note paths changed on stage (`M`, or `D` for a deletion), the
+ * statuses at the merge-base are NOTES()'s, HEAD contains stage, and stage holds no migration yet.
+ */
+const view = (changed: string[], over: Partial<ReconcileView> = {}): ReconcileView => ({
+	changed: changed.map((path) => ({
+		letter: path.startsWith("D ") ? "D" : "M",
+		path: path.replace(/^D /, ""),
+	})),
+	branchChanged: [],
+	baseStatus: new Map(noteItems(NOTES()).map((i) => [i.id, i.status])),
+	headContainsStage: true,
+	stageMigrated: false,
+	...over,
+});
 
 const byTitle = (fake: FakeGithub, id: string) => [...fake.issues.values()].filter((i) => i.title.startsWith(`${id}: `));
 
@@ -319,14 +335,15 @@ describe("backlog:migrate (AC 4)", () =>
 		stage.set(p4, t4.replace("status: todo", "status: blocked").replace("/todo/", "/blocked/"));
 		stage.set(...story("S9", "todo"));
 		const s = migrate(stage, "stage456", h.io, {
-			reconcile: true,
+			reconcile: view([p3, flipped[0], p4.replace("/todo/", "/blocked/"), story("S9", "todo")[0]]),
 		});
 		const added = h.records.slice(before);
 		expect(added.map((r) => `${r.id} ${r.kind}`).sort()).toEqual(["S3 edit", "S4 edit", "S9 create"]);
 		expect(added.every((r) => r.base === "stage456")).toBe(true);
 		expect(byTitle(fake, "S3")[0]!.body).toContain("a review added this");
 		const s3 = byTitle(fake, "S3")[0]!;
-		expect(appliedHashes(s3.comments, "S3", ["owner"]).has(sha256(s3.body!))).toBe(true);
+		const s3edit = added.find((r) => r.id === "S3")!;
+		expect(appliedRecords(s3.comments, "S3", ["owner"]).has(`${sha256(s3.body!)} ${s3edit.file.split("/")[1]!.split("-")[0]}`)).toBe(true);
 		expect(byTitle(fake, "S4")[0]!.state).toBe("open");
 		expect(byTitle(fake, "S4")[0]!.labels.map((l) => l.name)).toContain("status:blocked");
 		expect(byTitle(fake, "S9")).toHaveLength(1);
@@ -340,17 +357,189 @@ describe("backlog:migrate (AC 4)", () =>
 		const fake = withBug();
 		const h = harness(fake);
 		migrate(NOTES(), "b", h.io);
-		migrate(NOTES(), "stage1", h.io, {
-			reconcile: true,
+		const stage = NOTES();
+		const [p3, t3] = story("S3", "todo", "\n**Notes:** edited on stage.\n");
+		stage.set(p3, t3);
+		migrate(stage, "stage1", h.io, {
+			reconcile: view([p3]),
 		});
 		const records = h.records.length;
 		const calls = fake.calls.length;
-		const s = migrate(NOTES(), "stage1", h.io, {
-			reconcile: true,
+		const s = migrate(stage, "stage1", h.io, {
+			reconcile: view([p3]),
 		});
 		expect(h.records).toHaveLength(records);
 		expect(fake.calls.slice(calls).filter((c) => c.method !== "GET")).toEqual([]);
 		expect(s.recorded).toEqual([]);
+	});
+
+	it("reconcile at a stage moved since the migration, with no note changed, records and sends nothing (relative and frozen-ledger links)", () =>
+	{
+		const fake = withBug();
+		const h = harness(fake);
+		const notes = NOTES();
+		notes.set(...story("S7", "todo", "\nSee [VD](./VISUAL-DESIGN.md#videos).\n"));
+		migrate(notes, "b", h.io);
+		const calls = fake.calls.length;
+		const s = migrate(notes, "stage9", h.io, {
+			reconcile: view([]),
+		});
+		expect(fake.calls.slice(calls).filter((c) => c.method !== "GET")).toEqual([]);
+		expect(s.recorded).toEqual([]);
+	});
+
+	it("reconcile twice with stage moved between them records nothing the second time, a relative-link story in scope both times", () =>
+	{
+		const fake = withBug();
+		const h = harness(fake);
+		const notes = NOTES();
+		const [p7] = story("S7", "todo");
+		notes.set(p7, story("S7", "todo", "\nSee [VD](./VISUAL-DESIGN.md#videos).\n")[1]);
+		migrate(notes, "b", h.io);
+		notes.set(p7, story("S7", "todo", "\nSee [VD](./VISUAL-DESIGN.md#videos), changed on stage.\n")[1]);
+		migrate(notes, "stage1", h.io, {
+			reconcile: view([p7]),
+		});
+		const edit = h.records.at(-1)!;
+		expect(`${edit.id} ${edit.kind} ${edit.base}`).toBe("S7 edit stage1");
+		expect(edit.body).toContain("blob/stage1/docs/v3/VISUAL-DESIGN.md#videos");
+		const records = h.records.length;
+		const calls = fake.calls.length;
+		const s = migrate(notes, "stage2", h.io, {
+			reconcile: view([p7]),
+		});
+		expect(h.records).toHaveLength(records);
+		expect(fake.calls.slice(calls).filter((c) => c.method !== "GET")).toEqual([]);
+		expect(s.recorded).toEqual([]);
+	});
+
+	it("reconcile stopped after the first of two changed notes records the second on re-run", () =>
+	{
+		const fake = withBug();
+		const h = harness(fake);
+		migrate(NOTES(), "b", h.io);
+		const stage = NOTES();
+		const [p1, t1] = story("S1", "done", "\n**Notes:** one.\n");
+		const [p3, t3] = story("S3", "todo", "\n**Notes:** three.\n");
+		stage.set(p1, t1);
+		stage.set(p3, t3);
+		const s3 = byTitle(fake, "S3")[0]!;
+		fake.intercept = (call) =>
+		{
+			if (call.method === "PATCH" && call.path.endsWith(`/issues/${s3.number}`))
+			{
+				throw new Error("connection reset");
+			}
+			return undefined;
+		};
+		expect(() => migrate(stage, "stage1", h.io, {
+			reconcile: view([p1, p3]),
+		})).toThrow("connection reset");
+		expect(h.records.filter((r) => r.kind === "edit").map((r) => r.id)).toEqual(["S1"]);
+		fake.intercept = undefined;
+		const s = migrate(stage, "stage1", h.io, {
+			reconcile: view([p1, p3]),
+		});
+		expect(s.recorded).toEqual(["S3 edit"]);
+		expect(h.records.filter((r) => r.kind === "edit").map((r) => r.id)).toEqual(["S1", "S3"]);
+		expect(textRecordProblems(h.records, [])).toEqual([]);
+	});
+
+	it("reconcile of a status-only move patches labels and state only: no body, no record, even over a hand-edited body", () =>
+	{
+		const fake = withBug();
+		const h = harness(fake);
+		migrate(NOTES(), "b", h.io);
+		const s3 = byTitle(fake, "S3")[0]!;
+		s3.body = "hand-edited on GitHub";
+		const stage = NOTES();
+		const [p3, t3] = story("S3", "todo");
+		stage.delete(p3);
+		const doing = p3.replace("/todo/", "/doing/");
+		stage.set(doing, t3.replace("status: todo", "status: doing"));
+		const records = h.records.length;
+		const calls = fake.calls.length;
+		migrate(stage, "stage1", h.io, {
+			reconcile: view([`D ${p3}`, doing]),
+		});
+		const patches = fake.calls.slice(calls).filter((c) => c.method === "PATCH");
+		expect(patches).toHaveLength(1);
+		expect(patches[0]!.fields.map(([n]) => n)).not.toContain("body");
+		expect(s3.labels.map((l) => l.name)).toContain("status:doing");
+		expect(s3.body).toBe("hand-edited on GitHub");
+		expect(h.records).toHaveLength(records);
+	});
+
+	it("reconcile prints a note deleted on stage and sends nothing", () =>
+	{
+		const fake = withBug();
+		const h = harness(fake);
+		migrate(NOTES(), "b", h.io);
+		const stage = NOTES();
+		const [p3] = story("S3", "todo");
+		stage.delete(p3);
+		const calls = fake.calls.length;
+		const s = migrate(stage, "stage1", h.io, {
+			reconcile: view([`D ${p3}`]),
+		});
+		expect(s.deleted).toEqual(["S3"]);
+		expect(fake.calls.slice(calls).filter((c) => c.method !== "GET")).toEqual([]);
+		expect(summaryText(s, false)).toContain("notes deleted on stage (nothing sent): 1 (S3)");
+	});
+
+	it("reconcile refuses to touch an ID the branch itself changed, and reports it", () =>
+	{
+		const fake = withBug();
+		const h = harness(fake);
+		migrate(NOTES(), "b", h.io);
+		const stage = NOTES();
+		const [p3, t3] = story("S3", "todo", "\n**Notes:** stale copy.\n");
+		stage.set(p3, t3);
+		const calls = fake.calls.length;
+		const s = migrate(stage, "stage1", h.io, {
+			reconcile: view([p3], {
+				branchChanged: ["S3"],
+			}),
+		});
+		expect(s.refused).toEqual(["S3"]);
+		expect(s.recorded).toEqual([]);
+		expect(fake.calls.slice(calls).filter((c) => c.method !== "GET")).toEqual([]);
+	});
+
+	it("reconcile refuses unless HEAD contains the stage commit", () =>
+	{
+		const h = harness(withBug());
+		expect(() => migrate(NOTES(), "stage1", h.io, {
+			reconcile: view([], {
+				headContainsStage: false,
+			}),
+		})).toThrow(/merge stage into this branch first/);
+	});
+
+	it("reconcile refuses once stage holds a migration fragment (S164 merged)", () =>
+	{
+		const h = harness(withBug());
+		expect(() => migrate(NOTES(), "stage1", h.io, {
+			reconcile: view([], {
+				stageMigrated: true,
+			}),
+		})).toThrow(/stage already holds a migration fragment/);
+	});
+
+	it("a CRLF issue body is PATCHed to the LF body, and the record holds LF", () =>
+	{
+		const fake = withBug();
+		fake.issues.get(50)!.body = "Steps: open a live game.\r\nThen wait.\r\n";
+		const h = harness(fake);
+		migrate(NOTES(), "b", h.io);
+		expect(fake.issues.get(50)!.body).not.toContain("\r");
+		expect(h.records.every((r) => !r.body.includes("\r"))).toBe(true);
+		const s3 = byTitle(fake, "S3")[0]!;
+		s3.body = s3.body!.replace(/\n/g, "\r\n");
+		const records = h.records.length;
+		migrate(NOTES(), "b", h.io);
+		expect(s3.body).not.toContain("\r");
+		expect(h.records).toHaveLength(records);
 	});
 
 	it("links a frozen-ledger entry at the migration's base commit as plain text (?plain=1), not at the shipping commit", () =>
@@ -405,6 +594,15 @@ describe("backlog:migrate (AC 4)", () =>
 		expect(body).toContain("[A5](https://github.com/owner/bt/blob/base9/docs/v3/visual/game-shell/amendments/A5.md)");
 		expect(body).toContain("[web](https://example.test/a)");
 		expect(body).toContain("[here](#local)");
+	});
+
+	it("a bug note with no issue on GitHub is skipped and named, and nothing is recorded for it", () =>
+	{
+		const h = harness(withBug());
+		const s = migrate(new Map([bug(60, "todo", 3)]), "b", h.io);
+		expect(s.missing).toEqual(["B60"]);
+		expect(h.records).toEqual([]);
+		expect(summaryText(s, false)).toContain("bug notes with no issue: 1 (B60)");
 	});
 
 	it("paces writes: one second between write requests", () =>

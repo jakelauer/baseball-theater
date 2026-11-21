@@ -598,6 +598,6 @@ scripts/audit.sh answers parity --review <date> --commit <sha> --answers -   # o
 
 ### Goal command for multiple stories
 
-```/goal SX then SY (their issues, read with pnpm backlog:search item <ID>). Follow the Rules for every story, plus each story's Goal condition and Turn cap as written — in particular rule 9 (show me each grader failing on HEAD before product code), rule 10 (stop and report rather than widening a fence), and rule 6 (do not start a story until the work for the prior story is committed). Stop after <SX cap + SY cap> turns total.```
+```/goal SX then SY (their text, read with pnpm backlog:search item <ID> or node scripts/backlog-vault/text-records.ts newest <ID>). Follow the Rules for every story, plus each story's Goal condition and Turn cap as written — in particular rule 9 (show me each grader failing on HEAD before product code), rule 10 (stop and report rather than widening a fence), and rule 6 (do not start a story until the work for the prior story is committed). Stop after <SX cap + SY cap> turns total.```
 
 ---

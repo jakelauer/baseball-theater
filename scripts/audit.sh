@@ -235,7 +235,7 @@ write_record() {
 # --- create / edit / migration (S164) ---------------------------------------------
 if [ "$MODE" = "create" ] || [ "$MODE" = "edit" ] || [ "$MODE" = "migration" ]; then
   ID="${1:-}"
-  [[ "$ID" =~ ^[SB][0-9]+$ ]] || { echo "audit: ${MODE} needs a story or bug ID (S170, B140)" >&2; exit 2; }
+  [[ "$ID" =~ ^[SB][1-9][0-9]*$ ]] || { echo "audit: ${MODE} needs a story or bug ID (S170, B140; no leading zero)" >&2; exit 2; }
   shift
   BODY_FILE="" REASON="" TITLE_ARG="" ISSUE="" BASE_ARG="" REWRITE="" STAGE=""
   while [ $# -gt 0 ]; do
@@ -261,19 +261,27 @@ if [ "$MODE" = "create" ] || [ "$MODE" = "edit" ] || [ "$MODE" = "migration" ]; 
   [ -n "$STAGE" ] && flags+=(--base "$(git rev-parse --short "$STAGE")" --base-label stage)
   [ -n "$REWRITE" ] && flags+=(--rewrite-file "$REWRITE")
   existing="$(node "$RECORDS" newest "$ID" --field file 2>/dev/null || true)"
+  # A bug's record holds its fields block alone (create and edit alike): the symptoms are its issue's,
+  # written by whoever filed it, and never recorded.
+  if [[ "$ID" == B* ]] && [ "$MODE" != "migration" ]; then
+    fields_only="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-fields.XXXXXX")"
+    node "$RECORDS" fields "$BODY_FILE" "$ID" >"$fields_only" || exit 2
+    [ -s "$fields_only" ] || { echo "audit: ${BODY_FILE} holds no ### Backlog fields section" >&2; exit 2; }
+    flags[1]="$fields_only"
+  fi
   case "$MODE" in
     create)
       [ -z "$existing" ] || { echo "audit: ${ID} is already recorded (${existing}); change its text with audit.sh edit" >&2; exit 2; }
       if [[ "$ID" == B* ]]; then
         [ -n "$ISSUE" ] || { echo "audit: create ${ID} records an accepted bug's fields block: --issue <n> is required" >&2; exit 2; }
-        # Only the fields block is recorded: the symptoms stay whoever filed them wrote them.
-        fields_only="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-fields.XXXXXX")"
-        node "$RECORDS" fields "$BODY_FILE" "$ID" >"$fields_only" || exit 2
-        [ -s "$fields_only" ] || { echo "audit: ${BODY_FILE} holds no ### Backlog fields section" >&2; exit 2; }
-        flags[1]="$fields_only"
       else
         [ -n "$TITLE_ARG" ] || { echo "audit: create ${ID} needs --title (its issue is titled '${ID}: <title>')" >&2; exit 2; }
         [ -n "$REASON" ] || { echo "audit: create needs --reason" >&2; exit 2; }
+        # A new story's ID must be free: no trusted issue (the cache), no record here, no fragment on stage.
+        # (A copy of audit.sh without github.ts beside it, as L13's merge-safety test makes, checks the records alone.)
+        if [ -f scripts/backlog-vault/github.ts ]; then
+          node scripts/backlog-vault/github.ts taken "$ID" ${ISSUE:+--issue "$ISSUE"} >/dev/null || exit 2
+        fi
       fi
       ;;
     edit)
@@ -282,7 +290,7 @@ if [ "$MODE" = "create" ] || [ "$MODE" = "edit" ] || [ "$MODE" = "migration" ]; 
       problems="$(node "$RECORDS" newest "$ID" --field problems)"
       [ -z "$problems" ] || { echo "audit: ${ID}'s records are inconsistent; fix them first:" >&2; echo "$problems" >&2; exit 2; }
       from="$(node "$RECORDS" newest "$ID" --field hash)"
-      [ "$(shasum -a 256 <"$BODY_FILE" | cut -d' ' -f1)" != "$from" ] || { echo "audit: ${BODY_FILE} is ${ID}'s text already; nothing to record" >&2; exit 2; }
+      [ "$(shasum -a 256 <"${flags[1]}" | cut -d' ' -f1)" != "$from" ] || { echo "audit: ${BODY_FILE} is ${ID}'s text already; nothing to record" >&2; exit 2; }
       flags+=(--from "$from")
       [ -n "$ISSUE" ] || { ISSUE="$(node "$RECORDS" newest "$ID" --field issue)"; [ -n "$ISSUE" ] && flags+=(--issue "$ISSUE"); }
       ;;
@@ -302,9 +310,18 @@ fi
 # Sends each recorded create and edit GitHub doesn't have yet (github.ts apply), on an up-to-date
 # stage: the records are applied only once their ledger pull request merged.
 if [ "$MODE" = "apply" ]; then
-  if [ -z "${BT_APPLY_ANY_HEAD:-}" ] && [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/stage 2>/dev/null)" ]; then
-    echo "audit: apply runs on an up-to-date stage (git fetch origin && git switch stage && git merge --ff-only origin/stage)" >&2
+  # The records sent are the ones in this tree, so they must be exactly what merged: no changed or
+  # untracked fragment under docs/v3/audit (a change elsewhere sends nothing, so it doesn't block).
+  if [ -n "$(git status --porcelain -- docs/v3/audit)" ]; then
+    echo "audit: apply needs a clean tree under docs/v3/audit (commit or discard the record changes first)" >&2
     exit 2
+  fi
+  if [ -z "${BT_APPLY_ANY_HEAD:-}" ]; then
+    git fetch -q origin || { echo "audit: apply could not fetch origin, so it can't tell whether stage is up to date" >&2; exit 2; }
+    if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/stage 2>/dev/null)" ]; then
+      echo "audit: apply runs on an up-to-date stage (git switch stage && git merge --ff-only origin/stage)" >&2
+      exit 2
+    fi
   fi
   node scripts/backlog-vault/github.ts apply
   exit $?
@@ -431,13 +448,15 @@ if [ "$MODE" = "story" ]; then
       # snapshot; once migrated, every story has one, and new graders require it (story_snapshot_status).
       snap_body="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-snapshot.XXXXXX")"
       if node "$RECORDS" newest "$ID" >"$snap_body" 2>/dev/null; then
-      snap_flags=(--body-file "$snap_body" --status done --record "$(node "$RECORDS" newest "$ID" --field file)")
-      ISSUE="$(node "$RECORDS" newest "$ID" --field issue)"
-      [ -n "$ISSUE" ] && snap_flags+=(--issue "$ISSUE")
-      new_fragment "$ID" snapshot || exit 2
-      node "$RECORDS" render snapshot "$ID" --stamp "$STAMP" --date "$TODAY" --head "${HEAD_SHA} (tree ${TREE})" "${snap_flags[@]}" >"$FRAG_TMP" || exit 2
-      finish_fragment || exit 2
-      SNAPSHOT="$FRAG"
+        snap_flags=(--body-file "$snap_body" --status done --record "$(node "$RECORDS" newest "$ID" --field file)")
+        ISSUE="$(node "$RECORDS" newest "$ID" --field issue)"
+        [ -n "$ISSUE" ] && snap_flags+=(--issue "$ISSUE")
+        new_fragment "$ID" snapshot || exit 2
+        node "$RECORDS" render snapshot "$ID" --stamp "$STAMP" --date "$TODAY" --head "${HEAD_SHA} (tree ${TREE})" "${snap_flags[@]}" >"$FRAG_TMP" || exit 2
+        finish_fragment || exit 2
+        SNAPSHOT="$FRAG"
+      else
+        echo "audit ${ID}: no text record, so no snapshot (its grader reads its note)"
       fi
       rm -f "$snap_body"
     fi
@@ -452,6 +471,14 @@ if [ "$MODE" = "story" ]; then
     verify_exit=$?
   else
     verify_exit="skipped"
+  fi
+
+  # A failed run ships nothing, so the snapshot this run wrote goes (only this run's: never under
+  # --reverify or --backfill, which write none), before the completion fragment, which then has no row for it.
+  if [ -n "${SNAPSHOT:-}" ] && { [ "$grader_exit" -ne 0 ] || { [ "$verify_exit" != "skipped" ] && [ "$verify_exit" -ne 0 ]; }; }; then
+    rm -f "$SNAPSHOT"
+    echo "audit ${ID}: the run failed, so its snapshot ${SNAPSHOT} was removed"
+    SNAPSHOT=""
   fi
 
   check_lines="$(grep -E '^check [0-9]+ (PASS|FAIL):' "$grader_log" || true)"

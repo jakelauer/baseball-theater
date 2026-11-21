@@ -22,9 +22,15 @@
  *     symptoms stay as they are, and only the fields block is recorded.
  *
  * `--reconcile` (run again right before S164's pull request merges) reads the notes on `--ref`
- * (default origin/stage) and records what changed since: a changed body becomes an `edit` (sent, with
- * its `Applied` comment), a status flip is set on GitHub directly, and a new note becomes a `create`
- * made live as the migration is; each fragment names the `stage` commit it read. A second run with
+ * (default origin/stage), but only those that changed on stage since the merge-base of the migration's
+ * base and stage ({@link ReconcileView}); every other note is as the migration recorded it. Each such
+ * note is compared with its newest text record (rebuilt at that record's own base, so links never
+ * differ by commit alone): a changed body becomes an `edit` built and recorded at the stage commit
+ * (sent, with its `Applied` comment), a status that differs between the merge-base and stage is set
+ * on GitHub directly, a new note becomes a `create` made live as the migration is, and a note deleted
+ * on stage is printed and left alone. It refuses an ID the branch itself changed (S164's own note), a
+ * HEAD that doesn't contain the stage commit (merge stage in first, so shipping_commit sees stage's
+ * fragments), and a stage that already holds a migration fragment (S164 merged). A second run with
  * nothing new records and sends nothing. `--dry-run` reads GitHub (when it can) and prints the plan,
  * changing nothing on GitHub and recording nothing.
  */
@@ -48,7 +54,7 @@ import {
 import { readLedger } from "./ledger.ts";
 import type { BacklogFields, TextRecord } from "./text-records.ts";
 import {
-	fragmentsDir, newestBody, readRecords, renderFields, sha256, withoutFields,
+	fragmentsDir, lf, newestBody, readRecords, renderFields, sha256, withoutFields,
 } from "./text-records.ts";
 
 /** One story or bug note, as the migration reads it. */
@@ -302,6 +308,27 @@ export interface MigrateIO
 	unshipped(id: string): string | undefined;
 	repo: string;
 	log(line: string): void;
+	/** A recorded (short) base as the full commit the bodies' links name; identity when absent. */
+	resolve?(ref: string): string;
+}
+
+/**
+ * What `--reconcile` reads from git about stage and the branch (injected, so tests need no history).
+ * The merge-base is that of the migration's base (its `kind=migration` records' Base) and stage.
+ */
+export interface ReconcileView
+{
+	/** `git diff --name-status --no-renames <merge-base> <stage>` over the note folders: each changed note path and its letter. */
+	changed: { letter: string;
+		path: string }[];
+	/** The IDs whose notes the branch itself changed between the merge-base and the migration's base (S164's own note). */
+	branchChanged: string[];
+	/** Each note's status at the merge-base, by ID. */
+	baseStatus: Map<string, string>;
+	/** Whether HEAD contains the stage commit. */
+	headContainsStage: boolean;
+	/** Whether stage already holds a migration fragment (S164 merged). */
+	stageMigrated: boolean;
 }
 
 /** A run's tally. */
@@ -314,12 +341,20 @@ export interface Summary
 	rewritten: string[];
 	missing: string[];
 	edits: string[];
+	/** Notes deleted on stage since the merge-base: printed, nothing sent. */
+	deleted: string[];
+	/** IDs the branch itself changed: never touched by a reconcile. */
+	refused: string[];
 }
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join("\n") === [...b].sort().join("\n");
 
-/** The PATCH that brings `issue` into line with `want`, or undefined when it already is. */
-function difference(issue: CachedIssue, want: Desired, bodyToo: boolean): Parameters<typeof patchIssue>[2] | undefined
+/**
+ * The PATCH that brings `issue` into line with `want`, or undefined when it already is. A CRLF copy
+ * of the body still differs, so it is PATCHed to the LF body that gets recorded. `stateToo` false
+ * leaves labels and state alone (a reconcile whose note's status didn't change).
+ */
+function difference(issue: CachedIssue, want: Desired, bodyToo: boolean, stateToo = true): Parameters<typeof patchIssue>[2] | undefined
 {
 	const change: Parameters<typeof patchIssue>[2] = {};
 	if (bodyToo && (issue.body ?? "") !== want.body)
@@ -330,11 +365,11 @@ function difference(issue: CachedIssue, want: Desired, bodyToo: boolean): Parame
 	{
 		change.title = want.title;
 	}
-	if (!sameSet(issue.labels.map((l) => l.name), want.labels))
+	if (stateToo && !sameSet(issue.labels.map((l) => l.name), want.labels))
 	{
 		change.labels = want.labels;
 	}
-	if (issue.state !== want.state || (want.state_reason !== undefined && issue.state_reason !== want.state_reason))
+	if (stateToo && (issue.state !== want.state || (want.state_reason !== undefined && issue.state_reason !== want.state_reason)))
 	{
 		change.state = want.state;
 		if (want.state_reason !== undefined)
@@ -345,12 +380,15 @@ function difference(issue: CachedIssue, want: Desired, bodyToo: boolean): Parame
 	return Object.keys(change).length === 0 ? undefined : change;
 }
 
+/** The ID a note path names (`…/S12.md` → `S12`), or undefined. */
+const noteId = (path: string) => /\/([SB]\d+)\.md$/.exec(path)?.[1];
+
 /**
- * Migrates (or, with `reconcile`, reconciles) every note in `notes`, read at commit `base`. Returns the
+ * Migrates (or, with `reconcile`, reconciles) the notes in `notes`, read at commit `base`. Returns the
  * tally; with `dryRun` nothing is sent or recorded and the tally says what would be.
  */
 export function migrate(notes: Map<string, string>, base: string, io: MigrateIO, opts: { dryRun?: boolean;
-	reconcile?: boolean } = {}): Summary
+	reconcile?: ReconcileView } = {}): Summary
 {
 	const summary: Summary = {
 		created: [],
@@ -360,9 +398,42 @@ export function migrate(notes: Map<string, string>, base: string, io: MigrateIO,
 		rewritten: [],
 		missing: [],
 		edits: [],
+		deleted: [],
+		refused: [],
 	};
+	const view = opts.reconcile;
+	let items = noteItems(notes);
+	if (view)
+	{
+		if (view.stageMigrated)
+		{
+			throw new Error("stage already holds a migration fragment (S164 merged): there are no notes on stage to reconcile");
+		}
+		if (!view.headContainsStage)
+		{
+			throw new Error(`HEAD does not contain ${base}: merge stage into this branch first, so shipping_commit sees stage's ledger fragments`);
+		}
+		const inScope = new Set(view.changed.map((c) => noteId(c.path)).filter((id): id is string => id !== undefined));
+		for (const id of [...inScope].sort())
+		{
+			if (view.branchChanged.includes(id))
+			{
+				inScope.delete(id);
+				summary.refused.push(id);
+				io.log(`${id}: refused — this branch changed its note too, so stage's copy is stale for it; reconcile it by hand`);
+			}
+			else if (!items.some((i) => i.id === id))
+			{
+				inScope.delete(id);
+				summary.deleted.push(id);
+				io.log(`${id}: its note was deleted on stage; nothing sent (close or retitle its issue by hand if it should go)`);
+			}
+		}
+		items = items.filter((i) => inScope.has(i.id));
+	}
 	const cache = io.sync();
 	const records = io.recorded();
+	const resolveRef = (ref: string) => io.resolve?.(ref) ?? ref;
 	const writer = {
 		run: io.run,
 		sleep: io.sleep,
@@ -377,7 +448,7 @@ export function migrate(notes: Map<string, string>, base: string, io: MigrateIO,
 		}
 		wrote = true;
 	};
-	for (const item of noteItems(notes))
+	for (const item of items)
 	{
 		const existing = item.kind === "story" ? findIssue(cache, item.id) : cache.issues.find((i) => i.number === Number(item.id.slice(1)));
 		if (item.kind === "bug" && !existing)
@@ -399,15 +470,22 @@ export function migrate(notes: Map<string, string>, base: string, io: MigrateIO,
 			return written;
 		};
 		const newest = newestBody(records, item.id);
-		const recordedText = item.kind === "bug" ? want.fields! : want.body;
-		const textChanged = newest !== undefined && newest.hash !== sha256(recordedText);
+		const textOf = (d: Desired) => (item.kind === "bug" ? d.fields! : d.body);
+		// A reconcile compares the note with its newest record rebuilt at that record's own base, so a
+		// body whose links name another commit is not a change; the migration compares at `base` itself.
+		const asRecorded = view && newest?.base !== undefined ? desiredFor(item, {
+			...io,
+			base: resolveRef(newest.base),
+		}, existing) : want;
+		const textChanged = newest !== undefined && newest.hash !== sha256(textOf(asRecorded));
 		if (want.rewrites.length > 0 && newest === undefined)
 		{
 			summary.rewritten.push(item.id);
 		}
-		// A reconcile changes the body of an already recorded item only when its text changed (an edit);
-		// a status flip alone touches state, never the body.
-		const bodyToo = !opts.reconcile || newest === undefined || textChanged;
+		// A reconcile changes the body of an already recorded item only when its text changed (an edit),
+		// and its labels and state only when its status differs between the merge-base and stage.
+		const bodyToo = !view || newest === undefined || textChanged;
+		const stateToo = !view || newest === undefined || view.baseStatus.get(item.id) !== item.status;
 		let issue = existing;
 		if (!issue)
 		{
@@ -419,7 +497,7 @@ export function migrate(notes: Map<string, string>, base: string, io: MigrateIO,
 				issue = checked(createIssue(writer, want.title!, want.body, want.labels));
 			}
 		}
-		const change = issue ? difference(issue, want, bodyToo) : undefined;
+		const change = issue ? difference(issue, want, bodyToo, stateToo) : undefined;
 		if (issue && change)
 		{
 			if (existing)
@@ -441,7 +519,7 @@ export function migrate(notes: Map<string, string>, base: string, io: MigrateIO,
 		{
 			continue;
 		}
-		const kind = newest === undefined ? (opts.reconcile ? "create" : "migration") : "edit";
+		const kind = newest === undefined ? (view ? "create" : "migration") : "edit";
 		if (kind === "edit")
 		{
 			summary.edits.push(item.id);
@@ -451,32 +529,30 @@ export function migrate(notes: Map<string, string>, base: string, io: MigrateIO,
 		{
 			continue;
 		}
-		const returned = issue.body ?? "";
+		// What GitHub returned, with any CRLF made LF (the PATCH above already sent the LF body).
+		const returned = lf(issue.body ?? "");
 		const body = item.kind === "bug" ? returned.slice(returned.lastIndexOf("### Backlog fields\n")) : returned;
 		io.record({
 			kind,
 			id: item.id,
 			issue: issue.number,
 			base,
-			stage: opts.reconcile === true,
+			stage: view !== undefined,
 			body,
 			...(want.title ? {
 				title: want.title.replace(/^S\d+: /, ""),
 			} : {}),
 			...(kind === "migration" ? {} : {
-				reason: opts.reconcile ? `reconcile: the note on stage ${kind === "create" ? "is new" : "changed"} since the migration` : "migration",
+				reason: view ? `reconcile: the note on stage ${kind === "create" ? "is new" : "changed"} since the migration` : "migration",
 			}),
 			rewrites: want.rewrites,
 		});
 		if (kind === "edit")
 		{
-			// Sent live already, so apply must skip it: the same trusted comment apply would post.
+			// Sent live already, so apply must skip it: the same trusted comment apply would post, keyed to the record just written.
+			const written = newestBody(io.recorded(), item.id)!;
 			pace();
-			postComment(writer, issue.number, appliedComment({
-				id: item.id,
-				kind: "edit",
-				hash: sha256(body),
-			} as TextRecord));
+			postComment(writer, issue.number, appliedComment(written));
 		}
 	}
 	return summary;
@@ -488,7 +564,8 @@ export function summaryText(s: Summary, dryRun: boolean): string
 	const head = dryRun ? "backlog:migrate --dry-run (nothing sent, nothing recorded)" : "backlog:migrate";
 	const line = (label: string, ids: string[]) => `${label}: ${ids.length}${ids.length > 0 ? ` (${ids.slice(0, 12).join(", ")}${ids.length > 12 ? ", …" : ""})` : ""}`;
 	return [head, line("issues to create", s.created), line("issues brought into line", s.updated), line("already in line", s.unchanged),
-		line("records", s.recorded), line("open stories rewritten", s.rewritten), line("edits", s.edits), line("bug notes with no issue", s.missing)].join("\n");
+		line("records", s.recorded), line("open stories rewritten", s.rewritten), line("edits", s.edits), line("bug notes with no issue", s.missing),
+		line("notes deleted on stage (nothing sent)", s.deleted), line("refused (changed on this branch too)", s.refused)].join("\n");
 }
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "../../..");
@@ -667,6 +744,43 @@ export function realIO(dryRun: boolean): MigrateIO
 		},
 		repo: originRepo(),
 		log: (line) => console.log(line),
+		resolve: (ref) => git(["rev-parse", ref]).trim(),
+	};
+}
+
+/** The note folders a reconcile diffs. */
+const NOTE_DIRS = ["docs/v3/backlog/stories", "docs/v3/backlog/bugs"];
+
+/**
+ * What git says about stage and this branch, for `--reconcile` ({@link ReconcileView}). The merge-base
+ * is that of the migration's base (the `kind=migration` records' Base, which never moves) and stage.
+ */
+export function realView(stage: string, records: TextRecord[]): ReconcileView
+{
+	const bases = [...new Set(records.filter((r) => r.kind === "migration" && r.base).map((r) => r.base!))];
+	if (bases.length !== 1)
+	{
+		throw new Error(`--reconcile needs the migration's one base, but the migration records name ${bases.length === 0 ? "none" : bases.join(", ")}`);
+	}
+	const migrationBase = git(["rev-parse", bases[0]!]).trim();
+	const mergeBase = git(["merge-base", migrationBase, stage]).trim();
+	const ids = (text: string) => text.split("\n").map(noteId).filter((id): id is string => id !== undefined);
+	const baseStatus = new Map(noteItems(notesAt(mergeBase)).map((i) => [i.id, i.status]));
+	return {
+		changed: git(["diff", "--name-status", "--no-renames", mergeBase, stage, "--", ...NOTE_DIRS]).split("\n").filter(Boolean).map((line) =>
+		{
+			const [letter, path] = line.split("\t");
+			return {
+				letter: letter!,
+				path: path!,
+			};
+		}),
+		branchChanged: [...new Set(ids(git(["diff", "--name-only", "--no-renames", mergeBase, migrationBase, "--", ...NOTE_DIRS])))],
+		baseStatus,
+		headContainsStage: spawnSync("git", ["merge-base", "--is-ancestor", stage, "HEAD"], {
+			cwd: repoRoot,
+		}).status === 0,
+		stageMigrated: git(["ls-tree", "-r", "--name-only", stage, "--", "docs/v3/audit"]).split("\n").some((p) => p.endsWith("-migration.md")),
 	};
 }
 
@@ -680,9 +794,12 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 		const at = argv.indexOf("--ref");
 		const ref = at === -1 ? (reconcile ? "origin/stage" : "HEAD") : argv[at + 1]!;
 		const base = git(["rev-parse", ref]).trim();
-		const summary = migrate(notesAt(base), base, realIO(dryRun), {
+		const io = realIO(dryRun);
+		const summary = migrate(notesAt(base), base, io, {
 			dryRun,
-			reconcile,
+			...(reconcile ? {
+				reconcile: realView(base, io.recorded()),
+			} : {}),
 		});
 		console.log(summaryText(summary, dryRun));
 	}

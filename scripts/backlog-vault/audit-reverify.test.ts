@@ -281,6 +281,23 @@ describe("ship-time snapshots (S164 AC 5)", () =>
 		expect(ledger).toContain("**nine oh two**");
 	});
 
+	it("a failed grader leaves no snapshot behind, and its completion entry names none", () =>
+	{
+		shippedThenBroken();
+		withRecords();
+		write("scripts/verify-S903.sh", "#!/usr/bin/env bash\nexit 1\n");
+		spawnSync("chmod", ["+x", join(repo, "scripts/verify-S903.sh")]);
+		write("body.md", "**Gap:** g\n\n### Backlog fields\n\n```yaml\npriority: 3\n```\n");
+		expect(audit(["create", "S903", "--title", "nine oh three", "--body-file", "body.md", "--reason", "new"]).status).toBe(0);
+		const run = audit(["story", "S903", "--no-verify"]);
+		expect(run.status).toBe(1);
+		expect(String(run.stdout)).toContain("so its snapshot");
+		expect(spawnSync("find", [join(repo, "docs/v3/audit"), "-name", "*-S903-snapshot.md"], {
+			encoding: "utf8",
+		}).stdout.trim()).toBe("");
+		expect(written()).not.toMatch(/S903 completed[\s\S]*\| Snapshot \|/);
+	});
+
 	it("--reverify records a story's snapshot path and SHA-256 beside the grader's result", () =>
 	{
 		const ship = shippedThenBroken();

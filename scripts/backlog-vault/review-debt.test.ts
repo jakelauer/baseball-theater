@@ -18,6 +18,9 @@ import {
 	afterEach, beforeEach, describe, expect, it,
 } from "vitest";
 import { LEDGER_MARKER } from "./ledger.ts";
+import {
+	renderFields, renderRecord, sha256,
+} from "./text-records.ts";
 
 const VAULT = dirname(fileURLToPath(import.meta.url));
 const SCRIPTS = join(VAULT, "..");
@@ -87,11 +90,30 @@ function reviewed(files: Record<string, string> = {}): void
 	commit("base: a backlog review");
 }
 
-function debt(script = "review-debt.sh", args: string[] = []): { status: number | null;
+/** An issue cache holding `issues` (none by default), as pnpm backlog:sync writes it; returns its folder. */
+function cache(issues: unknown[] = []): string
+{
+	const dir = join(repo, ".test-cache");
+	mkdirSync(dir, {
+		recursive: true,
+	});
+	writeFileSync(join(dir, "issues.json"), JSON.stringify({
+		repo: "o/r",
+		trusted: ["o"],
+		syncedAt: "x",
+		issues,
+	}));
+	return dir;
+}
+
+function debt(script = "review-debt.sh", args: string[] = [], extra: Record<string, string> = {}): { status: number | null;
 	stdout: string }
 {
-	const env = {
+	const env: Record<string, string | undefined> = {
 		...process.env,
+		// The test's own issue cache (empty unless a test fills it), never the developer's .backlog-cache.
+		BT_BACKLOG_CACHE: existsSync(join(repo, ".test-cache")) ? join(repo, ".test-cache") : cache(),
+		...extra,
 	};
 	delete env.BT_AUDIT_LEDGER;
 	const run = spawnSync("bash", [join(repo, "scripts", script), ...args], {
@@ -556,6 +578,77 @@ describe("review-debt.sh and parity-debt.sh --json: the events behind a review's
 			},
 		]));
 		expect(r.events).toHaveLength(4);
+	}, TIMEOUT);
+
+	it("a story closed not_planned since the base is a removed event (read from the issue cache), in both scripts", () =>
+	{
+		reviewed();
+		const later = new Date(Date.now() + 60_000).toISOString();
+		const closed = (number: number, title: string, reason: string, at: string) => ({
+			number,
+			title,
+			state: "closed",
+			state_reason: reason,
+			labels: [{
+				name: "story",
+			}],
+			user: {
+				login: "o",
+			},
+			body: "",
+			closed_at: at,
+			// A later touch moves updated_at; the removed event reads closed_at.
+			updated_at: new Date(Date.now() + 120_000).toISOString(),
+		});
+		cache([closed(7, "S7: dropped", "not_planned", later), closed(8, "S8: shipped", "completed", later), closed(9, "S9: dropped long ago", "not_planned", "2020-01-01T00:00:00Z")]);
+		for (const script of ["review-debt.sh", "parity-debt.sh"])
+		{
+			const r = report(script);
+			expect(r.events.filter((e) => e.kind === "removed"), script).toEqual([{
+				kind: "removed",
+				id: "S7",
+			}]);
+		}
+	}, TIMEOUT);
+
+	it("a body line starting priority: outside the fields block isn't a re-prioritization (records read their fields block)", () =>
+	{
+		const text = (gap: string) => `**Gap:** ${gap}\n\n**Source:** Feature: X\n\n${renderFields({
+			priority: 3,
+		})}`;
+		const fragment = (kind: "migration" | "edit", stamp: string, body: string, from?: string) => renderRecord({
+			kind,
+			id: "S7",
+			date: "2026-11-21",
+			stamp,
+			head: "h",
+			body,
+			issue: 7,
+			...(kind === "migration" ? {
+				base: "abc1234",
+			} : {}),
+			...(from ? {
+				from,
+			} : {}),
+		});
+		reviewed({
+			"docs/v3/audit/2026-11-21/20261121T000001Z-S7-migration.md": fragment("migration", "2026-11-21T00:00:01Z", text("a")),
+		});
+		write("docs/v3/audit/2026-11-21/20261121T000002Z-S7-edit.md", fragment("edit", "2026-11-21T00:00:02Z", text("a\npriority: 9 is a word here"), sha256(text("a"))));
+		commit("an edit that keeps the priority");
+		expect(report("review-debt.sh").events.filter((e) => e.kind === "reprioritized")).toEqual([]);
+	}, TIMEOUT);
+
+	it("no cache: removed events not counted, and the scripts say so", () =>
+	{
+		reviewed();
+		for (const script of ["review-debt.sh", "parity-debt.sh"])
+		{
+			const run = debt(script, [], {
+				BT_BACKLOG_CACHE: join(repo, "no-such-cache"),
+			});
+			expect(run.stdout, script).toContain("no cache: removed events not counted");
+		}
 	}, TIMEOUT);
 
 	it("review-debt.sh: amendment, surface-ratified, adr-changed, package-added and verify-changed name their path", () =>

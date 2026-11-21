@@ -82,11 +82,31 @@ export function sha256(text: string): string
 	return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
-/** The value of a `| <name> | … |` row, with a backticked value unwrapped. */
+/**
+ * The value of a `| <name> | … |` row: a wholly backticked value (a hash, a commit, a path) unwrapped,
+ * any other value (a title, a reason) with the `\|` that {@link renderRecord}'s cells escape put back.
+ */
 function row(text: string, name: string): string | undefined
 {
 	const m = new RegExp(`^\\| ${name.replace(/[()]/g, "\\$&")} \\| (.*) \\|$`, "m").exec(text);
-	return m ? m[1]!.replace(/^`([^`]*)`.*$/, "$1") : undefined;
+	if (!m)
+	{
+		return undefined;
+	}
+	const ticked = /^`([^`]*)`$/.exec(m[1]!);
+	return ticked ? ticked[1]! : m[1]!.replace(/\\\|/g, "|");
+}
+
+/** A body with CRLF line ends made LF: GitHub's web editor saves CRLF, and every reader parses LF. */
+export function lf(text: string): string
+{
+	return text.replace(/\r\n/g, "\n");
+}
+
+/** A fragment's stamp (`20261121T104717Z`), from its file name: the chain's order. */
+export function recordStamp(record: TextRecord): string
+{
+	return basename(record.file).split("-")[0]!;
 }
 
 /** Thrown for a fragment that isn't a well-formed text record. */
@@ -254,8 +274,9 @@ export interface BacklogFields
 export const FIELDS_HEADING = "### Backlog fields";
 
 /** The fields block's YAML text in a body, or undefined when the body has none. */
-export function fieldsYaml(body: string): string | undefined
+export function fieldsYaml(text: string): string | undefined
 {
+	const body = lf(text);
 	const at = body.lastIndexOf(`\n${FIELDS_HEADING}\n`);
 	const start = body.startsWith(`${FIELDS_HEADING}\n`) ? 0 : at === -1 ? -1 : at + 1;
 	if (start === -1)
@@ -266,8 +287,9 @@ export function fieldsYaml(body: string): string | undefined
 }
 
 /** The body without its fields section (a bug's symptoms, or a story's text above the block). */
-export function withoutFields(body: string): string
+export function withoutFields(text: string): string
 {
+	const body = lf(text);
 	const at = body.lastIndexOf(`\n${FIELDS_HEADING}\n`);
 	return at === -1 ? (body.startsWith(`${FIELDS_HEADING}\n`) ? "" : body) : body.slice(0, at).replace(/\s+$/, "");
 }
@@ -369,15 +391,18 @@ export interface Chain
 }
 
 /**
- * Orders each item's body records by their `from` links: the one `migration` or `create` first, then
- * each `edit` whose `from` is the hash of the body before it. Reports a second start (two items
- * recorded under one ID), an edit whose `from` matches no body (a gap), and two records with the same
- * `from` (a fork, naming both fragments).
+ * Orders each item's body records by their fragments' stamps: the one `migration` or `create` first,
+ * then each `edit`, whose `from` must be the hash of the body just before it in stamp order. A body
+ * may come back (A→B→A→C is a valid chain), since the order is the stamps', not the hashes'. Reports
+ * a second start (two items recorded under one ID), an edit stamped before its start, an edit whose
+ * `from` matches an earlier edit's `from` (a fork, naming both fragments: two branches edited one
+ * story from one base), and any other edit whose `from` isn't the body before it (a gap).
  */
 export function chains(records: TextRecord[]): Map<string, Chain>
 {
 	const byId = new Map<string, Chain>();
-	for (const r of records.filter((x) => BODY_KINDS.includes(x.kind)))
+	const byStamp = (a: TextRecord, b: TextRecord) => recordStamp(a).localeCompare(recordStamp(b)) || a.file.localeCompare(b.file);
+	for (const r of records.filter((x) => BODY_KINDS.includes(x.kind)).sort(byStamp))
 	{
 		const chain = byId.get(r.id) ?? {
 			id: r.id,
@@ -390,37 +415,43 @@ export function chains(records: TextRecord[]): Map<string, Chain>
 	for (const chain of byId.values())
 	{
 		const starts = chain.records.filter((r) => r.kind !== "edit");
-		const edits = chain.records.filter((r) => r.kind === "edit");
 		if (starts.length > 1)
 		{
 			chain.problems.push(`${chain.id} is recorded more than once (one recorded item per ID): ${starts.map((s) => s.file).join(" and ")}`);
 		}
 		if (starts.length === 0)
 		{
-			chain.problems.push(`${chain.id} has edits but no migration or create record: ${edits[0]!.file}`);
+			chain.problems.push(`${chain.id} has edits but no migration or create record: ${chain.records[0]!.file}`);
 		}
 		const ordered: TextRecord[] = starts.slice(0, 1);
-		const pending = [...edits];
-		while (ordered.length > 0 && pending.length > 0)
+		const lost: TextRecord[] = [];
+		for (const e of chain.records.filter((r) => r.kind === "edit"))
 		{
-			const tip = ordered[ordered.length - 1]!;
-			const next = pending.filter((e) => e.from === tip.hash);
-			if (next.length === 0)
+			const tip = ordered.at(-1);
+			if (tip === undefined)
 			{
-				break;
+				lost.push(e);
+				continue;
 			}
-			if (next.length > 1)
+			if (recordStamp(e) < recordStamp(ordered[0]!))
 			{
-				chain.problems.push(`${chain.id}'s text forks: ${next.map((e) => e.file).join(" and ")} both edit from ${tip.hash.slice(0, 12)} (delete the unmerged one and re-run its audit.sh edit on top of stage)`);
+				chain.problems.push(`${chain.id}'s edit ${e.file} is stamped before its ${ordered[0]!.kind} ${ordered[0]!.file}`);
+				lost.push(e);
+				continue;
 			}
-			ordered.push(next[0]!);
-			pending.splice(pending.indexOf(next[0]!), 1);
+			if (e.from === tip.hash)
+			{
+				ordered.push(e);
+				continue;
+			}
+			// The newest edit already chained from the same body: the one this edit forks from.
+			const twin = [...ordered].reverse().find((r) => r.kind === "edit" && r.from === e.from);
+			chain.problems.push(twin
+				? `${chain.id}'s text forks: ${twin.file} and ${e.file} both edit from ${e.from?.slice(0, 12)} (delete the unmerged one and re-run its audit.sh edit on top of stage)`
+				: `${chain.id}'s edit ${e.file} chains from ${e.from?.slice(0, 12) ?? "nothing"}, which is not the body before it (a gap in the chain)`);
+			lost.push(e);
 		}
-		for (const lost of pending)
-		{
-			chain.problems.push(`${chain.id}'s edit ${lost.file} chains from ${lost.from?.slice(0, 12) ?? "nothing"}, which is not the body before it (a gap in the chain)`);
-		}
-		chain.records = [...ordered, ...pending];
+		chain.records = [...ordered, ...lost];
 	}
 	return byId;
 }
@@ -440,7 +471,7 @@ export function newestBody(records: TextRecord[], id: string): TextRecord | unde
 export function goalLine(body: string): string | undefined
 {
 	let inside = false;
-	for (const line of body.split("\n"))
+	for (const line of lf(body).split("\n"))
 	{
 		if (line === "```text")
 		{
@@ -473,6 +504,10 @@ export function textRecordProblems(records: TextRecord[], noteFiles: string[]): 
 		if (sha256(r.body) !== r.hash)
 		{
 			problems.push(`${r.file}: its body's SHA-256 is ${sha256(r.body).slice(0, 12)}…, not the ${r.hash.slice(0, 12)}… it states`);
+		}
+		if (BODY_KINDS.includes(r.kind) && r.id.startsWith("B") && withoutFields(r.body).trim() !== "")
+		{
+			problems.push(`${r.file}: ${r.id}'s record holds more than its fields block (a bug's symptoms are its issue's, never recorded)`);
 		}
 		if (BODY_KINDS.includes(r.kind))
 		{

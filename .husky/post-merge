@@ -1,5 +1,6 @@
 # docs/v3/INDEX.md and docs/v3/audit.jsonl are built, never committed (S156), so a merge (or a
-# pull) rebuilds them from the notes and ledger it brought, as .husky/post-checkout does.
+# pull) rebuilds them from the frame notes, text records and ledger it brought (and the issue cache,
+# when there is one: never the network), as .husky/post-checkout does.
 # A plain `git worktree add` checks out before anything is installed (scripts/worktree-for.sh
 # builds after its install instead), so with no node_modules there is nothing to run yet.
 [ -d node_modules ] || exit 0

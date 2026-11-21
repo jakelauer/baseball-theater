@@ -35,15 +35,17 @@
 #   - ARCHITECTURE.md changed (an ADR accepted or changed)  → design intake if the diff
 #     names a frontend ADR (003, 008, 014, 016, 020–026), else backlog review
 #   - a new workspace package appeared
-#   - a story note added or removed, or a story's priority changed (inserted or
-#     re-prioritized outside a review)
+#   - a story created (a `create` text record) or closed not_planned (removed, read from the
+#     issue cache when there is one; with none it says "no cache: removed events not counted"),
+#     or a story's priority changed (inserted, removed or re-prioritized outside a review)
 #   - a story's acceptance criteria rewritten
 #   - the `verify` script in package.json changed (the gate moved)
 #   - 6 stories went `done` (doubled from 3 by the owner, 2026-10-21)
 # Not detectable here, so still the agent's to notice: a scope fence widened or a
 # turn cap hit mid-run (rule 10 stop-and-report).
 #
-# Reads committed history only (HEAD); uncommitted edits are not counted.
+# Reads committed history (HEAD; uncommitted edits are not counted) and, for the `removed` event,
+# the issue cache when there is one (scripts/lib/story-notes.sh cache_removed).
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -194,7 +196,7 @@ while IFS=$'\t' read -r change id before after; do
 done < <(story_changes "$base" HEAD "$STORIES" | grep -vFf <(migrated_ids "$base" | sed 's/^/D\t/; s/$/\t/') )
 
 # Since S164 a story's text changes through its text records (scripts/lib/story-notes.sh record_changes).
-rprio() { record_body "$1" | grep -m1 '^priority:'; }
+rprio() { record_fields "$1" | grep -m1 '^priority:'; }
 racs() { record_body "$1" | awk '/^\*\*Acceptance criteria\*\*/ { on = 1; next } on && /^\*\*/ { on = 0 } on && NF { print }'; }
 while IFS=$'\t' read -r change id before after; do
   [ -z "$id" ] && continue
@@ -207,6 +209,11 @@ while IFS=$'\t' read -r change id before after; do
       ;;
   esac
 done < <(record_changes "$base")
+
+# A story closed not_planned since the base: GitHub owns state, so this comes from the issue cache.
+while IFS= read -r id; do
+  [ -n "$id" ] && reasons+=("${id} removed (closed not_planned) outside a review") && json_event removed id "$id"
+done < <(cache_removed "$base")
 
 # Stories completed since the newest backlog review (`## … — backlog review (\`verdict\`)`; answers
 # and skip entries don't reset it), by ledger order (re-verifications don't count).

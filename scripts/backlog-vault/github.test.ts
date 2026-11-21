@@ -14,10 +14,14 @@ import {
 } from "vitest";
 import type { CachedIssue, IssueCache } from "./github.ts";
 import {
-	cacheDir, findIssue, githubSource, itemFromIssue, itemsFromCache, main, nextPage, NoCacheError, readCache, request, statusOf, syncIssues, trustedId, writeCache,
+	cacheDir, findIssue, githubSource, idTaken, itemFromIssue, itemsFromCache, main, MAX_RATE_LIMIT_WAITS, nextPage, nextStoryId, NoCacheError, readCache, removedSince,
+	request, statusOf, syncIssues, trustedId, writeCache,
 } from "./github.ts";
 import { FakeGithub } from "./github-fake.ts";
-import { renderFields } from "./text-records.ts";
+import type { RecordInput } from "./text-records.ts";
+import {
+	parseRecord, renderFields, renderRecord,
+} from "./text-records.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const fields = (priority: number | string = 5) => renderFields({
@@ -34,12 +38,39 @@ beforeEach(() =>
 	dir = mkdtempSync(join(tmpdir(), "s164-github-"));
 	env = {
 		BT_BACKLOG_CACHE: join(dir, "cache"),
+		// Text records from the test's own folder, never the repository's.
+		BT_AUDIT_LEDGER: join(dir, "AUDIT.md"),
 	};
 });
 afterEach(() => rmSync(dir, {
 	recursive: true,
 	force: true,
 }));
+
+let clock = 0;
+/** Writes a text record into the test's fragments folder (`<dir>/audit`) and returns it parsed. */
+function record(kind: RecordInput["kind"], id: string, body: string, extra: Partial<RecordInput> = {})
+{
+	clock++;
+	const stamp = `2026-11-21T00:00:${String(clock).padStart(2, "0")}Z`;
+	const file = `2026-11-21/${stamp.replace(/[-:]/g, "")}-${id}-${kind}.md`;
+	const text = renderRecord({
+		kind,
+		id,
+		date: "2026-11-21",
+		stamp,
+		head: "h",
+		body,
+		...extra,
+	});
+	mkdirSync(join(dir, "audit/2026-11-21"), {
+		recursive: true,
+	});
+	writeFileSync(join(dir, "audit", file), text);
+	return parseRecord(text, file);
+}
+
+const goalBody = (line: string, priority = 5) => `**Gap:** g\n\n**\`/goal\` command**\n\n\`\`\`text\n${line}\n\`\`\`\n\n${fields(priority)}`;
 
 /** A cached issue for the pure rules. */
 function issue(over: Partial<CachedIssue> & { title: string }): CachedIssue
@@ -470,7 +501,7 @@ describe("trusted IDs and items (AC 1)", () =>
 			})],
 		});
 		expect((await githubSource(dir, env).items()).map((i) => i.id)).toEqual(["S3"]);
-		expect(itemsFromCache(readCache(env.BT_BACKLOG_CACHE!)!)).toHaveLength(1);
+		expect(itemsFromCache(readCache(env.BT_BACKLOG_CACHE!)!).items).toHaveLength(1);
 	});
 });
 
@@ -512,23 +543,305 @@ describe("requests (AC 1)", () =>
 			}],
 			body: storyBody(),
 		});
-		const e = process.env.BT_BACKLOG_CACHE;
-		process.env.BT_BACKLOG_CACHE = env.BT_BACKLOG_CACHE;
-		try
-		{
-			main(["sync"], fake.run, dir);
-			expect(main(["status", "S4", "done"], fake.run, dir)).toContain("closed");
-			expect(fake.issues.get(1)!.state_reason).toBe("completed");
-			expect(fake.issues.get(1)!.labels.map((l) => l.name)).toEqual(["story", "status:done"]);
-			main(["milestone", "S4", "v3.1.0"], fake.run, dir);
-			expect(fake.issues.get(1)!.milestone?.title).toBe("v3.1.0");
-			expect(main(["item", "4"], fake.run, dir)).toContain("**Gap:**");
-			expect(existsSync(join(env.BT_BACKLOG_CACHE!, "issues.json"))).toBe(true);
-			expect(readFileSync(join(env.BT_BACKLOG_CACHE!, "issues.json"), "utf8")).toContain("S4: four");
-		}
-		finally
-		{
-			process.env.BT_BACKLOG_CACHE = e;
-		}
+		main(["sync"], fake.run, dir, env);
+		expect(main(["status", "S4", "done"], fake.run, dir, env)).toContain("closed");
+		expect(fake.issues.get(1)!.state_reason).toBe("completed");
+		expect(fake.issues.get(1)!.labels.map((l) => l.name)).toEqual(["story", "status:done"]);
+		main(["milestone", "S4", "v3.1.0"], fake.run, dir, env);
+		expect(fake.issues.get(1)!.milestone?.title).toBe("v3.1.0");
+		expect(main(["item", "4"], fake.run, dir, env)).toContain("**Gap:**");
+		expect(existsSync(join(env.BT_BACKLOG_CACHE!, "issues.json"))).toBe(true);
+		expect(readFileSync(join(env.BT_BACKLOG_CACHE!, "issues.json"), "utf8")).toContain("S4: four");
+		expect(fake.calls.filter((c) => c.method !== "GET").every((c) => c.method === "PATCH")).toBe(true);
+	});
+
+	it("gives up after MAX_RATE_LIMIT_WAITS rate-limit waits instead of retrying forever", () =>
+	{
+		const waits: number[] = [];
+		expect(() => request(() => "HTTP/2.0 403 Forbidden\nretry-after: 1\n\n{}", "GET", "x", [], (ms) => waits.push(ms))).toThrow(/still rate-limited/);
+		expect(waits).toHaveLength(MAX_RATE_LIMIT_WAITS);
+	});
+});
+
+describe("the state commands and the overlay (AC 1, AC 3)", () =>
+{
+	/** The fake with S4 (open, todo) and a synced cache. */
+	function synced(): FakeGithub
+	{
+		const fake = new FakeGithub();
+		fake.add({
+			title: "S4: four",
+			labels: [{
+				name: "story",
+			}, {
+				name: "status:todo",
+			}],
+			body: goalBody("/goal S4 (S4). from GitHub"),
+		});
+		main(["sync"], fake.run, dir, env);
+		return fake;
+	}
+
+	it("status reads the issue fresh: a label added on GitHub after the sync survives, and the cache holds the result with its syncedAt kept", () =>
+	{
+		const fake = synced();
+		const syncedAt = readCache(env.BT_BACKLOG_CACHE!)!.syncedAt;
+		fake.issues.get(1)!.labels.push({
+			name: "area:video",
+		});
+		main(["status", "S4", "doing"], fake.run, dir, env);
+		expect(fake.issues.get(1)!.labels.map((l) => l.name).sort()).toEqual(["area:video", "status:doing", "story"]);
+		const cached = readCache(env.BT_BACKLOG_CACHE!)!;
+		expect(cached.issues[0]!.labels.map((l) => l.name).sort()).toEqual(["area:video", "status:doing", "story"]);
+		expect(cached.syncedAt).toBe(syncedAt);
+		main(["label", "S4", "--add", "area:scores"], fake.run, dir, env);
+		expect(readCache(env.BT_BACKLOG_CACHE!)!.issues[0]!.labels.map((l) => l.name)).toContain("area:scores");
+	});
+
+	it("label refuses status:* and removing story or bug", () =>
+	{
+		const fake = synced();
+		expect(() => main(["label", "S4", "--add", "status:doing"], fake.run, dir, env)).toThrow(/status command/);
+		expect(() => main(["label", "S4", "--remove", "story"], fake.run, dir, env)).toThrow(/never changes story/);
+		expect(fake.calls.filter((c) => c.method === "PATCH")).toEqual([]);
+	});
+
+	it("item and goal read the newest text record over the cache's body (the overlay), and the cache's body with no record", () =>
+	{
+		const fake = synced();
+		expect(main(["item", "S4", "goal"], fake.run, dir, env)).toBe("/goal S4 (S4). from GitHub");
+		const m = record("migration", "S4", goalBody("/goal S4 (S4). migrated"), {
+			issue: 1,
+			base: "b",
+		});
+		record("edit", "S4", goalBody("/goal S4 (S4). edited, not yet applied"), {
+			from: m.hash,
+			issue: 1,
+		});
+		expect(main(["item", "4", "goal"], fake.run, dir, env)).toBe("/goal S4 (S4). edited, not yet applied");
+		expect(main(["item", "S4"], fake.run, dir, env)).toContain("edited, not yet applied");
+	});
+
+	it("goal works for a recorded create with no issue yet", () =>
+	{
+		const fake = synced();
+		record("create", "S20", goalBody("/goal S20 (S20). new"), {
+			title: "twenty",
+			reason: "r",
+		});
+		expect(main(["item", "S20", "goal"], fake.run, dir, env)).toBe("/goal S20 (S20). new");
+		expect(() => main(["item", "S21", "goal"], fake.run, dir, env)).toThrow(/no trusted issue or text record carries S21/);
+	});
+
+	it("item and goal refuse a skipped ID, quoting its problem", () =>
+	{
+		const fake = synced();
+		fake.add({
+			title: "S9: broken",
+			labels: [{
+				name: "story",
+			}],
+			body: "**Gap:** no fields",
+		});
+		main(["sync", "--full"], fake.run, dir, env);
+		expect(() => main(["item", "S9", "goal"], fake.run, dir, env)).toThrow(/S9 is skipped by the backlog: .*no ### Backlog fields section/);
+	});
+
+	it("a CRLF body parses its fields and /goal line (GitHub's web editor saves CRLF)", () =>
+	{
+		const fake = new FakeGithub();
+		fake.add({
+			title: "S4: four",
+			labels: [{
+				name: "story",
+			}],
+			body: goalBody("/goal S4 (S4). crlf", 3.5).replace(/\n/g, "\r\n"),
+		});
+		main(["sync"], fake.run, dir, env);
+		expect(main(["item", "S4", "goal"], fake.run, dir, env)).toBe("/goal S4 (S4). crlf");
+		const item = itemsFromCache(readCache(env.BT_BACKLOG_CACHE!)!).items[0]!;
+		expect(item.priority).toBe(3.5);
+		expect(item.body).not.toContain("\r");
+	});
+
+	it("taken and next-id: an ID an issue, a local record or a stage fragment holds is taken, and one with a leading zero is never valid", () =>
+	{
+		const fake = synced();
+		const cache = readCache(env.BT_BACKLOG_CACHE!)!;
+		const records = [record("create", "S30", goalBody("/goal S30 (S30). x"), {
+			title: "t",
+			reason: "r",
+		})];
+		expect(idTaken("S4", cache, records, [])).toMatch(/issue #1 carries S4/);
+		expect(idTaken("S30", cache, records, [])).toMatch(/records S30/);
+		expect(idTaken("S31", cache, records, ["20261121T000000Z-S31-create.md"])).toMatch(/stage's .* records S31/);
+		expect(idTaken("S031", cache, records, [])).toMatch(/no leading zero/);
+		expect(idTaken("S32", cache, records, ["20261121T000000Z-S31-create.md"])).toBeUndefined();
+		expect(idTaken("S32", undefined, [], [])).toBeUndefined();
+		expect(nextStoryId(cache, records, ["20261121T000000Z-S31-create.md"])).toBe("S32");
+		expect(() => main(["taken", "S4"], fake.run, dir, {
+			...env,
+			BT_STAGE_REF: "refs/no/such/ref",
+		})).toThrow(/S4 is taken: issue #1 carries S4/);
+	});
+
+	it("removed --since reads closed_at, never updated_at, and leaves out a closure the migration made", () =>
+	{
+		const closed = (number: number, closedAt: string, updatedAt: string, reason = "not_planned") => issue({
+			number,
+			title: `S${number}: x`,
+			state: "closed",
+			state_reason: reason,
+			labels: [{
+				name: "story",
+			}],
+			closed_at: closedAt,
+			updated_at: updatedAt,
+		});
+		const cache: IssueCache = {
+			repo: "owner/bt",
+			trusted: ["owner"],
+			syncedAt: "x",
+			issues: [
+				closed(7, "2026-11-21T05:00:00Z", "2026-11-21T05:00:00Z"),
+				// Closed long ago, touched today: updated_at moved, closed_at didn't.
+				closed(8, "2026-11-01T05:00:00Z", "2026-11-21T06:00:00Z"),
+				closed(9, "2026-11-21T05:00:00Z", "2026-11-21T05:00:00Z", "completed"),
+				// Closed by the migration (its migration record was captured after the closure).
+				closed(10, "2026-11-20T23:59:00Z", "2026-11-21T07:00:00Z"),
+			],
+		};
+		const migration = record("migration", "S10", storyBody(), {
+			issue: 10,
+			base: "b",
+		});
+		expect(migration.file).toMatch(/T0000\d\dZ-S10-migration/);
+		expect(removedSince(cache, "2026-11-20T00:00:00Z", [migration])).toEqual(["S7"]);
+		expect(main(["removed", "--since", "2026-11-20T00:00:00Z"], new FakeGithub().run, dir, env)).toBe("");
+	});
+
+	it("removed --since counts a story a full sync dropped as deleted, from the cache's dropped list", () =>
+	{
+		const fake = new FakeGithub();
+		const gone = fake.add({
+			title: "S1: a",
+			labels: [{
+				name: "story",
+			}],
+		});
+		fake.add({
+			title: "S2: b",
+			labels: [{
+				name: "story",
+			}],
+		});
+		syncIssues(dir, {
+			run: fake.run,
+			env,
+		});
+		gone.gone = "deleted";
+		const result = syncIssues(dir, {
+			run: fake.run,
+			env,
+			full: true,
+		});
+		expect(result.cache.dropped?.map((d) => `${d.id} #${d.number}`)).toEqual(["S1 #1"]);
+		expect(removedSince(readCache(env.BT_BACKLOG_CACHE!)!, "2000-01-01T00:00:00Z")).toEqual(["S1"]);
+		expect(removedSince(readCache(env.BT_BACKLOG_CACHE!)!, "2999-01-01T00:00:00Z")).toEqual([]);
+		expect(main(["removed", "--since", "2000-01-01T00:00:00Z"], fake.run, dir, env)).toBe("S1");
+	});
+});
+
+describe("trusted IDs, accepted bugs and broken items (AC 1)", () =>
+{
+	const trusted = ["owner"];
+
+	it("S0163: carries no ID (a leading zero is not S163)", () =>
+	{
+		expect(trustedId(issue({
+			title: "S0163: x",
+			labels: [{
+				name: "story",
+			}],
+		}), trusted)).toBeUndefined();
+	});
+
+	it("an outsider's edit to a bug's fields block doesn't change its priority (unrecorded fields): a bug is accepted only by its record", () =>
+	{
+		const bug = issue({
+			number: 88,
+			title: "Video stalls",
+			labels: [{
+				name: "bug",
+			}],
+			user: {
+				login: "stranger",
+			},
+			body: `steps\n\n${fields(0)}`,
+		});
+		expect(itemFromIssue(bug, trusted)!.priority).toBe(Number.POSITIVE_INFINITY);
+		const accepted = record("create", "B88", fields(3), {
+			issue: 88,
+		});
+		const item = itemFromIssue(bug, trusted, [accepted])!;
+		expect(item.priority).toBe(3);
+		expect(item.body).toBe(`steps\n\n${fields(3)}`);
+	});
+
+	it("a broken item is skipped and reported, and two issues carrying one ID are both skipped; the rest are listed", () =>
+	{
+		const story = (number: number, title: string, body: string) => issue({
+			number,
+			title,
+			labels: [{
+				name: "story",
+			}],
+			body,
+		});
+		const { items, problems } = itemsFromCache({
+			repo: "owner/bt",
+			trusted,
+			syncedAt: "x",
+			issues: [story(41, "S9: broken", "**Gap:** none"), story(42, "S5: one", storyBody()), story(43, "S5: two", storyBody()), story(44, "S6: fine", storyBody())],
+		});
+		expect(items.map((i) => i.id)).toEqual(["S6"]);
+		expect(problems.map((p) => `${p.id} #${p.issue}`)).toEqual(["S9 #41", "S5 #42", "S5 #43"]);
+		expect(problems[0]!.message).toMatch(/issue #41 \(S9\)/);
+		expect(problems[1]!.message).toMatch(/S5 is carried by more than one trusted issue \(#42, #43\)/);
+	});
+
+	it("a transferred issue answering 200 from another repository is dropped (incremental sync)", () =>
+	{
+		const fake = new FakeGithub();
+		fake.add({
+			title: "S1: a",
+			labels: [{
+				name: "story",
+			}],
+		});
+		const moved = fake.add({
+			title: "S2: b",
+			labels: [{
+				name: "story",
+			}],
+		});
+		syncIssues(dir, {
+			run: fake.run,
+			env,
+		});
+		// Gone from this repository's listing, and its own URL answers 200 with the repository it moved to.
+		moved.gone = "transferred";
+		fake.intercept = (call, f) => (call.method === "GET" && call.path === `repos/{owner}/{repo}/issues/${moved.number}`
+			? FakeGithub.respond(200, {
+				...f.view(moved),
+				repository_url: "https://api.github.com/repos/elsewhere/other",
+			})
+			: undefined);
+		const result = syncIssues(dir, {
+			run: fake.run,
+			env,
+		});
+		expect(result.full).toBe(false);
+		expect(result.dropped).toEqual([moved.number]);
 	});
 });

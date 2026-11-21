@@ -16,14 +16,12 @@
  * derived to refresh.
  *
  * Since S164 the notes are retired: a bug is its GitHub issue, labelled `bug`, with its priority in
- * the issue's fields block once accepted and its status on GitHub. {@link bugsFromCache} reads the
- * bugs as they are now through github.ts; the note readers stay for history at older commits
- * (search.ts notesSource).
+ * its recorded fields block once accepted (text-records.ts) and its status on GitHub; the bugs as
+ * they are now are read through github.ts's overlay (itemsFromCache). The note readers here stay for
+ * history at older commits (search.ts notesSource).
  */
 
 import { parse } from "yaml";
-import type { IssueCache } from "./github.ts";
-import { itemsFromCache } from "./github.ts";
 import {
 	BUG_NOTE_KEY, bugNotePath, STORY_STATUSES,
 } from "./vault.ts";
@@ -161,16 +159,4 @@ export function placeBugNotes(files: Map<string, string>): Map<string, string>
 export function bugsIn(files: Map<string, string>): Bug[]
 {
 	return readBugNotes(files).map(({ bug }) => bug);
-}
-
-/** The bugs as they are now, from the issue cache (S164): every trusted issue labelled `bug`, an unaccepted one at priority Infinity. */
-export function bugsFromCache(cache: IssueCache): Bug[]
-{
-	return itemsFromCache(cache).filter((i) => i.kind === "bug").map((i) => ({
-		id: i.id,
-		issue: i.issue!,
-		title: i.title,
-		priority: i.priority,
-		status: i.status,
-	}));
 }

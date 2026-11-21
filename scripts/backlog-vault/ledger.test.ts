@@ -465,6 +465,14 @@ describe("ledger fragments (S156)", () =>
 		expect(readLedger(audit)).toEqual(parseLedger(ledger(...completed("S1"))));
 	});
 
+	it("reads a completion fragment's Issue line from its header only, never from its grader output", () =>
+	{
+		const completion = (issueLine: string) => [fragment("## 2026-11-21 — S9 completed", "| Grader | `scripts/verify-S9.sh` — exit `0` |"),
+			"**What was tested and verified**", "", issueLine, "", "<details><summary>Grader output</summary>", "", "```", "Issue: #999", "```", "</details>", ""].join("\n");
+		expect(parseFragment(completion("Issue: #296"), "a/20261121T000000Z-S9-completed.md").issue).toBe(296);
+		expect(parseFragment(completion(""), "a/20261121T000000Z-S9-completed.md").issue).toBeUndefined();
+	});
+
 	it("records no in-flight items when the row says none", () =>
 	{
 		expect(parseFragment(fragment("## 2026-11-21 — doc parity review (`amended`)", "| In flight | none |"), "a/20261121T000000Z-parity-review.md").inFlight).toBeUndefined();

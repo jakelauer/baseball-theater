@@ -259,7 +259,7 @@ describe("CLI in a temp root", () =>
 			user: {
 				login: "o",
 			},
-			body: "",
+			body: "### Backlog fields\n\n```yaml\npriority: 1\n```\n",
 			...over[`S${k + 1}`],
 		}));
 		for (const [id, issue] of Object.entries(over).filter(([id]) => id.startsWith("B")))
@@ -306,7 +306,23 @@ describe("CLI in a temp root", () =>
 		env: {
 			PATH: process.env["PATH"] ?? "/usr/bin:/bin",
 			BT_BACKLOG_CACHE: join(root, "cache"),
+			// No text records: the stub cache's bodies are the items' text, never the repository's records.
+			BT_AUDIT_LEDGER: join(root, "AUDIT.md"),
 		},
+	});
+
+	it("claim refuses a skipped ID, quoting its problem (a story whose fields block doesn't parse)", () =>
+	{
+		stubCache({
+			S5: {
+				body: "**Gap:** no fields block",
+			},
+		});
+		const refused = cli(["claim", "S5", "--file", "a.ts"]);
+		expect(refused.status).toBe(1);
+		expect(refused.stderr).toContain("S5 is skipped by the backlog");
+		expect(refused.stderr).toContain("no ### Backlog fields section");
+		expect(cli(["claim", "S6", "--file", "b.ts"]).status).toBe(0);
 	});
 
 	it("claim B<N> resolves the bug from GitHub state: an open status:todo issue is admitted and recorded with its issue, a closed or blocked one is refused", () =>
@@ -532,6 +548,8 @@ describe("CLI in a temp root", () =>
 			env: {
 				PATH: process.env["PATH"] ?? "/usr/bin:/bin",
 				BT_BACKLOG_CACHE: join(root, "cache"),
+				// No text records: hermetic, never the repository's.
+				BT_AUDIT_LEDGER: join(root, "AUDIT.md"),
 			},
 		});
 		let out = "";
