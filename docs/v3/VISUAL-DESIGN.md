@@ -396,7 +396,7 @@ Users will have settings that change **how the same views look**. There is no li
 
 | Setting | Group (site area) | What the view does |
 |---------|-------------------|--------------------|
-| **Game-row slot** | Game list | The right-hand block on each full scoreboard row shows the chosen occupant (status, room menu, win probability — left out at launch until the owner picked a data source, owner, 2026-10-19; back from MLB's play metrics, on live and final games, owner, 2026-10-30: "Bring back win probability charts", "It is actually least useful before the game. During and after is definitely useful."; S106–S108) |
+| **Game-row slot** | Game list | The right-hand block on each full scoreboard row that has started (live or final) shows the chosen occupant; a game that hasn't started has a block only when the occupant is the room menu (§5, A7) (status, room menu, win probability — left out at launch until the owner picked a data source, owner, 2026-10-19; back from MLB's play metrics, on live and final games, owner, 2026-10-30: "Bring back win probability charts", "It is actually least useful before the game. During and after is definitely useful."; S106–S108) |
 | **Collapse non-favorites** | Game list | Games that do not involve a favorite team render as a smaller bar by default |
 | **Favorite teams** | Game list | A dropdown; drives collapse non-favorites and favorite emphasis |
 | **Hide scores** | Game list | Structured score fields show `–` and records show `▒▒-▒▒` ([S34 design](./visual/standings-search-settings/DESIGN.md)) |
@@ -422,7 +422,7 @@ Settings are their own kind of state, separate from the server read cache — se
 |-------------------|---------------------|
 | Change order / emphasis | Sort/weight from the setting. Don’t bake one order into the page |
 | Choose the first game tab | Open the tab the setting names. Don’t hardcode Videos |
-| Choose the game-row slot occupant | The right-hand block shows that occupant. Don’t hardcode status |
+| Choose the game-row slot occupant | The right-hand block shows that occupant on every row that has started; a game that hasn't started shows it only when it is the room menu (§5, A7). Don’t hardcode status |
 | Collapse non-favorites | Non-favorite games are the smaller bar by default. Don’t bake every row as the full module |
 | Tint chrome from a team | Theme overlay — not hex on each view |
 
