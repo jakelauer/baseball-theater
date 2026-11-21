@@ -115,25 +115,12 @@ done
 # --- Check 4: sealed files untouched -------------------------------------------------
 # The commit S107 started from (HEAD when its grader was written).
 BASE=e81b2e0
-# Files S107's own commits changed: the non-merge commits since BASE whose subject starts "S107", to its
-# shipping commit (or HEAD, plus the uncommitted and untracked files while unshipped). A diff from BASE
-# would blame S107 for every other change that reached `stage` meanwhile (#64's Figma links, the sealed
-# link re-hash), and the first-parent line doesn't work here: S107's branch was re-cut from `stage`, whose
-# first-parent history before the pull request flow holds other stories' commits.
-s107_changed() {
-	local tip c
-	tip="$(story_tip S107)"
-	{
-		for c in $(git log --no-merges --format=%H --grep='^S107[ :]' "$BASE..${tip:-HEAD}"); do
-			git diff-tree --no-commit-id --no-renames --name-only -r "$c" -- "$V"
-		done
-		if [ -z "$tip" ]; then
-			git diff --no-renames --name-only HEAD -- "$V"
-			git ls-files --others --exclude-standard -- "$V"
-		fi
-	} | sed '/^$/d' | sort -u
-}
-changed=$(s107_changed)
+# Files S107's own commits changed (story_own_changed_files, scripts/lib/checks.sh, S156): every
+# first-parent, non-merge commit between BASE and its shipping commit (or HEAD, plus the uncommitted and
+# untracked files while unshipped), whatever its subject. A merge from `stage` is a merge commit, so what
+# it brings in (#64's Figma links, the sealed link re-hash, other stories' amendments) is never blamed on
+# S107, while any commit on S107's own line is, so a sealed file edited under another subject still fails.
+changed=$(story_own_changed_files S107 "$BASE" "$V")
 for s in $SURFACES; do
 	RAT="$V/$s/RATIFIED.md"
 	[ -f "$RAT" ] || {
