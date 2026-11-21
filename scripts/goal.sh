@@ -5,11 +5,11 @@
 #
 # The `/goal S<N> done` shorthand stores only "S<N> done" as the goal; pasting the
 # full line makes the story's exact completion condition the goal itself.
-# Reads the generated docs/v3/BACKLOG.md, so run `pnpm backlog:build` after editing notes.
+# Reads the story's note, docs/v3/backlog/stories/<status>/S<N>.md, directly: the first `/goal`
+# line inside its ```text block under **`/goal` command** (S156 retired the generated BACKLOG.md).
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-backlog="$root/docs/v3/BACKLOG.md"
 
 arg="${1:-}"
 id="${arg#[sS]}"
@@ -19,10 +19,18 @@ then
 	exit 2
 fi
 
-line="$(grep -m1 "^/goal docs/v3/BACKLOG.md S$id\. " "$backlog" || true)"
+# One note per ID (pnpm backlog:check refuses two), in the folder its status names.
+note="$(ls "$root"/docs/v3/backlog/stories/*/"S$id.md" 2>/dev/null | head -1 || true)"
+if [[ -z "$note" ]]
+then
+	echo "no note for S$id under docs/v3/backlog/stories/" >&2
+	exit 1
+fi
+
+line="$(awk '/^```text$/ { f = 1; next } f && /^```/ { f = 0 } f && /^\/goal / { print; exit }' "$note")"
 if [[ -z "$line" ]]
 then
-	echo "no /goal command for S$id in docs/v3/BACKLOG.md" >&2
+	echo "no /goal command in ${note#"$root"/}" >&2
 	exit 1
 fi
 

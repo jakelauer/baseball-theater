@@ -4,28 +4,38 @@
  */
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
+import type { SeasonPhaseName } from "@bt/domain";
+import { SEASON_PHASES } from "@bt/domain";
 import { fetchStandings } from "./client.js";
 import { freshnessPolicy } from "./freshness.js";
 import type { components } from "./generated/bt-api.v1.js";
 
 export type StandingsPayload = components["schemas"]["StandingsResponse"];
 
-/** The cache key for the standings as of `date` (`"today"` when the server picks the day). Only this module builds it. */
-export function standingsKey(date: string | undefined)
+/**
+ * The cache key for the standings as of `date` (`"today"` when the server picks the day) and the
+ * phases asked for (S139), written in the season's order (`SEASON_PHASES`) with each once, so
+ * `["playoffs", "spring"]` and `["spring", "playoffs"]` share one entry; with none or an empty list
+ * it reads as every phase, which is what the server answers then (`fetchStandings`; unlike the
+ * service's `getStandings(…, [])`, on purpose). Only this module builds it.
+ */
+export function standingsKey(date: string | undefined, phases?: readonly SeasonPhaseName[])
 {
-	return ["standings", date ?? "today"] as const;
+	const asked = phases?.length ? SEASON_PHASES.filter((phase) => phases.includes(phase)) : SEASON_PHASES;
+	return ["standings", date ?? "today", asked.join(",")] as const;
 }
 
-export function standingsQueryOptions(date: string | undefined)
+export function standingsQueryOptions(date: string | undefined, phases?: readonly SeasonPhaseName[])
 {
 	return queryOptions({
-		queryKey: standingsKey(date),
-		queryFn: (): Promise<StandingsPayload> => fetchStandings(date),
+		queryKey: standingsKey(date, phases),
+		queryFn: (): Promise<StandingsPayload> => fetchStandings(date, phases),
 		staleTime: (query) => freshnessPolicy(query.state.data?.windowMode).staleTime,
 	});
 }
 
-export function useStandings(date?: string): UseQueryResult<StandingsPayload, Error>
+/** The standings as of `date`, with the tables of `phases` (S139; every phase when absent). */
+export function useStandings(date?: string, phases?: readonly SeasonPhaseName[]): UseQueryResult<StandingsPayload, Error>
 {
-	return useQuery(standingsQueryOptions(date));
+	return useQuery(standingsQueryOptions(date, phases));
 }

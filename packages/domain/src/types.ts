@@ -5,7 +5,7 @@ export type GameStatusCode =
   | "F" // final
   | "O" // game over
   | "C" // cancelled
-  | "D" // delayed
+  | "D" // postponed (MLB codes a delay `I`, not `D`; #72)
   | "U"; // unknown
 
 export type AbstractTeam = {
@@ -208,6 +208,12 @@ export type GameSnapshot = {
 	gamePk: number;
 	gameDate: string; // YYYY-MM-DD (schedule date)
 	officialDate: string;
+	/**
+	 * First pitch as an ISO instant, from the live feed's `gameData.datetime.dateTime`. The
+	 * active window is measured from it (`isGameInActiveWindow`, #71); absent on snapshots
+	 * stored before it existed, which fall back to a mid-afternoon assumption.
+	 */
+	startTime?: string;
 	status: {
 		abstractGameState: string;
 		codedGameState: GameStatusCode | string;
@@ -412,6 +418,17 @@ export type StandingsDivision = {
  * training's standings as of the day.
  */
 export type StandingsPhaseName = "regularSeason" | "final" | "spring";
+
+/**
+ * A part of the season the standings answer one table for (S139; owner, 2026-11-13: "it should
+ * categorize the results based on the season phase"). `spring` and `regularSeason` are
+ * `StandingsPhaseName`'s; `final` is not a phase (it is the regular season's table once the regular
+ * season is over), and `playoffs` is the teams that made the postseason.
+ */
+export type SeasonPhaseName = "spring" | "regularSeason" | "playoffs";
+
+/** Every season phase, in the order the season runs them: the one list callers iterate and validate against. */
+export const SEASON_PHASES: readonly SeasonPhaseName[] = ["spring", "regularSeason", "playoffs"];
 
 export type StandingsSnapshot = {
 	/** The day the table stands as of; for a `final` table, its season's `regularSeasonEndDate`. */

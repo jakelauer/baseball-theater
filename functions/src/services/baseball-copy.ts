@@ -50,7 +50,7 @@
  * A table a migration production hasn't run touched is skipped whole (owner, 2026-11-13: "I think
  * option b is better"): staging may have reshaped it, and production's rows are in the old shape.
  * The copy compares the two databases' migration records (drizzle's `__drizzle_migrations`) and
- * reads each target-only migration's SQL from the checkout (`readMigrationFiles`, as the migrator
+ * reads each target-only migration's SQL from the checkout (`committedMigrations`, as the migrator
  * does), skipping every baseball table its text names (`tablesNamedIn`; a word search, so it errs
  * toward skipping). Its blind spots are SQL that touches a table without naming it: dynamic SQL
  * (`EXECUTE format(...)`) and `ALTER TYPE` / `ALTER DOMAIN` on a type a table's column uses. Games
@@ -65,16 +65,16 @@
  * on one server connection and the next statement on another; nothing is set on production's
  * session, which a pooler could otherwise leave on a connection production's own clients reuse.
  */
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import type { GameSnapshot, VersionStamp } from "@bt/domain";
 import {
 	adoptAcrossStores, compareAcrossStores, projectGame,
 } from "@bt/domain";
 import { sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import { readMigrationFiles } from "drizzle-orm/migrator";
-import { MIGRATIONS_FOLDER } from "../adapters/postgres/migrate.js";
+import type { AppliedMigration } from "../adapters/postgres/migrate.js";
+import {
+	MIGRATIONS_FOLDER, appliedMigrations, committedMigrations,
+} from "../adapters/postgres/migrate.js";
 import type { PostgresDb } from "../adapters/postgres/repos.js";
 import { DATA_CLASSIFICATION } from "./data-classification.js";
 
@@ -249,23 +249,6 @@ export function tablesNamedIn(text: string, tables: readonly string[]): string[]
 	return tables.filter((table) => new RegExp(`(?<![A-Za-z0-9_$])${table.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9_$])`, "i").test(text));
 }
 
-/** One applied migration, as drizzle records it: the journal's `when`, and the sha256 of its SQL file. */
-type Applied = { createdAt: number;
-	hash: string; };
-
-/** The migrations `read` (a database) has applied; none when it has no drizzle record. */
-async function appliedMigrations(read: <T extends Record<string, unknown>>(query: SQL) => Promise<T[]>): Promise<Applied[]>
-{
-	const [record] = await read<{ present: boolean }>(sql`SELECT to_regclass('drizzle.__drizzle_migrations') IS NOT NULL AS present`);
-	if (!record?.present) return [];
-	const found = await read<{ created_at: string;
-		hash: string; }>(sql`SELECT created_at::text AS created_at, hash FROM drizzle.__drizzle_migrations ORDER BY created_at`);
-	return found.map((row) => ({
-		createdAt: Number(row.created_at),
-		hash: row.hash,
-	}));
-}
-
 /** What the two databases' migration records say: every table to skip with why, or why to skip them all. */
 type MigrationVerdict = {
 	skipAll?: string;
@@ -275,25 +258,16 @@ type MigrationVerdict = {
 
 /**
  * Compares the migrations each database has run, after the target is migrated (owner, 2026-11-13: option b). The
- * checkout's files are read the way drizzle's migrator reads them (`readMigrationFiles`: `folderMillis` and the hash
- * of the SQL), so a record matches a file exactly when the migrator would call it that file.
+ * checkout's files are read the way drizzle's migrator reads them (`committedMigrations`), so a record matches a file
+ * exactly when the migrator would call it that file.
  */
 async function compareMigrations(deps: CopyDeps, folder: string, tables: string[], log: (line: string) => void): Promise<MigrationVerdict>
 {
-	const journal = JSON.parse(readFileSync(join(folder, "meta", "_journal.json"), "utf8")) as { entries: { when: number;
-		tag: string; }[]; };
-	const committed = readMigrationFiles({
-		migrationsFolder: folder,
-	}).map((file) => ({
-		createdAt: file.folderMillis,
-		hash: file.hash,
-		sql: file.sql.join("\n"),
-		name: journal.entries.find((entry) => entry.when === file.folderMillis)?.tag ?? `created_at ${file.folderMillis}`,
-	}));
+	const committed = committedMigrations(folder);
 	const inProduction = await appliedMigrations((query) => readSource(deps.source, query));
 	const inTarget = await appliedMigrations((query) => rows(deps.target, query));
-	const key = (migration: Applied) => `${migration.createdAt}:${migration.hash}`;
-	const fileOf = (migration: Applied) => committed.find((file) => file.createdAt === migration.createdAt && file.hash === migration.hash);
+	const key = (migration: AppliedMigration) => `${migration.createdAt}:${migration.hash}`;
+	const fileOf = (migration: AppliedMigration) => committed.find((file) => file.createdAt === migration.createdAt && file.hash === migration.hash);
 	const productionKeys = new Set(inProduction.map(key));
 	const targetKeys = new Set(inTarget.map(key));
 

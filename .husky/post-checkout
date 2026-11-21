@@ -1,0 +1,8 @@
+# docs/v3/INDEX.md (the docs index, with the generated As of, Next and review-debt lines) and
+# docs/v3/audit.jsonl (the ledger's index) are built, never committed (S156; owner, 2026-11-20:
+# "Stop committing them (Recommended)"), so a checkout rebuilds them from the notes and ledger it
+# brought. A failed build never blocks the checkout.
+# A plain `git worktree add` checks out before anything is installed (scripts/worktree-for.sh
+# builds after its install instead), so with no node_modules there is nothing to run yet.
+[ -d node_modules ] || exit 0
+pnpm backlog:build --quiet >/dev/null || echo "backlog: could not build docs/v3/INDEX.md — run pnpm backlog:build" >&2

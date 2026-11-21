@@ -8,11 +8,19 @@
  * Not part of `pnpm verify`: browsers start only through `pnpm design:capture`
  * and S62's flows. `BT_E2E_OUTPUT` moves Playwright's own output (traces,
  * failure shots) out of the tree, which graders need (they may not write it).
+ * `BT_WEB_PORT` (a worktree's `.env.worktree`, S156) moves the app off :5173, as it moves
+ * Vite's dev server, so two checkouts can each run their own.
  */
 import { defineConfig } from "@playwright/test";
 
+/** Where `pnpm dev` serves the app: Vite's port, read the way `web/vite.config.ts` reads it (empty counts as unset). */
+const APP_URL = `http://localhost:${process.env.BT_WEB_PORT || 5173}`;
+
 export default defineConfig({
 	testDir: ".",
+	// Only the browser specs: the spec selector's unit tests (`select-specs.test.ts`, S152) sit in
+	// this folder too and run under Vitest (`pnpm test:selector`), never in a browser.
+	testMatch: "**/*.spec.ts",
 	outputDir: process.env.BT_E2E_OUTPUT ?? "test-results",
 	fullyParallel: false,
 	// One worker for the design specs, which share the dev account and its settings; `pnpm e2e`
@@ -20,12 +28,12 @@ export default defineConfig({
 	workers: 1,
 	reporter: [["list"]],
 	use: {
-		baseURL: "http://localhost:5173",
+		baseURL: APP_URL,
 	},
 	webServer: {
 		command: "pnpm dev",
 		cwd: "..",
-		url: "http://localhost:5173",
+		url: APP_URL,
 		reuseExistingServer: true,
 		timeout: 60_000,
 	},

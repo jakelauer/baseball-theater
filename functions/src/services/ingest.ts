@@ -2,7 +2,8 @@ import type {
 	CadenceParams, GameSnapshot, ScheduleDay, Unversioned,
 } from "@bt/domain";
 import {
-	cacheLifetimeMs, DEFAULT_CADENCE, isFinalStatus, isGameInActiveWindow, normalizeStatusCode, projectGame, scheduleWindowMode, stampVersion,
+	addDays, cacheLifetimeMs, DEFAULT_CADENCE, isFinalStatus, isGameInActiveWindow, isScheduleDaySettled, mlbToday, normalizeStatusCode, projectGame,
+	scheduleWindowMode, stampVersion,
 } from "@bt/domain";
 import type {
 	GameProjectionRepository, GameRepository, MlbStatsClient, ScheduleRepository,
@@ -22,7 +23,15 @@ export type IngestDeps = {
    * the read path refreshes directly, without dedup or cooldown.
    */
 	refresh?: RefreshCoordinator;
+	/**
+	 * Where the standings read season calendars from (S139 AC 8): the MLB client's
+	 * `fetchSeasonCalendar` kept for a day (`cachedSeasonCalendars`); the MLB client itself when absent.
+	 */
+	seasonCalendars?: SeasonCalendarSource;
 };
+
+/** The one MLB read the standings' calendar cache wraps (S139). */
+export type SeasonCalendarSource = Pick<MlbStatsClient, "fetchSeasonCalendar">;
 
 /**
  * Run one upstream refresh for `key`. With a coordinator this is single-flighted
@@ -241,10 +250,24 @@ export async function getOrRefreshGame(
 }
 
 /**
- * Reads today's schedule from MLB, stores it (`windowMode` active while any game is in
- * its window), and splits its games by the ADR-002 window at `now`. The cron's two
- * consumers share it: `tickIngest` fetches the active games itself, and the per-game
- * ingest objects (S48) are ensured for them instead.
+ * Reads from MLB every schedule day that can hold a game in its window at `now`, stores
+ * each (`windowMode` active while any of its games is in its window), and splits their
+ * games by the ADR-002 window. The cron's two consumers share it: `tickIngest` fetches the
+ * active games itself, and the per-game ingest objects (S48) are ensured for them instead.
+ *
+ * Those days are MLB's today (`mlbToday`, the US Eastern date, never the UTC one: from
+ * 00:00Z the UTC date is already tomorrow while the evening's games are still to come, #73)
+ * and the day before, whose late games stay in their trail past US midnight. The day
+ * before is skipped once its stored day is settled (`isScheduleDaySettled`), none of its
+ * games is in its window, and it is stored as `cache`: the fetch that finds it out of
+ * window is what stores it as `cache`, so a day last stored `active` is never left that way
+ * (which would keep it uncached at the edge). So it is usually one schedule request per
+ * run, at most two (ADR-002: requests scale with dates in play, not viewers).
+ *
+ * Today is read first and its failure fails the run, as before. A failed day-before fetch
+ * is dropped on its own; the next run retries it. A game on both days (a suspended game
+ * resumed the next day keeps its gamePk) is listed once: active if either day's copy is in
+ * its window (today's copy first), so it is ensured and fetched once.
  */
 export async function refreshTodaysWindow(
 	deps: IngestDeps,
@@ -254,18 +277,47 @@ export async function refreshTodaysWindow(
 	active: ScheduleDay["games"];
 	skipped: number[]; }>
 {
-	const date = now.toISOString().slice(0, 10);
-	const fetched = await deps.mlb.fetchSchedule(date);
-	const active = fetched.games.filter((g) => isGameInActiveWindow(g, now, params));
-	await storeSchedule(deps, {
-		...fetched,
-		fetchedAt: now.toISOString(),
-		windowMode: scheduleWindowMode(fetched.games, now, params),
-	});
+	const date = mlbToday(now);
+	const dayBefore = addDays(date, -1);
+	const games: ScheduleDay["games"] = [];
+	const refresh = async (day: string) =>
+	{
+		const fetched = await deps.mlb.fetchSchedule(day);
+		await storeSchedule(deps, {
+			...fetched,
+			fetchedAt: now.toISOString(),
+			windowMode: scheduleWindowMode(fetched.games, now, params),
+		});
+		games.push(...fetched.games);
+	};
+
+	await refresh(date);
+	const stored = await deps.schedules.getByDate(dayBefore);
+	const dayBeforeDone = stored !== null && stored.windowMode === "cache" && isScheduleDaySettled(stored, date)
+		&& !stored.games.some((g) => isGameInActiveWindow(g, now, params));
+	if (!dayBeforeDone)
+	{
+		try
+		{
+			await refresh(dayBefore);
+		}
+		catch (error)
+		{
+			// Today is already in hand. A skipped day before is retried by the next cron run, a minute later.
+			console.warn(`refreshTodaysWindow: day before ${dayBefore} not refreshed; retrying next run`, error);
+		}
+	}
+	// One entry per gamePk: in window if either day's copy is, else skipped once.
+	const active: ScheduleDay["games"] = [];
+	for (const game of games)
+	{
+		if (isGameInActiveWindow(game, now, params) && !active.some((g) => g.gamePk === game.gamePk)) active.push(game);
+	}
+	const skipped = [...new Set(games.map((g) => g.gamePk))].filter((pk) => !active.some((g) => g.gamePk === pk));
 	return {
 		date,
 		active,
-		skipped: fetched.games.filter((g) => !active.includes(g)).map((g) => g.gamePk),
+		skipped,
 	};
 }
 

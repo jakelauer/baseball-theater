@@ -894,13 +894,13 @@ JSON on the wire is untyped, and that is a limitation of the medium rather than 
 
 Rule 9's "one type source" holds for today's single first-party client (`web/`), sharing a monorepo with the server. It stops holding the moment the API has a consumer that isn't ours to redeploy in lockstep — a third-party integration, a public API. That isn't planned (CLAUDE.md's product boundaries explicitly drop v2's public playback catalog APIs), but the seam to get there without a rewrite is cheap enough to lay now rather than retrofit later.
 
-**Decision:** every route's response type in the [S26](./BACKLOG.md#s26--typed-bt-api-route-contract) table is a **named alias**, not the bare domain type — append `Response` to the domain type's name: `GameSnapshotResponse = GameSnapshot`, `ScheduleDayResponse = ScheduleDay`, and likewise for the error-body type. Declared beside the route table in `packages/domain/`, exported, and consumed by both ends — same "one declaration" rule 9 already requires, just named separately from its source.
+**Decision:** every route's response type in the [S26](./backlog/stories/done/S26.md) table is a **named alias**, not the bare domain type — append `Response` to the domain type's name: `GameSnapshotResponse = GameSnapshot`, `ScheduleDayResponse = ScheduleDay`, and likewise for the error-body type. Declared beside the route table in `packages/domain/`, exported, and consumed by both ends — same "one declaration" rule 9 already requires, just named separately from its source.
 
 The handler sends through a matching mapping function, `to<DomainType>Response(value: DomainType): <DomainType>Response`. Today that function is a **passthrough** — the alias is structurally identical to the domain type, so this is not a second, independently-authored shape and does not reopen the drift risk rule 9 forbids. Nothing to keep in sync exists yet.
 
 **What this buys, for the price of one alias and one no-op function per route:** the domain type and the wire type are *named* separately even though they're *shaped* identically today. The day an internal-only reason forces a domain field to be removed, renamed, or reshaped while the wire needs to stay stable — the exact move a real external consumer would need protected — the seam to do it already exists: edit the mapping function to compute the old wire field from the new internal shape, and `<DomainType>Response` never has to change. Without this seam, that move isn't possible without touching the wire contract in the same commit as the internal refactor, because today they would be the same declaration.
 
-**Still one type source, not two:** the alias is derived (`type XResponse = X`), not hand-copied, so there is nothing to maintain until a mapping actually diverges. If that day comes, the divergence lives in one named function, not scattered across handlers — and a mutual-assignability check (the same kind [S29](./BACKLOG.md#s29--generated-client-dal-from-the-openapi-spec) already uses for its fidelity gate) can keep proving the two stay in sync for as long as they're meant to.
+**Still one type source, not two:** the alias is derived (`type XResponse = X`), not hand-copied, so there is nothing to maintain until a mapping actually diverges. If that day comes, the divergence lives in one named function, not scattered across handlers — and a mutual-assignability check (the same kind [S29](./backlog/stories/done/S29.md) already uses for its fidelity gate) can keep proving the two stay in sync for as long as they're meant to.
 
 **Not doing:** hand-authoring response shapes that diverge from the domain type today, or building a DTO catalog speculatively. This is a naming and indirection seam, not a parallel type system — that trade only gets made if a real external consumer shows up.
 
@@ -915,7 +915,7 @@ Debuggability is a stated product-owner requirement, so it is a constraint, not 
 | **Every cache write is a named exported function** in that resource file (e.g. `applyLiveGameUpdate`) | Grep the function name to find every writer. No inline `setQueryData` in a component or a stream callback |
 | **No indirection layers** — no generic repository/service/facade over the query layer | The stack trace from a view to `fetch` is short and readable |
 | **Query devtools enabled in dev builds** | Cache contents, key, freshness, and refetch reason are inspectable |
-| **Freshness is visible**, not just internal (`fetchedAt` / `windowMode` already render per D9) | A stale screen is diagnosable by looking at it |
+| ~~**Freshness is visible**, not just internal (`fetchedAt` / `windowMode` already render per D9)~~ **Amended 2026-11-16 (owner): the "Fetched … ago" label goes; a page with an open live WebSocket shows a Live marker instead** (owner, 2026-11-16: *"Remove the fetch label and replace it with a red dot and Live at the bottom of any page that has an active websocket, with the red dot glowing and slowly blinking"*; ratified 2026-11-19 in shell-scoreboard [A13](./visual/shell-scoreboard/amendments/A13.md), built by S148). `fetchedAt` / `windowMode` stay on every payload and in the query devtools | Whether a page is receiving live pushes is visible by looking at it; how old a cached copy is stays in the devtools and the payload |
 
 **Why:** The SPA already hand-rolls `useState` + `useEffect` + `fetch` + a `cancelled` flag per page, which cannot dedupe, cannot patch a loaded entity in place, and gives every new surface a fresh chance to invent its own pattern. Naming the five kinds keeps a server-cache library from swallowing settings and view state (the usual Redux-era failure), and keeps ADR-002's "clients read BT" honest by deriving client cadence from server-declared freshness. TanStack Query also supplies the mechanics the live-data backlog needs anyway: cache writes for push patching, interval + focus/visibility refetch for polling, and request cancellation.
 
@@ -1045,7 +1045,7 @@ The full path is: TS route table → JSON Schema → OpenAPI → generated TS cl
 
 - ADR-014's "one declaration" becomes **one source, two hops**: the route table is still the origin, but ingress types arrive via the generated client.
 - Generated output is committed, carries an `@generated` banner, and is **never hand-edited**. Regenerating must produce no diff, enforced in CI.
-- [S25](./BACKLOG.md#s25--typed-client-query-cache-adr-014-foundation)'s query descriptors derive payload types from the generated client rather than importing `@bt/domain` directly. **Sequencing amended 2026-09-13 (backlog review):** S25 now ships **before** S29, deriving payload types through the S26 route table's `ApiResponseFor` in the interim — which satisfies ADR-014 rule 9 equally well — and S29 owns swapping those two imports to the generated client when it lands. This ADR describes the end state, not a prerequisite ordering: S29 is a fidelity check on the spec and blocks no product work, while S25 blocks eight stories.
+- [S25](./backlog/stories/done/S25.md)'s query descriptors derive payload types from the generated client rather than importing `@bt/domain` directly. **Sequencing amended 2026-09-13 (backlog review):** S25 now ships **before** S29, deriving payload types through the S26 route table's `ApiResponseFor` in the interim — which satisfies ADR-014 rule 9 equally well — and S29 owns swapping those two imports to the generated client when it lands. This ADR describes the end state, not a prerequisite ordering: S29 is a fidelity check on the spec and blocks no product work, while S25 blocks eight stories.
 - The tolerant-reader stance ADR-015 depends on is preserved: `openapi-fetch` performs **no runtime validation**.
 
 **Rejected:**
@@ -1179,6 +1179,8 @@ Cron (1 min) ──ensure running──► game-ingest:<gamePk>      polls MLB o
 Calls between objects retry on errors flagged `retryable`. Every deploy restarts every object, so the reconnect path is exercised routinely, not just on rare failures.
 
 **Why:** expected peak is hundreds of viewers per game, far inside one hub's capacity; the split keeps MLB polling independent of viewer fan-out; within Workers Paid included usage (~$0 extra).
+
+**Amended 2026-11-16 (owner): the scoreboard gets a live connection too.** Owner, told the scoreboard only re-fetched its day: *"the scoreboard should have a live connection"*; asked when it connects: *"While a game is live"* (only on a day with a game in its live window, from 2 hours before first pitch to 3 hours after the game, the rule game pages use); asked whether through one socket per day or one per live game: *"One socket per day"*. So a third object, `day-hub:${date}`, holds the scoreboard's viewers for one date: the day hub leases from each in-window game's ingest object of its date (re-checked on renewal, so later games join), on a game's update the day hub reads its day (the stored day joined to each game's one stored state, which a single switch feeds from the live feed while the game is in its window and from MLB's schedule otherwise, S150) and pushes that day's scoreboard over one hibernated, one-way WebSocket. Versioned and applied only if newer (ADR-022); recovery as for a game hub. S150 and S149 build it.
 
 ### ADR-021 — Graduated cache freshness (accepted 2026-10-18)
 
@@ -1595,7 +1597,7 @@ _TBD_ — at least: ingestion lag, upstream error rate, refresh-on-read rate, pe
 **Monorepo (pnpm workspaces):**
 
 ```text
-baseball-theater-v3/
+baseball-theater/
   packages/
     domain/          # types, pure logic (no Cloudflare / Postgres / Logto imports)
     ports/           # interfaces only
@@ -1624,7 +1626,7 @@ baseball-theater-v3/
 
 **Assumptions:**
 
-- New codebase under `baseball-theater-v3` (this workspace)
+- New codebase under `baseball-theater` (this workspace; `baseball-theater-v3` until the repository was renamed on 2026-11-16)
 - No requirement to import v2 packages
 
 ---

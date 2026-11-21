@@ -1,11 +1,14 @@
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	describe, expect, it,
 } from "vitest";
+import { assembleBacklog } from "./assemble.ts";
+import { readNotes } from "./notes-dir.ts";
 import { parseBacklog } from "./parse.ts";
 import type { Story } from "./parse.ts";
-import { renderNotes, renderStory } from "./vault.ts";
+import {
+	isNoteKey, noteId, renderNotes, renderStory,
+} from "./vault.ts";
 
 const story: Story = {
 	id: "S26",
@@ -63,9 +66,9 @@ describe("renderStory", () =>
 
 describe("renderNotes", () =>
 {
-	it("renders one note per story in the real backlog, plus frame notes", () =>
+	it("renders one note per story in the real backlog, plus frame notes", async () =>
 	{
-		const markdown = readFileSync(join(import.meta.dirname, "../../docs/v3/BACKLOG.md"), "utf8");
+		const markdown = assembleBacklog(await readNotes(join(import.meta.dirname, "../../docs/v3/backlog")));
 		const files = renderNotes(parseBacklog(markdown));
 		const headings = markdown.match(/^### S\d+ —/gm) ?? [];
 
@@ -78,5 +81,27 @@ describe("renderNotes", () =>
 				expect(content).not.toMatch(/^### S\d+ —|^\*\*Status:\*\*/m);
 			}
 		}
+	});
+});
+
+describe("noteId and isNoteKey", () =>
+{
+	it("give a bug note's ID, flat or in a status folder, and no ID for a key that only looks like one", () =>
+	{
+		expect(noteId("bugs/todo/B74.md")).toBe("B74");
+		expect(noteId("bugs/B74.md")).toBe("B74");
+		for (const key of ["bugs/todo/S5.md", "stories/todo/B74.md", "bugs/a/b/B74.md"])
+		{
+			expect(noteId(key), key).toBeUndefined();
+		}
+	});
+
+	it("read every .md under bugs/, so the build refuses a misnamed one instead of dropping it, and no other file", () =>
+	{
+		expect(isNoteKey("bugs/todo/B74.md")).toBe(true);
+		expect(isNoteKey("bugs/a/b/B74.md")).toBe(true);
+		expect(isNoteKey("bugs/todo/S5.md")).toBe(true);
+		expect(isNoteKey("bugs/todo/.DS_Store")).toBe(false);
+		expect(isNoteKey("stories/todo/B74.md")).toBe(false);
 	});
 });

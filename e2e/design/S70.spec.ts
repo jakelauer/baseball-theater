@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S70's design match (rule 22): the video player in the game-shell frames it builds —
  * `video-player-dialog-mobile` / `-medium` (the default Dialog as game-shell A4 amends it:

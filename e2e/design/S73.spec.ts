@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S73's design match (rule 22): the installed app's frames — shell-scoreboard A1
  * `scoreboard-standalone-mobile` and `shell-update-mobile` / `-medium` / `-desktop`, and

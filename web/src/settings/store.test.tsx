@@ -201,6 +201,7 @@ describe("settings follow the signed-in account (S120)", () =>
 			},
 			signIn: vi.fn(async () => false),
 			finishSignIn: vi.fn(async () => "/"),
+			signInOffer: "offered",
 			signOut: vi.fn(),
 		};
 	}

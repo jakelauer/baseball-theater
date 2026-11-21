@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S4's design match (rule 22): Standings as standings-search-settings draws it —
  * `standings-mobile`, `-medium` and `-desktop` (desktop at 1200px, owner 2026-10-28). The

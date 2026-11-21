@@ -28,7 +28,7 @@ const FIXTURE = [
 	"",
 	"**Prefer after:** **S2** and S4",
 	"",
-	"**Scope files:** `web/`, `docs/v3/BACKLOG.md`",
+	"**Scope files:** `web/`, `docs/v3/backlog/`",
 	"",
 	"**Goal condition:** scripts/verify-S7.sh exits 0, or stop after 12 turns.",
 	"",
@@ -92,7 +92,7 @@ describe("parseBacklog", () =>
 			dependsOn: ["S1", "S3"],
 			preferAfter: ["S2", "S4"],
 			turnCap: 16,
-			scopeFiles: ["web/", "docs/v3/BACKLOG.md"],
+			scopeFiles: ["web/", "docs/v3/backlog/"],
 		});
 	});
 

@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S2's design match (rule 22): the Box room in the state and pairing of each
  * game-rooms frame it builds — `box-mobile`, `box-medium`, `box-desktop` on the

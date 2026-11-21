@@ -39,9 +39,14 @@ class CountingMlbClient implements MlbStatsClient
 
 	constructor(private readonly day: Unversioned<ScheduleDay>) {}
 
-	async fetchSchedule(): Promise<Unversioned<ScheduleDay>>
+	/** Its one day; any other date (the cron also reads the day before, #73) has no games. */
+	async fetchSchedule(date: string): Promise<Unversioned<ScheduleDay>>
 	{
-		return this.day;
+		return date === this.day.date ? this.day : {
+			...this.day,
+			date,
+			games: [],
+		};
 	}
 
 	async fetchScheduleRange(startDate: string, endDate: string): Promise<Unversioned<ScheduleDay>[]>

@@ -2,7 +2,7 @@
 
 ## Source
 
-https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF
+https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF?node-id=635-22628 — the Game — Live, Box & Recap page; the Plays frames are on the [Game — Plays page](https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF?node-id=635-22629) (link updated 2026-11-16, when the file was split into pages).
 
 Version: 2026-10-14 — live Figma file as edited and exported in the S31–S34 design session (the Plugin API cannot save a named version; no named version was taken).
 

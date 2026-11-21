@@ -5,19 +5,57 @@
  * corrected to the real final only later (2026 read 10-31 after a 10-28 final), so the
  * World Series' last game wins once one is listed; before the Series is scheduled the
  * calendar's date stands in. An unpublished season (`seasons: []`) maps to null. The regular
- * season's first and last days (S128) are carried when MLB lists them; standings need both.
+ * season's first and last days (S128) are carried when MLB lists them; standings need both. The
+ * World Series winner and the day it was won (S140) come from the same schedule, so they cost no
+ * request of their own.
  */
-import type { SeasonCalendar } from "@bt/domain";
-import type { ScheduleResponse, SeasonsResponse } from "@bt/mlb-api";
+import type { SeasonCalendar, SeasonChampion } from "@bt/domain";
+import type {
+	ScheduleGame, ScheduleResponse, SeasonsResponse,
+} from "@bt/mlb-api";
+
+/** The World Series games that are still on (not cancelled), each with its day, earliest first. */
+function seriesGamesOn(worldSeries: ScheduleResponse): { date: string;
+	game: ScheduleGame; }[]
+{
+	return worldSeries.dates
+		.flatMap((day) => day.games.filter((game) => game.status.detailedState !== "Cancelled").map((game) => ({
+			date: day.date,
+			game,
+		})))
+		.sort((a, b) => a.date.localeCompare(b.date) || a.game.gameDate.localeCompare(b.game.gameDate));
+}
 
 /** The last day the World Series lists a game that is still on (not cancelled), if any. */
 function worldSeriesFinal(worldSeries: ScheduleResponse): string | undefined
 {
-	const days = worldSeries.dates
-		.filter((day) => day.games.some((game) => game.status.detailedState !== "Cancelled"))
-		.map((day) => day.date)
-		.sort();
-	return days.at(-1);
+	return seriesGamesOn(worldSeries).at(-1)?.date;
+}
+
+/**
+ * Who won the World Series (S140 AC 1), from the schedule `mapSeasonCalendar` already reads: the side
+ * whose wins in the series, as of the season's last final game that wasn't cancelled, are more than
+ * half of that game's `gamesInSeries` (4 of 7; 5 of 9 in 1903 and 1919–1921). A postponed game is
+ * "Final" in MLB's abstract state but was never played, so it doesn't count. `wonOn` is that game's
+ * day. Null while the series is under way, for a season with no Series or an empty schedule, and
+ * when the game lacks `gamesInSeries` or either side's series record: never a guess.
+ */
+export function worldSeriesChampion(worldSeries: ScheduleResponse): SeasonChampion | null
+{
+	const last = seriesGamesOn(worldSeries)
+		.filter(({ game }) => game.status.abstractGameState === "Final" && game.status.detailedState !== "Postponed")
+		.at(-1);
+	if (!last) return null;
+	const { gamesInSeries, teams: { away, home } } = last.game;
+	// Both sides' records, not just the winner's: one missing record means MLB's answer is incomplete.
+	if (!gamesInSeries || !away.leagueRecord || !home.leagueRecord) return null;
+	const winner = away.leagueRecord.wins > gamesInSeries / 2 ? away : home.leagueRecord.wins > gamesInSeries / 2 ? home : undefined;
+	if (!winner) return null;
+	return {
+		teamId: winner.team.id,
+		name: winner.team.name,
+		wonOn: last.date,
+	};
 }
 
 export function mapSeasonCalendar(seasons: SeasonsResponse, worldSeries: ScheduleResponse): SeasonCalendar | null
@@ -25,6 +63,7 @@ export function mapSeasonCalendar(seasons: SeasonsResponse, worldSeries: Schedul
 	const season = seasons.seasons[0];
 	const lastGameDate = worldSeriesFinal(worldSeries) ?? season?.postSeasonEndDate ?? season?.seasonEndDate;
 	if (!season?.springStartDate || !lastGameDate) return null;
+	const champion = worldSeriesChampion(worldSeries);
 	return {
 		season: Number(season.seasonId),
 		springStartDate: season.springStartDate,
@@ -34,6 +73,9 @@ export function mapSeasonCalendar(seasons: SeasonsResponse, worldSeries: Schedul
 		} : {}),
 		...(season.regularSeasonEndDate ? {
 			regularSeasonEndDate: season.regularSeasonEndDate,
+		} : {}),
+		...(champion ? {
+			champion,
 		} : {}),
 	};
 }

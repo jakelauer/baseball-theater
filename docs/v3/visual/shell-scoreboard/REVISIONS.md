@@ -2,7 +2,7 @@
 
 ## Source
 
-https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF
+https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF?node-id=0-1 — the Scoreboard page; the shell's notice and navigation frames are on the [Shell & navigation page](https://www.figma.com/design/wqGKEFlvyxq0ObWZhRJdPF?node-id=635-22625) (link updated 2026-11-16, when the file was split into pages).
 
 Version: 2026-10-10 — live file as edited and exported in the S35 session (the Plugin API cannot save a named version; no named version was taken).
 
