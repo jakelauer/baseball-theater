@@ -20,6 +20,7 @@
 import type { DigestItem } from "./digest.js";
 import type { ScheduleDayCount } from "./schedule-month.js";
 import type { AccountSettings } from "./settings.js";
+import type { StandingsChampion } from "./standings-phase.js";
 import type {
 	Entitlements, GameSnapshot, Role, ScheduleDay, StandingsSnapshot, UserProfile,
 } from "./types.js";
@@ -28,20 +29,51 @@ export type ScheduleDayResponse = ScheduleDay;
 export type GameSnapshotResponse = GameSnapshot;
 
 /**
- * The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the
- * regular season's as of that day, the season's final table after it ends, spring training's
- * in the spring (see `phase`).
+ * One season phase in a standings answer (S139): the first and last day the phase runs in the
+ * season the answer is for, and its table when the request included the phase (`includePhases`).
+ * The dates are always there, so a caller can choose which phases to ask for without their
+ * tables. `startDate` and `endDate` are null only on `regularSeason` when the day has no season
+ * calendar. `table` keeps S128's meaning of `phase`, `season` and `date` (for `playoffs`, those of
+ * the regular-season table its teams come from).
  */
-export type StandingsResponse = StandingsSnapshot;
+export type StandingsPhaseAnswer = {
+	startDate: string | null;
+	endDate: string | null;
+	table?: StandingsSnapshot;
+};
+
+/** Every season phase's answer for the day, keyed by phase; null for a phase the day's season can't answer. */
+export type StandingsPhases = {
+	spring: StandingsPhaseAnswer | null;
+	regularSeason: StandingsPhaseAnswer | null;
+	playoffs: StandingsPhaseAnswer | null;
+};
 
 /**
- * Games per day for one month (S124), from BT's stored schedule days, for S125's calendar date
- * picker: one entry per day of the month, in order.
+ * The division standings for one day (S4, S128): MLB's tables projected to BT's shape — the
+ * regular season's as of that day, the season's final table after it ends, spring training's
+ * in the spring (see `phase`). S128's fields stay at the top unchanged (ADR-015: additive only),
+ * so a client that doesn't know phases keeps its table; `phases` (S139) carries each season
+ * phase's dates and, when asked for, its table. `champion` (S140) names the World Series winner
+ * in the off-season, from the day it was won (`standingsChampion`), and is null otherwise; it
+ * doesn't depend on `includePhases`.
+ */
+export type StandingsResponse = StandingsSnapshot & {
+	phases: StandingsPhases;
+	champion: StandingsChampion | null;
+};
+
+/**
+ * Games per day for one month (S124) and the teams playing each day (S136), from BT's stored
+ * schedule days, for S125's calendar date picker: one entry per day of the month, in order.
  */
 export interface ScheduleMonthResponse {
 	/** The month, `YYYY-MM`. */
 	month: string;
-	/** Every day of the month, first to last; `count` is null for a day BT holds no schedule for. */
+	/**
+	 * Every day of the month, first to last; `count` and `teamIds` are null for a day BT holds no
+	 * schedule for.
+	 */
 	days: ScheduleDayCount[];
 }
 
@@ -160,10 +192,12 @@ export function toMeResponse(user: UserProfile): MeResponse
 }
 
 /**
- * How this deployment signs fans in (S116; ADR-019): its Logto tenant's address and the web
- * app's ID, read from the Worker's `vars` (`LOGTO_ENDPOINT`, `LOGTO_APP_ID`) so the web app keeps
- * no second copy. `logto` is null where the Worker offers no Logto sign-in: local dev (which signs
- * in as `dev:`), previews, and staging until its own tenant exists.
+ * How this deployment signs fans in (S116, S143; ADR-019). `logto` is its Logto tenant's address
+ * and the web app's ID, read from the Worker's `vars` (`LOGTO_ENDPOINT`, `LOGTO_APP_ID`) so the web
+ * app keeps no second copy; null where the Worker offers no Logto sign-in. `mock` is true only
+ * where the Worker signs in with the shared test account instead (staging, `BT_MOCK_SIGN_IN`). Where
+ * both say no, the deployment offers no sign-in at all: previews, and local dev, which signs in as
+ * `dev:` without asking.
  */
 export interface SignInConfigResponse {
 	logto: {
@@ -172,9 +206,23 @@ export interface SignInConfigResponse {
 		/** The single-page app's ID, the ID token's audience. */
 		appId: string;
 	} | null;
+	/** Whether `POST /api/v1/sign-in` takes {@link MOCK_SIGN_IN_CREDENTIAL} for the shared test account (staging only, S143). */
+	mock: boolean;
 }
 
-/** A sign-in hand-off: the ID token Logto's hosted sign-in gave the web app, sent once. */
+/**
+ * The one credential the mock sign-in accepts (S143): sent as `idToken` to `POST /api/v1/sign-in`
+ * where `GET /api/v1/sign-in` answers `mock: true`, it signs in as staging's one shared test account.
+ * Not a secret: it means nothing where the mock isn't wired (production and previews refuse it, as
+ * any token Logto can't verify), and staging holds no fan's data. Not a `dev:` token, which only
+ * local dev accepts.
+ */
+export const MOCK_SIGN_IN_CREDENTIAL = "bt-mock-sign-in";
+
+/**
+ * A sign-in hand-off, sent once: the ID token Logto's hosted sign-in gave the web app, or, where
+ * `GET /api/v1/sign-in` answers `mock: true` (staging, S143), `MOCK_SIGN_IN_CREDENTIAL`.
+ */
 export interface SignInRequest {
 	idToken: string;
 }

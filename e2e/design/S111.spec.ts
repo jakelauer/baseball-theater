@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S111's design match (rule 22): the scoreboard opened from `/`, with no day in the URL.
  * The default-date route is answered with the fixture day 2026-09-05 — a recording with every

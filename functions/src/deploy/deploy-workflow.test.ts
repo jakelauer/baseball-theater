@@ -7,6 +7,10 @@
  * `preview-teardown` job deletes when its pull request closes, and a closed pull request's preview
  * is never recreated by a run that was already queued. `scripts/preview-pr-open.sh` is the one
  * place both jobs ask GitHub whether the pull request is open; it runs here against a stand-in `gh`.
+ *
+ * Issue #48: every deploy's migrate step fails on a database whose migrations differ from the code's;
+ * only production's lets a database ahead of the code through, since re-running an older release's
+ * deploy is its rollback.
  */
 import { execFileSync } from "node:child_process";
 import {
@@ -18,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import {
 	afterEach, describe, expect, it,
 } from "vitest";
+import { MAY_BE_AHEAD_ENV } from "../adapters/postgres/migrate.js";
 
 /** A workflow's text, or "" when the file is missing (so each pin fails on its own rather than the whole file). */
 function workflow(name: string): string
@@ -233,5 +238,22 @@ describe("scripts/preview-pr-open.sh (issue #42)", () =>
 				args: "",
 			});
 		}
+	});
+});
+
+describe("deploy.yml migrate steps (issue #48)", () =>
+{
+	const migrateStep = (name: string) => steps(DEPLOY_YML && job(DEPLOY_YML, name)).find((step) => /\brun: pnpm db:migrate\n/.test(`${step}\n`)) ?? "";
+
+	it("issue #48: production's and previews' migrate steps let a database ahead of the code through; staging stays strict", () =>
+	{
+		// Production: re-running an older release's Deploy run is the rollback. A preview: its database is reset from
+		// staging, which is ahead of a pull request built before `stage` gained a newer migration (a re-run, or no push since).
+		for (const name of ["production", "preview"]) expect(migrateStep(name), name).toMatch(new RegExp(`\\n {14}env:\\n {18}${MAY_BE_AHEAD_ENV}: "1"\\n`));
+		expect(migrateStep("staging")).toMatch(/run: pnpm db:migrate/);
+		expect(migrateStep("staging")).not.toContain(MAY_BE_AHEAD_ENV);
+		// Set nowhere else (no workflow- or job-level env), so staging can't become permissive with these pins green.
+		const settings = DEPLOY_YML.split("\n").filter((line) => !/^\s*#/.test(line) && line.includes(MAY_BE_AHEAD_ENV));
+		expect(settings).toHaveLength(2);
 	});
 });

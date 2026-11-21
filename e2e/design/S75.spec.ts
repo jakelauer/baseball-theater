@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S75's design match (rule 22): Hide Scores in the game rooms, the frames that draw them
  * with no "Scores hidden" text — game-rooms A5 `live-hidden-status-mobile` /

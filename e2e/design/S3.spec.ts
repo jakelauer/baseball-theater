@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S3's design match (rule 22): the Live room's compact status in the pairing of each
  * game-rooms Live frame — `live-mobile` (the status row under the tabs) and

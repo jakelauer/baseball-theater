@@ -1,10 +1,10 @@
 import type {
-	ApiErrorResponse, ApiResponseFor, ApiRoute, ApiVersionTable, MeDeleteRequest,
+	ApiErrorResponse, ApiResponseFor, ApiRoute, ApiVersionTable, CacheLifetimeStep, MeDeleteRequest, SeasonPhaseName,
 } from "@bt/domain";
 import type { SettingsRepository } from "@bt/ports";
 import {
-	API_VERSIONS, DEFAULT_SETTINGS, apiVersionOf, deprecationHeaders, isCalendarMonth, latestScheduleMonth, mlbToday, parseAccountSettings,
-	toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
+	API_VERSIONS, DEFAULT_SETTINGS, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate, isCalendarMonth, latestScheduleMonth,
+	mlbDayEndsAt, mlbToday, parseAccountSettings, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
 import type { AccountDataDeps } from "../services/account-deletion.js";
 import { deleteAccount } from "../services/account-deletion.js";
@@ -22,7 +22,8 @@ import type { ApiUsageLog } from "../services/api-usage.js";
 import { getDayDigest } from "../services/digest.js";
 import { getScheduleMonth } from "../services/schedule-month.js";
 import { getDefaultScoreboardDate } from "../services/scoreboard-date.js";
-import { getStandings } from "../services/standings.js";
+import type { StandingsRead } from "../services/standings.js";
+import { getStandings, standingsNothingYet } from "../services/standings.js";
 import type { IngestDeps } from "../services/ingest.js";
 import { getOrRefreshGame, getOrRefreshSchedule } from "../services/ingest.js";
 import { edgeCacheControl } from "./cache-control.js";
@@ -92,10 +93,79 @@ function sendError(status: number, body: ApiErrorResponse): Response
  * the digest route (#61) `digestFreshness`, live while the day or any game is, last changed when
  * the latest of them did.
  */
-function withCacheControl(response: Response, entity: Parameters<typeof edgeCacheControl>[0], ctx: ApiContext): Response
+function withCacheControl(response: Response, entity: Parameters<typeof edgeCacheControl>[0], ctx: ApiContext, ladder?: readonly CacheLifetimeStep[]): Response
 {
-	response.headers.set("Cache-Control", edgeCacheControl(entity, ctx.ingest.now?.() ?? new Date()));
+	response.headers.set("Cache-Control", edgeCacheControl(entity, ctx.ingest.now?.() ?? new Date(), ladder));
 	return response;
+}
+
+/** An answer no cache may keep: a 400 or an upstream error. */
+function noStore(response: Response): Response
+{
+	response.headers.set("Cache-Control", "no-store");
+	return response;
+}
+
+/**
+ * The standings route's `includePhases` (S139 AC 3): every value of the parameter, each split on
+ * commas, so the comma form, the repeated form and the two mixed mean the same; the first API list
+ * parameter, so this is the convention. Names match exactly; a name given twice counts once. No
+ * parameter means every phase. Null when any name isn't a phase, is empty, or has spaces around it.
+ */
+export function parseIncludePhases(values: readonly string[]): SeasonPhaseName[] | null
+{
+	if (values.length === 0) return [...SEASON_PHASES];
+	const names = values.flatMap((value) => value.split(","));
+	if (!names.every((name) => (SEASON_PHASES as readonly string[]).includes(name))) return null;
+	return SEASON_PHASES.filter((phase) => names.includes(phase));
+}
+
+/**
+ * How the standings' edge cache judges an answer (S139 AC 8, ADR-021 with the standings' 30-day
+ * cap): the stand-in entity and the ladder. `windowMode: "cache"` whatever the tables say (the HTTP
+ * adapter labels every table `active`). A past day's tables only change by a late correction once
+ * the day is over in MLB's zone, so they count as last changed then; but the answer also carries
+ * its season's phase dates (and S140's winner), which the postseason can still move. So it goes by
+ * where the answer's season stands (`seasonSettling`, the rule the calendar cache uses too; the
+ * answer's season is the one its `phases` dates are for, which in January and February is last
+ * year's):
+ *
+ * - settled: last changed at the end of the day asked, on the standings' ladder (up to 30 days);
+ * - not over and before its postseason, or with no calendar for it: the end of the day asked, on
+ *   ADR-021's own ladder (48 hours at most; an entry made just before `regularSeasonEndDate` can
+ *   reach two days into the window, while `lastGameDate` only moves once the World Series is under
+ *   way, weeks later);
+ * - in its postseason window: just changed, so the floor.
+ *
+ * Today, a later day, no `date`, an answer with nothing in it yet, or one built while MLB couldn't
+ * give a calendar also count as just changed.
+ */
+function standingsFreshness({ answer, calendarsComplete }: StandingsRead, date: string | undefined, ctx: ApiContext): { entity: { windowMode: "cache";
+	lastChangedAt: string; };
+ladder?: readonly CacheLifetimeStep[]; }
+{
+	const now = ctx.ingest.now?.() ?? new Date();
+	const today = mlbToday(now);
+	const justChanged = {
+		entity: {
+			windowMode: "cache" as const,
+			lastChangedAt: now.toISOString(),
+		},
+	};
+	if (date === undefined || date >= today || !calendarsComplete || standingsNothingYet(answer, date)) return justChanged;
+	const regularSeasonEnd = answer.phases.regularSeason?.endDate;
+	// No playoffs phase means no postseason day: the last game is the regular season's last day.
+	const settling = seasonSettling(regularSeasonEnd, answer.phases.playoffs?.endDate ?? regularSeasonEnd, today);
+	if (settling === "postseason") return justChanged;
+	return {
+		entity: {
+			windowMode: "cache",
+			lastChangedAt: mlbDayEndsAt(date).toISOString(),
+		},
+		...settling === "settled" && {
+			ladder: STANDINGS_CACHE_LIFETIME_LADDER,
+		},
+	};
 }
 
 /** 401 means "signed out" to the web client (S49's API-layer note). */
@@ -252,14 +322,40 @@ export const API_ROUTER: readonly RouteEntry[] = [
 		{
 			// The day to show standings for; MLB's today when absent (S128).
 			const date = url.searchParams.get("date") ?? undefined;
-			if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date))
+			// A real date (`isCalendarDate`), not only the shape: `2026-02-30` is no day to answer or cache.
+			if (date !== undefined && !isCalendarDate(date))
 			{
-				return sendError(400, {
+				return noStore(sendError(400, {
 					error: "date_invalid",
 					hint: "YYYY-MM-DD",
-				});
+				}));
 			}
-			return sendJson(200, "GET /api/v1/standings", await getStandings(ctx.ingest, date));
+			const include = parseIncludePhases(url.searchParams.getAll("includePhases"));
+			if (include === null)
+			{
+				return noStore(sendError(400, {
+					error: "include_phases_invalid",
+					hint: `comma-separated phase names: ${SEASON_PHASES.join(",")}`,
+				}));
+			}
+			let read: StandingsRead;
+			try
+			{
+				read = await getStandings(ctx.ingest, date, include);
+			}
+			catch (error)
+			{
+				// MLB couldn't answer a standings table: an error, never cached (AC 8). A calendar it couldn't give is not
+				// an error (no calendar, S128 AC 7); that answer is kept only the floor (`standingsFreshness`). Logged by
+				// the error's name only, as sign-in is, so a programming error doesn't pass unseen.
+				console.error("standings failed:", error instanceof Error ? error.name : typeof error);
+				return noStore(sendError(502, {
+					error: "standings_unavailable",
+					hint: "MLB could not be reached; try again shortly",
+				}));
+			}
+			const { entity, ladder } = standingsFreshness(read, date, ctx);
+			return withCacheControl(sendJson(200, "GET /api/v1/standings", read.answer), entity, ctx, ladder);
 		},
 	},
 	{
@@ -383,9 +479,11 @@ export const API_ROUTER: readonly RouteEntry[] = [
 		route: "GET /api/v1/sign-in",
 		handle: async (_url, _params, ctx) =>
 		{
-			// The web app reads its Logto tenant and app ID from here, so it keeps no copy of its own (S116).
+			// The web app reads its Logto tenant and app ID from here, so it keeps no copy of its own (S116),
+			// and whether staging's mock sign-in is offered instead (S143).
 			const response = sendJson(200, "GET /api/v1/sign-in", {
 				logto: ctx.auth.logto?.config ?? null,
+				mock: ctx.auth.mock !== undefined,
 			});
 			response.headers.set("Cache-Control", "no-store");
 			return response;

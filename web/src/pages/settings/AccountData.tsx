@@ -167,6 +167,24 @@ function DeleteAccountDialog({
 	const { data: current } = useCurrentDownload();
 	const [phrase, setPhrase] = useState("");
 	const [state, setState] = useState<DeleteState>("idle");
+	const [signingIn, setSigningIn] = useState(false);
+
+	/**
+	 * "Sign in again": unavailable while the sign-in starts (Logto's SDK may still be loading), so a
+	 * second press can't start a second one. A sign-in that finishes on this page (staging's mock,
+	 * S143, or local dev) answers false and has just made the recent sign-in deletion asks for, so
+	 * the confirmation comes back, the typed phrase kept. One that leaves for Logto answers true and
+	 * the page goes; one that fails leaves the prompt to press again.
+	 */
+	function signInAgain()
+	{
+		setSigningIn(true);
+		session.signIn().then((leaving) =>
+		{
+			setSigningIn(false);
+			if (!leaving) setState("idle");
+		}, () => setSigningIn(false));
+	}
 
 	async function submit()
 	{
@@ -204,7 +222,7 @@ function DeleteAccountDialog({
 					<Text>Deleting your account needs a recent sign-in. Sign in again, then come back here to finish.</Text>
 					<Group justify="flex-end" gap="lg">
 						<ActionLink onClick={onClose}>Cancel</ActionLink>
-						<Button color="primary" onClick={() => void session.signIn()}>Sign in again</Button>
+						<Button color="primary" loading={signingIn} onClick={signInAgain}>Sign in again</Button>
 					</Group>
 				</Stack>
 			) : (

@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	CACHE_LIFETIME_CAP_MS, CACHE_LIFETIME_FLOOR_MS, CACHE_LIFETIME_LADDER, cacheLifetimeMs,
+	CACHE_LIFETIME_CAP_MS, CACHE_LIFETIME_FLOOR_MS, CACHE_LIFETIME_LADDER, cacheLifetimeMs, STANDINGS_CACHE_LIFETIME_CAP_MS, STANDINGS_CACHE_LIFETIME_LADDER,
 } from "./cache-lifetime.js";
 
 const MINUTE = 60 * 1000;
@@ -63,5 +63,34 @@ describe("cacheLifetimeMs", () =>
 			expect(CACHE_LIFETIME_LADDER[i]!.unchangedForMs).toBeGreaterThan(CACHE_LIFETIME_LADDER[i - 1]!.unchangedForMs);
 			expect(CACHE_LIFETIME_LADDER[i]!.lifetimeMs).toBeGreaterThanOrEqual(CACHE_LIFETIME_LADDER[i - 1]!.lifetimeMs);
 		}
+	});
+});
+
+describe("cacheLifetimeMs with STANDINGS_CACHE_LIFETIME_LADDER (S139)", () =>
+{
+	const HOUR_MS = 60 * 60 * 1000;
+	const DAY_MS = 24 * HOUR_MS;
+
+	it("follows ADR-021's ladder up to 48 hours: just under 48h unchanged is still 48h", () =>
+	{
+		expect(cacheLifetimeMs(48 * HOUR_MS - 1, STANDINGS_CACHE_LIFETIME_LADDER)).toBe(48 * HOUR_MS);
+		expect(cacheLifetimeMs(10 * HOUR_MS, STANDINGS_CACHE_LIFETIME_LADDER)).toBe(cacheLifetimeMs(10 * HOUR_MS));
+	});
+
+	it("unchanged for 48 hours gives 7 days; just under 7 days is still 7 days", () =>
+	{
+		expect(cacheLifetimeMs(48 * HOUR_MS, STANDINGS_CACHE_LIFETIME_LADDER)).toBe(7 * DAY_MS);
+		expect(cacheLifetimeMs(7 * DAY_MS - 1, STANDINGS_CACHE_LIFETIME_LADDER)).toBe(7 * DAY_MS);
+	});
+
+	it("unchanged for 7 days and past it gives the 30-day cap", () =>
+	{
+		expect(cacheLifetimeMs(7 * DAY_MS, STANDINGS_CACHE_LIFETIME_LADDER)).toBe(STANDINGS_CACHE_LIFETIME_CAP_MS);
+		expect(cacheLifetimeMs(400 * DAY_MS, STANDINGS_CACHE_LIFETIME_LADDER)).toBe(30 * DAY_MS);
+	});
+
+	it("with no ladder given, past 7 days is still ADR-021's 48-hour cap (games and schedules)", () =>
+	{
+		expect(cacheLifetimeMs(8 * DAY_MS)).toBe(CACHE_LIFETIME_CAP_MS);
 	});
 });

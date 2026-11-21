@@ -2,6 +2,9 @@
 # (Postgres 18), reached by the Worker through Hyperdrive's `localConnectionString` in
 # wrangler.jsonc — keep the user, password, database and port here in step with it.
 # `pnpm dev` starts it and waits for it to be healthy; data lives in the named volume.
+# A worktree's `.env.worktree` (S156, `scripts/worktree-for.sh`) sets BT_PG_PORT for the host
+# port and COMPOSE_PROJECT_NAME, which Compose reads itself, so each checkout gets its own
+# container and volume; without one it is today's 5432 and project.
 services:
     postgres:
         image: postgres:18
@@ -10,7 +13,7 @@ services:
             POSTGRES_PASSWORD: bt
             POSTGRES_DB: bt
         ports:
-            - "5432:5432"
+            - "${BT_PG_PORT:-5432}:5432"
         volumes:
             - bt-postgres:/var/lib/postgresql
         healthcheck:

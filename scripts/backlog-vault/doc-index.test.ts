@@ -6,10 +6,21 @@
 import {
 	describe, expect, it,
 } from "vitest";
+import type { LedgerState } from "./doc-index.ts";
 import {
-	isIndexedDoc, numberedRules, renderDocIndex, sections,
+	asOfLine, baselineHistory, docIndexFor, isIndexedDoc, numberedRules, renderDocIndex, sections,
 } from "./doc-index.ts";
+import {
+	AUDIT, FIXTURE, notesFor,
+} from "./fixture.ts";
+import { parseLedger } from "./ledger.ts";
 import type { Story } from "./parse.ts";
+
+/** A ledger with no entries, for the cases that are about something else. */
+const NO_LEDGER: LedgerState = {
+	entries: [],
+	head: "abc1234",
+};
 
 const story = (id: string, status: string, priority: number, extra: Partial<Story> = {}): Story => ({
 	id,
@@ -107,7 +118,7 @@ describe("renderDocIndex", () =>
 				path: "ARCHITECTURE.md",
 				text: big("ADR-001 — Something"),
 			}, {
-				path: "BACKLOG.md",
+				path: "AUDIT.md",
 				text: "not listed as a doc",
 			}],
 			frame: [{
@@ -115,6 +126,7 @@ describe("renderDocIndex", () =>
 				text: `# Rules\n1. **Rule one.**\n\n## Section\n${"y".repeat(13_000)}\n`,
 			}],
 			stories: [],
+			ledger: NO_LEDGER,
 		});
 		expect(index).toContain("- [SMALL.md — Small doc](SMALL.md) — 1 KB");
 		expect(index).not.toContain("Hidden section");
@@ -140,12 +152,56 @@ describe("renderDocIndex", () =>
 				story("S5", "doing", 9),
 				story("S6", "superseded", 4),
 			],
+			ledger: NO_LEDGER,
 		});
 		const rows = index.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Priority"));
 		expect(rows.map((r) => /\[(S\d+)\]/.exec(r)?.[1])).toEqual(["S5", "S4", "S2", "S3"]);
-		expect(index).toContain("| 5 | [S2](backlog/stories/S2.md) S2 table title | `todo` | S1 | S9 |");
-		expect(index).toContain("**`done`** (1): [S1](backlog/stories/S1.md)");
-		expect(index).toContain("**`superseded`** (1): [S6](backlog/stories/S6.md)");
+		expect(index).toContain("| 5 | [S2](backlog/stories/todo/S2.md) S2 table title | `todo` | S1 | S9 |");
+		expect(index).toContain("**`done`** (1): [S1](backlog/stories/done/S1.md)");
+		expect(index).toContain("**`superseded`** (1): [S6](backlog/stories/superseded/S6.md)");
+	});
+
+	it("puts open bugs in the same table as the stories, in one priority order, and lists the rest as bugs by status", () =>
+	{
+		const bug = (id: string, status: string, priority: number) => ({
+			id,
+			issue: Number(id.slice(1)),
+			title: `${id} | title`,
+			priority,
+			status,
+		});
+		const index = renderDocIndex({
+			docs: [],
+			frame: [],
+			stories: [story("S2", "todo", 5), story("S4", "todo", 2), story("S5", "doing", 9)],
+			bugs: [bug("B74", "todo", 4.5), bug("B80", "doing", 1), bug("B71", "done", 0), bug("B9", "blocked", 0)],
+			ledger: NO_LEDGER,
+		});
+		const rows = index.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Priority"));
+		expect(rows.map((r) => /\[([SB]\d+)\]/.exec(r)?.[1])).toEqual(["B80", "S5", "S4", "B74", "S2", "B9"]);
+		expect(index).toContain("| 4.5 | [B74](backlog/bugs/todo/B74.md) Bug #74: B74 \\| title | `todo` | — | — |");
+		expect(index).toContain("**Bugs `done`** (1): [B71](backlog/bugs/done/B71.md)");
+	});
+
+	it("puts a bug before a story of equal priority, and lists closed bugs by issue number", () =>
+	{
+		const bug = (id: string, status: string, priority: number) => ({
+			id,
+			issue: Number(id.slice(1)),
+			title: id,
+			priority,
+			status,
+		});
+		const index = renderDocIndex({
+			docs: [],
+			frame: [],
+			stories: [story("S2", "todo", 5)],
+			bugs: [bug("B74", "todo", 5), bug("B80", "done", 1), bug("B71", "done", 2)],
+			ledger: NO_LEDGER,
+		});
+		const rows = index.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Priority"));
+		expect(rows.map((r) => /\[([SB]\d+)\]/.exec(r)?.[1])).toEqual(["B74", "S2"]);
+		expect(index).toContain("**Bugs `done`** (2): [B71](backlog/bugs/done/B71.md), [B80](backlog/bugs/done/B80.md)");
 	});
 });
 
@@ -154,5 +210,55 @@ describe("isIndexedDoc", () =>
 	it("takes Markdown directly in docs/v3/, not subfolders or the index itself", () =>
 	{
 		expect(["ARCHITECTURE.md", "INDEX.md", "visual/x/DESIGN.md", "audit.jsonl"].map(isIndexedDoc)).toEqual([true, false, false, false]);
+	});
+});
+
+describe("docIndexFor", () =>
+{
+	it("lists the bug notes among the built notes", () =>
+	{
+		const bugNote = "---\nid: B74\nissue: 74\ntitle: A bug\npriority: 3\nstatus: todo\n---\n\nhttps://github.com/o/r/issues/74\n";
+		const index = docIndexFor(FIXTURE, new Map([...notesFor(FIXTURE), ["bugs/todo/B74.md", bugNote]]), [], NO_LEDGER);
+		expect(index).toContain("| 3 | [B74](backlog/bugs/todo/B74.md) Bug #74: A bug | `todo` | — | — |");
+	});
+
+	it("carries the generated Next and review-debt lines (BACKLOG.md, which held them, is retired)", () =>
+	{
+		const index = docIndexFor(FIXTURE, notesFor(FIXTURE), [], {
+			entries: parseLedger(AUDIT),
+			head: "abc1234",
+		});
+		expect(index).toContain("**Next (generated):** **1 / S9** — the lowest **Priority** `todo` story not waiting on a design.");
+		expect(index).toContain("**Review debt (generated from the ledger):** 1 of 6 stories `done` since the last backlog review");
+	});
+});
+
+describe("asOfLine and baselineHistory (S156 AC 7: the As of line is built, not hand-edited)", () =>
+{
+	const withBaseline = (id: string, text: string) => story(id, "done", 1, {
+		body: `\n**Gap:** g.\n\n**Baseline:** ${text}\n\n**Status:** \`done\``,
+	});
+	const ledger = (...ids: string[]): LedgerState => ({
+		entries: parseLedger(ids.map((id, i) => `## 2026-11-2${i} — ${id} completed\n`).join("")),
+		head: "abc1234",
+	});
+
+	it("names the newest completion by ledger order, its date, HEAD and its **Baseline:** text", () =>
+	{
+		const stories = [withBaseline("S200", "the scoreboard row moved."), withBaseline("S201", "the game row moved.")];
+		expect(asOfLine(stories, ledger("S200", "S201"))).toBe("**As of:** 2026-11-21 (HEAD `abc1234`) — **S201** landed: the game row moved.");
+		expect(asOfLine(stories, ledger("S201", "S200"))).toContain("**S200** landed: the scoreboard row moved.");
+	});
+
+	it("points at the frozen history for a story with no **Baseline:** line, and says when nothing has landed", () =>
+	{
+		expect(asOfLine([story("S84", "done", 1)], ledger("S84"))).toContain("**S84** landed (its note has no **Baseline:** line; see [Baseline history]");
+		expect(asOfLine([], NO_LEDGER)).toBe("**As of:** HEAD `abc1234` — no story has landed yet.");
+	});
+
+	it("lists the **Baseline:** lines newest first, each story once, skipping stories without one", () =>
+	{
+		const stories = [withBaseline("S200", "a."), story("S84", "done", 1), withBaseline("S201", "b.")];
+		expect(baselineHistory(stories, ledger("S200", "S84", "S201", "S200"))).toEqual(["- 2026-11-23 — **S200**: a.", "- 2026-11-22 — **S201**: b."]);
 	});
 });

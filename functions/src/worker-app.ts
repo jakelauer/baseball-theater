@@ -9,6 +9,7 @@
  * R2 and Email adapters (the launch checklist). Recording replays is a Node-only tool
  * (`src/scripts/`) and has no place in the Worker.
  */
+import { cachedSeasonCalendars, defaultCalendarStore } from "./adapters/cached-season-calendars.js";
 import type { MlbStatsClient } from "@bt/ports";
 import {
 	createDevAccountData, createDevAuth, StaticSecretsProvider,
@@ -16,6 +17,7 @@ import {
 import { createBundledFixtureClient } from "./adapters/fixtures/bundled.js";
 import { LogtoIdentityAdmin, LogtoManagementApi } from "./adapters/logto/admin.js";
 import { LogtoIdentityProvider } from "./adapters/logto/identity.js";
+import { MockIdentityProvider } from "./adapters/mock/identity.js";
 import { HttpMlbStatsClient } from "./adapters/http/mlb.js";
 import type { MlbOverlaySource } from "./adapters/overlay-mlb.js";
 import { overlayMlbClient, storeOverlay } from "./adapters/overlay-mlb.js";
@@ -54,8 +56,9 @@ export type WorkerEnv = {
 	BT_LOCAL?: string;
 	/**
 	 * The Logto tenant's address and the single-page app's ID (S116): where both are set, the
-	 * Worker offers Logto sign-in. Per-env `vars` in `wrangler.jsonc`; only production names them
-	 * today (staging gets its own tenant's once it exists; previews never do).
+	 * Worker offers Logto sign-in. Per-env `vars` in `wrangler.jsonc`; only production names them.
+	 * Staging signs in with the mock test account instead (`BT_MOCK_SIGN_IN`), and previews offer
+	 * no sign-in at all.
 	 */
 	LOGTO_ENDPOINT?: string;
 	LOGTO_APP_ID?: string;
@@ -68,6 +71,12 @@ export type WorkerEnv = {
 	 */
 	LOGTO_S2S_APP_ID?: string;
 	LOGTO_S2S_SECRET?: string;
+	/**
+	 * `"1"` signs fans in as staging's one shared test account (S143; `mockSignInAllowed`): set in
+	 * `env.staging`'s vars only, so staging's Sign in works with no Logto tenant,
+	 * while production signs in through Logto and previews offer no sign-in at all.
+	 */
+	BT_MOCK_SIGN_IN?: string;
 	/** `"1"` lets the cron tick ingest in local dev (ADR-002 cadence; off by default, as `local-server.ts`). */
 	BT_INGEST_TICK?: string;
 	/** The per-game ingest objects (S48; `wrangler.jsonc` `durable_objects`); absent under Node. */
@@ -114,11 +123,14 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 {
 	const schedules = new PostgresScheduleRepository(db);
 	const games = new PostgresGameRepository(db);
+	const mlb = createMlbClient(env, storeOverlay({
+		schedules,
+		games,
+	}));
 	const ingest: IngestDeps = {
-		mlb: createMlbClient(env, storeOverlay({
-			schedules,
-			games,
-		})),
+		mlb,
+		// The standings' calendars, kept for a day (S139 AC 8): the Workers Cache in the Worker, memory under Node.
+		seasonCalendars: cachedSeasonCalendars(mlb, defaultCalendarStore()),
 		schedules,
 		games,
 		projections: new PostgresGameProjectionRepository(db),
@@ -137,6 +149,9 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		...devSignInAllowed(env) ? devAuth : withoutDevSignIn(devAuth),
 		...logto && {
 			logto,
+		},
+		...mockSignInAllowed(env) && {
+			mock: new MockIdentityProvider(),
 		},
 	};
 	const settings = new PostgresSettingsRepository(db);
@@ -175,6 +190,17 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 export function devSignInAllowed(env: WorkerEnv): boolean
 {
 	return env.BT_LOCAL === "1";
+}
+
+/**
+ * Whether the mock sign-in is wired (S143 AC 2): only where the env sets `BT_MOCK_SIGN_IN` to
+ * `"1"` and names no Logto tenant, not even half of one (`LOGTO_ENDPOINT` or `LOGTO_APP_ID` alone),
+ * so a mis-set tenant never falls back to the shared test account. `wrangler.jsonc` sets the var in
+ * `env.staging` only; production and previews never accept the mock credential.
+ */
+export function mockSignInAllowed(env: WorkerEnv): boolean
+{
+	return env.BT_MOCK_SIGN_IN === "1" && !env.LOGTO_ENDPOINT && !env.LOGTO_APP_ID;
 }
 
 /** Logto sign-in where the env's vars name the tenant and the app (S116 AC 2); none elsewhere. */

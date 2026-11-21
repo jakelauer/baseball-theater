@@ -17,17 +17,27 @@ export type SessionState =
 		account: Account;
 	};
 
+/**
+ * Whether this page offers a way to sign in (S143), from the Worker's one answer (`signInWay.ts`):
+ * `loading` until it answers, `none` where it offers no sign-in at all (previews), and `offered`
+ * otherwise, including when the question failed, so a fan whose request failed still has a way in.
+ */
+export type SignInOffer = "loading" | "offered" | "none";
+
 export type Session = SessionState & {
+	/** Whether to show "Sign in" (S143 AC 6): the header shows it only when `offered`. */
+	signInOffer: SignInOffer;
 	/**
 	 * The one way to start signing in; the header's "Sign in" and Settings' "Sign in
 	 * again" call it (S60, S79). Where the deployment offers Logto (S116) it sends the
-	 * browser to Logto's hosted sign-in, always for a fresh emailed code; locally it is
-	 * the dev sign-in as `dev:test-user`; a production build without Logto (previews)
+	 * browser to Logto's hosted sign-in, always for a fresh emailed code; on staging (S143)
+	 * it signs in as the shared test account with no navigation; locally it is the dev
+	 * sign-in as `dev:test-user`; where the deployment offers no sign-in (previews) it
 	 * does nothing.
 	 *
 	 * Answers true when the browser is now leaving for Logto (a caller showing progress keeps
-	 * showing it), false when sign-in finished or couldn't start here (the dev sign-in, a
-	 * production build without Logto), so a caller can put its control back.
+	 * showing it), false when sign-in finished or couldn't start here (the mock or dev sign-in,
+	 * a deployment with none), so a caller can put its control back.
 	 */
 	signIn(): Promise<boolean>;
 	/**
@@ -36,7 +46,7 @@ export type Session = SessionState & {
 	 * for the same callback URL answers the same result rather than a second hand-off.
 	 */
 	finishSignIn(callbackUrl: string): Promise<string>;
-	/** Ends BT's session and clears every personal browser key; where Logto signed in, ends Logto's too. */
+	/** Ends BT's session and clears every personal browser key; where Logto signed in, ends Logto's too (never for the mock). */
 	signOut(): void;
 };
 

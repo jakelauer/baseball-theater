@@ -14,7 +14,11 @@ deploy machinery is reviewed in full on every run, whatever its record says. `is
 exactly what that means: workflows, scripts/, functions/src/scripts/, the deploy code, tools/, every
 package.json, tsconfig and `*.config.*` file at any depth, and the root duplication, size and Lighthouse
 configs. Everything else CI runs (application code, tests, pnpm-lock.yaml) is not on
-the list and, like any file a forged record marks as reviewed, relies on the trust model above. Other sensitive paths (`is_sensitive`: auth, sessions, migrations, deploys) no longer force a
+the list and, like any file a forged record marks as reviewed, relies on the trust model above. A story
+or bug grader (`scripts/verify-S<N>.sh`, `-B<N>`, `-V<N>`; `GRADER_RE`) is not on it either (S156 AC 2):
+no workflow runs one (law L12, `scripts/backlog-vault/grader-ci-law.test.ts`), so it can't forge a
+record or change what CI does, and a merge from stage into a branch whose only machinery is its grader
+gets an `unchanged` review instead of a paid full one. Other sensitive paths (`is_sensitive`: auth, sessions, migrations, deploys) no longer force a
 full Opus review on every push: that cost $1-2.20 a push, $17.67 of the first three days' $62 (owner,
 2026-11-14, of the reviewer's cost: "That is WAY more than it should be. Not worth it.", then agreeing to
 Sonnet only, a low turn cap, and only new commits after the first review: "Ok I'm good with that").
@@ -27,7 +31,11 @@ Sonnet only, a low turn cap, and only new commits after the first review: "Ok I'
   the PR touches no `is_reviewer_path` file (those always re-review): no model call; the post step says so and carries the record forward.
 
 Model and turns: always Sonnet (same owner answer; an Opus review cost $1-2.20, a Sonnet one about
-$0.18). Docs only, up to 300 changed lines, gets 15 turns; anything else 20. --max-turns counts model
+$0.18). Docs only, up to 300 changed lines, gets 15 turns; other reviews get 15 + files read / 3 + added
+lines / 1000, at least 20 and at most 50 (owner, 2026-11-20, after S156's 18,827-line review hit 20 turns
+and posted nothing: "Can you give it a higher limit?", then "Yeah use the formula"; see MIN_TURNS). An
+incremental review counts its new lines plus the whole change of the CI and deploy files it re-reads in
+full. --max-turns counts model
 responses, not tool calls, so the prompt tells the reviewer to batch independent reads into one response. Every turn re-sends the whole
 conversation, so turns are most of the cost. A run that hits its cap posts nothing and fails, so the
 prompt tells the reviewer its budget and to keep a turn for the answer.
@@ -55,6 +63,8 @@ REVIEWER_PATHS = (".github/", ".claude/settings.json", ".cursor/", ".husky/", "s
 # At any depth: `pnpm` runs each package.json's scripts, and every `*.config.*` (vitest, Playwright, Vite,
 # PostCSS, ESLint, Drizzle) and tsconfig is loaded or run by a build, a test run or a deploy.
 REVIEWER_NAMES = re.compile(r"(^|/)(package\.json|tsconfig[a-z.]*\.json|[a-z.-]+\.config\.[a-z]+)$")
+# A story's, bug's or vault migration's grader: only `scripts/audit.sh` runs one, locally (law L12).
+GRADER_RE = re.compile(r"^scripts/verify-[SBV][0-9]+\.sh$")
 SONNET = "claude-sonnet-5-5"
 
 
@@ -78,7 +88,10 @@ def is_sensitive(path: str) -> bool:
 
 
 def is_reviewer_path(path: str) -> bool:
-    """CI and deploy machinery (the docstring's list): REVIEWER_PATHS, or REVIEWER_NAMES at any depth."""
+    """CI and deploy machinery (the docstring's list): REVIEWER_PATHS, or REVIEWER_NAMES at any depth,
+    except a grader (GRADER_RE), which no workflow runs (law L12)."""
+    if GRADER_RE.fullmatch(path):
+        return False
     return path.startswith(REVIEWER_PATHS) or bool(REVIEWER_NAMES.search(path))
 
 
@@ -89,6 +102,11 @@ def blob(commit: str, path: str) -> str:
 
 def changed_lines(patch: str) -> int:
     return sum(1 for line in patch.splitlines() if line[:1] in "+-" and not line.startswith(("+++", "---")))
+
+
+def added_lines(patch: str) -> int:
+    """Lines a patch adds: what a reviewer reads as new code; deletions and moves cost little to review."""
+    return sum(1 for line in patch.splitlines() if line[:1] == "+" and not line.startswith("+++"))
 
 
 def previous_record(reviews: list) -> dict | None:
@@ -109,10 +127,48 @@ def previous_record(reviews: list) -> dict | None:
     return None
 
 
-def tier(paths: list[str], lines: int) -> tuple[str, int, str]:
+def decide_mode(record: dict | None, pr_files: dict[str, str], rules: dict[str, str], record_head_in_history: bool) -> tuple[str, str, list[str]]:
+    """The review's mode (the docstring's three), why, and the files to review in full, with no git or
+    gh call, so `test_plan_review.py` can prove it. `pr_files` maps each of the pull request's paths to
+    its blob at the head ("deleted" when removed); `rules` maps each RULE_FILES path to its blob on the
+    base; `record_head_in_history` says whether the record's head is still an ancestor of this head
+    (ignored without a record)."""
+    pr_paths = list(pr_files)
+    if not record:
+        return "full", "first review", pr_paths
+    if record.get("rules") != rules:
+        return "full", "the rules or checklist changed since the last review", pr_paths
+    if not record_head_in_history:
+        return "full", "the last reviewed commit is no longer in this branch's history", pr_paths
+    recorded = record.get("files", {})
+    changed = sorted(p for p in set(pr_files) | set(recorded) if pr_files.get(p, "deleted") != recorded.get(p, "deleted"))
+    # A same-repo workflow can forge a record, so CI and deploy machinery never skips.
+    machinery = sorted({p for p in pr_paths if is_reviewer_path(p)} - set(changed))
+    since = sorted(changed + machinery)
+    at = str(record.get("head", ""))[:7]
+    if not since:
+        return "unchanged", f"no file changed since the review of {at}", []
+    # The reason counts only what changed; CI and deploy files re-read anyway are named apart.
+    why = f"{len(changed)} file(s) changed since the review of {at}"
+    if machinery:
+        why += f", plus {len(machinery)} CI or deploy file(s) always re-reviewed"
+    return "incremental", why, since
+
+
+# Turns scale with what the reviewer reads (owner, 2026-11-20, asked whether turns should be based on
+# size, "Like 0.01 x lines changed or something", then, shown this formula: "Yeah use the formula").
+# Reads are batched several to a turn, so files cost a third of a turn each, and only added lines count
+# (deletions and mechanical moves cost little to review). The floor keeps small reviews as they were; the
+# ceiling bounds the cost, since every turn re-sends the whole conversation (S156's 18,827-line review,
+# #117, ran out at a flat 20 and posted nothing). A pull request that needs more should be split.
+MIN_TURNS, MAX_TURNS = 20, 50
+
+
+def tier(paths: list[str], lines: int, added: int) -> tuple[str, int, str]:
     if paths and all(is_docs(p) for p in paths) and lines <= 300:
         return SONNET, 15, f"docs only, {lines} changed lines"
-    return SONNET, 20, f"{lines} changed lines"
+    turns = max(MIN_TURNS, min(MAX_TURNS, round(15 + len(paths) / 3 + added / 1000)))
+    return SONNET, turns, f"{len(paths)} files, {added} added lines ({lines} changed)"
 
 
 def prompt(mode: str, pr: str, head: str, review_dir: str, turns: int) -> str:
@@ -186,35 +242,28 @@ def main() -> int:
     reviews = [r for page in reviews for r in page]
     record = previous_record(reviews)
 
-    mode, why, reviewed = "full", "first review", pr_paths
-    if record:
-        if record.get("rules") != rules:
-            why = "the rules or checklist changed since the last review"
-        elif not (git_ok("cat-file", "-e", f"{record.get('head')}^{{commit}}") and git_ok("merge-base", "--is-ancestor", record["head"], head)):
-            why = "the last reviewed commit is no longer in this branch's history"
-        else:
-            changed = sorted(p for p in set(files) | set(record.get("files", {})) if files.get(p, "deleted") != record.get("files", {}).get(p, "deleted"))
-            # A same-repo workflow can forge a record, so CI and deploy machinery never skips.
-            machinery = sorted({p for p in pr_paths if is_reviewer_path(p)} - set(changed))
-            since = sorted(changed + machinery)
-            at = record["head"][:7]
-            if not since:
-                mode, why, reviewed = "unchanged", f"no file changed since the review of {at}", []
-            else:
-                # The reason counts only what changed; CI and deploy files re-read anyway are named apart.
-                why = f"{len(changed)} file(s) changed since the review of {at}"
-                if machinery:
-                    why += f", plus {len(machinery)} CI or deploy file(s) always re-reviewed"
-                mode, reviewed = "incremental", since
+    in_history = bool(record) and git_ok("cat-file", "-e", f"{record.get('head')}^{{commit}}") and git_ok("merge-base", "--is-ancestor", str(record.get("head")), head)
+    mode, why, reviewed = decide_mode(record, files, rules, in_history)
 
     if mode == "incremental":
         patch = git("diff", record["head"], head, "--", *reviewed)
         with open(os.path.join(review_dir, "incremental.patch"), "w", encoding="utf-8") as f:
             f.write(patch)
+        lines, added = changed_lines(patch), added_lines(patch)
+        # CI and deploy files are re-read in full even when unchanged since the record, so the turn
+        # budget counts their whole change against the base too; counting only the new lines gave a
+        # 10-line push to a big pull request 20 turns for a re-read that had needed more. These are the
+        # files decide_mode added as machinery: reviewer paths unchanged since the record.
+        recorded = record.get("files", {})
+        machinery = [p for p in reviewed if is_reviewer_path(p) and files.get(p, "deleted") == recorded.get(p, "deleted")]
+        if machinery:
+            whole = git("diff", f"{base}...{head}", "--", *machinery)
+            lines, added = lines + changed_lines(whole), added + added_lines(whole)
     else:
         with open(os.path.join(review_dir, "diff.patch"), encoding="utf-8") as f:
             patch = f.read()
-    model, turns, tier_why = tier(reviewed, changed_lines(patch))
+        lines, added = changed_lines(patch), added_lines(patch)
+    model, turns, tier_why = tier(reviewed, lines, added)
 
     with open(os.path.join(review_dir, "reviewed.txt"), "w", encoding="utf-8") as f:
         f.write("".join(f"{p}\n" for p in reviewed))

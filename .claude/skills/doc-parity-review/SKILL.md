@@ -7,7 +7,7 @@ description: Check that the product docs (INTENT, FEATURES) still describe what 
 
 A [backlog review](../backlog-review/SKILL.md) asks whether the **plan** still holds against the repo. This review asks whether the **docs that justify the plan** still say what is being built. INTENT and FEATURES are the source of truth for future sessions, so a doc that drifts from the backlog is worse than no doc: the next agent will trust it.
 
-Rule 19 in `docs/v3/BACKLOG.md` is the contract. Every story's `**Source:**` line cites, in order of preference, a **feature** in FEATURES, an owner-approved **pillar** in INTENT, or an **open** question for the owner. `pnpm backlog:check` already proves each citation _resolves_. This review checks that it is _honest_.
+Rule 19 (frame note `docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md`) is the contract. Every story's `**Source:**` line cites, in order of preference, a **feature** in FEATURES, an owner-approved **pillar** in INTENT, or an **open** question for the owner. `pnpm backlog:check` already proves each citation _resolves_. This review checks that it is _honest_.
 
 ## When it is due
 
@@ -23,13 +23,15 @@ Other story-text edits don't count: a feature citation is checked against FEATUR
 
 Do not start a story while it is due. Run it with **fresh context** (a separate agent or session; as a subagent, the `doc-parity-reviewer` agent type, which loads this skill). An agent that wrote a story will defend its citation.
 
+**It runs beside the items in flight, never pausing them** (S156; owner, 2026-11-20, asked "Should backlog and doc parity reviews run in parallel with in-flight items? …": _"Run them in parallel (Recommended)"_). `pnpm parity:debt` reads the in-flight items from `.run/` (or `--in-flight <IDs>`) and prints the `done` count and the in-flight count. While items are in flight, edit only notes of items not in flight (not claimed in `.run/claims/`): before committing, `git diff --name-only <base> | node scripts/backlog-vault/claims.ts review-edits --root "$MAIN"` (`MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")`, the main checkout, where `.run/` lives) reports an edit to an in-flight item's note (exit 1), which you undo and report instead. A finding on an in-flight item's `**Source:**` line goes to the overseer, who hands it to that item's worker before it ships; a `blocked` verdict stops new dispatches only, and in-flight items finish; log the IDs with `scripts/audit.sh parity … --in-flight <IDs>`.
+
 ## Write scope: this is what prevents thrash
 
 You may edit **only**:
 
 - `docs/v3/FEATURES.md` and `docs/v3/INTENT.md`
-- the `**Source:**` line of story notes in `docs/v3/backlog/stories/`, plus `docs/v3/BACKLOG.md` via `pnpm backlog:build`
-- `docs/v3/AUDIT.md`, via `scripts/audit.sh parity` only
+- the `**Source:**` line of story notes in `docs/v3/backlog/stories/<status>/` (then `pnpm backlog:build`), except notes of items in flight (below)
+- the ledger (a new fragment under `docs/v3/audit/<date>/`), via `scripts/audit.sh parity` only
 
 And only to **record a decision the owner has already made**: their words in this session, a story they asked for, or a commit or ledger entry that records their call. Cite it in the finding. Never write product intent yourself.
 

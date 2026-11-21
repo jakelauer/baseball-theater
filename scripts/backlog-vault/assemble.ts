@@ -1,16 +1,25 @@
 /**
- * Build `BACKLOG.md` from the notes under docs/v3/backlog/ (docs/v3/VAULT-MIGRATION.md, V3).
- * Pure: path → content in, markdown + canonical notes out.
+ * Assemble the notes under docs/v3/backlog/ into one backlog document, in memory, and check it
+ * (docs/v3/VAULT-MIGRATION.md, V3). The document is the notes laid end to end (the frame notes in
+ * order, each `![[S<N>]]` embed replaced by its story), which parse.ts reads back, so a note whose
+ * frontmatter disagrees with its body, a missing embed, a broken design gate or an invalid
+ * **Source:** fails the build. It was once written to docs/v3/BACKLOG.md, retired by S156 (owner,
+ * 2026-11-20: "Retire it (Recommended)"); nothing writes it now. Pure: path → content in, the
+ * document + canonical notes out.
  */
 
+import { placeBugNotes } from "./bugs.ts";
 import { parse as parseYaml } from "yaml";
+import type { LedgerEntry } from "./ledger.ts";
+import { storiesDoneSince } from "./ledger.ts";
 import {
-	GENERATED_LINES, parseBacklog, STATUS_TABLE_MARKER, storyIds,
+	parseBacklog, STATUS_TABLE_MARKER, storyIds,
 } from "./parse.ts";
-import { parseLedger, storiesDoneSince } from "./ledger.ts";
 import type { SourceDocs } from "./source.ts";
 import { sourceProblems } from "./source.ts";
-import { renderNotes } from "./vault.ts";
+import {
+	renderNotes, STORY_NOTE_KEY, STORY_STATUSES,
+} from "./vault.ts";
 
 export class VaultAssembleError extends Error
 {
@@ -74,9 +83,10 @@ function readStoryNote(path: string, content: string): StoryNote
 		throw fail("frontmatter 'priority' must be an integer");
 	}
 	const status = text("status");
-	if (!/^[a-z]+$/.test(status))
+	// The status names the note's folder (vault.ts storyNotePath), so an unknown one is refused rather than made into a folder.
+	if (!STORY_STATUSES.includes(status))
 	{
-		throw fail(`frontmatter 'status' must be a lowercase word, got '${status}'`);
+		throw fail(`frontmatter 'status' must be one of ${STORY_STATUSES.join(", ")}, got '${status}'`);
 	}
 
 	const body = content.slice(match[0].length).replace(/^\n+/, "").replace(/\s+$/, "");
@@ -116,7 +126,7 @@ function storySection(story: StoryNote): string
 	return `### ${story.id} — ${story.title}\n\n${story.content}\n\n**Status:** \`${story.status}\``;
 }
 
-/** Review debt is due at this many `done` stories since the last review (BACKLOG rule 11; doubled from 3 by the owner, 2026-10-21; a single drift event still triggers it). */
+/** Review debt is due at this many `done` stories since the last review (backlog rule 11; doubled from 3 by the owner, 2026-10-21; a single drift event still triggers it). */
 const REVIEW_BACKSTOP = 6;
 
 /** What the Next line needs to know about a story. */
@@ -129,6 +139,27 @@ export interface NextCandidate
 	design: string[];
 	/** Its `**Source:**` is an open question for the owner (rule 19). */
 	openSource?: boolean;
+}
+
+/** What the generated Next and review-debt lines in docs/v3/INDEX.md (doc-index.ts) start with. */
+export const GENERATED_PREFIX = {
+	next: "**Next (generated):** ",
+	reviewDebt: "**Review debt (generated from the ledger):** ",
+} as const;
+
+/** What the Next line reads from a story note: its open-question **Source:** and **Design:** stories. */
+export function nextCandidate(story: { id: string;
+	priority: number;
+	status: string;
+	body: string }): NextCandidate
+{
+	return {
+		id: story.id,
+		priority: story.priority,
+		status: story.status,
+		design: storyIds(/^\*\*Design:\*\*(.*)$/m.exec(story.body)?.[1]),
+		openSource: /^\*\*Source:\*\* Open:/m.test(story.body),
+	};
 }
 
 /**
@@ -166,34 +197,43 @@ export function nextStoryLine(stories: NextCandidate[]): string
 	{
 		text = "no `todo` stories remain.";
 	}
-	return `${GENERATED_LINES.next.prefix}${text}`;
+	return `${GENERATED_PREFIX.next}${text}`;
 }
 
 /**
- * `**Review debt (generated …):**` — stories completed since the newest backlog review in AUDIT.md.
+ * `**Review debt (generated …):**` — stories completed since the newest backlog review in the ledger.
  * The count is ledger.ts's {@link storiesDoneSince}, the same one `pnpm review:debt` reports.
  */
-export function reviewDebtLine(audit: string): string
+export function reviewDebtLine(entries: LedgerEntry[]): string
 {
-	const { review, stories: since } = storiesDoneSince(parseLedger(audit), "backlog");
+	const { review, stories: since } = storiesDoneSince(entries, "backlog");
 	const count = `${since.length} of ${REVIEW_BACKSTOP} stories \`done\` since the last backlog review`;
 	const when = review ? ` (${review.date}, verdict \`${review.verdict}\`)` : " (no review logged yet)";
 	const which = since.length > 0 ? `: ${since.join(", ")}` : "";
 	const verdict = since.length >= REVIEW_BACKSTOP
 		? " **A review is due before the next story starts.**"
 		: " A drift event makes a review due regardless of this count.";
-	return `${GENERATED_LINES.reviewDebt.prefix}${count}${when}${which}.${verdict}`;
+	return `${GENERATED_PREFIX.reviewDebt}${count}${when}${which}.${verdict}`;
 }
 
-/** `audit` is docs/v3/AUDIT.md; required only when a frame note carries the review-debt marker. */
-export function assembleBacklog(files: Map<string, string>, audit?: string): string
+/** The in-memory backlog document: the frame notes in order, each story embed replaced by its section. */
+export function assembleBacklog(files: Map<string, string>): string
 {
 	const stories = new Map<string, StoryNote>();
+	// Story notes sit in status folders (vault.ts storyNotePath), so two copies of one ID can
+	// coexist on disk (a note copied rather than moved); refuse rather than pick one.
+	const pathById = new Map<string, string>();
 	for (const [path, content] of files)
 	{
-		if (/^stories\/S\d+\.md$/.test(path))
+		if (STORY_NOTE_KEY.test(path))
 		{
 			const note = readStoryNote(path, content);
+			const other = pathById.get(note.id);
+			if (other !== undefined)
+			{
+				throw new VaultAssembleError(`two notes share the ID ${note.id}: ${other} and ${path} — keep one`);
+			}
+			pathById.set(note.id, path);
 			stories.set(note.id, note);
 		}
 	}
@@ -247,46 +287,35 @@ export function assembleBacklog(files: Map<string, string>, audit?: string): str
 		{
 			return rows.join("\n");
 		}
-		if (line === GENERATED_LINES.next.marker)
-		{
-			return nextStoryLine([...stories.values()].map((note) => ({
-				...note,
-				design: storyIds(/^\*\*Design:\*\*(.*)$/m.exec(note.content)?.[1]),
-				openSource: /^\*\*Source:\*\* Open:/m.test(note.content),
-			})));
-		}
-		if (line === GENERATED_LINES.reviewDebt.marker)
-		{
-			if (audit === undefined)
-			{
-				throw new VaultAssembleError("a frame note needs the review-debt line, but no AUDIT.md was provided");
-			}
-			return reviewDebtLine(audit);
-		}
 		const id = /^!\[\[(S\d+)\]\]$/.exec(line)?.[1];
 		return id === undefined ? line : storySection(stories.get(id) as StoryNote);
 	}).join("\n");
 }
 
-/** What `pnpm backlog:build` writes: BACKLOG.md, and every note in canonical form with derived fields refreshed. */
+/**
+ * What `pnpm backlog:build` works from: the in-memory backlog document, and every note in canonical
+ * form with derived fields refreshed (bug notes as written, in their status folder).
+ */
 export interface BuiltBacklog
 {
+	/** The assembled document (never written to disk; parse.ts reads it back). */
 	backlog: string;
 	notes: Map<string, string>;
 }
 
 /** `docs`, when given, checks every story's `**Source:**` line against FEATURES.md and INTENT.md (rule 19). */
-export function buildFromNotes(files: Map<string, string>, audit?: string, docs?: SourceDocs): BuiltBacklog
+export function buildFromNotes(files: Map<string, string>, docs?: SourceDocs): BuiltBacklog
 {
-	const backlog = assembleBacklog(files, audit);
+	const backlog = assembleBacklog(files);
 	const parsed = parseBacklog(backlog);
 	const problems = docs === undefined ? [] : sourceProblems(parsed.stories, docs);
 	if (problems.length > 0)
 	{
 		throw new VaultAssembleError(`stories without a valid reason to exist:\n- ${problems.join("\n- ")}`);
 	}
+	// Bug notes never enter the backlog document (bugs.ts); build only moves each to the folder its status names.
 	return {
 		backlog,
-		notes: renderNotes(parsed),
+		notes: new Map([...renderNotes(parsed), ...placeBugNotes(files)]),
 	};
 }

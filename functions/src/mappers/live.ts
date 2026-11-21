@@ -258,6 +258,8 @@ export function mapLiveFeed(
 		gamePk: feed.gamePk,
 		gameDate: officialDate,
 		officialDate,
+		// First pitch: `gameDate` is only the date, and the active window needs the instant (#71).
+		startTime: gameData.datetime?.dateTime,
 		status: mapStatus(gameData.status),
 		teams: {
 			home: mapTeam(gameData.teams.home),
@@ -298,7 +300,7 @@ export function mapLiveFeedSummary(feed: LiveFeedResponse): ScheduleGameSummary
 		gamePk: snapshot.gamePk,
 		gameDate: snapshot.gameDate,
 		officialDate: snapshot.officialDate,
-		startTime: gameData.datetime?.dateTime,
+		startTime: snapshot.startTime,
 		status: snapshot.status,
 		teams: {
 			home: {

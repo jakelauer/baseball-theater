@@ -1,3 +1,4 @@
+// @bt-targets: web, functions
 /**
  * S41's design match (rule 22): the Plays room in the state and pairing of each
  * game-rooms frame it builds — `plays-mobile`, `plays-medium`, `plays-desktop` (the

@@ -216,6 +216,10 @@ export const DATA_CLASSIFICATION = {
 			kind: "personal",
 			deletedBy: USERS_STORE,
 		},
+		mock: {
+			kind: "none",
+			why: "staging's mock sign-in provider (S143): vouches for one fixed test account from constants, sends nothing anywhere and keeps nothing; the account it signs in lives in the users store like any other",
+		},
 		node: {
 			kind: "none",
 			why: "serves HTTP from Node; keeps nothing",
