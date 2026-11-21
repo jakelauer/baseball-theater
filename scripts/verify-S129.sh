@@ -4,7 +4,7 @@
 # desktop holding spring training's standings with their label (S128's `phase: "spring"`), and
 # says whether the off-season final table (`phase: "final"`) is marked too; if it is, FEATURES
 # records the owner's words in the same change set (rule 18; S130 builds it).
-# Contract: docs/v3/BACKLOG.md#verify-script-contract
+# Contract: the Verify-script contract (docs/v3/backlog/frame/, linked from docs/v3/INDEX.md)
 # No network. No writes outside /tmp. Does its own checking (never `pnpm verify`).
 #
 # S129's own changes are its first-parent, non-merge commits after BASE (plus uncommitted
@@ -27,6 +27,14 @@
 # naming the switch, the hidden games-behind column, the "as of" line and the box instead of "label",
 # which AC 1 no longer asks for; check 8 is new: the amendment answers every AC 1 bullet in words.
 # Shown red on HEAD before the redrawn amendment was written. Every other check is unchanged.
+#
+# Updated before shipping (2026-11-20, rule 7), to the post-S156 backlog (the 2026-11-20 design intake
+# and backlog review): check 7 read S129's status from the retired docs/v3/BACKLOG.md, which no longer
+# exists, and now reads the note's frontmatter `status` and requires the note in stories/done/ (AC 3);
+# check 6's fence now also allows the story's own records, its ledger fragments
+# docs/v3/audit/<date>/<stamp>-S129-<kind>.md and changelog.d/S129.md (rule 13). Shown red on the merge
+# of stage first (check 6 on changelog.d/S129.md, check 7 on the missing BACKLOG.md). Every other check
+# is unchanged; the retired files stay in the fence because S129's earlier commits edited them.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -40,7 +48,7 @@ check 3 "the amendment says whether the off-season final table (phase \"final\")
 check 4 "the amendment's ## Ratification names Jake Lauer, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left"
 check 5 "no sealed file in standings-search-settings changed or deleted (RATIFIED.md manifest verifies; RATIFIED.md, ratified frames and every other amendment untouched by S129; every amendment's sealed frames present and unchanged)"
 check 6 "S129 changes no file outside its fence (scripts/verify-S129.sh aside)"
-check 7 "backlog Status is done (story heading and Story status table)"
+check 7 "backlog Status is done (the note's frontmatter status, the note in docs/v3/backlog/stories/done/)"
 check 8 "the amendment answers every AC 1 bullet in words: the view switch (and whether it shows with the regular season alone), the hidden games-behind column, the regular season before its first game, the playoffs list, the 'Standings as of' line, the World Series box (how long it stays, reduced motion), the heading and browser tab title, the off-season's final table, the first spring morning, full width on mobile, loading/empty/error"
 
 V="docs/v3/visual"
@@ -391,6 +399,8 @@ while IFS= read -r f; do
 	case "$f" in
 		"$DIR/"* | docs/v3/VISUAL-DESIGN.md | "$FEATURES" | docs/v3/BACKLOG.md | docs/v3/backlog/* | \
 			docs/v3/AUDIT.md | docs/v3/audit.jsonl | docs/v3/INDEX.md | CHANGELOG.md | scripts/verify-S129.sh) ;;
+		# The story's own records (rule 13): its ledger fragments and its changelog fragment.
+		docs/v3/audit/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/*-S129-*.md | changelog.d/S129.md) ;;
 		# Obsidian editor state: never committed (CLAUDE.md), so only ever an uncommitted change.
 		docs/v3/.obsidian/workspace.json) [ -z "$TIP" ] || bad 6 "S129 committed $f" ;;
 		*) bad 6 "S129 changed $f, outside its fence" ;;
@@ -398,11 +408,18 @@ while IFS= read -r f; do
 done <<< "$(s129_changed .)"
 
 # --- Check 7: backlog Status is done -------------------------------------------------
-grep -qE '^\| [0-9]+ \| \[S129\].*\| `done` \|' docs/v3/BACKLOG.md ||
-	bad 7 "S129 row in the Story status table is not \`done\`"
-awk '/^### S129 —/{f=1;next} /^### S[0-9]/{f=0} f' docs/v3/BACKLOG.md |
-	grep -qE '^\*\*Status:\*\* `done`$' ||
-	bad 7 "S129 story heading Status is not \`done\`"
+# The note is the truth since S156: its frontmatter `status` is done and it sits in stories/done/,
+# with no other S129 note left in another status folder.
+NOTE="docs/v3/backlog/stories/done/S129.md"
+if [ -f "$NOTE" ]; then
+	awk 'NR==1&&$0=="---"{f=1;next} f&&$0=="---"{exit} f' "$NOTE" | grep -qxE 'status:[[:space:]]*"?done"?[[:space:]]*' ||
+		bad 7 "$NOTE frontmatter status is not done"
+else
+	bad 7 "$NOTE missing (S129's note is not in stories/done/)"
+fi
+for other in docs/v3/backlog/stories/*/S129.md docs/v3/backlog/stories/S129.md; do
+	[ -f "$other" ] && [ "$other" != "$NOTE" ] && bad 7 "another S129 note remains at $other"
+done
 
 report "verify-S129"
 exit $?
