@@ -147,7 +147,6 @@ const CODE_RUN = {
 	docs: K,
 	verify: S,
 	flows: S,
-	"design-specs": S,
 	lighthouse: S,
 	"functions-shard": S,
 	"functions-coverage": S,
@@ -161,7 +160,6 @@ const DOCS_RUN = {
 	docs: S,
 	verify: K,
 	flows: K,
-	"design-specs": K,
 	lighthouse: K,
 	"functions-shard": K,
 	"functions-coverage": K,
@@ -209,7 +207,7 @@ describe("CI runs pnpm verify (law P11)", () =>
 		const verifyJob = ci.slice(ci.indexOf("\n    verify:\n"), ci.indexOf("\n    flows:\n"));
 		expect(verifyJob).toContain("if: needs.changes.outputs.code == 'true'");
 		expect([...verifyJob.matchAll(/^ {8}if:/gm)]).toHaveLength(1);
-		expect(ci).toContain('test "$VERIFY $FLOWS $DESIGN $LIGHTHOUSE" = "success success success success"');
+		expect(ci).toContain('test "$VERIFY $FLOWS $LIGHTHOUSE" = "success success success"');
 	});
 
 	// Claude's review of PR #14: Markdown format was checked only in the docs job, so a code
