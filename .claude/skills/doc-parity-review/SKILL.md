@@ -42,14 +42,14 @@ Never touch story text, priorities, statuses, ACs, ADRs (`ARCHITECTURE.md`), rat
 Each check produces findings or cited evidence, never a bare "looks fine". First, the seed (S163):
 
 ```bash
-pnpm backlog:search seed parity --since "$(node scripts/backlog-vault/cli.ts ledger-base parity)"
+pnpm backlog:search seed parity --since "$(node scripts/backlog-vault/cli.ts review-base parity)"
 ```
 
 Read what it lists and what further `pnpm backlog:search` queries reach; copy every `query:` line into the findings (`scripts/audit.sh parity` requires one).
 
 ### 1. Citation honesty
 
-Scope: the seeded stories, plus the next 3 `todo` stories by priority.
+Scope: the seeded stories, the next 3 `todo` among them.
 
 - **Feature citations.** Read the cited FEATURES row or theme next to the story's Gap and Impact. Does the feature actually describe what the story delivers, or does the story just sit near it? A story citing a broad theme (e.g. "Robust core") for something specific is a finding.
 - **Pillar citations.** Is there really no feature that applies? A pillar where a feature fits usually means FEATURES is missing something. Does the `Approved by owner` quote match a real owner decision? Look for it in the session, the commit, or the ledger. Has the story been re-scoped since that date (`git log -p` on the note)? If so, the approval no longer covers it, so set the line back to `Open:` and ask again.

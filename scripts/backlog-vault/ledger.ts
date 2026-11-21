@@ -416,11 +416,14 @@ export function reviewBlocked(entries: LedgerEntry[], kind: ReviewKind): boolean
 	return newest?.kind === "review" && newest.verdict === "blocked";
 }
 
-/** The review, answers and skip entries of a kind, as one comparable string (line numbers left out: they move when an earlier entry is edited). */
-function reviewTrail(audit: string, kind: ReviewKind): string
+/** The entry kinds that move the debt checks' base: a review, the owner's answers to one, or a skip. */
+export const BASE_KINDS: LedgerEntry["kind"][] = ["review", "answers", "skip"];
+
+/** The entries of a review kind and of `kinds`, as one comparable string (line numbers left out: they move when an earlier entry is edited). */
+function reviewTrail(audit: string, kind: ReviewKind, kinds: LedgerEntry["kind"][]): string
 {
 	return parseLedger(audit)
-		.filter((e) => e.review === kind)
+		.filter((e) => e.review === kind && kinds.includes(e.kind))
 		.map((e) => e.heading)
 		.join("\n");
 }
@@ -441,8 +444,13 @@ function reviewTrail(audit: string, kind: ReviewKind): string
  * AUDIT.md's entries, so when HEAD holds a review, answers or skip fragment of `kind` the
  * base is the commit that added the newest one (`git log --diff-filter=A`, which never lists
  * a merge, so the #40 merge order can't fool it); only otherwise is AUDIT.md searched as before.
+ *
+ * `kinds` narrows which entries count (S163): `["review"]` is the newest review itself (`cli.ts
+ * review-base`), the base a review's seed measures from, so a change a skip or answers entry passed
+ * over is still seeded ("the next scheduled or drift-triggered review still checks it", CLAUDE.md).
+ * The debt checks keep the default, so their due-ness is unchanged.
  */
-export function ledgerBase(repo: string, ledgerPath: string, kind: ReviewKind): string | undefined
+export function ledgerBase(repo: string, ledgerPath: string, kind: ReviewKind, kinds: LedgerEntry["kind"][] = BASE_KINDS): string | undefined
 {
 	const git = (args: string[]) => execFileSync("git", args, {
 		cwd: repo,
@@ -450,7 +458,7 @@ export function ledgerBase(repo: string, ledgerPath: string, kind: ReviewKind): 
 		maxBuffer: 64 * 1024 * 1024,
 		stdio: ["ignore", "pipe", "ignore"],
 	});
-	const fragmentBase = newestReviewFragmentCommit(git, ledgerPath, kind);
+	const fragmentBase = newestReviewFragmentCommit(git, ledgerPath, kind, kinds);
 	if (fragmentBase !== undefined)
 	{
 		return fragmentBase;
@@ -468,7 +476,7 @@ export function ledgerBase(repo: string, ledgerPath: string, kind: ReviewKind): 
 	{
 		try
 		{
-			return reviewTrail(git(["show", `${commit}:${ledgerPath}`]), kind).split("\n").filter(Boolean);
+			return reviewTrail(git(["show", `${commit}:${ledgerPath}`]), kind, kinds).split("\n").filter(Boolean);
 		}
 		catch (error)
 		{
@@ -503,11 +511,11 @@ export function ledgerBase(repo: string, ledgerPath: string, kind: ReviewKind): 
 }
 
 /**
- * The commit that added HEAD's newest review, answers or skip fragment of `kind` (ledgerBase's
+ * The commit that added HEAD's newest fragment of `kind` whose entry is one of `kinds` (ledgerBase's
  * fragment half), or undefined when HEAD holds none. Fragments are read from HEAD's tree, not
  * the working tree, and each is parsed, so a misnamed one throws as in {@link readLedger}.
  */
-function newestReviewFragmentCommit(git: (args: string[]) => string, ledgerPath: string, kind: ReviewKind): string | undefined
+function newestReviewFragmentCommit(git: (args: string[]) => string, ledgerPath: string, kind: ReviewKind, kinds: LedgerEntry["kind"][]): string | undefined
 {
 	const dir = fragmentsDirFor(ledgerPath);
 	let paths: string[];
@@ -526,7 +534,7 @@ function newestReviewFragmentCommit(git: (args: string[]) => string, ledgerPath:
 		.filter((p) =>
 		{
 			const entry = parseFragment(git(["show", `HEAD:${p}`]), relative(base, p));
-			return entry.review === kind && (entry.kind === "review" || entry.kind === "answers" || entry.kind === "skip");
+			return entry.review === kind && kinds.includes(entry.kind);
 		})
 		.at(-1);
 	if (newest === undefined)

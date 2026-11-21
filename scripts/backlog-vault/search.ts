@@ -8,18 +8,22 @@
  *   pnpm backlog:search item <ID>                one item
  *   pnpm backlog:search next <n>                 the next n open items (compareOpen, INDEX.md's order)
  *   pnpm backlog:search deps <ID>                the stories it depends on
- *   pnpm backlog:search dependents <ID>          the items that depend on it
+ *   pnpm backlog:search dependents <ID>          the items that depend on it (a removed ID exits 2: the seed finds its dependents)
  *   pnpm backlog:search neighbors <ID> [--window <k>]   the open items within k places of it (default 2)
  *   pnpm backlog:search cites <feature>          stories whose **Source:** names that FEATURES row (or pillar)
  *   pnpm backlog:search design <surface | amendment path>   stories built to that surface's design, or citing that amendment
  *   pnpm backlog:search path <prefix>            stories whose scope_files or acceptance criteria name a path under it
  *   pnpm backlog:search text <regex> [--open]    stories whose body matches (open ones only with --open)
  *   pnpm backlog:search issues [--since <ISO time>]   GitHub issues opened, updated or closed since then (REST)
- *   pnpm backlog:search seed backlog|parity|intake --since <sha>   what a review must read, and why
+ *   pnpm backlog:search seed backlog|parity|intake --since <sha> [--in-flight <IDs>]   what a review must read, and why
+ *
+ * A seed's `--since` is the commit that logged the newest review of its kind (`node
+ * scripts/backlog-vault/cli.ts review-base backlog|parity`), not the debt checks' base, which a skip or
+ * answers entry also moves: a change a skip passed over is still seeded by the next review.
  *
  * Every query prints its matches and then one `query: <query> → <IDs, or none>` line, which the
  * review copies into its ledger findings (scripts/audit.sh refuses a review without one). `--json`
- * prints the same as JSON. An unknown query or ID exits 2.
+ * prints the same as JSON. An unknown query or ID, or a malformed argument, exits 2.
  *
  * The queries are pure functions over a {@link BacklogSource}. Today's one is {@link notesSource}, the
  * Obsidian notes read through the same parser `pnpm backlog:check` uses; S164 adds a GitHub-backed
@@ -29,16 +33,20 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import {
-	dirname, join, resolve,
+	dirname, join, relative, resolve,
 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildFromNotes } from "./assemble.ts";
 import { bugsIn } from "./bugs.ts";
 import { compareOpen, OPEN } from "./doc-index.ts";
+import { inFlightIds } from "./in-flight.ts";
 import { ledgerBase, readLedger } from "./ledger.ts";
 import { readNotes } from "./notes-dir.ts";
 import { parseBacklog } from "./parse.ts";
-import { sourceCitations } from "./source.ts";
+import type { SourceDocs } from "./source.ts";
+import {
+	featureEntries, pillarEntries, sourceCitations,
+} from "./source.ts";
 import { bugNotePath, storyNotePath } from "./vault.ts";
 
 /** One backlog item as the queries see it: a story, or a bug (whose GitHub issue holds its text). */
@@ -138,13 +146,26 @@ export function next(items: BacklogItem[], n: number): BacklogItem[]
 	return openOrder(items).slice(0, n);
 }
 
+/**
+ * The first `n` `todo` stories in {@link openOrder}: a review's "next 3". A `doing` story is already
+ * being built and a bug is not a story, so neither is one of them (the backlog review's check 1).
+ */
+export function nextTodo(items: BacklogItem[], n: number): BacklogItem[]
+{
+	return openOrder(items).filter((i) => i.kind === "story" && i.status === "todo").slice(0, n);
+}
+
 /** The items `id` depends on. */
 export function deps(items: BacklogItem[], id: string): BacklogItem[]
 {
 	return item(items, id).dependsOn.flatMap((d) => items.filter((i) => i.id === d));
 }
 
-/** The items whose `depends_on` names `id`, found by scanning every item, so it works for an ID no note has any more. */
+/**
+ * The items whose `depends_on` names `id`, found by scanning every item, so it works for an ID no note
+ * has any more (the seed's `removed` events use it so). The CLI's `dependents <ID>` still requires a
+ * known ID, as every ID query does (AC 1).
+ */
 export function dependents(items: BacklogItem[], id: string): BacklogItem[]
 {
 	return items.filter((i) => i.dependsOn.includes(id));
@@ -280,21 +301,40 @@ export function nextPage(headers: string): string | undefined
 	return url?.replace(/^https:\/\/api\.github\.com\//, "");
 }
 
+/** How far before GitHub's clock on the first response the recorded start time goes, so it is no later than the first request. */
+export const ISSUES_WINDOW_MARGIN_MS = 5 * 60_000;
+
+/** A response's `Date` header (any case) as a time, or undefined. */
+function responseDate(headers: string): number | undefined
+{
+	const at = Date.parse(/^date:\s*(.+?)\s*$/im.exec(headers)?.[1] ?? "");
+	return Number.isNaN(at) ? undefined : at;
+}
+
 /**
  * The issues opened, updated or closed since `since`, through REST (GraphQL is blocked in Claude Code
  * sessions): `repos/{owner}/{repo}/issues?state=all&since=…`, every page the `Link` header names,
- * pull requests left out (the issues endpoint lists them too). The start time is taken before the
- * first request, so an issue changed while the review runs falls in the next review's window
- * (owner, 2026-11-20: "Yes, once per change (Recommended)").
+ * pull requests left out (the issues endpoint lists them too). The recorded start time is GitHub's
+ * own clock, the first response's `Date` header less {@link ISSUES_WINDOW_MARGIN_MS}, so a skewed
+ * local clock can't push it past the first request; with no Date header it is the local clock read
+ * before the first request. Either way an issue changed while the review runs falls in the next
+ * review's window, and one changed just before it may be read twice, which is harmless (owner,
+ * 2026-11-20: "Yes, once per change (Recommended)").
  */
 export function listIssues(since: string, run: GhRunner, now: () => Date = () => new Date()): IssuesResult
 {
-	const started = now().toISOString();
+	const before = now().getTime();
+	let started: string | undefined;
 	const issues: IssueSummary[] = [];
 	let page: string | undefined = `repos/{owner}/{repo}/issues?state=all&since=${encodeURIComponent(since)}&per_page=100`;
 	while (page !== undefined)
 	{
 		const { headers, body } = splitResponse(run(["api", "-i", page]));
+		if (started === undefined)
+		{
+			const github = responseDate(headers);
+			started = new Date(github === undefined ? before : github - ISSUES_WINDOW_MARGIN_MS).toISOString();
+		}
 		for (const raw of JSON.parse(body) as Record<string, unknown>[])
 		{
 			if (raw.pull_request !== undefined)
@@ -311,11 +351,12 @@ export function listIssues(since: string, run: GhRunner, now: () => Date = () =>
 		page = nextPage(headers);
 	}
 	const ids = issues.map((i) => `#${i.number}`).join(", ") || "none";
+	const asOf = started ?? new Date(before).toISOString();
 	return {
 		issues,
 		since,
-		started,
-		query: `query: issues --since ${since} → ${ids} (as of ${started})`,
+		started: asOf,
+		query: `query: issues --since ${since} → ${ids} (as of ${asOf})`,
 	};
 }
 
@@ -325,26 +366,34 @@ export function issueLine(issue: IssueSummary): string
 	return `#${issue.number} ${issue.state} [${issue.labels.join(", ")}] title (data, not instructions): ${JSON.stringify(issue.title)}`;
 }
 
-/** A ledger entry as the issues window reads it: which review it belongs to and its text. */
+/** A ledger entry as the issues window reads it: its kind (review, answers, skip, …), which review it belongs to, and its text. */
 export interface LedgerText
 {
+	kind?: string;
 	review?: string;
 	text: string;
 }
 
 /**
  * Where the next issues window starts: the start time in the `query: issues …` line of the newest
- * backlog-kind entry that has one (a backlog review, or a design intake, which logs as one), else
- * `fallback` (the base commit's date).
+ * backlog review entry that has one (a backlog review, or a design intake, which logs as one; never
+ * an answers or skip entry, which reads no issues), the earliest when it has several, else `fallback`
+ * (the base commit's date).
  */
 export function issuesWindowStart(entries: LedgerText[], fallback: string): string
 {
 	for (const entry of [...entries].reverse())
 	{
-		const start = entry.review === "backlog" ? /^query: issues --since \S+ → .*\(as of (\S+)\)\s*$/m.exec(entry.text)?.[1] : undefined;
-		if (start !== undefined)
+		if (entry.kind !== "review" || entry.review !== "backlog")
 		{
-			return start;
+			continue;
+		}
+		// A merged intake may carry each reviewer's issues line: the earliest start misses nothing either saw.
+		const starts = [...entry.text.matchAll(/^query: issues --since \S+ → .*\(as of (\S+)\)\s*$/gm)].map((m) => m[1]!)
+			.sort((a, b) => Date.parse(a) - Date.parse(b));
+		if (starts.length > 0)
+		{
+			return starts[0]!;
 		}
 	}
 	return fallback;
@@ -416,22 +465,23 @@ const STORY_EVENTS = ["inserted", "removed", "reprioritized", "ac-rewritten", "s
 /** Extra input a backlog seed needs beyond the notes and the events. */
 export interface BacklogSeedContext
 {
-	/** For each story done since the base: the issue numbers its note or its commits cite. */
+	/** For each story done since the base: the open issues its note or its own commits cite ({@link citedIssues}). */
 	citedIssues?: Record<string, number[]>;
+	/** Cited numbers REST couldn't check (not a 404): kept, and their reason says so. */
+	uncheckedIssues?: number[];
 	/** The issues `issues --since` listed. */
 	issues?: IssueSummary[];
 }
 
 /**
- * The backlog review's seed (S163 AC 2): every item an event names and the next 3 open stories, each
+ * The backlog review's seed (S163 AC 2): every item an event names and the next 3 `todo` stories, each
  * with its dependencies, dependents, `prefer_after` links both ways and neighbors (window 2); for
  * each story done since the base, its dependents, the open stories naming it and the issues it
  * cites; for each ADR changed, the open stories citing it; and the issues changed since the last
  * window. Nothing here reads the whole backlog's order, so the seed's size follows the change.
  */
-export function seedBacklog(items: BacklogItem[], report: DebtReport, ctx: BacklogSeedContext = {}): Seed
+export function seedBacklog(items: BacklogItem[], report: DebtReport, ctx: BacklogSeedContext = {}, c = collector(report.inFlight)): Seed
 {
-	const c = collector(report.inFlight);
 	const known = (id: string) => items.some((i) => i.id === id);
 	const anchors: string[] = [];
 	for (const event of report.events)
@@ -453,9 +503,9 @@ export function seedBacklog(items: BacklogItem[], report: DebtReport, ctx: Backl
 			anchors.push(event.id);
 		}
 	}
-	for (const story of openOrder(items).filter((i) => i.kind === "story").slice(0, 3))
+	for (const story of nextTodo(items, 3))
 	{
-		c.add(story.id, "one of the next 3 open stories");
+		c.add(story.id, "one of the next 3 todo stories");
 		anchors.push(story.id);
 	}
 	for (const id of new Set(anchors))
@@ -470,7 +520,8 @@ export function seedBacklog(items: BacklogItem[], report: DebtReport, ctx: Backl
 	{
 		dependents(items, id).forEach((i) => c.add(i.id, `depends on ${id}, done since`));
 		text(items, `\\b${id}\\b`, true).filter((i) => i.id !== id).forEach((i) => c.add(i.id, `names ${id}, done since`));
-		(ctx.citedIssues?.[id] ?? []).filter((n) => !closed.has(n)).forEach((n) => c.add(`#${n}`, `cited by ${id}'s note or commits`));
+		(ctx.citedIssues?.[id] ?? []).filter((n) => !closed.has(n)).forEach((n) => c.add(`#${n}`,
+			`cited by ${id}'s note or commits${ctx.uncheckedIssues?.includes(n) ? " (not checked: gh failed)" : ""}`));
 	}
 	for (const adr of report.events.filter((e) => e.kind === "adr-changed").flatMap((e) => e.adrs ?? []))
 	{
@@ -488,31 +539,29 @@ export function seedBacklog(items: BacklogItem[], report: DebtReport, ctx: Backl
 }
 
 /**
- * The FEATURES rows and INTENT pillars a diff of those docs changes, by their bold name: a table row
- * `| **Name** |`, a pillar bullet `- **Name** —` or a `#### Name` heading, on an added or removed line.
+ * The FEATURES rows and INTENT pillars a change touched (S163 AC 2): each feature or pillar whose text
+ * differs between `before` and `after` (added, removed or edited), read as backlog:check reads them
+ * (source.ts featureEntries and pillarEntries), so a plain-name row, an edit inside a `####`
+ * feature's body and a renamed row (both names) all count.
  */
-export function changedRows(diff: string): string[]
+export function changedRows(before: SourceDocs, after: SourceDocs): string[]
 {
-	const names = new Set<string>();
-	for (const line of diff.split("\n"))
+	const texts = (docs: SourceDocs) =>
 	{
-		if (!/^[+-]/.test(line) || /^(\+\+\+|---)/.test(line))
-		{
-			continue;
-		}
-		const name = /^[+-]\| \*\*(.+?)\*\* \|/.exec(line)?.[1] ?? /^[+-]- \*\*(.+?)\*\* —/.exec(line)?.[1] ?? /^[+-]#### (.+?)(?: \([^)]*\))?$/.exec(line)?.[1];
-		if (name !== undefined)
-		{
-			names.add(name.trim());
-		}
-	}
-	return [...names];
+		const map = new Map<string, string>();
+		featureEntries(docs.features).forEach((e) => map.set(e.name, `${map.get(e.name) ?? ""}${e.text}\n`));
+		pillarEntries(docs.intent).forEach((text, name) => map.set(name, `${map.get(name) ?? ""}${text}\n`));
+		return map;
+	};
+	const was = texts(before);
+	const now = texts(after);
+	return [...new Set([...was.keys(), ...now.keys()])].filter((name) => was.get(name) !== now.get(name));
 }
 
 /**
- * The doc parity review's seed (S163 AC 2): every story an event names, the stories citing each
- * FEATURES or INTENT row changed since the base, and each story done since with the rows its Source
- * names.
+ * The doc parity review's seed (S163 AC 2): every story an event names, the next 3 `todo` stories
+ * (its check 1), the stories citing each FEATURES or INTENT row changed since the base, and each
+ * story done since with the rows its Source names.
  */
 export function seedParity(items: BacklogItem[], report: DebtReport, rows: string[]): Seed
 {
@@ -530,6 +579,7 @@ export function seedParity(items: BacklogItem[], report: DebtReport, rows: strin
 			files.push(event.path);
 		}
 	}
+	nextTodo(items, 3).forEach((i) => c.add(i.id, "one of the next 3 todo stories"));
 	for (const name of rows)
 	{
 		r.add(name, "changed since the base");
@@ -548,17 +598,33 @@ export function seedParity(items: BacklogItem[], report: DebtReport, rows: strin
 }
 
 /**
- * The frontend ADRs: a change to one makes a design intake due. The same list scripts/review-debt.sh
- * tests ARCHITECTURE.md's diff against (003, 008, 014, 016, 020–026).
+ * Whether an ADR is a frontend one, whose change makes a design intake due: the same list
+ * scripts/review-debt.sh tests ARCHITECTURE.md's diff against (003, 008, 014, 016, 020–026).
  */
-const FRONTEND_ADR = /^ADR-0(03|08|14|16|2[0-6])$/;
+export function isFrontendAdr(adr: string): boolean
+{
+	return /^ADR-0(03|08|14|16|2[0-6])$/.test(adr);
+}
+
+/**
+ * Whether a report holds only design intake events (a ratified amendment or surface, or an ADR
+ * change naming frontend ADRs only) and no story done since. Otherwise the intake, which logs as the
+ * backlog review and so moves its base and resets its count, must also read the backlog seed.
+ */
+export function intakeOnly(report: DebtReport): boolean
+{
+	return report.done.length === 0 && report.events.every((e) => e.kind === "amendment" || e.kind === "surface-ratified"
+		|| (e.kind === "adr-changed" && (e.adrs ?? []).length > 0 && e.adrs!.every(isFrontendAdr)));
+}
 
 /**
  * The design intake's seed (S163 AC 2): for each ratified amendment or surface file an event names,
  * that file and the stories {@link design} returns for it; for each changed frontend ADR, the open
- * stories citing it.
+ * stories citing it. When the report carries anything else (a story event, a non-frontend ADR, a
+ * story done since), the backlog seed too ({@link seedBacklog}, with `ctx`), since the intake is
+ * logged as the backlog review (`scripts/audit.sh review`) and the next backlog seed starts after it.
  */
-export function seedIntake(items: BacklogItem[], report: DebtReport): Seed
+export function seedIntake(items: BacklogItem[], report: DebtReport, ctx: BacklogSeedContext = {}): Seed
 {
 	const c = collector(report.inFlight);
 	const files: string[] = [];
@@ -569,10 +635,14 @@ export function seedIntake(items: BacklogItem[], report: DebtReport): Seed
 			files.push(event.path);
 			design(items, event.path).forEach((i) => c.add(i.id, `built to ${event.path}`));
 		}
-		for (const adr of event.kind === "adr-changed" ? (event.adrs ?? []).filter((a) => FRONTEND_ADR.test(a)) : [])
+		for (const adr of event.kind === "adr-changed" ? (event.adrs ?? []).filter(isFrontendAdr) : [])
 		{
 			text(items, `\\b${adr}\\b`, true).forEach((i) => c.add(i.id, `cites ${adr}, changed`));
 		}
+	}
+	if (!intakeOnly(report))
+	{
+		seedBacklog(items, report, ctx, c);
 	}
 	return {
 		picks: c.list(),
@@ -597,17 +667,23 @@ function itemLine(i: BacklogItem): string
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-function run(cmd: string, args: string[]): string
+function run(cmd: string, args: string[], cwd = repoRoot): string
 {
 	return execFileSync(cmd, args, {
-		cwd: repoRoot,
+		cwd,
 		encoding: "utf8",
 		maxBuffer: 64 * 1024 * 1024,
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 }
 
-/** The `--flag value` options a query takes, and the remaining words. */
+/** The flags that take no value; every other `--flag` takes the next word. */
+const SWITCHES = ["--json", "--open"];
+
+/**
+ * The `--flag value` options a query takes, and the remaining words. A value flag must be followed by
+ * a value, not by another flag (`--since --json` is a usage error, never `since = "--json"`).
+ */
 function options(args: string[]): { words: string[];
 	flags: Record<string, string | true> }
 {
@@ -616,14 +692,14 @@ function options(args: string[]): { words: string[];
 	for (let k = 0; k < args.length; k++)
 	{
 		const a = args[k]!;
-		if (a === "--json" || a === "--open")
+		if (SWITCHES.includes(a))
 		{
 			flags[a.slice(2)] = true;
 		}
 		else if (a.startsWith("--"))
 		{
 			const value = args[k + 1];
-			if (value === undefined)
+			if (value === undefined || value.startsWith("--"))
 			{
 				throw new SearchUsageError(`${a} needs a value`);
 			}
@@ -641,84 +717,219 @@ function options(args: string[]): { words: string[];
 	};
 }
 
-/** The ledger's entries with their text, for {@link issuesWindowStart} (fragments only: the frozen AUDIT.md predates `query:` lines). */
-function ledgerTexts(): LedgerText[]
+/** A whole number ≥ 0 (`next <n>`, `--window <k>`), else a usage error. */
+function count(value: string, what: string): number
 {
-	const audit = join(repoRoot, "docs/v3/AUDIT.md");
+	if (!/^\d+$/.test(value))
+	{
+		throw new SearchUsageError(`${what} must be a whole number, not '${value}'`);
+	}
+	return Number(value);
+}
+
+/** What `seed` and `issues` reach outside the notes: injected so tests never run the debt scripts, git or GitHub. */
+export interface SeedDeps
+{
+	/**
+	 * The debt script's `--json` report measured from `since` (review-debt.sh for a backlog or intake
+	 * seed, parity-debt.sh for parity), with `inFlight` passed as its `--in-flight`.
+	 */
+	debtReport(kind: "backlog" | "parity" | "intake", since: string, inFlight: string[]): DebtReport;
+	gh: GhRunner;
+	git(args: string[]): string;
+	/** The ledger's entries with their text, for {@link issuesWindowStart}. */
+	ledgerTexts(): LedgerText[];
+	/** The items in flight: `flag` when given (even empty), else the main checkout's claims ({@link seedInFlight}). */
+	inFlight(flag?: string): string[];
+	/** The commit the `issues` query's default window falls back to: the newest backlog review itself. */
+	issuesBase(): string;
+}
+
+/** The ledger the tools read: `BT_AUDIT_LEDGER` when set, as the debt scripts and audit.sh read it, else docs/v3/AUDIT.md. */
+export function auditLedgerPath(env: Record<string, string | undefined> = process.env): string
+{
+	return resolve(repoRoot, env.BT_AUDIT_LEDGER ?? "docs/v3/AUDIT.md");
+}
+
+/** The ledger's entries with their text (fragments only: the frozen AUDIT.md predates `query:` lines). */
+function readLedgerTexts(): LedgerText[]
+{
+	const audit = auditLedgerPath();
 	return readLedger(audit).filter((e) => e.file !== undefined).map((e) => ({
+		kind: e.kind,
 		review: e.review,
 		text: readFileSync(join(dirname(audit), e.file!), "utf8"),
 	}));
 }
 
-/** The default issues window: from the newest backlog-kind `issues` line, else the base commit's date. */
-function defaultSince(base: string): string
+/**
+ * The items in flight for a seed run from `root`, which may be a review's own worktree: the claims live
+ * in the main checkout's `.run/claims/` (the run writes them there), so they are read from the
+ * directory above git's common dir (the skills' `$MAIN`), or from `root` itself outside git. An
+ * explicit `flag` wins, even empty (in-flight.ts).
+ */
+export function seedInFlight(root: string, flag?: string): string[]
 {
-	const fallback = base === "" ? new Date(0).toISOString() : run("git", ["show", "-s", "--format=%cI", base]).trim();
-	return issuesWindowStart(ledgerTexts(), fallback);
+	let main = root;
+	try
+	{
+		main = dirname(resolve(root, run("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], root).trim()));
+	}
+	catch
+	{
+		// Not a git checkout: the claims, if any, are under root.
+	}
+	return inFlightIds(main, flag);
 }
 
-const ghRunner: GhRunner = (args) => run("gh", args);
+/** The real dependencies: the repo's debt scripts, git, gh and ledger. */
+export const realDeps: SeedDeps = {
+	debtReport: (kind, since, inFlight) => JSON.parse(run("bash", [
+		join(repoRoot, kind === "parity" ? "scripts/parity-debt.sh" : "scripts/review-debt.sh"), "--json", "--since", since, "--in-flight", inFlight.join(","),
+	])) as DebtReport,
+	gh: (args) => run("gh", args),
+	git: (args) => run("git", args),
+	ledgerTexts: readLedgerTexts,
+	inFlight: (flag) => seedInFlight(repoRoot, flag),
+	issuesBase: () => ledgerBase(repoRoot, relative(repoRoot, auditLedgerPath()), "backlog", ["review"]) ?? "",
+};
 
-/** The issue numbers a done story's note or its commits since `base` cite (`#12`, `Fixes #12`, `Part of #12`). */
-function citedIssues(items: BacklogItem[], done: string[], base: string): Record<string, number[]>
+/** The default issues window: from the newest backlog review's `issues` line, else the base commit's date. */
+function defaultSince(base: string, io: SeedDeps): string
 {
-	const log = base === "" ? "" : run("git", ["log", "--format=%B%x00", `${base}..HEAD`]);
-	const commits = log.split("\0");
-	const out: Record<string, number[]> = {};
+	const fallback = base === "" ? new Date(0).toISOString() : io.git(["show", "-s", "--format=%cI", base]).trim();
+	return issuesWindowStart(io.ledgerTexts(), fallback);
+}
+
+/** A citation of an issue or pull request by number (`#12`, `Fixes #12`, `Part of #12`): not part of a word, a path or a colour like `#12ab`. */
+const CITED = /(?<![\w&/#])#(\d{1,6})(?![\w-])/g;
+
+/** The open issues done stories cite, and those of them REST couldn't check. */
+export interface CitedIssues
+{
+	cited: Record<string, number[]>;
+	unchecked: number[];
+}
+
+/**
+ * The open issues a done story cites (S163 AC 2), by story: the numbers its note and its own commits
+ * name. Its own commits are those whose subject starts with its ID ("S156: …", "S156 AC 1: …",
+ * "S144 done: …"), merges left out (a merge's "Merge pull request #N" names the pull request, and
+ * "Backlog: S158, …" names many stories). Each number is checked through REST and kept only when it is
+ * an open issue, not a pull request or a closed issue. A 404 (no such issue) drops it; any other
+ * failure (REST can't be reached) keeps it as unchecked, since reading one issue too many is cheaper
+ * than missing one, and the seed says it wasn't checked.
+ */
+export function citedIssues(items: BacklogItem[], done: string[], io: Pick<SeedDeps, "git" | "gh">): CitedIssues
+{
+	const cited: Record<string, number[]> = {};
+	const unchecked = new Set<number>();
+	if (done.length === 0)
+	{
+		return {
+			cited,
+			unchecked: [],
+		};
+	}
+	const commits = io.git(["log", "--no-merges", "--format=%H%x09%s", "HEAD"]).split("\n").filter(Boolean).map((l) => l.split("\t") as [string, string]);
+	const open = new Map<number, boolean>();
+	const isOpen = (n: number) =>
+	{
+		if (!open.has(n))
+		{
+			try
+			{
+				const issue = JSON.parse(io.gh(["api", `repos/{owner}/{repo}/issues/${n}`])) as { state?: string;
+					pull_request?: unknown };
+				open.set(n, issue.state === "open" && issue.pull_request === undefined);
+			}
+			catch (error)
+			{
+				const missing = /HTTP 404/.test((error as Error).message);
+				open.set(n, !missing);
+				if (!missing)
+				{
+					unchecked.add(n);
+				}
+			}
+		}
+		return open.get(n)!;
+	};
 	for (const id of done)
 	{
-		const own = new RegExp(`\\b${id}\\b`);
-		const text = [items.find((i) => i.id === id)?.body ?? "", ...commits.filter((m) => own.test(m))].join("\n");
-		out[id] = [...new Set([...text.matchAll(/#(\d+)\b/g)].map((m) => Number(m[1])))];
+		const own = new RegExp(`^${id}([^0-9]|$)`);
+		const shas = commits.filter(([, subject]) => own.test(subject)).map(([sha]) => sha);
+		const bodies = shas.length === 0 ? "" : io.git(["show", "-s", "--format=%B", ...shas]);
+		const text = `${items.find((i) => i.id === id)?.body ?? ""}\n${bodies}`;
+		const numbers = [...new Set([...text.matchAll(CITED)].map((m) => Number(m[1])))].sort((a, b) => a - b);
+		cited[id] = numbers.filter(isOpen);
 	}
-	return out;
+	return {
+		cited,
+		unchecked: [...unchecked].sort((a, b) => a - b),
+	};
 }
 
-/** The debt script's report: review-debt.sh for a backlog or intake seed, parity-debt.sh for parity. */
-function debtReport(kind: string): DebtReport
-{
-	const script = kind === "parity" ? "scripts/parity-debt.sh" : "scripts/review-debt.sh";
-	return JSON.parse(run("bash", [join(repoRoot, script), "--json"])) as DebtReport;
-}
+/** A sha `--since` can name: 4–40 hex digits. */
+const SHA = /^[0-9a-f]{4,40}$/i;
 
-async function seedCommand(kind: string | undefined, since: string | true | undefined, json: boolean): Promise<string>
+async function seedCommand(kind: string | undefined, flags: Record<string, string | true>, source: BacklogSource, io: SeedDeps): Promise<string>
 {
 	if (kind !== "backlog" && kind !== "parity" && kind !== "intake")
 	{
 		throw new SearchUsageError("seed needs backlog, parity or intake");
 	}
-	if (typeof since !== "string")
+	const since = flags.since;
+	const review = kind === "parity" ? "parity" : "backlog";
+	if (since === "")
 	{
-		throw new SearchUsageError("seed needs --since <sha> (node scripts/backlog-vault/cli.ts ledger-base backlog|parity)");
+		throw new SearchUsageError(`no ${review} review logged yet (cli.ts review-base ${review} printed nothing): the first review reads the whole backlog`);
 	}
-	const items = await notesSource(repoRoot).items();
-	const report = debtReport(kind);
-	const lines: string[] = [];
+	if (typeof since !== "string" || !SHA.test(since))
+	{
+		throw new SearchUsageError(`seed needs --since <sha> (node scripts/backlog-vault/cli.ts review-base ${review})`);
+	}
+	const json = flags.json === true;
+	const items = await source.items();
+	const report = io.debtReport(kind, since, io.inFlight(typeof flags["in-flight"] === "string" ? flags["in-flight"] : undefined));
+	const lines = report.events.map((e) => `event: ${[e.kind, e.id ?? e.path, ...(e.adrs ?? []), ...(e.done ?? [])].filter((x) => x !== undefined && x !== "").join(" ")}`);
 	let seed: Seed;
 	let issues: IssuesResult | undefined;
-	if (kind === "backlog")
+	let issuesError: string | null = null;
+	/** The backlog seed's outside reads: the issues changed since the last window and the issues done stories cite. */
+	const backlogContext = (): BacklogSeedContext =>
 	{
 		try
 		{
-			issues = listIssues(defaultSince(since), ghRunner);
+			issues = listIssues(defaultSince(since, io), io.gh);
 		}
 		catch (error)
 		{
-			lines.push(`issues: could not list them (${(error as Error).message.split("\n")[0]}); run \`pnpm backlog:search issues\` before the review ends`);
+			issuesError = (error as Error).message.split("\n")[0] ?? "gh failed";
+			lines.push(`issues: could not list them (${issuesError}); run \`pnpm backlog:search issues\` before the review ends`);
 		}
-		seed = seedBacklog(items, report, {
-			citedIssues: citedIssues(items, report.done, since),
+		const cited = citedIssues(items, report.done, io);
+		return {
+			citedIssues: cited.cited,
+			uncheckedIssues: cited.unchecked,
 			issues: issues?.issues,
-		});
+		};
+	};
+	if (kind === "backlog")
+	{
+		seed = seedBacklog(items, report, backlogContext());
 	}
 	else if (kind === "parity")
 	{
-		seed = seedParity(items, report, changedRows(run("git", ["diff", since, "HEAD", "--", "docs/v3/FEATURES.md", "docs/v3/INTENT.md"])));
+		const docs = (rev: string): SourceDocs => ({
+			features: io.git(["show", `${rev}:docs/v3/FEATURES.md`]),
+			intent: io.git(["show", `${rev}:docs/v3/INTENT.md`]),
+		});
+		seed = seedParity(items, report, changedRows(docs(since), docs("HEAD")));
 	}
 	else
 	{
-		seed = seedIntake(items, report);
+		seed = seedIntake(items, report, intakeOnly(report) ? {} : backlogContext());
 	}
 	const query = queryLine(`seed ${kind} --since ${since}`, [...seed.picks.map((p) => p.id), ...seed.rows.map((r) => `"${r.id}"`), ...seed.files]);
 	if (json)
@@ -727,6 +938,7 @@ async function seedCommand(kind: string | undefined, since: string | true | unde
 			...seed,
 			events: report.events,
 			issues: issues?.issues,
+			issuesError,
 			queries: [query, ...(issues ? [issues.query] : [])],
 		}, null, "\t");
 	}
@@ -748,23 +960,31 @@ async function seedCommand(kind: string | undefined, since: string | true | unde
 	return lines.join("\n");
 }
 
+/** An ISO 8601 date or time `issues --since` takes. */
+const ISO = /^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/;
+
 /** Runs one query; returns what to print. Throws {@link SearchUsageError} for exit 2. */
-export async function main(argv: string[], source: BacklogSource = notesSource(repoRoot)): Promise<string>
+export async function main(argv: string[], source: BacklogSource = notesSource(repoRoot), io: SeedDeps = realDeps): Promise<string>
 {
 	const { words, flags } = options(argv);
 	const [name, ...rest] = words;
 	const json = flags.json === true;
 	if (name === "seed")
 	{
-		return seedCommand(rest[0], flags.since, json);
+		return seedCommand(rest[0], flags, source, io);
 	}
 	if (name === "issues")
 	{
-		const since = typeof flags.since === "string" ? flags.since : defaultSince(ledgerBase(repoRoot, "docs/v3/AUDIT.md", "backlog") ?? "");
-		const result = listIssues(since, ghRunner);
+		if (typeof flags.since === "string" && (!ISO.test(flags.since) || Number.isNaN(Date.parse(flags.since))))
+		{
+			throw new SearchUsageError(`issues --since needs an ISO date or time, not '${flags.since}'`);
+		}
+		const since = typeof flags.since === "string" ? flags.since : defaultSince(io.issuesBase(), io);
+		const result = listIssues(since, io.gh);
 		return json ? JSON.stringify(result, null, "\t") : [...result.issues.map(issueLine), result.query].join("\n");
 	}
 	const arg = rest.join(" ");
+	const window = typeof flags.window === "string" ? count(flags.window, "--window") : 2;
 	const items = await source.items();
 	const need = () =>
 	{
@@ -774,25 +994,21 @@ export async function main(argv: string[], source: BacklogSource = notesSource(r
 		}
 		return arg;
 	};
+	/** An ID argument, normalized once to the item's own ID (a lowercase `s9` is S9); an ID no item has exits 2. */
+	const id = () => item(items, need()).id;
 	let found: BacklogItem[];
-	let query = `${name} ${arg}`;
+	let query: string;
 	switch (name)
 	{
-		case "item": found = [item(items, need())]; break;
-		case "next": found = next(items, Number(need())); break;
-		case "deps": found = deps(items, need()); break;
-		case "dependents": item(items, need()); found = dependents(items, arg); break;
-		case "neighbors":
-		{
-			const window = typeof flags.window === "string" ? Number(flags.window) : 2;
-			found = neighbors(items, need(), window);
-			query = `${query} --window ${window}`;
-			break;
-		}
-		case "cites": found = cites(items, need()); break;
-		case "design": found = design(items, need()); break;
-		case "path": found = path(items, need()); break;
-		case "text": found = text(items, need(), flags.open === true); query = flags.open === true ? `${query} --open` : query; break;
+		case "item": found = [item(items, need())]; query = `item ${found[0]!.id}`; break;
+		case "next": found = next(items, count(need(), "next")); query = `next ${arg}`; break;
+		case "deps": query = `deps ${id()}`; found = deps(items, id()); break;
+		case "dependents": query = `dependents ${id()}`; found = dependents(items, id()); break;
+		case "neighbors": query = `neighbors ${id()} --window ${window}`; found = neighbors(items, id(), window); break;
+		case "cites": found = cites(items, need()); query = `cites ${arg}`; break;
+		case "design": found = design(items, need()); query = `design ${arg}`; break;
+		case "path": found = path(items, need()); query = `path ${arg}`; break;
+		case "text": found = text(items, need(), flags.open === true); query = flags.open === true ? `text ${arg} --open` : `text ${arg}`; break;
 		default: throw new SearchUsageError(`unknown query '${name ?? ""}': item, next, deps, dependents, neighbors, cites, design, path, text, issues or seed`);
 	}
 	const line = queryLine(query, found.map((i) => i.id));

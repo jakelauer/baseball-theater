@@ -607,4 +607,36 @@ describe("ledgerBase and shipping_commit with fragments (S156)", () =>
 		write("docs/v3/audit/2026-11-21/20261121T130000Z-backlog-review.md", fragment("## 2026-11-21 — backlog review (`continue`)"));
 		expect(ledgerBase(repo, "docs/v3/AUDIT.md", "backlog")).toBe(skipped);
 	});
+
+	/**
+	 * S163: a review's seed measures from the newest *review* (`cli.ts review-base`), not from a skip or
+	 * answers entry after it, so a change a skip passed over is still seeded ("the next scheduled or
+	 * drift-triggered review still checks it", CLAUDE.md). The AUDIT.md half filters entry kinds too.
+	 */
+	it("review-only kinds: the newest review in AUDIT.md, past an AUDIT.md skip and skip fragments; the default still takes the newest skip", () =>
+	{
+		repo = mkdtempSync(join(tmpdir(), "ledger-review-base-"));
+		git("init", "-q", "-b", "stage");
+		git("config", "user.email", "test@example.com");
+		git("config", "user.name", "Test");
+		git("config", "core.hooksPath", "/dev/null");
+
+		const review = "## 2026-11-02 — backlog review (`amended`)";
+		write("docs/v3/AUDIT.md", ledger(review));
+		const reviewed = commit("review");
+		write("docs/v3/AUDIT.md", ledger(review, "## 2026-11-03 — backlog review skipped"));
+		commit("frozen skip");
+		write("docs/v3/audit/2026-11-21/20261121T120000Z-backlog-skip.md", fragment("## 2026-11-21 — backlog review skipped"));
+		commit("skip fragment");
+		write("docs/v3/audit/2026-11-21/20261121T130000Z-backlog-answers.md", fragment("## 2026-11-21 — backlog review answers (2026-11-02)"));
+		const answered = commit("answers fragment");
+		expect(ledgerBase(repo, "docs/v3/AUDIT.md", "backlog")).toBe(answered);
+		expect(ledgerBase(repo, "docs/v3/AUDIT.md", "backlog", ["review"])).toBe(reviewed);
+
+		write("docs/v3/audit/2026-11-21/20261121T140000Z-backlog-review.md", fragment("## 2026-11-21 — backlog review (`continue`)"));
+		const fragmentReview = commit("review fragment");
+		write("docs/v3/audit/2026-11-21/20261121T150000Z-backlog-skip.md", fragment("## 2026-11-21 — backlog review skipped"));
+		commit("later skip");
+		expect(ledgerBase(repo, "docs/v3/AUDIT.md", "backlog", ["review"])).toBe(fragmentReview);
+	});
 });

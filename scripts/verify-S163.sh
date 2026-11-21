@@ -73,11 +73,16 @@ else
   out="$(node "$SEARCH" item S163 2>&1)" || bad 1 "item S163 failed: $out"
   grep -qE '^query: item S163 → S163$' <<<"$out" || bad 1 "item S163 printed no 'query: item S163 → S163' line"
   for q in "next 3" "deps S164" "dependents S163" "neighbors S163 --window 1" "cites Backlog in GitHub issues" \
-    "design standings-search-settings" "path scripts/backlog-vault/" "text --open \\bS163\\b"; do
+    "design standings-search-settings" "path scripts/backlog-vault/" "text --open '\\bS163\\b'"; do
     # shellcheck disable=SC2086
     out="$(eval node "$SEARCH" $q 2>&1)" || { bad 1 "'$q' failed: $out"; continue; }
     grep -qE '^query: ' <<<"$out" || bad 1 "'$q' printed no query: line"
+    # The regex must reach the query intact (single-quoted inside the eval), so `text` is really exercised.
+    case "$q" in
+      text*) grep -qF 'query: text \bS163\b --open' <<<"$out" || bad 1 "'$q' did not receive its regex intact: $(tail -1 <<<"$out")" ;;
+    esac
   done
+  node "$SEARCH" next abc >/dev/null 2>&1; [ $? -eq 2 ] || bad 1 "a malformed argument (next abc) does not exit 2"
   node "$SEARCH" dependents S163 --json | node -e 'JSON.parse(require("fs").readFileSync(0, "utf8"))' 2>/dev/null || bad 1 "--json does not print JSON"
   node "$SEARCH" nonsense >/dev/null 2>&1; [ $? -eq 2 ] || bad 1 "an unknown query does not exit 2"
   node "$SEARCH" item S99999 >/dev/null 2>&1; [ $? -eq 2 ] || bad 1 "an unknown ID does not exit 2"
@@ -93,7 +98,7 @@ if [ -f "$SEARCH" ]; then
     grep -qE "\"$kind\"" "$SEARCH" || bad 2 "search.ts names no '$kind' seed"
   done
   grep -q 'seed' "$SEARCH" || bad 2 "search.ts has no seed query"
-  for t in "300" "no events" "removed" "far|down the order" "prefer_after" "done story.*(text|named)" "commit" "ADR"; do
+  for t in "300" "no events" "removed" "far|down the order" "prefer_after" "done story.*(text|named)" "commit" "ADR" "intake.*adds the backlog seed" "todo"; do
     has_test search.test.ts "$t" || bad 2 "search.test.ts has no seed test matching /$t/"
   done
   test_passed search.test.ts || bad 2 "search.test.ts did not pass"
@@ -117,6 +122,12 @@ done
 grep -qE '\-\-json' "$VAULT/review-debt.test.ts" || bad 3 "review-debt.test.ts never runs --json"
 has_test review-debt.test.ts "identical|same text" || bad 3 "review-debt.test.ts has no old-vs-new text output test"
 has_test review-debt.test.ts "move.*no event|no event.*move" || bad 3 "review-debt.test.ts has no test that a move alone gives no event"
+has_test review-debt.test.ts "since" || bad 3 "review-debt.test.ts has no --json --since test"
+has_test review-debt.test.ts "ADR.*section|section.*ADR" || bad 3 "review-debt.test.ts has no test that a body edit names its ADR section"
+for s in review-debt parity-debt; do
+  bash "scripts/$s.sh" --since HEAD >/dev/null 2>&1; [ $? -eq 2 ] || bad 3 "$s.sh --since without --json does not exit 2"
+done
+[ -n "$(node "$VAULT/cli.ts" review-base backlog 2>/dev/null)" ] || bad 3 "cli.ts review-base backlog prints no commit"
 test_passed review-debt.test.ts || bad 3 "review-debt.test.ts did not pass"
 
 # --- Check 4: issues by change, through REST ---
@@ -124,7 +135,7 @@ if [ -f "$SEARCH" ]; then
   grep -rn "graphql" "$SEARCH" >/dev/null && bad 4 "search.ts names graphql"
   grep -qF 'issues?state=all&since=' "$SEARCH" || bad 4 "search.ts does not ask REST for issues?state=all&since="
   grep -qiE '\blink\b' "$SEARCH" || bad 4 "search.ts does not follow the Link header"
-  for t in "window|design intake" "page" "pull request" "body" "since" "start"; do
+  for t in "window|design intake" "page" "pull request" "body" "since" "start" "Date header"; do
     has_test search.test.ts "$t" || bad 4 "search.test.ts has no issues test matching /$t/"
   done
 else
@@ -132,7 +143,7 @@ else
 fi
 
 # --- Check 5: the backlog review starts from the seed ---
-grep -qF 'pnpm backlog:search seed backlog --since "$(node scripts/backlog-vault/cli.ts ledger-base backlog)"' "$BR" || bad 5 "$BR does not start from the backlog seed command"
+grep -qF 'pnpm backlog:search seed backlog --since "$(node scripts/backlog-vault/cli.ts review-base backlog)"' "$BR" || bad 5 "$BR does not start from the backlog seed command"
 [ "$(grep -c "every open GitHub issue" "$BR")" = 0 ] || bad 5 "$BR still says 'every open GitHub issue'"
 [ "$(grep -c "the whole backlog, not just the next few" "$BR")" = 0 ] || bad 5 "$BR still says 'the whole backlog, not just the next few'"
 grep -qF 'issues --since' "$BR" || bad 5 "$BR does not read issues through issues --since"
@@ -142,13 +153,17 @@ grep -qF 'query:' "$BR" || bad 5 "$BR's evidence does not ask for query: lines"
 grep -qiE 'neighbo' "$BR" || bad 5 "$BR's check 3 does not argue around the seeded items' neighbors"
 
 # --- Check 6: the doc parity review starts from the seed ---
-grep -qF 'pnpm backlog:search seed parity --since "$(node scripts/backlog-vault/cli.ts ledger-base parity)"' "$DP" || bad 6 "$DP does not start from the parity seed command"
+grep -qF 'pnpm backlog:search seed parity --since "$(node scripts/backlog-vault/cli.ts review-base parity)"' "$DP" || bad 6 "$DP does not start from the parity seed command"
 grep -qF 'query:' "$DP" || bad 6 "$DP does not ask for query: lines"
 grep -qF 'cites' "$DP" || bad 6 "$DP's check 3 does not use cites"
 
 # --- Check 7: the design intake, the agents, CLAUDE.md and frame 00 ---
-grep -qF 'pnpm backlog:search seed intake --since "$(node scripts/backlog-vault/cli.ts ledger-base backlog)"' "$DI" || bad 7 "$DI does not start from the intake seed command"
+grep -qF 'pnpm backlog:search seed intake --since "$(node scripts/backlog-vault/cli.ts review-base backlog)"' "$DI" || bad 7 "$DI does not start from the intake seed command"
 grep -qiF 'read all of them' "$DI" && bad 7 "$DI still says 'read all of them'"
+grep -qiF 'the whole order' "$DI" && bad 7 "$DI still says check 3 argues against 'the whole order'"
+for a in backlog-reviewer doc-parity-reviewer; do
+  grep -qF 'backlog:search item' ".claude/agents/$a.md" || bad 7 ".claude/agents/$a.md does not find a seeded item's note with backlog:search item"
+done
 grep -qiE 'two (independent )?reviewers|two .*design-intake-reviewer' "$DI" || bad 7 "$DI dropped the two-reviewer rule"
 for a in backlog-reviewer doc-parity-reviewer design-intake-reviewer design-intake-merger; do
   grep -qF 'pnpm backlog:search seed' ".claude/agents/$a.md" || bad 7 ".claude/agents/$a.md does not name the seed command"

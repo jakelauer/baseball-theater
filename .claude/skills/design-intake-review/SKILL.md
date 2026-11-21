@@ -1,6 +1,6 @@
 ---
 name: design-intake-review
-description: Treat ratified designs as undocumented UI features and amend the backlog to build them — inventory every screen, component, state, layout and data need in the ratified surfaces (DESIGN.md, PNGs, Figma), plan the shared frontend component layer against the accepted frontend ADRs, map it to existing stories, and slice what no story owns. Use when a surface is newly ratified or a ratified amendment lands, when frontend ADRs change, or when asked whether the backlog actually builds the designs.
+description: Treat ratified designs as undocumented UI features and amend the backlog to build them — inventory every screen, component, state, layout and data need in the seeded designs (DESIGN.md, PNGs, Figma), plan the shared frontend component layer against the accepted frontend ADRs, map it to existing stories, and slice what no story owns. Use when a surface is newly ratified or a ratified amendment lands, when frontend ADRs change, or when asked whether the backlog actually builds the designs.
 ---
 
 # Design intake review
@@ -26,10 +26,10 @@ Run it **without** the transcript that wrote the stories or the designs. For a f
 First step (S163):
 
 ```bash
-pnpm backlog:search seed intake --since "$(node scripts/backlog-vault/cli.ts ledger-base backlog)"
+pnpm backlog:search seed intake --since "$(node scripts/backlog-vault/cli.ts review-base backlog)"
 ```
 
-Read what it names, not every surface (a surface's first ratification still has its whole surface inventoried: all of it is new), and copy each `query:` line into the findings.
+Read what it names, not every surface (a surface's first ratification still has its whole surface inventoried: all of it is new), and copy each `query:` line into the findings. Backlog items it seeds get the backlog review's checks too.
 
 | Source                                                                                                                                                       | What to take from it                                                                                                       |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
@@ -84,7 +84,7 @@ Propose, as backlog amendments, not prose:
 - Slice every unowned item into stories that follow the backlog rules (frame note 00, `docs/v3/backlog/frame/`): Gap, Impact, Source, Design line, Depends on, scope fence, ACs that map to commands/tests, `/goal` line, turn cap, verify-script work item 0. A story should be the smallest thing that moves the loop (rule 4).
 - **Source lines (rule 19):** cite a feature FEATURES already names (most ratified frames are carried features — scoreboard, game rooms, standings, search, settings). If none fits, write `Open:` with the question. Never edit FEATURES or INTENT here — that is the [doc parity review](../doc-parity-review/SKILL.md)'s scope; queue the gap under **For the parity review** in the findings instead.
 - Re-scope existing UI stories whose ACs miss drawn states, rather than adding a parallel story.
-- Run the backlog review's checks 2 (ground truth for the next 3 stories), 2b (the adversarial pass, on every story this intake inserts or re-scopes as well) and 3 (argue against the whole order) on the amended backlog.
+- Run the backlog review's checks 2 (ground truth for the next 3 stories), 2b (the adversarial pass, on every story this intake inserts or re-scopes as well) and 3 (argue against the order around what changed) on the amended backlog.
 
 ### 5. Verdict
 
@@ -100,4 +100,4 @@ Same as the backlog review: story notes, frame notes, `pnpm backlog:build`, the 
 scripts/audit.sh review --trigger "design intake: <surfaces / ADRs>" --since "<done stories since last review>" --verdict amended --findings -
 ```
 
-The findings body records the inventory summary per surface, the ownership map (counts of owned / unowned / re-scoped), each new or re-scoped story with the evidence that motivated it, the merged reviewers' disagreements and their resolution, items queued for the parity review, and the owner questions. Inserting stories makes a parity review due; run it after.
+The findings body records the `query:` lines (the earliest `as of` among the reviewers' seeds), the inventory summary per surface, the ownership map (counts of owned / unowned / re-scoped), each new or re-scoped story with the evidence that motivated it, the merged reviewers' disagreements and their resolution, items queued for the parity review, and the owner questions. Inserting stories makes a parity review due; run it after.

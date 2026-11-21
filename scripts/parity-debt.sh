@@ -5,6 +5,8 @@
 #   pnpm parity:debt --in-flight S160,S161   # the items in flight in a parallel run
 #   scripts/parity-debt.sh --json   # one JSON object: { due, base, done, inFlight, events } (S163),
 #                                   # as scripts/review-debt.sh --json; seeds `pnpm backlog:search seed parity`
+#   scripts/parity-debt.sh --json --since <sha>   # the same, with the events and `due` measured from <sha>
+#                                   # (the seed passes `cli.ts review-base parity`, past later skips/answers)
 #
 # Always prints the `done` count and the in-flight count, as scripts/review-debt.sh does (S156).
 #
@@ -30,6 +32,7 @@ cd "$(dirname "$0")/.."
 
 in_flight_flag=()
 json=""
+since=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --in-flight)
@@ -38,9 +41,15 @@ while [ $# -gt 0 ]; do
       in_flight_flag=(--in-flight "$2"); shift 2 ;;
     --in-flight=*) in_flight_flag=(--in-flight "${1#--in-flight=}"); shift ;;
     --json) json=1; shift ;;
-    *) echo "usage: $0 [--in-flight S1,S2] [--json]" >&2; exit 2 ;;
+    --since)
+      # A value, not the next flag: `--since --json` is a usage error, never a base named "--json".
+      { [ $# -ge 2 ] && [ "${2#--}" = "$2" ] && [ -n "$2" ]; } || { echo "usage: $0 [--in-flight S1,S2] [--json [--since <sha>]]" >&2; exit 2; }
+      since="$2"; shift 2 ;;
+    *) echo "usage: $0 [--in-flight S1,S2] [--json [--since <sha>]]" >&2; exit 2 ;;
   esac
 done
+# --since only re-bases the JSON report (a review's seed); the text and exit codes keep the ledger's base.
+[ -n "$since" ] && [ -z "$json" ] && { echo "usage: $0 [--in-flight S1,S2] [--json [--since <sha>]] — --since needs --json" >&2; exit 2; }
 # shellcheck source=lib/story-notes.sh
 . scripts/lib/story-notes.sh
 
@@ -58,6 +67,11 @@ BACKSTOP=6
 # commit that logged a doc parity review, its answers or a skip of one.
 LEDGER_CLI=(node scripts/backlog-vault/cli.ts --audit "$LEDGER")
 base="$("${LEDGER_CLI[@]}" ledger-base parity)" || { echo "parity: could not read ${LEDGER}" >&2; exit 2; }
+# `--json --since <sha>`: measure from that commit instead (S163: the seed passes the newest review itself,
+# `cli.ts review-base`, so a change a skip or answers entry passed over is still reported).
+if [ -n "$since" ]; then
+  base="$(git rev-parse --short "${since}^{commit}" 2>/dev/null)" || { echo "parity: --since ${since} is not a commit" >&2; exit 2; }
+fi
 if [ -z "$base" ]; then
   [ -n "$json" ] && { json_report true "" "" ""; exit 0; }
   echo "parity: no doc parity review logged in ${LEDGER} yet — one is due."

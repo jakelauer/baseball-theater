@@ -675,38 +675,150 @@ describe("review-debt.sh and parity-debt.sh --json: the events behind a review's
 		});
 	}, TIMEOUT);
 
-	it.each(["review-debt.sh", "parity-debt.sh"])("%s: the text output is identical to the script at S163's base commit", (script) =>
-	{
-		reviewed({
-			[`${STORIES}/todo/S7.md`]: note("todo"),
-			[`${STORIES}/todo/S8.md`]: note("todo").replace("id: S7", "id: S8"),
-		});
-		const old = spawnSync("git", ["show", `${S163_BASE}:scripts/${script}`], {
-			cwd: ROOT,
-			encoding: "utf8",
-		});
-		expect(old.status, old.stderr).toBe(0);
-		write(`scripts/old-${script}`, old.stdout);
-		write(".gitignore", "node_modules\nscripts/old-*\n");
-		commit("ignore the old copy");
-		const same = (label: string) =>
+	/**
+	 * The scenarios the text output is compared under: the old script (at S163's base) and the new one
+	 * must print the same words and exit the same way for each, so `--json` changed nothing else.
+	 */
+	const SCENARIOS: Record<string, () => void> = {
+		"nothing changed": () => undefined,
+		"story drift": () =>
 		{
+			write(`${STORIES}/todo/S7.md`, note("todo", {
+				ac: "1. It works twice.",
+				source: "Feature: Scoreboard",
+			}).replace("priority: 3", "priority: 5"));
+			git("rm", "-q", `${STORIES}/todo/S8.md`);
+			write(`${STORIES}/todo/S9.md`, note("todo").replace("id: S7", "id: S9"));
+			write("docs/v3/FEATURES.md", "# Features\n");
+		},
+		"a ratified amendment": () => write(AMENDMENT, RATIFIED),
+		"a draft amendment": () => write(AMENDMENT, DRAFT),
+		"an ADR body edit": () => write("docs/v3/ARCHITECTURE.md", "# ADRs\n\n### ADR-021 — x\n\nNew body.\n"),
+		"a frontend ADR named": () => write("docs/v3/ARCHITECTURE.md", "# ADRs\n\nADR-020 changed.\n"),
+		"a new package and pnpm verify changed": () =>
+		{
+			write("packages/new/package.json", "{}\n");
+			write("package.json", "{\"type\":\"module\",\"scripts\":{\"verify\":\"y\"}}\n");
+		},
+		"6 done": () => write("docs/v3/AUDIT.md", `# Ledger\n\n${LEDGER_MARKER}\n\n## 2026-11-01 — backlog review (\`continue\`)\n\n## 2026-11-01 — doc parity review (\`continue\`)\n\n${
+			[1, 2, 3, 4, 5, 6].map((n) => `## 2026-11-02 — S${n} completed\n`).join("\n")}`),
+		"a pure move": () =>
+		{
+			move(`${STORIES}/todo/S7.md`, `${STORIES}/done/S7.md`);
+			write(`${STORIES}/done/S7.md`, note("done"));
+		},
+	};
+
+	describe.each(["review-debt.sh", "parity-debt.sh"])("%s: the text output is identical to the script at S163's base commit", (script) =>
+	{
+		it.each(Object.keys(SCENARIOS))("identical text for: %s", (scenario) =>
+		{
+			reviewed({
+				[`${STORIES}/todo/S7.md`]: note("todo"),
+				[`${STORIES}/todo/S8.md`]: note("todo").replace("id: S7", "id: S8"),
+				"docs/v3/ARCHITECTURE.md": "# ADRs\n\n### ADR-021 — x\n\nOld body.\n",
+			});
+			const old = spawnSync("git", ["show", `${S163_BASE}:scripts/${script}`], {
+				cwd: ROOT,
+				encoding: "utf8",
+			});
+			expect(old.status, old.stderr).toBe(0);
+			write(`scripts/old-${script}`, old.stdout);
+			write(".gitignore", "node_modules\nscripts/old-*\n");
+			commit("ignore the old copy");
+			SCENARIOS[scenario]!();
+			if (git("status", "--porcelain") !== "")
+			{
+				commit(scenario);
+			}
 			const before = debt(`old-${script}`, ["--in-flight", "S8"]);
 			const after = debt(script, ["--in-flight", "S8"]);
-			expect(after.stdout, label).toBe(before.stdout);
-			expect(after.status, label).toBe(before.status);
-		};
-		same("nothing changed");
-		write(`${STORIES}/todo/S7.md`, note("todo", {
-			ac: "1. It works twice.",
-			source: "Feature: Scoreboard",
-		}).replace("priority: 3", "priority: 5"));
-		git("rm", "-q", `${STORIES}/todo/S8.md`);
-		write(`${STORIES}/todo/S9.md`, note("todo").replace("id: S7", "id: S9"));
-		write(AMENDMENT, RATIFIED);
-		write("docs/v3/FEATURES.md", "# Features\n");
-		commit("drift");
-		same("drift");
+			expect(after.stdout).toBe(before.stdout);
+			expect(after.status).toBe(before.status);
+		}, TIMEOUT);
+	});
+
+	it("review-debt.sh --json: a draft amendment and a Source-link-only edit give no event; an intake-only ratification gives only its amendment", () =>
+	{
+		reviewed({
+			[AMENDMENT]: `${RATIFIED}\nSource: https://www.figma.com/design/f\n`,
+		});
+		write(AMENDMENT, `${RATIFIED}\nSource: https://www.figma.com/design/f?node-id=1-2\n`);
+		write("docs/v3/visual/other/amendments/A1.md", DRAFT);
+		commit("link only, and a draft");
+		expect(report("review-debt.sh")).toMatchObject({
+			due: false,
+			events: [],
+		});
+		write("docs/v3/visual/other/amendments/A1.md", RATIFIED);
+		commit("ratify the draft");
+		expect(report("review-debt.sh")).toMatchObject({
+			due: true,
+			events: [{
+				kind: "amendment",
+				path: "docs/v3/visual/other/amendments/A1.md",
+			}],
+		});
+	}, TIMEOUT);
+
+	it.each(["review-debt.sh", "parity-debt.sh"])("%s --json: 2 done stories are listed, with no count event below the backstop", (script) =>
+	{
+		reviewed();
+		write("docs/v3/AUDIT.md", `# Ledger\n\n${LEDGER_MARKER}\n\n## 2026-11-01 — backlog review (\`continue\`)\n\n## 2026-11-01 — doc parity review (\`continue\`)\n\n## 2026-11-02 — S1 completed\n\n## 2026-11-02 — S2 completed\n`);
+		commit("2 done");
+		expect(report(script)).toMatchObject({
+			due: false,
+			done: ["S1", "S2"],
+			events: [],
+		});
+	}, TIMEOUT);
+
+	it.each(["review-debt.sh", "parity-debt.sh"])("%s --json --since <sha>: events measured from that commit, past a skip; --since without --json exits 2", (script) =>
+	{
+		reviewed({
+			"docs/v3/FEATURES.md": "# Features\n",
+		});
+		const reviewSha = git("rev-parse", "--short", "HEAD");
+		write(`${STORIES}/todo/S7.md`, note("todo"));
+		commit("S7 inserted");
+		write("docs/v3/AUDIT.md", `# Ledger\n\n${LEDGER_MARKER}\n\n## 2026-11-01 — backlog review (\`continue\`)\n\n## 2026-11-01 — doc parity review (\`continue\`)\n\n## 2026-11-03 — backlog review skipped\n`);
+		commit("skip");
+		const kind = script === "review-debt.sh";
+		// The ledger base moved to the skip (backlog) or stayed (parity); --since measures from the review regardless.
+		expect(report(script).events.some((e) => e.id === "S7")).toBe(!kind);
+		const since = report(script, ["--since", reviewSha]);
+		expect(since.base).toBe(reviewSha);
+		expect(since.events).toEqual(expect.arrayContaining([{
+			kind: "inserted",
+			id: "S7",
+		}]));
+		const text = debt(script, ["--since", reviewSha]);
+		expect(text.status, text.stdout).toBe(2);
+		expect(text.stdout).toContain("usage:");
+		expect(debt(script, ["--json", "--since"]).status).toBe(2);
+		expect(debt(script, ["--json", "--since", "--in-flight"]).status).toBe(2);
+	}, TIMEOUT);
+
+	it("review-debt.sh --json: a body edit under an ADR's section names that ADR; an edit in a later non-ADR section names none", () =>
+	{
+		reviewed({
+			"docs/v3/ARCHITECTURE.md": "# ADRs\n\n### ADR-021 — Hub\n\nOld body.\n\n#### Detail\n\nOld detail.\n\n## Appendix\n\nOld appendix.\n",
+		});
+		write("docs/v3/ARCHITECTURE.md", "# ADRs\n\n### ADR-021 — Hub\n\nOld body.\n\n#### Detail\n\nNew detail.\n\n## Appendix\n\nOld appendix.\n");
+		commit("ADR-021 body");
+		const sectionSha = git("rev-parse", "--short", "HEAD");
+		expect(report("review-debt.sh").events).toEqual([{
+			kind: "adr-changed",
+			path: "docs/v3/ARCHITECTURE.md",
+			adrs: ["ADR-021"],
+		}]);
+		write("docs/v3/ARCHITECTURE.md", "# ADRs\n\n### ADR-021 — Hub\n\nOld body.\n\n#### Detail\n\nNew detail.\n\n## Appendix\n\nNew appendix.\n");
+		commit("appendix");
+		expect(report("review-debt.sh", ["--since", sectionSha]).events).toEqual([{
+			kind: "adr-changed",
+			path: "docs/v3/ARCHITECTURE.md",
+			adrs: [],
+		}]);
 	}, TIMEOUT);
 });
 

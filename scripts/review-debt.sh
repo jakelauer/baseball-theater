@@ -5,11 +5,16 @@
 #   pnpm review:debt          # prints why or why not; exit 1 when due, 0 when not
 #   pnpm review:debt --in-flight S160,S161   # the items in flight in a parallel run
 #   scripts/review-debt.sh --json   # one JSON object: { due, base, done, inFlight, events } (S163)
+#   scripts/review-debt.sh --json --since <sha>   # the same, measured from <sha> instead of the ledger's base
 #
 # `--json` prints the same detection as data, each event a `{ kind, id?, path?, adrs? }` (`count`
 # carries `done` instead), so `pnpm backlog:search seed backlog|intake` (scripts/backlog-vault/search.ts)
 # starts a review from what changed. It exits 0 whenever it printed the report (`due` says whether one
-# is due); without it the text and exit codes are exactly as before.
+# is due); without it the text and exit codes are exactly as before. With `--since` (JSON only) the
+# events and `due` are measured from that commit: the seed passes the newest review itself (`cli.ts
+# review-base backlog`), past any later skip or answers entry, so a change a skip passed over is still
+# seeded; `done` still counts from the newest review. An `adr-changed` event's `adrs` names each ADR
+# a changed line names and each ADR whose `### ADR-NNN` section holds a changed line.
 #
 # Always prints the `done` count since the last review and the in-flight count (S156): the items
 # workers have claimed (`--in-flight`, else the run's .run/claims/<ID>.json files). A review that
@@ -45,6 +50,7 @@ cd "$(dirname "$0")/.."
 
 in_flight_flag=()
 json=""
+since=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --in-flight)
@@ -53,9 +59,15 @@ while [ $# -gt 0 ]; do
       in_flight_flag=(--in-flight "$2"); shift 2 ;;
     --in-flight=*) in_flight_flag=(--in-flight "${1#--in-flight=}"); shift ;;
     --json) json=1; shift ;;
-    *) echo "usage: $0 [--in-flight S1,S2] [--json]" >&2; exit 2 ;;
+    --since)
+      # A value, not the next flag: `--since --json` is a usage error, never a base named "--json".
+      { [ $# -ge 2 ] && [ "${2#--}" = "$2" ] && [ -n "$2" ]; } || { echo "usage: $0 [--in-flight S1,S2] [--json [--since <sha>]]" >&2; exit 2; }
+      since="$2"; shift 2 ;;
+    *) echo "usage: $0 [--in-flight S1,S2] [--json [--since <sha>]]" >&2; exit 2 ;;
   esac
 done
+# --since only re-bases the JSON report (a review's seed); the text and exit codes keep the ledger's base.
+[ -n "$since" ] && [ -z "$json" ] && { echo "usage: $0 [--in-flight S1,S2] [--json [--since <sha>]] — --since needs --json" >&2; exit 2; }
 # shellcheck source=lib/story-notes.sh
 . scripts/lib/story-notes.sh
 
@@ -72,6 +84,11 @@ BACKSTOP=6
 # commit that logged a backlog review, its answers or a skip of one.
 LEDGER_CLI=(node scripts/backlog-vault/cli.ts --audit "$LEDGER")
 base="$("${LEDGER_CLI[@]}" ledger-base backlog)" || { echo "review: could not read ${LEDGER}" >&2; exit 2; }
+# `--json --since <sha>`: measure from that commit instead (S163: the seed passes the newest review itself,
+# `cli.ts review-base`, so a change a skip or answers entry passed over is still reported).
+if [ -n "$since" ]; then
+  base="$(git rev-parse --short "${since}^{commit}" 2>/dev/null)" || { echo "review: --since ${since} is not a commit" >&2; exit 2; }
+fi
 if [ -z "$base" ]; then
   [ -n "$json" ] && { json_report true "" "" ""; exit 0; }
   echo "review: no backlog review logged in ${LEDGER} yet — one is due."
@@ -126,9 +143,23 @@ while IFS= read -r path; do
   esac
 done < <(git diff --name-only "$base" HEAD -- 'docs/v3/visual/*/RATIFIED.md' 'docs/v3/visual/*/amendments/*.md')
 
+# Each line of ARCHITECTURE.md at <rev>, prefixed with the ADR whose `### ADR-NNN` section holds it (empty
+# outside one; any other `##`/`###` heading ends a section, a `####` inside one doesn't).
+adr_lines() {
+  git show "$1:docs/v3/ARCHITECTURE.md" 2>/dev/null |
+    awk '/^### ADR-[0-9][0-9][0-9]/ { id = $2; sub(/[^A-Z0-9-].*$/, "", id) } /^##? / || (/^### / && !/^### ADR-[0-9][0-9][0-9]/) { id = "" } { print id "\t" $0 }'
+}
+# The ADRs a change to ARCHITECTURE.md touched (--json only): those a changed line names, and those whose
+# section holds a changed line (a body edit names no number of its own). One per line, sorted.
+changed_adrs() {
+  {
+    git diff "$base" HEAD -- docs/v3/ARCHITECTURE.md | grep -E '^[+-]' | grep -oE 'ADR-[0-9]{3}'
+    diff <(adr_lines "$base") <(adr_lines HEAD) | grep -E '^[<>] ADR-' | sed -E 's/^[<>] (ADR-[0-9]{3}).*/\1/'
+  } | sort -u
+}
+
 if ! git diff --quiet "$base" HEAD -- docs/v3/ARCHITECTURE.md; then
-  json_event adr-changed path docs/v3/ARCHITECTURE.md adrs \
-    "$(git diff "$base" HEAD -- docs/v3/ARCHITECTURE.md | grep -E '^[+-]' | grep -oE 'ADR-[0-9]{3}' | sort -u | paste -sd, -)"
+  json_event adr-changed path docs/v3/ARCHITECTURE.md adrs "$(changed_adrs | paste -sd, -)"
   if git diff "$base" HEAD -- docs/v3/ARCHITECTURE.md | grep -E '^[+-]' | grep -qE 'ADR-0(03|08|14|16|2[0-6])\b'; then
     intake+=("ARCHITECTURE.md changed a frontend ADR")
   else

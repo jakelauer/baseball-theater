@@ -7,6 +7,8 @@
  *                         missing (records.ts); builds INDEX.md in memory, never reads it from disk
  *   cli.ts pre-commit     (the Husky hook) canonicalize the staged notes and re-stage them
  *   cli.ts ledger-base backlog|parity   the commit the debt checks measure drift from (ledger.ts)
+ *   cli.ts review-base backlog|parity   the commit that logged the newest review itself, past later skips and
+ *                                       answers: the base a review's seed measures from (S163; search.ts)
  *   cli.ts done-since backlog|parity    stories completed since the newest review of that kind
  *   cli.ts review-blocked backlog|parity  prints `blocked` when that review waits for the owner, else `clear`
  *   cli.ts in-flight [--in-flight S1,S2]  the items in flight in a parallel run, comma-separated (in-flight.ts)
@@ -264,6 +266,16 @@ async function printLedgerBase()
 	}
 }
 
+/** Prints the short sha of the commit that logged the newest review itself (no skip or answers entry), or nothing when none is logged. */
+async function printReviewBase()
+{
+	const base = ledgerBase(repoRoot, relative(repoRoot, auditPath), reviewKind(), ["review"]);
+	if (base)
+	{
+		console.log(base);
+	}
+}
+
 /** Prints the stories completed since the newest review of the kind, comma-separated (empty when none). */
 async function printDoneSince()
 {
@@ -287,6 +299,7 @@ const commands: Record<string, () => Promise<void>> = {
 	check,
 	"pre-commit": preCommit,
 	"ledger-base": printLedgerBase,
+	"review-base": printReviewBase,
 	"done-since": printDoneSince,
 	"review-blocked": printReviewBlocked,
 	"in-flight": printInFlight,
@@ -296,7 +309,7 @@ const commands: Record<string, () => Promise<void>> = {
 const command = commands[positionals[0] ?? ""];
 if (!command)
 {
-	console.error("usage: cli.ts <build|check|pre-commit|ledger-base|done-since|review-blocked <kind>|in-flight> [--dir <notes dir>] [--audit <file>] [--index <file>] [--in-flight <IDs>] [--quiet]");
+	console.error("usage: cli.ts <build|check|pre-commit|ledger-base|review-base|done-since|review-blocked <kind>|in-flight> [--dir <notes dir>] [--audit <file>] [--index <file>] [--in-flight <IDs>] [--quiet]");
 	process.exitCode = 2;
 }
 else
