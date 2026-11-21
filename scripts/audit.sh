@@ -28,7 +28,8 @@
 # just avoid incrementing it"), so a count already at the backstop stays due.
 #
 # Flags: --commit <sha> names the shipping commit; --no-verify skips the repo-wide
-# pnpm verify for entries covered by another run; --findings - reads stdin;
+# pnpm verify for entries covered by another run; --findings - reads stdin, and for
+# review/parity must hold the review's `query:` lines (pnpm backlog:search, S163);
 # --in-flight <IDs> (review/parity; comma-separated, `S9,S12`) names the items being built
 # while the review ran, whose notes it may not edit (S156 AC 13).
 # --design-match <verdict|-> (rule 22, S81) pairs each capture in
@@ -543,6 +544,10 @@ case "$VERDICT" in
 esac
 [ -n "$TRIGGER" ] || { echo "audit: --trigger is required" >&2; exit 2; }
 [ -n "$FINDINGS" ] || { echo "audit: --findings is required (a verdict with no cited evidence does not count as a review)" >&2; exit 2; }
+# A review starts from a seed and searches what changed (S163; `pnpm backlog:search`), so its findings carry
+# the `query:` lines it ran: the record of what it read. Answers and skip entries don't search, so don't need one.
+grep -q '^query:' <<<"$FINDINGS" ||
+  { echo "audit: the findings name no query: line — a ${KIND} records the pnpm backlog:search queries it ran (S163 AC 8: a review reads what its seed and searches reach, and says so)" >&2; exit 1; }
 # The in-flight items (S156 AC 13): comma-separated IDs, recorded as "S9, S12" ("none" when none).
 if [ -n "$IN_FLIGHT" ]; then
   # in-flight.ts holds the one item-ID pattern (S, B, F or V and digits); comma-separated, no spaces.

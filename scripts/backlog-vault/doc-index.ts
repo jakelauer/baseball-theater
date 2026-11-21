@@ -193,14 +193,31 @@ function docEntry(doc: IndexedDoc, label: string, rules = false): string[]
 	return out;
 }
 
-const OPEN = ["doing", "todo", "blocked"];
+/** The open statuses, in the order the open-work table lists them. */
+export const OPEN = ["doing", "todo", "blocked"];
 
-/** One row of the open-work table: a story or a bug, which share one priority scale. */
-interface OpenRow
+/** What the open-work order reads of a story or a bug, which share one priority scale. */
+export interface OpenItem
 {
 	kind: "bug" | "story";
 	priority: number;
 	status: string;
+}
+
+/**
+ * The open-work order, the one definition (ADR-025): `doing`, then `todo`, then `blocked`; by priority
+ * within each; at equal priority a bug first (.claude/skills/run-backlog/SKILL.md, step 3: it is broken
+ * behaviour already shipped). INDEX.md's table and `pnpm backlog:search next` (search.ts) both sort by it.
+ */
+export function compareOpen(a: OpenItem, b: OpenItem): number
+{
+	const rank = (item: OpenItem) => (item.kind === "bug" ? 0 : 1);
+	return OPEN.indexOf(a.status) - OPEN.indexOf(b.status) || a.priority - b.priority || rank(a) - rank(b);
+}
+
+/** One row of the open-work table. */
+interface OpenRow extends OpenItem
+{
 	cells: string;
 }
 
@@ -214,8 +231,6 @@ function workLines(stories: Story[], bugs: Bug[]): string[]
 	const link = (s: Story) => `[${s.id}](backlog/${storyNotePath(s.id, s.status)})`;
 	const bugLink = (b: Bug) => `[${b.id}](backlog/${bugNotePath(b.id, b.status)})`;
 	const cell = (text: string) => text.replace(/\|/g, "\\|");
-	// At equal priority a bug goes first (.claude/skills/run-backlog/SKILL.md, step 3): it is broken behaviour already shipped.
-	const rank = (row: OpenRow) => (row.kind === "bug" ? 0 : 1);
 	const rows: OpenRow[] = [
 		...stories.filter((s) => OPEN.includes(s.status)).map((s) => ({
 			kind: "story" as const,
@@ -229,7 +244,7 @@ function workLines(stories: Story[], bugs: Bug[]): string[]
 			status: b.status,
 			cells: `${bugLink(b)} Bug #${b.issue}: ${cell(b.title)} | \`${b.status}\` | — | —`,
 		})),
-	].sort((a, b) => OPEN.indexOf(a.status) - OPEN.indexOf(b.status) || a.priority - b.priority || rank(a) - rank(b));
+	].sort(compareOpen);
 	const out = [
 		"| Priority | Story or bug | Status | Depends on | Design |",
 		"|---|---|---|---|---|",

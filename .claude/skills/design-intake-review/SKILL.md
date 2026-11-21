@@ -21,18 +21,26 @@ It counts as the backlog review for that drift event; log it with `scripts/audit
 
 Run it **without** the transcript that wrote the stories or the designs. For a full intake (several surfaces, or new frontend ADRs), run **two independent reviewers** that do not see each other's work, each producing a report (two `design-intake-reviewer` subagents started at once: read-only, with the Figma tools, each loading this skill). The coordinating agent (or the `design-intake-merger` it hands both reports to) merges them: union the findings (coverage), and for every disagreement state both positions and the resolution, or put it to the owner. Reviewers report; they do not edit. The coordinator applies the merged result, or hands both reports to a `design-intake-merger` subagent (always under `/run-backlog`), which merges, applies, logs and commits, so the merge stays out of the coordinating thread.
 
-## Inputs — read all of them
+## Inputs — what the seed names
 
-| Source                                                                                                                                                                                                              | What to take from it                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `docs/v3/visual/<surface>/DESIGN.md`, `RATIFIED.md`, `REVISIONS.md`                                                                                                                                                 | The ratified frames, their states and variants, and decisions recorded on them                                             |
-| `docs/v3/visual/<surface>/*.png`                                                                                                                                                                                    | What is actually drawn — read the images, do not trust the prose alone                                                     |
-| Figma file `wqGKEFlvyxq0ObWZhRJdPF` (Figma MCP: `get_metadata`, `get_screenshot`; `get_design_context` only after loading the `/figma-design-to-code` skill)                                                        | Component structure, variants and instances the PNGs flatten — the evidence for what is one shared component vs. a one-off |
-| `docs/v3/VISUAL-DESIGN.md`                                                                                                                                                                                          | Tokens, host pairings (mobile / medium / desktop), §5a settings that change presentation, §9 decisions                     |
-| `docs/v3/FEATURES.md`, `docs/v3/INTENT.md`                                                                                                                                                                          | What each drawn thing is for                                                                                               |
-| `docs/v3/ARCHITECTURE.md` — ADR-003, 008, 014, 016, 020–026, each by its line range in `docs/v3/INDEX.md`                                                                                                           | The frontend rules the stories must be sliced against                                                                      |
-| The backlog through `docs/v3/INDEX.md`: the Gap map and Later themes frame notes, every UI story's note (`grep -rl "^design:" docs/v3/backlog/stories/`), and `web/src/` at HEAD — the retired `BACKLOG.md` is gone | What is already owned or built                                                                                             |
-| `packages/domain`, `openapi/bt-api.v1.json`                                                                                                                                                                         | What data exists today, to find what the frames need that the API lacks                                                    |
+First step (S163):
+
+```bash
+pnpm backlog:search seed intake --since "$(node scripts/backlog-vault/cli.ts ledger-base backlog)"
+```
+
+Read what it names, not every surface (a surface's first ratification still has its whole surface inventoried: all of it is new), and copy each `query:` line into the findings.
+
+| Source                                                                                                                                                       | What to take from it                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| The seeded amendment or surface files, and the frames each amendment adds, overrides or repeals                                                              | The ratified frames, their states and variants, and decisions recorded on them                                             |
+| Those frames' PNGs                                                                                                                                           | What is actually drawn — read the images, do not trust the prose alone                                                     |
+| Figma file `wqGKEFlvyxq0ObWZhRJdPF` (Figma MCP: `get_metadata`, `get_screenshot`; `get_design_context` only after loading the `/figma-design-to-code` skill) | Component structure, variants and instances the PNGs flatten — the evidence for what is one shared component vs. a one-off |
+| `docs/v3/VISUAL-DESIGN.md`                                                                                                                                   | Tokens, host pairings (mobile / medium / desktop), §5a settings that change presentation, §9 decisions                     |
+| `docs/v3/FEATURES.md`, `docs/v3/INTENT.md`                                                                                                                   | What each drawn thing is for                                                                                               |
+| `docs/v3/ARCHITECTURE.md` — ADR-003, 008, 014, 016, 020–026, each by its line range in `docs/v3/INDEX.md`                                                    | The frontend rules the stories must be sliced against                                                                      |
+| The seeded stories (`design`), their Gap map rows and `web/src/` at HEAD                                                                                     | What is already owned or built                                                                                             |
+| `packages/domain`, `openapi/bt-api.v1.json`                                                                                                                  | What data exists today, to find what the frames need that the API lacks                                                    |
 
 Never treat an unratified frame as a decision. A frame in Figma that is not in a ratified surface is an open question for the owner, not work.
 
@@ -42,7 +50,7 @@ Each produces findings with cited evidence (file, line, frame or node id), never
 
 ### 1. Inventory — what the designs contain
 
-Per surface, list:
+Per seeded amendment (or newly ratified surface), list:
 
 - **Screens and rooms**, per host pairing (mobile / medium / desktop).
 - **Components**, marking which recur across surfaces (team-color module, linescore, at-bat accordion, tab bar, notice, empty/loading/error room …). Recurrence is judged from Figma instances and the PNGs, not names.

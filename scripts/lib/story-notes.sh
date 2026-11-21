@@ -41,3 +41,43 @@ story_changes()
       for (id in hpath) if (!(id in bpath)) print "A\t" id "\t" hpath[id]
     }' | sort -t $'\t' -k2,2
 }
+
+# The debt scripts' `--json` report (S163): `pnpm backlog:search seed` reads it to start a review
+# from what changed. Values here are story IDs, repo paths, shas and ADR numbers, so escaping
+# backslashes and double quotes is enough.
+json_string() { local v="${1//\\/\\\\}"; printf '"%s"' "${v//\"/\\\"}"; }
+
+# json_list "<a, b>" or "<a,b>" — a JSON array of strings from a comma-separated list (empty → []).
+json_list() {
+  local out="" item
+  local IFS=,
+  for item in $1; do
+    item="${item# }"
+    [ -n "$item" ] && out="${out:+$out,}$(json_string "$item")"
+  done
+  printf '[%s]' "$out"
+}
+
+# event_json <kind> [<key> <value>]… — one event object. `adrs` and `done` values are comma-separated lists.
+event_json() {
+  local out
+  out="{\"kind\":$(json_string "$1")"
+  shift
+  while [ $# -ge 2 ]; do
+    case "$1" in
+      adrs | done) out="${out},\"$1\":$(json_list "$2")" ;;
+      *) out="${out},\"$1\":$(json_string "$2")" ;;
+    esac
+    shift 2
+  done
+  printf '%s}' "$out"
+}
+
+# json_report <due true|false> <base> <done IDs, comma-separated> <in-flight IDs> — prints the report;
+# the events are the caller's `events` array of event_json objects.
+json_report() {
+  local joined=""
+  [ "${#events[@]}" -gt 0 ] && joined="$(IFS=,; printf '%s' "${events[*]}")"
+  printf '{"due":%s,"base":%s,"done":%s,"inFlight":%s,"events":[%s]}\n' \
+    "$1" "$(json_string "$2")" "$(json_list "$3")" "$(json_list "$4")" "$joined"
+}

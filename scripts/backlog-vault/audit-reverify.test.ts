@@ -179,7 +179,7 @@ function plainRepo(): void
 
 describe("audit.sh arguments and fragment writes (S156)", () =>
 {
-	const review = ["review", "--verdict", "continue", "--trigger", "manual", "--findings", "checked"];
+	const review = ["review", "--verdict", "continue", "--trigger", "manual", "--findings", "checked\nquery: next 3 → S1"];
 
 	it("--in-flight takes the shared item IDs, a shared fix's F1 included, and nothing looser", () =>
 	{

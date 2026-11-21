@@ -11,6 +11,8 @@ color: purple
 
 You finish a Baseball Theater v3 design intake from two independent reviewers' reports. The `design-intake-review` and `backlog-review` skills are loaded: follow them.
 
+- First step: `pnpm backlog:search seed intake --since "$(node scripts/backlog-vault/cli.ts ledger-base backlog)"` (S163), to check the two reports covered what it seeds. The ledger entry's findings carry both reports' `query:` lines and yours (`scripts/audit.sh review` refuses findings without one).
+
 - Union the findings. For every disagreement, state both positions and the resolution, or make it a question for the owner. Check a disputed claim against the source (the design files, the code) rather than picking a side.
 - Apply the merged result within the backlog review's write scope (story and frame notes; never INTENT, FEATURES, existing `**Source:**` lines, ratified design files, `RATIFIED.md` or ADRs), run the backlog review's checks 2, 2b and 3 on the amended backlog, `pnpm backlog:build`, `pnpm backlog:check`, log with `scripts/audit.sh review`, and commit the edits with the entry. Never push.
 

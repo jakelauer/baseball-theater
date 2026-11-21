@@ -39,11 +39,17 @@ Never touch story text, priorities, statuses, ACs, ADRs (`ARCHITECTURE.md`), rat
 
 ## The checks
 
-Each check produces findings or cited evidence, never a bare "looks fine".
+Each check produces findings or cited evidence, never a bare "looks fine". First, the seed (S163):
+
+```bash
+pnpm backlog:search seed parity --since "$(node scripts/backlog-vault/cli.ts ledger-base parity)"
+```
+
+Read what it lists and what further `pnpm backlog:search` queries reach; copy every `query:` line into the findings (`scripts/audit.sh parity` requires one).
 
 ### 1. Citation honesty
 
-Scope: every story `pnpm parity:debt` named, plus the next 3 `todo` stories by priority.
+Scope: the seeded stories, plus the next 3 `todo` stories by priority.
 
 - **Feature citations.** Read the cited FEATURES row or theme next to the story's Gap and Impact. Does the feature actually describe what the story delivers, or does the story just sit near it? A story citing a broad theme (e.g. "Robust core") for something specific is a finding.
 - **Pillar citations.** Is there really no feature that applies? A pillar where a feature fits usually means FEATURES is missing something. Does the `Approved by owner` quote match a real owner decision? Look for it in the session, the commit, or the ledger. Has the story been re-scoped since that date (`git log -p` on the note)? If so, the approval no longer covers it, so set the line back to `Open:` and ask again.
@@ -51,13 +57,15 @@ Scope: every story `pnpm parity:debt` named, plus the next 3 `todo` stories by p
 
 ### 2. Doc reflects reality
 
-- Does FEATURES describe what `done` stories actually shipped? Look for carry/cut verdicts, "TBD"s, and open product questions that the backlog has since settled.
+Scope: only the FEATURES and INTENT rows changed since the base and the rows cited by stories `done` since it.
+
+- Does FEATURES describe what those `done` stories actually shipped? Look for carry/cut verdicts, "TBD"s, and open product questions that the backlog has since settled.
 - Does any FEATURES or INTENT statement contradict a story, or another doc (VISUAL-DESIGN, ARCHITECTURE)? Name both sides.
 - Is any FEATURES entry now a relic: a theme nothing serves, or one the owner has walked back?
 
 ### 3. Coverage for the backlog review
 
-Look for FEATURES items no story serves, and for features you added this review. Do **not** write stories for them. Put them in the ledger entry under **For the next backlog review**; the next backlog review must answer each one.
+Among rows added or changed since the base, and features you added, find ones no story serves (`pnpm backlog:search cites "<row>"`). Do **not** write stories for them. Put them in the ledger entry under **For the next backlog review**; the next backlog review must answer each one.
 
 ## Verdict
 

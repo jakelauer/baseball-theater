@@ -114,6 +114,22 @@ export function pillarNames(intent: string): Set<string>
 }
 
 const PILLAR = /^Pillar: (.+?) — (.+?)\s+Approved by owner (\d{4}-\d{2}-\d{2}): "(.+)"$/;
+
+/**
+ * The FEATURES rows or INTENT pillar a `**Source:**` line names: each `;`-separated feature name, or
+ * the pillar's name; none for an `Open:` line. The one reading of a citation (ADR-025), used by
+ * {@link sourceProblems} and by `pnpm backlog:search cites` (search.ts).
+ */
+export function sourceCitations(source: string | null): string[]
+{
+	const kind = sourceKind(source);
+	if (kind === "feature")
+	{
+		return (source ?? "").slice("Feature:".length).split(";").map((n) => n.trim()).filter((n) => n !== "");
+	}
+	const pillar = kind === "pillar" ? /^Pillar: (.+?) — /.exec(source ?? "")?.[1] : undefined;
+	return pillar === undefined ? [] : [pillar];
+}
 const RAISED = /Raised \d{4}-\d{2}-\d{2}\.?$/;
 
 export function sourceProblems(stories: Pick<Story, "id" | "status" | "source">[], docs: SourceDocs): string[]
@@ -132,7 +148,7 @@ export function sourceProblems(stories: Pick<Story, "id" | "status" | "source">[
 		}
 		else if (kind === "feature")
 		{
-			const names = source.slice("Feature:".length).split(";").map((n) => n.trim()).filter((n) => n !== "");
+			const names = sourceCitations(source);
 			if (names.length === 0)
 			{
 				problems.push(`${id}'s **Source:** names no feature`);
