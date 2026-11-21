@@ -26,7 +26,7 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"test": "vitest run",
-		"test:coverage": "concurrently --group --names turbo,backlog,tools,selector \"turbo run test:coverage --cache=local:${BT_TURBO_CACHE_READ:+r}${GITHUB_ACTIONS:+w}\" \"pnpm test:backlog\" \"pnpm test:tools\" \"pnpm test:selector\"",
+		"test:coverage": "concurrently ${GITHUB_ACTIONS:+--max-processes 1} --group --names turbo,backlog,tools,selector \"turbo run test:coverage --cache=local:${BT_TURBO_CACHE_READ:+r}${GITHUB_ACTIONS:+w}\" \"pnpm test:backlog\" \"pnpm test:tools\" \"pnpm test:selector\"",
 		"test:watch": "vitest",
 		"test:backlog": "vitest run --config scripts/backlog-vault/vitest.config.ts",
 		"test:tools": "vitest run --config tools/vitest.config.js",
