@@ -6,7 +6,7 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import {
-	existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
+	copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -583,6 +583,83 @@ describe("CLI in a temp root", () =>
 		writeFileSync(join(lockDir(root), "pid"), `${process.pid}\n`);
 		expect(() => withClaimsLock(root, () => 0, 300)).toThrow(`held by pid ${process.pid}, which is still running`);
 		expect(existsSync(lockDir(root))).toBe(true);
+	});
+
+	// S165 AC 5: the in-flight guards and the design gate.
+	it("review-edits flags a claimed item's create and edit fragments, and only those", () =>
+	{
+		expect(cli(["claim", "S5", "--file", "a.ts"]).status).toBe(0);
+		const changed = ["docs/v3/audit/2026-11-21/20261121T000000Z-S5-create.md", "docs/v3/audit/2026-11-21/20261121T000001Z-S5-edit.md",
+			"docs/v3/audit/2026-11-21/20261121T000002Z-S6-edit.md", "docs/v3/audit/2026-11-21/20261121T000003Z-S5-review.md"].join("\n");
+		const r = cli(["review-edits"], changed);
+		expect(r.status).toBe(1);
+		expect(r.stdout.trim().split("\n")).toEqual([
+			"review edited an in-flight item's note: docs/v3/audit/2026-11-21/20261121T000000Z-S5-create.md",
+			"review edited an in-flight item's note: docs/v3/audit/2026-11-21/20261121T000001Z-S5-edit.md",
+		]);
+		expect(cli(["review-edits"], "docs/v3/audit/2026-11-21/20261121T000002Z-S6-edit.md").status).toBe(0);
+	});
+
+	it("audit.sh edit --review refuses a claimed item (exit 1), and lets an unclaimed one through", () =>
+	{
+		const scripts = join(dirname(fileURLToPath(import.meta.url)), "..");
+		for (const f of ["audit.sh", "lib/reverify.sh"])
+		{
+			mkdirSync(dirname(join(root, "scripts", f)), {
+				recursive: true,
+			});
+			copyFileSync(join(scripts, f), join(root, "scripts", f));
+		}
+		mkdirSync(join(root, "docs/v3"), {
+			recursive: true,
+		});
+		writeFileSync(join(root, "docs/v3/AUDIT.md"), "# Ledger\n\n<!-- entries below; newest last; appended by scripts/audit.sh -->\n");
+		writeFileSync(join(root, "body.md"), "x\n");
+		spawnSync("git", ["init", "-q"], {
+			cwd: root,
+		});
+		expect(cli(["claim", "S5", "--file", "a.ts"]).status).toBe(0);
+		const audit = (id: string) => spawnSync("bash", [join(root, "scripts/audit.sh"), "edit", id, "--review", "--body-file", "body.md", "--reason", "a review's finding"], {
+			cwd: root,
+			encoding: "utf8",
+			env: {
+				...process.env,
+				BT_BACKLOG_CACHE: join(root, "cache"),
+			},
+		});
+		const held = audit("S5");
+		expect(held.status).toBe(1);
+		expect(held.stderr).toContain("S5 is in flight");
+		const free = audit("S6");
+		expect(free.stderr).not.toContain("in flight");
+	});
+
+	it("claim refuses a UI story whose design story is open, naming it, and admits it once the design story is done", () =>
+	{
+		const ui = "**Gap:** a screen\n\n### Backlog fields\n\n```yaml\npriority: 1\ndesign:\n  - \"S1\"\n```\n";
+		stubCache({
+			S2: {
+				body: ui,
+			},
+		});
+		const held = cli(["claim", "S2", "--file", "web/x.tsx"]);
+		expect(held.status).toBe(1);
+		expect(held.stderr).toContain("its design story S1 (#1) is not closed completed with status:done");
+		stubCache({
+			S1: {
+				state: "closed",
+				state_reason: "completed",
+				labels: [{
+					name: "story",
+				}, {
+					name: "status:done",
+				}],
+			},
+			S2: {
+				body: ui,
+			},
+		});
+		expect(cli(["claim", "S2", "--file", "web/x.tsx"]).status).toBe(0);
 	});
 });
 

@@ -43,6 +43,8 @@
 		"backlog:check": "node scripts/backlog-vault/cli.ts check",
 		"backlog:search": "node scripts/backlog-vault/search.ts",
 		"backlog:sync": "node scripts/backlog-vault/github.ts sync",
+		"backlog:triage": "node scripts/backlog-vault/triage.ts",
+		"backlog:areas": "node scripts/backlog-vault/areas.ts",
 		"backlog:migrate": "node scripts/backlog-vault/migrate.ts",
 		"changelog:build": "node scripts/backlog-vault/changelog.ts",
 		"parity:debt": "scripts/parity-debt.sh",

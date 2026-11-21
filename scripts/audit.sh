@@ -20,6 +20,8 @@
 #   scripts/audit.sh create S170 --title "…" --body-file f --reason "…"   # a new story's text (S164)
 #   scripts/audit.sh create B140 --issue 140 --body-file f          # an accepted bug's fields block
 #   scripts/audit.sh edit S158 --body-file f --reason "…"           # a story's new text, chained
+#   scripts/audit.sh edit S158 --adopt --reason "<owner's words>"   # S165: record the owner's GitHub edit, post its Applied comment
+#   (create|edit … --review: a review's record; refused, exit 1, for an item claimed in .run/claims/)
 #   scripts/audit.sh migration S12 --issue 40 --base <sha> --body-file f [--rewrite-file d]
 #   scripts/audit.sh apply                                          # send merged records to GitHub
 #
@@ -89,7 +91,7 @@ else
 fi
 
 usage() {
-  sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 2
 }
 
@@ -237,10 +239,12 @@ if [ "$MODE" = "create" ] || [ "$MODE" = "edit" ] || [ "$MODE" = "migration" ]; 
   ID="${1:-}"
   [[ "$ID" =~ ^[SB][1-9][0-9]*$ ]] || { echo "audit: ${MODE} needs a story or bug ID (S170, B140; no leading zero)" >&2; exit 2; }
   shift
-  BODY_FILE="" REASON="" TITLE_ARG="" ISSUE="" BASE_ARG="" REWRITE="" STAGE=""
+  BODY_FILE="" REASON="" TITLE_ARG="" ISSUE="" BASE_ARG="" REWRITE="" STAGE="" ADOPT="" BY_REVIEW=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --body-file) BODY_FILE="${2:-}"; shift 2 || usage ;;
+      --adopt) ADOPT=1; shift ;;
+      --review) BY_REVIEW=1; shift ;;
       --reason) REASON="$(read_arg "${2:-}")"; shift 2 || usage ;;
       --title) TITLE_ARG="${2:-}"; shift 2 || usage ;;
       --issue) ISSUE="${2:-}"; shift 2 || usage ;;
@@ -251,6 +255,24 @@ if [ "$MODE" = "create" ] || [ "$MODE" = "edit" ] || [ "$MODE" = "migration" ]; 
       *) echo "audit: unknown option $1" >&2; usage ;;
     esac
   done
+  # S165: a review running beside in-flight items never records text for one of them; its finding goes
+  # to the overseer instead. The claims live in the main checkout's .run/claims/ (claims.ts).
+  if [ -n "$BY_REVIEW" ]; then
+    main_checkout="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+    if [ -f "${main_checkout}/.run/claims/${ID}.json" ]; then
+      echo "audit: ${ID} is in flight (claimed in ${main_checkout}/.run/claims/): a review never records its text; pass the finding to the overseer" >&2
+      exit 1
+    fi
+  fi
+  # S165: --adopt records the live body (a bug's live fields block) GitHub holds now, an edit the owner
+  # made there, as an edit chained from the newest record; its Applied comment is posted after.
+  if [ -n "$ADOPT" ]; then
+    [ "$MODE" = "edit" ] || { echo "audit: --adopt is an edit's (audit.sh edit <ID> --adopt --reason <the owner's words>)" >&2; exit 2; }
+    [ -z "$BODY_FILE" ] || { echo "audit: --adopt takes the body from GitHub, not --body-file" >&2; exit 2; }
+    [ -n "$REASON" ] || { echo "audit: edit --adopt needs --reason quoting the owner" >&2; exit 2; }
+    BODY_FILE="$(mktemp "${TMPDIR:-/tmp}/audit-${ID}-adopt.XXXXXX")"
+    ISSUE="$(node scripts/backlog-vault/github.ts adopt-body "$ID" --out "$BODY_FILE")" || exit 2
+  fi
   [ -f "$BODY_FILE" ] || { echo "audit: ${MODE} needs --body-file <file> holding the text" >&2; exit 2; }
   [ -z "$ISSUE" ] || [[ "$ISSUE" =~ ^[0-9]+$ ]] || { echo "audit: --issue takes an issue number" >&2; exit 2; }
   flags=(--body-file "$BODY_FILE")
@@ -303,6 +325,12 @@ if [ "$MODE" = "create" ] || [ "$MODE" = "edit" ] || [ "$MODE" = "migration" ]; 
   node "$RECORDS" fields "${flags[1]}" "$ID" >/dev/null || { echo "audit: ${ID}'s text has no parsable ### Backlog fields block" >&2; exit 2; }
   write_record "$MODE" "$ID" "${flags[@]}" || exit 2
   echo "audit ${ID}: recorded its ${MODE} in ${FRAG}"
+  if [ -n "$ADOPT" ]; then
+    node scripts/backlog-vault/github.ts applied "$ID" "$FRAG" || {
+      echo "audit: ${FRAG} is recorded, but its Applied comment wasn't posted: node scripts/backlog-vault/github.ts applied ${ID} ${FRAG}" >&2
+      exit 2
+    }
+  fi
   exit 0
 fi
 

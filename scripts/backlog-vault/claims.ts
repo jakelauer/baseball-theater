@@ -65,11 +65,12 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import type { IssueCache } from "./github.ts";
 import {
-	cacheDir, findIssue, problemsFor, readCache, statusOf, trustedId,
+	cacheDir, designGate, findIssue, itemFromIssue, problemsFor, readCache, statusOf, trustedId,
 } from "./github.ts";
 import type { TextRecord } from "./text-records.ts";
 import { fragmentsDir, readRecords } from "./text-records.ts";
 import { ITEM_ID } from "./in-flight.ts";
+import { isTriage, TRIAGE_LABEL } from "./triage.ts";
 
 /** One in-flight item's claim, as stored in `.run/claims/<ID>.json`. */
 export interface Claim
@@ -519,7 +520,8 @@ export function blockedItems(root: string): string[]
 
 /**
  * Whether a story or bug may be claimed, from GitHub state alone (S164): its trusted issue must exist,
- * be open and be labelled `status:todo` or `status:doing`. Returns its issue number, or why not. A fix
+ * be open and be labelled `status:todo` or `status:doing`, never `triage`, and a UI story's design
+ * stories must be done (github.ts designGate; S165). Returns its issue number, or why not. A fix
  * item (`F<n>`) or a vault item (`V<n>`) has no issue and is always claimable. An item the backlog
  * skipped (github.ts itemsFromCache: a broken fields block, two issues carrying one ID) is refused,
  * quoting its problem; `records` are the text records its text is read from.
@@ -541,8 +543,18 @@ export function claimable(cache: IssueCache, id: string, records: TextRecord[] =
 	const issue = findIssue(cache, id);
 	if (!issue)
 	{
+		// S165: an issue someone else filed carries no ID until the owner accepts it (triage.ts).
+		const outside = /^B[1-9][0-9]*$/.test(id) ? cache.issues.find((i) => i.number === Number(id.slice(1)) && isTriage(i, cache.trusted)) : undefined;
 		return {
-			error: `no trusted issue carries ${id} (pnpm backlog:sync, then try again)`,
+			error: outside
+				? `${id}: issue #${outside.number} is a triage issue someone else filed; nothing is built from one until the owner accepts it (a priority and a Source)`
+				: `no trusted issue carries ${id} (pnpm backlog:sync, then try again)`,
+		};
+	}
+	if (issue.labels.some((l) => l.name === TRIAGE_LABEL))
+	{
+		return {
+			error: `${id} (#${issue.number}) is labelled ${TRIAGE_LABEL}: nothing is built from it until the owner accepts it and the label comes off`,
 		};
 	}
 	const status = statusOf(issue);
@@ -550,6 +562,14 @@ export function claimable(cache: IssueCache, id: string, records: TextRecord[] =
 	{
 		return {
 			error: `${id} (#${issue.number}) is ${issue.state === "open" ? `labelled status:${status}` : "closed"}: only an open item labelled status:todo or status:doing can be claimed`,
+		};
+	}
+	// S165: law L9's design clause, moved here and to the live check by the owner's "GitHub owns state (Recommended)".
+	const design = designGate(cache, id, itemFromIssue(issue, cache.trusted, records)?.design ?? []);
+	if (design.length > 0)
+	{
+		return {
+			error: design.join("; "),
 		};
 	}
 	return {

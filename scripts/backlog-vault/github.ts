@@ -27,6 +27,9 @@
  *   next-id                       one above the highest story ID anywhere (a helper; create checks taken)
  *   removed --since <iso>         the stories closed not_planned since then, from the cache (the debt
  *                                 scripts' and the seed's `removed` drift event)
+ *   adopt-body <ID> --out <file>  S165: writes an item's live body (a bug's live fields block) for
+ *                                 `audit.sh edit <ID> --adopt`; refused when it already is the newest record
+ *   applied <ID> <fragment>       S165: posts that record's `Applied` comment (after the adopt's edit is written)
  *
  * State commands are logged in the run journal or the coordinator's output, never the ledger: only
  * story text is recorded (text-records.ts). With no cache, the readers of "now" exit 2 and say to
@@ -44,7 +47,7 @@ import { fileURLToPath } from "node:url";
 import type { BacklogItem, BacklogSource } from "./search.ts";
 import type { TextRecord } from "./text-records.ts";
 import {
-	chains, fragmentsDir, goalLine, lf, newestBody, parseFields, readRecords, recordStamp, sha256, withoutFields,
+	chains, FIELDS_HEADING, fragmentsDir, goalLine, lf, newestBody, parseFields, parseRecord, readRecords, recordStamp, sha256, withoutFields,
 } from "./text-records.ts";
 
 /** Runs `gh` with these arguments and returns its stdout (with `-i`, the status line and headers first); injected so tests never reach GitHub. */
@@ -899,8 +902,8 @@ function targetBody(record: TextRecord, current: string | null): string
 	return `${symptoms === "" ? "" : `${symptoms}\n\n`}${record.body}`;
 }
 
-/** Whether the issue's body already is what `record` sets (a CRLF copy of it counts). */
-function isLive(record: TextRecord, body: string | null): boolean
+/** Whether the issue's body already is what `record` sets (a CRLF copy of it counts); a bug compares its fields block alone (the live check, S165, reads it too). */
+export function isLive(record: TextRecord, body: string | null): boolean
 {
 	const text = lf(body ?? "");
 	return record.id.startsWith("B") ? text === targetBody(record, text) : sha256(text) === record.hash;
@@ -981,6 +984,70 @@ export function applyRecords(records: TextRecord[], io: GithubWriter & { sync: (
 		}
 	}
 	return result;
+}
+
+/**
+ * Law L9's design clause, "a UI story waits for its ratified design" (S165; owner, 2026-11-20: "GitHub
+ * owns state (Recommended)", which moved it from the commit check to the live one and the claim step):
+ * each design story in `design` must be carried by an issue closed `completed` with `status:done`.
+ * Returns one problem per design story that isn't. `pnpm backlog:check --live` and `claims.ts claim`
+ * both call this, so they agree (ADR-025).
+ */
+export function designGate(cache: IssueCache, id: string, design: string[]): string[]
+{
+	const problems: string[] = [];
+	for (const d of design)
+	{
+		const issue = findIssue(cache, d);
+		const done = issue !== undefined && issue.state === "closed" && (issue.state_reason ?? "completed") === "completed" && labelsOf(issue).includes("status:done");
+		if (!done)
+		{
+			problems.push(`${id} waits for its ratified design, but its design story ${d} ${issue ? `(#${issue.number}) is not closed completed with status:done` : "has no trusted issue"}`);
+		}
+	}
+	return problems;
+}
+
+/** The `### Backlog fields` section of a body, from its heading to the end (a bug's recorded text), or undefined when it has none. */
+export function fieldsSection(body: string): string | undefined
+{
+	const text = lf(body);
+	if (text.startsWith(`${FIELDS_HEADING}\n`))
+	{
+		return text;
+	}
+	const at = text.lastIndexOf(`\n${FIELDS_HEADING}\n`);
+	return at === -1 ? undefined : text.slice(at + 1);
+}
+
+/**
+ * What `audit.sh edit <ID> --adopt` records (S165 AC 2): the item's live body as GitHub returns it, a
+ * story's whole body or a bug's fields block, so an edit the owner made on GitHub becomes a record
+ * chained from the newest one. Refused when the live text already is the newest record (nothing to
+ * adopt), when it has no record to chain from, or when a bug's body has no fields block that parses.
+ */
+export function adoptBody(id: string, issue: CachedIssue, records: TextRecord[]): string
+{
+	const tip = newestBody(records, id);
+	if (!tip)
+	{
+		throw new Error(`${id} has no text record to chain an adopted edit from (scripts/audit.sh create ${id})`);
+	}
+	if (isLive(tip, issue.body))
+	{
+		throw new Error(`issue #${issue.number} already matches ${id}'s newest record (${tip.file}): nothing to adopt`);
+	}
+	if (id.startsWith("B"))
+	{
+		const section = fieldsSection(issue.body ?? "");
+		if (section === undefined)
+		{
+			throw new Error(`issue #${issue.number} (${id}) has no ${FIELDS_HEADING} section to adopt`);
+		}
+		parseFields(section, `issue #${issue.number} (${id})`);
+		return section;
+	}
+	return lf(issue.body ?? "");
 }
 
 /** The labels an item gets for a status: its kind's label, `status:<status>`, and any other labels it had. */
@@ -1284,8 +1351,32 @@ export function main(argv: string[], run: GhRunner = ghRunner, root = repoRoot, 
 			}
 			return removedSince(cache, rest[at + 1] ?? "", records()).join("\n");
 		}
+		case "adopt-body":
+		{
+			const id = rest[0] ?? "";
+			const out = rest[rest.indexOf("--out") + 1];
+			if (!rest.includes("--out") || !out)
+			{
+				throw new Error("adopt-body <ID> --out <file>");
+			}
+			const issue = freshIssue(cached(), id);
+			writeFileSync(out, adoptBody(id, issue, records()));
+			return String(issue.number);
+		}
+		case "applied":
+		{
+			const [id = "", fragment = ""] = rest;
+			const record = parseRecord(readFileSync(fragment, "utf8"), fragment);
+			if (record.id !== id || sha256(record.body) !== record.hash)
+			{
+				throw new Error(`${fragment} is not an intact record of ${id}`);
+			}
+			const issue = freshIssue(cached(), id);
+			postComment(io, issue.number, appliedComment(record));
+			return `#${issue.number} ${id}: ${appliedComment(record)}`;
+		}
 		default:
-			throw new Error("usage: github.ts sync [--full] | item <ID> [goal] | status <ID> <status> | label <ID> [--add l] [--remove l] | milestone <ID> <title|none> | apply | taken <ID> [--issue <n>] | next-id | removed --since <iso>");
+			throw new Error("usage: github.ts sync [--full] | item <ID> [goal] | status <ID> <status> | label <ID> [--add l] [--remove l] | milestone <ID> <title|none> | apply | taken <ID> [--issue <n>] | next-id | removed --since <iso> | adopt-body <ID> --out <file> | applied <ID> <fragment>");
 	}
 }
 
