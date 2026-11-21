@@ -231,7 +231,9 @@ automatically 2. Mirror"):
   sites serve `bt-commit.txt`, the full commit they run.
 
 - **Previews.** Every pull request that changes code gets its own Worker, `baseball-theater-pr-<number>` on workers.dev,
-  once `pnpm verify` passes, and the workflow posts its address on the pull request. Each preview runs on
+  once the web app builds and every env's Worker passes a dry run, and the workflow posts its address on the pull
+  request. CI's `pnpm verify` runs beside it and doesn't gate the preview (owner, 2026-11-21: "Yes, drop the
+  duplicate (Recommended)"), so a pull request whose checks fail can still have a working preview. Each preview runs on
   its own Neon branch, `preview-pr-<number>`, a copy of the `staging` branch, through its own Hyperdrive
   config, `bt-preview-pr-<number>` (query caching off) (issue #42; owner, 2026-11-13: "Yes, do that.").
   Every deploy resets the branch from `staging` and then runs the pull request's migrations on it, so
