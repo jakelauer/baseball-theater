@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Grader for BACKLOG story S123 — design amendment: the scoreboard's calendar date picker
+# Grader for backlog story S123 — design amendment: the scoreboard's calendar date picker
 # (closed and open, typed date and its invalid states, month grid with weekday row and each
 # day's game count, dimmed no-game days, native month and year pickers, the favorite-team
 # mark, a month still loading its counts, one whose counts failed, an off-season month, the
 # 1901-04-18 bound and the short-screen sheet), with the Mantine / native / custom split
 # S125 builds from (rule 18).
-# Contract: docs/v3/BACKLOG.md#verify-script-contract
+# Contract: the Verify-script contract, in the backlog rules (docs/v3/backlog/frame/00)
 # No network. No writes outside /tmp. Does its own checking (never `pnpm verify`).
 #
 # Updated before shipping (2026-11-09, S123 pre-PR review G1–G9): S123's own changes are
@@ -37,6 +37,13 @@
 # "Off day: " ..."), and AC 1 was rewritten in those words. The required `favorite` state
 # becomes `offday`, and ## Frames must also name the "Off day" tooltip and the yellow ✕.
 # Both only tighten.
+#
+# Updated before shipping (2026-11-20, merged forward past S156): S156 retired the generated
+# docs/v3/BACKLOG.md, so check 6 could never pass again. It now reads S123's status where S156
+# keeps it, as AC 4 says: the note's frontmatter `status: done` and the note sitting in
+# docs/v3/backlog/stories/done/ (rule 7; rule 13; the 2026-11-20 backlog review). The same two
+# facts, from their new home, so nothing is loosened. The grader has no fence check, so the
+# story's own records (rule 13) need no exception.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -49,7 +56,7 @@ check 2 "frames at mobile, medium and desktop (PNGs at the ratified scoreboard f
 check 3 "the amendment's ## Components section says which parts are @mantine/dates (the month grid, DateInput with its own drop-down off, renderDay for the count and the favorite-team mark, DatesProvider's consistentWeeks), which are native (the month and year pickers) and which are custom"
 check 4 "the amendment's ## Ratification names who ratified, the date, and quotes the owner's in-session go-ahead, and no draft marker or pending wording is left"
 check 5 "no sealed file in shell-scoreboard changed (RATIFIED.md manifest still verifies; RATIFIED.md, ratified frames and every other amendment untouched by S123; every amendment's sealed frames present and unchanged)"
-check 6 "backlog Status is done (story heading and Story status table)"
+check 6 "S123's Status is done (its note's frontmatter status done, the note in docs/v3/backlog/stories/done/)"
 
 V="docs/v3/visual"
 S="shell-scoreboard"
@@ -320,12 +327,13 @@ for a in "$DIR"/A[0-9]*.md; do
 	done <<< "$(section "$a" Manifest | grep -E '^[0-9a-f]{64}  ')"
 done
 
-# --- Check 6: backlog Status is done -------------------------------------------------
-grep -qE '^\| [0-9]+ \| \[S123\].*\| `done` \|' docs/v3/BACKLOG.md ||
-	bad 6 "S123 row in the Story status table is not \`done\`"
-awk '/^### S123 —/{f=1;next} /^### S[0-9]/{f=0} f' docs/v3/BACKLOG.md |
-	grep -qE '^\*\*Status:\*\* `done`$' ||
-	bad 6 "S123 story heading Status is not \`done\`"
+# --- Check 6: S123's Status is done ---------------------------------------------------
+NOTE="docs/v3/backlog/stories/done/S123.md"
+if [ -f "$NOTE" ]; then
+	awk '/^---$/{n++;next} n==1' "$NOTE" | grep -qE '^status: done$' || bad 6 "S123's note's frontmatter status is not done"
+else
+	bad 6 "S123's note is not in docs/v3/backlog/stories/done/"
+fi
 
 report "verify-S123"
 exit $?
