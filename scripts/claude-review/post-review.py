@@ -7,9 +7,21 @@ able to approve, resolve threads or run anything). It ends with one JSON object,
 review with event COMMENT and commit_id = the reviewed head sha, whose body starts
 "Claude review of <sha>:" (CLAUDE.md -> "Claude's review is handled before a pull request merges").
 
-A finding GitHub won't anchor (a line outside the diff makes the whole review fail with 422) is moved
-into the review body instead of being dropped. Output that can't be read fails the run, so no summary
-posts and the coordinator re-runs it rather than taking silence for "no findings".
+Every finding should be a thread, which "Require conversation resolution" holds the merge on. A line
+outside the diff makes GitHub refuse the whole inline review (HTTP 422); then every finding whose file
+is in the pull request's diff (REVIEW_DIR/changed.txt), not only the one that failed to anchor, is
+posted as its own file-level review comment (subject_type "file", body naming the line), which is a
+thread too, and the review is posted again with no inline comments. Those comments go first and the
+summary review, which carries the record, last: if a post fails, no record has posted, so a re-run is
+never `unchanged` (which would post "no changes" and pass): it reviews again, fully or incrementally,
+and any duplicate threads it leaves just block. A finding on a file outside the diff, or one whose
+file-level comment GitHub also refuses with a 422, goes in the review body, where no thread holds it:
+the step reports how many (`in_body=<count>` in GITHUB_OUTPUT) and the workflow sets its required
+`claude-review/posted` status to failure. That failure holds only until the next review of any kind:
+a merge from `stage` or a re-run (each usually an `unchanged` review, with no model call) sets
+success, so the coordinator answers a body finding before bringing `stage` in or re-running. Any other
+failed post fails the step before the summary posts. Output that can't be read fails the run, so no
+summary posts and the coordinator re-runs it rather than taking silence for "no findings".
 
 Any secret value given as REDACT_* (and GH_TOKEN) is blanked out of everything posted, in case
 untrusted pull request text talked the reviewer into quoting one.
@@ -20,10 +32,12 @@ earlier records' findings forward, so a settled finding isn't raised again. MODE
 model call: nothing in the pull request changed since the recorded review.
 
 Env: EXECUTION_FILE (claude-code-action's execution_file output; unset when MODE=unchanged), HEAD_SHA,
-PR, GITHUB_REPOSITORY, GH_TOKEN, MODE, WHY, PAID_BY, RECORD_FILE, PREVIOUS_FILE, REDACT_*. `--dry-run` prints the review payload instead of posting it.
+PR, GITHUB_REPOSITORY, GH_TOKEN, MODE, WHY, PAID_BY, RECORD_FILE, PREVIOUS_FILE, REVIEW_DIR, GITHUB_OUTPUT,
+REDACT_*. `--dry-run` prints the review payload instead of posting it.
 """
 
 import base64
+import codecs
 import json
 import os
 import re
@@ -82,14 +96,19 @@ def footer(review: dict) -> str:
     return f"\n\n{note}\n\n<!-- claude-review-record {encoded} -->"
 
 
-def payload(review: dict, head: str, inline: bool) -> dict:
-    """One COMMENT review; with inline False every finding goes in the body instead."""
+def payload(review: dict, head: str, inline: bool, in_body: list | None = None, on_files: int = 0) -> dict:
+    """One COMMENT review. With inline True every finding is an inline comment; with inline False only
+    `in_body` (every finding when None) goes in the body, and `on_files` says how many were posted
+    as file-level comments instead. The footer's record always lists every finding."""
     body = f"Claude review of {head}: {inert(review['summary'])}"
     comments = []
-    for finding in review["findings"]:
-        if inline:
+    if inline:
+        for finding in review["findings"]:
             comments.append({"path": finding["path"], "line": finding["line"], "side": "RIGHT", "body": inert(finding["body"])})
-        else:
+    else:
+        if on_files:
+            body += f"\n\n_GitHub refused this review's line comments, so {on_files} finding(s) are posted as file-level comments._"
+        for finding in review["findings"] if in_body is None else in_body:
             body += f"\n\n**{inert(finding['path'])}:{finding['line']}**\n\n{inert(finding['body'])}"
     body += footer(review)
     result = {"event": "COMMENT", "commit_id": head, "body": body}
@@ -109,14 +128,52 @@ def redact(text: str) -> str:
     return text
 
 
-def post(data: dict) -> str:
-    """'ok', 'unprocessable' (GitHub refused the review's content: HTTP 422) or 'failed'."""
-    url = f"repos/{os.environ['GITHUB_REPOSITORY']}/pulls/{os.environ['PR']}/reviews"
+def post(data: dict, endpoint: str = "reviews") -> str:
+    """POST to the pull request's `reviews` (a review) or `comments` (one review comment):
+    'ok', 'unprocessable' (GitHub refused the content: HTTP 422) or 'failed'."""
+    url = f"repos/{os.environ['GITHUB_REPOSITORY']}/pulls/{os.environ['PR']}/{endpoint}"
     done = subprocess.run(["gh", "api", "-X", "POST", url, "--input", "-"], input=redact(json.dumps(data)), text=True, capture_output=True)
     if done.returncode == 0:
         return "ok"
     print(done.stdout, done.stderr, file=sys.stderr)
     return "unprocessable" if "HTTP 422" in done.stderr else "failed"
+
+
+def unquote_path(field: str) -> str:
+    """A path as git printed it. The workflow writes changed.txt with core.quotePath=false, so only a
+    path holding a tab, newline, double quote or backslash is C-quoted (backslash escapes, octal for
+    other bytes); this undoes that, and leaves any other path as it is."""
+    if len(field) < 2 or not (field.startswith('"') and field.endswith('"')):
+        return field
+    raw = field[1:-1].encode("utf-8")
+    return codecs.escape_decode(raw)[0].decode("utf-8", "replace")
+
+
+def diff_paths() -> set[str]:
+    """The pull request's changed paths, from REVIEW_DIR/changed.txt (`git diff --name-status`: a
+    status, then the path, or for a rename or copy the old and new paths; the new one is in the diff).
+    Empty when it can't be read, so every unanchored finding goes in the body rather than being lost."""
+    try:
+        with open(os.path.join(os.environ["REVIEW_DIR"], "changed.txt"), encoding="utf-8") as f:
+            return {unquote_path(line.rstrip("\n").split("\t")[-1]) for line in f if "\t" in line}
+    except (OSError, KeyError):
+        return set()
+
+
+def file_comment(finding: dict, head: str) -> dict:
+    """A file-level review comment (its own thread) for a finding, after GitHub refused the review's
+    line comments (it doesn't say which one failed to anchor, so every in-diff finding is posted so)."""
+    note = "GitHub refused this review's line comments, so this one is on the file"
+    body = f"**Line {finding['line']}** ({note}):\n\n{inert(finding['body'])}"
+    return {"commit_id": head, "path": finding["path"], "subject_type": "file", "body": body}
+
+
+def report_in_body(count: int) -> None:
+    """How many findings went in the body, for the workflow's `claude-review/posted` status."""
+    out = os.environ.get("GITHUB_OUTPUT")
+    if out:
+        with open(out, "a", encoding="utf-8") as f:
+            f.write(f"in_body={count}\n")
 
 
 def main() -> int:
@@ -137,11 +194,31 @@ def main() -> int:
         return 0
     first = post(payload(review, head, inline=True))
     if first == "ok":
+        report_in_body(0)
         return 0
-    # A 422 is usually a finding on a line outside the diff: post again with every finding in the body.
-    # Any other failure isn't retried here, so a review GitHub did accept is never posted twice.
+    # A 422 is usually a finding on a line outside the diff: post each finding on a file in the diff as
+    # a file-level thread, then the review again without inline comments; a finding on a file outside
+    # the diff, or one GitHub refuses on its file too (422, which a re-run would only repeat), goes in
+    # its body. The summary carries the record, so it goes last: a failure before it leaves no record,
+    # so a re-run is never `unchanged`. Any other failure of the inline review isn't retried here, so a
+    # review GitHub did accept is never posted twice.
     if first == "unprocessable" and review["findings"]:
-        return 0 if post(payload(review, head, inline=False)) == "ok" else 1
+        paths = diff_paths()
+        in_body = [f for f in review["findings"] if f["path"] not in paths]
+        on_files = 0
+        for finding in (f for f in review["findings"] if f["path"] in paths):
+            answer = post(file_comment(finding, head), "comments")
+            if answer == "unprocessable":
+                in_body.append(finding)
+            elif answer != "ok":
+                print(f"claude-review: posting the file-level comment on {finding['path']} failed", file=sys.stderr)
+                return 1
+            else:
+                on_files += 1
+        if post(payload(review, head, inline=False, in_body=in_body, on_files=on_files)) != "ok":
+            return 1
+        report_in_body(len(in_body))
+        return 0
     return 1
 
 

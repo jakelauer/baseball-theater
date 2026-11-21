@@ -8,9 +8,31 @@ name: Claude review
 # `stage` ruleset's "Require conversation resolution before merging" backs it up). Its summary review,
 # posted with commit_id = the reviewed head sha, is how the coordinator knows the review of the newest
 # commits has posted (a pull_request_target run's check is attached to the base branch's commit, not the
-# head's, so the check can't say it). The summary is a pull request review (event COMMENT), not an issue
-# comment: deploy.yml's preview step edits the bot's last issue comment (`gh pr comment --edit-last`), and
-# both workflows post as github-actions[bot], so a summary posted as a comment would be overwritten.
+# head's, so the check can't say it). So the `report` job sets a `claude-review/posted` commit status
+# on the head sha the run reviewed: success once its review is posted, failure if none was or if a
+# finding went in the review's body. The `stage` ruleset requires `claude-review/posted` (source: GitHub
+# Actions), so GitHub itself refuses to merge a pull request whose newest commit has no posted review,
+# and auto-merge can go on when its base is `stage` (owner, 2026-11-21, asked whether this would be
+# "just a Claude rule" or "prevention on GitHub itself": "I want you to just do it right now"). The
+# context must never match a job's name: a pull_request_target run's check runs sit on the base
+# branch's tip, which for a stacked pull request is the head of the pull request below it, so a check
+# run named like the context would satisfy or block that one (and a failed `claude-review` or
+# `report` check on a lower pull request's head belongs to the one stacked on it). A new push is a new head with no status,
+# so it blocks again until that push is reviewed; a run that is cancelled (a newer push supersedes it),
+# times out, or fails before it learns the head sha may leave no status either, which blocks until a
+# re-run. Like the review's record, the status trusts the repository's writers: a same-repository
+# workflow with `statuses: write` could set it. The findings themselves block through "Require
+# conversation resolution": post-review.py makes each one a thread, inline or, when GitHub refuses the
+# review's line comments, file-level (every in-diff finding then, not only the one that failed to
+# anchor); only a finding on a file outside the diff, or one refused on its file too, goes in the body.
+# The status's failure for a body finding holds only until the next review of any kind: a merge from
+# `stage` or a re-run (each usually an `unchanged` review, with no model call) sets success, so the
+# coordinator answers a body finding before either. A fork's pull request gets no review and so no
+# status: it can't merge without the owner's bypass or a dispatched review (below).
+#
+# The summary is a pull request review (event COMMENT), not an issue comment: deploy.yml's preview step
+# edits the bot's last issue comment (`gh pr comment --edit-last`), and both workflows post as
+# github-actions[bot], so a summary posted as a comment would be overwritten.
 #
 # Trust (owner, 2026-11-11: "switch" to pull_request_target). The run uses the base branch's copy of this
 # workflow and its scripts, so a pull request can't rewrite its own reviewer; a change to this file is
@@ -22,14 +44,17 @@ name: Claude review
 #   ~/pr-review, outside the working tree, as inert text (scripts/claude-review/extract-pr.py: raw
 #   blobs, no .gitattributes, symlinks written out as text, configuration names renamed).
 # - No credential is on disk or in the reviewer's environment beyond the Anthropic one the action needs:
-#   checkout keeps no git credentials, GH_TOKEN is set only on the extract and post steps, and reads of
-#   /proc, /sys, /etc, /dev, /tmp, the runner's _temp and _actions folders, dot-folders in the home folder
-#   and .git are denied (Read rules cover Grep and Glob too). The post blanks out any secret a review
+#   checkout keeps no git credentials, GH_TOKEN is set only on the extract, plan and post steps, the
+#   review job's token can't set commit statuses (only the `report` job's can), and reads of /proc,
+#   /sys, /etc, /dev, /tmp, the runner's _temp and _actions folders, dot-folders in the home folder and
+#   .git are denied (Read rules cover Grep and Glob too). The post blanks out any secret a review
 #   quotes, plain or as the base64 git header.
 # - The reviewer has only Read, Grep and Glob: no shell (some git flags write files or run commands) and
 #   no GitHub API (which could approve or resolve threads). It returns its findings as JSON, and a trusted
-#   step (scripts/claude-review/post-review.py) posts them as one COMMENT review, never anything else.
-# - A fork's pull request is skipped.
+#   step (scripts/claude-review/post-review.py) posts them as one COMMENT review (plus, when GitHub
+#   refuses its line comments, a file-level review comment for each in-diff finding), never anything
+#   else.
+# - A fork's pull request is skipped (so it gets no `claude-review/posted` status; see above).
 #
 # workflow_dispatch reviews one pull request by number, merged or not: it is how a pull request
 # labelled `copilot-review-owed` (merged while Copilot had no quota) gets its review after the fact
@@ -64,6 +89,12 @@ jobs:
         permissions:
             contents: read
             pull-requests: write
+        # For the `report` job's status. Job outputs are read when the job ends, failed or not, so a run
+        # that posted nothing still reports its head (and `posted` false).
+        outputs:
+            head: ${{ steps.pr.outputs.head }}
+            posted: ${{ steps.post.outcome == 'success' }}
+            in_body: ${{ steps.post.outputs.in_body || '0' }}
         env:
             PR: ${{ github.event.pull_request.number || inputs.pr }}
         steps:
@@ -77,7 +108,9 @@ jobs:
             # Everything the reviewer reads about the pull request, in ~/pr-review, outside both the working
             # tree and the runner's _temp folder (whose step scripts and command files the reviewer is denied):
             # head/ (its files at the head sha), diff.patch, changed.txt, pr.json, review-comments.json.
-            # GH_TOKEN is set only on this step and the post, never in the reviewer's environment.
+            # changed.txt keeps non-ASCII paths as they are (core.quotePath=false), so post-review.py can
+            # match a finding's path against it.
+            # GH_TOKEN is set only on this step, the plan and the post, never in the reviewer's environment.
             - name: Extract the pull request for reading (nothing from it runs)
               id: pr
               env:
@@ -92,7 +125,7 @@ jobs:
                   mkdir -p "$dir/head"
                   python3 scripts/claude-review/extract-pr.py "$head" "$dir/head"
                   git diff "${base}...${head}" >"$dir/diff.patch"
-                  git diff --name-status "${base}...${head}" >"$dir/changed.txt"
+                  git -c core.quotePath=false diff --name-status "${base}...${head}" >"$dir/changed.txt"
                   gh pr view "$PR" --json number,title,body,author,baseRefName,headRefName,state >"$dir/pr.json"
                   gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/comments" --paginate >"$dir/review-comments.json"
                   echo "head=$head" >>"$GITHUB_OUTPUT"
@@ -173,6 +206,8 @@ jobs:
                   RECORD_FILE: ${{ steps.pr.outputs.dir }}/../record.json
                   PREVIOUS_FILE: ${{ steps.pr.outputs.dir }}/previous-review.json
                   HEAD_SHA: ${{ steps.pr.outputs.head }}
+                  # changed.txt: which findings GitHub refuses inline can still be file-level threads.
+                  REVIEW_DIR: ${{ steps.pr.outputs.dir }}
                   GH_TOKEN: ${{ github.token }}
                   # Only so the post can blank them out if a review ever quotes one.
                   REDACT_1: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -186,3 +221,35 @@ jobs:
               run: |
                   echo "No review was posted for this commit; re-run this job (CLAUDE.md: a pull request never merges without one)." >&2
                   exit 1
+
+    # The required `claude-review/posted` status (see the header), on the exact sha the review job
+    # reviewed. A job of its own, so the token handed to claude-code-action above can't set its own
+    # gate. It runs whether the review job passed or failed, but not when the run was cancelled, the
+    # review job was skipped (a draft, a fork) or its extract step failed before it learned the head
+    # sha; each leaves no status, which blocks until a re-run.
+    report:
+        needs: claude-review
+        if: ${{ !cancelled() && needs.claude-review.outputs.head != '' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            statuses: write
+        steps:
+            - name: Set the claude-review/posted status
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  HEAD_SHA: ${{ needs.claude-review.outputs.head }}
+                  POSTED: ${{ needs.claude-review.outputs.posted }}
+                  IN_BODY: ${{ needs.claude-review.outputs.in_body }}
+              run: |
+                  if [ "$POSTED" = true ] && [ "${IN_BODY:-0}" != 0 ]; then
+                      # No thread holds these (post-review.py): answer them before a merge from stage or a re-run.
+                      state=failure; description="${IN_BODY} finding(s) in the review body, not as threads; fix and push"
+                  elif [ "$POSTED" = true ]; then
+                      state=success; description="Review posted; open threads still block the merge"
+                  else
+                      state=failure; description="No review was posted; re-run this workflow"
+                  fi
+                  gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" -f state="$state" -f context=claude-review/posted \
+                      -f description="$description" \
+                      -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" >/dev/null
