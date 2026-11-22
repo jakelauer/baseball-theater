@@ -142,6 +142,23 @@ describe("barrier paths", () =>
 		expect(isBarrierPath("web/src/routes.tsx", false)).toBe(false);
 	});
 
+	it("a workspace package's own vitest.config.ts, package.json and tsconfig.json are not barriers; root, scripts/, e2e/ and nested configs still are", () =>
+	{
+		// Owner, 2026-11-22: "Don't count them (Recommended)". The flag passed is what is_reviewer_path says.
+		for (const own of ["packages/domain/vitest.config.ts", "packages/mlb-api/package.json", "packages/ports/tsconfig.json", "functions/vitest.config.ts",
+			"functions/package.json", "functions/tsconfig.json", "web/vitest.config.ts", "web/package.json", "web/tsconfig.json"])
+		{
+			expect(isBarrierPath(own, true), own).toBe(false);
+		}
+		for (const still of ["package.json", "tsconfig.base.json", "vitest.config.ts", "scripts/tsconfig.json", "scripts/backlog-vault/tsconfig.json",
+			"scripts/backlog-vault/vitest.config.ts", "tools/vitest.config.js", "web/vite.config.ts", "functions/vitest.workers.config.ts", "e2e/playwright.config.ts",
+			"web/src/nested/package.json", "functions/src/x/drizzle.config.ts", "e2e/vitest.config.ts", "e2e/tsconfig.json", "packages/domain/src/package.json",
+			"packages/domain/src/vitest.config.ts", "web/tsconfig.node.json"])
+		{
+			expect(isBarrierPath(still, true), still).toBe(true);
+		}
+	});
+
 	it("asks plan-review.py's is_reviewer_path, not a copy of its lists", () =>
 	{
 		expect(reviewerFlags(["scripts/lib/checks.sh", ".github/workflows/ci.yml", "web/src/routes.tsx", "web/package.json"])).toEqual([true, true, false, true]);
@@ -780,6 +797,36 @@ describe("CLI in a temp root", () =>
 		// Stored with its slash, so it covers what is under it.
 		cli(["claim", "S2", "--file", "docs/notes"]);
 		expect(readClaims(root)[0]?.files).toEqual(["docs/notes/"]);
+	});
+
+	it("a package's own coverage-floor config, package.json and tsconfig don't make a claim a barrier, as a file or under a directory", () =>
+	{
+		repoWith({
+			"packages/domain/vitest.config.ts": "x",
+			"packages/domain/package.json": "{}",
+			"packages/domain/tsconfig.json": "{}",
+			"packages/domain/src/a.ts": "x",
+			"functions/vitest.workers.config.ts": "x",
+			"functions/src/y.ts": "x",
+		});
+		for (const entry of ["packages/domain/vitest.config.ts", "functions/package.json", "web/tsconfig.json", "packages/domain/"])
+		{
+			expect(cli(["claim", "S1", "--file", entry, "--dry-run"]).stdout, entry).not.toContain("barrier");
+		}
+		// Another reviewer path under the same package still is one.
+		expect(cli(["claim", "S1", "--file", "functions/", "--dry-run"]).stdout).toContain("(barrier item: runs alone)");
+		expect(cli(["claim", "S1", "--file", "package.json", "--dry-run"]).stdout).toContain("(barrier item: runs alone)");
+	});
+
+	it("touched doesn't flag a package's own vitest.config.ts under a non-barrier claim", () =>
+	{
+		repoWith({
+			"web/src/a.ts": "x",
+		});
+		cli(["claim", "S1", "--file", "web/"]);
+		const r = cli(["touched", "S1"], "web/src/a.ts\nweb/vitest.config.ts\nweb/package.json\n");
+		expect(r.stdout).not.toContain("reviewer path under a non-barrier claim");
+		expect(r.status).toBe(0);
 	});
 
 	it("touched flags a reviewer path under a directory claim that isn't a barrier (made after the claim)", () =>
