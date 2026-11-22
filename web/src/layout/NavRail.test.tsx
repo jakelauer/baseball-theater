@@ -14,6 +14,7 @@ import {
 } from "vitest";
 import { createQueryClient } from "../api/queryClient.js";
 import { SessionProvider } from "../session/SessionProvider.js";
+import { DEV_SIGN_IN_TOKEN } from "../session/session.js";
 import { setSessionToken } from "../session/token.js";
 import { stubMeApi } from "../test/meApi.js";
 import { NavRail } from "./NavRail.js";
@@ -91,5 +92,76 @@ describe("NavRail Figma values (S83)", () =>
 		const version = screen.getByTestId("version-line");
 		expect(version.style.fontSize).toMatch(/11px|calc\(0\.6875rem/);
 		expect(version.style.color).toBe("var(--bt-light)");
+	});
+});
+
+describe("NavRail change log link (S134 AC 3)", () =>
+{
+	const changelog = () => screen.getByTestId("changelog-link");
+
+	it("S134 AC 3: rail: a link reading 'Changelog' to /changelog, outside the nav list, right above the version line, which is not a link", () =>
+	{
+		renderRail("/standings");
+		const link = item("Changelog");
+		expect(link).toBe(changelog());
+		expect(link).toHaveTextContent(/^Changelog$/);
+		expect(link).toHaveAttribute("href", "/changelog");
+		expect(screen.getByRole("list")).not.toContainElement(link);
+		const version = screen.getByTestId("version-line");
+		expect(link.nextElementSibling).toBe(version);
+		expect(version.closest("a")).toBeNull();
+	});
+
+	it("S134 AC 3: rail: plain on /standings (no fill, not current, Regular 13) while Standings is the active item", () =>
+	{
+		renderRail("/standings");
+		const link = changelog();
+		expect(link).not.toHaveAttribute("aria-current");
+		expect(link.style.background).toBe("transparent");
+		const words = within(link).getByText("Changelog");
+		expect(words.style.fontSize).toMatch(/13px|calc\(0\.8125rem/);
+		expect(words.style.fontWeight).toBe("400");
+		expect(item("Standings")).toHaveAttribute("aria-current", "page");
+	});
+
+	for (const path of ["/changelog", "/changelog?x=1", "/changelog/", "/Changelog"])
+	{
+		it(`S134 AC 3: rail: current on ${path} (Primary fill, SemiBold, aria-current="page") with no nav item marked active`, () =>
+		{
+			renderRail(path);
+			const link = changelog();
+			expect(link).toHaveAttribute("aria-current", "page");
+			expect(link.style.background).toBe("var(--bt-primary)");
+			expect(within(link).getByText("Changelog").style.fontWeight).toBe("600");
+			const current = screen.getAllByRole("link").filter((a) => a.getAttribute("aria-current") === "page");
+			expect(current).toEqual([link]);
+			for (const marker of screen.getAllByTestId("nav-marker")) expect(marker.style.background).toBe("transparent");
+		});
+	}
+
+	it("S134 AC 3: rail: plain on /changelog/x and /changelogs, which aren't the change log", () =>
+	{
+		for (const path of ["/changelog/x", "/changelogs"])
+		{
+			renderRail(path);
+			expect(changelog()).not.toHaveAttribute("aria-current");
+			cleanup();
+		}
+	});
+
+	it("S134 AC 3: rail: signed out, the link is there (and Settings isn't); signed in, it is there too", async () =>
+	{
+		renderRail("/games/2024-07-04");
+		expect(item("Changelog")).toBeInTheDocument();
+		expect(screen.queryByRole("link", {
+			name: "Settings",
+		})).toBeNull();
+		cleanup();
+		setSessionToken(DEV_SIGN_IN_TOKEN);
+		renderRail("/games/2024-07-04");
+		expect(await screen.findByRole("link", {
+			name: "Settings",
+		})).toBeInTheDocument();
+		expect(item("Changelog")).toBeInTheDocument();
 	});
 });
