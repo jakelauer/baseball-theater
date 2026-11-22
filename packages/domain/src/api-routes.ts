@@ -18,6 +18,7 @@
  * (still a passthrough today), not in a rewrite of the route table.
  */
 import type { DigestItem } from "./digest.js";
+import type { SearchHighlight } from "./search.js";
 import type { ReleaseNotes } from "./release-notes.js";
 import type { ScheduleDayCount } from "./schedule-month.js";
 import type { AccountSettings } from "./settings.js";
@@ -95,6 +96,18 @@ export interface DayDigestResponse {
 	 * the live cadence (`freshnessPolicy`, #61); `cache` once all of them are out of it.
 	 */
 	windowMode: "active" | "cache";
+}
+
+/**
+ * Highlight search (S5; ADR-029): MLB's free-text search for `q`, as BT asks it per query, newest
+ * first. `total` is how many clips MLB matched in all; `highlights` is the first page of them.
+ */
+export interface SearchHighlightsResponse {
+	/** The words as the fan typed them, trimmed. */
+	query: string;
+	/** Every clip MLB matched, of which `highlights` is the first page. */
+	total: number;
+	highlights: SearchHighlight[];
 }
 
 /**
@@ -262,6 +275,7 @@ export interface ApiResponseTypes {
 	ScheduleMonthResponse: ScheduleMonthResponse;
 	GameSnapshotResponse: GameSnapshotResponse;
 	DayDigestResponse: DayDigestResponse;
+	SearchHighlightsResponse: SearchHighlightsResponse;
 	StandingsResponse: StandingsResponse;
 	ScoreboardDefaultDateResponse: ScoreboardDefaultDateResponse;
 	MeResponse: MeResponse;
@@ -285,6 +299,7 @@ export const ApiRoutes = {
 	"GET /api/v1/schedule/month/:month": "ScheduleMonthResponse",
 	"GET /api/v1/games/:gamePk": "GameSnapshotResponse",
 	"GET /api/v1/digest": "DayDigestResponse",
+	"GET /api/v1/search/highlights": "SearchHighlightsResponse",
 	"GET /api/v1/standings": "StandingsResponse",
 	"GET /api/v1/scoreboard/default-date": "ScoreboardDefaultDateResponse",
 	"GET /api/v1/me": "MeResponse",

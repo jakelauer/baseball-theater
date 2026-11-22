@@ -192,6 +192,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/search/highlights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Highlight search: MLB's free-text search for the words, asked as each search is made, newest first. Each result is a playable clip and its game (teams and date), or no game for a clip MLB ties to none. Cached for five minutes. */
+        get: operations["searchHighlights"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sign-in": {
         parameters: {
             query?: never;
@@ -791,6 +808,28 @@ export interface components {
         ScoreboardDefaultDateResponse: {
             /** @description The day, `YYYY-MM-DD`. */
             date: string;
+        };
+        /** @description The game a search result belongs to (S5): what the player's game link names (`NYY @ BOS, Sep 21`, as the digest's `DigestClipGame`) plus each club's id, which the row's `MatchupAbbr` draws its swatches from. `officialDate` is MLB's game date, `YYYY-MM-DD`. */
+        SearchClipGame: {
+            away: string;
+            awayId: number;
+            gamePk: number;
+            home: string;
+            homeId: number;
+            officialDate: string;
+        };
+        /** @description One highlight search result (S5): the clip, playable as any other BT video, and its game, or null for a clip MLB ties to no game (a season montage, a winter-league hit: MLB's `gamePk: -1`), which then shows no matchup and no game link. */
+        SearchHighlight: {
+            game: components["schemas"]["SearchClipGame"] | null;
+            highlight: components["schemas"]["MediaHighlight"];
+        };
+        /** @description Highlight search (S5; ADR-029): MLB's free-text search for `q`, as BT asks it per query, newest first. `total` is how many clips MLB matched in all; `highlights` is the first page of them. */
+        SearchHighlightsResponse: {
+            highlights: components["schemas"]["SearchHighlight"][];
+            /** @description The words as the fan typed them, trimmed. */
+            query: string;
+            /** @description Every clip MLB matched, of which `highlights` is the first page. */
+            total: number;
         };
         /** @description A settings write: the whole document with a bumped `version`; an older version is ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70) may be left out — each reads as its default — so a page loaded before they shipped can still save. */
         SettingsRequest: {
@@ -1484,6 +1523,56 @@ export interface operations {
             };
             /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
             426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    searchHighlights: {
+        parameters: {
+            query: {
+                /** @description The words to search for, as typed; hyphens are sent to MLB as spaces (`walk-off` searches `walk off`). */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchHighlightsResponse"];
+                };
+            };
+            /** @description `q` is missing or holds nothing to search for. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description MLB could not answer the search. */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

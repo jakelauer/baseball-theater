@@ -142,6 +142,25 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 			400: "`date` is missing or not `YYYY-MM-DD`.",
 		},
 	},
+	"GET /api/v1/search/highlights": {
+		operationId: "searchHighlights",
+		summary: "Highlight search: MLB's free-text search for the words, asked as each search is made, newest first. Each result is a playable clip and its game (teams and date), or no game for a clip MLB ties to none. Cached for five minutes.",
+		parameters: [
+			{
+				name: "q",
+				in: "query",
+				required: true,
+				description: "The words to search for, as typed; hyphens are sent to MLB as spaces (`walk-off` searches `walk off`).",
+				schema: {
+					type: "string",
+				},
+			},
+		],
+		errors: {
+			400: "`q` is missing or holds nothing to search for.",
+			502: "MLB could not answer the search.",
+		},
+	},
 	"GET /api/v1/scoreboard/default-date": {
 		operationId: "getScoreboardDefaultDate",
 		summary: "The day the scoreboard opens on: today (MLB's day, America/New_York) during a season, and the last postseason game's day from then until the next season's first spring training game.",

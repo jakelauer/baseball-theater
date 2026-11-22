@@ -1094,6 +1094,44 @@
 				"required": ["date"],
 				"type": "object"
 			},
+			"SearchClipGame": {
+				"additionalProperties": false,
+				"description": "The game a search result belongs to (S5): what the player's game link names (`NYY @ BOS, Sep 21`, as the digest's `DigestClipGame`) plus each club's id, which the row's `MatchupAbbr` draws its swatches from. `officialDate` is MLB's game date, `YYYY-MM-DD`.",
+				"properties": {
+					"away": { "type": "string" },
+					"awayId": { "type": "number" },
+					"gamePk": { "type": "number" },
+					"home": { "type": "string" },
+					"homeId": { "type": "number" },
+					"officialDate": { "type": "string" }
+				},
+				"required": ["away", "awayId", "gamePk", "home", "homeId", "officialDate"],
+				"type": "object"
+			},
+			"SearchHighlight": {
+				"additionalProperties": false,
+				"description": "One highlight search result (S5): the clip, playable as any other BT video, and its game, or null for a clip MLB ties to no game (a season montage, a winter-league hit: MLB's `gamePk: -1`), which then shows no matchup and no game link.",
+				"properties": {
+					"game": { "anyOf": [{ "$ref": "#/components/schemas/SearchClipGame" }, { "type": "null" }] },
+					"highlight": { "$ref": "#/components/schemas/MediaHighlight" }
+				},
+				"required": ["highlight", "game"],
+				"type": "object"
+			},
+			"SearchHighlightsResponse": {
+				"additionalProperties": false,
+				"description": "Highlight search (S5; ADR-029): MLB's free-text search for `q`, as BT asks it per query, newest first. `total` is how many clips MLB matched in all; `highlights` is the first page of them.",
+				"properties": {
+					"highlights": { "items": { "$ref": "#/components/schemas/SearchHighlight" }, "type": "array" },
+					"query": { "description": "The words as the fan typed them, trimmed.", "type": "string" },
+					"total": {
+						"description": "Every clip MLB matched, of which `highlights` is the first page.",
+						"type": "number"
+					}
+				},
+				"required": ["query", "total", "highlights"],
+				"type": "object"
+			},
 			"SettingsRequest": {
 				"additionalProperties": false,
 				"description": "A settings write: the whole document with a bumped `version`; an older version is ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70) may be left out — each reads as its default — so a page loaded before they shipped can still save.",
@@ -1778,6 +1816,49 @@
 					}
 				},
 				"summary": "The day the scoreboard opens on: today (MLB's day, America/New_York) during a season, and the last postseason game's day from then until the next season's first spring training game."
+			}
+		},
+		"/api/v1/search/highlights": {
+			"get": {
+				"operationId": "searchHighlights",
+				"parameters": [
+					{
+						"description": "The words to search for, as typed; hyphens are sent to MLB as spaces (`walk-off` searches `walk off`).",
+						"in": "query",
+						"name": "q",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SearchHighlightsResponse" }
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`q` is missing or holds nothing to search for."
+					},
+					"426": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`version_unsupported`: this API version has been retired (ADR-015); the client should reload to update."
+					},
+					"502": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "MLB could not answer the search."
+					}
+				},
+				"summary": "Highlight search: MLB's free-text search for the words, asked as each search is made, newest first. Each result is a playable clip and its game (teams and date), or no game for a clip MLB ties to none. Cached for five minutes."
 			}
 		},
 		"/api/v1/sign-in": {

@@ -23,6 +23,7 @@ import type {
 	GameSnapshot,
 	MediaHighlight,
 	PlayerProfile,
+	SearchHighlightsPage,
 	ScheduleDay,
 	StandingsSnapshot,
 	Unversioned,
@@ -131,6 +132,14 @@ class FakeMlbStatsClient implements MlbStatsClient
 	async fetchPlayers(): Promise<PlayerProfile[]>
 	{
 		return [];
+	}
+
+	async searchHighlights(): Promise<SearchHighlightsPage>
+	{
+		return {
+			total: 0,
+			highlights: [],
+		};
 	}
 
 	async fetchGameTimestamps(): Promise<string[]>
