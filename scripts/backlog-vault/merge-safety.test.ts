@@ -32,6 +32,7 @@ import { FROZEN_AUDIT_SHA256, readLedger } from "./ledger.ts";
 import {
 	parseFields, readRecords, renderFields,
 } from "./text-records.ts";
+import { renderRunEntry, summarizeRun } from "./runs.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const CLI = join(ROOT, "scripts/backlog-vault/cli.ts");
@@ -140,6 +141,24 @@ function finishOnBranch(id: string, base: string, row: number): void
 		`- **Before, the test had nothing. Now, ${id} has finished.** Details: **${id}** — the merge-safety test's story.`,
 		"",
 	].join("\n"));
+	// A run entry of the branch's own (S158), so run fragments merge in any order too.
+	const runId = `R20261121T${String(Number(id.slice(1)) % 1000000).padStart(6, "0")}Z`;
+	mkdirSync(join(repo, "docs/v3/audit/2026-11-21"), {
+		recursive: true,
+	});
+	writeFileSync(join(repo, `docs/v3/audit/2026-11-21/${runId.slice(1)}-${runId}-run.md`), renderRunEntry(summarizeRun({
+		id: runId,
+		n: 1,
+		c: 2,
+		startedAt: "2026-11-21T00:00:00.000Z",
+		events: [],
+	}, {}, [], {
+		abandoned: false,
+	}), {
+		date: "2026-11-21",
+		stamp: "2026-11-21T00:00:00Z",
+		head: "`base`",
+	}));
 	const grader = join(repo, `scripts/verify-${id}.sh`);
 	writeFileSync(grader, ["#!/usr/bin/env bash", "source scripts/lib/checks.sh", "check 1 \"the test story holds\"", `report "verify-${id}"`, "exit $?", ""].join("\n"));
 	chmodSync(grader, 0o755);
@@ -253,6 +272,7 @@ describe("story records merge in any order (law L13)", () =>
 		// Every record of all three is there: notes done with their lines, fragments parsed by ledger.ts.
 		const completed = readLedger(join(repo, "docs/v3/AUDIT.md")).filter((e) => e.kind === "completed" && ids.includes(e.story ?? "")).map((e) => e.story);
 		expect(completed.sort()).toEqual([...ids].sort());
+		expect(readLedger(join(repo, "docs/v3/AUDIT.md")).filter((e) => e.kind === "run")).toHaveLength(ids.length);
 		for (const id of ids)
 		{
 			const snapshot = readRecords(join(repo, "docs/v3/audit")).filter((r) => r.kind === "snapshot" && r.id === id).at(-1)!;

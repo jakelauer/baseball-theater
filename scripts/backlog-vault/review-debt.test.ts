@@ -986,3 +986,184 @@ describe("every pnpm command the rules name exists", () =>
 		expect([...new Set(missing)]).toEqual([]);
 	});
 });
+
+describe("review-debt.sh: a turn cap hit makes a backlog review due until a review lists it (S158 AC 7)", () =>
+{
+	const A = "2026-11-21T10:00:00.000Z";
+	const B = "2026-11-21T11:00:00.000Z";
+	const hits = (...h: [string, string][]) => h.map(([id, at]) => `${id} @ ${at}`).join(", ") || "none";
+	const runEntry = (run: string, row: string) => write(`docs/v3/audit/2026-11-21/20261121T120000Z-${run}-run.md`,
+		`## 2026-11-21 — run ${run}\n\n| | |\n|---|---|\n| C | 2 |\n| Turn-cap hits | ${row} |\n| Counted | no |\n| Clean | no |\n`);
+	const reviewEntry = (stamp: string, row: string) => write(`docs/v3/audit/2026-11-21/${stamp}-backlog-review.md`,
+		`## 2026-11-21 — backlog review (\`continue\`)\n\n| | |\n|---|---|\n| Turn-cap hits read | ${row} |\n`);
+	const journal = (path: string, events: { kind: string;
+		id?: string;
+		at: string }[]) => write(path, JSON.stringify({
+		id: "R20261121T090000Z",
+		n: 4,
+		c: 2,
+		startedAt: "2026-11-21T09:00:00.000Z",
+		events,
+	}));
+	const turnCap = (id: string, at: string) => ({
+		kind: "turn-cap",
+		id,
+		at,
+	});
+	const capEvents = () => (JSON.parse(debt("review-debt.sh", ["--json"]).stdout) as { events: { kind: string;
+		id?: string;
+		hits?: string[] }[] }).events.filter((e) => e.kind === "turn-cap");
+
+	it("turn cap: an unlisted run-entry hit is due, naming the ID", () =>
+	{
+		reviewed();
+		runEntry("R20261121T090000Z", hits(["S9", A]));
+		commit("a run");
+		const r = debt();
+		expect(r.status).toBe(1);
+		expect(r.stdout).toContain("turn cap hit: S9");
+	});
+
+	it("turn cap: a hit a review lists is not due", () =>
+	{
+		reviewed();
+		runEntry("R20261121T090000Z", hits(["S9", A]));
+		reviewEntry("20261121T130000Z", hits(["S9", A]));
+		commit("a run and the review that read it");
+		expect(debt().status).toBe(0);
+	});
+
+	it("turn cap: a skip and an answers entry do not clear a hit", () =>
+	{
+		reviewed();
+		runEntry("R20261121T090000Z", hits(["S9", A]));
+		commit("a run");
+		write("docs/v3/audit/2026-11-21/20261121T130000Z-backlog-skip.md", "## 2026-11-21 — backlog review skipped\n\n| Turn-cap hits read | S9 @ 2026-11-21T10:00:00.000Z |\n");
+		write("docs/v3/audit/2026-11-21/20261121T130001Z-backlog-answers.md", "## 2026-11-21 — backlog review answers (2026-11-01)\n\n| Turn-cap hits read | S9 @ 2026-11-21T10:00:00.000Z |\n");
+		commit("a skip and an answers entry");
+		const r = debt();
+		expect(r.status).toBe(1);
+		expect(r.stdout).toContain("turn cap hit: S9");
+	});
+
+	it("turn cap: a hit stamped after the review's commit but listed is not due", () =>
+	{
+		reviewed();
+		reviewEntry("20261121T080000Z", hits(["S9", B]));
+		commit("a review that read a live journal's hit");
+		journal(".run/run.json", [turnCap("S9", B)]);
+		expect(debt().status).toBe(0);
+	});
+
+	it("turn cap: a run entry committed after the review that listed its hit is not due", () =>
+	{
+		reviewed();
+		reviewEntry("20261121T080000Z", hits(["S9", A]));
+		commit("the review");
+		runEntry("R20261121T090000Z", hits(["S9", A]));
+		commit("the run's entry, merged later");
+		expect(debt().status).toBe(0);
+	});
+
+	it("turn cap: a hit in the main checkout's run.json is due from a linked worktree", () =>
+	{
+		reviewed();
+		const wt = `${repo}-wt`;
+		git("worktree", "add", "-q", "-b", "story/S9", wt);
+		try
+		{
+			symlinkSync(join(ROOT, "node_modules"), join(wt, "node_modules"));
+			journal(".run/run.json", [turnCap("S9", A)]);
+			const env: Record<string, string | undefined> = {
+				...process.env,
+				BT_BACKLOG_CACHE: cache(),
+			};
+			delete env.BT_AUDIT_LEDGER;
+			const r = spawnSync("bash", [join(wt, "scripts/review-debt.sh")], {
+				cwd: wt,
+				encoding: "utf8",
+				env,
+			});
+			expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+			expect(r.stdout).toContain("turn cap hit: S9");
+		}
+		finally
+		{
+			rmSync(wt, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	it("turn cap: a live run.json hit is due", () =>
+	{
+		reviewed();
+		journal(".run/run.json", [turnCap("S9", A)]);
+		const r = debt();
+		expect(r.status).toBe(1);
+		expect(r.stdout).toContain("turn cap hit: S9");
+	});
+
+	it("turn cap: an ended journal's hit is due while its entry has not merged", () =>
+	{
+		reviewed();
+		journal(".run/ended/R20261121T090000Z.json", [turnCap("S12", A)]);
+		const r = debt();
+		expect(r.status).toBe(1);
+		expect(r.stdout).toContain("turn cap hit: S12");
+	});
+
+	it("turn cap: the same hit from three places is one", () =>
+	{
+		reviewed();
+		runEntry("R20261121T090000Z", hits(["S9", A]));
+		commit("a run");
+		journal(".run/run.json", [turnCap("S9", A)]);
+		journal(".run/ended/R20261121T090000Z.json", [turnCap("S9", A)]);
+		expect(capEvents()).toEqual([{
+			kind: "turn-cap",
+			id: "S9",
+			hits: [A],
+		}]);
+	});
+
+	it("turn cap: two hits on one ID are one event with both times", () =>
+	{
+		reviewed();
+		journal(".run/run.json", [turnCap("S9", A), turnCap("S9", B)]);
+		expect(capEvents()).toEqual([{
+			kind: "turn-cap",
+			id: "S9",
+			hits: [A, B],
+		}]);
+		expect(debt().stdout.match(/turn cap hit: S9/g)).toHaveLength(1);
+	});
+
+	it("turn cap: a run with no turn-cap event is not due on its account", () =>
+	{
+		reviewed();
+		runEntry("R20261121T090000Z", "none");
+		commit("a run");
+		journal(".run/run.json", [{
+			kind: "item-start",
+			id: "S9",
+			at: A,
+		}]);
+		expect(debt().status).toBe(0);
+	});
+
+	it("turn cap: --json prints the event, due", () =>
+	{
+		reviewed();
+		journal(".run/run.json", [turnCap("S9", A)]);
+		const report = JSON.parse(debt("review-debt.sh", ["--json"]).stdout) as { due: boolean;
+			events: unknown[] };
+		expect(report.due).toBe(true);
+		expect(report.events).toContainEqual({
+			kind: "turn-cap",
+			id: "S9",
+			hits: [A],
+		});
+	});
+});
