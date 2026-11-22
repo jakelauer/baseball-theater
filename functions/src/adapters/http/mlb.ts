@@ -104,7 +104,8 @@ export const SEARCH_PAGE_SIZE = 36;
  * answers a GET, so this is an `MlbRequest` the client's one sender sends, like
  * `graphContentRequest`. Each clip's `guid` and `playInfo { inning inningHalf gamePk }` are asked for
  * beside its `id` so the recording carries them for S153's inning pill; BT reads only
- * `playInfo.teams` today. The recorder (S14, `recordSearch`) records the same request.
+ * `playInfo.teams` today. `recordSearch` (`services/recorder.ts`) records the same request; it is a
+ * library function, with no `pnpm record-fixtures` form yet, so a recording is made by calling it.
  */
 export function searchHighlightsRequest(query: string): MlbRequest
 {

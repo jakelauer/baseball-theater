@@ -199,7 +199,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Highlight search: MLB's free-text search for the words, asked as each search is made, newest first. Each result is a playable clip and its game (teams and date), or no game for a clip MLB ties to none. Cached for five minutes. */
+        /** Highlight search: MLB's free-text search for the words, asked as each search is made, newest first. Each result is a playable clip and its game (teams and date), or no game for a clip MLB ties to none. `total` is MLB's count of every clip it matched; `highlights` is the first page of them, so it may hold fewer. Cached for five minutes. */
         get: operations["searchHighlights"];
         put?: never;
         post?: never;
@@ -828,7 +828,7 @@ export interface components {
             highlights: components["schemas"]["SearchHighlight"][];
             /** @description The words as the fan typed them, trimmed. */
             query: string;
-            /** @description Every clip MLB matched, of which `highlights` is the first page. */
+            /** @description MLB's count of every clip it matched; `highlights` is the first page of them, so it may hold fewer. */
             total: number;
         };
         /** @description A settings write: the whole document with a bumped `version`; an older version is ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70) may be left out — each reads as its default — so a page loaded before they shipped can still save. */
@@ -1535,7 +1535,7 @@ export interface operations {
     searchHighlights: {
         parameters: {
             query: {
-                /** @description The words to search for, as typed; hyphens are sent to MLB as spaces (`walk-off` searches `walk off`). */
+                /** @description The words to search for, as typed, at most 200 characters (UTF-16 code units, counted after trimming); hyphens are sent to MLB as spaces (`walk-off` searches `walk off`). */
                 q: string;
             };
             header?: never;
@@ -1553,7 +1553,7 @@ export interface operations {
                     "application/json": components["schemas"]["SearchHighlightsResponse"];
                 };
             };
-            /** @description `q` is missing or holds nothing to search for. */
+            /** @description `q` is missing or holds nothing to search for (`query_required`), or is longer than 200 characters after trimming (`query_too_long`). */
             400: {
                 headers: {
                     [name: string]: unknown;

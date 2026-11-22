@@ -7,6 +7,7 @@
  */
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
+import { searchableQuery } from "@bt/domain";
 import { fetchSearchHighlights } from "./client.js";
 import type { components } from "./generated/bt-api.v1.js";
 
@@ -27,11 +28,15 @@ export function searchQueryOptions(q: string)
 	});
 }
 
-/** The search for `q`; idle (no request) until there are words to search for. */
+/**
+ * The search for `q`; idle (no request) unless the route would search it (`searchableQuery`, the
+ * server's own rule), so words holding only hyphens or spaces, or longer than the limit, never ask
+ * and never meet the route's 400 `query_required` or `query_too_long`.
+ */
 export function useHighlightSearch(q: string): UseQueryResult<SearchHighlightsPayload, Error>
 {
 	return useQuery({
 		...searchQueryOptions(q),
-		enabled: q.trim() !== "",
+		enabled: searchableQuery(q),
 	});
 }

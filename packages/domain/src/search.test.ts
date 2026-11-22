@@ -1,7 +1,9 @@
 import {
 	describe, expect, it,
 } from "vitest";
-import { mlbSearchText } from "./search.js";
+import {
+	SEARCH_QUERY_MAX_LENGTH, mlbSearchText, searchableQuery,
+} from "./search.js";
 
 describe("mlbSearchText", () =>
 {
@@ -16,5 +18,17 @@ describe("mlbSearchText", () =>
 		expect(mlbSearchText("  grand slam \n")).toBe("grand slam");
 		expect(mlbSearchText("   ")).toBe("");
 		expect(mlbSearchText("--")).toBe("");
+	});
+});
+
+describe("searchableQuery", () =>
+{
+	it("takes words up to the limit, counted after trimming, and refuses blank, hyphen-only or longer ones", () =>
+	{
+		expect(searchableQuery("walk-off")).toBe(true);
+		expect(searchableQuery(` ${"a".repeat(SEARCH_QUERY_MAX_LENGTH)} `)).toBe(true);
+		expect(searchableQuery("a".repeat(SEARCH_QUERY_MAX_LENGTH + 1))).toBe(false);
+		expect(searchableQuery(" - ")).toBe(false);
+		expect(searchableQuery("")).toBe(false);
 	});
 });

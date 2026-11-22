@@ -40,7 +40,8 @@ type GameFixture = Omit<Unversioned<GameSnapshot>, "fetchedAt" | "windowMode" | 
 /**
  * The fixture name of a recorded highlight search (S5): `search-<words>.json`, the words MLB is sent
  * (`mlbSearchText`), lower-cased, each run of other characters a hyphen, so `walk-off` and
- * `Walk off` both read `search-walk-off.json`. The recorder (`recordSearch`) writes the same name.
+ * `Walk off` both read `search-walk-off.json`. `recordSearch` (`services/recorder.ts`, a library function
+ * with no `pnpm record-fixtures` form yet) writes the same name.
  */
 export function searchFixtureName(query: string): string
 {

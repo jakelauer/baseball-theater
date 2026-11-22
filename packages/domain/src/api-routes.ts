@@ -105,7 +105,7 @@ export interface DayDigestResponse {
 export interface SearchHighlightsResponse {
 	/** The words as the fan typed them, trimmed. */
 	query: string;
-	/** Every clip MLB matched, of which `highlights` is the first page. */
+	/** MLB's count of every clip it matched; `highlights` is the first page of them, so it may hold fewer. */
 	total: number;
 	highlights: SearchHighlight[];
 }

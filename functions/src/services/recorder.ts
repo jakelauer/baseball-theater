@@ -242,6 +242,9 @@ export async function recordEndpoints(
  * (`searchHighlightsRequest`), so the recording carries every field it asks for, `guid` and
  * `playInfo` among them. The answer is checked first (`parseSearchResponse`): MLB's `errors` or a
  * changed shape throws and leaves any earlier recording as it was. Returns the name written.
+ *
+ * A library function only: `pnpm record-fixtures` (`scripts/record-fixtures.ts`) has no search form
+ * yet, so `fixtures/search-walk-off.json` was recorded by calling this directly (S5, 2026-11-22).
  */
 export async function recordSearch(query: string, outDir: string, options: Pick<RawRecorderOptions, "fetchImpl"> = {}): Promise<string>
 {

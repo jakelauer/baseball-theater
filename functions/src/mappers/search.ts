@@ -3,8 +3,9 @@
  *
  * The upstream shape is modelled here, not in `packages/mlb-api`, because S5's fence holds
  * `functions/src/` but not that package: a narrow hand-written reader of only the fields BT asks
- * for (`searchHighlightsRequest`), which throws on an answer that isn't the search's shape so a
- * changed or failed answer is an error, never "no results". Each play's `guid` and `playInfo`
+ * for (`searchHighlightsRequest`). An answer that isn't the search's shape (MLB's `errors`, no
+ * `data.search`) throws, so a failed answer is an error, never "no results"; one play inside it that
+ * can't be mapped is left out (its id logged), so one odd clip never costs the fan the rest. Each play's `guid` and `playInfo`
  * inning fields are asked for (S153 will draw the inning pill from them) but not read here.
  */
 import type {
@@ -68,7 +69,8 @@ export interface SearchResponse {
 	data?: {
 		search?: {
 			total: number;
-			plays: SearchPlay[];
+			/** Each checked by `mappablePlay` before it is read: MLB's plays are not all whole. */
+			plays: unknown[];
 		} | null;
 	} | null;
 	errors?: { message?: string }[];
@@ -80,9 +82,9 @@ function isRecord(value: unknown): value is Record<string, unknown>
 }
 
 /**
- * The search answer, checked: a `data.search` with a numeric `total` and a `plays` list whose every
- * play has a numeric `gamePk` and a `mediaPlayback` list of clips with string `id` and `title`.
- * Throws otherwise (MLB's `errors`, a changed shape), naming what was wrong.
+ * The search answer, checked: a `data.search` with a numeric `total` and a `plays` list. Throws
+ * otherwise (MLB's `errors`, a changed shape), naming what was wrong. Each play is checked on its
+ * own as it is mapped (`mappablePlay`).
  */
 export function parseSearchResponse(payload: unknown): SearchResponse
 {
@@ -95,15 +97,29 @@ export function parseSearchResponse(payload: unknown): SearchResponse
 	}
 	const search = isRecord(payload.data) ? payload.data.search : undefined;
 	if (!isRecord(search) || typeof search.total !== "number" || !Array.isArray(search.plays)) throw new Error("MLB search: no data.search");
-	for (const play of search.plays as unknown[])
-	{
-		if (!isRecord(play) || typeof play.gamePk !== "number" || !Array.isArray(play.mediaPlayback)) throw new Error("MLB search: a play has no gamePk or mediaPlayback");
-		for (const media of play.mediaPlayback as unknown[])
-		{
-			if (!isRecord(media) || typeof media.id !== "string" || typeof media.title !== "string") throw new Error("MLB search: a clip has no id or title");
-		}
-	}
 	return payload as SearchResponse;
+}
+
+/**
+ * Whether BT can map a play: a numeric `gamePk`; a `gameDate` that is a string, null or absent; a
+ * `mediaPlayback` list whose first clip has a string `id` and `title`; and, in that clip's first feed,
+ * `image.cuts` a list when present and every playback's `name` and `url` strings (`pickPlaybackUrl`
+ * reads both). Only the fields BT reads are checked. The caller skips a play with no clips before
+ * asking (MLB lists some), so only a malformed one is logged.
+ */
+function mappablePlay(play: Record<string, unknown>): play is Record<string, unknown> & SearchPlay
+{
+	if (typeof play.gamePk !== "number" || !Array.isArray(play.mediaPlayback)) return false;
+	if (play.gameDate !== undefined && play.gameDate !== null && typeof play.gameDate !== "string") return false;
+	const media: unknown = play.mediaPlayback[0];
+	if (!isRecord(media) || typeof media.id !== "string" || typeof media.title !== "string") return false;
+	const feed: unknown = Array.isArray(media.feeds) ? media.feeds[0] : undefined;
+	if (!isRecord(feed)) return true;
+	const cuts: unknown = isRecord(feed.image) ? feed.image.cuts : undefined;
+	if (cuts !== undefined && cuts !== null && !Array.isArray(cuts)) return false;
+	const playbacks: unknown = feed.playbacks;
+	if (playbacks === undefined || playbacks === null) return true;
+	return Array.isArray(playbacks) && playbacks.every((p: unknown) => isRecord(p) && typeof p.name === "string" && typeof p.url === "string");
 }
 
 /**
@@ -119,7 +135,7 @@ function highlightOf(media: SearchMediaPlayback): MediaHighlight
 		blurb: media.blurb ?? "",
 		playbacks: feed?.playbacks ?? [],
 	};
-	const cut = [...feed?.image?.cuts ?? []].filter((c) => c.src).sort((a, b) => (a.width ?? 0) - (b.width ?? 0)).find((c) => (c.width ?? 0) >= 640);
+	const cut = [...feed?.image?.cuts ?? []].filter((c) => c?.src).sort((a, b) => (a.width ?? 0) - (b.width ?? 0)).find((c) => (c.width ?? 0) >= 640);
 	return {
 		id: media.id,
 		// The play link is S153's: S5 asks for `guid` so the recording carries it, and reads it later.
@@ -166,15 +182,22 @@ function gameOf(play: SearchPlay, media: SearchMediaPlayback): SearchClipGame | 
 	};
 }
 
-/** MLB's answer as BT's results: one per play, its first clip, in MLB's order (newest first). */
+/** MLB's answer as BT's results: one per play, its first clip, in MLB's order (newest first); a play BT can't map is left out. */
 export function mapSearchResults(response: SearchResponse): SearchHighlightsPage
 {
 	const search = response.data?.search;
 	const highlights: SearchHighlight[] = [];
 	for (const play of search?.plays ?? [])
 	{
-		const media = play.mediaPlayback[0];
-		if (!media) continue;
+		// A play with no clips has nothing to show: skipped, as MLB lists some, without a log line.
+		if (isRecord(play) && Array.isArray(play.mediaPlayback) && play.mediaPlayback.length === 0) continue;
+		if (!isRecord(play) || !mappablePlay(play))
+		{
+			// Only MLB's play id is logged: the fan's search words never reach a log line (ADR-028).
+			console.warn("MLB search: left out a play BT can't map:", isRecord(play) && typeof play.id === "string" ? play.id : "(no id)");
+			continue;
+		}
+		const media = play.mediaPlayback[0]!;
 		highlights.push({
 			highlight: highlightOf(media),
 			game: gameOf(play, media),

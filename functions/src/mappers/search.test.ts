@@ -4,7 +4,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-	describe, expect, it,
+	describe, expect, it, vi,
 } from "vitest";
 import { searchFixtureName } from "../adapters/fixtures/fixture-client.js";
 import { recordSearch } from "../services/recorder.js";
@@ -84,15 +84,6 @@ describe("parseSearchResponse (S5)", () =>
 		expect(() => parseSearchResponse({
 			data: {},
 		})).toThrow(/no data.search/);
-		expect(() => parseSearchResponse(answer([{
-			gamePk: "1",
-		}]))).toThrow(/gamePk/);
-		expect(() => parseSearchResponse(answer([{
-			gamePk: 1,
-			mediaPlayback: [{
-				id: 1,
-			}],
-		}]))).toThrow(/id or title/);
 	});
 });
 
@@ -172,6 +163,71 @@ describe("mapSearchResults (S5)", () =>
 			},
 		])));
 		expect(page.highlights.map((h) => h.game?.away ?? null)).toEqual([null, null, "NYY"]);
+	});
+});
+
+describe("one malformed play (S5)", () =>
+{
+	it("is left out, its id logged, and the rest still answer", () =>
+	{
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const badPlayback = play(9);
+		badPlayback.id = "bad-playback";
+		(badPlayback.mediaPlayback[0]!.feeds[0]!.playbacks[0] as { name: unknown }).name = null;
+		const page = mapSearchResults(parseSearchResponse(answer([
+			badPlayback,
+			{
+				id: "no-media",
+				gamePk: 1,
+				mediaPlayback: null,
+			},
+			{
+				id: "no-title",
+				gamePk: 2,
+				mediaPlayback: [{
+					id: "m2",
+					title: null,
+				}],
+			},
+			{
+				id: "no-game-pk",
+				mediaPlayback: [{
+					id: "m3",
+					title: "x",
+				}],
+			},
+			{
+				...play(4),
+				id: "date-not-string",
+				gameDate: 20260919,
+			},
+			{
+				...play(5),
+				id: "cuts-not-list",
+				mediaPlayback: [{
+					...play(5).mediaPlayback[0]!,
+					feeds: [{
+						image: {
+							cuts: "x",
+						},
+						playbacks: [],
+					}],
+				}],
+			},
+			{
+				id: "no-clips",
+				gamePk: 6,
+				mediaPlayback: [],
+			},
+			play(-1),
+		])));
+		expect(page.highlights.map((h) => h.highlight.id)).toEqual(["m-1"]);
+		// A play with no clips is skipped silently, as MLB lists some; only a malformed one is logged.
+		expect(JSON.stringify(warn.mock.calls)).not.toContain("no-clips");
+		expect(JSON.stringify(warn.mock.calls)).toMatch(/date-not-string[\s\S]*cuts-not-list/);
+		expect(page.total).toBe(99);
+		expect(warn.mock.calls.map((call) => call.join(" ")).join("\n")).toMatch(/bad-playback[\s\S]*no-media[\s\S]*no-title[\s\S]*no-game-pk/);
+		warn.mockRestore();
 	});
 });
 

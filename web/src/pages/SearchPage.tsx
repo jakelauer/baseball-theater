@@ -4,6 +4,7 @@ import {
 import { IconSearch } from "@tabler/icons-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { SEARCH_QUERY_MAX_LENGTH, searchableQuery } from "@bt/domain";
 import { useHighlightSearch } from "../api/search.js";
 import { ViewState } from "../components/ViewState.js";
 import { queryScreen } from "../components/queryScreen.js";
@@ -31,14 +32,14 @@ export function SearchPage()
 {
 	const [params, setParams] = useSearchParams();
 	const q = (params.get("q") ?? "").trim();
-	const [typed, setTyped] = useState(q);
 	const [playing, setPlaying] = useState<SearchResult | null>(null);
 	const {
 		data, error, refetch, dataUpdatedAt,
 	} = useHighlightSearch(q);
 
 	let body = null;
-	if (q !== "")
+	// Words the route would refuse (only hyphens or spaces, or past the limit, as a pasted URL can hold) show what an empty box does.
+	if (searchableQuery(q))
 	{
 		const screen = queryScreen({
 			data,
@@ -77,27 +78,12 @@ export function SearchPage()
 	return (
 		<Stack gap="lg">
 			<Title order={1}>Search Highlights</Title>
-			<form
-				role="search"
-				onSubmit={(event) =>
-				{
-					event.preventDefault();
-					const words = typed.trim();
-					setParams(words ? {
-						q: words,
-					} : {});
-				}}
-			>
-				<TextInput
-					aria-label="Search highlights"
-					placeholder="Search highlights…"
-					value={typed}
-					onChange={(event) => setTyped(event.currentTarget.value)}
-					leftSection={<IconSearch size={20} aria-hidden />}
-					size="md"
-					type="search"
-				/>
-			</form>
+			<SearchForm
+				q={q}
+				onSearch={(words) => setParams(words ? {
+					q: words,
+				} : {})}
+			/>
 			{body}
 			{playing ? (
 				<LazyPlayerDialog
@@ -112,5 +98,44 @@ export function SearchPage()
 				/>
 			) : null}
 		</Stack>
+	);
+}
+
+/**
+ * The search box: what the fan is typing, handed to `onSearch` trimmed on Enter. It follows the URL's
+ * words `q`: when they change (a search, Back, the nav's Search) the box is re-seeded from them during
+ * render, so it never shows stale words, and it is never remounted, so it keeps focus after a search.
+ * It stops at `SEARCH_QUERY_MAX_LENGTH`, the route's limit.
+ */
+function SearchForm({ q, onSearch }: { q: string;
+	onSearch: (words: string) => void; })
+{
+	const [typed, setTyped] = useState(q);
+	const [seen, setSeen] = useState(q);
+	if (q !== seen)
+	{
+		setSeen(q);
+		setTyped(q);
+	}
+	return (
+		<form
+			role="search"
+			onSubmit={(event) =>
+			{
+				event.preventDefault();
+				onSearch(typed.trim());
+			}}
+		>
+			<TextInput
+				aria-label="Search highlights"
+				placeholder="Search highlights…"
+				value={typed}
+				onChange={(event) => setTyped(event.currentTarget.value)}
+				leftSection={<IconSearch size={20} aria-hidden />}
+				size="md"
+				type="search"
+				maxLength={SEARCH_QUERY_MAX_LENGTH}
+			/>
+		</form>
 	);
 }

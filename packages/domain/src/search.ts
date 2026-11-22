@@ -32,7 +32,30 @@ export function mlbSearchText(query: string): string
 	return query.replace(/-/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/** One page of MLB's answer to a highlight search (S5): every clip it matched (`total`) and the first of them. */
+/**
+ * The most a highlight search's words may be (S5): 200 UTF-16 code units (JavaScript's `length`),
+ * counted after `trim()`. A bound on what a fan can make BT send MLB and key the edge cache on; typed
+ * words are far shorter. The route answers 400 `query_too_long` past it, and the web app's box stops
+ * at it (ADR-025: one constant for both).
+ */
+export const SEARCH_QUERY_MAX_LENGTH = 200;
+
+/**
+ * Whether the route would search `query` rather than refuse it (S5): it has words to send MLB
+ * (`mlbSearchText` isn't empty) and is no longer than {@link SEARCH_QUERY_MAX_LENGTH} once trimmed.
+ * The web app asks only for words that pass, so a URL holding only hyphens or too many characters
+ * shows an empty page, never an error whose Retry can't help.
+ */
+export function searchableQuery(query: string): boolean
+{
+	return mlbSearchText(query) !== "" && query.trim().length <= SEARCH_QUERY_MAX_LENGTH;
+}
+
+/**
+ * One page of MLB's answer to a highlight search (S5). `total` is MLB's count of every clip it
+ * matched; `highlights` is the first page of them, so it may hold fewer (MLB counts thousands for
+ * "walk off", BT asks for one page).
+ */
 export type SearchHighlightsPage = {
 	total: number;
 	highlights: SearchHighlight[];

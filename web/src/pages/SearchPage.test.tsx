@@ -10,12 +10,12 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
-	MemoryRouter, Route, Routes, useLocation,
+	Link, MemoryRouter, Route, Routes, useLocation, useNavigate,
 } from "react-router-dom";
 import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
-import { DEFAULT_SETTINGS } from "@bt/domain";
+import { DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH } from "@bt/domain";
 import { createQueryClient } from "../api/queryClient.js";
 import type { SearchHighlightsPayload } from "../api/search.js";
 import { hydrateSettings, resetSettings } from "../settings/store.js";
@@ -92,11 +92,18 @@ function serve(answer: (q: string) => SearchHighlightsPayload | Response | Promi
 	}));
 }
 
-/** Where the router is, so a test can see the words stay in the URL. */
+/** Where the router is, so a test can see the words stay in the URL; Back and the nav's plain Search link, as the shell gives them. */
 function Where()
 {
 	const location = useLocation();
-	return <span data-testid="where">{location.pathname + location.search}</span>;
+	const navigate = useNavigate();
+	return (
+		<>
+			<span data-testid="where">{location.pathname + location.search}</span>
+			<button type="button" onClick={() => void navigate(-1)}>Back</button>
+			<Link to="/search">Search nav</Link>
+		</>
+	);
 }
 
 function renderSearch(entry = "/search")
@@ -239,6 +246,67 @@ describe("Search Highlights (S5)", () =>
 			name: "Go to game: MIL @ TB, Oct 27 →",
 		}));
 		expect(await screen.findByText("game page")).toBeInTheDocument();
+	});
+
+	it("a query of only hyphens asks nothing and shows no error, as an empty box does", async () =>
+	{
+		serve(() => jsonResponse({
+			error: "query_required",
+		}, 400));
+		renderSearch("/search?q=-");
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(asked).toEqual([]);
+		expect(screen.queryByText("Couldn't search highlights")).toBeNull();
+		expect(screen.queryByLabelText("Loading")).toBeNull();
+	});
+
+	it("the box follows the URL: Back restores the earlier words, and the plain Search link empties it", async () =>
+	{
+		serve(() => WALK_OFF);
+		renderSearch();
+		await searchFor("walk off");
+		await screen.findByText("2 results found");
+		await searchFor("homer");
+		await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/search?q=homer"));
+		await userEvent.click(screen.getByRole("button", {
+			name: "Back",
+		}));
+		await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/search?q=walk+off"));
+		expect(screen.getByRole("searchbox", {
+			name: "Search highlights",
+		})).toHaveValue("walk off");
+		await userEvent.click(screen.getByRole("link", {
+			name: "Search nav",
+		}));
+		await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/search$/));
+		expect(screen.getByRole("searchbox", {
+			name: "Search highlights",
+		})).toHaveValue("");
+	});
+
+	it("the box keeps focus after a search, so a keyboard user can search again at once", async () =>
+	{
+		serve(() => WALK_OFF);
+		renderSearch();
+		await searchFor("walk off");
+		await screen.findByText("2 results found");
+		expect(screen.getByRole("searchbox", {
+			name: "Search highlights",
+		})).toHaveFocus();
+	});
+
+	it("words longer than the route takes are never asked: the box stops at the limit, and a too-long URL shows an empty page", async () =>
+	{
+		serve(() => jsonResponse({
+			error: "query_too_long",
+		}, 400));
+		renderSearch(`/search?q=${"a".repeat(SEARCH_QUERY_MAX_LENGTH + 1)}`);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(asked).toEqual([]);
+		expect(screen.queryByText("Couldn't search highlights")).toBeNull();
+		expect(screen.getByRole("searchbox", {
+			name: "Search highlights",
+		})).toHaveAttribute("maxlength", String(SEARCH_QUERY_MAX_LENGTH));
 	});
 
 	it("S5 AC 10: no results draws ViewState's empty sentence", async () =>

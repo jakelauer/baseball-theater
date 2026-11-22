@@ -59,6 +59,9 @@ describe("GET /api/v1/search/highlights (S5)", () =>
 	{
 		const body = await search("walk-off");
 		expect(body.highlights.some(({ highlight }) => /walk-off/i.test(highlight.title) || /walk-off/i.test(highlight.blurb ?? ""))).toBe(true);
+		// The recording of 2026-11-03's search (`fixtures/search-walk-off.json`) stands in for AC 2's `744834`: the same answer
+		// AC 8 pins its World Series walk-off from.
+		expect(body.highlights.map(({ highlight }) => highlight.title)).toContain("Ben Williamson's walk-off single to win Game 4");
 		// Every result plays: a URL BT can hand the player.
 		expect(body.highlights.every(({ highlight }) => highlight.playbackUrl)).toBe(true);
 	});
@@ -111,6 +114,15 @@ describe("GET /api/v1/search/highlights (S5)", () =>
 			queryType: "FREETEXT",
 			query: "walk off",
 		});
+	});
+
+	it("answers 400 query_too_long, never cached, for more than 200 characters, and searches 200", async () =>
+	{
+		const long = await get(`/api/v1/search/highlights?q=${"a".repeat(201)}`);
+		expect(long.status).toBe(400);
+		expect((await long.json() as { error: string }).error).toBe("query_too_long");
+		expect(long.headers.get("Cache-Control")).toBe("no-store");
+		expect((await get(`/api/v1/search/highlights?q=${"a".repeat(200)}`)).status).toBe(200);
 	});
 
 	it("answers 502 search_unavailable, never cached, when MLB can't answer, and logs no search words", async () =>

@@ -3,7 +3,8 @@ import type {
 } from "@bt/domain";
 import type { SettingsRepository } from "@bt/ports";
 import {
-	API_VERSIONS, DEFAULT_SETTINGS, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate, isCalendarMonth, latestScheduleMonth,
+	API_VERSIONS, DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
+	isCalendarMonth, latestScheduleMonth,
 	mlbDayEndsAt, mlbToday, parseAccountSettings, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
 import type { AccountDataDeps } from "../services/account-deletion.js";
@@ -324,10 +325,19 @@ export const API_ROUTER: readonly RouteEntry[] = [
 		route: "GET /api/v1/search/highlights",
 		handle: async (url, _params, ctx) =>
 		{
+			const q = url.searchParams.get("q") ?? "";
+			// The one limit the web app's box shares (`SEARCH_QUERY_MAX_LENGTH`: UTF-16 units after trimming).
+			if (q.trim().length > SEARCH_QUERY_MAX_LENGTH)
+			{
+				return noStore(sendError(400, {
+					error: "query_too_long",
+					hint: `q: at most ${SEARCH_QUERY_MAX_LENGTH} characters`,
+				}));
+			}
 			let answer;
 			try
 			{
-				answer = await searchHighlights(ctx.ingest.mlb, url.searchParams.get("q") ?? "");
+				answer = await searchHighlights(ctx.ingest.mlb, q);
 			}
 			catch (error)
 			{
