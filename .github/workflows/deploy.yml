@@ -490,6 +490,15 @@ jobs:
             - name: Install
               run: pnpm install --frozen-lockfile
 
+            # S131: from v4.0.0 on, a release deploys only with fan-facing notes the owner approved,
+            # in the tagged commit's releases/<tag>.json; a pre-launch tag (below v4.0.0) carries none
+            # and passes. Before anything is built, migrated or deployed. The tag comes in through env,
+            # never pasted into the script.
+            - name: Release notes approved
+              env:
+                  TAG: ${{ github.event.release.tag_name }}
+              run: pnpm release:check "$TAG"
+
             # The tag's commit is the stage merge commit staging built, so the lookup, and the label,
             # match staging's (#47). The release procedure gives that pull request the release's
             # milestone; a mismatch is only warned about, since the build is still the tagged code.
