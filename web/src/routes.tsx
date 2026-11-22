@@ -83,7 +83,7 @@ export function AppRoutes({ variant }: { variant: LayoutVariant })
 				<Route path="/games/:date" element={<ScoreboardPage variant={variant} />} />
 				<Route path="/game/:gamePk" element={<GamePage variant={variant} />} />
 				<Route path="/game/:gamePk/:tab" element={<GamePage variant={variant} />} />
-				<Route path="/standings" element={<StandingsPage />} />
+				<Route path="/standings" element={<StandingsPage variant={variant} />} />
 				<Route path="/search" element={<SearchPage />} />
 				<Route path="/settings" element={<SignedInOnly><SettingsPage variant={variant} /></SignedInOnly>} />
 				<Route path={SIGN_IN_CALLBACK_PATH} element={<SignInCallback />} />

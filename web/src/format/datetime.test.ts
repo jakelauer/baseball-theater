@@ -1,8 +1,8 @@
 import {
-	describe, expect, it,
+	describe, expect, it, vi,
 } from "vitest";
 import {
-	formatDate, formatMonthDay, formatTime,
+	formatDate, formatLongDate, formatMonthDay, formatTime,
 } from "./datetime.js";
 
 describe("datetime formatting (S79)", () =>
@@ -37,5 +37,40 @@ describe("datetime formatting (S79)", () =>
 		expect(formatMonthDay("2024-07-04")).toBe("Jul 4");
 		expect(formatMonthDay("2026-02-30")).toBe("2026-02-30");
 		expect(formatMonthDay("not a date")).toBe("not a date");
+	});
+});
+
+describe("formatLongDate (S130 AC 3)", () =>
+{
+	it("S130 AC 3: writes a calendar date with its month in full, as A9 draws it", () =>
+	{
+		expect(formatLongDate("2027-03-02")).toBe("March 2, 2027");
+		expect(formatLongDate("2026-12-01")).toBe("December 1, 2026");
+		expect(formatLongDate("2026-10-28")).toBe("October 28, 2026");
+	});
+
+	it("S130 AC 3: a reader in a zone behind UTC still reads the same day", async () =>
+	{
+		const zone = process.env.TZ;
+		process.env.TZ = "America/Los_Angeles";
+		try
+		{
+			vi.resetModules();
+			const fresh = await import("./datetime.js");
+			expect(new Date("2027-03-02T00:00:00Z").getDate()).toBe(1);
+			expect(fresh.formatLongDate("2027-03-02")).toBe("March 2, 2027");
+		}
+		finally
+		{
+			process.env.TZ = zone;
+			vi.resetModules();
+		}
+	});
+
+	it("S130 AC 3: anything that is not a calendar date comes back as it is", () =>
+	{
+		expect(formatLongDate("not a date")).toBe("not a date");
+		expect(formatLongDate("2026-02-30")).toBe("2026-02-30");
+		expect(formatLongDate("2026-11-11T12:00:00.000Z")).toBe("2026-11-11T12:00:00.000Z");
 	});
 });
