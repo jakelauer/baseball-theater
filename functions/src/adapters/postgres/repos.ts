@@ -13,7 +13,7 @@
 import type {
 	AccountSettings, Entitlements, GameProjection, GameSnapshot, PatronTier, Role, ScheduleDay, ScheduleDayTally, UserProfile,
 } from "@bt/domain";
-import { distinctTeamIds } from "@bt/domain";
+import { dayRegularSeason, distinctTeamIds } from "@bt/domain";
 import type {
 	DeletionLog,
 	DeletionLogEntry,
@@ -97,7 +97,12 @@ export class PostgresScheduleRepository implements ScheduleRepository
 	 * database (S136), so no document leaves it. They come back as one jsonb array of every game's
 	 * away and home ID, repeats and all, as stored: the driver parses it, so a number arrives as a
 	 * JS number and a `null` or string ID as itself. `distinctTeamIds` (shared with the memory
-	 * adapter) is the one guard: it drops any non-integer ID, de-duplicates and sorts.
+	 * adapter) is the one guard: it drops any non-integer ID, de-duplicates and sorts. Each game's
+	 * `gameType` (S167) comes back the same way, one entry per game: `->'gameType'` over
+	 * `jsonb_array_elements` gives SQL `NULL` for a game without one, which `jsonb_agg` keeps as a
+	 * JSON `null` (a `jsonb_path_query_array` over `$.games[*].gameType` would drop it and turn a
+	 * spring day with an untyped game into a typed one). `dayRegularSeason`, shared with the memory
+	 * adapter, turns the list into the day's answer.
 	 */
 	async listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>
 	{
@@ -105,15 +110,23 @@ export class PostgresScheduleRepository implements ScheduleRepository
 			date: scheduleDays.date,
 			gameCount: sql<number>`jsonb_array_length(${scheduleDays.document}->'games')`,
 			teamIds: sql<unknown[]>`jsonb_path_query_array(${scheduleDays.document}, '$.games[*].teams.*.id')`,
+			gameTypes: sql<unknown[]>`coalesce((select jsonb_agg(game->'gameType' order by ord) from jsonb_array_elements(${scheduleDays.document}->'games') with ordinality as g(game, ord)), '[]'::jsonb)`,
 			fetchedAt: sql<string>`${scheduleDays.document}->>'fetchedAt'`,
 			lastChangedAt: sql<string>`${scheduleDays.document}->>'lastChangedAt'`,
 		}).from(scheduleDays).where(between(scheduleDays.date, from, to)).orderBy(asc(scheduleDays.date));
 		// A driver may hand `jsonb_array_length`'s integer back as a string; the port promises a number.
-		return rows.map((row) => ({
-			...row,
-			gameCount: Number(row.gameCount),
-			teamIds: distinctTeamIds(row.teamIds),
-		}));
+		return rows.map((row) =>
+		{
+			// A stored type that isn't a string (hand-edited or older row) counts as no type.
+			const gameTypes = row.gameTypes.map((type) => typeof type === "string" ? type : null);
+			return {
+				...row,
+				gameCount: Number(row.gameCount),
+				teamIds: distinctTeamIds(row.teamIds),
+				gameTypes,
+				regularSeason: dayRegularSeason(gameTypes),
+			};
+		});
 	}
 }
 

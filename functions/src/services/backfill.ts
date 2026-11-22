@@ -8,7 +8,10 @@
  * It is resumable without a progress file: a day is **complete** when its stored schedule day
  * is settled (`isScheduleDaySettled`: every game settled, and an empty day only once MLB's
  * today is past it) and every final game is stored, final, with a current projection. A complete day asks MLB nothing and writes nothing, so a second run, or
- * a run after a stop, goes straight to the first incomplete day. A game whose projection fell
+ * a run after a stop, goes straight to the first incomplete day. A settled day stored before S167,
+ * with a game lacking its `gameType` (`scheduleDayLacksGameType`), is fetched and re-stored once
+ * in a run, so its month answer can say whether it was regular season; it then counts as complete
+ * in that run whatever MLB sent, so it never holds the run's other work back. A game whose projection fell
  * behind its snapshot (a stop between `storeGame`'s two writes) is repaired from the stored
  * snapshot. The only state outside the database is each extra source's counted stretches
  * ({@link ResumeStore}, AC 8).
@@ -33,8 +36,8 @@ import type {
 	GameGraphContent, GamePlayMetrics, GameSnapshot, ScheduleDay, SourceStreak, Unversioned,
 } from "@bt/domain";
 import {
-	backfillDays, GIVE_UP_AFTER_DAYS, isFinalStatus, isScheduleDaySettled, isSourceGivenUp, mlbToday, normalizeStatusCode, recordSourceDay, scheduleWindowMode,
-	sourceGivenUpAt,
+	backfillDays, GIVE_UP_AFTER_DAYS, isFinalStatus, isScheduleDaySettled, isSourceGivenUp, mlbToday, normalizeStatusCode, recordSourceDay, scheduleDayLacksGameType,
+	scheduleWindowMode, sourceGivenUpAt,
 } from "@bt/domain";
 import type {
 	GameEditorial, GameProjectionRepository, GameRepository, MlbGameSources, ScheduleRepository,
@@ -210,10 +213,12 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 		const today = mlbToday(now);
 		let complete = true;
 
-		// The stored day is enough when it is settled; otherwise MLB is asked again.
+		// The stored day is enough when it is settled and every game carries its type; otherwise
+		// MLB is asked again. An untyped settled day (stored before S167) is asked once here; the
+		// version guard lets its new types through, and it counts as complete whatever MLB sent.
 		let scheduleDay = await deps.schedules.getByDate(day);
 		let askedMlb = false;
-		if (!scheduleDay || !isScheduleDaySettled(scheduleDay, today))
+		if (!scheduleDay || !isScheduleDaySettled(scheduleDay, today) || scheduleDayLacksGameType(scheduleDay))
 		{
 			askedMlb = true;
 			try

@@ -81,6 +81,19 @@ export function isScheduleDaySettled(day: Pick<ScheduleDay, "date" | "games">, t
 }
 
 /**
+ * Whether a stored schedule day has a game with no MLB `gameType` (S167 AC 4): a day stored
+ * before S167, whose month answer says `regularSeason: null` until it is re-stored. The backfill
+ * alone asks it, fetching such a day from MLB once per run; it stays apart from
+ * {@link isScheduleDaySettled}, which ingest shares, so ingest skips exactly the days it skipped
+ * before. A day MLB permanently sends without a type is asked again on every backfill run, one
+ * schedule request each, a bounded cost.
+ */
+export function scheduleDayLacksGameType(day: Pick<ScheduleDay, "games">): boolean
+{
+	return day.games.some((game) => typeof game.gameType !== "string");
+}
+
+/**
  * One stretch of days a source was counted over with nothing unknown between them, `newest` to
  * `oldest` (both counted days). `streak` is the run of failed days at the `oldest` end, which a
  * stretch just below carries on; `newestStreak` the run at the `newest` end, which a stretch just
