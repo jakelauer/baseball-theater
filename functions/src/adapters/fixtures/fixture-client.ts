@@ -5,12 +5,15 @@ import type {
 	MediaHighlight,
 	PlayerProfile,
 	ScheduleDay,
+	SearchHighlightsPage,
 	SeasonCalendar,
 	StandingsSnapshot,
 	AtBat,
 	Unversioned,
 } from "@bt/domain";
-import { datesBetween, rankHighlightsByImpact } from "@bt/domain";
+import {
+	datesBetween, mlbSearchText, rankHighlightsByImpact,
+} from "@bt/domain";
 import type { GameDiffPatchResponse, ReplayPatchEntry } from "@bt/mlb-api";
 import {
 	parseGameTimestamps, parseGraphContentResponse, parsePlayMetricsResponse, parseRecordedReplayWalk, parseScheduleResponse, parseSeasonsResponse, parseStandingsResponse,
@@ -21,6 +24,7 @@ import type {
 import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
+import { mapSearchResults, parseSearchResponse } from "../../mappers/search.js";
 import { mapSeasonCalendar } from "../../mappers/season-calendar.js";
 import { mapStandings } from "../../mappers/standings.js";
 
@@ -32,6 +36,17 @@ type ScheduleFixture = {
 type GameFixture = Omit<Unversioned<GameSnapshot>, "fetchedAt" | "windowMode" | "plays"> & {
 	plays?: AtBat[];
 };
+
+/**
+ * The fixture name of a recorded highlight search (S5): `search-<words>.json`, the words MLB is sent
+ * (`mlbSearchText`), lower-cased, each run of other characters a hyphen, so `walk-off` and
+ * `Walk off` both read `search-walk-off.json`. `recordSearch` (`services/recorder.ts`, a library function
+ * with no `pnpm record-fixtures` form yet) writes the same name.
+ */
+export function searchFixtureName(query: string): string
+{
+	return `search-${mlbSearchText(query).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.json`;
+}
 
 /**
  * Where the committed fixtures come from: files under `fixtures/` (Node, `./mlb.ts`)
@@ -208,6 +223,28 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 			),
 		);
 		return loaded.flat();
+	}
+
+	/**
+	 * A recorded highlight search, `fixtures/search-<words>.json` (S5; MLB's answer verbatim), mapped
+	 * as the HTTP client maps it; no results for words with no recording, so local search answers
+	 * offline. A recording that reads but isn't the search's shape throws, as MLB's would.
+	 */
+	async searchHighlights(query: string): Promise<SearchHighlightsPage>
+	{
+		let payload: unknown;
+		try
+		{
+			payload = await this.readJson(searchFixtureName(query));
+		}
+		catch
+		{
+			return {
+				total: 0,
+				highlights: [],
+			};
+		}
+		return mapSearchResults(parseSearchResponse(payload));
 	}
 
 	/**
