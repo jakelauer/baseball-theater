@@ -147,6 +147,7 @@ describe("GET /api/v1/games/:gamePk and /api/v1/schedule Cache-Control (S47)", (
 			fetchSpringStandings: (season, d) => real.fetchSpringStandings(season, d),
 			fetchSeasonCalendar: (season) => real.fetchSeasonCalendar(season),
 			fetchPlayers: (ids) => real.fetchPlayers(ids),
+			searchHighlights: (q) => real.searchHighlights(q),
 			fetchGameTimestamps: (pk) => real.fetchGameTimestamps(pk),
 			fetchGameDiffPatch: (pk, s, e) => real.fetchGameDiffPatch(pk, s, e),
 		};

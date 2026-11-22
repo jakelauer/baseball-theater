@@ -110,3 +110,31 @@ describe("default day (S111)", () =>
 		await waitFor(() => expect(screen.getByLabelText("path")).toHaveTextContent(/^\/games\/2026-10-28$/));
 	});
 });
+
+describe("change log route (S134)", () =>
+{
+	it("S134 AC 3: signed out, /changelog stays there and draws the change log, its menu link current", async () =>
+	{
+		const me = stubMeApi();
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/releases"
+			? Promise.resolve(jsonResponse({
+				current: null,
+				releases: [],
+			}))
+			: me(request)));
+		renderApp("/changelog");
+		// The page is its own chunk (S110), so its heading arrives once it loads.
+		expect(await screen.findByRole("heading", {
+			level: 1,
+			name: "Change log",
+		})).toBeInTheDocument();
+		expect(await screen.findByText("No release notes yet.")).toBeInTheDocument();
+		expect(screen.getByLabelText("path")).toHaveTextContent(/^\/changelog$/);
+		await userEvent.click(screen.getByRole("button", {
+			name: "Open navigation",
+		}));
+		expect(await screen.findByRole("link", {
+			name: "Changelog",
+		})).toHaveAttribute("aria-current", "page");
+	});
+});

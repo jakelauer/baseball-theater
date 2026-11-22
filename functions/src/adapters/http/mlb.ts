@@ -14,11 +14,12 @@ import type {
 	GameSnapshot,
 	PlayerProfile,
 	ScheduleDay,
+	SearchHighlightsPage,
 	SeasonCalendar,
 	StandingsSnapshot,
 	Unversioned,
 } from "@bt/domain";
-import { rankHighlightsByImpact } from "@bt/domain";
+import { mlbSearchText, rankHighlightsByImpact } from "@bt/domain";
 import type { GameContentResponse, GameDiffPatchResponse } from "@bt/mlb-api";
 import {
 	parseGameContentResponse,
@@ -39,6 +40,7 @@ import { mapContentHighlights, mapRecap } from "../../mappers/content.js";
 import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
 import { mapPeople } from "../../mappers/players.js";
+import { mapSearchResults, parseSearchResponse } from "../../mappers/search.js";
 import { mapStandings } from "../../mappers/standings.js";
 import { mapLiveFeed } from "../../mappers/live.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
@@ -88,6 +90,59 @@ export function graphContentRequest(gamePk: number): MlbRequest
 			"x-client-name": "mlb",
 			"content-type": "application/json",
 		},
+	};
+}
+
+/** How many clips one search asks for: the prior site's page (36), which AC 8 leaves open. */
+export const SEARCH_PAGE_SIZE = 36;
+
+/**
+ * MLB's free-text highlight search (S5; ADR-029): the `search` query on `fastball-gateway.mlb.com`,
+ * as the prior site's search page asks it, with `queryType: FREETEXT` (without it MLB reads the words
+ * as Film Room filters and refuses them), newest first. `query` goes out as `mlbSearchText` words, so
+ * `walk-off` is sent as `walk off`, which MLB matches (a hyphenated word matches nothing). The gateway
+ * answers a GET, so this is an `MlbRequest` the client's one sender sends, like
+ * `graphContentRequest`. Each clip's `guid` and `playInfo { inning inningHalf gamePk }` are asked for
+ * beside its `id` so the recording carries them for S153's inning pill; BT reads only
+ * `playInfo.teams` today. `recordSearch` (`services/recorder.ts`) records the same request; it is a
+ * library function, with no `pnpm record-fixtures` form yet, so a recording is made by calling it.
+ */
+export function searchHighlightsRequest(query: string): MlbRequest
+{
+	const graphql = `query Search($queryType: QueryType!, $query: String!, $page: Int, $limit: Int, $languagePreference: LanguagePreference, $contentPreference: ContentPreference) {
+	search(queryType: $queryType, languagePreference: $languagePreference, contentPreference: $contentPreference, limit: $limit, page: $page, query: $query) {
+		total
+		plays {
+			id
+			gamePk
+			gameDate
+			mediaPlayback {
+				id
+				title
+				blurb
+				description
+				date
+				guid
+				playInfo { inning inningHalf gamePk teams { away { id triCode } home { id triCode } } }
+				feeds { duration image { cuts { width src } } playbacks { name url } }
+			}
+		}
+	}
+}`;
+	const params = new URLSearchParams({
+		operationName: "Search",
+		query: graphql,
+		variables: JSON.stringify({
+			queryType: "FREETEXT",
+			query: mlbSearchText(query),
+			limit: SEARCH_PAGE_SIZE,
+			page: 0,
+			languagePreference: "EN",
+			contentPreference: "MIXED",
+		}),
+	});
+	return {
+		url: `https://fastball-gateway.mlb.com/graphql?${params}`,
 	};
 }
 
@@ -247,6 +302,13 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		const hydrate = `stats(group=[hitting,pitching],type=[season],season=${season})`;
 		const url = `${this.baseUrl}/api/v1/people?personIds=${ids.join(",")}&hydrate=${encodeURIComponent(hydrate)}`;
 		return mapPeople(parsePeopleResponse(await this.getJson(url)));
+	}
+
+	/** MLB's free-text search (S5): rejects when MLB errors or answers something that isn't the search's shape. */
+	async searchHighlights(query: string): Promise<SearchHighlightsPage>
+	{
+		const { url, headers } = searchHighlightsRequest(query);
+		return mapSearchResults(parseSearchResponse(await this.getJson(url, headers)));
 	}
 
 	async fetchGameTimestamps(gamePk: number): Promise<string[]>

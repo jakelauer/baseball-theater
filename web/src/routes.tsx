@@ -67,6 +67,9 @@ const SearchPage = lazy(() => import("./pages/SearchPage.js").then((m) => ({
 const SettingsPage = lazy(() => import("./pages/SettingsPage.js").then((m) => ({
 	default: m.SettingsPage,
 })));
+const ChangelogPage = lazy(() => import("./pages/ChangelogPage.js").then((m) => ({
+	default: m.ChangelogPage,
+})));
 
 /**
  * The routes, each page given the pairing the layout host settled (S60). While a page's
@@ -83,8 +86,10 @@ export function AppRoutes({ variant }: { variant: LayoutVariant })
 				<Route path="/games/:date" element={<ScoreboardPage variant={variant} />} />
 				<Route path="/game/:gamePk" element={<GamePage variant={variant} />} />
 				<Route path="/game/:gamePk/:tab" element={<GamePage variant={variant} />} />
-				<Route path="/standings" element={<StandingsPage />} />
+				<Route path="/standings" element={<StandingsPage variant={variant} />} />
 				<Route path="/search" element={<SearchPage />} />
+				{/* The change log is for everyone, signed in or not (A9, ratified 2026-11-19). */}
+				<Route path="/changelog" element={<ChangelogPage />} />
 				<Route path="/settings" element={<SignedInOnly><SettingsPage variant={variant} /></SignedInOnly>} />
 				<Route path={SIGN_IN_CALLBACK_PATH} element={<SignInCallback />} />
 			</Routes>
