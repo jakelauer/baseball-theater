@@ -48,7 +48,10 @@ export async function writeApiTypes(outDir: string): Promise<string>
 	return file;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url))
+// `import.meta.main` (Node 24), not a comparison of the typed script path (`argv[1]`) with this file's: Node
+// leaves argv[1] as typed but resolves the module's own path through symlinks, so `api:types` started
+// from a linked checkout exited 0 having written nothing (S169, issue #315).
+if (import.meta.main)
 {
 	console.log(await writeApiTypes(process.argv[2] ?? GENERATED_DIR));
 }

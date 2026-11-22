@@ -189,4 +189,8 @@ function main(argv: string[]): void
 	}
 }
 
-if (import.meta.filename === process.argv[1]) main(process.argv.slice(2));
+// `import.meta.main` (Node 24), not a comparison of the typed script path (`argv[1]`) with this file's: Node
+// leaves argv[1] as typed but resolves the module's own path through symlinks, so started through a
+// linked folder (every macOS temp path is one) that comparison was false, `main` never ran, and an
+// empty answer read as "no browser specs to run" (S169, issue #315).
+if (import.meta.main) main(process.argv.slice(2));
