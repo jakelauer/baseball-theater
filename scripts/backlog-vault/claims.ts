@@ -120,13 +120,28 @@ export interface ClaimReport
 	mergeAfter: string[];
 }
 
-/** The files almost every feature edits (S156 AC 12): sharing one fixes the merge order instead of blocking. */
-export const HOT_FILES = ["packages/domain/src/index.ts", "functions/src/handlers/api.ts", "web/src/routes.tsx", "openapi/", "web/src/api/generated/", "vitest.config.ts"];
+/**
+ * The files almost every feature edits (S156 AC 12): sharing one fixes the merge order instead of blocking.
+ * `pnpm-lock.yaml`: two items that each edit their package's package.json (no longer barriers) both rewrite it.
+ */
+export const HOT_FILES = ["packages/domain/src/index.ts", "functions/src/handlers/api.ts", "web/src/routes.tsx", "openapi/", "web/src/api/generated/", "vitest.config.ts", "pnpm-lock.yaml"];
 
 
 /** The rule and agent files that, besides the reviewer paths, make an item run alone (S156 AC 12). */
 const BARRIER_FILES = ["CLAUDE.md", "docs/v3/LOOP.md"];
 const BARRIER_DIRS = [".claude/"];
+
+/**
+ * A workspace package's own coverage-floor config, package.json or tsconfig.json, at the package's root
+ * (`pnpm-workspace.yaml`'s `packages/<name>/`, `functions/`, `web/`): a reviewer path that doesn't make an item a barrier.
+ * Rule 21 has nearly every code story raise its package's floors, so counting them made most stories run
+ * alone (owner, 2026-11-22, asked whether such a story should still run alone as a barrier: "Don't count
+ * them (Recommended)"). Claude's review still re-reads them in full (`is_reviewer_path` is unchanged). The
+ * root configs, `scripts/` (review tooling, `scripts/backlog-vault/` among it), `tools/`, `e2e/` (not a
+ * workspace package: its vitest.config.ts runs the selector tests inside `pnpm verify`) and every other
+ * `*.config.*` stay barriers.
+ */
+const PACKAGE_OWN_CONFIG = /^(packages\/[^/]+|functions|web)\/(vitest\.config\.ts|package\.json|tsconfig\.json)$/;
 
 const PLAN_REVIEW = join(dirname(fileURLToPath(import.meta.url)), "../claude-review/plan-review.py");
 
@@ -336,14 +351,15 @@ export function hotKeys(entry: string): string[]
 }
 
 /**
- * Whether a claimed path makes its item a barrier (runs alone): `CLAUDE.md`, `docs/v3/LOOP.md`, anything
- * under `.claude/`, or a reviewer path. `isReviewer` is plan-review.py's `is_reviewer_path` for that path
- * (graders are excepted there, not here: one implementation, ADR-025). A directory entry is a barrier when
- * it reaches a barrier file, e.g. `docs/v3/` contains LOOP.md.
+ * Whether a claimed or touched path makes its item a barrier (runs alone): `CLAUDE.md`, `docs/v3/LOOP.md`,
+ * anything under `.claude/`, or a reviewer path other than a workspace package's own vitest.config.ts,
+ * package.json or tsconfig.json ({@link PACKAGE_OWN_CONFIG}). `isReviewer` is plan-review.py's
+ * `is_reviewer_path` for that path (graders are excepted there, not here: one implementation, ADR-025).
+ * A directory entry is a barrier when it reaches a barrier file, e.g. `docs/v3/` contains LOOP.md.
  */
 export function isBarrierPath(path: string, isReviewer: boolean): boolean
 {
-	return isReviewer || BARRIER_FILES.some((f) => pathsOverlap(path, f)) || BARRIER_DIRS.some((d) => pathsOverlap(path, d));
+	return (isReviewer && !PACKAGE_OWN_CONFIG.test(path)) || BARRIER_FILES.some((f) => pathsOverlap(path, f)) || BARRIER_DIRS.some((d) => pathsOverlap(path, d));
 }
 
 /**
@@ -405,11 +421,13 @@ function trackedUnder(root: string, dir: string): string[]
 }
 
 /**
- * {@link reviewerFlags} for claim entries (already {@link normalizeEntries normalized}): a directory entry
- * is a reviewer path when it is one itself or any file git tracks under it is (`functions/` holds
- * `functions/package.json`, `web/` holds `web/vite.config.ts`). One python call for every path.
+ * Barrier flags for claim entries (already {@link normalizeEntries normalized}), from one {@link reviewerFlags}
+ * call for every path: a file entry is flagged when it is a barrier path ({@link isBarrierPath}), and a
+ * directory entry when it is one itself or any file git tracks under it is. `web/` holds
+ * `web/vite.config.ts` and is flagged; `packages/domain/`, whose only reviewer paths are its own
+ * vitest.config.ts, package.json and tsconfig.json, is not.
  */
-export function claimReviewerFlags(root: string, files: string[]): boolean[]
+export function claimBarrierFlags(root: string, files: string[]): boolean[]
 {
 	const groups = files.map((f) => f.endsWith("/") ? [f, ...trackedUnder(root, f)] : [f]);
 	const flags = reviewerFlags(groups.flat());
@@ -418,11 +436,14 @@ export function claimReviewerFlags(root: string, files: string[]): boolean[]
 	{
 		const mine = flags.slice(i, i + g.length);
 		i += g.length;
-		return mine.some(Boolean);
+		return mine.some((flag, j) => isBarrierPath(g[j] ?? "", flag));
 	});
 }
 
-/** Build a claim from a worker's lists; `flags` is {@link reviewerFlags} of `files`, in order. */
+/**
+ * Build a claim from a worker's lists; `flags` is {@link claimBarrierFlags} of `files`, in order (a file's
+ * `is_reviewer_path` flag also works: {@link isBarrierPath} decides either way).
+ */
 export function makeClaim(id: string, input: { files?: string[];
 	symbols?: string[];
 	docLines?: string[] }, flags: boolean[], now = new Date()): Claim
@@ -1136,7 +1157,7 @@ function main(argv: string[]): number
 				files,
 				symbols: values.symbol,
 				docLines: values["doc-line"],
-			}, claimReviewerFlags(root, files));
+			}, claimBarrierFlags(root, files));
 			return withClaimsLock(root, () =>
 			{
 				const report = compareClaim(claim, readClaims(root));

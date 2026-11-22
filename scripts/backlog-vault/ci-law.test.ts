@@ -104,7 +104,7 @@ export function scriptCacheProblems(scripts: Record<string, string>): string[]
 		}
 		for (const vars of [{}, {
 			GITHUB_ACTIONS: "true",
-		}])
+		}] as Record<string, string>[])
 		{
 			const args = expand(turbo, vars);
 			const spec = /--cache=(\S*)/.exec(args)?.[1];
