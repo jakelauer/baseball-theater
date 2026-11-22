@@ -300,11 +300,13 @@ describe("GamePage room tabs (S60, S56 game-rooms A2)", () =>
 		}
 	});
 
-	it("shows the footer with the payload's fetch age", async () =>
+	it("S148 AC 1: a game out of its window opens no socket and ends with no footer line: no 'Fetched … ago', no 'baseball.theater', no Live marker", async () =>
 	{
 		serve(fixture(744834));
-		renderGame("/game/744834");
+		const { container } = renderGame("/game/744834");
 		await tabNames();
-		expect(screen.getByRole("contentinfo")).toHaveTextContent(/^Fetched \d+[smhd] ago · baseball\.theater$/);
+		expect(screen.queryByRole("contentinfo")).toBeNull();
+		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
+		expect(container).not.toHaveTextContent(/Fetched|baseball\.theater/);
 	});
 });

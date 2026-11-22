@@ -375,3 +375,27 @@ describe("ScoreboardPage without a date (S111)", () =>
 		expect(scheduleDates(fetchMock)).toEqual(["2026-09-05"]);
 	});
 });
+
+describe("ScoreboardPage footer (S148)", () =>
+{
+	it("S148 AC 1: a day with a game in progress still ends with no footer line until S149 opens its socket: no 'Fetched … ago', no 'baseball.theater'", async () =>
+	{
+		serve();
+		const { container } = renderScoreboard();
+		await modules();
+		expect(screen.queryByRole("contentinfo")).toBeNull();
+		expect(container).not.toHaveTextContent(/Fetched|baseball\.theater/);
+	});
+
+	it("S148 AC 3: with no useLiveDay yet, the scoreboard opens no WebSocket and shows no Live marker", async () =>
+	{
+		const sockets = vi.fn();
+		vi.stubGlobal("WebSocket", sockets);
+		serve();
+		renderScoreboard("desktop");
+		await modules();
+		expect(sockets).not.toHaveBeenCalled();
+		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
+		expect(screen.queryByText("Live Data · Active")).toBeNull();
+	});
+});

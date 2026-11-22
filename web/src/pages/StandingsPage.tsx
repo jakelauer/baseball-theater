@@ -4,7 +4,7 @@ import { useStandings } from "../api/standings.js";
 import { ViewState } from "../components/ViewState.js";
 import { queryScreen } from "../components/queryScreen.js";
 import { DivisionTable } from "../components/standings/DivisionTable.js";
-import { FooterMeta } from "../layout/FooterMeta.js";
+import { SiteFooter } from "../layout/SiteFooter.js";
 
 /**
  * Standings (S4; standings-search-settings `standings-mobile` / `-medium` / `-desktop`):
@@ -43,7 +43,8 @@ export function StandingsPage()
 		body = (
 			<>
 				{standings.divisions.map((division) => <DivisionTable key={division.divisionId ?? division.name} division={division} />)}
-				<FooterMeta fetchedAt={standings.fetchedAt} />
+				{/* Standings opens no WebSocket, so its footer never shows the Live marker (A13 Which pages). */}
+				<SiteFooter live={false} />
 			</>
 		);
 	}

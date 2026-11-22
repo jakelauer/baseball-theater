@@ -52,6 +52,25 @@ a {
 }
 
 /*
+ * LiveMarker's dot (S148; shell-scoreboard A13): fades from Phase=Bright (opaque, glow 8px) to
+ * Phase=Dim (45%, glow 4px) and back, 2s a cycle, easing in and out. Its own keyframe, not
+ * bt-blink: colour, speed, depth and glow all differ. The component drops the animation under
+ * prefers-reduced-motion, leaving the dot at Phase=Bright.
+ */
+@keyframes bt-live-marker {
+	0%,
+	100% {
+		opacity: 1;
+		box-shadow: 0 0 8px var(--bt-primary-light);
+	}
+
+	50% {
+		opacity: 0.45;
+		box-shadow: 0 0 4px var(--bt-primary-light);
+	}
+}
+
+/*
  * Installed (ADR-023; S55 shell-scoreboard A1 `scoreboard-standalone-mobile`): the status bar
  * sits on the app background, content starts below the top safe area and ends above the home
  * indicator. `viewport-fit=cover` in index.html lets the page reach under both.

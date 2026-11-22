@@ -184,3 +184,32 @@ describe("StandingsPage before 1969 (S155 AC 4)", () =>
 		expect(within(within(nl!).getAllByTestId("standings-row")[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["St. Louis Cardinals", "STL", "41", "27", ".603", "—"]);
 	});
 });
+
+describe("StandingsPage footer (S148)", () =>
+{
+	it("S148 AC 1: Standings opens no socket, so it ends with no footer line: no 'Fetched … ago', no 'baseball.theater'", async () =>
+	{
+		serve(() => jsonResponse(STANDINGS));
+		const { container } = render(
+			<MantineProvider>
+				<QueryClientProvider client={createQueryClient()}>
+					<MemoryRouter initialEntries={["/standings?date=2026-09-05"]}>
+						<StandingsPage />
+					</MemoryRouter>
+				</QueryClientProvider>
+			</MantineProvider>,
+		);
+		expect(await screen.findByText("New York Yankees")).toBeInTheDocument();
+		expect(screen.queryByRole("contentinfo")).toBeNull();
+		expect(container).not.toHaveTextContent(/Fetched|baseball\.theater/);
+	});
+
+	it("S148 AC 3: Standings never shows the Live marker or its strip", async () =>
+	{
+		serve(() => jsonResponse(STANDINGS));
+		renderStandings();
+		expect(await screen.findByText("New York Yankees")).toBeInTheDocument();
+		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
+		expect(screen.queryByText("Live Data · Active")).toBeNull();
+	});
+});
