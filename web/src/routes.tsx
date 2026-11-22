@@ -86,7 +86,7 @@ export function AppRoutes({ variant }: { variant: LayoutVariant })
 				<Route path="/games/:date" element={<ScoreboardPage variant={variant} />} />
 				<Route path="/game/:gamePk" element={<GamePage variant={variant} />} />
 				<Route path="/game/:gamePk/:tab" element={<GamePage variant={variant} />} />
-				<Route path="/standings" element={<StandingsPage />} />
+				<Route path="/standings" element={<StandingsPage variant={variant} />} />
 				<Route path="/search" element={<SearchPage />} />
 				{/* The change log is for everyone, signed in or not (A9, ratified 2026-11-19). */}
 				<Route path="/changelog" element={<ChangelogPage />} />

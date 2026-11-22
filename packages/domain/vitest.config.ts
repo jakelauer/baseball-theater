@@ -21,9 +21,11 @@ export default defineConfig({
 				// Raised 2026-10-29 by S64 (catcher's view, flights, replay schedule, field charts): lines 98.89, functions 97.82, branches 95.14.
 				// Raised 2026-10-30 by S67 (S66's record / date labels and S69's highlight filters folded in):
 				// lines 99.04, functions 98.13, branches 96, statements 99.04.
+				// Raised 2026-11-22 by S130 (standingsViews, clinchLegend, championBoxShows; earlier lag folded in):
+				// lines 99.35, functions 99.04, branches 97.51, statements 99.35.
 				lines: 99,
-				functions: 98,
-				branches: 96,
+				functions: 99,
+				branches: 97,
 				statements: 99,
 			},
 		},

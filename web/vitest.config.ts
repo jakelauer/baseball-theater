@@ -56,8 +56,10 @@ export default defineConfig({
 				// Raised 2026-10-29 by S41 (Plays room: inning sidebar, half-inning rows, scoring plays): functions 95.83, branches 97.16.
 				// Raised 2026-10-30 by S67 (S66's scoreboard, S69's Videos room and S67's slot folded in):
 				// lines 99.1, functions 97.16, branches 98.11, statements 99.1.
+				// Raised 2026-11-22 by S130 (Standings' views, switch, box, legend and title tests; earlier lag folded in):
+				// lines 99.21, functions 98.22, branches 98.38, statements 99.21.
 				lines: 99,
-				functions: 97,
+				functions: 98,
 				branches: 98,
 				statements: 99,
 			},
