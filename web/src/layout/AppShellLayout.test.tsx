@@ -95,6 +95,49 @@ describe("layout variant", () =>
 	}
 });
 
+describe("drawer change log link (S134 AC 3)", () =>
+{
+	async function openDrawer()
+	{
+		await userEvent.click(within(screen.getByRole("banner")).getByRole("button", {
+			name: "Open navigation",
+		}));
+		return screen.findByRole("dialog");
+	}
+
+	for (const variant of ["mobile", "medium"] as const)
+	{
+		it(`S134 AC 3: ${variant}, signed out: the drawer's 'Changelog' link sits right above the version line, plain on /standings, and choosing it opens /changelog and closes the drawer`, async () =>
+		{
+			renderShell("/standings", WIDTHS[variant]);
+			const drawer = await openDrawer();
+			const link = within(drawer).getByRole("link", {
+				name: "Changelog",
+			});
+			expect(link.nextElementSibling).toBe(within(drawer).getByTestId("version-line"));
+			expect(within(drawer).getByRole("list")).not.toContainElement(link);
+			expect(link).not.toHaveAttribute("aria-current");
+			expect(link.style.background).toBe("transparent");
+			await userEvent.click(link);
+			expect(screen.getByLabelText("path")).toHaveTextContent(/^\/changelog$/);
+			await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		});
+
+		it(`S134 AC 3: ${variant}: on /changelog the drawer's link is current and no nav item is active`, async () =>
+		{
+			renderShell("/changelog", WIDTHS[variant]);
+			const drawer = await openDrawer();
+			const link = within(drawer).getByRole("link", {
+				name: "Changelog",
+			});
+			expect(link).toHaveAttribute("aria-current", "page");
+			expect(link.style.background).toBe("var(--bt-primary)");
+			const current = within(drawer).getAllByRole("link").filter((a) => a.getAttribute("aria-current") === "page");
+			expect(current).toEqual([link]);
+		});
+	}
+});
+
 describe("mobile and medium header + drawer", () =>
 {
 	for (const variant of ["mobile", "medium"] as const)
