@@ -4,7 +4,10 @@
  * client reads them through the same `FixtureFiles` port Node uses. Only what
  * `FixtureClient` reads by name is here — schedules, games, plays, standings,
  * players, play metrics, season calendars and each season's final and spring standings (S128; S139 adds 2027's
- * season table, which lists the new season's teams before its first game, and 2026-09-12's mapped table). The recorded replay walk (`raw/`, 5+ MB) is for the Node capture tool,
+ * season table, which lists the new season's teams before its first game, and 2026-09-12's mapped table), and
+ * MLB's recorded table for each dated day (S160: `fetchStandings` maps `raw/standings-<date>.json` first, so the
+ * Worker serves what the mapper adds, the clinch letter among it; the mapped `standings-<date>.json` stays as the
+ * fallback it reads when a day has no recording). The recorded replay walk (`raw/`, 5+ MB) is for the Node capture tool,
  * which the Worker never runs. `bundled.test.ts` fails when a fixture the client
  * would read is missing from this list.
  */
@@ -19,6 +22,8 @@ import playMetrics823823 from "../../../../fixtures/raw/playmetrics-823823.json"
 import seasons2025 from "../../../../fixtures/raw/seasons-2025.json" with { type: "json" };
 import seasons2026 from "../../../../fixtures/raw/seasons-2026.json" with { type: "json" };
 import seasons2027 from "../../../../fixtures/raw/seasons-2027.json" with { type: "json" };
+import rawStandings20260905 from "../../../../fixtures/raw/standings-2026-09-05.json" with { type: "json" };
+import rawStandings20260912 from "../../../../fixtures/raw/standings-2026-09-12.json" with { type: "json" };
 import standings2026Final from "../../../../fixtures/raw/standings-2026-final.json" with { type: "json" };
 import standings2026Spring from "../../../../fixtures/raw/standings-2026-spring.json" with { type: "json" };
 import standings2027Final from "../../../../fixtures/raw/standings-2027-final.json" with { type: "json" };
@@ -48,6 +53,9 @@ export const BUNDLED_FIXTURES: Readonly<Record<string, unknown>> = {
 	"raw/seasons-2025.json": seasons2025,
 	"raw/seasons-2026.json": seasons2026,
 	"raw/seasons-2027.json": seasons2027,
+	// MLB's recorded tables for the dated days (S160), mapped by fetchStandings.
+	"raw/standings-2026-09-05.json": rawStandings20260905,
+	"raw/standings-2026-09-12.json": rawStandings20260912,
 	"raw/standings-2026-final.json": standings2026Final,
 	"raw/standings-2026-spring.json": standings2026Spring,
 	"raw/standings-2027-final.json": standings2027Final,
