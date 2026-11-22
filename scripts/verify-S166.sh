@@ -106,7 +106,13 @@ need_tests 2 github.test.ts \
   "^an incremental sync over 45 open backlog issues makes no per-issue request" \
   "^an open listing of two pages is read whole" \
   "^an issue closed between the two listings is kept, with its closed state" \
-  "^a closed issue is never re-read"
+  "^a closed issue is never re-read" \
+  "^an issue closed since the last sync is kept, closed, not dropped" \
+  "^an open-listing page shift never drops the issue that moved onto a page already read" \
+  "^an open issue missing from the cache comes back on the next incremental sync, and leaves the dropped list" \
+  "^the incremental sync after a full sync prunes a dropped entry whose issue the full sync listed again" \
+  "^an issue deleted between the two open listings is not added back" \
+  "^pull requests in the open listing are left out of the cache"
 
 # --- Check 3: Status done, from S166's own snapshot ---
 snap="$(find "$AUDIT_DIR" -type f -name '*-S166-snapshot.md' 2>/dev/null | awk -F/ '{ print $NF "\t" $0 }' | LC_ALL=C sort | tail -1 | cut -f2)"

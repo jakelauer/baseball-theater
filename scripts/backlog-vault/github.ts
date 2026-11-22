@@ -8,6 +8,8 @@
  *   GET   repos/<repo>                     the repository's name and owner (sync)
  *   GET   user                             the token's login (sync; 403 for CI's Actions token)
  *   GET   repos/<repo>/issues?state=all&since=…&per_page=100   (every page the Link header names)
+ *   GET   repos/<repo>/issues?state=open&per_page=100   S166: an incremental sync's open listing (every page; read
+ *                                 again only when the first pass leaves a drop candidate)
  *   GET   repos/<repo>/issues/<n>
  *   POST  repos/<repo>/issues
  *   PATCH repos/<repo>/issues/<n>            body, state, state_reason, labels, milestone
@@ -209,7 +211,6 @@ export interface CachedIssue
 	updated_at?: string;
 	/** When it was last closed: the `removed` drift event reads this, never `updated_at`, which any later touch moves. */
 	closed_at?: string | null;
-	repository_url?: string;
 	pull_request?: unknown;
 }
 
@@ -239,9 +240,6 @@ function slim(raw: Record<string, unknown>): CachedIssue
 		} : {}),
 		...(raw.closed_at ? {
 			closed_at: raw.closed_at as string,
-		} : {}),
-		...(raw.repository_url ? {
-			repository_url: raw.repository_url as string,
 		} : {}),
 	};
 }
@@ -287,7 +285,8 @@ export function listRawIssues(since: string, run: GhRunner, now: () => Date = ()
 
 /**
  * Every open issue (`issues?state=open&per_page=100`, every page), pull requests left out: what an
- * incremental sync checks its cached open issues against, a page per 100 open issues (S166).
+ * incremental sync checks its cached open issues against, a page per 100 open issues and pull
+ * requests, since GitHub pages over both before the pull requests are left out (S166).
  */
 export function listOpenIssues(run: GhRunner, now: () => Date = () => new Date(), sleep: Sleep = sleepSync): CachedIssue[]
 {
@@ -490,12 +489,24 @@ export interface SyncResult
 /**
  * `pnpm backlog:sync`: reads GitHub, writes only the cache. Incremental from the last sync's start
  * time, or a full re-list with `full`, with no cache, or when the last full one is over a day old. An
- * issue missing from a full re-list is dropped. An incremental sync finds drops with two listings and
- * no per-issue read (S166): it lists the repository's open issues first, then the issues changed since
- * the last sync, and drops a cached open backlog issue that is in neither (deleted, or transferred to
- * another repository). The open listing comes first so an issue closed between the two reads moved its
- * `updated_at` and is in the second, kept with its closed state, never dropped. A closed cached issue
- * is never re-read. Dropped issues are named in the result.
+ * issue missing from a full re-list is dropped; a full sync otherwise lists as before. An incremental
+ * sync finds drops from listings, with no per-issue read (S166): it lists the repository's open issues
+ * first, then the issues changed since the last sync, and a cached open backlog issue in neither is a
+ * candidate (deleted, transferred to another repository, or missed by the open listing's offset paging
+ * when an issue on a page already read closed before the next page). Only when there is a candidate,
+ * it reads the open listing again, after the since listing, and drops a candidate missing from that
+ * too. The open listing comes first so an issue closed between it and the since listing moved its
+ * `updated_at` and is in the since listing, kept with its closed state. A closed cached issue is never
+ * re-read. Dropped issues are named in the result.
+ *
+ * Rare double races can still drop an open issue wrongly, in two shapes: the first open listing
+ * misses it by the page shift and it then closes after the since listing but before the second open
+ * listing; or the second open listing shifts the same way, because another issue closes between its
+ * pages. Either, and any earlier wrong drop, heals on the next incremental sync: an open issue the
+ * cache lacks is added back from the newest open listing read (the second when it ran, so an issue
+ * deleted between the two isn't), and an entry in the cache's `dropped` list whose issue is in the
+ * cache again is pruned, so the `removed` drift event stops counting it. A full sync lists and keeps
+ * the `dropped` list as before; the incremental sync after it prunes what it put back.
  */
 export function syncIssues(root: string, opts: { run?: GhRunner;
 	now?: () => Date;
@@ -523,6 +534,7 @@ export function syncIssues(root: string, opts: { run?: GhRunner;
 	}
 	const since = full ? FULL_SINCE : old!.syncedAt;
 	// Read before the since listing (see above): an issue closed in between is then in the since listing.
+	// A second open listing, read only when there is a drop candidate, follows the since listing.
 	const open = full ? [] : listOpenIssues(run, now, sleep);
 	const { issues, started } = listRawIssues(since, run, now, sleep);
 	const byNumber = new Map<number, CachedIssue>(full ? [] : old!.issues.map((i) => [i.number, i]));
@@ -538,14 +550,34 @@ export function syncIssues(root: string, opts: { run?: GhRunner;
 	else
 	{
 		const seen = new Set([...open, ...issues].map((i) => i.number));
-		for (const issue of old!.issues.filter((i) => i.state === "open" && !seen.has(i.number) && isBacklog(i)))
+		let candidates = old!.issues.filter((i) => i.state === "open" && !seen.has(i.number) && isBacklog(i));
+		// The open listing pages by offset: an issue on a page already read that closes before the
+		// next page is read shifts that page's first issue onto it, unseen. So a candidate is checked
+		// against a second open listing, read only when there is one, and the newer listing is the
+		// one whose open issues go back into the cache.
+		let openNow = open;
+		if (candidates.length > 0)
+		{
+			openNow = listOpenIssues(run, now, sleep);
+			const again = new Set(openNow.map((i) => i.number));
+			candidates = candidates.filter((i) => !again.has(i.number));
+		}
+		for (const issue of candidates)
 		{
 			byNumber.delete(issue.number);
 			dropped.push(issue.number);
 		}
+		// An open issue the cache lacks (dropped wrongly by an earlier sync) comes back.
+		for (const issue of openNow.filter((i) => !byNumber.has(i.number)))
+		{
+			byNumber.set(issue.number, issue);
+		}
 	}
-	// A dropped trusted story is kept by ID and time, so the `removed` drift event still sees it.
-	const droppedStories = [...(old?.dropped ?? [])];
+	// A dropped trusted story is kept by ID and time, so the `removed` drift event still sees it. On an
+	// incremental sync, an entry whose issue is in the cache again was dropped wrongly and leaves the
+	// list: keyed on the issue number, which GitHub never reuses (a title, and so an ID, can be). A full
+	// sync keeps the list as it was; the next incremental sync prunes what it put back.
+	const droppedStories = full ? [...(old?.dropped ?? [])] : (old?.dropped ?? []).filter((d) => !byNumber.has(d.number));
 	for (const n of dropped)
 	{
 		const id = old ? old.issues.find((i) => i.number === n) : undefined;

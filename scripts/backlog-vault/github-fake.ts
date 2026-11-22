@@ -75,7 +75,6 @@ export class FakeGithub
 			body: "",
 			milestone: null,
 			comments: [],
-			repository_url: `https://example.test/repos/${this.repo}`,
 			...issue,
 			number,
 			updated_at: issue.updated_at ?? this.now(),
