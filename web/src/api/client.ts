@@ -121,6 +121,15 @@ export async function fetchScoreboardDefaultDate()
 	return unwrap(await api.GET("/api/v1/scoreboard/default-date"));
 }
 
+/**
+ * Every approved release's notes, newest first, and the newest as `current` (S132), for the change
+ * log page (S134). Takes no query: the update notice asks nothing of it (owner, 2026-11-10).
+ */
+export async function fetchReleases()
+{
+	return unwrap(await api.GET("/api/v1/releases"));
+}
+
 /** "Best of <date>" (S71): the day's top videos across its games. */
 export async function fetchDigest(date: string)
 {

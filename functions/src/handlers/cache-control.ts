@@ -29,3 +29,12 @@ export function edgeCacheControl(entity: { windowMode?: "active" | "cache";
 	const lifetimeS = cacheLifetimeMs(now.getTime() - changedAt, ladder) / 1000;
 	return `public, s-maxage=${lifetimeS}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`;
 }
+
+/**
+ * The releases API's `Cache-Control` (S132 AC 4): a release's notes should show within five minutes
+ * of its deploy, so the whole budget, fresh plus stale, is at most 300s: 240s fresh, browser and edge
+ * alike, then 60s served stale while the edge refetches. Neither {@link edgeCacheControl} (a lifetime
+ * of at least the floor plus a floor's stale window) nor {@link STALE_WHILE_REVALIDATE_S} (300s by
+ * itself) fits that budget.
+ */
+export const RELEASES_CACHE_CONTROL = "public, max-age=240, s-maxage=240, stale-while-revalidate=60";

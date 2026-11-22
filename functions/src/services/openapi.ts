@@ -263,6 +263,12 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 			503: "`sign_in_failed`: BT couldn't finish the sign-in for a reason of its own (the tenant's keys couldn't be fetched, or its database or session key failed); the token wasn't refused, so trying again later may succeed.",
 		},
 	},
+	"GET /api/v1/releases": {
+		operationId: "getReleases",
+		summary: "Every approved release's fan-facing notes, newest first, and `current`, the newest of them (null before any release has approved notes). The notes are bundled into the build; a draft is never returned. Cacheable for at most five minutes in all, so a release's notes show within minutes of its deploy.",
+		parameters: [],
+		errors: {},
+	},
 	"PUT /api/v1/me/settings": {
 		operationId: "putSettings",
 		summary: "Saves the whole settings document. Applies only if `version` is newer than the stored one (ADR-022); answers with what is stored either way.",
