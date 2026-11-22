@@ -219,9 +219,102 @@ describe("VideoCard meta line (S145)", () =>
 		const pill = rule(/^\s*\.bt-play-pill\s*$/);
 		expect(pill).toMatch(/min-width:\s*24px;/);
 		expect(pill).toMatch(/min-height:\s*24px;/);
+		// A6, Touch: the hit area is "padded around the pill, not drawn", so a tap paints no highlight on it.
+		expect(pill).toMatch(/-webkit-tap-highlight-color:\s*transparent;/);
 		expect(rule(/\.bt-play-pill:hover \.bt-play-pill-face/)).toMatch(/background-color:\s*var\(--bt-raised-current\);/);
 	});
+
+	it("S145 AC 3: no stylesheet paints the pill's hit box on hover or focus", () =>
+	{
+		const { box } = renderCard(clip(), "grid", TOP6);
+		const pill = within(box).getByRole("link");
+		const scanned = paintingStateSelectors();
+		// Proves the scan reached the site's link wash rules (styles.css's Anchor hover, inside `@media (hover: hover)`, and its focus list).
+		expect(scanned.filter((selector) => selector.includes(".mantine-Anchor-root:not(:disabled)") && selector.includes(":hover"))).toHaveLength(1);
+		expect(scanned.filter((selector) => /^\.mantine-Anchor-root:focus-visible$/.test(selector))).toHaveLength(1);
+		const painting = scanned.filter((selector) => pill.matches(selector.replace(STATE, "").replace(/\(\s*\)/g, "(*)")));
+		expect(painting).toEqual([]);
+	});
+
+	it("S145 AC 3: keyboard focus fills the pill like hover and rings the pill alone", () =>
+	{
+		const { box } = renderCard(clip(), "grid", TOP6);
+		expect(within(box).getByRole("link").classList.contains("mantine-focus-auto")).toBe(false);
+		expect(rule(/^\s*\.bt-play-pill:focus-visible\s*$/)).toMatch(/outline:\s*none;/);
+		const face = rule(/^\s*\.bt-play-pill:focus-visible \.bt-play-pill-face\s*$/);
+		expect(face).toMatch(/background-color:\s*var\(--bt-raised-current\);/);
+		expect(face).toMatch(/outline:\s*calc\(0\.125rem \* var\(--mantine-scale\)\) solid var\(--mantine-primary-color-filled\);/);
+		// Keyboard focus shows on any screen, so its rule isn't inside the hover-only block.
+		expect(mediaBlock(/hover:\s*hover/)).not.toMatch(/focus-visible/);
+	});
+
+	it("S145: reduced motion turns off the pill's fill transition", () =>
+	{
+		expect(mediaBlock(/prefers-reduced-motion:\s*reduce/)).toMatch(/\.bt-play-pill-face\s*\{[^}]*transition:\s*none;/);
+	});
 });
+
+const SITE_CSS = readFileSync(join(HERE, "../../styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+/** The interaction states a rule can paint in; jsdom evaluates none of them, so the scan removes them before matching. */
+const STATE = /:(?:hover|focus-visible|focus-within|focus)(?![\w-])/g;
+
+/**
+ * Every selector, in the site stylesheet and the pill's, of a rule that sets a background in a
+ * hover or focus state. Vitest loads no CSS (`document.styleSheets` is empty), so this reads the
+ * text: the innermost `selector { declarations }` blocks, which reaches into `@media` blocks, with
+ * each selector list split at its top-level commas (lists span lines).
+ */
+function paintingStateSelectors(): string[]
+{
+	const selectors: string[] = [];
+	for (const [, head, body] of [SITE_CSS, PILL_CSS].flatMap((css) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]))
+	{
+		if (!/(?:^|[\s;])background(?:-color)?\s*:/.test(body!))
+		{
+			continue;
+		}
+		// A statement such as `@import …;` before the rule isn't part of its selector.
+		const list = head!.slice(head!.lastIndexOf(";") + 1);
+		let depth = 0;
+		let start = 0;
+		for (let i = 0; i <= list.length; i++)
+		{
+			const char = list[i];
+			depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+			if (i === list.length || (char === "," && depth === 0))
+			{
+				const selector = list.slice(start, i).trim();
+				start = i + 1;
+				if (STATE.test(selector))
+				{
+					selectors.push(selector);
+				}
+				STATE.lastIndex = 0;
+			}
+		}
+	}
+	return selectors;
+}
+
+/** The text of the pill stylesheet's first `@media` block whose condition matches. */
+function mediaBlock(condition: RegExp): string
+{
+	const at = [...PILL_CSS.matchAll(/@media([^{]*)\{/g)].find(([, query]) => condition.test(query!));
+	if (!at)
+	{
+		return "";
+	}
+	let depth = 0;
+	for (let i = at.index! + at[0].length - 1; i < PILL_CSS.length; i++)
+	{
+		depth += PILL_CSS[i] === "{" ? 1 : PILL_CSS[i] === "}" ? -1 : 0;
+		if (depth === 0)
+		{
+			return PILL_CSS.slice(at.index!, i + 1);
+		}
+	}
+	return "";
+}
 
 describe("videoMeta, the meta line's play-wins rule (S145)", () =>
 {

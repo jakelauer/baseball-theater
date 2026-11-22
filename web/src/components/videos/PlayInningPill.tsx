@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import { Anchor } from "@mantine/core";
 import { Link } from "react-router-dom";
 import type { PlayLink } from "./playLink.js";
 import "./PlayInningPill.css";
@@ -11,6 +10,11 @@ import "./PlayInningPill.css";
  * from `playLink.ts`, so the pill only draws it. `onClick` lets the player close itself as the
  * link opens the play. `testId` keeps the lookups S97's tests and design spec already use
  * (`play-link` on a card, `player-play-link` in the player).
+ *
+ * A plain router `Link`, not Mantine's `Anchor`: the site's link rules (`styles.css`'s hover and
+ * focus wash on `.mantine-Anchor-root`) and the theme's focus ring (`mantine-focus-auto`) would
+ * paint the whole padded hit box, where A6 draws only the pill. `PlayInningPill.css` draws the
+ * hover fill, the focus fill and the focus ring on the face alone.
  */
 export function PlayInningPill({
 	link, testId, onClick, style,
@@ -20,8 +24,8 @@ export function PlayInningPill({
 	style?: CSSProperties; })
 {
 	return (
-		<Anchor component={Link} to={link.to} aria-label={link.name} className="bt-play-pill" underline="never" data-testid={testId} onClick={onClick} style={style}>
+		<Link to={link.to} aria-label={link.name} className="bt-play-pill" data-testid={testId} onClick={onClick} style={style}>
 			<span className="bt-play-pill-face">{link.label}</span>
-		</Anchor>
+		</Link>
 	);
 }

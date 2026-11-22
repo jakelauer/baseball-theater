@@ -95,7 +95,7 @@ afterEach(async () =>
 
 describe("video play links (S97)", () =>
 {
-	it("S97 AC 1: every video with a play gets 'Play · <half> <inning> →' under its meta line, in grid and list; the rest get none", async () =>
+	it("S97 AC 1: every video with a play gets its inning pill on its meta line, in grid and list; the rest get none", async () =>
 	{
 		await open("/game/823823/videos", "video-card");
 		expect(linked).toHaveLength(20);

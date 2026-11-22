@@ -2,7 +2,9 @@
  * The inning pill (S145; game-shell A6's `play-inning-pill`): the link to a clip's play, `Top 6 →`.
  * The link's own box is the hit area, at least 24×24 px (A6, Touch: "padded around the pill, not
  * drawn"), pulled 2px into the line above and below so the meta line keeps its height; the drawn
- * pill is its face: 11px Medium in the date's muted colour on `--bt-raised`, fully rounded.
+ * pill is its face: 11px Medium in the date's muted colour on `--bt-raised`, fully rounded. The
+ * hit box itself is never painted: no tap highlight, no focus outline (the face carries the ring),
+ * and, being a plain link rather than Mantine's Anchor, none of the site's link wash rules.
  */
 .bt-play-pill {
 	position: relative;
@@ -16,6 +18,7 @@
 	border-radius: 999px;
 	text-decoration: none;
 	white-space: nowrap;
+	-webkit-tap-highlight-color: transparent;
 }
 
 .bt-play-pill-face {
@@ -33,5 +36,27 @@
 @media (hover: hover) {
 	.bt-play-pill:hover .bt-play-pill-face {
 		background-color: var(--bt-raised-current);
+	}
+}
+
+/*
+ * Keyboard focus, on any screen: the hover fill (the site rule: focus gets the hover colours) and
+ * the theme's focus ring (Mantine's `mantine-focus-auto` values) "around the pill alone" (A6), so
+ * the ring moves off the hit box onto the face.
+ */
+.bt-play-pill:focus-visible {
+	outline: none;
+}
+
+.bt-play-pill:focus-visible .bt-play-pill-face {
+	background-color: var(--bt-raised-current);
+	outline: calc(0.125rem * var(--mantine-scale)) solid var(--mantine-primary-color-filled);
+	outline-offset: calc(0.125rem * var(--mantine-scale));
+}
+
+/* Reduced motion: the fill still changes, without animating (as `styles.css`'s site list does for its own controls). */
+@media (prefers-reduced-motion: reduce) {
+	.bt-play-pill-face {
+		transition: none;
 	}
 }
