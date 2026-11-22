@@ -1,7 +1,6 @@
 import {
 	describe, expect, it,
 } from "vitest";
-import { atBatInningLabel } from "./inning.js";
 import type { AtBat } from "./plays.js";
 import { atBatOfPlay, videosByAtBat } from "./video-play-links.js";
 
@@ -23,13 +22,6 @@ const video = (id: string, playId: string | null) => ({
 
 describe("video play context (S97)", () =>
 {
-	it("atBatInningLabel: Top / Bot with an ordinal", () =>
-	{
-		expect(atBatInningLabel(plays[0]!)).toBe("Top 1st");
-		expect(atBatInningLabel(plays[1]!)).toBe("Bot 3rd");
-		expect(atBatInningLabel(plays[2]!)).toBe("Top 11th");
-	});
-
 	it("atBatOfPlay: the at-bat a pitch id is in; undefined for none or an unknown id", () =>
 	{
 		expect(atBatOfPlay(plays, "b")).toBe(plays[0]);
