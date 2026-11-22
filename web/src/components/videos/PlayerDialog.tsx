@@ -4,6 +4,7 @@ import {
 import { Link } from "react-router-dom";
 import { highlightTitle } from "@bt/domain";
 import type { Video } from "./VideoCard.js";
+import { PlayInningPill } from "./PlayInningPill.js";
 import type { PlayLink } from "./playLink.js";
 import { VideoPlayer } from "./VideoPlayer.js";
 
@@ -26,7 +27,8 @@ export type PlayerGame = {
  * context to associate them to a game should show a link to the game unless they are
  * already being played from the game"): the caller passes `game` when it knows it and
  * `fromGamePk` when it is that game's page; there the slot shows the clip's play link instead
- * (S97; game-shell A5), when it has one.
+ * (S97), when it has one: the inning pill, `Top 6 →` (S145; game-shell A6), closing the player as
+ * it opens the play.
  *
  * With scores hidden the recap clip is titled "Recap (score hidden)" (`highlightTitle`,
  * S75); only the game page passes `scoresHidden`, so Search and the digest keep MLB's title.
@@ -41,7 +43,7 @@ export function PlayerDialog({
 	game?: PlayerGame;
 	fromGamePk?: number;
 	scoresHidden?: boolean;
-	/** The clip's play link (S97; game-shell A5): shown top left when no game link holds that slot. */
+	/** The clip's play link (S97; game-shell A6's inning pill, S145): shown top left when no game link holds that slot. */
 	playLink?: PlayLink | null; })
 {
 	const title = highlightTitle(video, scoresHidden);
@@ -76,11 +78,7 @@ export function PlayerDialog({
 					<Anchor component={Link} to={`/game/${link.gamePk}`} c="var(--bt-primary-light)" onClick={onClose}>
 						Go to game: {link.label} →
 					</Anchor>
-				) : playLink ? (
-					<Anchor component={Link} to={playLink.to} c="var(--bt-primary-light)" onClick={onClose} data-testid="player-play-link">
-						{playLink.label}
-					</Anchor>
-				) : <span />}
+				) : playLink ? <PlayInningPill link={playLink} testId="player-play-link" onClick={onClose} /> : <span />}
 				<UnstyledButton onClick={onClose} aria-label="Close video" c="var(--bt-light)" className="bt-hover" px={8} py={4} mx={-8} my={-4} style={{
 					flexShrink: 0,
 					borderRadius: 8,

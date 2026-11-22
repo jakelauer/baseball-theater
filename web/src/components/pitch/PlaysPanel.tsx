@@ -1,6 +1,6 @@
 import type { AtBat } from "@bt/domain";
 import {
-	defaultPlaysInning, inningHalves, linescoreCells, ordinal, scoreAfterLabel, scoringPlays, atBatOfPlay, highlightTitle, videosByAtBat,
+	defaultPlaysInning, halfInningLabel, inningHalves, linescoreCells, ordinal, scoreAfterLabel, scoringPlays, atBatOfPlay, highlightTitle, videosByAtBat,
 } from "@bt/domain";
 import {
 	Accordion, Badge, Box, Group, Stack, Text, UnstyledButton,
@@ -47,10 +47,10 @@ function OpenHeader({ atBat }: { atBat: AtBat })
 	);
 }
 
-/** `Top 3` / `Bot 7`: a scoring play's inning tag (`plays-scoring-mobile`). */
+/** `Top 3` / `Bot 7`: a scoring play's inning tag (`plays-scoring-mobile`), the domain's one half-inning label (S145). */
 function inningTag(atBat: AtBat): string
 {
-	return `${atBat.about.halfInning === "top" ? "Top" : "Bot"} ${atBat.about.inning}`;
+	return halfInningLabel(atBat.about);
 }
 
 /** The control's accessible name: half, inning, batter and result, whatever the row shows. */
