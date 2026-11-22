@@ -5,6 +5,7 @@
       "gamePk": 744834,
       "gameDate": "2024-07-04",
       "officialDate": "2024-07-04",
+      "gameType": "R",
       "status": {
         "abstractGameState": "Final",
         "codedGameState": "F",
@@ -42,6 +43,7 @@
       "gamePk": 745001,
       "gameDate": "2024-07-04",
       "officialDate": "2024-07-04",
+      "gameType": "R",
       "status": {
         "abstractGameState": "Live",
         "codedGameState": "I",

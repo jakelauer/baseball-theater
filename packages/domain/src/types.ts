@@ -301,6 +301,12 @@ export type ScheduleGameSummary = {
 	gamePk: number;
 	gameDate: string;
 	officialDate: string;
+	/**
+	 * MLB's game type code as sent (S167): `R` regular season, `S` spring training, `E` exhibition,
+	 * `A` All-Star, `F`/`D`/`L`/`W` postseason rounds, any other code kept as it is. Absent when MLB
+	 * sent none, and on a game stored before S167 until the backfill re-stores its day.
+	 */
+	gameType?: string;
 	/** First pitch as an ISO instant (S65); views show it in the viewer's zone (`formatGameTime`). */
 	startTime?: string;
 	status: GameSnapshot["status"];
@@ -402,6 +408,13 @@ export type StandingsTeamRecord = {
 	runDifferential: number | null;
 	divisionLeader: boolean;
 	clinched: boolean;
+	/**
+	 * How the team clinched (S160): MLB's letter as it sends it on a `clinched` team (`z` best record
+	 * in the league, `y` division, `w` wild card, `x` playoff spot, or any other letter MLB adds, which
+	 * is shown as it is: owner, 2026-11-20, "Print it anyway"). `null` on a team that isn't `clinched`
+	 * or when MLB sends none. Optional because an answer cached before S160 lacks it, which means no letter.
+	 */
+	clinchIndicator?: string | null;
 	eliminationNumber: string | null;
 };
 

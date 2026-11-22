@@ -216,6 +216,27 @@ describe("mapScheduleGame", () =>
 		expect(mapped.gameDate).toBe("2024-07-04");
 		expect(mapped.officialDate).toBe("2024-07-04");
 	});
+
+	it("S167 AC 1 regular: a regular-season game keeps its game type R", () =>
+	{
+		expect(mapScheduleGame(scheduleGame({
+			gameType: "R",
+		})).gameType).toBe("R");
+	});
+
+	it("S167 AC 1 all-star: an All-Star game keeps its game type A", () =>
+	{
+		expect(mapScheduleGame(scheduleGame({
+			gameType: "A",
+		})).gameType).toBe("A");
+	});
+
+	it("S167 AC 1 none: a game MLB sends with no gameType has none (the key is left out)", () =>
+	{
+		const mapped = mapScheduleGame(scheduleGame());
+		expect(mapped.gameType).toBeUndefined();
+		expect("gameType" in mapped).toBe(false);
+	});
 });
 
 describe("mapScheduleResponse", () =>

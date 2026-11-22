@@ -7,7 +7,9 @@ import {
 	InMemoryGameRepository,
 	InMemoryScheduleRepository,
 } from "../adapters/memory/repos.js";
-import { getOrRefreshGame, ingestScheduleDay } from "./ingest.js";
+import {
+	getOrRefreshGame, ingestScheduleDay, refreshTodaysWindow,
+} from "./ingest.js";
 import { RefreshCoordinator } from "./refresh.js";
 
 describe("ingest with fixtures", () =>
@@ -202,5 +204,51 @@ describe("which games ingest fetches (S48 AC 8, ADR-025)", () =>
 		expect(await fetchedFor("F")).toEqual([744834]);
 		expect(await fetchedFor("O")).toEqual([744834]);
 		expect(await fetchedFor("S")).toEqual([]);
+	});
+});
+
+describe("ingest skips a settled day before S167's game types (S167 AC 4)", () =>
+{
+	it("S167 AC 4 ingest: a settled stored day before today whose games have no gameType is still skipped, asking MLB only for today", async () =>
+	{
+		const real = new FixtureMlbStatsClient();
+		const stored = await real.fetchSchedule("2024-07-04");
+		const schedules = new InMemoryScheduleRepository();
+		// The day as stored before S167: settled (every game final), cached, and no game carries a gameType.
+		await schedules.upsert({
+			...stored,
+			games: stored.games.map(({ gameType: _dropped, ...game }) => ({
+				...game,
+				status: {
+					abstractGameState: "Final",
+					codedGameState: "F",
+					detailedState: "Final",
+				},
+			})),
+			fetchedAt: "2024-07-05T06:00:00.000Z",
+			windowMode: "cache",
+			version: 1,
+			lastChangedAt: "2024-07-05T06:00:00.000Z",
+		});
+		const asked: string[] = [];
+		const mlb = new FixtureMlbStatsClient();
+		mlb.fetchSchedule = async (date: string) =>
+		{
+			asked.push(date);
+			return {
+				date,
+				games: [],
+				fetchedAt: "2024-07-05T17:00:00.000Z",
+				windowMode: "cache",
+			};
+		};
+		await refreshTodaysWindow({
+			mlb,
+			schedules,
+			games: new InMemoryGameRepository(),
+			projections: new InMemoryGameProjectionRepository(),
+		}, new Date("2024-07-05T17:00:00.000Z"));
+		expect(asked).toEqual(["2024-07-05"]);
+		expect((await schedules.getByDate("2024-07-04"))!.games.every((game) => game.gameType === undefined)).toBe(true);
 	});
 });

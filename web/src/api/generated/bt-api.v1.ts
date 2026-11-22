@@ -124,6 +124,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every approved release's fan-facing notes, newest first, and `current`, the newest of them (null before any release has approved notes). The notes are bundled into the build; a draft is never returned. Cacheable for at most five minutes in all, so a release's notes show within minutes of its deploy. */
+        get: operations["getReleases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/schedule": {
         parameters: {
             query?: never;
@@ -148,7 +165,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The number of games on each day of one month, and the teams playing it, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null` and `teamIds: null`, distinct from a day with no games (`0` and `[]`). */
+        /** The number of games on each day of one month, the teams playing it, and whether it has a regular-season game, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, `teamIds: null` and `regularSeason: null`, distinct from a day with no games (`0`, `[]` and `false`). */
         get: operations["getScheduleMonth"];
         put?: never;
         post?: never;
@@ -639,6 +656,49 @@ export interface components {
             headline: string;
             slug: string;
         };
+        /** @description The owner's sign-off: the calendar date they approved the notes and their words, quoted. */
+        ReleaseApproval: {
+            date: string;
+            quote: string;
+        };
+        /** @description A change in the notes: a short title and the one sentence that explains it to a fan. */
+        ReleaseEntry: {
+            sentence: string;
+            title: string;
+        };
+        /** @description A change that gets its own entry on the change log page, labelled with its kind. */
+        ReleaseItem: {
+            kind: components["schemas"]["ReleaseItemKind"];
+            sentence: string;
+            title: string;
+        };
+        /**
+         * @description One of  {@link  RELEASE_ITEM_KINDS } .
+         * @enum {string}
+         */
+        ReleaseItemKind: "feature" | "enhancement" | "performance" | "fix";
+        /** @description One release's notes, as `releases/<version>.json` holds them. An entry is in `headline` or `items`, never both. Notes with no `approval` are a draft: nothing publishes from them and  {@link  currentRelease }  ignores them. */
+        ReleaseNotes: {
+            /** @description The owner's in-session approval, dated and quoted; absent on a draft, which never deploys. */
+            approval?: components["schemas"]["ReleaseApproval"];
+            /** @description A calendar date, `YYYY-MM-DD`, if given. The release procedure (CLAUDE.md, step (4)) leaves it empty: the file is frozen in the release commit before the day the release ships, and the GitHub Release records that day. */
+            date?: string;
+            /** @description The one sentence that stands for every minor fix and bit of polish. */
+            fixesAndPolish?: string;
+            /** @description The really big additions. */
+            headline: components["schemas"]["ReleaseEntry"][];
+            /** @description Every other change with an entry of its own. */
+            items: components["schemas"]["ReleaseItem"][];
+            /** @description `vMAJOR.MINOR.PATCH` ( {@link  parseReleaseVersion } ). */
+            version: string;
+        };
+        /** @description Every approved release's fan-facing notes (S132), for the change log page (S134). Read from the notes bundled into this build (`pnpm release:bundle`), never from MLB or the database. */
+        ReleasesResponse: {
+            /** @description The newest approved release in this build's notes (`currentRelease`, S131); null before any release has approved notes. On staging it can trail the version line, which names the pull request's milestone, a release not yet published. */
+            current: components["schemas"]["ReleaseNotes"] | null;
+            /** @description Every approved release's notes, newest first (`approvedReleasesNewestFirst`); a draft never appears. */
+            releases: components["schemas"]["ReleaseNotes"][];
+        };
         /**
          * @description What a user may administer. Lives in BT, not the identity provider (ADR-019: no provider RBAC).
          * @enum {string}
@@ -661,6 +721,8 @@ export interface components {
             count: number | null;
             /** @description The day, `YYYY-MM-DD`. */
             date: string;
+            /** @description Whether the day has a regular-season game (S167; `dayRegularSeason`), so S159's calendar marks a favorite team's day off only during the regular season. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular season and at least one was stored without a game type (a day stored before S167, until the backfill re-stores it). Per day rather than per game, since the calendar needs only the day's answer and the month answer stays one small, shared, cached response (ADR-021). */
+            regularSeason: boolean | null;
             /** @description The MLB team IDs playing that day (away and home of every game counted in `count`, each once, ascending; S136), so a client can mark the days a fan's favorites play without one request per day. `[]` for a stored day with no games; `null` exactly when `count` is. Every team is sent, not "a favorite plays", because favorites are personal and the month answer is one shared, cached response (ADR-021). */
             teamIds: number[] | null;
         };
@@ -670,6 +732,8 @@ export interface components {
             decisions?: components["schemas"]["GameDecisions"] | null;
             gameDate: string;
             gamePk: number;
+            /** @description MLB's game type code as sent (S167): `R` regular season, `S` spring training, `E` exhibition, `A` All-Star, `F`/`D`/`L`/`W` postseason rounds, any other code kept as it is. Absent when MLB sent none, and on a game stored before S167 until the backfill re-stores its day. */
+            gameType?: string;
             linescore: components["schemas"]["LinescoreSummary"] | null;
             /** @description During the game: runners, matchup and count (S65); `null` unless in progress. */
             live?: components["schemas"]["ScheduleLive"] | null;
@@ -830,6 +894,8 @@ export interface components {
          */
         StandingsTeamRecord: {
             abbreviation: string | null;
+            /** @description How the team clinched (S160): MLB's letter as it sends it on a `clinched` team (`z` best record in the league, `y` division, `w` wild card, `x` playoff spot, or any other letter MLB adds, which is shown as it is: owner, 2026-11-20, "Print it anyway"). `null` on a team that isn't `clinched` or when MLB sends none. Optional because an answer cached before S160 lacks it, which means no letter. */
+            clinchIndicator?: string | null;
             clinched: boolean;
             divisionLeader: boolean;
             divisionRank: number | null;
@@ -1274,6 +1340,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getReleases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleasesResponse"];
                 };
             };
             /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */

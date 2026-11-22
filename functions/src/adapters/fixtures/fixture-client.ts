@@ -155,30 +155,32 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 	}
 
 	/**
-   * Missing-date behaviour matches `fetchSchedule`: an empty table rather than
-   * a throw, so a local day with no committed fixture still renders.
-   */
+	 * A day's table (S160): MLB's recording `fixtures/raw/standings-<date>.json`, mapped as the
+	 * HTTP client maps it, so it carries what the mapper adds (the clinch letter among them). A day
+	 * with no readable recording falls back to `standings-<date>.json`, the mapped table the
+	 * normalized recorder writes (`recordNormalized`), and then, matching `fetchSchedule`, to an
+	 * empty table rather than a throw, so a local day with no committed fixture still renders.
+	 * "No readable recording" is a read that fails, which in Node includes a file that is not
+	 * valid JSON (`nodeFixtureFiles` parses as it reads); valid JSON of the wrong shape throws.
+	 */
 	async fetchStandings(date: string): Promise<StandingsSnapshot>
 	{
-		const file = `standings-${date}.json`;
-		try
+		return this.recordedStandings(`raw/standings-${date}.json`, date, async () =>
 		{
-			const data = await this.readJson<StandingsSnapshot>(file);
-			return {
-				...data,
-				fetchedAt: new Date().toISOString(),
-				windowMode: "cache",
-			};
-		}
-		catch
-		{
-			return {
-				date,
-				divisions: [],
-				fetchedAt: new Date().toISOString(),
-				windowMode: "cache",
-			};
-		}
+			try
+			{
+				const data = await this.readJson<StandingsSnapshot>(`standings-${date}.json`);
+				return {
+					...data,
+					fetchedAt: new Date().toISOString(),
+					windowMode: "cache",
+				};
+			}
+			catch
+			{
+				return undefined;
+			}
+		});
 	}
 
 	/**
@@ -258,7 +260,16 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 		return this.recordedStandings(`raw/standings-${season}-spring.json`, date);
 	}
 
-	private async recordedStandings(file: string, date: string): Promise<StandingsSnapshot>
+	/**
+	 * A recorded MLB standings response, `file`, mapped as the HTTP client maps it. When it can't be
+	 * read, `fallback`'s table if it gives one, else an empty table. A recording that reads but
+	 * isn't MLB's shape throws (`parseStandingsResponse`), never falling back.
+	 */
+	private async recordedStandings(
+		file: string,
+		date: string,
+		fallback: () => Promise<StandingsSnapshot | undefined> = async () => undefined,
+	): Promise<StandingsSnapshot>
 	{
 		let records: unknown;
 		try
@@ -267,6 +278,8 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 		}
 		catch
 		{
+			const table = await fallback();
+			if (table) return table;
 			records = {
 				records: [],
 			};
