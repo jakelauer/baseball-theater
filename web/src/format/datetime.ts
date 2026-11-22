@@ -22,6 +22,13 @@ const CALENDAR = new Intl.DateTimeFormat("en-US", {
 	timeZone: "UTC",
 });
 
+const LONG_CALENDAR = new Intl.DateTimeFormat("en-US", {
+	month: "long",
+	day: "numeric",
+	year: "numeric",
+	timeZone: "UTC",
+});
+
 const MONTH_DAY = new Intl.DateTimeFormat("en-US", {
 	month: "short",
 	day: "numeric",
@@ -45,6 +52,19 @@ export function formatDate(value: string): string
 	const date = new Date(calendar ? `${value}T00:00:00Z` : value);
 	if (Number.isNaN(date.getTime()) || (calendar && date.toISOString().slice(0, 10) !== value)) return value;
 	return (calendar ? CALENDAR : DATE).format(date);
+}
+
+/**
+ * "March 2, 2027", a calendar date (`2027-03-02`) with its month in full, as standings-search-settings
+ * A9 writes the Standings "as of" day and the World Series box's "Won the World Series on" line (S130
+ * AC 3), which `formatDate`'s "Mar 2, 2027" does not. Written as that same day wherever the reader is;
+ * anything that is not a calendar date comes back as it is.
+ */
+export function formatLongDate(value: string): string
+{
+	const date = new Date(`${value}T00:00:00Z`);
+	if (!CALENDAR_DATE.test(value) || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) return value;
+	return LONG_CALENDAR.format(date);
 }
 
 /**
