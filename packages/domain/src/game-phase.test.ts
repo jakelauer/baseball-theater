@@ -18,7 +18,14 @@ describe("gamePhase", () =>
 		["O", "final"],
 		["C", "final"],
 		["D", "pregame"],
-		["U", "pregame"],
+		["M", "live"],
+		["N", "live"],
+		["T", "live"],
+		["U", "live"],
+		["Q", "final"],
+		["R", "final"],
+		["X", "pregame"],
+		["W", "pregame"],
 	];
 
 	it.each(table)("code %s → %s", (code, phase) =>

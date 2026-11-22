@@ -29,10 +29,13 @@ import type {
 	ScheduleResponse,
 } from "@bt/mlb-api";
 
-/** MLB's `codedGameState` is already the single letter the domain expects. */
+/**
+ * MLB's `codedGameState` is already the single letter the domain expects; a missing one
+ * is MLB's own unknown, `X` (never `U`, which MLB uses for a suspended game, #81).
+ */
 export function toStatusCode(coded: string | undefined): GameStatusCode | string
 {
-	return coded ?? "U";
+	return coded ?? "X";
 }
 
 export function mapTeam(team: MlbTeam): AbstractTeam

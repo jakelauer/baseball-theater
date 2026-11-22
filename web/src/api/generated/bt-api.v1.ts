@@ -466,8 +466,11 @@ export interface components {
             windowMode: "active" | "cache";
         };
         GameSnapshotResponse: components["schemas"]["GameSnapshot"];
-        /** @enum {string} */
-        GameStatusCode: "S" | "P" | "I" | "F" | "O" | "C" | "D" | "U";
+        /**
+         * @description MLB's `codedGameState` letters, every one MLB's `GET /api/v1/gameStatus` lists (#81); `window.ts` says how BT treats each. `X` (MLB's own "Unknown") also stands for a code MLB omits or BT doesn't know. MLB's `U` is a suspended game, not unknown.
+         * @enum {string}
+         */
+        GameStatusCode: "S" | "P" | "I" | "M" | "N" | "T" | "U" | "F" | "O" | "C" | "Q" | "R" | "D" | "X" | "W";
         /**
          * @description What a video is, from MLB's content keywords (S69): a play `highlight`, the game `recap`, the `condensed` game, or another `video` (interviews, lineups, analysis).
          * @enum {string}

@@ -482,7 +482,11 @@
 				"type": "object"
 			},
 			"GameSnapshotResponse": { "$ref": "#/components/schemas/GameSnapshot" },
-			"GameStatusCode": { "enum": ["S", "P", "I", "F", "O", "C", "D", "U"], "type": "string" },
+			"GameStatusCode": {
+				"description": "MLB's `codedGameState` letters, every one MLB's `GET /api/v1/gameStatus` lists (#81); `window.ts` says how BT treats each. `X` (MLB's own \"Unknown\") also stands for a code MLB omits or BT doesn't know. MLB's `U` is a suspended game, not unknown.",
+				"enum": ["S", "P", "I", "M", "N", "T", "U", "F", "O", "C", "Q", "R", "D", "X", "W"],
+				"type": "string"
+			},
 			"HighlightKind": {
 				"description": "What a video is, from MLB's content keywords (S69): a play `highlight`, the game `recap`, the `condensed` game, or another `video` (interviews, lineups, analysis).",
 				"enum": ["highlight", "recap", "condensed", "video"],

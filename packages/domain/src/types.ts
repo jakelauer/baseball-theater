@@ -1,12 +1,24 @@
+/**
+ * MLB's `codedGameState` letters, every one MLB's `GET /api/v1/gameStatus` lists (#81);
+ * `window.ts` says how BT treats each. `X` (MLB's own "Unknown") also stands for a code
+ * MLB omits or BT doesn't know. MLB's `U` is a suspended game, not unknown.
+ */
 export type GameStatusCode =
   | "S" // scheduled
-  | "P" // pregame
-  | "I" // in progress / live
+  | "P" // pre-game, warm-up, delayed start
+  | "I" // in progress, including in-game delays
+  | "M" // manager challenge (#74)
+  | "N" // umpire review (#74)
+  | "T" // suspended (#79)
+  | "U" // suspended (#79)
   | "F" // final
   | "O" // game over
   | "C" // cancelled
+  | "Q" // forfeit (#80)
+  | "R" // forfeit (#80)
   | "D" // postponed (MLB codes a delay `I`, not `D`; #72)
-  | "U"; // unknown
+  | "X" // unknown
+  | "W"; // writing (MLB's "Other" group; read as unknown)
 
 export type AbstractTeam = {
 	id: number;
