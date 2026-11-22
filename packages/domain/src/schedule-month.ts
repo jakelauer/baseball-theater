@@ -7,7 +7,8 @@
 
 /**
  * One stored schedule day as the month view needs it: its game count, the teams playing it
- * (S136) and its ADR-021/022 stamps.
+ * (S136), its games' types and whether it has a regular-season game (S167), and its ADR-021/022
+ * stamps.
  */
 export interface ScheduleDayTally
 {
@@ -20,6 +21,14 @@ export interface ScheduleDayTally
 	 * ascending order ({@link distinctTeamIds}); `[]` for a day with no games.
 	 */
 	teamIds: number[];
+	/**
+	 * Each game's MLB `gameType` as stored (S167), one entry per game, so the list is as long as
+	 * `gameCount`; `null` for a game stored without one (before S167, or MLB sent none), as
+	 * {@link storedGameType} reads it.
+	 */
+	gameTypes: (string | null)[];
+	/** {@link dayRegularSeason} of `gameTypes`, which both repository adapters call. */
+	regularSeason: boolean | null;
 	/** When the day was last fetched (`ScheduleDay.fetchedAt`). */
 	fetchedAt: string;
 	/** When the day's content last changed (`ScheduleDay.lastChangedAt`, ADR-022). */
@@ -45,6 +54,15 @@ export interface ScheduleDayCount
 	 * answer is one shared, cached response (ADR-021).
 	 */
 	teamIds: number[] | null;
+	/**
+	 * Whether the day has a regular-season game (S167; `dayRegularSeason`), so S159's
+	 * calendar marks a favorite team's day off only during the regular season. `null` when it
+	 * can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular
+	 * season and at least one was stored without a game type (a day stored before S167, until the
+	 * backfill re-stores it). Per day rather than per game, since the calendar needs only the day's
+	 * answer and the month answer stays one small, shared, cached response (ADR-021).
+	 */
+	regularSeason: boolean | null;
 }
 
 /**
@@ -60,11 +78,37 @@ export function distinctTeamIds(ids: Iterable<unknown>): number[]
 }
 
 /**
+ * Whether a stored day has a regular-season game, from its games' MLB game types (S167; ADR-025:
+ * the one implementation, which both schedule repository adapters call). `true` when any game is
+ * `R`; `false` when every game carries a type and none is `R`, which includes a day with no games
+ * and the All-Star Game's day (`A`); `null` when no game is `R` and at least one has no type (a
+ * game stored before S167), since that game could have been regular season. It takes `unknown`
+ * because the types come out of a stored document: anything but a string counts as no type.
+ */
+export function dayRegularSeason(gameTypes: readonly unknown[]): boolean | null
+{
+	if (gameTypes.includes("R")) return true;
+	return gameTypes.every((type) => storedGameType(type) !== null) ? false : null;
+}
+
+/**
+ * A stored game's MLB game type (S167), or `null` when it has none. Anything but a string counts
+ * as untyped: missing (a game stored before S167, or MLB sent none), or a value a hand-edited or
+ * older document holds. ADR-025: the one test of "this game is typed", which both schedule
+ * repository adapters, {@link dayRegularSeason} and `scheduleDayLacksGameType` use.
+ */
+export function storedGameType(type: unknown): string | null
+{
+	return typeof type === "string" ? type : null;
+}
+
+/**
  * One count per date of `dates`, in order, from the stored days' tallies (ADR-025: the one
  * implementation of a day's game count and teams for the month view): a date with no stored day
- * is `null` for both, so `teamIds` is `null` exactly when `count` is.
+ * is `null` for all three, so `teamIds` is `null` exactly when `count` is; `regularSeason` is also
+ * `null` for a stored day whose answer {@link dayRegularSeason} can't give.
  */
-export function monthGameCounts(dates: readonly string[], stored: readonly Pick<ScheduleDayTally, "date" | "gameCount" | "teamIds">[]): ScheduleDayCount[]
+export function monthGameCounts(dates: readonly string[], stored: readonly Pick<ScheduleDayTally, "date" | "gameCount" | "teamIds" | "regularSeason">[]): ScheduleDayCount[]
 {
 	const byDate = new Map(stored.map((day) => [day.date, day]));
 	return dates.map((date) =>
@@ -74,6 +118,7 @@ export function monthGameCounts(dates: readonly string[], stored: readonly Pick<
 			date,
 			count: day?.gameCount ?? null,
 			teamIds: day ? [...day.teamIds] : null,
+			regularSeason: day ? day.regularSeason : null,
 		};
 	});
 }

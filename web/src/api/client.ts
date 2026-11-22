@@ -68,9 +68,11 @@ export async function fetchSchedule(date: string)
 }
 
 /**
- * The number of games on each day of `month` (`YYYY-MM`, S124) and the teams playing it (S136),
- * for the calendar date picker (S125); `count` and `teamIds` are null for a day BT doesn't know
- * yet, distinct from a day with no games (`0` and `[]`).
+ * The number of games on each day of `month` (`YYYY-MM`, S124), the teams playing it (S136) and
+ * whether it has a regular-season game (`regularSeason`, S167), for the calendar date picker
+ * (S125); `count`, `teamIds` and `regularSeason` are null for a day BT doesn't know yet, distinct
+ * from a day with no games (`0`, `[]` and `false`). `regularSeason` is also null for a known day
+ * with no regular-season game and a game stored without a type (stored before S167).
  */
 export async function fetchScheduleMonth(month: string)
 {

@@ -62,6 +62,8 @@ describe("the 2026-09-05 scoreboard data (S65)", REPLAY_TIMEOUT, () =>
 		expect(LIVE_FIXTURE_TIMECODE).toBe("20260905_205719");
 		const summary = mapLiveFeedSummary(recordedFeedAt(RAW, LIVE_FIXTURE_TIMECODE));
 		expect(summary.status.codedGameState).toBe("I");
+		// S167: the feed's gameData.game.type, as the schedule sends gameType.
+		expect(summary.gameType).toBe("R");
 		const live = summary.live!;
 		expect([live.runners.first, live.runners.second, live.runners.third].every((id) => typeof id === "number")).toBe(true);
 		expect(live).toMatchObject({
@@ -84,6 +86,7 @@ describe("the 2026-09-05 scoreboard data (S65)", REPLAY_TIMEOUT, () =>
 		expect(PREGAME_TIMECODE).toBe("20260905_170118");
 		const summary: ScheduleGameSummary = mapLiveFeedSummary(recordedFeedAt(RAW, PREGAME_TIMECODE));
 		expect(summary.status.codedGameState).toBe("P");
+		expect(summary.gameType).toBe("R");
 		expect(summary.live).toBeNull();
 		expect(summary.decisions).toBeNull();
 		expect(summary.startTime).toBe("2026-09-05T20:10:00Z");

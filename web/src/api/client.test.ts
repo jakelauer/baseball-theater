@@ -49,7 +49,7 @@ describe("fetchSchedule", () =>
 
 describe("fetchScheduleMonth (S124)", () =>
 {
-	it("requests the month route and returns each day's count and teams", async () =>
+	it("requests the month route and returns each day's count, teams and whether it was regular season (S167)", async () =>
 	{
 		mockFetchOnce({
 			month: "2026-09",
@@ -58,11 +58,13 @@ describe("fetchScheduleMonth (S124)", () =>
 					date: "2026-09-01",
 					count: 15,
 					teamIds: [108, 147],
+					regularSeason: true,
 				},
 				{
 					date: "2026-09-02",
 					count: null,
 					teamIds: null,
+					regularSeason: null,
 				},
 			],
 		});
@@ -70,6 +72,8 @@ describe("fetchScheduleMonth (S124)", () =>
 		expect(month.days[0]?.teamIds).toEqual([108, 147]);
 		expect(month.days[1]?.count).toBeNull();
 		expect(month.days[1]?.teamIds).toBeNull();
+		expect(month.days[0]?.regularSeason).toBe(true);
+		expect(month.days[1]?.regularSeason).toBeNull();
 		expect(requestedPath()).toBe("/api/v1/schedule/month/2026-09");
 	});
 });

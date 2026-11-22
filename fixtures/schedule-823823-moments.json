@@ -3,6 +3,7 @@
     "gamePk": 823823,
     "gameDate": "2026-09-05",
     "officialDate": "2026-09-05",
+    "gameType": "R",
     "startTime": "2026-09-05T20:10:00Z",
     "status": {
       "abstractGameState": "Preview",
@@ -90,6 +91,7 @@
     "gamePk": 823823,
     "gameDate": "2026-09-05",
     "officialDate": "2026-09-05",
+    "gameType": "R",
     "startTime": "2026-09-05T20:10:00Z",
     "status": {
       "abstractGameState": "Live",
