@@ -7,13 +7,14 @@
  * `search-playing-floating-mobile` (a tapped result playing in the floating player over the fully
  * dimmed results, "Go to game: … →" top left, "Close ✕" top right). The search is the dev API's own
  * `GET /api/v1/search/highlights?q=walk-off`, answered from MLB's recorded answer
- * (`fixtures/search-walk-off.json`), so the rows, count and matchups are the real route's.
+ * (`fixtures/search-walk-off.json`), so the rows and matchups are the real route's.
  *
  * Judge only S5's parts (owner, 2026-10-28: "Judge only the story's own parts"): the title, the box
- * and its hint, the count line, the typographic rows (video icon, title, `Highlight · date`, the
+ * and its hint, the typographic rows (video icon, title, `Highlight · date`, the
  * matchup as swatch + abbreviation, hairlines between) and the floating player with its game link.
  * Expected differences: the frames' "ACTIVE FILTERS" chips (All Dates · NYY · Home Runs), which are
- * S72's; the frames' five sample results versus MLB's recorded 36 (one page, newest first, a clip MLB
+ * S72's; the frames' count line ("5 RESULTS FOUND"), which S5 leaves out until Search pages through MLB's
+ * matches (owner, 2026-11-22: "Don’t show any number until we support paging"); the frames' five sample results versus MLB's recorded 36 (one page, newest first, a clip MLB
  * ties to no game showing no matchup); the player's own parts, which are S70's. The footer's
  * "Fetched … ago" is the real time.
  */

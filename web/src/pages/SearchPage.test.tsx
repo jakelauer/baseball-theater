@@ -151,12 +151,11 @@ describe("Search Highlights (S5)", () =>
 		expect(screen.getByTestId("where")).toHaveTextContent("/search?q=walk-off");
 	});
 
-	it("S5 AC 8: the count, then rows with kind · date and both teams' MatchupAbbr; a clip with no game has no matchup", async () =>
+	it("S5 AC 8: rows with kind · date and both teams' MatchupAbbr, with no count; a clip with no game has no matchup", async () =>
 	{
 		serve(() => WALK_OFF);
 		renderSearch("/search?q=walk-off");
-		expect(await screen.findByText("2 results found")).toBeInTheDocument();
-		const rows = screen.getAllByTestId("search-result");
+		const rows = await screen.findAllByTestId("search-result");
 		expect(rows).toHaveLength(2);
 		expect(within(rows[0]!).getByTestId("search-result-meta")).toHaveTextContent("Highlight · Oct 27, 2026");
 		const matchup = within(rows[0]!).getByTestId("matchup-abbr");
@@ -167,14 +166,22 @@ describe("Search Highlights (S5)", () =>
 		expect(document.querySelector("[data-testid='search-result'] img")).toBeNull();
 	});
 
-	it("S5 AC 8: one result reads '1 result found'", async () =>
+	it("S5 AC 8: no number shows until paging, neither the clips listed nor MLB's total (owner, 2026-11-22)", async () =>
 	{
+		serve(() => WALK_OFF);
+		renderSearch("/search?q=walk-off");
+		await screen.findAllByTestId("search-result");
+		expect(screen.queryByText(/results? found/i)).toBeNull();
+		expect(screen.queryByTestId("search-count")).toBeNull();
+		expect(document.body.textContent).not.toMatch(/3,?341/);
+		cleanup();
 		serve(() => ({
 			...WALK_OFF,
 			highlights: [MONTAGE],
 		}));
 		renderSearch("/search?q=walk-off");
-		expect(await screen.findByText("1 result found")).toBeInTheDocument();
+		await screen.findAllByTestId("search-result");
+		expect(screen.queryByText(/results? found/i)).toBeNull();
 	});
 
 	it("S5 AC 9: the page is Search Highlights with the hint Search highlights…", () =>
@@ -212,7 +219,7 @@ describe("Search Highlights (S5)", () =>
 		await waitFor(() => expect(screen.queryByRole("button", {
 			name: "Close video",
 		})).toBeNull());
-		expect(screen.getByText("2 results found")).toBeInTheDocument();
+		expect(screen.getAllByTestId("search-result")).toHaveLength(2);
 		expect(screen.getByRole("searchbox", {
 			name: "Search highlights",
 		})).toHaveValue("walk-off");
@@ -237,7 +244,7 @@ describe("Search Highlights (S5)", () =>
 		await waitFor(() => expect(screen.queryByRole("button", {
 			name: "Close video",
 		})).toBeNull());
-		expect(screen.getByText("2 results found")).toBeInTheDocument();
+		expect(screen.getAllByTestId("search-result")).toHaveLength(2);
 
 		await userEvent.click(screen.getByRole("button", {
 			name: "Play Ben Williamson's walk-off single to win Game 4",
@@ -265,7 +272,7 @@ describe("Search Highlights (S5)", () =>
 		serve(() => WALK_OFF);
 		renderSearch();
 		await searchFor("walk off");
-		await screen.findByText("2 results found");
+		expect(await screen.findAllByTestId("search-result")).toHaveLength(2);
 		await searchFor("homer");
 		await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/search?q=homer"));
 		await userEvent.click(screen.getByRole("button", {
@@ -289,7 +296,7 @@ describe("Search Highlights (S5)", () =>
 		serve(() => WALK_OFF);
 		renderSearch();
 		await searchFor("walk off");
-		await screen.findByText("2 results found");
+		expect(await screen.findAllByTestId("search-result")).toHaveLength(2);
 		expect(screen.getByRole("searchbox", {
 			name: "Search highlights",
 		})).toHaveFocus();
@@ -343,7 +350,7 @@ describe("Search Highlights (S5)", () =>
 		await userEvent.click(screen.getByRole("button", {
 			name: "Retry",
 		}));
-		expect(await screen.findByText("2 results found")).toBeInTheDocument();
+		expect(await screen.findAllByTestId("search-result")).toHaveLength(2);
 	});
 
 	it("S5 AC 11: with Hide Scores on, each result keeps MLB's title, in its row and in the player, recap included", async () =>

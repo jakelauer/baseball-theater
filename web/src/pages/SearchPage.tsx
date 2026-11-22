@@ -1,5 +1,5 @@
 import {
-	Stack, Text, TextInput, Title,
+	Stack, TextInput, Title,
 } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { useState } from "react";
@@ -16,9 +16,11 @@ import { FooterMeta } from "../layout/FooterMeta.js";
 
 /**
  * Search Highlights (S5; standings-search-settings `search-*`, retitled by A2 for a highlights-only
- * search): the title, the box ("Search highlights…"), then for the words searched the count ("5
- * results found") and one typographic `SearchResultRow` per clip, in one column at every pairing
- * (it widens with the host). The words live in the URL (`?q=`), so a search can be shared, Back
+ * search): the title, the box ("Search highlights…"), then for the words searched one typographic
+ * `SearchResultRow` per clip, in one column at every pairing (it widens with the host). The frames'
+ * count line above the rows is not drawn: no number shows until Search pages through MLB's matches
+ * (owner, 2026-11-22: "Don’t show any number until we support paging"), since one page lists 36
+ * clips while MLB may match thousands. The words live in the URL (`?q=`), so a search can be shared, Back
  * returns to it, and closing the player leaves the same results and words. The filter chips the
  * frames draw are S72's, not built here.
  *
@@ -59,15 +61,8 @@ export function SearchPage()
 		}
 		else
 		{
-			const count = data.highlights.length;
 			body = (
 				<Stack gap={0}>
-					<Text size="xs" fw={700} tt="uppercase" px={12} pb={12} data-testid="search-count" style={{
-						borderBottom: "1px solid var(--bt-hairline)",
-					}}
-					>
-						{count} {count === 1 ? "result" : "results"} found
-					</Text>
 					{data.highlights.map((result) => <SearchResultRow key={result.highlight.id} result={result} onPlay={setPlaying} />)}
 					<FooterMeta fetchedAt={new Date(dataUpdatedAt).toISOString()} />
 				</Stack>

@@ -19,7 +19,7 @@ check 4 "AC 4: web/src/pages/SearchPage.test.tsx drives Search with 'walk-off' a
 check 5 "AC 5: the web test file and the functions test file each exit 0 as named Vitest files"
 check 6 "AC 6: the search UI files render no <img, Image, VideoStill or thumbnail in the results"
 check 7 "AC 7: the search UI files use no useMediaQuery, hiddenFrom or visibleFrom"
-check 8 "AC 8: 'N results found' and rows with kind · date and MatchupAbbr for both teams (RTL named 'S5 AC 8'); the route returns gamePk, teams and date (functions test named 'S5 AC 8'); the search request names guid and playInfo, and a recorded fixtures/search-*.json carries them"
+check 8 "AC 8: no 'results found' count line until paging (owner, 2026-11-22), and rows with kind · date and MatchupAbbr for both teams (RTL named 'S5 AC 8'); the route returns gamePk, teams and date (functions test named 'S5 AC 8'); the search request names guid and playInfo, and a recorded fixtures/search-*.json carries them"
 check 9 "AC 9: a tapped result opens LazyPlayerDialog with 'Go to game: AWY @ HOM, Mon D →' to /game/:pk; Close or Esc returns to the same results and query; title 'Search Highlights', hint 'Search highlights…' (RTL named 'S5 AC 9'); one exported gameLabel used by DayDigest and Search"
 check 10 "AC 10: no results, loading and error each drawn through ViewState, a test per state (RTL named 'S5 AC 10 … no results|loading|error')"
 check 11 "AC 11: with Hide Scores on, results keep MLB's title and blurb (RTL named 'S5 AC 11'); the search UI files call neither useScoresHidden nor highlightTitle"
@@ -92,10 +92,11 @@ grep -nE '<img|<Image\b|VideoStill|thumbnail|imageUrl' <<<"$ui" >/dev/null && ba
 # --- Check 7: no layout by media query ---
 grep -nE 'useMediaQuery|hiddenFrom|visibleFrom' <<<"$ui" >/dev/null && bad 7 "a search UI file chooses layout by media query"
 
-# --- Check 8: count, rows, play fields ---
+# --- Check 8: no count, rows, play fields ---
 passed "$TMP/web.json" "S5 AC 8\\b" || bad 8 "no passing RTL test named 'S5 AC 8' (or one failed)"
 passed "$TMP/fn.json" "S5 AC 8\\b" || bad 8 "no passing functions test named 'S5 AC 8' (or one failed)"
-grep -qE 'results found' <<<"$ui" || bad 8 "no search UI file writes 'results found'"
+# The owner, 2026-11-22: "Don’t show any number until we support paging" — no count line in the UI.
+grep -qiE 'results? found' <<<"$ui" && bad 8 "a search UI file still writes a 'results found' count"
 grep -qE 'MatchupAbbr' <<<"$ui" || bad 8 "no search UI file uses MatchupAbbr"
 req="$(sed -n '/export function searchHighlightsRequest/,/^}/p' functions/src/adapters/http/mlb.ts)"
 [ -n "$req" ] || bad 8 "functions/src/adapters/http/mlb.ts has no searchHighlightsRequest"
