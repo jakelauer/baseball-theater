@@ -67,8 +67,17 @@ jobs:
     # this shouldn't trigger CI."): a docs-only pull request gets no preview, and a docs-only push
     # to stage doesn't deploy staging either, since nothing it serves changed (owner, 2026-11-11:
     # "Can we avoid deploying when the only change was docs?", then "yeah, I like your plan"). A push
-    # is compared with the last stage commit whose Deploy run passed, so code that hasn't been
-    # verified and deployed there yet (a run still going, cancelled or failed) always is. A release always runs everything. scripts/ci-changes.sh decides, the same script CI asks.
+    # whose own change (its commit against its first parent, the previous stage head) is docs-only is
+    # code=false at once and never deploys, so GitHub's staging environment lists only code deploys
+    # (owner, 2026-11-22: "I don't like that I can't tell when the last actual change that triggered a
+    # deploy to stage happened since some changes skip that"; asked whether a docs-only merge should
+    # simply never deploy, at the cost of no longer quietly retrying an earlier code deploy that failed
+    # or was cancelled: "Never deploy docs-only (Recommended)"). So a docs merge no longer heals a code
+    # run that failed or was cancelled: re-run that run (`gh run rerun <id>`), or the next code merge
+    # deploys it. Any other push is compared with the last stage commit whose Deploy run passed, so code
+    # not yet verified and deployed there (a run still going, cancelled or failed) is deployed with it.
+    # A release always runs everything. scripts/ci-changes.sh decides, the same script CI asks (CI keeps
+    # its own last-passing comparison for every push, docs-only ones included).
     changes:
         if: github.event.action != 'closed'
         runs-on: ubuntu-latest
@@ -92,9 +101,17 @@ jobs:
                   elif [ "${{ github.event_name }}" = pull_request ]; then
                       scripts/ci-changes.sh pr "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}"
                   else
-                      # The last commit on this branch whose push run of this workflow passed.
-                      checked="$(gh api "repos/${{ github.repository }}/actions/workflows/deploy.yml/runs?branch=${{ github.ref_name }}&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' || true)"
-                      scripts/ci-changes.sh push "$checked" "${{ github.sha }}"
+                      # Does this push itself (against its first parent, the previous stage head) change only docs?
+                      # Then it deploys nothing, whatever earlier runs did (see above). A missing parent counts as code.
+                      parent="$(git rev-parse -q --verify "${{ github.sha }}^" || true)"
+                      own="$(GITHUB_OUTPUT= scripts/ci-changes.sh push "$parent" "${{ github.sha }}")"
+                      if [ "$own" = "code=false" ]; then
+                          echo "code=false" >> "$GITHUB_OUTPUT"
+                      else
+                          # The last commit on this branch whose push run of this workflow passed.
+                          checked="$(gh api "repos/${{ github.repository }}/actions/workflows/deploy.yml/runs?branch=${{ github.ref_name }}&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' || true)"
+                          scripts/ci-changes.sh push "$checked" "${{ github.sha }}"
+                      fi
                   fi
 
     # The same gate CI runs (pnpm verify), plus a dry run of every env's Worker bundle. On a pull request

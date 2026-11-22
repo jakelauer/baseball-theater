@@ -11,7 +11,9 @@
 #     dots), not since the commit just before the push: a docs-only merge that lands right after a
 #     code merge whose run hasn't passed (still running, cancelled or failed) still sees that code,
 #     so it gets the full gate. The checked commit must be an ancestor of the head; a force-push or
-#     rewind past it counts as code.
+#     rewind past it counts as code. That fallback is CI's push mode only: Deploy short-circuits a push
+#     whose own change (against its first parent) is docs-only to code=false before calling this, so a
+#     docs-only merge never deploys staging (owner, 2026-11-22: "Never deploy docs-only (Recommended)").
 # Prints `code=true|false`, and appends it to $GITHUB_OUTPUT when that is set. A missing, all-zero
 # or unreachable base counts as code, so the full gate runs whenever the diff isn't known.
 #
