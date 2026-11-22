@@ -7,16 +7,11 @@ import { useDayDigest } from "../../api/digest.js";
 import type { DayDigestPayload } from "../../api/digest.js";
 import { formatMonthDay } from "../../format/datetime.js";
 import type { LayoutVariant } from "../../layout/variant.js";
+import { gameLabel } from "../videos/gameLabel.js";
 import { LazyPlayerDialog } from "../videos/LazyPlayerDialog.js";
 import { VideoStill } from "../videos/VideoCard.js";
 
 type DigestItem = DayDigestPayload["items"][number];
-
-/** The player's game link for a digest clip: `NYY @ BOS, Sep 21` (S70's "Go to game: …"). */
-function gameLabel(game: DigestItem["game"]): string
-{
-	return `${game.away} @ ${game.home}, ${formatMonthDay(game.officialDate)}`;
-}
 
 /**
  * One ranked clip on the raised ground: rank, still, title, duration, and `WATCH FIRST` on the
