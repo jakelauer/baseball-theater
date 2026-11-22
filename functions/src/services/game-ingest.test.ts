@@ -356,3 +356,136 @@ describe("GameIngest between alarms", () =>
 		expect(storage.armed).toEqual([T0.getTime(), T0.getTime() + 2 * DEFAULT_CADENCE.intervalMs]);
 	});
 });
+
+/**
+ * #79, #323: a suspended game is polled for `suspendedHours` from when BT saw it turn suspended
+ * (owner, 2026-11-22: "From when it was suspended (Recommended)"), not from first pitch.
+ */
+describe("a suspended game's ingest (#79, #323)", () =>
+{
+	const at = (iso: string) => new Date(iso);
+	const IN_PROGRESS = {
+		abstractGameState: "Live",
+		codedGameState: "I",
+		detailedState: "In Progress",
+	};
+	const SUSPENDED = {
+		abstractGameState: "Live",
+		codedGameState: "U",
+		detailedState: "Suspended: Rain",
+	};
+
+	/** 745001 as a summary of the 2026-07-04 night game (first pitch 23:05Z), with `codedGameState`. */
+	async function summary(codedGameState: string): Promise<ScheduleDay["games"][number]>
+	{
+		const recorded = (await new FixtureMlbStatsClient().fetchSchedule("2024-07-04")).games.find((g) => g.gamePk === 745001)!;
+		return {
+			...recorded,
+			officialDate: "2026-07-04",
+			gameDate: "2026-07-04T23:05:00Z",
+			startTime: "2026-07-04T23:05:00Z",
+			status: {
+				...SUSPENDED,
+				codedGameState,
+			},
+		};
+	}
+
+	/** Stores 745001 as `status`, last changed at `changedAt`, in `windowMode`, with `suspendedAt` when given. */
+	async function storeAs(deps: IngestDeps, status: typeof IN_PROGRESS, changedAt: string, windowMode: "active" | "cache", suspendedAt?: string)
+	{
+		const game = await new FixtureMlbStatsClient().fetchGame(745001);
+		await deps.games.upsert(stampVersion<GameSnapshot>(null, {
+			...game,
+			officialDate: "2026-07-04",
+			startTime: "2026-07-04T23:05:00Z",
+			status,
+			windowMode,
+			fetchedAt: changedAt,
+			...(suspendedAt ? {
+				suspendedAt,
+			} : {}),
+		}, changedAt));
+	}
+
+	/** Deps whose schedule lists `games` on 2026-07-04 and nothing on 2026-07-05. */
+	function withSchedule(deps: IngestDeps, games: ScheduleDay["games"])
+	{
+		deps.mlb.fetchSchedule = async (date: string) => ({
+			date,
+			games: date === "2026-07-04" ? games : [],
+			fetchedAt: "",
+			windowMode: "cache",
+		});
+	}
+
+	it("late suspension: first pitch 23:05Z, suspended at 05:10Z, it is polled until 11:10:00.000Z and stopped at 11:10:00.001Z; a later change doesn't extend it", async () =>
+	{
+		let status = IN_PROGRESS;
+		const {
+			ingest, games, storage,
+		} = setup((game) => ({
+			...game,
+			officialDate: "2026-07-04",
+			startTime: "2026-07-04T23:05:00Z",
+			status,
+		}));
+		await ingest.ensureRunning(745001, at("2026-07-05T05:09:30Z"));
+		await ingest.alarm(at("2026-07-05T05:09:30Z"));
+		expect((await games.getByPk(745001))?.suspendedAt).toBeUndefined();
+
+		status = SUSPENDED;
+		await ingest.alarm(at("2026-07-05T05:10:00Z"));
+		expect(storage.alarmAt).toBe(Date.parse("2026-07-05T05:10:30Z"));
+		const suspended = (await games.getByPk(745001))!;
+		expect(suspended.suspendedAt).toBe("2026-07-05T05:10:00.000Z");
+		expect(suspended.windowMode).toBe("active");
+
+		status = {
+			...SUSPENDED,
+			detailedState: "Suspended: Rain (to resume tomorrow)",
+		};
+		await ingest.alarm(at("2026-07-05T08:00:00Z"));
+		const changed = (await games.getByPk(745001))!;
+		expect(changed.version).toBe(suspended.version + 1);
+		expect(changed.suspendedAt).toBe("2026-07-05T05:10:00.000Z");
+
+		await ingest.alarm(at("2026-07-05T11:10:00.000Z"));
+		expect(storage.alarmAt).toBe(Date.parse("2026-07-05T11:10:30Z"));
+		await ingest.alarm(at("2026-07-05T11:10:00.001Z"));
+		expect(storage.alarmAt).toBeNull();
+		expect((await games.getByPk(745001))?.windowMode).toBe("cache");
+	});
+
+	it("the cron keeps ensuring a game suspended at 06:00Z at 07:00Z, past first pitch + 6h, and keeps its day active", async () =>
+	{
+		const now = at("2026-07-05T07:00:00Z");
+		const { deps } = setup();
+		withSchedule(deps, [await summary("U")]);
+		await storeAs(deps, SUSPENDED, "2026-07-05T06:00:00.000Z", "active", "2026-07-05T06:00:00.000Z");
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		expect(await ensureIngestRunning(deps, ensure, now)).toEqual([745001]);
+		expect((await deps.schedules.getByDate("2026-07-04"))?.windowMode).toBe("active");
+	});
+
+	it("when the schedule sees the suspension before the game's own ingest does, the game stays ensured (anchored on now)", async () =>
+	{
+		const now = at("2026-07-05T07:00:00Z");
+		const { deps } = setup();
+		withSchedule(deps, [await summary("T")]);
+		await storeAs(deps, IN_PROGRESS, "2026-07-05T06:59:30.000Z", "active");
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		expect(await ensureIngestRunning(deps, ensure, now)).toEqual([745001]);
+	});
+
+	it("with no suspension time BT saw (a cached copy), it falls back to first pitch + 6h and is let go", async () =>
+	{
+		const now = at("2026-07-05T07:00:00Z");
+		const { deps } = setup();
+		withSchedule(deps, [await summary("U")]);
+		await storeAs(deps, IN_PROGRESS, "2026-07-05T06:59:30.000Z", "cache");
+		const ensure = vi.fn(async (_gamePk: number) => undefined);
+		expect(await ensureIngestRunning(deps, ensure, now)).toEqual([]);
+		expect((await deps.schedules.getByDate("2026-07-04"))?.windowMode).toBe("cache");
+	});
+});
