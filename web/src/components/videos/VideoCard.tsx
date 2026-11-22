@@ -1,22 +1,13 @@
 import {
-	Anchor, Box, Group, Image, Stack, Text, UnstyledButton,
+	Box, Image, Text, UnstyledButton,
 } from "@mantine/core";
-import { Link } from "react-router-dom";
-import type { HighlightKind } from "@bt/domain";
 import { clipDuration, highlightTitle } from "@bt/domain";
 import type { GamePayload } from "../../api/game.js";
-import { formatDate } from "../../format/datetime.js";
+import { PlayInningPill } from "./PlayInningPill.js";
 import type { PlayLink } from "./playLink.js";
+import { videoMeta } from "./videoMeta.js";
 
 export type Video = GamePayload["highlights"][number];
-
-/** The meta line's first word (`Highlight · Sep 5, 2026`). */
-const KIND_LABELS: Readonly<Record<HighlightKind, string>> = {
-	highlight: "Highlight",
-	recap: "Recap",
-	condensed: "Condensed game",
-	video: "Video",
-};
 
 /** Light on Dark at 50% behind the duration (owner, 2026-10-14: "Light on Dark 50%"). */
 const OVERLAY = "rgb(16 16 15 / 50%)";
@@ -69,15 +60,18 @@ export function VideoStill({
 }
 
 /**
- * One video (S69; game-shell Videos frames): the still with its duration, the title and
- * a `Highlight · Sep 5, 2026` meta line. One component for both modes — a grid cell
- * (still above the text) and a list row (a small still beside it). The whole card is
- * the button, its still zooming on hover (`.bt-zoom-host`): choosing it calls `onPlay`
- * with the video; the player is S70's. A video with a
- * play gets `playLink` (S97; game-shell A5): `Play · Top 6th →` on its own line under the
- * meta line, a sibling of the button (a link inside it would also start the clip). Its title is
- * `highlightTitle`'s: the game page passes `scoresHidden`, so there the recap clip reads
- * "Recap (score hidden)" (S75); Search and the digest pass none and keep MLB's title.
+ * One video (S69; game-shell Videos frames): the still with its duration, the title and the
+ * meta line (`videoMeta`). One component for both modes — a grid cell (still above the text)
+ * and a list row (a small still beside it). The card is one button, its still zooming on hover
+ * (`.bt-zoom-host`): choosing it calls `onPlay` with the video; the player is S70's.
+ *
+ * A clip with a play gets the inning pill after its date (S145; game-shell A6), which opens the
+ * play. A link inside the button would also start the clip (S97), so the pill is the button's next
+ * sibling, laid over the button's meta row: the card is a grid and the button spans it as a
+ * subgrid, so the date (in the button, playing the clip) and the pill (outside it, above it) share
+ * one row's columns, the pill sitting 6px after the date. Hovering the pill leaves the still
+ * unzoomed, since it isn't in the zoom host. The title is `highlightTitle`'s: the game page
+ * passes `scoresHidden`, so there the recap clip reads "Recap (score hidden)" (S75).
  */
 export function VideoCard({
 	video, layout, onPlay, scoresHidden = false, playLink,
@@ -88,55 +82,85 @@ export function VideoCard({
 	playLink?: PlayLink | null; })
 {
 	const title = highlightTitle(video, scoresHidden);
-	const meta = [video.kind ? KIND_LABELS[video.kind] : null, video.date ? formatDate(video.date) : null].filter(Boolean).join(" · ");
-	const text = (
-		<Stack gap={2} style={{
-			minWidth: 0,
-		}}
-		>
-			<Text fw={700} lh={1.3} lineClamp={2}>{title}</Text>
-			{meta ? <Text size="sm" c="var(--bt-muted)">{meta}</Text> : null}
-		</Stack>
-	);
-	const button = (
-		<UnstyledButton
-			data-testid="video-card"
+	const meta = videoMeta(video, playLink);
+	const grid = layout === "grid";
+	// Grid: rows still, title, meta; the meta row's columns are the text, the pill and the rest.
+	// List: the still beside the title and meta rows (2 and 3), centred by the two 1fr rows around
+	// them; columns still (112px + the 12px gap), text, pill, rest. `text` is the text's column.
+	const text = grid ? 1 : 2;
+	const row = 3;
+	return (
+		<div
 			data-layout={layout}
-			className="bt-zoom-host"
-			aria-label={`Play ${title}`}
-			onClick={() => onPlay(video)}
 			style={{
-				display: "block",
-				width: "100%",
-				color: "inherit",
-				// A button centers its content; pin it to the top so a one-line title's still lines up with its row.
+				display: "grid",
+				gridTemplateColumns: grid ? "auto auto 1fr" : "124px auto auto 1fr",
+				gridTemplateRows: grid ? "auto auto auto" : "1fr auto auto 1fr",
+				rowGap: 2,
+				position: "relative",
+				minWidth: 0,
+				// In the room's grid, pin the card to the top so a one-line title's still lines up with its row.
 				alignSelf: "start",
 			}}
 		>
-			{layout === "grid" ? (
-				<Stack gap={8}>
-					<VideoStill video={video} width="100%" />
-					{text}
-				</Stack>
-			) : (
-				<Group gap={12} wrap="nowrap" align="center">
-					<VideoStill video={video} width={112} />
-					{text}
-				</Group>
-			)}
-		</UnstyledButton>
-	);
-	if (!playLink) return button;
-	return (
-		<Stack gap={2} style={{
-			alignSelf: "start",
-			minWidth: 0,
-		}}
-		>
-			{button}
-			<Anchor component={Link} to={playLink.to} fz={layout === "grid" ? 13 : 12} c="var(--bt-primary-light)" data-testid="play-link" pl={layout === "list" ? 124 : 0}>
-				{playLink.label}
-			</Anchor>
-		</Stack>
+			<UnstyledButton
+				data-testid="video-card"
+				data-layout={layout}
+				className="bt-zoom-host"
+				aria-label={`Play ${title}`}
+				onClick={() => onPlay(video)}
+				style={{
+					gridColumn: "1 / -1",
+					gridRow: "1 / -1",
+					display: "grid",
+					gridTemplateColumns: "subgrid",
+					gridTemplateRows: "subgrid",
+					rowGap: 2,
+					minWidth: 0,
+					color: "inherit",
+				}}
+			>
+				<Box style={grid ? {
+					gridColumn: "1 / -1",
+					gridRow: 1,
+					marginBottom: 6,
+				} : {
+					gridColumn: 1,
+					gridRow: "1 / -1",
+					alignSelf: "center",
+				}}
+				>
+					<VideoStill video={video} width={grid ? "100%" : 112} />
+				</Box>
+				<Text fw={700} lh={1.3} lineClamp={2} style={{
+					gridColumn: `${text} / -1`,
+					gridRow: 2,
+					minWidth: 0,
+				}}
+				>
+					{title}
+				</Text>
+				{meta?.text ? (
+					<Text size="sm" c="var(--bt-muted)" data-testid="video-meta" style={{
+						gridColumn: text,
+						gridRow: row,
+						minWidth: 0,
+					}}
+					>
+						{meta.text}
+					</Text>
+				) : null}
+			</UnstyledButton>
+			{meta?.pill ? (
+				<PlayInningPill link={meta.pill} testId="play-link" style={{
+					gridColumn: text + 1,
+					gridRow: row,
+					alignSelf: "center",
+					justifySelf: "start",
+					marginLeft: meta.text ? 6 : 0,
+				}}
+				/>
+			) : null}
+		</div>
 	);
 }

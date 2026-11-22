@@ -36,12 +36,27 @@ export function inningLabel(linescore: Pick<LinescoreSummary, "currentInning" | 
 	return `${half} ${ordinal(linescore.currentInning)}`;
 }
 
+/** A half-inning as plain fields: an at-bat's `about`, or a Search result's route, which has no `AtBat`. */
+export type HalfInning = Pick<AtBat["about"], "halfInning" | "inning">;
+
 /**
- * An at-bat's half and inning as the video play link spells it, `Top 6th` / `Bot 3rd` (S97;
- * game-shell A5's `Play · Top 6th →`). The at-bat's own form of `inningLabel`, which reads a
- * linescore; the one spelling for an at-bat's inning wherever a link or label needs it (ADR-025).
+ * A half-inning as the inning pill and the Plays room's scoring tag spell it, `Top 6` / `Bot 3` /
+ * `Top 10`: the number, no ordinal (S145; game-shell A6, owner, 2026-11-19: "Don't use ordinals,
+ * just numbers"). Takes plain fields so Search's rows, which have no `AtBat`, call it too; the one
+ * spelling of a half-inning's short label (ADR-025). Replaces S97's at-bat label (`Top 6th`), and its test.
  */
-export function atBatInningLabel(atBat: Pick<AtBat, "about">): string
+export function halfInningLabel(half: HalfInning): string
 {
-	return `${atBat.about.halfInning === "top" ? "Top" : "Bot"} ${ordinal(atBat.about.inning)}`;
+	return `${half.halfInning === "top" ? "Top" : "Bot"} ${half.inning}`;
+}
+
+/**
+ * The same half-inning spoken, `Top of 6th inning` / `Bottom of 3rd inning`: the inning pill's
+ * accessible name after the "Open play" prefix `playInningLink` (web) adds (S145; the owner,
+ * 2026-11-19, gave the pill's spoken name as "Open play", a hyphen, then "Top of 6th inning"). The
+ * half is spelled out and the ordinal the visible label drops comes back, as the owner wrote "6th".
+ */
+export function halfInningName(half: HalfInning): string
+{
+	return `${half.halfInning === "top" ? "Top" : "Bottom"} of ${ordinal(half.inning)} inning`;
 }

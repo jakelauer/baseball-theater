@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AtBat } from "@bt/domain";
-import { DEFAULT_SETTINGS, ordinal } from "@bt/domain";
+import { DEFAULT_SETTINGS } from "@bt/domain";
 import { MantineProvider } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -24,6 +24,8 @@ import { createQueryClient } from "../../api/queryClient.js";
 import { GamePage } from "../../pages/GamePage.js";
 import { hydrateSettings, resetSettings } from "../../settings/store.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
+import { PlayerDialog } from "./PlayerDialog.js";
+import { playInningLink } from "./playLink.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 const read = (file: string) => JSON.parse(readFileSync(join(FIXTURES, file), "utf8"));
@@ -42,7 +44,10 @@ const atBatOf = (playId: string) => PLAYS.find((a) => a.pitches.some((p) => p.pl
 const linked = GAME.highlights.filter((h) => h.playId && atBatOf(h.playId));
 const CONINE = GAME.highlights.find((h) => h.title === "Griffin Conine's two-run home run (15)")!;
 const conineAtBat = atBatOf(CONINE.playId!);
-const conineLabel = `Play · ${conineAtBat.about.halfInning === "top" ? "Top" : "Bot"} ${ordinal(conineAtBat.about.inning)} →`;
+/** A top-of-the-6th clip on 823823 (Michael Busch's RBI single). */
+const BUSCH = GAME.highlights.find((h) => h.title === "Michael Busch's RBI single")!;
+// S145 (game-shell A6): the inning pill's words, the half-inning as a number and an arrow.
+const conineLabel = `${conineAtBat.about.halfInning === "top" ? "Top" : "Bot"} ${conineAtBat.about.inning} →`;
 
 function Where()
 {
@@ -104,7 +109,7 @@ describe("video play links (S97)", () =>
 			const conine = screen.getByRole("button", {
 				name: `Play ${CONINE.title}`,
 			});
-			// Its own line, right after the card's button, not inside it.
+			// S145: the pill on the meta line, the card button's next sibling, not inside it.
 			expect(conine.contains(links[0]!)).toBe(false);
 			expect(conine.nextElementSibling?.textContent).toBe(conineLabel);
 			const recap = GAME.highlights.find((h) => !h.playId)!;
@@ -220,5 +225,75 @@ describe("video play links (S97)", () =>
 		expect(total).toBe(byAtBat.size);
 		expect(total).toBeGreaterThan(0);
 		expect(total).toBeLessThanOrEqual(20);
+	});
+});
+
+describe("the inning pill in the player and on the game page's cards (S145)", () =>
+{
+	it("S145 AC 1: on the game page a top-of-the-6th clip's card and player pill are named 'Open play - Top of 6th inning' and read Top 6 →", async () =>
+	{
+		expect(atBatOf(BUSCH.playId!).about).toMatchObject({
+			halfInning: "top",
+			inning: 6,
+		});
+		await open("/game/823823/videos", "video-card");
+		const card = screen.getByRole("button", {
+			name: `Play ${BUSCH.title}`,
+		});
+		const pill = within(card.parentElement!).getByRole("link", {
+			name: "Open play - Top of 6th inning",
+		});
+		expect(pill.textContent).toBe("Top 6 →");
+		fireEvent.click(card);
+		const dialog = await screen.findByRole("dialog");
+		expect((await within(dialog).findByRole("link", {
+			name: "Open play - Top of 6th inning",
+		})).textContent).toBe("Top 6 →");
+	});
+
+	it("S145 AC 1: the player's pill for a bottom-of-the-3rd play reads Bot 3 → and is named 'Open play - Bottom of 3rd inning'", () =>
+	{
+		render(
+			<MantineProvider>
+				<MemoryRouter>
+					<PlayerDialog video={BUSCH} onClose={() => undefined} fromGamePk={823823} playLink={playInningLink({
+						gamePk: 823823,
+						playId: "p",
+						halfInning: "bottom",
+						inning: 3,
+					})}
+					/>
+				</MemoryRouter>
+			</MantineProvider>,
+		);
+		const pill = within(screen.getByRole("dialog")).getByRole("link", {
+			name: "Open play - Bottom of 3rd inning",
+		});
+		expect(pill.textContent).toBe("Bot 3 →");
+		expect(pill.getAttribute("href")).toBe("/game/823823/plays?play=p");
+	});
+
+	it("S145 AC 4: the floating player shows the pill in place of the play link; choosing it closes the player and opens the play", async () =>
+	{
+		await open("/game/823823/videos", "video-card");
+		fireEvent.click(screen.getByRole("button", {
+			name: `Play ${CONINE.title}`,
+		}));
+		const dialog = await screen.findByRole("dialog");
+		// Conine's home run came in the bottom of the 5th.
+		expect(conineAtBat.about).toMatchObject({
+			halfInning: "bottom",
+			inning: 5,
+		});
+		const pill = await within(dialog).findByRole("link", {
+			name: "Open play - Bottom of 5th inning",
+		});
+		expect(pill.textContent).toBe("Bot 5 →");
+		expect(pill.className).toMatch(/\bbt-play-pill\b/);
+		expect(pill.getAttribute("href")).toBe(`/game/823823/plays?play=${encodeURIComponent(CONINE.playId!)}`);
+		expect(within(dialog).queryByText(/Play ·/)).toBeNull();
+		fireEvent.click(pill);
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		expect(screen.getByTestId("where").textContent).toBe(`/game/823823/plays?play=${encodeURIComponent(CONINE.playId!)}`);
 	});
 });
