@@ -14,8 +14,8 @@ source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "standings-search-settings has its next free amendments/A<N>.md headed '(S127)' (Adds/Overrides/Repeals lines, ## Frames, ## Decisions quoting the owner's 2026-11-07 and 2026-11-19 words, ## Open questions, ## Manifest hashing exactly its own frames) drawing Search's floating player at mobile, medium and desktop with a play (More from game → then the inning pill) and without one, and a clip with no game; no '->' and no 'Go to:' label in its frames; the inning pill named as game-shell A6's play-inning-pill (724:10189), the game pill drawn from it"
 check 2 "the same amendment draws the day digest's player at mobile, medium and desktop and the stage-mode player at mobile and medium, each with a play and without one, and says the game's Videos room player keeps only the inning pill"
-check 3 "## Decisions says what each pill opens (More from game → the game's Videos tab, /game/:gamePk/videos; the inning pill the Plays room on that play), that each closes the player, and names each pill's accessible name (the inning pill's 'Open play - Top of 6th inning')"
-check 4 "the amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead"
+check 3 "## Decisions says what each pill opens (More from game → the game's Videos tab, /game/:gamePk/videos; the inning pill the Plays room on that play), that each closes the player, and names each pill's accessible name (the inning pill's 'Open play - Top of 6th inning', the game pill's 'More videos from <game label>')"
+check 4 "the amendment's ratification record names who ratified, the date, and quotes the owner's in-session go-ahead ('Ratify A10', 2026-11-22)"
 check 5 "no sealed standings-search-settings file changed (RATIFIED.md's manifest and every earlier amendment's manifest still verify; S127 changed neither RATIFIED.md nor A1–A9)"
 check 6 "S127's snapshot records Status done (story_snapshot_status), and the story stays inside its scope files (plus its own records and scripts/verify-S127.sh), touching nothing under scripts/ or test/ but its grader"
 
@@ -147,14 +147,16 @@ else
 	# --- Check 3: what each pill opens, closing, accessible names --------------------
 	decision "Opens" | grep -qF '/game/:gamePk/videos' || bad 3 "Opens: does not send More from game → to /game/:gamePk/videos"
 	decision "Opens" | grep -qi 'Plays room' || bad 3 "Opens: does not send the inning pill to the Plays room"
-	decision "Opens" | grep -qiE 'close' || bad 3 "Opens: does not say each pill closes the player"
+	decision "Opens" | grep -qiE 'closes? the player' || bad 3 "Opens: does not say each pill closes the player"
 	decision "Accessible names" | grep -qF 'Open play - Top of 6th inning' || bad 3 "Accessible names: does not give the inning pill's 'Open play - Top of 6th inning'"
 	decision "Accessible names" | grep -qiE 'game pill|More from game' || bad 3 "Accessible names: does not name the game pill's"
+	decision "Accessible names" | grep -qF 'More videos from' || bad 3 "Accessible names: does not give the game pill's 'More videos from <game label>' (owner, 2026-11-22)"
 
 	# --- Check 4: ratification record ------------------------------------------------
 	grep -qE '^Ratified by:[[:space:]]*[^[:space:]]' "$A" || bad 4 "no 'Ratified by:' line"
 	grep -qE '^Date:[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]*$' "$A" || bad 4 "no 'Date: YYYY-MM-DD' line"
 	grep -qE '^Go-ahead:[[:space:]]*".+"' "$A" || bad 4 "no quoted 'Go-ahead: \"…\"' line"
+	grep -qE '^Go-ahead:[[:space:]]*".*Ratify A10.*"' "$A" || bad 4 "Go-ahead does not quote the owner's 2026-11-22 'Ratify A10'"
 fi
 
 # --- Check 5: sealed files untouched -------------------------------------------------
