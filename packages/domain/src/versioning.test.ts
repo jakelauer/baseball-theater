@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	adoptAcrossStores, applyIfNewer, compareAcrossStores, INGEST_OWNS_MS, stampVersion,
+	adoptAcrossStores, applyIfNewer, compareAcrossStores, INGEST_OWNS_MS, stampVersion, suspendedSince,
 } from "./versioning.js";
 import { DEFAULT_CADENCE } from "./window.js";
 
@@ -264,9 +264,10 @@ describe("compareAcrossStores / adoptAcrossStores (the baseball-data copy)", () 
 		}, NOW)).toBe("later");
 	});
 
-	it("gives the target's ingest an hour past the trail: just inside is ingesting, just past is adopted", () =>
+	it("gives the target's ingest an hour past the longer of the trail and a suspended game's window: just inside is ingesting, just past is adopted", () =>
 	{
-		expect(INGEST_OWNS_MS).toBe((DEFAULT_CADENCE.trailHours + 1) * 60 * 60 * 1000);
+		expect(INGEST_OWNS_MS).toBe((Math.max(DEFAULT_CADENCE.trailHours, DEFAULT_CADENCE.suspendedHours) + 1) * 60 * 60 * 1000);
+		expect(INGEST_OWNS_MS).toBe(7 * 60 * 60 * 1000);
 		const at = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
 		const incoming = {
 			...production,
@@ -280,5 +281,69 @@ describe("compareAcrossStores / adoptAcrossStores (the baseball-data copy)", () 
 			...staging,
 			lastChangedAt: at(INGEST_OWNS_MS + 1000),
 		}, incoming, NOW)).toBe("later");
+	});
+});
+
+/**
+ * When BT says a game turned suspended (#79, #323; owner, 2026-11-22: "From when it was suspended
+ * (Recommended)"): the time of the write that saw the status change, carried while it stays suspended.
+ */
+describe("suspendedSince", () =>
+{
+	const NOW = "2026-07-05T05:10:00.000Z";
+	const at = (msBefore: number) => new Date(Date.parse(NOW) - msBefore).toISOString();
+	function stored(codedGameState: string, extra: { windowMode?: "active" | "cache";
+		suspendedAt?: string;
+		lastChangedAt?: string; } = {})
+	{
+		return {
+			status: {
+				abstractGameState: "Live",
+				codedGameState,
+				detailedState: "",
+			},
+			windowMode: extra.windowMode ?? "active",
+			suspendedAt: extra.suspendedAt,
+			lastChangedAt: extra.lastChangedAt ?? at(30_000),
+		};
+	}
+
+	it("a game that isn't suspended has no suspension time, whatever was stored", () =>
+	{
+		expect(suspendedSince(stored("U", {
+			suspendedAt: at(3_600_000),
+		}), "I", NOW)).toBeUndefined();
+		expect(suspendedSince(null, "F", NOW)).toBeUndefined();
+	});
+
+	it("the poll that sees an actively polled game turn suspended stamps its own time", () =>
+	{
+		expect(suspendedSince(stored("I"), "U", NOW)).toBe(NOW);
+		expect(suspendedSince(stored("P"), "t", NOW)).toBe(NOW);
+	});
+
+	it("a game already suspended keeps the time it was suspended, so later changes never extend its window (T and U alike)", () =>
+	{
+		expect(suspendedSince(stored("T", {
+			suspendedAt: "2026-07-05T01:00:00.000Z",
+		}), "U", NOW)).toBe("2026-07-05T01:00:00.000Z");
+		expect(suspendedSince(stored("U"), "U", NOW)).toBeUndefined();
+	});
+
+	it("no time when BT didn't see the change: nothing stored, a cached copy, or an active one left unchanged for INGEST_OWNS_MS", () =>
+	{
+		expect(suspendedSince(null, "U", NOW)).toBeUndefined();
+		expect(suspendedSince(stored("I", {
+			windowMode: "cache",
+		}), "U", NOW)).toBeUndefined();
+		expect(suspendedSince(stored("I", {
+			lastChangedAt: at(INGEST_OWNS_MS),
+		}), "U", NOW)).toBeUndefined();
+		expect(suspendedSince(stored("I", {
+			lastChangedAt: at(INGEST_OWNS_MS - 1),
+		}), "U", NOW)).toBe(NOW);
+		expect(suspendedSince(stored("I", {
+			lastChangedAt: "not a time",
+		}), "U", NOW)).toBeUndefined();
 	});
 });

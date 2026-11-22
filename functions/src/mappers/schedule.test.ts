@@ -54,10 +54,10 @@ function scheduleGame(overrides: Partial<ScheduleGame> = {}): ScheduleGame
 
 describe("toStatusCode", () =>
 {
-	it("passes a coded state through and falls back to U when absent", () =>
+	it("passes a coded state through and falls back to MLB's unknown, X, when absent (#81)", () =>
 	{
 		expect(toStatusCode("F")).toBe("F");
-		expect(toStatusCode(undefined)).toBe("U");
+		expect(toStatusCode(undefined)).toBe("X");
 	});
 });
 
@@ -92,9 +92,9 @@ describe("mapStatus", () =>
 		})).codedGameState).toBe("F");
 	});
 
-	it("falls back to U when codedGameState is absent", () =>
+	it("falls back to X when codedGameState is absent", () =>
 	{
-		expect(mapStatus(status()).codedGameState).toBe("U");
+		expect(mapStatus(status()).codedGameState).toBe("X");
 	});
 });
 

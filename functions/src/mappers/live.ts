@@ -222,8 +222,9 @@ export function mapBoxscore(boxscore: LiveBoxscore | undefined): GameBoxscore | 
 
 /**
  * The live moment (S63): runners from `linescore.offense`, batter and pitcher from
- * the current play's matchup — only while the game is in progress (`isLiveStatus`),
- * since a final or scheduled game has no one on base or at the plate.
+ * the current play's matchup — only while the game is in progress or suspended
+ * (`isLiveStatus`; a suspended game shows where play stopped, #79), since a final or
+ * scheduled game has no one on base or at the plate.
  */
 export function mapLive(feed: LiveFeedResponse): GameLive | null
 {

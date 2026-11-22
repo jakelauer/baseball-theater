@@ -2,8 +2,8 @@ import type {
 	CadenceParams, GameSnapshot, ScheduleDay, Unversioned,
 } from "@bt/domain";
 import {
-	addDays, cacheLifetimeMs, DEFAULT_CADENCE, isFinalStatus, isGameInActiveWindow, isScheduleDaySettled, mlbToday, normalizeStatusCode, projectGame,
-	scheduleWindowMode, stampVersion,
+	addDays, cacheLifetimeMs, DEFAULT_CADENCE, isFinalStatus, isGameInActiveWindow, isScheduleDaySettled, isSuspendedStatus, mlbToday, normalizeStatusCode, projectGame,
+	scheduleWindowMode, stampVersion, suspendedSince,
 } from "@bt/domain";
 import type {
 	GameProjectionRepository, GameRepository, MlbStatsClient, ScheduleRepository,
@@ -58,11 +58,21 @@ export function runRefresh<T>(
  * snapshot becomes five BT store documents. Callers read the projections,
  * never the upstream tree, so the snapshot upsert stays the raw-ish record and
  * the projection is what the UI binds to. Returns what is now stored.
+ *
+ * Every game write passes here, so this is where `suspendedAt` is set (#79, #323): BT's own field,
+ * from `suspendedSince` against the stored game, whatever the caller passed. It is set only by the
+ * write that changes the status, already a new version, and carried unchanged after, so it never
+ * bumps a version on its own; left out when there is none, so a game never suspended hashes as before.
  */
 async function storeGame(deps: Pick<IngestDeps, "games" | "projections">, fetched: Unversioned<GameSnapshot>): Promise<GameSnapshot>
 {
 	const stored = await deps.games.getByPk(fetched.gamePk);
-	const snapshot = stampVersion(stored, fetched, fetched.fetchedAt);
+	const { suspendedAt: _ignored, ...upstream } = fetched;
+	const suspendedAt = suspendedSince(stored, fetched.status.codedGameState, fetched.fetchedAt);
+	const snapshot = stampVersion<GameSnapshot>(stored, suspendedAt === undefined ? upstream : {
+		...upstream,
+		suspendedAt,
+	}, fetched.fetchedAt);
 	if (stored && snapshot.version === stored.version) return stored;
 	await deps.games.upsert(snapshot);
 	await deps.projections.upsert(projectGame(snapshot));
@@ -125,6 +135,60 @@ export async function repairProjection(deps: Pick<IngestDeps, "projections">, sn
 	return true;
 }
 
+/** A schedule summary as the window judges it: with its game's `suspendedAt` when it is listed suspended (#323). */
+export type WindowedSummary = ScheduleDay["games"][number] & { suspendedAt?: string };
+
+/**
+ * A schedule day's games with each suspended one's `suspendedAt` (#79, #323), so the schedule path
+ * judges a suspended game's window as its own ingest does: a schedule row carries no such time, so it
+ * is `suspendedSince` of the stored game, read only for a game listed suspended. When the schedule
+ * sees the suspension before the game's ingest has stored it (the stored game still in progress and
+ * polled), that is `now`, which holds the game in its window until the ingest's next poll stores
+ * the real time, within one interval.
+ *
+ * Only for a day the cron polls, MLB's today or the day before: any other day's games are returned
+ * as they are and judged by the clock alone. A game suspended on an older day and resumed since under
+ * the same gamePk is stored in progress and polled, and `now` would keep that old day `active` on
+ * every re-read with nothing to clear it. A later day listing the game for its resumption would
+ * borrow today's suspension time and be stored `active`, which the read path never refreshes
+ * (`needsRefresh`) until the cron reaches it. It also spares those days the reads.
+ */
+export async function withSuspendedAt(deps: Pick<IngestDeps, "games">, date: string, games: readonly ScheduleDay["games"][number][], now: Date): Promise<WindowedSummary[]>
+{
+	const today = mlbToday(now);
+	if (date < addDays(today, -1) || date > today) return [...games];
+	const windowed: WindowedSummary[] = [];
+	for (const game of games)
+	{
+		if (!isSuspendedStatus(game.status.codedGameState))
+		{
+			windowed.push(game);
+			continue;
+		}
+		const suspendedAt = suspendedSince(await deps.games.getByPk(game.gamePk), game.status.codedGameState, now.toISOString());
+		windowed.push(suspendedAt === undefined ? game : {
+			...game,
+			suspendedAt,
+		});
+	}
+	return windowed;
+}
+
+/**
+ * {@link scheduleWindowMode} of a fetched day, its suspended games judged by {@link withSuspendedAt}:
+ * what every path that stores a schedule day writes as its `windowMode`, so they judge a day alike
+ * (ADR-025).
+ */
+export async function scheduleDayWindowMode(
+	deps: Pick<IngestDeps, "games">,
+	day: Pick<ScheduleDay, "date" | "games">,
+	now: Date,
+	params: CadenceParams = DEFAULT_CADENCE,
+): Promise<ScheduleDay["windowMode"]>
+{
+	return scheduleWindowMode(await withSuspendedAt(deps, day.date, day.games, now), now, params);
+}
+
 export async function ingestScheduleDay(
 	deps: IngestDeps,
 	date: string,
@@ -132,13 +196,14 @@ export async function ingestScheduleDay(
 {
 	const now = deps.now?.() ?? new Date();
 	const fetched = await deps.mlb.fetchSchedule(date);
+	const windowed = await withSuspendedAt(deps, fetched.date, fetched.games, now);
 	const day = await storeSchedule(deps, {
 		...fetched,
 		fetchedAt: now.toISOString(),
-		windowMode: scheduleWindowMode(fetched.games, now),
+		windowMode: scheduleWindowMode(windowed, now),
 	});
 
-	for (const summary of day.games)
+	for (const summary of windowed)
 	{
 		// A finished game (final, game over, completed early) is worth storing even out of its window (ADR-025: one decision).
 		if (!isGameInActiveWindow(summary, now) && !isFinalStatus(normalizeStatusCode(summary.status.codedGameState)))
@@ -279,20 +344,22 @@ export async function refreshTodaysWindow(
 {
 	const date = mlbToday(now);
 	const dayBefore = addDays(date, -1);
-	const games: ScheduleDay["games"] = [];
+	const games: WindowedSummary[] = [];
 	const refresh = async (day: string) =>
 	{
 		const fetched = await deps.mlb.fetchSchedule(day);
+		const windowed = await withSuspendedAt(deps, fetched.date, fetched.games, now);
 		await storeSchedule(deps, {
 			...fetched,
 			fetchedAt: now.toISOString(),
-			windowMode: scheduleWindowMode(fetched.games, now, params),
+			windowMode: scheduleWindowMode(windowed, now, params),
 		});
-		games.push(...fetched.games);
+		games.push(...windowed);
 	};
 
 	await refresh(date);
 	const stored = await deps.schedules.getByDate(dayBefore);
+	// Read without `withSuspendedAt`: a day listing a suspended game is never settled (`isSettledGame`), so its time can't matter here.
 	const dayBeforeDone = stored !== null && stored.windowMode === "cache" && isScheduleDaySettled(stored, date)
 		&& !stored.games.some((g) => isGameInActiveWindow(g, now, params));
 	if (!dayBeforeDone)
@@ -307,11 +374,14 @@ export async function refreshTodaysWindow(
 			console.warn(`refreshTodaysWindow: day before ${dayBefore} not refreshed; retrying next run`, error);
 		}
 	}
-	// One entry per gamePk: in window if either day's copy is, else skipped once.
+	// One entry per gamePk: in window if either day's copy is, else skipped once. A suspended game's
+	// window counts from its stored `suspendedAt` (#323); `active` lists the summaries as MLB sent them.
 	const active: ScheduleDay["games"] = [];
 	for (const game of games)
 	{
-		if (isGameInActiveWindow(game, now, params) && !active.some((g) => g.gamePk === game.gamePk)) active.push(game);
+		if (!isGameInActiveWindow(game, now, params) || active.some((g) => g.gamePk === game.gamePk)) continue;
+		const { suspendedAt: _windowOnly, ...summary } = game;
+		active.push(summary);
 	}
 	const skipped = [...new Set(games.map((g) => g.gamePk))].filter((pk) => !active.some((g) => g.gamePk === pk));
 	return {

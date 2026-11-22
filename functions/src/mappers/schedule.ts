@@ -29,10 +29,15 @@ import type {
 	ScheduleResponse,
 } from "@bt/mlb-api";
 
-/** MLB's `codedGameState` is already the single letter the domain expects. */
+/**
+ * MLB's `codedGameState` is already the single letter the domain expects; a missing one
+ * is MLB's own unknown, `X` (never `U`, which MLB uses for a suspended game, #81). A code
+ * BT doesn't model passes through as it is, and the domain reads it as unknown
+ * (`normalizeStatusCode`).
+ */
 export function toStatusCode(coded: string | undefined): GameStatusCode | string
 {
-	return coded ?? "U";
+	return coded ?? "X";
 }
 
 export function mapTeam(team: MlbTeam): AbstractTeam
@@ -142,7 +147,7 @@ export function mapDecisions(decisions: LiveDecisions | undefined): GameDecision
 /**
  * The scoreboard's live moment (S65): runners and the batter from the batting side,
  * the pitcher from the fielding side, and the count — only while the game is in
- * progress (`isLiveStatus`).
+ * progress or suspended (`isLiveStatus`; a suspended game shows where play stopped, #79).
  */
 export function mapScheduleLive(codedGameState: string, linescore: Linescore | undefined): ScheduleLive | null
 {

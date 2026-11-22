@@ -1,12 +1,26 @@
+/**
+ * MLB's `codedGameState` letters, every one MLB's `GET /api/v1/gameStatus` lists (#81);
+ * `window.ts` says how BT treats each. `X` is MLB's own "Unknown", which BT also writes when
+ * MLB sends no code. A code MLB doesn't list passes through as it is (the `| string` beside
+ * this type wherever BT carries a status), and the domain reads it as unknown
+ * (`normalizeStatusCode`). MLB's `U` is a suspended game, not unknown.
+ */
 export type GameStatusCode =
   | "S" // scheduled
-  | "P" // pregame
-  | "I" // in progress / live
+  | "P" // pre-game, warm-up, delayed start
+  | "I" // in progress, including in-game delays
+  | "M" // manager challenge (#74)
+  | "N" // umpire review (#74)
+  | "T" // suspended (#79)
+  | "U" // suspended (#79)
   | "F" // final
   | "O" // game over
   | "C" // cancelled
+  | "Q" // forfeit (#80)
+  | "R" // forfeit (#80)
   | "D" // postponed (MLB codes a delay `I`, not `D`; #72)
-  | "U"; // unknown
+  | "X" // unknown
+  | "W"; // writing (MLB's "Other" group; read as unknown)
 
 export type AbstractTeam = {
 	id: number;
@@ -219,6 +233,13 @@ export type GameSnapshot = {
 		codedGameState: GameStatusCode | string;
 		detailedState: string;
 	};
+	/**
+	 * When BT saw the game turn suspended (`T`/`U`, #79): the ISO time of the write that stored
+	 * the change (`suspendedSince`), kept while it stays suspended and dropped when it resumes.
+	 * A suspended game is polled for `suspendedHours` from it (#323). Absent when the game isn't
+	 * suspended, or BT didn't see the change happen, when the window counts from first pitch.
+	 */
+	suspendedAt?: string;
 	teams: {
 		home: AbstractTeam;
 		away: AbstractTeam;

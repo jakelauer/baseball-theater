@@ -5,6 +5,7 @@
 import {
 	describe, expect, it, vi,
 } from "vitest";
+import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { migratedPglite } from "../adapters/postgres/migrate.js";
 import { ingestScheduleDay } from "../services/ingest.js";
 import { createWorkerApp, liveForwarder } from "../worker-app.js";
@@ -62,6 +63,41 @@ describe("GET /api/v1/games/:gamePk/live", () =>
 		expect(await res.json()).toMatchObject({
 			hint: "/api/v1/games/745001",
 		});
+	});
+});
+
+describe("GET /api/v1/games/:gamePk/live for a suspended game (#79, #323)", () =>
+{
+	it("a game suspended at 06:00Z after a 23:05Z first pitch still gets its socket at 07:00Z, past first pitch + 6h, through its stored suspension time", async () =>
+	{
+		const app = createWorkerApp({}, (await migratedPglite()).db);
+		await app.ingest.games.upsert({
+			...await new FixtureMlbStatsClient().fetchGame(745001),
+			officialDate: "2026-07-04",
+			startTime: "2026-07-04T23:05:00Z",
+			status: {
+				abstractGameState: "Live",
+				codedGameState: "U",
+				detailedState: "Suspended: Rain",
+			},
+			suspendedAt: "2026-07-05T06:00:00.000Z",
+			windowMode: "active",
+			version: 1,
+			lastChangedAt: "2026-07-05T06:00:00.000Z",
+		});
+		const live = vi.fn(async () => new Response("to the hub"));
+		const res = await handleApiRequest(new Request("http://bt.test/api/v1/games/745001/live", {
+			headers: upgrade,
+		}), {
+			...app.context,
+			ingest: {
+				...app.ingest,
+				now: () => new Date("2026-07-05T07:00:00Z"),
+			},
+			live,
+		});
+		expect(await res.text()).toBe("to the hub");
+		expect(live).toHaveBeenCalledWith(745001, expect.any(Request));
 	});
 });
 

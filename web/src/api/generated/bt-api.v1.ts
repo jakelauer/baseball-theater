@@ -450,6 +450,8 @@ export interface components {
                 codedGameState: components["schemas"]["GameStatusCode"] | string;
                 detailedState: string;
             };
+            /** @description When BT saw the game turn suspended (`T`/`U`, #79): the ISO time of the write that stored the change (`suspendedSince`), kept while it stays suspended and dropped when it resumes. A suspended game is polled for `suspendedHours` from it (#323). Absent when the game isn't suspended, or BT didn't see the change happen, when the window counts from first pitch. */
+            suspendedAt?: string;
             teams: {
                 away: components["schemas"]["AbstractTeam"];
                 home: components["schemas"]["AbstractTeam"];
@@ -466,8 +468,11 @@ export interface components {
             windowMode: "active" | "cache";
         };
         GameSnapshotResponse: components["schemas"]["GameSnapshot"];
-        /** @enum {string} */
-        GameStatusCode: "S" | "P" | "I" | "F" | "O" | "C" | "D" | "U";
+        /**
+         * @description MLB's `codedGameState` letters, every one MLB's `GET /api/v1/gameStatus` lists (#81); `window.ts` says how BT treats each. `X` is MLB's own "Unknown", which BT also writes when MLB sends no code. A code MLB doesn't list passes through as it is (the `| string` beside this type wherever BT carries a status), and the domain reads it as unknown (`normalizeStatusCode`). MLB's `U` is a suspended game, not unknown.
+         * @enum {string}
+         */
+        GameStatusCode: "S" | "P" | "I" | "M" | "N" | "T" | "U" | "F" | "O" | "C" | "Q" | "R" | "D" | "X" | "W";
         /**
          * @description What a video is, from MLB's content keywords (S69): a play `highlight`, the game `recap`, the `condensed` game, or another `video` (interviews, lineups, analysis).
          * @enum {string}
@@ -650,16 +655,24 @@ export interface components {
             losses: number | null;
             wins: number | null;
         };
+        /** @description One release's notes as the public releases API serves them: `ReleaseNotes` without `approval`, the owner's dated, quoted approval, which only `pnpm release:check` and the production deploy's "Release notes approved" step read (#327; owner, 2026-11-22, asked "Should the public releases API include your approval words for each release?": chose "Leave it out"). */
+        PublicReleaseNotes: {
+            /** @description A calendar date, `YYYY-MM-DD`, if given. The release procedure (CLAUDE.md, step (4)) leaves it empty: the file is frozen in the release commit before the day the release ships, and the GitHub Release records that day. */
+            date?: string;
+            /** @description The one sentence that stands for every minor fix and bit of polish. */
+            fixesAndPolish?: string;
+            /** @description The really big additions. */
+            headline: components["schemas"]["ReleaseEntry"][];
+            /** @description Every other change with an entry of its own. */
+            items: components["schemas"]["ReleaseItem"][];
+            /** @description `vMAJOR.MINOR.PATCH` ( {@link  parseReleaseVersion } ). */
+            version: string;
+        };
         /** @description An mlb.com story about the game (S94; GraphQL `relatedArticles`). MLB gives the article's slug, not a URL; whoever shows it builds the mlb.com link from the slug. */
         RelatedArticle: {
             blurb: string | null;
             headline: string;
             slug: string;
-        };
-        /** @description The owner's sign-off: the calendar date they approved the notes and their words, quoted. */
-        ReleaseApproval: {
-            date: string;
-            quote: string;
         };
         /** @description A change in the notes: a short title and the one sentence that explains it to a fan. */
         ReleaseEntry: {
@@ -677,27 +690,12 @@ export interface components {
          * @enum {string}
          */
         ReleaseItemKind: "feature" | "enhancement" | "performance" | "fix";
-        /** @description One release's notes, as `releases/<version>.json` holds them. An entry is in `headline` or `items`, never both. Notes with no `approval` are a draft: nothing publishes from them and  {@link  currentRelease }  ignores them. */
-        ReleaseNotes: {
-            /** @description The owner's in-session approval, dated and quoted; absent on a draft, which never deploys. */
-            approval?: components["schemas"]["ReleaseApproval"];
-            /** @description A calendar date, `YYYY-MM-DD`, if given. The release procedure (CLAUDE.md, step (4)) leaves it empty: the file is frozen in the release commit before the day the release ships, and the GitHub Release records that day. */
-            date?: string;
-            /** @description The one sentence that stands for every minor fix and bit of polish. */
-            fixesAndPolish?: string;
-            /** @description The really big additions. */
-            headline: components["schemas"]["ReleaseEntry"][];
-            /** @description Every other change with an entry of its own. */
-            items: components["schemas"]["ReleaseItem"][];
-            /** @description `vMAJOR.MINOR.PATCH` ( {@link  parseReleaseVersion } ). */
-            version: string;
-        };
         /** @description Every approved release's fan-facing notes (S132), for the change log page (S134). Read from the notes bundled into this build (`pnpm release:bundle`), never from MLB or the database. */
         ReleasesResponse: {
             /** @description The newest approved release in this build's notes (`currentRelease`, S131); null before any release has approved notes. On staging it can trail the version line, which names the pull request's milestone, a release not yet published. */
-            current: components["schemas"]["ReleaseNotes"] | null;
+            current: components["schemas"]["PublicReleaseNotes"] | null;
             /** @description Every approved release's notes, newest first (`approvedReleasesNewestFirst`); a draft never appears. */
-            releases: components["schemas"]["ReleaseNotes"][];
+            releases: components["schemas"]["PublicReleaseNotes"][];
         };
         /**
          * @description What a user may administer. Lives in BT, not the identity provider (ADR-019: no provider RBAC).

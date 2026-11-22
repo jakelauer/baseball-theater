@@ -433,6 +433,10 @@
 						"required": ["abstractGameState", "codedGameState", "detailedState"],
 						"type": "object"
 					},
+					"suspendedAt": {
+						"description": "When BT saw the game turn suspended (`T`/`U`, #79): the ISO time of the write that stored the change (`suspendedSince`), kept while it stays suspended and dropped when it resumes. A suspended game is polled for `suspendedHours` from it (#323). Absent when the game isn't suspended, or BT didn't see the change happen, when the window counts from first pitch.",
+						"type": "string"
+					},
 					"teams": {
 						"additionalProperties": false,
 						"properties": {
@@ -482,7 +486,11 @@
 				"type": "object"
 			},
 			"GameSnapshotResponse": { "$ref": "#/components/schemas/GameSnapshot" },
-			"GameStatusCode": { "enum": ["S", "P", "I", "F", "O", "C", "D", "U"], "type": "string" },
+			"GameStatusCode": {
+				"description": "MLB's `codedGameState` letters, every one MLB's `GET /api/v1/gameStatus` lists (#81); `window.ts` says how BT treats each. `X` is MLB's own \"Unknown\", which BT also writes when MLB sends no code. A code MLB doesn't list passes through as it is (the `| string` beside this type wherever BT carries a status), and the domain reads it as unknown (`normalizeStatusCode`). MLB's `U` is a suspended game, not unknown.",
+				"enum": ["S", "P", "I", "M", "N", "T", "U", "F", "O", "C", "Q", "R", "D", "X", "W"],
+				"type": "string"
+			},
 			"HighlightKind": {
 				"description": "What a video is, from MLB's content keywords (S69): a play `highlight`, the game `recap`, the `condensed` game, or another `video` (interviews, lineups, analysis).",
 				"enum": ["highlight", "recap", "condensed", "video"],
@@ -818,55 +826,10 @@
 				"required": ["era", "fullName", "id", "losses", "wins"],
 				"type": "object"
 			},
-			"RelatedArticle": {
+			"PublicReleaseNotes": {
 				"additionalProperties": false,
-				"description": "An mlb.com story about the game (S94; GraphQL `relatedArticles`). MLB gives the article's slug, not a URL; whoever shows it builds the mlb.com link from the slug.",
+				"description": "One release's notes as the public releases API serves them: `ReleaseNotes` without `approval`, the owner's dated, quoted approval, which only `pnpm release:check` and the production deploy's \"Release notes approved\" step read (#327; owner, 2026-11-22, asked \"Should the public releases API include your approval words for each release?\": chose \"Leave it out\").",
 				"properties": {
-					"blurb": { "type": ["string", "null"] },
-					"headline": { "type": "string" },
-					"slug": { "type": "string" }
-				},
-				"required": ["slug", "headline", "blurb"],
-				"type": "object"
-			},
-			"ReleaseApproval": {
-				"additionalProperties": false,
-				"description": "The owner's sign-off: the calendar date they approved the notes and their words, quoted.",
-				"properties": { "date": { "type": "string" }, "quote": { "type": "string" } },
-				"required": ["date", "quote"],
-				"type": "object"
-			},
-			"ReleaseEntry": {
-				"additionalProperties": false,
-				"description": "A change in the notes: a short title and the one sentence that explains it to a fan.",
-				"properties": { "sentence": { "type": "string" }, "title": { "type": "string" } },
-				"required": ["title", "sentence"],
-				"type": "object"
-			},
-			"ReleaseItem": {
-				"additionalProperties": false,
-				"description": "A change that gets its own entry on the change log page, labelled with its kind.",
-				"properties": {
-					"kind": { "$ref": "#/components/schemas/ReleaseItemKind" },
-					"sentence": { "type": "string" },
-					"title": { "type": "string" }
-				},
-				"required": ["kind", "sentence", "title"],
-				"type": "object"
-			},
-			"ReleaseItemKind": {
-				"description": "One of  {@link  RELEASE_ITEM_KINDS } .",
-				"enum": ["feature", "enhancement", "performance", "fix"],
-				"type": "string"
-			},
-			"ReleaseNotes": {
-				"additionalProperties": false,
-				"description": "One release's notes, as `releases/<version>.json` holds them. An entry is in `headline` or `items`, never both. Notes with no `approval` are a draft: nothing publishes from them and  {@link  currentRelease }  ignores them.",
-				"properties": {
-					"approval": {
-						"$ref": "#/components/schemas/ReleaseApproval",
-						"description": "The owner's in-session approval, dated and quoted; absent on a draft, which never deploys."
-					},
 					"date": {
 						"description": "A calendar date, `YYYY-MM-DD`, if given. The release procedure (CLAUDE.md, step (4)) leaves it empty: the file is frozen in the release commit before the day the release ships, and the GitHub Release records that day.",
 						"type": "string"
@@ -893,17 +856,51 @@
 				"required": ["version", "headline", "items"],
 				"type": "object"
 			},
+			"RelatedArticle": {
+				"additionalProperties": false,
+				"description": "An mlb.com story about the game (S94; GraphQL `relatedArticles`). MLB gives the article's slug, not a URL; whoever shows it builds the mlb.com link from the slug.",
+				"properties": {
+					"blurb": { "type": ["string", "null"] },
+					"headline": { "type": "string" },
+					"slug": { "type": "string" }
+				},
+				"required": ["slug", "headline", "blurb"],
+				"type": "object"
+			},
+			"ReleaseEntry": {
+				"additionalProperties": false,
+				"description": "A change in the notes: a short title and the one sentence that explains it to a fan.",
+				"properties": { "sentence": { "type": "string" }, "title": { "type": "string" } },
+				"required": ["title", "sentence"],
+				"type": "object"
+			},
+			"ReleaseItem": {
+				"additionalProperties": false,
+				"description": "A change that gets its own entry on the change log page, labelled with its kind.",
+				"properties": {
+					"kind": { "$ref": "#/components/schemas/ReleaseItemKind" },
+					"sentence": { "type": "string" },
+					"title": { "type": "string" }
+				},
+				"required": ["kind", "sentence", "title"],
+				"type": "object"
+			},
+			"ReleaseItemKind": {
+				"description": "One of  {@link  RELEASE_ITEM_KINDS } .",
+				"enum": ["feature", "enhancement", "performance", "fix"],
+				"type": "string"
+			},
 			"ReleasesResponse": {
 				"additionalProperties": false,
 				"description": "Every approved release's fan-facing notes (S132), for the change log page (S134). Read from the notes bundled into this build (`pnpm release:bundle`), never from MLB or the database.",
 				"properties": {
 					"current": {
-						"anyOf": [{ "$ref": "#/components/schemas/ReleaseNotes" }, { "type": "null" }],
+						"anyOf": [{ "$ref": "#/components/schemas/PublicReleaseNotes" }, { "type": "null" }],
 						"description": "The newest approved release in this build's notes (`currentRelease`, S131); null before any release has approved notes. On staging it can trail the version line, which names the pull request's milestone, a release not yet published."
 					},
 					"releases": {
 						"description": "Every approved release's notes, newest first (`approvedReleasesNewestFirst`); a draft never appears.",
-						"items": { "$ref": "#/components/schemas/ReleaseNotes" },
+						"items": { "$ref": "#/components/schemas/PublicReleaseNotes" },
 						"type": "array"
 					}
 				},
