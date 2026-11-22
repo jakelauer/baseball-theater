@@ -1,5 +1,6 @@
 import { contentHash } from "./content-hash.js";
-import { DEFAULT_CADENCE } from "./window.js";
+import type { GameSnapshot } from "./types.js";
+import { DEFAULT_CADENCE, isSuspendedStatus } from "./window.js";
 
 /** Anything the live path ships as a whole state stamped with a per-game version (ADR-022). */
 export type Versioned = {
@@ -68,15 +69,48 @@ export function stampVersion<T extends VersionStamp>(stored: T | null, incoming:
 }
 
 /**
- * How long after its last change a state still in its active window may be its own ingest's to write: the trail of
- * the ADR-002 window plus an hour, so a game's last write as its window closes is still covered. A game being polled
- * changes every few minutes; one left `active` months ago, stuck mid-game because nobody watched it to the end, is
- * nobody's. Accepted race: a live game with no content change for longer than this (a long rain delay) can be adopted
- * while its ingest still runs. An ingest write that lands between the copy's read and its write is kept (the copy's
- * guarded write loses), but one that read the game before the copy's write and lands after it at the same version is
- * dropped by the guard, and its projection may land in place of the copy's; ingest's next change restamps both.
+ * How long after its last change a state still in its active window may be its own ingest's to write: the longer of
+ * the ADR-002 trail and a suspended game's window (`suspendedHours`, #79), plus an hour, so a game's last write as its
+ * window closes is still covered, a suspended one included (it is polled for 6 hours from its suspension, usually with
+ * no change). A game being polled in play changes every few minutes; one left `active` months ago, stuck mid-game
+ * because nobody watched it to the end, is nobody's. Accepted race: a live game with no content change for longer than
+ * this (a long rain delay) can be adopted while its ingest still runs. An ingest write that lands between the copy's
+ * read and its write is kept (the copy's guarded write loses), but one that read the game before the copy's write and
+ * lands after it at the same version is dropped by the guard, and its projection may land in place of the copy's;
+ * ingest's next change restamps both.
  */
-export const INGEST_OWNS_MS = (DEFAULT_CADENCE.trailHours + 1) * 60 * 60 * 1000;
+export const INGEST_OWNS_MS = (Math.max(DEFAULT_CADENCE.trailHours, DEFAULT_CADENCE.suspendedHours) + 1) * 60 * 60 * 1000;
+
+/**
+ * When a game turned suspended, as BT saw it (#79, #323): the `suspendedAt` a write of a game whose
+ * status is `codedGameState` carries, given what is `stored`. The 6 hours a suspended game is polled
+ * run from it (`isGameInActiveWindow`; owner, 2026-11-22: "From when it was suspended (Recommended)").
+ *
+ * - Not suspended: none, so a resumed game drops it and a second suspension gets its own.
+ * - Already stored suspended (`T` or `U`, either way round): the stored time, unchanged, so a later
+ *   change while suspended never extends the window (none stays none).
+ * - Stored not suspended, `active` and changed within {@link INGEST_OWNS_MS} of `now`: `now`. BT was
+ *   polling the game, so this write is the one that saw the change; it is the write's `lastChangedAt`
+ *   too, since a status change is a content change (`stampVersion`).
+ * - Otherwise none: nothing stored, a cached copy, or an `active` one left unchanged for longer (a
+ *   stale snapshot BT stopped polling) didn't see when the game stopped, and a fresh 6 hours from a late
+ *   read would be wrong; `isGameInActiveWindow` then counts from first pitch.
+ *
+ * One function for every path (ADR-025): the store (`storeGame`), the per-game ingest's window check
+ * before it stores, and the schedule path, which asks it of the stored game for a summary listed suspended.
+ */
+export function suspendedSince(
+	stored: (Pick<GameSnapshot, "windowMode" | "suspendedAt" | "lastChangedAt"> & { status: Pick<GameSnapshot["status"], "codedGameState"> }) | null,
+	codedGameState: string,
+	now: string,
+): string | undefined
+{
+	if (!isSuspendedStatus(codedGameState) || stored === null) return undefined;
+	if (isSuspendedStatus(stored.status.codedGameState)) return stored.suspendedAt;
+	const changedAt = Date.parse(stored.lastChangedAt);
+	const fresh = !Number.isNaN(changedAt) && Date.parse(now) - changedAt < INGEST_OWNS_MS;
+	return stored.windowMode === "active" && fresh ? now : undefined;
+}
 
 /** What {@link compareAcrossStores} needs of the stored state: its stamp, and its window when it has one. */
 export type StoredStamp = Pick<VersionStamp, "version" | "lastChangedAt"> & { windowMode?: string };

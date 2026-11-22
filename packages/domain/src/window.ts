@@ -7,7 +7,7 @@ export type CadenceParams = {
 	trailHours: number;
 	/** How often the active-window ingest loop ticks, in milliseconds. */
 	intervalMs: number;
-	/** Hours after first pitch to keep polling a suspended game (`T`/`U`, #79). */
+	/** Hours to keep polling a suspended game (`T`/`U`, #79) after BT saw it turn suspended (`suspendedAt`), or, with no such time, after first pitch. */
 	suspendedHours: number;
 };
 
@@ -22,10 +22,12 @@ export type CadenceParams = {
  * - `trailHours: 3` — keep polling three hours past the assumed end
  * - `intervalMs: 30_000` — one pull per in-window game every 30s. Egress scales
  *   with concurrent game windows, not viewers; raise it before adding games.
- * - `suspendedHours: 6` — a suspended game is polled up to six hours after first
- *   pitch, then left until a schedule read sees it resume (owner, 2026-11-20, #79:
- *   "polling should continue for up to 6 hours"; measuring from first pitch is the
- *   agent's reading, since BT records no time a game was suspended).
+ * - `suspendedHours: 6` — a suspended game is polled up to six hours after BT saw it
+ *   turn suspended (`GameSnapshot.suspendedAt`), then left until a schedule read sees it
+ *   resume (owner, 2026-11-20, #79: "polling should continue for up to 6 hours"; asked
+ *   whether the 6 hours run from when it was suspended or from first pitch, 2026-11-22:
+ *   "From when it was suspended (Recommended)", #323). With no such time it counts from
+ *   first pitch.
  */
 export const DEFAULT_CADENCE: CadenceParams = {
 	leadHours: 2,
@@ -98,6 +100,12 @@ function statusKind(code: string | undefined | null): StatusKind
 	return STATUS_KINDS[normalizeStatusCode(code)];
 }
 
+/** Whether a game is suspended (MLB's `T`/`U`, #79): stopped to finish later, maybe on another day. */
+export function isSuspendedStatus(code: string): boolean
+{
+	return statusKind(code) === "suspended";
+}
+
 /** Whether a game looks live: in progress, or suspended (which shows what happened so far, #79). */
 export function isLiveStatus(code: string): boolean
 {
@@ -114,12 +122,22 @@ export function isFinalStatus(code: string): boolean
 /** A bare `YYYY-MM-DD`: a date with no time of day, so no first-pitch instant. */
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
+const HOUR_MS = 60 * 60 * 1000;
+
 /**
  * Whether a game should be in the active ingest window at `now`.
  * A game in progress (`I`, which includes MLB's delays, or a challenge/review `M`/`N`, #74) is always in it, whatever
  * the clock says: a delay can outlast the trail, and only a poll sees it resume.
  * A postponed game (`D`) never is, whatever the clock says (#72). Otherwise the window is lead hours before first pitch to trail hours after
  * (after the assumed end, for a final game; `suspendedHours` after, for a suspended one, #79).
+ *
+ * A suspended game (`T`/`U`) is also in it up to `suspendedHours` after `suspendedAt`, the time BT
+ * saw it turn suspended (`suspendedSince`; owner, 2026-11-22: "From when it was suspended
+ * (Recommended)", #323), both ends inclusive, so a game suspended late in the night keeps its
+ * 6 hours. The first-pitch window holds as well: with no `suspendedAt` (BT didn't see the change,
+ * or the game was stored before the field existed) or one that doesn't parse, it is the only
+ * one, and a game resumed on a later day, which MLB lists suspended with its resume time as
+ * the start, enters through its lead.
  *
  * First pitch is `startTime` (the ISO instant `mapScheduleGame` and `mapLiveFeed`
  * set). Both mappers set `gameDate` to the official date alone, so `gameDate` /
@@ -135,6 +153,7 @@ export function isGameInActiveWindow(
 		startTime?: string | null;
 		gameDate?: string | null;
 		gameDateTime?: string | null;
+		suspendedAt?: string | null;
 	},
 	now: Date,
 	params: CadenceParams = DEFAULT_CADENCE,
@@ -144,6 +163,12 @@ export function isGameInActiveWindow(
 	if (kind === "live") return true;
 	if (kind === "postponed") return false;
 
+	if (kind === "suspended" && game.suspendedAt)
+	{
+		const suspendedAt = Date.parse(game.suspendedAt);
+		if (!Number.isNaN(suspendedAt) && now.getTime() <= suspendedAt + params.suspendedHours * HOUR_MS) return true;
+	}
+
 	const startedAt = [game.startTime, game.gameDate, game.gameDateTime]
 		.find((value) => value && !DATE_ONLY.test(value) && !Number.isNaN(Date.parse(value)));
 	const start = startedAt
@@ -151,19 +176,19 @@ export function isGameInActiveWindow(
 		: new Date(`${game.officialDate}T17:00:00.000Z`);
 	if (Number.isNaN(start.getTime())) return false;
 
-	const leadMs = params.leadHours * 60 * 60 * 1000;
-	const trailMs = (kind === "suspended" ? params.suspendedHours : params.trailHours) * 60 * 60 * 1000;
+	const leadMs = params.leadHours * HOUR_MS;
+	const trailMs = (kind === "suspended" ? params.suspendedHours : params.trailHours) * HOUR_MS;
 
 	if (kind === "final")
 	{
 		// Without exact end time, keep trail from a late-evening assumption on game day.
-		const assumedEnd = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+		const assumedEnd = new Date(start.getTime() + 4 * HOUR_MS);
 		return now.getTime() <= assumedEnd.getTime() + trailMs;
 	}
 
 	return (
 		now.getTime() >= start.getTime() - leadMs &&
-    now.getTime() <= start.getTime() + trailMs
+		now.getTime() <= start.getTime() + trailMs
 	);
 }
 

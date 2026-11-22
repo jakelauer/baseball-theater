@@ -7,8 +7,9 @@ import {
 	InMemoryGameRepository,
 	InMemoryScheduleRepository,
 } from "../adapters/memory/repos.js";
+import type { GameSnapshot, Unversioned } from "@bt/domain";
 import {
-	getOrRefreshGame, ingestScheduleDay, refreshTodaysWindow,
+	getOrRefreshGame, ingestGame, ingestScheduleDay, refreshTodaysWindow,
 } from "./ingest.js";
 import { RefreshCoordinator } from "./refresh.js";
 
@@ -250,5 +251,164 @@ describe("ingest skips a settled day before S167's game types (S167 AC 4)", () =
 		}, new Date("2024-07-05T17:00:00.000Z"));
 		expect(asked).toEqual(["2024-07-05"]);
 		expect((await schedules.getByDate("2024-07-04"))!.games.every((game) => game.gameType === undefined)).toBe(true);
+	});
+});
+
+/**
+ * #79, #323: every game write stamps when BT saw the game turn suspended (`suspendedAt`), carries
+ * it while the game stays suspended, and drops it when play resumes (owner, 2026-11-22: "From when
+ * it was suspended (Recommended)").
+ */
+describe("a suspended game's stored suspension time (#79, #323)", () =>
+{
+	const IN_PROGRESS = {
+		abstractGameState: "Live",
+		codedGameState: "I",
+		detailedState: "In Progress",
+	};
+	const SUSPENDED = {
+		abstractGameState: "Live",
+		codedGameState: "U",
+		detailedState: "Suspended: Rain",
+	};
+
+	async function polls()
+	{
+		const base = await new FixtureMlbStatsClient().fetchGame(745001);
+		const deps = {
+			games: new InMemoryGameRepository(),
+			projections: new InMemoryGameProjectionRepository(),
+		};
+		const poll = (status: typeof IN_PROGRESS, fetchedAt: string, windowMode: "active" | "cache" = "active") => ingestGame(deps, {
+			...base,
+			status,
+			fetchedAt,
+			windowMode,
+		} as Unversioned<GameSnapshot>);
+		return poll;
+	}
+
+	it("stamps the write that sees an actively polled game turn suspended, keeps it through later changes, and drops it on resume", async () =>
+	{
+		const poll = await polls();
+		expect((await poll(IN_PROGRESS, "2026-07-05T05:09:30.000Z")).snapshot.suspendedAt).toBeUndefined();
+		const flipped = (await poll(SUSPENDED, "2026-07-05T05:10:00.000Z")).snapshot;
+		expect(flipped.suspendedAt).toBe("2026-07-05T05:10:00.000Z");
+		expect(flipped.suspendedAt).toBe(flipped.lastChangedAt);
+		const unchanged = await poll(SUSPENDED, "2026-07-05T05:10:30.000Z");
+		expect(unchanged.changed).toBe(false);
+		expect(unchanged.snapshot.version).toBe(flipped.version);
+		const later = (await poll({
+			...SUSPENDED,
+			codedGameState: "T",
+			detailedState: "Suspended",
+		}, "2026-07-05T08:00:00.000Z")).snapshot;
+		expect(later.version).toBe(flipped.version + 1);
+		expect(later.suspendedAt).toBe("2026-07-05T05:10:00.000Z");
+		const resumed = (await poll(IN_PROGRESS, "2026-07-06T20:00:00.000Z")).snapshot;
+		expect(resumed.suspendedAt).toBeUndefined();
+		expect("suspendedAt" in resumed).toBe(false);
+	});
+
+	it("leaves no time when BT didn't see the change: first stored already suspended, or flipped from a cached copy", async () =>
+	{
+		const first = await polls();
+		expect((await first(SUSPENDED, "2026-07-05T05:10:00.000Z")).snapshot.suspendedAt).toBeUndefined();
+		const cached = await polls();
+		await cached(IN_PROGRESS, "2026-07-05T05:09:30.000Z", "cache");
+		expect((await cached(SUSPENDED, "2026-07-05T05:10:00.000Z")).snapshot.suspendedAt).toBeUndefined();
+	});
+
+	it("a later day listing the game to resume (07-07) is judged by the clock alone: stored cache, and the game isn't fetched", async () =>
+	{
+		const real = new FixtureMlbStatsClient();
+		const recorded = await real.fetchSchedule("2024-07-04");
+		const mlb = new FixtureMlbStatsClient();
+		mlb.fetchSchedule = async () => ({
+			...recorded,
+			date: "2026-07-07",
+			games: recorded.games.filter((g) => g.gamePk === 745001).map((g) => ({
+				...g,
+				officialDate: "2026-07-07",
+				gameDate: "2026-07-07T17:00:00Z",
+				startTime: "2026-07-07T17:00:00Z",
+				status: SUSPENDED,
+			})),
+		});
+		const fetched: number[] = [];
+		mlb.fetchGame = async (pk: number) =>
+		{
+			fetched.push(pk);
+			return real.fetchGame(pk);
+		};
+		const games = new InMemoryGameRepository();
+		await games.upsert({
+			...await real.fetchGame(745001),
+			startTime: "2026-07-04T23:05:00Z",
+			status: SUSPENDED,
+			windowMode: "active",
+			suspendedAt: "2026-07-05T05:10:00.000Z",
+			version: 3,
+			lastChangedAt: "2026-07-05T05:10:00.000Z",
+		});
+		const day = await ingestScheduleDay({
+			mlb,
+			schedules: new InMemoryScheduleRepository(),
+			games,
+			projections: new InMemoryGameProjectionRepository(),
+			now: () => new Date("2026-07-05T06:00:00Z"),
+		}, "2026-07-07");
+		expect(day.windowMode).toBe("cache");
+		expect(fetched).toEqual([]);
+	});
+
+	it("ingestScheduleDay fetches and stores a game suspended at 06:00Z at 07:00Z, past first pitch + 6h", async () =>
+	{
+		const real = new FixtureMlbStatsClient();
+		const recorded = await real.fetchSchedule("2024-07-04");
+		const mlb = new FixtureMlbStatsClient();
+		mlb.fetchSchedule = async () => ({
+			...recorded,
+			date: "2026-07-04",
+			games: recorded.games.filter((g) => g.gamePk === 745001).map((g) => ({
+				...g,
+				officialDate: "2026-07-04",
+				gameDate: "2026-07-04T23:05:00Z",
+				startTime: "2026-07-04T23:05:00Z",
+				status: SUSPENDED,
+			})),
+		});
+		const fetched: number[] = [];
+		mlb.fetchGame = async (pk: number) =>
+		{
+			fetched.push(pk);
+			return {
+				...await real.fetchGame(pk),
+				startTime: "2026-07-04T23:05:00Z",
+				status: SUSPENDED,
+			};
+		};
+		const games = new InMemoryGameRepository();
+		const game = await real.fetchGame(745001);
+		await games.upsert({
+			...game,
+			startTime: "2026-07-04T23:05:00Z",
+			status: SUSPENDED,
+			windowMode: "active",
+			suspendedAt: "2026-07-05T06:00:00.000Z",
+			version: 3,
+			lastChangedAt: "2026-07-05T06:00:00.000Z",
+		});
+		const schedules = new InMemoryScheduleRepository();
+		const day = await ingestScheduleDay({
+			mlb,
+			schedules,
+			games,
+			projections: new InMemoryGameProjectionRepository(),
+			now: () => new Date("2026-07-05T07:00:00Z"),
+		}, "2026-07-04");
+		expect(fetched).toEqual([745001]);
+		expect(day.windowMode).toBe("active");
+		expect((await games.getByPk(745001))?.suspendedAt).toBe("2026-07-05T06:00:00.000Z");
 	});
 });

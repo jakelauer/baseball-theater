@@ -14,10 +14,13 @@ export const DEFAULT_ROOM: Room = "videos";
 
 /**
  * MLB's `codedGameState` mapped to a BT phase — the one answer to "is this game
- * live?" (ADR-025). Built on the same status sets the ingest window uses
- * (`isLiveStatus` / `isFinalStatus`), so the room tabs and the poller can never
- * disagree. Only an in-progress game (`I`) is live, and MLB codes a delay `I`
- * too, so a delayed game shows Live; so does one paused for a manager challenge
+ * live?" (ADR-025). Built on the same status table the ingest window uses
+ * (`isLiveStatus` / `isFinalStatus`), so the room tabs and the poller agree on every
+ * status but one: a suspended game reads live for as long as it stays suspended, while
+ * the poller lets it go `suspendedHours` after the suspension, or after first pitch
+ * when BT didn't see it turn suspended (#79, #323). An
+ * in-progress game (`I`) is live, and MLB codes a delay `I` too, so a delayed game
+ * shows Live; so does one paused for a manager challenge
  * (`M`) or umpire review (`N`, #74), and a suspended one (`T`/`U`, #79), so fans
  * see what happened so far. Warm-up (`P`) and a postponed game (`D`, #72) show no
  * Live room, and a cancelled (`C`) or forfeited (`Q`/`R`, #80) game counts as

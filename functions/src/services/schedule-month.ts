@@ -20,11 +20,11 @@ import type {
 	ScheduleDay, ScheduleDayCount, ScheduleDayTally, Unversioned,
 } from "@bt/domain";
 import {
-	daysOfMonth, mlbToday, monthGameCounts, monthLastChangedAt, scheduleFillWindow, scheduleWindowMode,
+	daysOfMonth, mlbToday, monthGameCounts, monthLastChangedAt, scheduleFillWindow,
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
 import {
-	needsRefresh, runRefresh, storeSchedule,
+	needsRefresh, runRefresh, scheduleDayWindowMode, storeSchedule,
 } from "./ingest.js";
 
 /**
@@ -113,7 +113,7 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 				await storeSchedule(deps, {
 					...day,
 					fetchedAt,
-					windowMode: scheduleWindowMode(day.games, now),
+					windowMode: await scheduleDayWindowMode(deps, day, now),
 				});
 			}
 			return true;

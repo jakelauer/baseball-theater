@@ -38,14 +38,14 @@ import type {
 } from "@bt/domain";
 import {
 	backfillDays, GIVE_UP_AFTER_DAYS, isFinalStatus, isScheduleDaySettled, isSourceGivenUp, mlbToday, normalizeStatusCode, recordSourceDay, scheduleDayLacksGameType,
-	scheduleWindowMode, sourceGivenUpAt,
+	sourceGivenUpAt,
 } from "@bt/domain";
 import type {
 	GameEditorial, GameProjectionRepository, GameRepository, MlbGameSources, ScheduleRepository,
 } from "@bt/ports";
 import { assembleGame } from "../mappers/game-extras.js";
 import {
-	ingestGame, repairProjection, storeSchedule,
+	ingestGame, repairProjection, scheduleDayWindowMode, storeSchedule,
 } from "./ingest.js";
 
 /** The extra sources a game is hydrated from beside its live feed, each given up on its own. */
@@ -229,7 +229,7 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 				scheduleDay = await storeSchedule(deps, {
 					...fetched,
 					fetchedAt: now.toISOString(),
-					windowMode: scheduleWindowMode(fetched.games, now),
+					windowMode: await scheduleDayWindowMode(deps, fetched, now),
 				});
 			}
 			catch (error)
