@@ -1279,3 +1279,71 @@ describe("runBackfill on the recordings through PGlite (S122 AC 3)", () =>
 		expect(repos.writes).toEqual([]);
 	});
 });
+
+/**
+ * #79, #323: the backfill judges a stored day's window the way the cron does for the days the cron
+ * still polls (MLB's today and the day before), and by the clock alone for older ones.
+ */
+describe("runBackfill and suspended games (#79, #323)", () =>
+{
+	const SUSPENDED: Status = {
+		codedGameState: "U",
+		detailedState: "Suspended: Rain",
+		abstractGameState: "Live",
+	};
+
+	async function storeGame(repos: Counted, gamePk: number, status: Status, changedAt: string, suspendedAt?: string)
+	{
+		await repos.games.upsert({
+			...TEMPLATE_FEED,
+			gamePk,
+			status,
+			windowMode: "active",
+			fetchedAt: changedAt,
+			version: 1,
+			lastChangedAt: changedAt,
+			...(suspendedAt ? {
+				suspendedAt,
+			} : {}),
+		});
+	}
+
+	it("the day before: a game suspended at 12:00Z keeps its day active at 17:00Z, long past its first pitch", async () =>
+	{
+		const mlb = new FakeMlb(1);
+		mlb.status = () => SUSPENDED;
+		const repos = counted(memoryRepos());
+		await storeGame(repos, pkOf("2026-11-07", 0), SUSPENDED, "2026-11-08T12:00:00.000Z", "2026-11-08T12:00:00.000Z");
+		await runBackfill(deps(mlb, repos, memoryStore()), {
+			from: "2026-11-07",
+			to: "2026-11-07",
+		});
+		expect((await repos.schedules.getByDate("2026-11-07"))?.windowMode).toBe("active");
+	});
+
+	it("the day before yesterday is judged by the clock alone: a game suspended there at 12:00Z today leaves its day cache", async () =>
+	{
+		const mlb = new FakeMlb(1);
+		mlb.status = () => SUSPENDED;
+		const repos = counted(memoryRepos());
+		await storeGame(repos, pkOf("2026-11-06", 0), SUSPENDED, "2026-11-08T12:00:00.000Z", "2026-11-08T12:00:00.000Z");
+		await runBackfill(deps(mlb, repos, memoryStore()), {
+			from: "2026-11-06",
+			to: "2026-11-06",
+		});
+		expect((await repos.schedules.getByDate("2026-11-06"))?.windowMode).toBe("cache");
+	});
+
+	it("an older day still listing a suspended game, resumed since under the same gamePk (stored in progress, active), stays cache", async () =>
+	{
+		const mlb = new FakeMlb(1);
+		mlb.status = () => SUSPENDED;
+		const repos = counted(memoryRepos());
+		await storeGame(repos, pkOf("2026-07-01", 0), LIVE, new Date(NOW().getTime() - 60 * 60 * 1000).toISOString());
+		await runBackfill(deps(mlb, repos, memoryStore()), {
+			from: "2026-07-01",
+			to: "2026-07-01",
+		});
+		expect((await repos.schedules.getByDate("2026-07-01"))?.windowMode).toBe("cache");
+	});
+});

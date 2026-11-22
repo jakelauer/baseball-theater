@@ -450,6 +450,8 @@ export interface components {
                 codedGameState: components["schemas"]["GameStatusCode"] | string;
                 detailedState: string;
             };
+            /** @description When BT saw the game turn suspended (`T`/`U`, #79): the ISO time of the write that stored the change (`suspendedSince`), kept while it stays suspended and dropped when it resumes. A suspended game is polled for `suspendedHours` from it (#323). Absent when the game isn't suspended, or BT didn't see the change happen, when the window counts from first pitch. */
+            suspendedAt?: string;
             teams: {
                 away: components["schemas"]["AbstractTeam"];
                 home: components["schemas"]["AbstractTeam"];
@@ -466,8 +468,11 @@ export interface components {
             windowMode: "active" | "cache";
         };
         GameSnapshotResponse: components["schemas"]["GameSnapshot"];
-        /** @enum {string} */
-        GameStatusCode: "S" | "P" | "I" | "F" | "O" | "C" | "D" | "U";
+        /**
+         * @description MLB's `codedGameState` letters, every one MLB's `GET /api/v1/gameStatus` lists (#81); `window.ts` says how BT treats each. `X` is MLB's own "Unknown", which BT also writes when MLB sends no code. A code MLB doesn't list passes through as it is (the `| string` beside this type wherever BT carries a status), and the domain reads it as unknown (`normalizeStatusCode`). MLB's `U` is a suspended game, not unknown.
+         * @enum {string}
+         */
+        GameStatusCode: "S" | "P" | "I" | "M" | "N" | "T" | "U" | "F" | "O" | "C" | "Q" | "R" | "D" | "X" | "W";
         /**
          * @description What a video is, from MLB's content keywords (S69): a play `highlight`, the game `recap`, the `condensed` game, or another `video` (interviews, lineups, analysis).
          * @enum {string}

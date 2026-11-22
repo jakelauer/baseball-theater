@@ -35,7 +35,7 @@
  *   read and its write keeps ingest's write. An ingest write that read the row before the copy's
  *   write and lands after it at the same version is dropped instead, and its projection may land
  *   in place of the copy's; ingest's next change restamps both (the race `INGEST_OWNS_MS` accepts).
- *   A row in its active window that changed within the trail plus an hour (`INGEST_OWNS_MS`) is
+ *   A row in its active window that changed within the longer of the trail and a suspended game's window, plus an hour (`INGEST_OWNS_MS`), is
  *   left to the target's ingest. A tie, the same content, or a time that can't be read keeps the
  *   target's row. An adopted schedule day can carry an older `fetchedAt` than the target's, so the
  *   month view's oldest-fetch figure may move back: that costs one extra refresh, nothing more.

@@ -646,3 +646,78 @@ describe("S124 AC 5", () =>
 		expect(body.days).toHaveLength(30);
 	});
 });
+
+/**
+ * #79, #323: the month fill judges a day's window the way the cron does, so a game suspended late
+ * today keeps the day active for 6 hours from its suspension; an older day is judged by the clock
+ * alone, since nothing polls it.
+ */
+describe("the month fill and suspended games (#79, #323)", () =>
+{
+	const SUSPENDED = {
+		abstractGameState: "Live",
+		codedGameState: "U",
+		detailedState: "Suspended: Rain",
+	};
+	const IN_PROGRESS = {
+		abstractGameState: "Live",
+		codedGameState: "I",
+		detailedState: "In Progress",
+	};
+
+	/** Fixture game `gamePk` on `date`, first pitch `startTime`, as the schedule lists it suspended. */
+	async function suspendedOn(gamePk: number, date: string, startTime: string): Promise<ScheduleGameSummary>
+	{
+		const recorded = (await new FixtureMlbStatsClient().fetchSchedule("2024-07-04")).games.find((g) => g.gamePk === gamePk)!;
+		return {
+			...recorded,
+			officialDate: date,
+			gameDate: startTime,
+			startTime,
+			status: SUSPENDED,
+		};
+	}
+
+	async function storeGame(repos: Repos, gamePk: number, status: typeof SUSPENDED, changedAt: string, suspendedAt?: string)
+	{
+		await repos.games.upsert({
+			...await new FixtureMlbStatsClient().fetchGame(gamePk),
+			status,
+			windowMode: "active",
+			version: 1,
+			lastChangedAt: changedAt,
+			...(suspendedAt ? {
+				suspendedAt,
+			} : {}),
+		});
+	}
+
+	function deps(repos: Repos, mlb: CountingClient): IngestDeps
+	{
+		return {
+			mlb,
+			...repos,
+			now: () => T0,
+		};
+	}
+
+	it("today: a game suspended at 12:00Z after a 01:00Z first pitch keeps the day active at 17:00Z", async () =>
+	{
+		const repos = memoryRepos();
+		const mlb = new CountingClient();
+		mlb.gamesOn.set("2026-11-09", [await suspendedOn(745001, "2026-11-09", "2026-11-09T01:00:00Z")]);
+		await storeGame(repos, 745001, SUSPENDED, "2026-11-09T12:00:00.000Z", "2026-11-09T12:00:00.000Z");
+		await getScheduleMonth(deps(repos, mlb), "2026-11");
+		expect((await repos.schedules.getByDate("2026-11-09"))?.windowMode).toBe("active");
+	});
+
+	it("an older day still listing a suspended game, resumed since under the same gamePk (stored in progress, active), stays cache", async () =>
+	{
+		const repos = memoryRepos();
+		const mlb = new CountingClient();
+		mlb.gamesOn.set("2026-11-01", [await suspendedOn(744834, "2026-11-01", "2026-11-01T23:05:00Z")]);
+		await storeGame(repos, 744834, IN_PROGRESS, new Date(T0.getTime() - 60 * MINUTE).toISOString());
+		await getScheduleMonth(deps(repos, mlb), "2026-11");
+		expect((await repos.schedules.getByDate("2026-11-01"))?.windowMode).toBe("cache");
+	});
+});
