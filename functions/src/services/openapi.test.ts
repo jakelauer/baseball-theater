@@ -158,3 +158,94 @@ describe("oasdiff breaking gate", () =>
 		expect(result.output).toContain("removed the required property `fetchedAt` from the response");
 	});
 }, 30_000);
+
+/**
+ * A small JSON Schema check, enough for the generated standings schemas (S160): `$ref`, `type` (one or a
+ * list), `enum`, `properties` with `required` and `additionalProperties: false`, `items` and `anyOf`.
+ * The functions package has no JSON Schema validator, and this test needs only these keywords.
+ */
+function conforms(value: unknown, schema: Json, schemas: Json): boolean
+{
+	if (schema.$ref !== undefined) return conforms(value, schemas[String(schema.$ref).split("/").pop()!], schemas);
+	if (schema.anyOf !== undefined) return (schema.anyOf as Json[]).some((s) => conforms(value, s, schemas));
+	if (schema.enum !== undefined && !(schema.enum as unknown[]).includes(value)) return false;
+	if (schema.type !== undefined)
+	{
+		const kind = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+		const types = ([] as string[]).concat(schema.type);
+		if (!types.some((t) => t === kind || (t === "integer" && Number.isInteger(value)))) return false;
+	}
+	if (Array.isArray(value) && schema.items !== undefined) return value.every((item) => conforms(item, schema.items, schemas));
+	if (value !== null && typeof value === "object" && !Array.isArray(value) && schema.properties !== undefined)
+	{
+		const record = value as Record<string, unknown>;
+		if (!((schema.required ?? []) as string[]).every((key) => key in record)) return false;
+		for (const [key, field] of Object.entries(record))
+		{
+			const property = schema.properties[key];
+			if (property === undefined)
+			{
+				if (schema.additionalProperties === false) return false;
+				continue;
+			}
+			if (!conforms(field, property, schemas)) return false;
+		}
+	}
+	return true;
+}
+
+describe("standings clinch letter on the wire (S160)", () =>
+{
+	const schemas = spec.components.schemas as Json;
+	/** A team row as every answer cached before S160 served it: no clinchIndicator at all. */
+	const beforeS160 = {
+		teamId: 158,
+		name: "Milwaukee Brewers",
+		abbreviation: "MIL",
+		wins: 97,
+		losses: 65,
+		pct: ".599",
+		gamesBack: null,
+		divisionRank: 1,
+		streak: "W2",
+		runsScored: 780,
+		runsAllowed: 640,
+		runDifferential: 140,
+		divisionLeader: true,
+		clinched: true,
+		eliminationNumber: null,
+	};
+
+	it("S160 AC 2: a record without the field (an answer cached before S160) still parses through the generated schema, and reads as no letter", () =>
+	{
+		const division = {
+			divisionId: 205,
+			name: "National League Central",
+			leagueId: 104,
+			teams: [beforeS160],
+		};
+		expect(conforms(division, schemas.StandingsDivision, schemas)).toBe(true);
+		expect(schemas.StandingsTeamRecord.required).not.toContain("clinchIndicator");
+		const parsed = JSON.parse(JSON.stringify(beforeS160)) as { clinchIndicator?: string | null };
+		expect(parsed.clinchIndicator ?? null).toBeNull();
+	});
+
+	it("S160 AC 2: a letter or null parses, anything else does not", () =>
+	{
+		const record = schemas.StandingsTeamRecord as Json;
+		expect(conforms({
+			...beforeS160,
+			clinchIndicator: "z",
+		}, record, schemas)).toBe(true);
+		expect(conforms({
+			...beforeS160,
+			clinchIndicator: null,
+		}, record, schemas)).toBe(true);
+		expect(conforms({
+			...beforeS160,
+			clinchIndicator: 1,
+		}, record, schemas)).toBe(false);
+		const { clinched: _clinched, ...withoutClinched } = beforeS160;
+		expect(conforms(withoutClinched, record, schemas)).toBe(false);
+	});
+});
