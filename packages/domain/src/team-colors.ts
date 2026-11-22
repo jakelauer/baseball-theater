@@ -130,3 +130,20 @@ export function divisionName(divisionId: number): string | undefined
 {
 	return DIVISION_NAMES[divisionId];
 }
+
+/**
+ * League names by Stats API league id (S155). Before 1969 MLB sends each league's standings as one
+ * record group with no division (fixtures/raw/standings-1950-07-04.json), and a hydrated team carries
+ * its current division, so the table is named for its league from here, in full ("American League",
+ * as the owner chose, 2026-11-19); `undefined` for any other id.
+ */
+const LEAGUE_NAMES: Readonly<Record<number, string>> = {
+	103: "American League",
+	104: "National League",
+};
+
+/** A league's full name ("American League"), or `undefined` for an unknown id. */
+export function leagueName(leagueId: number): string | undefined
+{
+	return LEAGUE_NAMES[leagueId];
+}

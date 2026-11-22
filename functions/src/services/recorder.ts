@@ -10,7 +10,9 @@
  *   for the S23 coverage gate.
  * - **normalized** — `fixtures/`-shaped JSON, written through whichever
  *   `MlbStatsClient` adapter it is handed: `HttpMlbStatsClient` in production,
- *   a fake adapter under test.
+ *   a fake adapter under test. One exception, `recordStandingsDay` (S155): a
+ *   day's standings alone is mapped from the raw answer it just recorded, with no
+ *   client, so its two files come from one request.
  *
  * Neither path reaches the network on its own: the raw path fetches only
  * through the injected implementation, so a stubbed response records offline.
@@ -20,12 +22,16 @@ import path from "node:path";
 import type {
 	AtBat,
 	GameSnapshot,
+	StandingsSnapshot,
 	Unversioned,
 } from "@bt/domain";
+import type { StandingsResponse } from "@bt/mlb-api";
+import { parseStandingsResponse } from "@bt/mlb-api";
 import type { MlbStatsClient } from "@bt/ports";
 import {
 	finalStandingsUrl, graphContentRequest, playMetricsUrl, seasonsUrl, springStandingsUrl, standingsUrl, worldSeriesUrl,
 } from "../adapters/http/mlb.js";
+import { mapStandings } from "../mappers/standings.js";
 
 const DEFAULT_BASE_URL = "https://statsapi.mlb.com";
 
@@ -139,6 +145,44 @@ export function seasonEndpoints(season: number, springDate?: string, baseUrl = D
 }
 
 /**
+ * One day's standings alone (S155): MLB's dated table, `standings-<date>`, with the URL the HTTP
+ * client asks. The `--date` form without `--game` records this, so a day with no game worth
+ * recording (1950-07-04's, say) still gets its table.
+ */
+export function standingsDayEndpoints(date: string, baseUrl = DEFAULT_BASE_URL): RawEndpoint[]
+{
+	return [
+		{
+			name: `standings-${date}`,
+			url: standingsUrl(date, baseUrl),
+		},
+	];
+}
+
+/**
+ * The `--date` form without `--game` (S155): records MLB's table for `date` verbatim, then writes
+ * `standings-<date>.json` mapped from that same answer, so the two files never disagree (a second
+ * request on a day with games in progress could answer a different table). The answer is parsed
+ * (`parseStandingsResponse`) before anything is written: one that isn't JSON, or isn't MLB's shape,
+ * throws and leaves both files as they were, rather than mapping a stale or empty fallback the way
+ * `FixtureMlbStatsClient.fetchStandings` would read one. Returns the names written, raw first.
+ */
+export async function recordStandingsDay(date: string, outDir: string, options: RawRecorderOptions = {}): Promise<string[]>
+{
+	let payload: StandingsResponse | undefined;
+	const raw = await recordEndpoints(standingsDayEndpoints(date, options.baseUrl ?? DEFAULT_BASE_URL), outDir, {
+		...options,
+		check: (text) =>
+		{
+			payload = parseStandingsResponse(JSON.parse(text));
+		},
+	});
+	if (!payload) throw new Error(`no standings answer for ${date}`);
+	const mapped = await writeStandings(outDir, date, mapStandings(payload, date));
+	return [...raw.map((f) => `raw/${f}`), mapped];
+}
+
+/**
  * Raw path. Writes each upstream response verbatim into `<outDir>/raw/`.
  * Returns the basenames written, in order.
  */
@@ -151,11 +195,15 @@ export async function recordRaw(
 	return recordEndpoints(rawEndpoints(target, options.baseUrl ?? DEFAULT_BASE_URL), outDir, options);
 }
 
-/** Writes each endpoint's response verbatim into `<outDir>/raw/<name>.json`; returns the basenames, in order. */
+/**
+ * Writes each endpoint's response verbatim into `<outDir>/raw/<name>.json`; returns the basenames, in
+ * order. `check`, when given, sees each response's text first and throws to refuse it, so a refused
+ * answer never replaces a recording (S155's `recordStandingsDay`).
+ */
 export async function recordEndpoints(
 	endpoints: readonly RawEndpoint[],
 	outDir: string,
-	options: Pick<RawRecorderOptions, "fetchImpl"> = {},
+	options: Pick<RawRecorderOptions, "fetchImpl"> & { check?: (text: string) => void } = {},
 ): Promise<string[]>
 {
 	const doFetch = options.fetchImpl ?? ((input, init) => fetch(input, init));
@@ -178,7 +226,9 @@ export async function recordEndpoints(
 			throw new Error(`MLB Stats API ${response.status} for ${endpoint.url}`);
 		}
 		// Verbatim bytes — `fixtures/raw` is in .prettierignore and must stay exact.
-		await writeFile(path.join(rawDir, `${endpoint.name}.json`), await response.text());
+		const text = await response.text();
+		options.check?.(text);
+		await writeFile(path.join(rawDir, `${endpoint.name}.json`), text);
 		written.push(`${endpoint.name}.json`);
 	}
 	return written;
@@ -226,17 +276,7 @@ export async function recordNormalized(
 	await writeJson(path.join(outDir, `plays-${gamePk}.json`), (plays ?? []) as AtBat[]);
 	written.push(`plays-${gamePk}.json`);
 
-	// Precedence (S160): FixtureMlbStatsClient.fetchStandings serves `raw/standings-<date>.json` when
-	// it can read it, and this mapped file only for a day with no recording. So this file is the
-	// fallback, never a way to refresh a recorded day on its own: `record-fixtures` runs `recordRaw`
-	// (whose `standings-<date>` endpoint rewrites the recording) before this, in the same run. A
-	// caller that runs this path alone over a recorded day leaves the old recording served.
-	const standings = await client.fetchStandings(date);
-	await writeJson(path.join(outDir, `standings-${date}.json`), {
-		date: standings.date,
-		divisions: standings.divisions,
-	});
-	written.push(`standings-${date}.json`);
+	written.push(await recordStandings(client, date, outDir));
 
 	const ids = target.playerIds ?? [];
 	if (ids.length > 0)
@@ -248,6 +288,35 @@ export async function recordNormalized(
 		written.push(`players-${gamePk}.json`);
 	}
 	return written;
+}
+
+/**
+ * Writes `standings-<date>.json`, the day's table as `client` maps it, and returns its name.
+ *
+ * Precedence (S160): FixtureMlbStatsClient.fetchStandings serves `raw/standings-<date>.json` when
+ * it can read it, and this mapped file only for a day with no recording. So this file is the
+ * fallback, never a way to refresh a recorded day on its own: `record-fixtures`' game form records
+ * the raw `standings-<date>` through `recordRaw` before `recordNormalized` calls this, in the same run,
+ * and its day form uses `recordStandingsDay` instead, which records the raw table first and writes the
+ * mapped file from that same answer rather than asking a client. A caller that runs this alone over
+ * a recorded day leaves the old recording served.
+ */
+export async function recordStandings(client: MlbStatsClient, date: string, outDir: string): Promise<string>
+{
+	return writeStandings(outDir, date, await client.fetchStandings(date));
+}
+
+/** Writes a day's table as `standings-<date>.json` (its date and tables only) and returns the name. */
+async function writeStandings(outDir: string, date: string, standings: StandingsSnapshot): Promise<string>
+{
+	await mkdir(outDir, {
+		recursive: true,
+	});
+	await writeJson(path.join(outDir, `standings-${date}.json`), {
+		date: standings.date,
+		divisions: standings.divisions,
+	});
+	return `standings-${date}.json`;
 }
 
 export type RecordedGame = Omit<Unversioned<GameSnapshot>, "fetchedAt" | "windowMode">;

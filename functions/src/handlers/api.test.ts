@@ -624,3 +624,52 @@ describe("GET /api/v1/standings champion (S140)", () =>
 		}, () => new Date("2026-11-18T15:00:00Z"), undefined, mlb);
 	});
 });
+
+describe("GET /api/v1/standings before 1969 (S155 AC 3)", () =>
+{
+	/** Each table's league, name, team count and first and last team. */
+	const outline = (table: StandingsSnapshot) => table.divisions.map((d) => [
+		d.divisionId, d.leagueId, d.name, d.teams.length, d.teams[0]?.abbreviation, d.teams.at(-1)?.abbreviation,
+	]);
+
+	it("1950-07-04: the two league tables at the top and in the regular season phase", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			const body = await standingsJson(base, "?date=1950-07-04");
+			const leagues = [
+				[null, 103, "American League", 8, "DET", "SLB"],
+				[null, 104, "National League", 8, "STL", "PIT"],
+			];
+			expect(body).toMatchObject({
+				phase: "regularSeason",
+				season: 1950,
+				date: "1950-07-04",
+			});
+			expect(outline(body)).toEqual(leagues);
+			expect(outline(body.phases.regularSeason!.table!)).toEqual(leagues);
+			// 1950 had no spring MLB records.
+			expect(body.phases.spring).toBeNull();
+		});
+	});
+
+	it("1950-12-01: after the season, 1950's final table, from its last regular-season day, as fetchFinalStandings(1950) maps it", async () =>
+	{
+		const final = await new FixtureMlbStatsClient().fetchFinalStandings(1950);
+		await withServer(async (base) =>
+		{
+			const body = await standingsJson(base, "?date=1950-12-01");
+			expect(body).toMatchObject({
+				phase: "final",
+				season: 1950,
+				date: "1950-10-01",
+			});
+			expect(outline(body)).toEqual([
+				[null, 103, "American League", 8, "NYY", "PHA"],
+				[null, 104, "National League", 8, "PHI", "PIT"],
+			]);
+			expect(stable(body.divisions)).toEqual(stable(final.divisions));
+			expect(stable(body.phases.regularSeason!.table!.divisions)).toEqual(stable(final.divisions));
+		});
+	});
+});

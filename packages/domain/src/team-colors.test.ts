@@ -8,7 +8,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	contrastRatio, contrastSafeTeamColor, DARK_GROUND, divisionName, teamColor,
+	contrastRatio, contrastSafeTeamColor, DARK_GROUND, divisionName, leagueName, teamColor,
 } from "./team-colors.js";
 import { MLB_TEAMS } from "./teams.js";
 
@@ -91,5 +91,21 @@ describe("divisionName (S61)", () =>
 	it("divisionName: an unknown id has none", () =>
 	{
 		expect(divisionName(999)).toBeUndefined();
+	});
+});
+
+describe("leagueName (S155)", () =>
+{
+	it("leagueName: names the two leagues in the 1950-07-04 recording", () =>
+	{
+		const recording = JSON.parse(readFileSync(new URL("../../../fixtures/raw/standings-1950-07-04.json", import.meta.url), "utf8")) as {
+			records: { league: { id: number } }[];
+		};
+		expect(recording.records.map((group) => leagueName(group.league.id))).toEqual(["American League", "National League"]);
+	});
+
+	it("leagueName: an unknown id has none", () =>
+	{
+		expect(leagueName(999)).toBeUndefined();
 	});
 });

@@ -84,6 +84,30 @@ describe("mapSeasonCalendar", () =>
 		expect(mapSeasonCalendar(parseSeasonsResponse(raw("seasons-2027.json")), parseScheduleResponse(raw("worldseries-2027.json")))).not.toHaveProperty("champion");
 	});
 
+	it("S155 AC 3: 1950, with no springStartDate, starts on its first regular-season day and keeps its last one", () =>
+	{
+		const s1950 = parseSeasonsResponse(raw("seasons-1950.json"));
+		expect(s1950.seasons[0]?.springStartDate).toBeUndefined();
+		expect(mapSeasonCalendar(s1950, parseScheduleResponse(raw("worldseries-1950.json")))).toMatchObject({
+			season: 1950,
+			springStartDate: "1950-04-18",
+			regularSeasonStartDate: "1950-04-18",
+			regularSeasonEndDate: "1950-10-01",
+			lastGameDate: "1950-10-07",
+		});
+	});
+
+	it("S155 AC 3: a season with neither a springStartDate nor a last regular-season day is still null", () =>
+	{
+		expect(mapSeasonCalendar(parseSeasonsResponse({
+			seasons: [{
+				seasonId: "1950",
+				regularSeasonStartDate: "1950-04-18",
+				postSeasonEndDate: "1950-10-07",
+			}],
+		}), noSeries)).toBeNull();
+	});
+
 	it("an unpublished season is null", () =>
 	{
 		expect(mapSeasonCalendar({

@@ -140,8 +140,8 @@ describe("calendar cache (S139)", () =>
 		expect(await store.get(2025)).toBeUndefined();
 	});
 
-	it("calendar cache: the Workers Cache key carries the calendar's shape version, so a calendar kept by older code isn't read as complete (S140)", () =>
+	it("calendar cache: the Workers Cache key carries the calendar's shape version, so a calendar kept by older code isn't read as complete (S140), and v3 since S155 gave a season with no spring dates a calendar where it had none", () =>
 	{
-		expect(seasonCalendarCacheKey(2026)).toBe("https://season-calendars.bt.internal/v2/2026");
+		expect(seasonCalendarCacheKey(2026)).toBe("https://season-calendars.bt.internal/v3/2026");
 	});
 });

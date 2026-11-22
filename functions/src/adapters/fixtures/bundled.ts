@@ -19,19 +19,24 @@ import plays744834 from "../../../../fixtures/plays-744834.json" with { type: "j
 import plays823823 from "../../../../fixtures/plays-823823.json" with { type: "json" };
 import graphContent823823 from "../../../../fixtures/raw/graphql-content-823823.json" with { type: "json" };
 import playMetrics823823 from "../../../../fixtures/raw/playmetrics-823823.json" with { type: "json" };
+import seasons1950 from "../../../../fixtures/raw/seasons-1950.json" with { type: "json" };
 import seasons2025 from "../../../../fixtures/raw/seasons-2025.json" with { type: "json" };
 import seasons2026 from "../../../../fixtures/raw/seasons-2026.json" with { type: "json" };
 import seasons2027 from "../../../../fixtures/raw/seasons-2027.json" with { type: "json" };
+import rawStandings19500704 from "../../../../fixtures/raw/standings-1950-07-04.json" with { type: "json" };
+import standings1950Final from "../../../../fixtures/raw/standings-1950-final.json" with { type: "json" };
 import rawStandings20260905 from "../../../../fixtures/raw/standings-2026-09-05.json" with { type: "json" };
 import rawStandings20260912 from "../../../../fixtures/raw/standings-2026-09-12.json" with { type: "json" };
 import standings2026Final from "../../../../fixtures/raw/standings-2026-final.json" with { type: "json" };
 import standings2026Spring from "../../../../fixtures/raw/standings-2026-spring.json" with { type: "json" };
 import standings2027Final from "../../../../fixtures/raw/standings-2027-final.json" with { type: "json" };
+import worldSeries1950 from "../../../../fixtures/raw/worldseries-1950.json" with { type: "json" };
 import worldSeries2025 from "../../../../fixtures/raw/worldseries-2025.json" with { type: "json" };
 import worldSeries2026 from "../../../../fixtures/raw/worldseries-2026.json" with { type: "json" };
 import worldSeries2027 from "../../../../fixtures/raw/worldseries-2027.json" with { type: "json" };
 import schedule20240704 from "../../../../fixtures/schedule-2024-07-04.json" with { type: "json" };
 import schedule20260905 from "../../../../fixtures/schedule-2026-09-05.json" with { type: "json" };
+import standings19500704 from "../../../../fixtures/standings-1950-07-04.json" with { type: "json" };
 import standings20260905 from "../../../../fixtures/standings-2026-09-05.json" with { type: "json" };
 import standings20260912 from "../../../../fixtures/standings-2026-09-12.json" with { type: "json" };
 import { FixtureClient } from "./fixture-client.js";
@@ -50,20 +55,26 @@ export const BUNDLED_FIXTURES: Readonly<Record<string, unknown>> = {
 	// MLB's recorded GraphQL game content (S94).
 	"raw/graphql-content-823823.json": graphContent823823,
 	// The recorded season calendars and World Series (S111), for the scoreboard's default day.
+	// 1950 (S155): a season before divisions, and before MLB gave spring dates.
+	"raw/seasons-1950.json": seasons1950,
 	"raw/seasons-2025.json": seasons2025,
 	"raw/seasons-2026.json": seasons2026,
 	"raw/seasons-2027.json": seasons2027,
 	// MLB's recorded tables for the dated days (S160), mapped by fetchStandings.
+	"raw/standings-1950-07-04.json": rawStandings19500704,
+	"raw/standings-1950-final.json": standings1950Final,
 	"raw/standings-2026-09-05.json": rawStandings20260905,
 	"raw/standings-2026-09-12.json": rawStandings20260912,
 	"raw/standings-2026-final.json": standings2026Final,
 	"raw/standings-2026-spring.json": standings2026Spring,
 	"raw/standings-2027-final.json": standings2027Final,
+	"raw/worldseries-1950.json": worldSeries1950,
 	"raw/worldseries-2025.json": worldSeries2025,
 	"raw/worldseries-2026.json": worldSeries2026,
 	"raw/worldseries-2027.json": worldSeries2027,
 	"schedule-2024-07-04.json": schedule20240704,
 	"schedule-2026-09-05.json": schedule20260905,
+	"standings-1950-07-04.json": standings19500704,
 	"standings-2026-09-05.json": standings20260905,
 	"standings-2026-09-12.json": standings20260912,
 };

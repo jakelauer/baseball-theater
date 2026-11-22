@@ -587,3 +587,73 @@ describe("standingsChampion (S140 AC 2)", () =>
 		}])).toBeNull();
 	});
 });
+
+describe("a season with no spring (S155 AC 3)", () =>
+{
+	// 1950 as `mapSeasonCalendar` maps MLB's recording: no springStartDate, so it starts on opening day.
+	const raw = JSON.parse(readFileSync(new URL("../../../fixtures/raw/seasons-1950.json", import.meta.url), "utf8")) as {
+		seasons: Array<Record<string, string>>;
+	};
+	const s = raw.seasons[0]!;
+	const S1950: SeasonCalendar = {
+		season: 1950,
+		springStartDate: s.regularSeasonStartDate!,
+		lastGameDate: s.postSeasonEndDate!,
+		regularSeasonStartDate: s.regularSeasonStartDate!,
+		regularSeasonEndDate: s.regularSeasonEndDate!,
+	};
+
+	it("an off-season day answers the season's final, as of its last regular-season day", () =>
+	{
+		expect(standingsPhase("1950-12-01", [S1950])).toEqual({
+			phase: "final",
+			season: 1950,
+			date: "1950-10-01",
+		});
+		expect(standingsPhases("1950-12-01", [S1950]).regularSeason.pick).toEqual({
+			phase: "final",
+			season: 1950,
+			date: "1950-10-01",
+		});
+	});
+
+	it("a regular-season day answers the day's table, with no spring phase", () =>
+	{
+		const plan = standingsPhases("1950-07-04", [S1950]);
+		expect(plan.spring).toBeNull();
+		expect(plan.regularSeason).toEqual({
+			startDate: "1950-04-18",
+			endDate: "1950-10-01",
+			pick: {
+				phase: "regularSeason",
+				season: 1950,
+				date: "1950-07-04",
+			},
+		});
+		expect(standingsPhase("1950-07-04", [S1950]).phase).toBe("regularSeason");
+	});
+
+	it("opening day falls back to the previous season's final, never a spring table", () =>
+	{
+		const opening = standingsPhase("1950-04-18", [S1950]);
+		expect(previousStandingsPhase(opening, [S1950])).toBeNull();
+		const S1951: SeasonCalendar = {
+			...S1950,
+			season: 1951,
+			springStartDate: "1951-04-17",
+			regularSeasonStartDate: "1951-04-17",
+			regularSeasonEndDate: "1951-09-30",
+			lastGameDate: "1951-10-10",
+		};
+		expect(previousStandingsPhase(standingsPhase("1951-04-17", [S1950, S1951]), [S1950, S1951])).toEqual({
+			phase: "final",
+			season: 1950,
+			date: "1950-10-01",
+		});
+	});
+
+	it("a season with spring days keeps its spring phase", () =>
+	{
+		expect(standingsPhases("2026-03-01", ALL).spring).not.toBeNull();
+	});
+});
