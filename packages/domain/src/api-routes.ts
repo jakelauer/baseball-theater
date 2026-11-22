@@ -18,6 +18,7 @@
  * (still a passthrough today), not in a rewrite of the route table.
  */
 import type { DigestItem } from "./digest.js";
+import type { ReleaseNotes } from "./release-notes.js";
 import type { ScheduleDayCount } from "./schedule-month.js";
 import type { AccountSettings } from "./settings.js";
 import type { StandingsChampion } from "./standings-phase.js";
@@ -232,6 +233,21 @@ export interface SignInResponse {
 	token: string;
 }
 
+/**
+ * Every approved release's fan-facing notes (S132), for the change log page (S134). Read from the
+ * notes bundled into this build (`pnpm release:bundle`), never from MLB or the database.
+ */
+export interface ReleasesResponse {
+	/**
+	 * The newest approved release in this build's notes (`currentRelease`, S131); null before any
+	 * release has approved notes. On staging it can trail the version line, which names the pull
+	 * request's milestone, a release not yet published.
+	 */
+	current: ReleaseNotes | null;
+	/** Every approved release's notes, newest first (`approvedReleasesNewestFirst`); a draft never appears. */
+	releases: ReleaseNotes[];
+}
+
 /** Registry a route's response-type name is checked against — no unenforced string keys. */
 export interface ApiResponseTypes {
 	ScheduleDayResponse: ScheduleDayResponse;
@@ -247,6 +263,7 @@ export interface ApiResponseTypes {
 	SettingsResponse: SettingsResponse;
 	SignInConfigResponse: SignInConfigResponse;
 	SignInResponse: SignInResponse;
+	ReleasesResponse: ReleasesResponse;
 	ApiErrorResponse: ApiErrorResponse;
 }
 
@@ -271,6 +288,7 @@ export const ApiRoutes = {
 	"PUT /api/v1/me/settings": "SettingsResponse",
 	"GET /api/v1/sign-in": "SignInConfigResponse",
 	"POST /api/v1/sign-in": "SignInResponse",
+	"GET /api/v1/releases": "ReleasesResponse",
 } as const satisfies Record<string, keyof ApiResponseTypes>;
 
 export type ApiRoute = keyof typeof ApiRoutes;

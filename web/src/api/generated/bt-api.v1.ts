@@ -124,6 +124,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every approved release's fan-facing notes, newest first, and `current`, the newest of them (null before any release has approved notes). The notes are bundled into the build; a draft is never returned. Cacheable for at most five minutes in all, so a release's notes show within minutes of its deploy. */
+        get: operations["getReleases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/schedule": {
         parameters: {
             query?: never;
@@ -638,6 +655,49 @@ export interface components {
             blurb: string | null;
             headline: string;
             slug: string;
+        };
+        /** @description The owner's sign-off: the calendar date they approved the notes and their words, quoted. */
+        ReleaseApproval: {
+            date: string;
+            quote: string;
+        };
+        /** @description A change in the notes: a short title and the one sentence that explains it to a fan. */
+        ReleaseEntry: {
+            sentence: string;
+            title: string;
+        };
+        /** @description A change that gets its own entry on the change log page, labelled with its kind. */
+        ReleaseItem: {
+            kind: components["schemas"]["ReleaseItemKind"];
+            sentence: string;
+            title: string;
+        };
+        /**
+         * @description One of  {@link  RELEASE_ITEM_KINDS } .
+         * @enum {string}
+         */
+        ReleaseItemKind: "feature" | "enhancement" | "performance" | "fix";
+        /** @description One release's notes, as `releases/<version>.json` holds them. An entry is in `headline` or `items`, never both. Notes with no `approval` are a draft: nothing publishes from them and  {@link  currentRelease }  ignores them. */
+        ReleaseNotes: {
+            /** @description The owner's in-session approval, dated and quoted; absent on a draft, which never deploys. */
+            approval?: components["schemas"]["ReleaseApproval"];
+            /** @description A calendar date, `YYYY-MM-DD`, if given. The release procedure (CLAUDE.md, step (4)) leaves it empty: the file is frozen in the release commit before the day the release ships, and the GitHub Release records that day. */
+            date?: string;
+            /** @description The one sentence that stands for every minor fix and bit of polish. */
+            fixesAndPolish?: string;
+            /** @description The really big additions. */
+            headline: components["schemas"]["ReleaseEntry"][];
+            /** @description Every other change with an entry of its own. */
+            items: components["schemas"]["ReleaseItem"][];
+            /** @description `vMAJOR.MINOR.PATCH` ( {@link  parseReleaseVersion } ). */
+            version: string;
+        };
+        /** @description Every approved release's fan-facing notes (S132), for the change log page (S134). Read from the notes bundled into this build (`pnpm release:bundle`), never from MLB or the database. */
+        ReleasesResponse: {
+            /** @description The newest approved release in this build's notes (`currentRelease`, S131); null before any release has approved notes. On staging it can trail the version line, which names the pull request's milestone, a release not yet published. */
+            current: components["schemas"]["ReleaseNotes"] | null;
+            /** @description Every approved release's notes, newest first (`approvedReleasesNewestFirst`); a draft never appears. */
+            releases: components["schemas"]["ReleaseNotes"][];
         };
         /**
          * @description What a user may administer. Lives in BT, not the identity provider (ADR-019: no provider RBAC).
@@ -1280,6 +1340,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getReleases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleasesResponse"];
                 };
             };
             /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */

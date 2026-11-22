@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	compareReleaseVersions, currentRelease, isApproved, parseReleaseNotes, parseReleaseVersion, type ReleaseNotes,
+	approvedReleasesNewestFirst, compareReleaseVersions, currentRelease, isApproved, parseReleaseNotes, parseReleaseVersion, type ReleaseNotes,
 } from "./release-notes.js";
 
 /** A complete, approved notes file; each test changes one thing about it. */
@@ -321,6 +321,14 @@ describe("currentRelease (S131 AC 2)", () =>
 	{
 		expect(currentRelease([])).toBeNull();
 		expect(currentRelease([notes("v4.0.0", false)])).toBeNull();
+	});
+
+	it("S132 AC 1 newest first: approvedReleasesNewestFirst lists only approved notes, newest version first, numerically", () =>
+	{
+		const all = [notes("v4.2.0", true), notes("v4.11.0", false), notes("v4.10.0", true), notes("v4.9.1", true)];
+		expect(approvedReleasesNewestFirst(all).map((n) => n.version)).toEqual(["v4.10.0", "v4.9.1", "v4.2.0"]);
+		expect(approvedReleasesNewestFirst([notes("v4.0.0", false)])).toEqual([]);
+		expect(currentRelease(all)).toBe(approvedReleasesNewestFirst(all)[0]);
 	});
 
 	it("isApproved needs a real date and a non-empty quote", () =>
