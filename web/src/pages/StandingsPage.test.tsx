@@ -191,6 +191,35 @@ describe("StandingsPage before 1969 (S155 AC 4)", () =>
 	});
 });
 
+describe("StandingsPage footer (S148)", () =>
+{
+	it("S148 AC 1 Standings: it opens no socket, so it ends with no footer line: no 'Fetched … ago', no 'baseball.theater'", async () =>
+	{
+		serve(() => jsonResponse(STANDINGS));
+		const { container } = render(
+			<MantineProvider>
+				<QueryClientProvider client={createQueryClient()}>
+					<MemoryRouter initialEntries={["/standings?date=2026-09-05"]}>
+						<StandingsPage />
+					</MemoryRouter>
+				</QueryClientProvider>
+			</MantineProvider>,
+		);
+		expect(await screen.findByText("New York Yankees")).toBeInTheDocument();
+		expect(screen.queryByRole("contentinfo")).toBeNull();
+		expect(container).not.toHaveTextContent(/Fetched|baseball\.theater/);
+	});
+
+	it("S148 AC 3: Standings never shows the Live marker or its strip", async () =>
+	{
+		serve(() => jsonResponse(STANDINGS));
+		renderStandings();
+		expect(await screen.findByText("New York Yankees")).toBeInTheDocument();
+		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
+		expect(screen.queryByText("Live Data · Active")).toBeNull();
+	});
+});
+
 /*
  * S130: the three views. Each answer is built the way the API builds it (S139): every phase's dates
  * always, a phase's table only when the request's `includePhases` names it, the top-level table S128's.
