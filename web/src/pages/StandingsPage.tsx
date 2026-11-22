@@ -17,7 +17,7 @@ import { DivisionTable } from "../components/standings/DivisionTable.js";
 import { ViewSwitch } from "../components/standings/ViewSwitch.js";
 import { VIEW_LABELS } from "../components/standings/viewLabels.js";
 import { formatLongDate } from "../format/datetime.js";
-import { FooterMeta } from "../layout/FooterMeta.js";
+import { SiteFooter } from "../layout/SiteFooter.js";
 import type { LayoutVariant } from "../layout/variant.js";
 
 type Table = Pick<StandingsPayload, "divisions">;
@@ -200,7 +200,8 @@ export function StandingsPage({ variant = "desktop" }: { variant?: LayoutVariant
 /**
  * The page under its heading once a table is in: the switch (marking `shown`, the view the address
  * asks for, even while its table is still on its way), the World Series box, the drawn view's tables
- * and the clinch legend (in the switch's panel when there is a switch), then the footer line.
+ * and the clinch legend (in the switch's panel when there is a switch), then the site footer, which
+ * on Standings draws nothing: the page opens no WebSocket, so no Live marker (S148; A13 Which pages).
  */
 function StandingsBody({
 	display, shown, day, date, variant, onChoose,
@@ -262,7 +263,7 @@ function StandingsBody({
 			{views && views.offered.length > 1
 				? <ViewSwitch offered={views.offered} shown={shown} onChoose={onChoose}>{content}</ViewSwitch>
 				: content}
-			<FooterMeta fetchedAt={answer.fetchedAt} />
+			<SiteFooter live={false} />
 		</>
 	);
 }

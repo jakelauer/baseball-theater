@@ -13,7 +13,7 @@ import { DayDigest } from "../components/scoreboard/DayDigest.js";
 import { DateControl } from "../components/scoreboard/DateControl.js";
 import { ScoreboardModule } from "../components/scoreboard/ScoreboardModule.js";
 import { formatDate } from "../format/datetime.js";
-import { FooterMeta } from "../layout/FooterMeta.js";
+import { SiteFooter } from "../layout/SiteFooter.js";
 import type { LayoutVariant } from "../layout/variant.js";
 import { useSettings } from "../settings/store.js";
 
@@ -113,7 +113,8 @@ function ScoreboardDay({ date, variant }: { date: string;
 			<>
 				<Games day={day} variant={variant} />
 				<DayDigest date={day.date} variant={variant} />
-				<FooterMeta fetchedAt={day.fetchedAt} />
+				{/* The scoreboard opens no WebSocket yet: S149 adds its live connection and wires this. */}
+				<SiteFooter live={false} />
 			</>
 		);
 	}
