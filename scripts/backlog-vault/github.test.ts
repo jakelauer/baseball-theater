@@ -88,6 +88,13 @@ function issue(over: Partial<CachedIssue> & { title: string }): CachedIssue
 	};
 }
 
+/**
+ * The clock every sync here runs on. github-fake.ts answers with a fixed date (21 Nov 2026), and a
+ * sync re-lists in full once its last full sync is over a day older than its clock, so a test on the
+ * real clock turned full a day after that date and failed every run from 2026-11-22.
+ */
+const fakeNow = (): Date => new Date("2026-11-21T01:00:00Z");
+
 describe("sync (AC 1)", () =>
 {
 	it("follows pagination through the Link header and writes every issue to the cache", () =>
@@ -104,6 +111,7 @@ describe("sync (AC 1)", () =>
 			});
 		}
 		const result = syncIssues(dir, {
+			now: fakeNow,
 			run: fake.run,
 			env,
 		});
@@ -123,6 +131,7 @@ describe("sync (AC 1)", () =>
 			}],
 		});
 		syncIssues(dir, {
+			now: fakeNow,
 			run: fake.run,
 			env,
 		});
@@ -152,6 +161,7 @@ describe("sync (AC 1)", () =>
 		expect(second.full).toBe(false);
 		expect(fake.calls.at(-1)!.path).toContain(`since=${encodeURIComponent(first.cache.syncedAt)}`);
 		expect(syncIssues(dir, {
+			now: fakeNow,
 			run: fake.run,
 			env,
 			full: true,
@@ -190,12 +200,14 @@ describe("sync (AC 1)", () =>
 			}],
 		});
 		syncIssues(dir, {
+			now: fakeNow,
 			run: fake.run,
 			env,
 		});
 		a.gone = "deleted";
 		b.gone = "transferred";
 		const result = syncIssues(dir, {
+			now: fakeNow,
 			run: fake.run,
 			env,
 			full: true,
@@ -227,12 +239,14 @@ describe("sync (AC 1)", () =>
 			}],
 		});
 		syncIssues(dir, {
+			now: fakeNow,
 			run: fake.run,
 			env,
 		});
 		a.gone = "deleted";
 		b.gone = "transferred";
 		const result = syncIssues(dir, {
+			now: fakeNow,
 			run: fake.run,
 			env,
 		});
@@ -736,11 +750,13 @@ describe("the state commands and the overlay (AC 1, AC 3)", () =>
 			}],
 		});
 		syncIssues(dir, {
+			now: fakeNow,
 			run: fake.run,
 			env,
 		});
 		gone.gone = "deleted";
 		const result = syncIssues(dir, {
+			now: fakeNow,
 			run: fake.run,
 			env,
 			full: true,
@@ -826,6 +842,7 @@ describe("trusted IDs, accepted bugs and broken items (AC 1)", () =>
 			}],
 		});
 		syncIssues(dir, {
+			now: fakeNow,
 			run: fake.run,
 			env,
 		});
@@ -838,6 +855,7 @@ describe("trusted IDs, accepted bugs and broken items (AC 1)", () =>
 			})
 			: undefined);
 		const result = syncIssues(dir, {
+			now: fakeNow,
 			run: fake.run,
 			env,
 		});
