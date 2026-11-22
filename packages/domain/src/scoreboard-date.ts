@@ -26,7 +26,10 @@ export interface SeasonChampion {
 /** The days that bound one season, as BT needs them. */
 export interface SeasonCalendar {
 	season: number;
-	/** The first spring training game's day (MLB's `springStartDate`). */
+	/**
+	 * The first spring training game's day (MLB's `springStartDate`), or, for a season MLB gives no
+	 * spring for, its first regular-season day (S155, `mapSeasonCalendar`).
+	 */
 	springStartDate: string;
 	/**
 	 * The last postseason game's day: the World Series final once it has been played,

@@ -1,6 +1,7 @@
 /**
  * Pure upstream → BT mapper for one season's calendar (S111): the first spring game's day
- * from MLB's season calendar, and the last postseason game's day from that season's World
+ * from MLB's season calendar (or, for a season MLB gives no spring for, its first regular-season
+ * day, S155), and the last postseason game's day from that season's World
  * Series schedule. MLB's `postSeasonEndDate` is the scheduled end of the window and is
  * corrected to the real final only later (2026 read 10-31 after a 10-28 final), so the
  * World Series' last game wins once one is listed; before the Series is scheduled the
@@ -9,7 +10,8 @@
  * World Series winner and the day it was won (S140) come from the same schedule, so they cost no
  * request of their own.
  *
- * A season MLB gives no `springStartDate` for (every season before 2010, such as 1950) but whose
+ * A season MLB gives no `springStartDate` for (such as 1950: MLB gives none for the early seasons
+ * the recordings show; what counts is the field being absent, not the year) but whose
  * regular-season days it does give starts on its first regular-season day: it had no spring MLB
  * records, and without a calendar an off-season day would fall to that day's own table, which MLB
  * doesn't keep. With one, the day after `regularSeasonEndDate` answers the season's final table

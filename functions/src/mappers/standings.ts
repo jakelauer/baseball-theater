@@ -66,6 +66,18 @@ export function mapStandingsTeam(entry: StandingsRecordEntry): StandingsTeamReco
 }
 
 /**
+ * A rank sort's comparator: lower ranks first, rows with no rank after every ranked row, and two
+ * unranked rows equal, so the stable sort keeps them in the order MLB sent them. Explicit rather than
+ * `Infinity - Infinity`, which is NaN and only happens to sort as equal.
+ */
+function byRank(a: number | null, b: number | null): number
+{
+	if (a === null) return b === null ? 0 : 1;
+	if (b === null) return -1;
+	return a - b;
+}
+
+/**
  * One record group as a table. A group with a division is that division's, its teams by division
  * rank. A group with no division is a whole league's (S155: before 1969 the leagues had none, and
  * MLB sends each as one group, fixtures/raw/standings-1950-07-04.json): it is named for its league
@@ -79,10 +91,10 @@ export function mapStandingsDivision(group: StandingsRecordGroup): StandingsDivi
 	if (!group.division)
 	{
 		const ranked = rows.map((row) => ({
-			rank: toRank(row.leagueRank) ?? Infinity,
+			rank: toRank(row.leagueRank),
 			team: mapStandingsTeam(row),
 		}));
-		ranked.sort((a, b) => a.rank - b.rank);
+		ranked.sort((a, b) => byRank(a.rank, b.rank));
 		return {
 			divisionId: null,
 			name: leagueId === null ? null : leagueName(leagueId) ?? null,
@@ -91,7 +103,7 @@ export function mapStandingsDivision(group: StandingsRecordGroup): StandingsDivi
 		};
 	}
 	const teams = rows.map(mapStandingsTeam);
-	teams.sort((a, b) => (a.divisionRank ?? Infinity) - (b.divisionRank ?? Infinity));
+	teams.sort((a, b) => byRank(a.divisionRank, b.divisionRank));
 	// The group's own division ref is unnamed; the readable name is on each row.
 	const named = rows.find((row) => row.team?.division?.name);
 	return {

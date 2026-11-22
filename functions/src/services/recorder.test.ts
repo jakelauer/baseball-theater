@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-	describe, expect, it,
+	afterEach, describe, expect, it, vi,
 } from "vitest";
 import type {
 	AtBat,
@@ -29,13 +29,15 @@ import type {
 } from "@bt/domain";
 import { datesBetween } from "@bt/domain";
 import type { GameDiffPatchResponse } from "@bt/mlb-api";
+import { parseStandingsResponse } from "@bt/mlb-api";
 import type { MlbStatsClient } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
 	finalStandingsUrl, graphContentRequest, seasonsUrl, springStandingsUrl, standingsUrl, worldSeriesUrl,
 } from "../adapters/http/mlb.js";
+import { mapStandings } from "../mappers/standings.js";
 import {
-	rawEndpoints, recordEndpoints, recordNormalized, recordRaw, recordStandings, seasonEndpoints, standingsDayEndpoints,
+	rawEndpoints, recordEndpoints, recordNormalized, recordRaw, recordStandingsDay, seasonEndpoints, standingsDayEndpoints,
 } from "./recorder.js";
 
 const FIXTURES = path.resolve(
@@ -146,6 +148,11 @@ class FakeMlbStatsClient implements MlbStatsClient
 
 describe("fixture recorder", () =>
 {
+	afterEach(() =>
+	{
+		vi.unstubAllGlobals();
+	});
+
 	it("raw path writes verbatim upstream bytes through the injected fetch", async () =>
 	{
 		const out = await mkdtemp(path.join(tmpdir(), "bt-raw-"));
@@ -346,13 +353,43 @@ describe("fixture recorder", () =>
 		}]);
 		const out = await mkdtemp(path.join(tmpdir(), "bt-standings-day-"));
 		const recording = await readFile(path.join(FIXTURES, "raw", "standings-1950-07-04.json"), "utf8");
-		expect(await recordEndpoints(standingsDayEndpoints("1950-07-04", ""), out, {
-			fetchImpl: (async () => new Response(recording)) as unknown as typeof fetch,
-		})).toEqual(["standings-1950-07-04.json"]);
+		// A second request, on the live network or anywhere else, would answer a different table.
+		const other = await readFile(path.join(FIXTURES, "raw", "standings-1950-final.json"), "utf8");
+		const globalFetch = vi.fn(async () => new Response(other));
+		vi.stubGlobal("fetch", globalFetch);
+		let injectedCalls = 0;
+		const fetchImpl = (async () =>
+		{
+			injectedCalls += 1;
+			return new Response(injectedCalls === 1 ? recording : other);
+		}) as unknown as typeof fetch;
+		expect(await recordStandingsDay("1950-07-04", out, {
+			fetchImpl,
+		})).toEqual(["raw/standings-1950-07-04.json", "standings-1950-07-04.json"]);
+		expect(injectedCalls).toBe(1);
+		expect(globalFetch).not.toHaveBeenCalled();
 		expect(await readFile(path.join(out, "raw", "standings-1950-07-04.json"), "utf8")).toBe(recording);
-		// The mapped file, written through the client from that recording, is the committed one.
-		expect(await recordStandings(new FixtureMlbStatsClient(out), "1950-07-04", out)).toBe("standings-1950-07-04.json");
-		expect(JSON.parse(await readFile(path.join(out, "standings-1950-07-04.json"), "utf8"))).toEqual(await readFixture("standings-1950-07-04.json"));
+		// The mapped file is the mapper's output on that one recording, and so the committed one.
+		const expected = mapStandings(parseStandingsResponse(JSON.parse(recording)), "1950-07-04");
+		const mapped: unknown = JSON.parse(await readFile(path.join(out, "standings-1950-07-04.json"), "utf8"));
+		expect(mapped).toEqual({
+			date: expected.date,
+			divisions: expected.divisions,
+		});
+		expect(mapped).toEqual(await readFixture("standings-1950-07-04.json"));
+	});
+
+	it("S155: a day's answer that isn't JSON fails loudly and leaves the mapped file as it was", async () =>
+	{
+		const out = await mkdtemp(path.join(tmpdir(), "bt-standings-day-bad-"));
+		const stale = "{\"date\":\"1950-07-04\",\"divisions\":[]}\n";
+		await writeFile(path.join(out, "standings-1950-07-04.json"), stale);
+		vi.stubGlobal("fetch", vi.fn(async () => new Response("{\"records\":[]}")));
+		await expect(recordStandingsDay("1950-07-04", out, {
+			fetchImpl: (async () => new Response("<html>maintenance</html>")) as unknown as typeof fetch,
+		})).rejects.toThrow();
+		expect(await readFile(path.join(out, "standings-1950-07-04.json"), "utf8")).toBe(stale);
+		expect(await readdir(path.join(out, "raw"))).toEqual([]);
 	});
 
 	it("writes plays as a separate file, not inlined into the game", async () =>

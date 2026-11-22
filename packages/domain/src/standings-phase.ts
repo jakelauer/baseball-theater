@@ -48,8 +48,9 @@ function knownSeasons(seasons: readonly SeasonCalendar[]): KnownCalendar[]
 
 /**
  * True when the season had spring days (S155): its first day comes before its first regular-season
- * day. A season MLB gives no spring for (before 2010) starts on its first regular-season day
- * (`mapSeasonCalendar`), so it has no spring phase and no spring table.
+ * day. A season MLB gives no spring for (such as 1950; keyed on the field's absence, not the year)
+ * starts on its first regular-season day (`mapSeasonCalendar`), so it has no spring phase and no
+ * spring table.
  */
 function hasSpring(season: KnownCalendar): boolean
 {
@@ -174,7 +175,8 @@ export interface StandingsPhasesPlan {
  *
  * - **spring:** `springStartDate` through the day before `regularSeasonStartDate`; that spring's
  *   table as of the day, or as of its last day once the day is past it. Null for a season with no
- *   spring days (S155: before 2010 MLB gives none, so its calendar starts on opening day).
+ *   spring days (S155: MLB gives none for early seasons such as 1950, so its calendar starts on
+ *   opening day).
  * - **regularSeason:** `regularSeasonStartDate` through `regularSeasonEndDate`; the day's table
  *   inside those dates, the season's `final` after them, and no MLB table on a spring day (MLB has
  *   none before opening day).

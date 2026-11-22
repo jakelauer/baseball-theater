@@ -91,11 +91,16 @@ export interface WorkersCacheLike
 
 /**
  * The version of the `SeasonCalendar` shape the Workers Cache keeps (S140). Bump it whenever
- * `SeasonCalendar` gains a field: a calendar kept by older code lacks it, and would otherwise be read
- * as complete for up to a day after a deploy (S139's calendars, kept without S140's `champion`, would
- * name no winner and leave a past date's null in the standings' month-long edge cache).
+ * `SeasonCalendar` gains a field or a field's meaning changes, or the mapper starts answering a
+ * calendar where it answered none: a calendar kept by older code would otherwise be read as complete
+ * for up to a day after a deploy (S139's calendars, kept without S140's `champion`, would name no
+ * winner and leave a past date's null in the standings' month-long edge cache). v3 (S155): a season
+ * MLB gives no spring dates for, such as 1950, used to map to null and now maps to a calendar that
+ * starts on opening day. Since staging and production share these keys, old code would read that
+ * calendar as having a spring (old `standingsPhases` has no `hasSpring` guard), and new code would
+ * read old code's null and answer an off-season day with an empty dated table.
  */
-const CALENDAR_SHAPE_VERSION = "v2";
+const CALENDAR_SHAPE_VERSION = "v3";
 
 /**
  * The Workers Cache key a season's calendar is kept under: an internal address no request reaches,
