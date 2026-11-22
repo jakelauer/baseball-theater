@@ -11,7 +11,8 @@
  * a run after a stop, goes straight to the first incomplete day. A settled day stored before S167,
  * with a game lacking its `gameType` (`scheduleDayLacksGameType`), is fetched and re-stored once
  * in a run, so its month answer can say whether it was regular season; it then counts as complete
- * in that run whatever MLB sent, so it never holds the run's other work back. A game whose projection fell
+ * in that run whatever MLB sent, or when its request fails (its stored games carry on through the
+ * finals and repair steps), so it never holds the run's other work back. A game whose projection fell
  * behind its snapshot (a stop between `storeGame`'s two writes) is repaired from the stored
  * snapshot. The only state outside the database is each extra source's counted stretches
  * ({@link ResumeStore}, AC 8).
@@ -215,7 +216,8 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 
 		// The stored day is enough when it is settled and every game carries its type; otherwise
 		// MLB is asked again. An untyped settled day (stored before S167) is asked once here; the
-		// version guard lets its new types through, and it counts as complete whatever MLB sent.
+		// version guard lets its new types through, and it counts as complete whatever MLB sent, or
+		// with its stored games when the request fails.
 		let scheduleDay = await deps.schedules.getByDate(day);
 		let askedMlb = false;
 		if (!scheduleDay || !isScheduleDaySettled(scheduleDay, today) || scheduleDayLacksGameType(scheduleDay))
@@ -232,9 +234,17 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 			}
 			catch (error)
 			{
-				log(`${day}: MLB served no schedule (${error instanceof Error ? error.message : String(error)}); left for the next run`);
-				result.incomplete.push(day);
-				continue;
+				const reason = error instanceof Error ? error.message : String(error);
+				// Only a missing or unsettled day waits for the next run. A settled day asked only for its
+				// game types (stored before S167) carries on with what is stored, so its finals and any
+				// projection repair still run (S122 AC 4; S167 AC 4: it never holds the run's other work back).
+				if (!scheduleDay || !isScheduleDaySettled(scheduleDay, today))
+				{
+					log(`${day}: the schedule fetch or store failed (${reason}); left for the next run`);
+					result.incomplete.push(day);
+					continue;
+				}
+				log(`${day}: the schedule fetch or store failed (${reason}); its stored games keep no game type until a later run`);
 			}
 			if (!isScheduleDaySettled(scheduleDay, today)) complete = false;
 		}

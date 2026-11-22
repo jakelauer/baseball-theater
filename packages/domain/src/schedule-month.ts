@@ -23,7 +23,8 @@ export interface ScheduleDayTally
 	teamIds: number[];
 	/**
 	 * Each game's MLB `gameType` as stored (S167), one entry per game, so the list is as long as
-	 * `gameCount`; `null` for a game stored without one (before S167, or MLB sent none).
+	 * `gameCount`; `null` for a game stored without one (before S167, or MLB sent none), as
+	 * {@link storedGameType} reads it.
 	 */
 	gameTypes: (string | null)[];
 	/** {@link dayRegularSeason} of `gameTypes`, which both repository adapters call. */
@@ -87,7 +88,18 @@ export function distinctTeamIds(ids: Iterable<unknown>): number[]
 export function dayRegularSeason(gameTypes: readonly unknown[]): boolean | null
 {
 	if (gameTypes.includes("R")) return true;
-	return gameTypes.every((type) => typeof type === "string") ? false : null;
+	return gameTypes.every((type) => storedGameType(type) !== null) ? false : null;
+}
+
+/**
+ * A stored game's MLB game type (S167), or `null` when it has none. Anything but a string counts
+ * as untyped: missing (a game stored before S167, or MLB sent none), or a value a hand-edited or
+ * older document holds. ADR-025: the one test of "this game is typed", which both schedule
+ * repository adapters, {@link dayRegularSeason} and `scheduleDayLacksGameType` use.
+ */
+export function storedGameType(type: unknown): string | null
+{
+	return typeof type === "string" ? type : null;
 }
 
 /**

@@ -13,7 +13,9 @@
 import type {
 	AccountSettings, Entitlements, GameProjection, GameSnapshot, PatronTier, Role, ScheduleDay, ScheduleDayTally, UserProfile,
 } from "@bt/domain";
-import { dayRegularSeason, distinctTeamIds } from "@bt/domain";
+import {
+	dayRegularSeason, distinctTeamIds, storedGameType,
+} from "@bt/domain";
 import type {
 	DeletionLog,
 	DeletionLogEntry,
@@ -117,8 +119,8 @@ export class PostgresScheduleRepository implements ScheduleRepository
 		// A driver may hand `jsonb_array_length`'s integer back as a string; the port promises a number.
 		return rows.map((row) =>
 		{
-			// A stored type that isn't a string (hand-edited or older row) counts as no type.
-			const gameTypes = row.gameTypes.map((type) => typeof type === "string" ? type : null);
+			// A stored type that isn't a string (hand-edited or older row) counts as no type (`storedGameType`).
+			const gameTypes = row.gameTypes.map(storedGameType);
 			return {
 				...row,
 				gameCount: Number(row.gameCount),

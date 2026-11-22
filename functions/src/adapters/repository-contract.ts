@@ -370,5 +370,17 @@ export function describeScheduleCountsContract(
 		{
 			expect(await answers(["S", undefined])).toEqual([[2, ["S", null], null]]);
 		});
+
+		it("(j) S167 AC 3 non-string type: a stored gameType that isn't a string (82) counts as untyped, [null] and regularSeason null", async () =>
+		{
+			const repo = create();
+			const day = await typed("2024-07-04", ["S"]);
+			day.games = day.games.map((game) => ({
+				...game,
+				gameType: 82 as never,
+			}));
+			await repo.upsert(day);
+			expect((await repo.listGameCounts("2024-07-04", "2024-07-04")).map((d) => [d.gameTypes, d.regularSeason])).toEqual([[[null], null]]);
+		});
 	});
 }

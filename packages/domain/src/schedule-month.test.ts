@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	dayHasFavoriteTeam, dayRegularSeason, distinctTeamIds, latestScheduleMonth, monthGameCounts, monthGamesState, monthLastChangedAt, scheduleFillWindow,
+	dayHasFavoriteTeam, dayRegularSeason, distinctTeamIds, latestScheduleMonth, monthGameCounts, monthGamesState, monthLastChangedAt, scheduleFillWindow, storedGameType,
 } from "./schedule-month.js";
 
 describe("monthGameCounts (S124, S136 AC 1)", () =>
@@ -99,6 +99,20 @@ describe("dayRegularSeason (S167 AC 2)", () =>
 	it("S167 AC 2 R and untyped: true, since the R game settles it", () =>
 	{
 		expect(dayRegularSeason([null, "R"])).toBe(true);
+	});
+});
+
+describe("storedGameType (S167, ADR-025)", () =>
+{
+	it("keeps a string type as it is and counts anything else (missing, null, a number, an object) as no type", () =>
+	{
+		expect(storedGameType("R")).toBe("R");
+		expect(storedGameType("A")).toBe("A");
+		expect(storedGameType("")).toBe("");
+		expect(storedGameType(undefined)).toBeNull();
+		expect(storedGameType(null)).toBeNull();
+		expect(storedGameType(82)).toBeNull();
+		expect(storedGameType({})).toBeNull();
 	});
 });
 

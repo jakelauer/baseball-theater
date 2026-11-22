@@ -2,7 +2,7 @@ import type {
 	AccountSettings, Entitlements, GameProjection, GameSnapshot, ScheduleDay, ScheduleDayTally, UserProfile,
 } from "@bt/domain";
 import {
-	dayRegularSeason, distinctTeamIds, downloadExpired,
+	dayRegularSeason, distinctTeamIds, downloadExpired, storedGameType,
 } from "@bt/domain";
 import type {
 	DataDownload,
@@ -92,7 +92,7 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 			.map((day) =>
 			{
 				// One entry per game, `null` for an untyped one, as the Postgres adapter reads it (S167).
-				const gameTypes = day.games.map((game) => typeof game.gameType === "string" ? game.gameType : null);
+				const gameTypes = day.games.map((game) => storedGameType(game.gameType));
 				return {
 					date: day.date,
 					gameCount: day.games.length,

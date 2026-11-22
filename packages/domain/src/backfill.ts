@@ -4,6 +4,7 @@
  * and any later production run share one decision for each (ADR-025).
  */
 import { addDays, yearsBefore } from "./calendar-date.js";
+import { storedGameType } from "./schedule-month.js";
 import type { GameSnapshot, ScheduleDay } from "./types.js";
 import { isFinalStatus, normalizeStatusCode } from "./window.js";
 
@@ -90,7 +91,7 @@ export function isScheduleDaySettled(day: Pick<ScheduleDay, "date" | "games">, t
  */
 export function scheduleDayLacksGameType(day: Pick<ScheduleDay, "games">): boolean
 {
-	return day.games.some((game) => typeof game.gameType !== "string");
+	return day.games.some((game) => storedGameType(game.gameType) === null);
 }
 
 /**

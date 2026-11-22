@@ -1171,6 +1171,32 @@ describe("runBackfill re-stores days stored before S167's game types (S167 AC 4)
 		expect(mlb.requests).toEqual(["schedule 2026-07-04"]);
 		expect(third.incomplete).toEqual([]);
 	});
+
+	it("S167 AC 4 request fails: a settled day stored without types whose schedule request fails is not left incomplete, and its out-of-date projection is still repaired", async () =>
+	{
+		const mlb = new FakeMlb();
+		mlb.gameType = () => undefined;
+		const repos = memoryRepos();
+		await runBackfill(deps(mlb, counted(repos), memoryStore()), DAY);
+		// A projection older than its snapshot (S122 AC 4's repair), on the untyped day.
+		const victim = pkOf("2026-07-04", 1);
+		const snapshot = (await repos.games.getByPk(victim))!;
+		await repos.games.upsert({
+			...snapshot,
+			version: snapshot.version + 1,
+		});
+
+		mlb.fails.schedule = () => true;
+		mlb.requests.length = 0;
+		const second = await runBackfill(deps(mlb, counted(repos), memoryStore()), DAY);
+		expect(second.incomplete).toEqual([]);
+		expect(second.repaired).toBe(1);
+		expect((await repos.projections.getByPk(victim))?.header.version).toBe(snapshot.version + 1);
+		// One failed schedule request, the stored finals not fetched again, the day still untyped.
+		expect(mlb.count("schedule")).toBe(1);
+		expect(mlb.count("feed")).toBe(0);
+		expect((await repos.schedules.getByDate("2026-07-04"))!.games.map((game) => game.gameType)).toEqual([undefined, undefined]);
+	});
 });
 
 describe("runBackfill on the recordings through PGlite (S122 AC 3)", () =>
