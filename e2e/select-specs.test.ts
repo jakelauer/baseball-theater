@@ -7,7 +7,7 @@
  */
 import { spawnSync } from "node:child_process";
 import {
-	mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync,
+	mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -225,5 +225,31 @@ describe("the CLI", () =>
 	it("exits 2 on a bad command line", () =>
 	{
 		expect(cli("specs", "nope", "a", "b").status).toBe(2);
+	});
+
+	// S169 (issue #315): started through a symlinked folder, the old `import.meta.filename ===
+	// process.argv[1]` guard was false (Node resolves the module's path, not argv[1]), so the script
+	// printed nothing and exited 0, which CI would read as "no browser specs to run".
+	it("started through a symlinked folder with no arguments, prints its usage and exits 2", () =>
+	{
+		const dir = mkdtempSync(join(tmpdir(), "bt-select-specs-"));
+		try
+		{
+			const link = join(dir, "e2e");
+			symlinkSync(import.meta.dirname, link, "dir");
+			const run = spawnSync(process.execPath, [join(link, "select-specs.ts")], {
+				cwd: ROOT,
+				encoding: "utf8",
+			});
+			expect(run.stderr).toContain("usage: node e2e/select-specs.ts");
+			expect(run.status).toBe(2);
+		}
+		finally
+		{
+			rmSync(dir, {
+				recursive: true,
+				force: true,
+			});
+		}
 	});
 });
