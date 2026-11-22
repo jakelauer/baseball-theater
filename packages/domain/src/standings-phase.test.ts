@@ -518,6 +518,7 @@ describe("blankRegularSeasonTable (S139)", () =>
 			runDifferential: null,
 			divisionLeader: false,
 			clinched: false,
+			clinchIndicator: null,
 			eliminationNumber: null,
 		});
 		expect(blank.divisions[0]!.teams).toEqual([blankTeam(111, "Boston Red Sox", "BOS"), blankTeam(147, "New York Yankees", "NEW"), blankTeam(139, "Tampa Bay Rays", "TAM")]);

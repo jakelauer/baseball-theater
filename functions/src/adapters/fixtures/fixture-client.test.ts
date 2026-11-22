@@ -67,6 +67,65 @@ describe("FixtureClient final and spring standings (S128)", () =>
 	});
 });
 
+describe("FixtureClient dated standings (S160)", () =>
+{
+	/** A fixture source holding only `files`; any other name rejects, like a missing file. */
+	const only = (files: Record<string, unknown>) => new FixtureClient({
+		read: async (name) =>
+		{
+			if (!(name in files)) throw new Error(`no fixture ${name}`);
+			return files[name];
+		},
+		list: async () => Object.keys(files),
+	});
+
+	it("S160 AC 3: a dated table is MLB's recording mapped, from files and from the Worker bundle: 2026-09-12's x on TB and MIL, 2026-09-05's divisions named", async () =>
+	{
+		for (const mlb of [new FixtureMlbStatsClient(), createBundledFixtureClient()])
+		{
+			const rows = (await mlb.fetchStandings("2026-09-12")).divisions.flatMap((d) => d.teams);
+			expect(rows).toHaveLength(30);
+			expect(Object.fromEntries(rows.filter((r) => r.clinchIndicator !== null).map((r) => [r.abbreviation, r.clinchIndicator]))).toEqual({
+				TB: "x",
+				MIL: "x",
+			});
+			const september5 = await mlb.fetchStandings("2026-09-05");
+			expect(september5.date).toBe("2026-09-05");
+			expect(september5.divisions[0]!.name).toBe("American League East");
+		}
+	});
+
+	it("S160: with no recording a dated table is the mapped file the normalized recorder writes; with neither it is empty", async () =>
+	{
+		const mapped = {
+			date: "2026-09-12",
+			divisions: [{
+				divisionId: 201,
+				name: null,
+				leagueId: 103,
+				teams: [],
+			}],
+		};
+		expect((await only({
+			"standings-2026-09-12.json": mapped,
+		}).fetchStandings("2026-09-12")).divisions).toEqual(mapped.divisions);
+		expect((await only({}).fetchStandings("2026-09-12")).divisions).toEqual([]);
+	});
+
+	it("S160: a recording of the wrong shape throws rather than falling back to the mapped file", async () =>
+	{
+		await expect(only({
+			"raw/standings-2026-09-12.json": {
+				records: "not a list",
+			},
+			"standings-2026-09-12.json": {
+				date: "2026-09-12",
+				divisions: [],
+			},
+		}).fetchStandings("2026-09-12")).rejects.toThrow();
+	});
+});
+
 describe("FixtureClient fetchGameEditorial (S122)", () =>
 {
 	it("a game with no videos and no recap is null, a missing game is null, a recorded one is its videos and recap", async () =>

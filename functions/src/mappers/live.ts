@@ -222,8 +222,9 @@ export function mapBoxscore(boxscore: LiveBoxscore | undefined): GameBoxscore | 
 
 /**
  * The live moment (S63): runners from `linescore.offense`, batter and pitcher from
- * the current play's matchup — only while the game is in progress (`isLiveStatus`),
- * since a final or scheduled game has no one on base or at the plate.
+ * the current play's matchup — only while the game is in progress or suspended
+ * (`isLiveStatus`; a suspended game shows where play stopped, #79), since a final or
+ * scheduled game has no one on base or at the plate.
  */
 export function mapLive(feed: LiveFeedResponse): GameLive | null
 {
@@ -283,7 +284,8 @@ export function mapLiveFeed(
  * A scoreboard summary from the live feed (S65) — how a game looks on the scoreboard
  * at any moment of its recorded replay, before, during or after it. Records and
  * probables come from `gameData`; each probable's season line from the boxscore;
- * the live moment is `mapLive` plus the count.
+ * the live moment is `mapLive` plus the count; the game type (S167) is the feed's
+ * `gameData.game.type`, the same code the schedule sends as `gameType`.
  */
 export function mapLiveFeedSummary(feed: LiveFeedResponse): ScheduleGameSummary
 {
@@ -300,6 +302,9 @@ export function mapLiveFeedSummary(feed: LiveFeedResponse): ScheduleGameSummary
 		gamePk: snapshot.gamePk,
 		gameDate: snapshot.gameDate,
 		officialDate: snapshot.officialDate,
+		...(gameData.game?.type !== undefined ? {
+			gameType: gameData.game.type,
+		} : {}),
 		startTime: snapshot.startTime,
 		status: snapshot.status,
 		teams: {

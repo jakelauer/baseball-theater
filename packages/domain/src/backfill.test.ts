@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	BACKFILL_EARLIEST_DATE, backfillDays, defaultBackfillRange, GIVE_UP_AFTER_DAYS, isOffSeasonDay, isScheduleDaySettled, isSettledGame, isSourceGivenUp,
+	BACKFILL_EARLIEST_DATE, backfillDays, defaultBackfillRange, GIVE_UP_AFTER_DAYS, isOffSeasonDay, isScheduleDaySettled, isSettledGame, scheduleDayLacksGameType, isSourceGivenUp,
 	recordSourceDay, sourceGivenUpAt,
 } from "./backfill.js";
 import { addDays } from "./calendar-date.js";
@@ -387,6 +387,41 @@ describe("isScheduleDaySettled (S122 AC 4)", () =>
 			date: "2026-07-04",
 			games: [final, scheduled] as never,
 		}, "2026-07-05")).toBe(false);
+	});
+
+	it("S167 AC 4: a settled day stays settled whether or not its games carry a gameType", () =>
+	{
+		expect(isScheduleDaySettled({
+			date: "2026-07-04",
+			games: [final] as never,
+		}, "2026-07-05")).toBe(true);
+	});
+});
+
+describe("scheduleDayLacksGameType (S167 AC 4)", () =>
+{
+	it("S167 AC 4: true when any game has no gameType (a day stored before S167); false when every game has one, or there are none", () =>
+	{
+		expect(scheduleDayLacksGameType({
+			games: [{
+				gameType: "R",
+			}, {}] as never,
+		})).toBe(true);
+		expect(scheduleDayLacksGameType({
+			games: [{
+				gameType: null,
+			}] as never,
+		})).toBe(true);
+		expect(scheduleDayLacksGameType({
+			games: [{
+				gameType: "R",
+			}, {
+				gameType: "S",
+			}] as never,
+		})).toBe(false);
+		expect(scheduleDayLacksGameType({
+			games: [],
+		})).toBe(false);
 	});
 });
 

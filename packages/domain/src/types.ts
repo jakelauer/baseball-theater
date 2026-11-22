@@ -1,12 +1,26 @@
+/**
+ * MLB's `codedGameState` letters, every one MLB's `GET /api/v1/gameStatus` lists (#81);
+ * `window.ts` says how BT treats each. `X` is MLB's own "Unknown", which BT also writes when
+ * MLB sends no code. A code MLB doesn't list passes through as it is (the `| string` beside
+ * this type wherever BT carries a status), and the domain reads it as unknown
+ * (`normalizeStatusCode`). MLB's `U` is a suspended game, not unknown.
+ */
 export type GameStatusCode =
   | "S" // scheduled
-  | "P" // pregame
-  | "I" // in progress / live
+  | "P" // pre-game, warm-up, delayed start
+  | "I" // in progress, including in-game delays
+  | "M" // manager challenge (#74)
+  | "N" // umpire review (#74)
+  | "T" // suspended (#79)
+  | "U" // suspended (#79)
   | "F" // final
   | "O" // game over
   | "C" // cancelled
+  | "Q" // forfeit (#80)
+  | "R" // forfeit (#80)
   | "D" // postponed (MLB codes a delay `I`, not `D`; #72)
-  | "U"; // unknown
+  | "X" // unknown
+  | "W"; // writing (MLB's "Other" group; read as unknown)
 
 export type AbstractTeam = {
 	id: number;
@@ -219,6 +233,13 @@ export type GameSnapshot = {
 		codedGameState: GameStatusCode | string;
 		detailedState: string;
 	};
+	/**
+	 * When BT saw the game turn suspended (`T`/`U`, #79): the ISO time of the write that stored
+	 * the change (`suspendedSince`), kept while it stays suspended and dropped when it resumes.
+	 * A suspended game is polled for `suspendedHours` from it (#323). Absent when the game isn't
+	 * suspended, or BT didn't see the change happen, when the window counts from first pitch.
+	 */
+	suspendedAt?: string;
 	teams: {
 		home: AbstractTeam;
 		away: AbstractTeam;
@@ -301,6 +322,12 @@ export type ScheduleGameSummary = {
 	gamePk: number;
 	gameDate: string;
 	officialDate: string;
+	/**
+	 * MLB's game type code as sent (S167): `R` regular season, `S` spring training, `E` exhibition,
+	 * `A` All-Star, `F`/`D`/`L`/`W` postseason rounds, any other code kept as it is. Absent when MLB
+	 * sent none, and on a game stored before S167 until the backfill re-stores its day.
+	 */
+	gameType?: string;
 	/** First pitch as an ISO instant (S65); views show it in the viewer's zone (`formatGameTime`). */
 	startTime?: string;
 	status: GameSnapshot["status"];
@@ -402,6 +429,13 @@ export type StandingsTeamRecord = {
 	runDifferential: number | null;
 	divisionLeader: boolean;
 	clinched: boolean;
+	/**
+	 * How the team clinched (S160): MLB's letter as it sends it on a `clinched` team (`z` best record
+	 * in the league, `y` division, `w` wild card, `x` playoff spot, or any other letter MLB adds, which
+	 * is shown as it is: owner, 2026-11-20, "Print it anyway"). `null` on a team that isn't `clinched`
+	 * or when MLB sends none. Optional because an answer cached before S160 lacks it, which means no letter.
+	 */
+	clinchIndicator?: string | null;
 	eliminationNumber: string | null;
 };
 

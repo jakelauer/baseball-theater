@@ -219,9 +219,10 @@ export function describePersonalDataStoreContract(label: string, subject: Person
 
 /**
  * Case (j), the schedule repository's month read (S124): `listGameCounts` returns each stored day
- * in the range, both ends included, in date order, as its game count, its teams' IDs (S136) and
- * its stamps exactly as stored, and leaves out days outside the range or never stored. `makeDay`
- * builds a stored day with `gameCount` games.
+ * in the range, both ends included, in date order, as its game count, its teams' IDs (S136), its
+ * games' types and whether it has a regular-season game (S167), and its stamps exactly as stored,
+ * and leaves out days outside the range or never stored. `makeDay` builds a stored day with
+ * `gameCount` games (the fixture day's, all regular season, `R`).
  */
 export function describeScheduleCountsContract(
 	label: string,
@@ -247,6 +248,8 @@ export function describeScheduleCountsContract(
 					gameCount: 2,
 					// The fixture day's two games: 121 at 120, 147 at 111.
 					teamIds: [111, 120, 121, 147],
+					gameTypes: ["R", "R"],
+					regularSeason: true,
 					fetchedAt: days[2]!.fetchedAt,
 					lastChangedAt: days[2]!.lastChangedAt,
 				},
@@ -254,6 +257,8 @@ export function describeScheduleCountsContract(
 					date: "2024-07-06",
 					gameCount: 0,
 					teamIds: [],
+					gameTypes: [],
+					regularSeason: false,
 					fetchedAt: days[0]!.fetchedAt,
 					lastChangedAt: days[0]!.lastChangedAt,
 				},
@@ -315,6 +320,67 @@ export function describeScheduleCountsContract(
 			expect((await repo.listGameCounts("2024-07-04", "2024-07-04")).map((d) => [d.gameCount, d.teamIds])).toEqual([
 				[2, [120, 147]],
 			]);
+		});
+
+		// S167 AC 3: each stored day's game types, one per game (`null` for an untyped one), and its
+		// regular-season answer, from the same read. `typed` stores the fixture day's two games under
+		// the given types, `undefined` leaving a game's key out as a day stored before S167 has it.
+		const typed = async (date: string, types: (string | undefined)[]) =>
+		{
+			const day = await makeDay(date, types.length, "2024-07-07T00:00:01.000Z");
+			day.games = day.games.map((game, i) =>
+			{
+				const { gameType: _dropped, ...untyped } = game;
+				const type = types[i];
+				return type === undefined ? untyped : {
+					...untyped,
+					gameType: type,
+				};
+			});
+			return day;
+		};
+		const answers = async (types: (string | undefined)[]) =>
+		{
+			const repo = create();
+			await repo.upsert(await typed("2024-07-04", types));
+			return (await repo.listGameCounts("2024-07-04", "2024-07-04")).map((d) => [d.gameCount, d.gameTypes, d.regularSeason]);
+		};
+
+		it("(j) S167 AC 3 R and S: a day with a regular-season game and a spring game is regularSeason true", async () =>
+		{
+			expect(await answers(["R", "S"])).toEqual([[2, ["R", "S"], true]]);
+		});
+
+		it("(j) S167 AC 3 all-star: the All-Star Game's day is regularSeason false", async () =>
+		{
+			expect(await answers(["A"])).toEqual([[1, ["A"], false]]);
+		});
+
+		it("(j) S167 AC 3 untyped: a day stored without types (before S167) is regularSeason null, one null type per game", async () =>
+		{
+			expect(await answers([undefined, undefined])).toEqual([[2, [null, null], null]]);
+		});
+
+		it("(j) S167 AC 3 R and untyped: a day with an R game and an untyped one is regularSeason true", async () =>
+		{
+			expect(await answers(["R", undefined])).toEqual([[2, ["R", null], true]]);
+		});
+
+		it("(j) S167 AC 3 S and untyped: a day with an S game and an untyped one keeps both entries and is regularSeason null", async () =>
+		{
+			expect(await answers(["S", undefined])).toEqual([[2, ["S", null], null]]);
+		});
+
+		it("(j) S167 AC 3 non-string type: a stored gameType that isn't a string (82) counts as untyped, [null] and regularSeason null", async () =>
+		{
+			const repo = create();
+			const day = await typed("2024-07-04", ["S"]);
+			day.games = day.games.map((game) => ({
+				...game,
+				gameType: 82 as never,
+			}));
+			await repo.upsert(day);
+			expect((await repo.listGameCounts("2024-07-04", "2024-07-04")).map((d) => [d.gameTypes, d.regularSeason])).toEqual([[[null], null]]);
 		});
 	});
 }

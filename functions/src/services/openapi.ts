@@ -87,7 +87,7 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 	},
 	"GET /api/v1/schedule/month/:month": {
 		operationId: "getScheduleMonth",
-		summary: "The number of games on each day of one month, and the teams playing it, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null` and `teamIds: null`, distinct from a day with no games (`0` and `[]`).",
+		summary: "The number of games on each day of one month, the teams playing it, and whether it has a regular-season game, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, `teamIds: null` and `regularSeason: null`, distinct from a day with no games (`0`, `[]` and `false`).",
 		parameters: [
 			{
 				name: "month",
@@ -262,6 +262,12 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 			404: "`sign_in_unavailable`: this deployment offers no provider sign-in (neither Logto nor the mock).",
 			503: "`sign_in_failed`: BT couldn't finish the sign-in for a reason of its own (the tenant's keys couldn't be fetched, or its database or session key failed); the token wasn't refused, so trying again later may succeed.",
 		},
+	},
+	"GET /api/v1/releases": {
+		operationId: "getReleases",
+		summary: "Every approved release's fan-facing notes, newest first, and `current`, the newest of them (null before any release has approved notes). The notes are bundled into the build; a draft is never returned. Cacheable for at most five minutes in all, so a release's notes show within minutes of its deploy.",
+		parameters: [],
+		errors: {},
 	},
 	"PUT /api/v1/me/settings": {
 		operationId: "putSettings",

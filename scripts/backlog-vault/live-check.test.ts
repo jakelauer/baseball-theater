@@ -561,6 +561,44 @@ describe("bugs", () =>
 		}
 	});
 
+	it("a newly accepted bug (a create record, no fields block on the issue yet) is recorded, not yet applied: a note, never a failure", () =>
+	{
+		// audit.sh create B<N> --issue <N> records the block on a backlog branch; apply sends it after the merge.
+		const recs = [rec("create", "B40", bugFields(3))];
+		for (const ci of [false, true])
+		{
+			const r = liveCheck(input([bug({
+				body: "Steps: open it.",
+			})], recs, {
+				ci,
+			}));
+			expect(r.failures).toEqual([]);
+			expect(r.warnings).toEqual([]);
+			expect(r.notes).toEqual(expect.arrayContaining([expect.stringContaining("B40 (#40): recorded, not yet applied: run scripts/audit.sh apply")]));
+		}
+	});
+
+	it("a bug whose issue carries a different fields block than its only create record still fails", () =>
+	{
+		const r = liveCheck(input([bug({
+			body: `Steps.\n\n${bugFields(1)}`,
+		})], [rec("create", "B40", bugFields(3))]));
+		expect(r.failures).toEqual([expect.stringContaining("B40 (#40): unlogged edit: its fields block matches none of its text records")]);
+		expect(r.notes.filter((n) => n.includes("not yet applied"))).toEqual([]);
+	});
+
+	it("a bug whose fields block was removed after its create was applied still fails", () =>
+	{
+		const create = rec("create", "B40", bugFields(3));
+		const r = liveCheck(input([bug({
+			body: "Steps: open it.",
+		})], [create], {
+			comments: () => [applied(create)],
+		}));
+		expect(r.failures).toEqual([expect.stringContaining("B40 (#40): unlogged edit: its fields block matches none of its text records")]);
+		expect(r.notes.filter((n) => n.includes("not yet applied"))).toEqual([]);
+	});
+
 	it("a bug whose fields block changed fails", () =>
 	{
 		const recs = [rec("create", "B40", bugFields(3))];

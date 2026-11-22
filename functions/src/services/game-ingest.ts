@@ -11,7 +11,9 @@
  * game leaves its window, the last poll publishes the final state and no alarm is set.
  */
 import type { CadenceParams, GameSnapshot } from "@bt/domain";
-import { DEFAULT_CADENCE, isGameInActiveWindow } from "@bt/domain";
+import {
+	DEFAULT_CADENCE, isGameInActiveWindow, isSuspendedStatus, suspendedSince,
+} from "@bt/domain";
 import type { DurableStore } from "./hub-leases.js";
 import { HubLeases } from "./hub-leases.js";
 import type { IngestDeps } from "./ingest.js";
@@ -74,7 +76,9 @@ export class GameIngest
 	/**
 	 * One poll. A failed MLB call keeps the cadence (the next alarm retries); otherwise the
 	 * game is written, then published if it changed, or as the final state once it is out
-	 * of its window, when the alarm stops.
+	 * of its window, when the alarm stops. A suspended game's window counts from when BT saw it
+	 * turn suspended (#323): `suspendedSince` against the stored game, the same answer the store
+	 * then records, read only while the game is suspended.
 	 */
 	async alarm(now: Date): Promise<void>
 	{
@@ -91,7 +95,13 @@ export class GameIngest
 			await this.storage.setAlarm(now.getTime() + this.params.intervalMs);
 			return;
 		}
-		const inWindow = isGameInActiveWindow(fetched, now, this.params);
+		const suspendedAt = isSuspendedStatus(fetched.status.codedGameState)
+			? suspendedSince(await this.deps.games.getByPk(gamePk), fetched.status.codedGameState, now.toISOString())
+			: undefined;
+		const inWindow = isGameInActiveWindow({
+			...fetched,
+			suspendedAt,
+		}, now, this.params);
 		const { snapshot, changed } = await ingestGame(this.deps, {
 			...fetched,
 			fetchedAt: now.toISOString(),

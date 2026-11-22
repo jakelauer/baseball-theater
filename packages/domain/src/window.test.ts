@@ -1,11 +1,14 @@
+import { readFileSync } from "node:fs";
 import {
 	describe, expect, it,
 } from "vitest";
+import { gamePhase, type GamePhase } from "./game-phase.js";
 import {
 	DEFAULT_CADENCE,
 	isFinalStatus,
 	isGameInActiveWindow,
 	isLiveStatus,
+	isSuspendedStatus,
 	normalizeStatusCode,
 	scheduleWindowMode,
 } from "./window.js";
@@ -30,9 +33,9 @@ function game(codedGameState: string, gameDateTime?: string | null): WindowGame
 
 describe("isLiveStatus", () =>
 {
-	it("treats only in-progress as live", () =>
+	it("treats in-progress, a challenge or review, and a suspended game as live (#74, #79)", () =>
 	{
-		expect(isLiveStatus("I")).toBe(true);
+		for (const code of ["I", "M", "N", "T", "U"]) expect(isLiveStatus(code), code).toBe(true);
 	});
 
 	it("treats pre-game warm-up and postponements (`D`, #72) as not live (no Live tab)", () =>
@@ -45,7 +48,7 @@ describe("isLiveStatus", () =>
 	{
 		expect(isLiveStatus("S")).toBe(false);
 		expect(isLiveStatus("F")).toBe(false);
-		expect(isLiveStatus("U")).toBe(false);
+		expect(isLiveStatus("X")).toBe(false);
 	});
 });
 
@@ -67,17 +70,17 @@ describe("isFinalStatus", () =>
 
 describe("normalizeStatusCode", () =>
 {
-	it("returns 'U' for unknown codes", () =>
+	it("returns MLB's unknown, 'X', for codes MLB doesn't list (#81)", () =>
 	{
-		expect(normalizeStatusCode("X")).toBe("U");
-		expect(normalizeStatusCode("live")).toBe("U");
+		expect(normalizeStatusCode("Z")).toBe("X");
+		expect(normalizeStatusCode("live")).toBe("X");
 	});
 
-	it("returns 'U' for missing values", () =>
+	it("returns 'X' for missing values", () =>
 	{
-		expect(normalizeStatusCode(undefined)).toBe("U");
-		expect(normalizeStatusCode(null)).toBe("U");
-		expect(normalizeStatusCode("")).toBe("U");
+		expect(normalizeStatusCode(undefined)).toBe("X");
+		expect(normalizeStatusCode(null)).toBe("X");
+		expect(normalizeStatusCode("")).toBe("X");
 	});
 
 	it("uppercases and passes through known codes", () =>
@@ -124,7 +127,7 @@ describe("isGameInActiveWindow", () =>
 				},
 			};
 			expect(isLiveStatus(code)).toBe(true);
-			expect(normalizeStatusCode(code)).toBe("I");
+			expect(normalizeStatusCode(code)).toBe(code);
 			expect(isGameInActiveWindow(reviewing, new Date("2024-07-05T09:00:00.000Z"))).toBe(true);
 		}
 	});
@@ -348,5 +351,131 @@ describe("scheduleWindowMode (S122)", () =>
 			...DEFAULT_CADENCE,
 			leadHours: 6,
 		})).toBe("active");
+	});
+});
+
+/**
+ * BT's status table against MLB's full `GET /api/v1/gameStatus` list (#81), recorded in
+ * `fixtures/raw/gamestatus.json`. Every `codedGameState` MLB lists must be one BT models
+ * (normalizing to itself, so BT's own "unknown" never borrows a real MLB letter, as `U`
+ * suspended once did), and every listing's phase must match its `abstractGameCode` group,
+ * except where BT departs on purpose: warm-up (`PW`, MLB "Live") shows no Live room, a
+ * postponed `D` (MLB "Final") stays pre-game (#72), and MLB's "Other" codes read as pre-game.
+ * MLB's `T9` reads "Scheduled: COVID-19" but sits in its "Live" group under the suspended `T`,
+ * so BT reads it as suspended, and so live.
+ */
+describe("MLB's full gameStatus list (#81)", () =>
+{
+	type MlbStatus = { abstractGameCode: string;
+		codedGameState: string;
+		statusCode: string;
+		detailedState: string };
+	const MLB_STATUSES: MlbStatus[] = JSON.parse(readFileSync(new URL("../../../fixtures/raw/gamestatus.json", import.meta.url), "utf8"));
+	const BY_GROUP: Record<string, GamePhase> = {
+		P: "pregame",
+		L: "live",
+		F: "final",
+		O: "pregame",
+	};
+	/** BT's departures from MLB's group, by `statusCode` (one listing) or `codedGameState` (every listing of the code). */
+	const ON_PURPOSE: Record<string, GamePhase> = {
+		PW: "pregame",
+		D: "pregame",
+	};
+
+	it.each(MLB_STATUSES.map((status) => [status.statusCode, status.detailedState, status] as const))("%s (%s) maps as MLB groups it", (_statusCode, _state, status) =>
+	{
+		const coded = status.codedGameState;
+		const expected = ON_PURPOSE[status.statusCode] ?? ON_PURPOSE[coded] ?? BY_GROUP[status.abstractGameCode];
+		expect(normalizeStatusCode(coded), `${status.detailedState} is modeled`).toBe(coded);
+		for (const code of [coded, coded.toLowerCase()])
+		{
+			expect(gamePhase(code), `${status.detailedState} (${code})`).toBe(expected);
+			expect(isLiveStatus(code)).toBe(expected === "live");
+			expect(isFinalStatus(code)).toBe(expected === "final");
+		}
+	});
+
+	it("reads a missing or unlisted code as MLB's own unknown (`X`), never as suspended `U`", () =>
+	{
+		expect(normalizeStatusCode(undefined)).toBe("X");
+		expect(normalizeStatusCode("Z")).toBe("X");
+		expect(gamePhase("Z")).toBe("pregame");
+	});
+});
+
+/**
+ * A suspended game (`T`/`U`, #79) is polled for `suspendedHours` from when BT saw it turn
+ * suspended (owner, 2026-11-22: "From when it was suspended (Recommended)"), or, with no such
+ * time, from first pitch; the first-pitch window (with its lead) holds either way.
+ */
+describe("a suspended game's window (#79, #323)", () =>
+{
+	const HOUR = 60 * 60 * 1000;
+	function suspended(code: string, suspendedAt?: string | null, startTime = "2026-07-04T23:05:00Z")
+	{
+		return {
+			officialDate: "2026-07-04",
+			startTime,
+			suspendedAt,
+			status: {
+				abstractGameState: "Live",
+				codedGameState: code,
+				detailedState: "Suspended: Rain",
+			},
+		};
+	}
+
+	it("late suspension: suspended at 05:10Z after a 23:05Z first pitch, it stays polled until 11:10:00.000Z and not a millisecond longer", () =>
+	{
+		for (const code of ["T", "U"])
+		{
+			const game = suspended(code, "2026-07-05T05:10:00.000Z");
+			expect(isGameInActiveWindow(game, new Date("2026-07-05T05:10:30Z")), code).toBe(true);
+			expect(isGameInActiveWindow(game, new Date("2026-07-05T11:10:00.000Z")), code).toBe(true);
+			expect(isGameInActiveWindow(game, new Date("2026-07-05T11:10:00.001Z")), code).toBe(false);
+		}
+	});
+
+	it("no time known (none, or one that doesn't parse): 6 hours from first pitch, inclusive", () =>
+	{
+		for (const at of [undefined, null, "garbage"])
+		{
+			const game = suspended("U", at);
+			expect(isGameInActiveWindow(game, new Date("2026-07-05T05:05:00.000Z")), String(at)).toBe(true);
+			expect(isGameInActiveWindow(game, new Date("2026-07-05T05:05:00.001Z")), String(at)).toBe(false);
+		}
+	});
+
+	it("a game resumed on a later day, listed suspended with the resume time as its start, is in its lead window", () =>
+	{
+		const resuming = suspended("U", "2026-07-05T05:10:00.000Z", "2026-07-05T20:00:00Z");
+		expect(isGameInActiveWindow(resuming, new Date("2026-07-05T18:30:00Z"))).toBe(true);
+		expect(isGameInActiveWindow(resuming, new Date("2026-07-05T17:30:00Z"))).toBe(false);
+	});
+
+	it("a suspension time keeps the window open even when no first pitch can be read", () =>
+	{
+		const game = {
+			...suspended("U", "2026-07-05T05:10:00.000Z"),
+			officialDate: "unknown",
+			startTime: undefined,
+		};
+		expect(isGameInActiveWindow(game, new Date("2026-07-05T11:00:00Z"))).toBe(true);
+		expect(isGameInActiveWindow(game, new Date("2026-07-05T11:10:00.001Z"))).toBe(false);
+	});
+
+	it("makes the schedule day active while the suspended game is (scheduleWindowMode)", () =>
+	{
+		const now = new Date("2026-07-05T07:00:00Z");
+		expect(scheduleWindowMode([suspended("U", "2026-07-05T06:00:00.000Z")], now)).toBe("active");
+		expect(scheduleWindowMode([suspended("U")], now)).toBe("cache");
+	});
+
+	it("isSuspendedStatus: `T` and `U` in either case, nothing else", () =>
+	{
+		for (const code of ["T", "U", "t", "u"]) expect(isSuspendedStatus(code), code).toBe(true);
+		for (const code of ["I", "F", "X", "Z", ""]) expect(isSuspendedStatus(code), code).toBe(false);
+		expect(DEFAULT_CADENCE.suspendedHours * HOUR).toBe(6 * HOUR);
 	});
 });

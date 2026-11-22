@@ -7,6 +7,7 @@
  * S143 AC 4: with `BT_MOCK_SIGN_IN=1` (staging), the mock credential signs in as the shared test
  * account and the whole account API works behind it, deletion included.
  * S139 AC 8: the standings' season calendars are kept in the Workers Cache between requests.
+ * S132 AC 3: the releases API answers the release notes bundled into the build.
  * Run with `pnpm --filter @bt/functions test:workerd`.
  */
 import { env, SELF } from "cloudflare:test";
@@ -18,6 +19,8 @@ import type { WorkersCacheLike } from "./adapters/cached-season-calendars.js";
 import { seasonCalendarCacheKey } from "./adapters/cached-season-calendars.js";
 import { inDatabaseScope, scopedDatabase } from "./adapters/postgres/connect.js";
 import { handleApiRequest } from "./handlers/api.js";
+import { RELEASES_CACHE_CONTROL } from "./handlers/cache-control.js";
+import { BUNDLED_RELEASE_NOTES, getReleases } from "./services/releases.js";
 import {
 	createTestTenant, TEST_LOGTO_APP_ID, TEST_LOGTO_ENDPOINT,
 } from "./test/logto-tokens.js";
@@ -34,6 +37,14 @@ describe("the Worker on workerd (S45)", () =>
 			games: unknown[]; };
 		expect(day.date).toBe("2024-07-04");
 		expect(day.games.length).toBeGreaterThan(0);
+	});
+
+	it("S132 AC 3 worker: GET /api/v1/releases is 200 with the notes bundled into the build, read from no file system", async () =>
+	{
+		const res = await SELF.fetch("http://bt.test/api/v1/releases");
+		expect(res.status).toBe(200);
+		expect(res.headers.get("Cache-Control")).toBe(RELEASES_CACHE_CONTROL);
+		expect(await res.json()).toEqual(getReleases(BUNDLED_RELEASE_NOTES));
 	});
 
 	it("GET /api/v1/games/744834 is 200 with the fixture game", async () =>

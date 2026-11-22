@@ -134,11 +134,13 @@ function api(repos: Repos, mlb: MlbStatsClient = new CountingClient(), start: Da
 			const body = await response.json() as { month: string;
 				days: { date: string;
 					count: number | null;
-					teamIds: number[] | null; }[]; };
+					teamIds: number[] | null;
+					regularSeason: boolean | null; }[]; };
 			return {
 				body,
 				count: (date: string) => body.days.find((day) => day.date === date)?.count,
 				teams: (date: string) => body.days.find((day) => day.date === date)?.teamIds,
+				regularSeason: (date: string) => body.days.find((day) => day.date === date)?.regularSeason,
 				cacheControl: response.headers.get("Cache-Control"),
 			};
 		},
@@ -228,8 +230,51 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 			date: "2024-07-06",
 			count: null,
 			teamIds: null,
+			regularSeason: null,
 		});
 		for (const d of body.days) expect(d.teamIds === null, d.date).toBe(d.count === null);
+	});
+});
+
+describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] as const)("S167 %s", (_name, makeRepos) =>
+{
+	it("S167 AC 3 route null: a day BT holds no schedule for answers regularSeason null beside count null; a stored day answers its own", async () =>
+	{
+		const repos = await makeRepos();
+		const [first, second] = (await new FixtureMlbStatsClient().fetchSchedule("2024-07-04")).games;
+		await store(repos, "2024-07-04", [{
+			...first!,
+			gameType: "R",
+		}, {
+			...second!,
+			gameType: "S",
+		}]);
+		await store(repos, "2024-07-09", [{
+			...first!,
+			gameType: "A",
+		}]);
+		await store(repos, "2024-07-10", []);
+		const { body, regularSeason } = await api(repos).month("2024-07");
+		expect(body.days.find((d) => d.date === "2024-07-06")).toEqual({
+			date: "2024-07-06",
+			count: null,
+			teamIds: null,
+			regularSeason: null,
+		});
+		expect(regularSeason("2024-07-04")).toBe(true);
+		expect(regularSeason("2024-07-09")).toBe(false);
+		expect(regularSeason("2024-07-10")).toBe(false);
+		for (const d of body.days) if (d.count === null) expect(d.regularSeason, d.date).toBeNull();
+	});
+
+	it("S167 AC 5: over the committed fixtures, the July 2024 month answer says regularSeason true for 2024-07-04", async () =>
+	{
+		const repos = await makeRepos();
+		// The fixture day as the fixture client serves it, its gameType from fixtures/schedule-2024-07-04.json.
+		await store(repos, "2024-07-04", (await new FixtureMlbStatsClient().fetchSchedule("2024-07-04")).games);
+		const { regularSeason, count } = await api(repos).month("2024-07");
+		expect(count("2024-07-04")).toBe(2);
+		expect(regularSeason("2024-07-04")).toBe(true);
 	});
 });
 
@@ -599,5 +644,80 @@ describe("S124 AC 5", () =>
 	{
 		const { body } = await api(memoryRepos()).month("1901-04");
 		expect(body.days).toHaveLength(30);
+	});
+});
+
+/**
+ * #79, #323: the month fill judges a day's window the way the cron does, so a game suspended late
+ * today keeps the day active for 6 hours from its suspension; an older day is judged by the clock
+ * alone, since nothing polls it.
+ */
+describe("the month fill and suspended games (#79, #323)", () =>
+{
+	const SUSPENDED = {
+		abstractGameState: "Live",
+		codedGameState: "U",
+		detailedState: "Suspended: Rain",
+	};
+	const IN_PROGRESS = {
+		abstractGameState: "Live",
+		codedGameState: "I",
+		detailedState: "In Progress",
+	};
+
+	/** Fixture game `gamePk` on `date`, first pitch `startTime`, as the schedule lists it suspended. */
+	async function suspendedOn(gamePk: number, date: string, startTime: string): Promise<ScheduleGameSummary>
+	{
+		const recorded = (await new FixtureMlbStatsClient().fetchSchedule("2024-07-04")).games.find((g) => g.gamePk === gamePk)!;
+		return {
+			...recorded,
+			officialDate: date,
+			gameDate: startTime,
+			startTime,
+			status: SUSPENDED,
+		};
+	}
+
+	async function storeGame(repos: Repos, gamePk: number, status: typeof SUSPENDED, changedAt: string, suspendedAt?: string)
+	{
+		await repos.games.upsert({
+			...await new FixtureMlbStatsClient().fetchGame(gamePk),
+			status,
+			windowMode: "active",
+			version: 1,
+			lastChangedAt: changedAt,
+			...(suspendedAt ? {
+				suspendedAt,
+			} : {}),
+		});
+	}
+
+	function deps(repos: Repos, mlb: CountingClient): IngestDeps
+	{
+		return {
+			mlb,
+			...repos,
+			now: () => T0,
+		};
+	}
+
+	it("today: a game suspended at 12:00Z after a 01:00Z first pitch keeps the day active at 17:00Z", async () =>
+	{
+		const repos = memoryRepos();
+		const mlb = new CountingClient();
+		mlb.gamesOn.set("2026-11-09", [await suspendedOn(745001, "2026-11-09", "2026-11-09T01:00:00Z")]);
+		await storeGame(repos, 745001, SUSPENDED, "2026-11-09T12:00:00.000Z", "2026-11-09T12:00:00.000Z");
+		await getScheduleMonth(deps(repos, mlb), "2026-11");
+		expect((await repos.schedules.getByDate("2026-11-09"))?.windowMode).toBe("active");
+	});
+
+	it("an older day still listing a suspended game, resumed since under the same gamePk (stored in progress, active), stays cache", async () =>
+	{
+		const repos = memoryRepos();
+		const mlb = new CountingClient();
+		mlb.gamesOn.set("2026-11-01", [await suspendedOn(744834, "2026-11-01", "2026-11-01T23:05:00Z")]);
+		await storeGame(repos, 744834, IN_PROGRESS, new Date(T0.getTime() - 60 * MINUTE).toISOString());
+		await getScheduleMonth(deps(repos, mlb), "2026-11");
+		expect((await repos.schedules.getByDate("2026-11-01"))?.windowMode).toBe("cache");
 	});
 });

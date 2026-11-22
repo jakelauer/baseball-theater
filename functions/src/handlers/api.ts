@@ -1,5 +1,5 @@
 import type {
-	ApiErrorResponse, ApiResponseFor, ApiRoute, ApiVersionTable, CacheLifetimeStep, MeDeleteRequest, SeasonPhaseName,
+	ApiErrorResponse, ApiResponseFor, ApiRoute, ApiVersionTable, CacheLifetimeStep, MeDeleteRequest, ReleaseNotes, SeasonPhaseName,
 } from "@bt/domain";
 import type { SettingsRepository } from "@bt/ports";
 import {
@@ -21,12 +21,13 @@ import {
 import type { ApiUsageLog } from "../services/api-usage.js";
 import { getDayDigest } from "../services/digest.js";
 import { getScheduleMonth } from "../services/schedule-month.js";
+import { BUNDLED_RELEASE_NOTES, getReleases } from "../services/releases.js";
 import { getDefaultScoreboardDate } from "../services/scoreboard-date.js";
 import type { StandingsRead } from "../services/standings.js";
 import { getStandings, standingsNothingYet } from "../services/standings.js";
 import type { IngestDeps } from "../services/ingest.js";
 import { getOrRefreshGame, getOrRefreshSchedule } from "../services/ingest.js";
-import { edgeCacheControl } from "./cache-control.js";
+import { edgeCacheControl, RELEASES_CACHE_CONTROL } from "./cache-control.js";
 import { liveUpgrade } from "./live.js";
 
 export type ApiContext = {
@@ -45,6 +46,8 @@ export type ApiContext = {
 	usage?: ApiUsageLog;
 	/** The version lifecycle to enforce; `API_VERSIONS` unless a test supplies its own (S28). */
 	versions?: ApiVersionTable;
+	/** The release notes the releases route answers from (S132); the build's bundle unless a test supplies its own. */
+	releases?: readonly ReleaseNotes[];
 };
 
 const CORS_HEADERS = {
@@ -365,6 +368,16 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			const response = sendJson(200, "GET /api/v1/scoreboard/default-date", await getDefaultScoreboardDate(ctx.ingest));
 			// The answer moves once a day at most; five minutes spares MLB a calendar read per visit.
 			response.headers.set("Cache-Control", "public, max-age=300");
+			return response;
+		},
+	},
+	{
+		route: "GET /api/v1/releases",
+		handle: async (_url, _params, ctx) =>
+		{
+			// Bundled into the build (S132 AC 3), so nothing is read at request time; cached at most 5 minutes in all (AC 4).
+			const response = sendJson(200, "GET /api/v1/releases", getReleases(ctx.releases ?? BUNDLED_RELEASE_NOTES));
+			response.headers.set("Cache-Control", RELEASES_CACHE_CONTROL);
 			return response;
 		},
 	},

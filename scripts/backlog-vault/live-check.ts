@@ -213,6 +213,19 @@ function bodyVerdict(id: string, issue: CachedIssue, chain: TextRecord[], input:
 		sink.fail(`${where}: unlogged edit: its ${what} went back to ${chain[k]!.file} after ${back.file} was applied; if the owner wants it, adopt it with scripts/audit.sh edit ${id} --adopt --reason "<the owner's words>", else ${restore}`, true);
 		return;
 	}
+	// A newly accepted bug: `audit.sh create B<N> --issue <N>` records its fields block on a backlog branch,
+	// and `apply` appends it to the symptoms only after that pull request merges, so until then the issue
+	// has no fields block at all. With no trusted Applied comment for any of its records, nothing was ever
+	// sent, so it is pending, not an edit. A block that differs, or one removed after an apply, still fails.
+	if (bug && fieldsYaml(issue.body ?? "") === undefined)
+	{
+		const applied = appliedRecords(input.comments(issue.number), id, input.cache.trusted);
+		if (!chain.some((r) => applied.has(appliedKey(r))))
+		{
+			sink.note(`${where}: recorded, not yet applied: run scripts/audit.sh apply (its issue has no fields block yet; newest ${newest.file})`);
+			return;
+		}
+	}
 	const hint = input.stageRecords === undefined
 		? "; there is no origin/stage ref here, so if its edit was recorded on stage, git fetch origin && git merge origin/stage and run again"
 		: "; if its edit was recorded on stage since your last fetch, git fetch origin and run again";

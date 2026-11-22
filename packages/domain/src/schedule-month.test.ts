@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	dayHasFavoriteTeam, distinctTeamIds, latestScheduleMonth, monthGameCounts, monthGamesState, monthLastChangedAt, scheduleFillWindow,
+	dayHasFavoriteTeam, dayRegularSeason, distinctTeamIds, latestScheduleMonth, monthGameCounts, monthGamesState, monthLastChangedAt, scheduleFillWindow, storedGameType,
 } from "./schedule-month.js";
 
 describe("monthGameCounts (S124, S136 AC 1)", () =>
@@ -14,29 +14,105 @@ describe("monthGameCounts (S124, S136 AC 1)", () =>
 				date: "2026-09-05",
 				gameCount: 2,
 				teamIds: [108, 111, 117, 147],
+				regularSeason: true,
 			},
 			{
 				date: "2026-09-06",
 				gameCount: 0,
 				teamIds: [],
+				regularSeason: false,
 			},
 		])).toEqual([
 			{
 				date: "2026-09-04",
 				count: null,
 				teamIds: null,
+				regularSeason: null,
 			},
 			{
 				date: "2026-09-05",
 				count: 2,
 				teamIds: [108, 111, 117, 147],
+				regularSeason: true,
 			},
 			{
 				date: "2026-09-06",
 				count: 0,
 				teamIds: [],
+				regularSeason: false,
 			},
 		]);
+	});
+
+	it("S167 AC 3: a stored day keeps the regularSeason its tally gives, null included (a day stored before S167); an unknown day is null", () =>
+	{
+		expect(monthGameCounts(["2024-07-04", "2024-07-05"], [
+			{
+				date: "2024-07-04",
+				gameCount: 2,
+				teamIds: [111, 120, 121, 147],
+				regularSeason: null,
+			},
+		]).map((day) => [day.date, day.count, day.regularSeason])).toEqual([
+			["2024-07-04", 2, null],
+			["2024-07-05", null, null],
+		]);
+	});
+});
+
+describe("dayRegularSeason (S167 AC 2)", () =>
+{
+	it("S167 AC 2 R among others: true when any game is R", () =>
+	{
+		expect(dayRegularSeason(["S", "R", "E"])).toBe(true);
+	});
+
+	it("S167 AC 2 only S: false for a spring-training day", () =>
+	{
+		expect(dayRegularSeason(["S", "S"])).toBe(false);
+	});
+
+	it("S167 AC 2 only A: false for the All-Star Game's day", () =>
+	{
+		expect(dayRegularSeason(["A"])).toBe(false);
+	});
+
+	it("S167 AC 2 postseason: false for a day of only F, D, L or W games", () =>
+	{
+		expect(dayRegularSeason(["F", "F"])).toBe(false);
+		expect(dayRegularSeason(["D", "L"])).toBe(false);
+		expect(dayRegularSeason(["W"])).toBe(false);
+	});
+
+	it("S167 AC 2 no games: false for a stored day with no games", () =>
+	{
+		expect(dayRegularSeason([])).toBe(false);
+	});
+
+	it("S167 AC 2 S and untyped: null when no game is R and one has no type (it could have been regular season)", () =>
+	{
+		expect(dayRegularSeason(["S", null])).toBeNull();
+		expect(dayRegularSeason([undefined])).toBeNull();
+		expect(dayRegularSeason(["S", 82])).toBeNull();
+	});
+
+	it("S167 AC 2 R and untyped: true, since the R game settles it", () =>
+	{
+		expect(dayRegularSeason([null, "R"])).toBe(true);
+	});
+});
+
+describe("storedGameType (S167, ADR-025)", () =>
+{
+	it("keeps a string type as it is and counts anything else (missing, null, a number, an object) as no type", () =>
+	{
+		expect(storedGameType("R")).toBe("R");
+		expect(storedGameType("A")).toBe("A");
+		expect(storedGameType("")).toBe("");
+		expect(storedGameType(undefined)).toBeNull();
+		expect(storedGameType(null)).toBeNull();
+		expect(storedGameType(82)).toBeNull();
+		expect(storedGameType({})).toBeNull();
 	});
 });
 

@@ -3,7 +3,9 @@
 	// S152 AC 2: every file outside the packages that a package's build or tests read. A change to
 	// any of them changes every task's hash, so nothing replays a pass it could have altered:
 	// functions' and web's tests read the fixtures, the OpenAPI spec, wrangler.jsonc and the
-	// workflows, and functions/src/deploy/deploy-workflow.test.ts runs scripts/preview-pr-open.sh.
+	// workflows, functions/src/deploy/deploy-workflow.test.ts runs scripts/preview-pr-open.sh, and
+	// functions' release-check and release-bundle tests read releases/ (a change adding only a notes
+	// file must not replay their pass).
 	"globalDependencies": [
 		"pnpm-lock.yaml",
 		"tsconfig.base.json",
@@ -16,7 +18,8 @@
 		"openapi/**",
 		"tools/**",
 		".github/workflows/**",
-		"scripts/preview-pr-open.sh"
+		"scripts/preview-pr-open.sh",
+		"releases/**"
 	],
 	"tasks": {
 		"typecheck": {

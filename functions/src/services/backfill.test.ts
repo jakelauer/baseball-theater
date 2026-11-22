@@ -84,6 +84,8 @@ class FakeMlb implements MlbGameSources
 {
 	readonly requests: string[] = [];
 	status: (date: string, n: number) => Status = () => FINAL;
+	/** Each game's `gameType` as MLB sends it (S167); `undefined` sends none, as before S167's mapping. */
+	gameType: (date: string) => string | undefined = () => "R";
 	fails: Partial<Record<ExtraSource | "feed" | "schedule", (gamePk: number, date: string) => boolean>> = {};
 
 	constructor(private readonly gamesPerDay = 2) {}
@@ -114,13 +116,21 @@ class FakeMlb implements MlbGameSources
 			windowMode: "cache",
 			games: Array.from({
 				length: this.gamesPerDay,
-			}, (_, n) => ({
-				...TEMPLATE_SUMMARY,
-				gamePk: pkOf(date, n),
-				officialDate: date,
-				gameDate: `${date}T23:05:00Z`,
-				status: this.status(date, n),
-			})),
+			}, (_, n) =>
+			{
+				const { gameType: _template, ...game } = TEMPLATE_SUMMARY;
+				const gameType = this.gameType(date);
+				return {
+					...game,
+					...(gameType === undefined ? {} : {
+						gameType,
+					}),
+					gamePk: pkOf(date, n),
+					officialDate: date,
+					gameDate: `${date}T23:05:00Z`,
+					status: this.status(date, n),
+				};
+			}),
 		};
 	}
 
@@ -1097,6 +1107,98 @@ describe("runBackfill (S122)", () =>
 	});
 });
 
+describe("runBackfill re-stores days stored before S167's game types (S167 AC 4)", () =>
+{
+	const DAY = {
+		from: "2026-07-04",
+		to: "2026-07-04",
+	};
+
+	it("S167 AC 4 untyped re-stored: a settled day stored without game types is fetched and re-stored with them, its games not asked again, and then asks nothing", async () =>
+	{
+		const mlb = new FakeMlb();
+		mlb.gameType = () => undefined;
+		const repos = counted(memoryRepos());
+		await runBackfill(deps(mlb, repos, memoryStore()), JULY);
+		expect((await repos.schedules.listGameCounts("2026-07-04", "2026-07-04"))[0]!.regularSeason).toBeNull();
+
+		// MLB now sends the types (S167's mapping): each stored day is asked for once and re-stored.
+		mlb.gameType = () => "R";
+		mlb.requests.length = 0;
+		repos.writes.length = 0;
+		const second = await runBackfill(deps(mlb, repos, memoryStore()), JULY);
+		expect(mlb.count("schedule")).toBe(10);
+		expect(mlb.requests.filter((r) => !r.startsWith("schedule "))).toEqual([]);
+		expect(repos.writes.filter((w) => w.startsWith("schedule "))).toHaveLength(10);
+		expect(second.incomplete).toEqual([]);
+		const day = (await repos.schedules.getByDate("2026-07-04"))!;
+		expect(day.games.map((game) => game.gameType)).toEqual(["R", "R"]);
+		expect(day.version).toBe(2);
+		expect((await repos.schedules.listGameCounts("2026-07-04", "2026-07-04"))[0]!.regularSeason).toBe(true);
+
+		mlb.requests.length = 0;
+		const third = await runBackfill(deps(mlb, repos, memoryStore()), JULY);
+		expect(mlb.requests).toEqual([]);
+		expect(third.alreadyComplete).toBe(10);
+	});
+
+	it("S167 AC 4 typed asks nothing: a settled day stored with its game types asks MLB nothing", async () =>
+	{
+		const mlb = new FakeMlb();
+		const repos = counted(memoryRepos());
+		await runBackfill(deps(mlb, repos, memoryStore()), DAY);
+		mlb.requests.length = 0;
+		repos.writes.length = 0;
+		const again = await runBackfill(deps(mlb, repos, memoryStore()), DAY);
+		expect(mlb.requests).toEqual([]);
+		expect(repos.writes).toEqual([]);
+		expect(again.alreadyComplete).toBe(1);
+	});
+
+	it("S167 AC 4 MLB sends none: a day MLB still sends with no gameType is fetched once in a run, counted complete, and asked once again by the next run", async () =>
+	{
+		const mlb = new FakeMlb();
+		mlb.gameType = () => undefined;
+		const repos = counted(memoryRepos());
+		await runBackfill(deps(mlb, repos, memoryStore()), DAY);
+		mlb.requests.length = 0;
+		const second = await runBackfill(deps(mlb, repos, memoryStore()), DAY);
+		// One schedule request for the day, its stored finals not asked again, and the day complete.
+		expect(mlb.requests).toEqual(["schedule 2026-07-04"]);
+		expect(second.incomplete).toEqual([]);
+		mlb.requests.length = 0;
+		const third = await runBackfill(deps(mlb, repos, memoryStore()), DAY);
+		expect(mlb.requests).toEqual(["schedule 2026-07-04"]);
+		expect(third.incomplete).toEqual([]);
+	});
+
+	it("S167 AC 4 request fails: a settled day stored without types whose schedule request fails is not left incomplete, and its out-of-date projection is still repaired", async () =>
+	{
+		const mlb = new FakeMlb();
+		mlb.gameType = () => undefined;
+		const repos = memoryRepos();
+		await runBackfill(deps(mlb, counted(repos), memoryStore()), DAY);
+		// A projection older than its snapshot (S122 AC 4's repair), on the untyped day.
+		const victim = pkOf("2026-07-04", 1);
+		const snapshot = (await repos.games.getByPk(victim))!;
+		await repos.games.upsert({
+			...snapshot,
+			version: snapshot.version + 1,
+		});
+
+		mlb.fails.schedule = () => true;
+		mlb.requests.length = 0;
+		const second = await runBackfill(deps(mlb, counted(repos), memoryStore()), DAY);
+		expect(second.incomplete).toEqual([]);
+		expect(second.repaired).toBe(1);
+		expect((await repos.projections.getByPk(victim))?.header.version).toBe(snapshot.version + 1);
+		// One failed schedule request, the stored finals not fetched again, the day still untyped.
+		expect(mlb.count("schedule")).toBe(1);
+		expect(mlb.count("feed")).toBe(0);
+		expect((await repos.schedules.getByDate("2026-07-04"))!.games.map((game) => game.gameType)).toEqual([undefined, undefined]);
+	});
+});
+
 describe("runBackfill on the recordings through PGlite (S122 AC 3)", () =>
 {
 	/** The recorded 2026-09-05 day and 823823's sources, by URL; a 404 for every other game. */
@@ -1175,5 +1277,73 @@ describe("runBackfill on the recordings through PGlite (S122 AC 3)", () =>
 		expect(asked.filter((u) => u.includes("/schedule"))).toEqual([]);
 		expect(asked.filter((u) => u.includes("/feed/live"))).toHaveLength(14);
 		expect(repos.writes).toEqual([]);
+	});
+});
+
+/**
+ * #79, #323: the backfill judges a stored day's window the way the cron does for the days the cron
+ * still polls (MLB's today and the day before), and by the clock alone for older ones.
+ */
+describe("runBackfill and suspended games (#79, #323)", () =>
+{
+	const SUSPENDED: Status = {
+		codedGameState: "U",
+		detailedState: "Suspended: Rain",
+		abstractGameState: "Live",
+	};
+
+	async function storeGame(repos: Counted, gamePk: number, status: Status, changedAt: string, suspendedAt?: string)
+	{
+		await repos.games.upsert({
+			...TEMPLATE_FEED,
+			gamePk,
+			status,
+			windowMode: "active",
+			fetchedAt: changedAt,
+			version: 1,
+			lastChangedAt: changedAt,
+			...(suspendedAt ? {
+				suspendedAt,
+			} : {}),
+		});
+	}
+
+	it("the day before: a game suspended at 12:00Z keeps its day active at 17:00Z, long past its first pitch", async () =>
+	{
+		const mlb = new FakeMlb(1);
+		mlb.status = () => SUSPENDED;
+		const repos = counted(memoryRepos());
+		await storeGame(repos, pkOf("2026-11-07", 0), SUSPENDED, "2026-11-08T12:00:00.000Z", "2026-11-08T12:00:00.000Z");
+		await runBackfill(deps(mlb, repos, memoryStore()), {
+			from: "2026-11-07",
+			to: "2026-11-07",
+		});
+		expect((await repos.schedules.getByDate("2026-11-07"))?.windowMode).toBe("active");
+	});
+
+	it("the day before yesterday is judged by the clock alone: a game suspended there at 12:00Z today leaves its day cache", async () =>
+	{
+		const mlb = new FakeMlb(1);
+		mlb.status = () => SUSPENDED;
+		const repos = counted(memoryRepos());
+		await storeGame(repos, pkOf("2026-11-06", 0), SUSPENDED, "2026-11-08T12:00:00.000Z", "2026-11-08T12:00:00.000Z");
+		await runBackfill(deps(mlb, repos, memoryStore()), {
+			from: "2026-11-06",
+			to: "2026-11-06",
+		});
+		expect((await repos.schedules.getByDate("2026-11-06"))?.windowMode).toBe("cache");
+	});
+
+	it("an older day still listing a suspended game, resumed since under the same gamePk (stored in progress, active), stays cache", async () =>
+	{
+		const mlb = new FakeMlb(1);
+		mlb.status = () => SUSPENDED;
+		const repos = counted(memoryRepos());
+		await storeGame(repos, pkOf("2026-07-01", 0), LIVE, new Date(NOW().getTime() - 60 * 60 * 1000).toISOString());
+		await runBackfill(deps(mlb, repos, memoryStore()), {
+			from: "2026-07-01",
+			to: "2026-07-01",
+		});
+		expect((await repos.schedules.getByDate("2026-07-01"))?.windowMode).toBe("cache");
 	});
 });

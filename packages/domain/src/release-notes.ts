@@ -138,13 +138,18 @@ export function isApproved(notes: ReleaseNotes): boolean
  */
 export function currentRelease(all: readonly ReleaseNotes[]): ReleaseNotes | null
 {
-	let newest: ReleaseNotes | null = null;
-	for (const notes of all)
-	{
-		if (!isApproved(notes)) continue;
-		if (!newest || compareReleaseVersions(notes.version, newest.version) > 0) newest = notes;
-	}
-	return newest;
+	return approvedReleasesNewestFirst(all)[0] ?? null;
+}
+
+/**
+ * Every approved notes among those given, newest version first (S132 AC 1), compared numerically
+ * per part ({@link compareReleaseVersions}); drafts are left out whatever their version. The one
+ * ordering the releases API's `releases` list and {@link currentRelease} share, so the API's
+ * `current` is always its list's first entry.
+ */
+export function approvedReleasesNewestFirst(all: readonly ReleaseNotes[]): ReleaseNotes[]
+{
+	return all.filter(isApproved).sort((a, b) => compareReleaseVersions(b.version, a.version));
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
