@@ -201,6 +201,40 @@ describe("ChangelogPage (S134 AC 1)", () =>
 	});
 });
 
+describe("ChangelogPage, notes from a newer API (S134 AC 1)", () =>
+{
+	it("S134 AC 1: a kind this build doesn't know shows its own word on the label, and items with the same title both draw", async () =>
+	{
+		serve(() => jsonResponse({
+			current: null,
+			releases: [
+				{
+					version: "v4.1.0",
+					headline: [],
+					items: [
+						{
+							kind: "security",
+							title: "Same title",
+							sentence: "First.",
+						},
+						{
+							kind: "fix",
+							title: "Same title",
+							sentence: "Second.",
+						},
+					],
+				},
+			],
+		}));
+		renderChangelog();
+		const items = await screen.findAllByTestId("release-item");
+		expect(items).toHaveLength(2);
+		expect(items.map((item) => within(item).getByTestId("kind-label").textContent)).toEqual(["security", "Bug fix"]);
+		expect(screen.getByText("First.")).toBeInTheDocument();
+		expect(screen.getByText("Second.")).toBeInTheDocument();
+	});
+});
+
 describe("ChangelogPage states (S134 AC 2)", () =>
 {
 	it("S134 AC 2: loading keeps the title over ViewState's loader", () =>

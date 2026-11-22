@@ -20,15 +20,17 @@ export function releasesKey()
 
 /**
  * The notes are frozen in the build that serves them (`functions/src/generated/release-notes.json`,
- * S132), so they change only with a deploy, and a deploy reaches a reader through a fresh load
- * (A6's update notice): one fetch per load is enough, so the answer never goes stale.
+ * S132), but the API's answer may be cached for up to five minutes after a deploy (`max-age=240`
+ * plus `stale-while-revalidate=60`). So the answer counts as fresh for exactly that budget and is
+ * asked again on the next focus or mount after it: a tab open across a deploy then reads the new
+ * notes. Asking again costs little, since the answer is bundled and edge-cached.
  */
 export function releasesQueryOptions()
 {
 	return queryOptions({
 		queryKey: releasesKey(),
 		queryFn: (): Promise<ReleasesPayload> => fetchReleases(),
-		staleTime: Infinity,
+		staleTime: 5 * 60 * 1000,
 	});
 }
 

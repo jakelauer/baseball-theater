@@ -124,7 +124,7 @@ describe("NavRail change log link (S134 AC 3)", () =>
 		expect(item("Standings")).toHaveAttribute("aria-current", "page");
 	});
 
-	for (const path of ["/changelog", "/changelog?x=1"])
+	for (const path of ["/changelog", "/changelog?x=1", "/changelog/", "/Changelog"])
 	{
 		it(`S134 AC 3: rail: current on ${path} (Primary fill, SemiBold, aria-current="page") with no nav item marked active`, () =>
 		{
@@ -138,6 +138,16 @@ describe("NavRail change log link (S134 AC 3)", () =>
 			for (const marker of screen.getAllByTestId("nav-marker")) expect(marker.style.background).toBe("transparent");
 		});
 	}
+
+	it("S134 AC 3: rail: plain on /changelog/x and /changelogs, which aren't the change log", () =>
+	{
+		for (const path of ["/changelog/x", "/changelogs"])
+		{
+			renderRail(path);
+			expect(changelog()).not.toHaveAttribute("aria-current");
+			cleanup();
+		}
+	});
 
 	it("S134 AC 3: rail: signed out, the link is there (and Settings isn't); signed in, it is there too", async () =>
 	{

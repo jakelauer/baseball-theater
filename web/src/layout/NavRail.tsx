@@ -11,10 +11,14 @@ import { HomeLink } from "./Wordmark.js";
 /** The change log's address (S134; A9, owner 2026-11-10: "The changelog will just be at /changelog."). */
 const CHANGELOG_PATH = "/changelog";
 
-/** Whether `pathname` is the change log page; the query string is not part of it, so `/changelog?x=1` counts. */
+/**
+ * Whether `pathname` is the change log page, matched as React Router matches its route: the whole
+ * path, any letter case, a trailing slash allowed. The query string is not part of it, so
+ * `/changelog?x=1` counts; `/changelog/x` does not.
+ */
 function isChangelog(pathname: string): boolean
 {
-	return pathname === CHANGELOG_PATH || pathname.startsWith(`${CHANGELOG_PATH}/`);
+	return pathname.toLowerCase().replace(/\/+$/, "") === CHANGELOG_PATH;
 }
 
 /**

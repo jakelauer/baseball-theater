@@ -9,15 +9,17 @@ import { queryScreen } from "../components/queryScreen.js";
 import { formatDate } from "../format/datetime.js";
 
 /**
- * The words on each item's kind label (shell-scoreboard A9, Q8 and Q12): one per S131 kind, so a
- * kind the notes add later fails the type check here before it can show up unlabeled.
+ * The words on each item's kind label (shell-scoreboard A9, Q8 and Q12), one per S131 kind. A tab
+ * built before a kind was added can still be served it by a newer API, so the page falls back to the
+ * kind's own word rather than an empty label. `satisfies` still fails the type check when a known
+ * kind has no word.
  */
-const KIND_LABEL: Record<PublicRelease["items"][number]["kind"], string> = {
+const KIND_LABEL: Partial<Record<string, string>> = {
 	feature: "Feature",
 	enhancement: "Enhancement",
 	performance: "Performance",
 	fix: "Bug fix",
-};
+} satisfies Record<PublicRelease["items"][number]["kind"], string>;
 
 /**
  * One release as A9's `changelog-*` frames draw it: its version (SemiBold 20) with its date beside it
@@ -25,12 +27,16 @@ const KIND_LABEL: Record<PublicRelease["items"][number]["kind"], string> = {
  * with no date shows its version alone); each headline addition under its own gold "Major Feature"
  * header with no box around it (owner, 2026-11-10); each other item under its kind label, every
  * label in one neutral style (Figma `kind-label` 763:16423); then the one "Fixes and polish" line
- * when the notes have one. Long titles and sentences wrap; nothing is cut.
+ * when the notes have one. Long titles and sentences wrap, even an unbroken URL; nothing is cut.
+ * Entries are keyed by position, since the notes may repeat a title within a bucket.
  */
 function Release({ release }: { release: PublicRelease })
 {
 	return (
-		<Stack gap={14} component="section" aria-label={release.version} data-testid="release">
+		<Stack gap={14} component="section" aria-label={release.version} data-testid="release" style={{
+			// A9: "Long titles and sentences wrap; nothing is cut", a long unbroken URL included.
+			overflowWrap: "anywhere",
+		}}>
 			<Group gap={10} align="baseline">
 				<Title order={2} fz={20} fw={600}>
 					{release.version}
@@ -41,8 +47,8 @@ function Release({ release }: { release: PublicRelease })
 					</Text>
 				) : null}
 			</Group>
-			{release.headline.map((entry) => (
-				<Stack key={entry.title} gap={2} data-testid="major-feature">
+			{release.headline.map((entry, i) => (
+				<Stack key={i} gap={2} data-testid="major-feature">
 					<Text fz={12} fw={700} tt="uppercase" lts={0.6} c="var(--bt-accent)">
 						Major Feature
 					</Text>
@@ -52,8 +58,8 @@ function Release({ release }: { release: PublicRelease })
 					<Text fz={14}>{entry.sentence}</Text>
 				</Stack>
 			))}
-			{release.items.map((item) => (
-				<Stack key={item.title} gap={2} align="flex-start" data-testid="release-item">
+			{release.items.map((item, i) => (
+				<Stack key={`${item.kind}:${i}`} gap={2} align="flex-start" data-testid="release-item">
 					<Badge
 						data-testid="kind-label"
 						data-kind={item.kind}
@@ -69,7 +75,7 @@ function Release({ release }: { release: PublicRelease })
 							},
 						}}
 					>
-						{KIND_LABEL[item.kind]}
+						{KIND_LABEL[item.kind] ?? item.kind}
 					</Badge>
 					<Title order={3} fz={14} fw={600}>
 						{item.title}
