@@ -68,7 +68,16 @@ describe("GET /api/v1/releases (S132)", () =>
 		const body = await response.json() as ReleasesResponse;
 		expect(body.current?.version).toBe("v4.10.0");
 		expect(body.releases.map((r) => r.version)).toEqual(["v4.10.0", "v4.2.0", "v4.1.0"]);
-		expect(body.releases[0]).toEqual(notes("v4.10.0"));
+		const { approval: _approval, ...published } = notes("v4.10.0");
+		expect(body.releases[0]).toEqual(published);
+	});
+
+	it("never publishes the owner's approval words, for current or any release (#327)", async () =>
+	{
+		const body = await (await getReleasesRoute([notes("v4.0.0"), notes("v4.1.0")])).json() as Record<string, unknown> & ReleasesResponse;
+		expect(body.current).not.toHaveProperty("approval");
+		for (const release of body.releases) expect(release).not.toHaveProperty("approval");
+		expect(JSON.stringify(body)).not.toContain("approval");
 	});
 
 	it("S132 AC 1 none approved: current is null and releases empty, with no notes or only drafts", async () =>

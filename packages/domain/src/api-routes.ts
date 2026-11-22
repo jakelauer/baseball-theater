@@ -234,6 +234,14 @@ export interface SignInResponse {
 }
 
 /**
+ * One release's notes as the public releases API serves them: `ReleaseNotes` without `approval`,
+ * the owner's dated, quoted approval, which only `pnpm release:check` and the production deploy's
+ * "Release notes approved" step read (#327; owner, 2026-11-22, asked "Should the public releases API
+ * include your approval words for each release?": chose "Leave it out").
+ */
+export type PublicReleaseNotes = Omit<ReleaseNotes, "approval">;
+
+/**
  * Every approved release's fan-facing notes (S132), for the change log page (S134). Read from the
  * notes bundled into this build (`pnpm release:bundle`), never from MLB or the database.
  */
@@ -243,9 +251,9 @@ export interface ReleasesResponse {
 	 * release has approved notes. On staging it can trail the version line, which names the pull
 	 * request's milestone, a release not yet published.
 	 */
-	current: ReleaseNotes | null;
+	current: PublicReleaseNotes | null;
 	/** Every approved release's notes, newest first (`approvedReleasesNewestFirst`); a draft never appears. */
-	releases: ReleaseNotes[];
+	releases: PublicReleaseNotes[];
 }
 
 /** Registry a route's response-type name is checked against — no unenforced string keys. */
