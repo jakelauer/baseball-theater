@@ -175,6 +175,7 @@ Meaning lives in the theme. Views pick a **role** (primary, live, muted), not a 
 |---------|------------|--------|
 | Brand / CTA / selected | Primary (filled) | Red text or thin marks on Dark use Primary Light |
 | Live / in progress | Accent 2 | **Blinking** live dot + status label (LIVE or inning like Bot 7). **No colored background / pill.** Module does not throb |
+| Delayed / delayed start / suspended | Accent | **Steady** dot (delayed, delayed start) or ring (suspended) + sentence-case label naming MLB's reason ("Delayed · Rain", "Delayed start · Rain", "Suspended · Rain"); one `game-status-marker` with the live dot; on a phone the top bar puts it on its own line ([game-shell A7](./visual/game-shell/amendments/A7.md), ratified 2026-11-22) |
 | Preview / scheduled | Muted text | Time is the data |
 | Final | Muted text | **Not** Primary — red is brand and strikes, not “game over” |
 | Impact / watch first | Accent | Rank index, featured row marker |
