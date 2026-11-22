@@ -132,3 +132,89 @@ describe("mapStandingsTeam", () =>
 		expect(mapped.pct).toBe(".750");
 	});
 });
+
+/** A recorded standings payload, mapped as the service maps it. */
+function mapped(file: string)
+{
+	const payload = JSON.parse(readFileSync(fileURLToPath(new URL(`../../../fixtures/raw/${file}`, import.meta.url)), "utf8"));
+	return {
+		raw: payload as { records: { teamRecords: { team: { id: number };
+			clinched?: boolean;
+			clinchIndicator?: string }[] }[] },
+		teams: mapStandings(parseStandingsResponse(payload), "2026-09-27", "2026-09-27T00:00:00Z").divisions.flatMap((d) => d.teams),
+	};
+}
+
+/** How many mapped teams carry each letter, `null` for none. */
+function letterCounts(teams: { clinchIndicator?: string | null }[]): Record<string, number>
+{
+	const counts: Record<string, number> = {};
+	for (const team of teams)
+	{
+		const key = String(team.clinchIndicator);
+		counts[key] = (counts[key] ?? 0) + 1;
+	}
+	return counts;
+}
+
+describe("clinch letter (S160)", () =>
+{
+	it("S160 AC 1: the 2026 final table carries MLB's z, y and w on its clinched teams as sent, null on the rest, clinched unchanged", () =>
+	{
+		const { raw, teams } = mapped("standings-2026-final.json");
+		expect(letterCounts(teams)).toEqual({
+			z: 2,
+			y: 4,
+			w: 6,
+			null: 18,
+		});
+		const rows = new Map(raw.records.flatMap((r) => r.teamRecords).map((row) => [row.team.id, row]));
+		for (const team of teams)
+		{
+			const row = rows.get(team.teamId)!;
+			expect(team.clinched).toBe(row.clinched ?? false);
+			expect(team.clinchIndicator).toBe(team.clinched ? row.clinchIndicator : null);
+		}
+	});
+
+	it("S160 AC 1: 2026-09-12's two clinched teams carry x", () =>
+	{
+		const { teams } = mapped("standings-2026-09-12.json");
+		expect(letterCounts(teams)).toEqual({
+			x: 2,
+			null: 28,
+		});
+		expect(teams.filter((t) => t.clinchIndicator === "x").every((t) => t.clinched)).toBe(true);
+	});
+
+	const row = (clinched: boolean, clinchIndicator?: string) => mapStandingsTeam({
+		team: {
+			id: 1,
+			name: "Test",
+		},
+		clinched,
+		...(clinchIndicator === undefined ? {} : {
+			clinchIndicator,
+		}),
+	});
+
+	it("S160 AC 1: hand-built rows: an unknown letter is printed as sent, no letter or an empty one is null, and an unclinched row's letter is null", () =>
+	{
+		expect(row(true, "e")).toMatchObject({
+			clinched: true,
+			clinchIndicator: "e",
+		});
+		expect(row(true)).toMatchObject({
+			clinched: true,
+			clinchIndicator: null,
+		});
+		expect(row(true, "")).toMatchObject({
+			clinched: true,
+			clinchIndicator: null,
+		});
+		expect(row(false, "x")).toMatchObject({
+			clinched: false,
+			clinchIndicator: null,
+		});
+	});
+});

@@ -402,6 +402,13 @@ export type StandingsTeamRecord = {
 	runDifferential: number | null;
 	divisionLeader: boolean;
 	clinched: boolean;
+	/**
+	 * How the team clinched (S160): MLB's letter as it sends it on a `clinched` team (`z` best record
+	 * in the league, `y` division, `w` wild card, `x` playoff spot, or any other letter MLB adds, which
+	 * is shown as it is: owner, 2026-11-20, "Print it anyway"). `null` on a team that isn't `clinched`
+	 * or when MLB sends none. Optional because an answer cached before S160 lacks it, which means no letter.
+	 */
+	clinchIndicator?: string | null;
 	eliminationNumber: string | null;
 };
 

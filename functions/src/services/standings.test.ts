@@ -535,3 +535,49 @@ describe("getStandings phases (S139)", () =>
 		}, "2026-09-05"), "2026-09-05")).toBe(false);
 	});
 });
+
+describe("getStandings clinch letter (S160)", () =>
+{
+	type Row = { clinched: boolean;
+		clinchIndicator?: string | null };
+	/** Every row of a table: each holds the field, a letter only on a clinched team, else null. */
+	function rowsOf(table: { divisions: { teams: Row[] }[] } | undefined): Row[]
+	{
+		const rows = (table?.divisions ?? []).flatMap((d) => d.teams);
+		for (const row of rows)
+		{
+			expect(row).toHaveProperty("clinchIndicator");
+			expect(row.clinchIndicator === null || (row.clinched && typeof row.clinchIndicator === "string" && row.clinchIndicator !== "")).toBe(true);
+		}
+		return rows;
+	}
+	const letters = (rows: Row[]) => rows.map((r) => r.clinchIndicator).filter((l) => l !== null).sort();
+
+	it("S160 AC 3: on the 2026 final fixture asking every phase, the top table and phases.spring, regularSeason and playoffs all carry the field", async () =>
+	{
+		const { mlb } = recordedClient();
+		const answer = await answerOf({
+			mlb,
+		}, "2026-11-08", ["spring", "regularSeason", "playoffs"]);
+		const final = ["w", "w", "w", "w", "w", "w", "y", "y", "y", "y", "z", "z"];
+		expect(answer.phase).toBe("final");
+		expect(letters(rowsOf(answer))).toEqual(final);
+		rowsOf(answer.phases.spring!.table);
+		expect(answer.phases.spring!.table).toBeDefined();
+		expect(letters(rowsOf(answer.phases.regularSeason!.table))).toEqual(final);
+		const playoffs = rowsOf(answer.phases.playoffs!.table);
+		expect(playoffs).toHaveLength(12);
+		expect(letters(playoffs)).toEqual(final);
+	});
+
+	it("S160 AC 3: blank rows (the regular season before its first game) carry null", async () =>
+	{
+		const { mlb } = recordedClient();
+		const answer = await answerOf({
+			mlb,
+		}, "2026-03-10");
+		const blank = rowsOf(answer.phases.regularSeason!.table);
+		expect(blank).toHaveLength(30);
+		expect(blank.every((r) => r.clinchIndicator === null)).toBe(true);
+	});
+});

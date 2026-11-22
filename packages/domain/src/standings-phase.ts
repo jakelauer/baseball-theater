@@ -278,6 +278,7 @@ function blankRecord(team: StandingsTeamRecord): StandingsTeamRecord
 		runDifferential: null,
 		divisionLeader: false,
 		clinched: false,
+		clinchIndicator: null,
 		eliminationNumber: null,
 	};
 }

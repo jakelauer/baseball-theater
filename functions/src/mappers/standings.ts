@@ -30,6 +30,16 @@ function toRank(value: string | undefined): number | null
 	return Number.isNaN(parsed) ? null : parsed;
 }
 
+/**
+ * MLB's clinch letter (S160) as it sends it, only on a clinched team: a letter on a row that isn't
+ * `clinched`, or an empty one, is no letter (`null`), so the letter never says more than `clinched` does.
+ */
+function clinchLetter(entry: StandingsRecordEntry): string | null
+{
+	if (entry.clinched !== true) return null;
+	return entry.clinchIndicator ? entry.clinchIndicator : null;
+}
+
 export function mapStandingsTeam(entry: StandingsRecordEntry): StandingsTeamRecord
 {
 	return {
@@ -47,6 +57,7 @@ export function mapStandingsTeam(entry: StandingsRecordEntry): StandingsTeamReco
 		runDifferential: entry.runDifferential ?? null,
 		divisionLeader: entry.divisionLeader ?? false,
 		clinched: entry.clinched ?? false,
+		clinchIndicator: clinchLetter(entry),
 		eliminationNumber: normalizeDash(entry.eliminationNumber),
 	};
 }
