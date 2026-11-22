@@ -142,6 +142,18 @@ export async function fetchDigest(date: string)
 	}));
 }
 
+/** Highlight search (S5): MLB's free-text search for `q`, asked through BT. */
+export async function fetchSearchHighlights(q: string)
+{
+	return unwrap(await api.GET("/api/v1/search/highlights", {
+		params: {
+			query: {
+				q,
+			},
+		},
+	}));
+}
+
 export async function fetchGame(gamePk: number)
 {
 	return unwrap(await api.GET("/api/v1/games/{gamePk}", {

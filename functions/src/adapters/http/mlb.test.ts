@@ -251,3 +251,35 @@ describe("HttpMlbStatsClient fetchGameEditorial (S122)", () =>
 		expect(editorial?.recap).toBeTruthy();
 	});
 });
+
+describe("HttpMlbStatsClient.searchHighlights (S5)", () =>
+{
+	const recorded = readFileSync(path.resolve(RAW, "../search-walk-off.json"), "utf8");
+
+	it("asks MLB's free-text search and maps its recorded answer", async () =>
+	{
+		const urls: string[] = [];
+		const mlb = new HttpMlbStatsClient({
+			fetchImpl: async (input) =>
+			{
+				urls.push(String(input));
+				return new Response(recorded);
+			},
+		});
+		const page = await mlb.searchHighlights("walk-off");
+		expect(urls).toHaveLength(1);
+		expect(new URL(urls[0]!).host).toBe("fastball-gateway.mlb.com");
+		expect(page.highlights.length).toBeGreaterThan(0);
+		expect(page.total).toBeGreaterThanOrEqual(page.highlights.length);
+	});
+
+	it("rejects when MLB errors, so the route says so rather than showing no results", async () =>
+	{
+		const mlb = new HttpMlbStatsClient({
+			fetchImpl: async () => new Response("", {
+				status: 503,
+			}),
+		});
+		await expect(mlb.searchHighlights("walk-off")).rejects.toThrow(/503/);
+	});
+});

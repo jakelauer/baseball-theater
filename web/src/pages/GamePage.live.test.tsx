@@ -230,4 +230,50 @@ describe("GamePage live (S19)", () =>
 		await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
 		expect(counter.count()).toBe(2);
 	});
+
+	it("S148 AC 3 Live room: the Live marker shows while the socket is open, and goes when it drops", async () =>
+	{
+		renderGame("live");
+		const socket = await opened();
+		await screen.findByTestId("matchup-cards");
+		// Connecting, not yet open: no marker.
+		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
+		await act(async () => socket.onopen?.({}));
+		const footer = screen.getByRole("contentinfo");
+		expect(footer).toContainElement(screen.getByTestId("footer-live-strip"));
+		expect(footer).toHaveTextContent(/^Live Data · Active$/);
+		await act(async () => socket.onclose?.({}));
+		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
+		expect(screen.queryByText("Live Data · Active")).toBeNull();
+	});
+
+	it("S148 AC 3 Box room: the marker is the game page's, so the Box room shows it too while the socket is open", async () =>
+	{
+		renderGame("box");
+		const socket = await opened();
+		await act(async () => socket.onopen?.({}));
+		expect(await screen.findByTestId("footer-live-strip")).toHaveTextContent("Live Data · Active");
+	});
+
+	it("S148 AC 1 game, socket closed: in its window with the socket dropped, no footer line: no 'Fetched … ago', no 'baseball.theater'", async () =>
+	{
+		const { container } = renderGame("live");
+		const socket = await opened();
+		await screen.findByTestId("matchup-cards");
+		await act(async () => socket.onopen?.({}));
+		await act(async () => socket.onclose?.({}));
+		expect(screen.queryByRole("contentinfo")).toBeNull();
+		expect(container).not.toHaveTextContent(/Fetched|baseball\.theater/);
+	});
+
+	it("S148 AC 1 game, socket open: the footer is the strip alone: no 'Fetched … ago', no 'baseball.theater'", async () =>
+	{
+		const { container } = renderGame("live");
+		const socket = await opened();
+		await act(async () => socket.onopen?.({}));
+		const footer = await screen.findByRole("contentinfo");
+		expect(footer.children).toHaveLength(1);
+		expect(footer).toHaveTextContent(/^Live Data · Active$/);
+		expect(container).not.toHaveTextContent(/Fetched|baseball\.theater/);
+	});
 });

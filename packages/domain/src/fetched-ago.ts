@@ -1,8 +1,9 @@
 /**
- * How long ago BT fetched a payload, as the shell footer says it
- * ("Fetched 12s ago · baseball.theater", S31 `footer-meta`; S60). One
- * implementation (ADR-025): the footer and A1's offline line ("saved 18m ago")
- * both format this value and never subtract times themselves.
+ * How long ago BT fetched a payload. Kept for S74's offline banner (S74 AC 2;
+ * shell-scoreboard A1: "saved 18m ago"), which will name the saved copy's age with it once
+ * it is built; one implementation (ADR-025), so that banner will format this value and
+ * never subtract times itself. Nothing shows it today: no page ends in an age any more,
+ * since shell-scoreboard A13 (S148) replaced that line with the Live marker.
  */
 
 const MINUTE = 60;

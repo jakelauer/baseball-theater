@@ -54,11 +54,14 @@ function stream(random = () => 0)
 {
 	const client = createQueryClient();
 	const sockets: FakeSocket[] = [];
+	/** Every open-state change the stream reported, in order (S148). */
+	const changes: boolean[] = [];
 	const live = new LiveGameStream({
 		gamePk: PK,
 		client,
 		write: (game) => writeGame(client, game),
 		random,
+		onOpenChange: (open) => changes.push(open),
 		openSocket: (url) =>
 		{
 			const socket = new FakeSocket(url);
@@ -72,6 +75,9 @@ function stream(random = () => 0)
 		sockets,
 		live,
 		cached,
+		changes,
+		/** Whether the stream last said its socket was open (false before it says anything). */
+		isOpen: () => changes.at(-1) ?? false,
 		last: () => sockets.at(-1)!,
 	};
 }
@@ -258,5 +264,98 @@ describe("LiveGameStream", () =>
 		vi.advanceTimersByTime(LIVE_TIMING.maxDelayMs);
 		expect(sockets).toHaveLength(1);
 		live.stop();
+	});
+
+	it("S148 AC 2: open only once the socket opens; not open after a close, in each reconnect wait and while polling; open again once reopened", () =>
+	{
+		const {
+			live, sockets, last, isOpen, changes,
+		} = stream(() => 0);
+		live.start();
+		// connect() has run, but the socket hasn't said it is open: no pushes yet.
+		expect(sockets).toHaveLength(1);
+		expect(isOpen()).toBe(false);
+		last().open();
+		expect(isOpen()).toBe(true);
+		last().drop();
+		expect(isOpen()).toBe(false);
+		// Each reconnect wait: a socket is being connected, but none is open.
+		for (let i = 1; i < LIVE_TIMING.maxFailures; i++)
+		{
+			vi.advanceTimersByTime(LIVE_TIMING.maxDelayMs);
+			expect(sockets).toHaveLength(i + 1);
+			expect(isOpen()).toBe(false);
+			last().drop();
+			expect(isOpen()).toBe(false);
+		}
+		// Fallen back to polling: still not open.
+		vi.advanceTimersByTime(LIVE_TIMING.pollMs * 2);
+		expect(sockets).toHaveLength(LIVE_TIMING.maxFailures);
+		expect(isOpen()).toBe(false);
+		// Told only on a change: open, then closed once, through every failed attempt.
+		expect(changes).toEqual([true, false]);
+		live.stop();
+	});
+
+	it("S148 AC 2: reopened after a reconnect wait, it is open again", () =>
+	{
+		const {
+			live, sockets, last, isOpen,
+		} = stream(() => 0);
+		live.start();
+		last().open();
+		last().drop();
+		vi.advanceTimersByTime(LIVE_TIMING.maxDelayMs);
+		expect(sockets).toHaveLength(2);
+		expect(isOpen()).toBe(false);
+		last().open();
+		expect(isOpen()).toBe(true);
+		live.stop();
+	});
+
+	it("S148 AC 2: back from the polling fallback (online, or the tab shown again), the new socket opening is open and polling stops", async () =>
+	{
+		for (const back of ["online", "visible"] as const)
+		{
+			const {
+				client, live, sockets, last, isOpen,
+			} = stream(() => 0);
+			const refetch = vi.spyOn(client, "refetchQueries").mockResolvedValue();
+			live.start();
+			failEveryReconnect(last);
+			await vi.advanceTimersByTimeAsync(LIVE_TIMING.pollMs);
+			expect(refetch).toHaveBeenCalledTimes(1);
+			expect(isOpen()).toBe(false);
+			if (back === "online")
+			{
+				window.dispatchEvent(new Event("online"));
+			}
+			else
+			{
+				const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+				document.dispatchEvent(new Event("visibilitychange"));
+				visibility.mockRestore();
+			}
+			expect(sockets).toHaveLength(LIVE_TIMING.maxFailures + 1);
+			// Retrying, the new socket not yet open: not shown.
+			expect(isOpen()).toBe(false);
+			last().open();
+			expect(isOpen()).toBe(true);
+			await vi.advanceTimersByTimeAsync(LIVE_TIMING.pollMs * 3);
+			expect(refetch).toHaveBeenCalledTimes(1);
+			live.stop();
+		}
+	});
+
+	it("S148 AC 2: stopped (unmount), it is not open", () =>
+	{
+		const {
+			live, last, isOpen,
+		} = stream();
+		live.start();
+		last().open();
+		expect(isOpen()).toBe(true);
+		live.stop();
+		expect(isOpen()).toBe(false);
 	});
 });

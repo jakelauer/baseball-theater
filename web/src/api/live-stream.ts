@@ -52,6 +52,12 @@ export type LiveStreamOptions = {
 	write: (game: GamePayload) => void;
 	openSocket?: (url: string) => LiveSocket;
 	random?: () => number;
+	/**
+	 * Told each time the socket becomes open, and each time it stops being open (closed, a
+	 * reconnect wait, the polling fallback, stopped) (S148): whether pushes are arriving, which
+	 * the page's Live marker shows. Called only on a change, never with the same value twice.
+	 */
+	onOpenChange?: (open: boolean) => void;
 };
 
 export class LiveGameStream
@@ -61,6 +67,8 @@ export class LiveGameStream
 	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private pollTimer: ReturnType<typeof setInterval> | undefined;
 	private stopped = false;
+	/** Whether the current socket has opened and not closed since (S148). */
+	private open = false;
 	private readonly openSocket: (url: string) => LiveSocket;
 
 	constructor(private readonly options: LiveStreamOptions)
@@ -92,6 +100,15 @@ export class LiveGameStream
 		clearInterval(this.pollTimer);
 		this.pollTimer = undefined;
 		this.closeSocket();
+		this.setOpen(false);
+	}
+
+	/** Records the socket's open state and tells the page when it changes (S148). */
+	private setOpen(open: boolean): void
+	{
+		if (this.open === open) return;
+		this.open = open;
+		this.options.onOpenChange?.(open);
 	}
 
 	private closeSocket(): void
@@ -107,14 +124,17 @@ export class LiveGameStream
 	{
 		const socket = this.openSocket(liveUrl(this.options.gamePk, this.cachedVersion()));
 		this.socket = socket;
+		// Open only once the socket says so: a socket being connected isn't receiving pushes yet.
 		socket.onopen = () =>
 		{
 			this.failures = 0;
+			this.setOpen(true);
 		};
 		socket.onmessage = (event) => this.receive(event.data);
 		socket.onclose = () =>
 		{
 			this.socket = null;
+			this.setOpen(false);
 			this.failures += 1;
 			if (this.failures >= LIVE_TIMING.maxFailures) this.startPolling();
 			else this.reconnectTimer = setTimeout(() => this.connect(), reconnectDelay(this.failures - 1, this.options.random));
