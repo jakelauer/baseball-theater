@@ -29,8 +29,10 @@ import type { StandingsResponse } from "@bt/mlb-api";
 import { parseStandingsResponse } from "@bt/mlb-api";
 import type { MlbStatsClient } from "@bt/ports";
 import {
-	finalStandingsUrl, graphContentRequest, playMetricsUrl, seasonsUrl, springStandingsUrl, standingsUrl, worldSeriesUrl,
+	finalStandingsUrl, graphContentRequest, playMetricsUrl, searchHighlightsRequest, seasonsUrl, springStandingsUrl, standingsUrl, worldSeriesUrl,
 } from "../adapters/http/mlb.js";
+import { searchFixtureName } from "../adapters/fixtures/fixture-client.js";
+import { parseSearchResponse } from "../mappers/search.js";
 import { mapStandings } from "../mappers/standings.js";
 
 const DEFAULT_BASE_URL = "https://statsapi.mlb.com";
@@ -232,6 +234,37 @@ export async function recordEndpoints(
 		written.push(`${endpoint.name}.json`);
 	}
 	return written;
+}
+
+/**
+ * One highlight search (S5), recorded verbatim to `<outDir>/search-<words>.json` (`searchFixtureName`),
+ * the name `FixtureMlbStatsClient.searchHighlights` reads: the request the HTTP client makes
+ * (`searchHighlightsRequest`), so the recording carries every field it asks for, `guid` and
+ * `playInfo` among them. The answer is checked first (`parseSearchResponse`): MLB's `errors` or a
+ * changed shape throws and leaves any earlier recording as it was. Returns the name written.
+ *
+ * A library function only: `pnpm record-fixtures` (`scripts/record-fixtures.ts`) has no search form
+ * yet, so `fixtures/search-walk-off.json` was recorded by calling this directly (S5, 2026-11-22).
+ */
+export async function recordSearch(query: string, outDir: string, options: Pick<RawRecorderOptions, "fetchImpl"> = {}): Promise<string>
+{
+	const doFetch = options.fetchImpl ?? ((input, init) => fetch(input, init));
+	const { url, headers } = searchHighlightsRequest(query);
+	const response = await doFetch(url, {
+		headers: {
+			accept: "application/json",
+			...headers,
+		},
+	});
+	if (!response.ok) throw new Error(`MLB search ${response.status} for ${query}`);
+	const text = await response.text();
+	parseSearchResponse(JSON.parse(text));
+	const name = searchFixtureName(query);
+	await mkdir(outDir, {
+		recursive: true,
+	});
+	await writeFile(path.join(outDir, name), text);
+	return name;
 }
 
 async function writeJson(file: string, data: unknown): Promise<void>

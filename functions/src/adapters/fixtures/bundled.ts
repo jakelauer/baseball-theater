@@ -36,6 +36,7 @@ import worldSeries2026 from "../../../../fixtures/raw/worldseries-2026.json" wit
 import worldSeries2027 from "../../../../fixtures/raw/worldseries-2027.json" with { type: "json" };
 import schedule20240704 from "../../../../fixtures/schedule-2024-07-04.json" with { type: "json" };
 import schedule20260905 from "../../../../fixtures/schedule-2026-09-05.json" with { type: "json" };
+import searchWalkOff from "../../../../fixtures/search-walk-off.json" with { type: "json" };
 import standings19500704 from "../../../../fixtures/standings-1950-07-04.json" with { type: "json" };
 import standings20260905 from "../../../../fixtures/standings-2026-09-05.json" with { type: "json" };
 import standings20260912 from "../../../../fixtures/standings-2026-09-12.json" with { type: "json" };
@@ -74,6 +75,8 @@ export const BUNDLED_FIXTURES: Readonly<Record<string, unknown>> = {
 	"raw/worldseries-2027.json": worldSeries2027,
 	"schedule-2024-07-04.json": schedule20240704,
 	"schedule-2026-09-05.json": schedule20260905,
+	// MLB's recorded highlight search for "walk-off" (S5), so local and the Worker answer it offline.
+	"search-walk-off.json": searchWalkOff,
 	"standings-1950-07-04.json": standings19500704,
 	"standings-2026-09-05.json": standings20260905,
 	"standings-2026-09-12.json": standings20260912,
