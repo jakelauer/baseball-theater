@@ -56,7 +56,7 @@ function git(...args: string[]): string
 function setup(): string
 {
 	git("init", "-q", "-b", "stage");
-	for (const f of ["audit.sh", "lib/reverify.sh", "lib/checks.sh", "backlog-vault/text-records.ts", "backlog-vault/ledger.ts", "backlog-vault/github.ts"])
+	for (const f of ["audit.sh", "lib/reverify.sh", "lib/checks.sh", "backlog-vault/text-records.ts", "backlog-vault/ledger.ts", "backlog-vault/github.ts", "backlog-vault/run-directly.ts"])
 	{
 		mkdirSync(dirname(join(repo, "scripts", f)), {
 			recursive: true,

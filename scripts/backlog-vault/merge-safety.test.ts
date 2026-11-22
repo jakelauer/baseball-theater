@@ -199,7 +199,7 @@ beforeAll(() =>
 		}
 	}
 	for (const path of ["docs/v3/FEATURES.md", "docs/v3/INTENT.md", "docs/v3/AUDIT.md", "scripts/audit.sh", "scripts/lib/checks.sh", "scripts/lib/reverify.sh",
-		"scripts/backlog-vault/text-records.ts", "scripts/backlog-vault/ledger.ts"])
+		"scripts/backlog-vault/text-records.ts", "scripts/backlog-vault/ledger.ts", "scripts/backlog-vault/run-directly.ts"])
 	{
 		mkdirSync(dirname(join(repo, path)), {
 			recursive: true,

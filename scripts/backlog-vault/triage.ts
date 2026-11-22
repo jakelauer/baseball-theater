@@ -24,6 +24,7 @@
 
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isRunDirectly } from "./run-directly.ts";
 import type {
 	CachedIssue, GhRunner, GithubWriter, IssueCache,
 } from "./github.ts";
@@ -83,7 +84,7 @@ export function main(argv: string[], run: GhRunner = ghRunner, root = repoRoot, 
 	return `backlog:triage: ${all.length} triage issue(s) (${all.join(", ") || "none"}); ${dryRun ? "would label" : "labelled"} ${done.map((n) => `#${n}`).join(", ") || "none"}`;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+if (isRunDirectly(import.meta.url))
 {
 	try
 	{

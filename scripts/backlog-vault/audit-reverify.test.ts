@@ -167,11 +167,11 @@ describe("audit.sh design mode (S84)", () =>
 	});
 });
 
-/** A fresh repository with audit.sh, its libraries and in-flight.ts, and an empty frozen ledger. */
+/** A fresh repository with audit.sh, its libraries and in-flight.ts (with the run-directly.ts it imports), and an empty frozen ledger. */
 function plainRepo(): void
 {
 	git("init", "-q", "-b", "main");
-	for (const f of ["audit.sh", "lib/checks.sh", "lib/reverify.sh", "backlog-vault/design-reference.ts", "backlog-vault/in-flight.ts"]) copyFileSync(join(SCRIPTS, f), join(mkdirOf(`scripts/${f}`), f.split("/").pop()!));
+	for (const f of ["audit.sh", "lib/checks.sh", "lib/reverify.sh", "backlog-vault/design-reference.ts", "backlog-vault/in-flight.ts", "backlog-vault/run-directly.ts"]) copyFileSync(join(SCRIPTS, f), join(mkdirOf(`scripts/${f}`), f.split("/").pop()!));
 	write("docs/v3/AUDIT.md", `# Ledger\n\n${MARKER}\n`);
 	git("add", "-A");
 	git("commit", "-q", "-m", "base");
@@ -250,7 +250,7 @@ describe("ship-time snapshots (S164 AC 5)", () =>
 	/** Adds the text-record tooling to the throwaway repository (with this checkout's node_modules, for yaml). */
 	function withRecords(): void
 	{
-		for (const f of ["backlog-vault/text-records.ts", "backlog-vault/ledger.ts"]) copyFileSync(join(SCRIPTS, f), join(mkdirOf(`scripts/${f}`), f.split("/").pop()!));
+		for (const f of ["backlog-vault/text-records.ts", "backlog-vault/ledger.ts", "backlog-vault/run-directly.ts"]) copyFileSync(join(SCRIPTS, f), join(mkdirOf(`scripts/${f}`), f.split("/").pop()!));
 		spawnSync("ln", ["-s", join(SCRIPTS, "../node_modules"), join(repo, "node_modules")]);
 	}
 

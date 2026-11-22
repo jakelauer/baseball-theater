@@ -30,6 +30,7 @@ import {
 	basename, join, resolve,
 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isRunDirectly } from "./run-directly.ts";
 import { parse as parseYaml } from "yaml";
 import { FRAGMENT_NAME, fragmentFiles } from "./ledger.ts";
 
@@ -714,7 +715,7 @@ export function main(argv: string[]): string
 	throw new RecordError("usage: text-records.ts render … | newest <ID> [--field body|hash|file|issue|title|design|problems] | fields <file> [ID] | body <fragment>");
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+if (isRunDirectly(import.meta.url))
 {
 	try
 	{

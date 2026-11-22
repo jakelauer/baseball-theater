@@ -21,6 +21,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isRunDirectly } from "./run-directly.ts";
 import type { CachedIssue, GhRunner } from "./github.ts";
 import {
 	addLabels, cacheDir, ghRunner, itemsFromCache, listMilestones, NoCacheError, ok, patchIssue, readCache, readIssue, removeLabel, request, storeIssue,
@@ -259,7 +260,7 @@ export function main(argv: string[], run: GhRunner = ghRunner, root = repoRoot, 
 	return [`backlog:areas: ${changes.length} change(s)${dryRun ? " (dry run: nothing sent)" : ""}`, ...lines].join("\n");
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+if (isRunDirectly(import.meta.url))
 {
 	try
 	{
