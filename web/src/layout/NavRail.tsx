@@ -8,10 +8,53 @@ import { NAV, activeSection } from "./nav.js";
 import { VERSION_LINE } from "./version.js";
 import { HomeLink } from "./Wordmark.js";
 
+/** The change log's address (S134; A9, owner 2026-11-10: "The changelog will just be at /changelog."). */
+const CHANGELOG_PATH = "/changelog";
+
+/** Whether `pathname` is the change log page; the query string is not part of it, so `/changelog?x=1` counts. */
+function isChangelog(pathname: string): boolean
+{
+	return pathname === CHANGELOG_PATH || pathname.startsWith(`${CHANGELOG_PATH}/`);
+}
+
+/**
+ * The menu's way to the change log (S134; Figma `changelog-link` 651:13388, shell-scoreboard A9):
+ * a link reading "Changelog" at the foot of the rail and the drawer, 10px above the version line,
+ * outside the nav list (the page isn't a section, so `activeSection` lights no item there). Plain
+ * (Regular 13, Light) everywhere but the change log itself, where it is current: filled Primary and
+ * SemiBold, as an active nav item, and `aria-current="page"`. In the drawer `onNavigate` closes it.
+ * S135 adds its highlighted state; current wins over it.
+ */
+function ChangelogLink({ current, onNavigate }: { current: boolean;
+	onNavigate?: () => void; })
+{
+	return (
+		<Box
+			component={Link}
+			to={CHANGELOG_PATH}
+			onClick={onNavigate}
+			aria-current={current ? "page" : undefined}
+			data-testid="changelog-link"
+			data-current={current || undefined}
+			className={current ? undefined : "bt-hover"}
+			style={{
+				display: "inline-block",
+				padding: "4px 10px",
+				borderRadius: 6,
+				background: current ? "var(--bt-primary)" : "transparent",
+			}}
+		>
+			<Text component="span" fz={13} fw={current ? 600 : 400} c="var(--bt-light)">
+				Changelog
+			</Text>
+		</Box>
+	);
+}
+
 /**
  * The 240px nav rail (S31 `nav-rail`): wordmark (the link home), sections with the active one
- * filled Primary and marked `aria-current`, and the build's version line at its
- * foot with no label (S56 A2). The desktop host shows it beside the page; on
+ * filled Primary and marked `aria-current`, and at its foot the change log link (S134) over the
+ * build's version line, which has no label (S56 A2). The desktop host shows it beside the page; on
  * mobile and medium it is the drawer's content, and `onNavigate` closes the drawer.
  *
  * Values from the Figma `nav-rail` (Active=Scoreboard, 163:919; S83): 24px
@@ -82,6 +125,7 @@ export function NavRail({ onNavigate }: { onNavigate?: () => void })
 			</Stack>
 			<Stack gap="xs" align="flex-start">
 				<DevSessionControl />
+				<ChangelogLink current={isChangelog(pathname)} onNavigate={onNavigate} />
 				<Text fz={11} c="var(--bt-light)" data-testid="version-line">
 					{VERSION_LINE}
 				</Text>
