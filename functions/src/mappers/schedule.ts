@@ -169,6 +169,11 @@ export function mapScheduleGame(game: ScheduleGame): ScheduleGameSummary
 		gamePk: game.gamePk,
 		gameDate: game.officialDate ?? game.gameDate.slice(0, 10),
 		officialDate: game.officialDate ?? game.gameDate.slice(0, 10),
+		// S167: the month answer's `regularSeason` reads it; left out (not `undefined`) when MLB sends
+		// none, so a stored document's shape says "no type" the same way an old one does.
+		...(game.gameType !== undefined ? {
+			gameType: game.gameType,
+		} : {}),
 		startTime: game.gameDate,
 		status: mapStatus(game.status),
 		teams: {

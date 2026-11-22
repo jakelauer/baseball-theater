@@ -134,11 +134,13 @@ function api(repos: Repos, mlb: MlbStatsClient = new CountingClient(), start: Da
 			const body = await response.json() as { month: string;
 				days: { date: string;
 					count: number | null;
-					teamIds: number[] | null; }[]; };
+					teamIds: number[] | null;
+					regularSeason: boolean | null; }[]; };
 			return {
 				body,
 				count: (date: string) => body.days.find((day) => day.date === date)?.count,
 				teams: (date: string) => body.days.find((day) => day.date === date)?.teamIds,
+				regularSeason: (date: string) => body.days.find((day) => day.date === date)?.regularSeason,
 				cacheControl: response.headers.get("Cache-Control"),
 			};
 		},
@@ -228,8 +230,51 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 			date: "2024-07-06",
 			count: null,
 			teamIds: null,
+			regularSeason: null,
 		});
 		for (const d of body.days) expect(d.teamIds === null, d.date).toBe(d.count === null);
+	});
+});
+
+describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] as const)("S167 %s", (_name, makeRepos) =>
+{
+	it("S167 AC 3 route null: a day BT holds no schedule for answers regularSeason null beside count null; a stored day answers its own", async () =>
+	{
+		const repos = await makeRepos();
+		const [first, second] = (await new FixtureMlbStatsClient().fetchSchedule("2024-07-04")).games;
+		await store(repos, "2024-07-04", [{
+			...first!,
+			gameType: "R",
+		}, {
+			...second!,
+			gameType: "S",
+		}]);
+		await store(repos, "2024-07-09", [{
+			...first!,
+			gameType: "A",
+		}]);
+		await store(repos, "2024-07-10", []);
+		const { body, regularSeason } = await api(repos).month("2024-07");
+		expect(body.days.find((d) => d.date === "2024-07-06")).toEqual({
+			date: "2024-07-06",
+			count: null,
+			teamIds: null,
+			regularSeason: null,
+		});
+		expect(regularSeason("2024-07-04")).toBe(true);
+		expect(regularSeason("2024-07-09")).toBe(false);
+		expect(regularSeason("2024-07-10")).toBe(false);
+		for (const d of body.days) if (d.count === null) expect(d.regularSeason, d.date).toBeNull();
+	});
+
+	it("S167 AC 5: over the committed fixtures, the July 2024 month answer says regularSeason true for 2024-07-04", async () =>
+	{
+		const repos = await makeRepos();
+		// The fixture day as the fixture client serves it, its gameType from fixtures/schedule-2024-07-04.json.
+		await store(repos, "2024-07-04", (await new FixtureMlbStatsClient().fetchSchedule("2024-07-04")).games);
+		const { regularSeason, count } = await api(repos).month("2024-07");
+		expect(count("2024-07-04")).toBe(2);
+		expect(regularSeason("2024-07-04")).toBe(true);
 	});
 });
 

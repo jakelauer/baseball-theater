@@ -148,7 +148,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The number of games on each day of one month, and the teams playing it, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null` and `teamIds: null`, distinct from a day with no games (`0` and `[]`). */
+        /** The number of games on each day of one month, the teams playing it, and whether it has a regular-season game, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, `teamIds: null` and `regularSeason: null`, distinct from a day with no games (`0`, `[]` and `false`). */
         get: operations["getScheduleMonth"];
         put?: never;
         post?: never;
@@ -661,6 +661,8 @@ export interface components {
             count: number | null;
             /** @description The day, `YYYY-MM-DD`. */
             date: string;
+            /** @description Whether the day has a regular-season game (S167; `dayRegularSeason`), so S159's calendar marks a favorite team's day off only during the regular season. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular season and at least one was stored without a game type (a day stored before S167, until the backfill re-stores it). Per day rather than per game, since the calendar needs only the day's answer and the month answer stays one small, shared, cached response (ADR-021). */
+            regularSeason: boolean | null;
             /** @description The MLB team IDs playing that day (away and home of every game counted in `count`, each once, ascending; S136), so a client can mark the days a fan's favorites play without one request per day. `[]` for a stored day with no games; `null` exactly when `count` is. Every team is sent, not "a favorite plays", because favorites are personal and the month answer is one shared, cached response (ADR-021). */
             teamIds: number[] | null;
         };
@@ -670,6 +672,8 @@ export interface components {
             decisions?: components["schemas"]["GameDecisions"] | null;
             gameDate: string;
             gamePk: number;
+            /** @description MLB's game type code as sent (S167): `R` regular season, `S` spring training, `E` exhibition, `A` All-Star, `F`/`D`/`L`/`W` postseason rounds, any other code kept as it is. Absent when MLB sent none, and on a game stored before S167 until the backfill re-stores its day. */
+            gameType?: string;
             linescore: components["schemas"]["LinescoreSummary"] | null;
             /** @description During the game: runners, matchup and count (S65); `null` unless in progress. */
             live?: components["schemas"]["ScheduleLive"] | null;

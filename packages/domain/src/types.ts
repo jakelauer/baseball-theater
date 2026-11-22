@@ -301,6 +301,12 @@ export type ScheduleGameSummary = {
 	gamePk: number;
 	gameDate: string;
 	officialDate: string;
+	/**
+	 * MLB's game type code as sent (S167): `R` regular season, `S` spring training, `E` exhibition,
+	 * `A` All-Star, `F`/`D`/`L`/`W` postseason rounds, any other code kept as it is. Absent when MLB
+	 * sent none, and on a game stored before S167 until the backfill re-stores its day.
+	 */
+	gameType?: string;
 	/** First pitch as an ISO instant (S65); views show it in the viewer's zone (`formatGameTime`). */
 	startTime?: string;
 	status: GameSnapshot["status"];

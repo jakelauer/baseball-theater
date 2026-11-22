@@ -5,6 +5,7 @@
       "gamePk": 823577,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T20:10:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -174,6 +175,7 @@
       "gamePk": 823823,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T20:10:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -346,6 +348,7 @@
       "gamePk": 823419,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T22:05:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -518,6 +521,7 @@
       "gamePk": 824389,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T22:10:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -687,6 +691,7 @@
       "gamePk": 823335,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T22:40:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -856,6 +861,7 @@
       "gamePk": 824468,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T22:40:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -1028,6 +1034,7 @@
       "gamePk": 824795,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T23:05:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -1197,6 +1204,7 @@
       "gamePk": 822850,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T23:05:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -1375,6 +1383,7 @@
       "gamePk": 824066,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T23:10:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -1547,6 +1556,7 @@
       "gamePk": 824553,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T23:10:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -1719,6 +1729,7 @@
       "gamePk": 824145,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T23:15:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -1900,6 +1911,7 @@
       "gamePk": 823257,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-05T23:15:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -2069,6 +2081,7 @@
       "gamePk": 824310,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-06T00:10:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -2241,6 +2254,7 @@
       "gamePk": 823904,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-06T01:10:00Z",
       "status": {
         "abstractGameState": "Final",
@@ -2413,6 +2427,7 @@
       "gamePk": 823094,
       "gameDate": "2026-09-05",
       "officialDate": "2026-09-05",
+      "gameType": "R",
       "startTime": "2026-09-06T01:40:00Z",
       "status": {
         "abstractGameState": "Final",
