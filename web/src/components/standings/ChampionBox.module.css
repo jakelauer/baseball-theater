@@ -23,7 +23,11 @@
 	color: transparent;
 }
 
-/* One sheen, once, left to right in 1.2s on Material's standard curve; never under reduced motion (the component leaves the class off). */
+/*
+ * One sheen, once, left to right in 1.2s on Material's standard curve; never under reduced motion. The
+ * component leaves the class off once `useReducedMotion` has read the setting, but that hook answers
+ * false on the first render, so the media rule below stops the sweep from that first render on.
+ */
 .sheen::after {
 	content: "";
 	position: absolute;
@@ -32,6 +36,13 @@
 	background: linear-gradient(100deg, transparent 35%, rgb(255 236 190 / 40%) 50%, transparent 65%);
 	transform: translateX(-100%);
 	animation: bt-world-series-sheen 1.2s var(--bt-ease) 1 forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sheen::after {
+		display: none;
+		animation: none;
+	}
 }
 
 @keyframes bt-world-series-sheen {

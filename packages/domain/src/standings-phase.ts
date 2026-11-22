@@ -282,6 +282,18 @@ export function playoffsTable(regularSeason: StandingsSnapshot): StandingsSnapsh
 	};
 }
 
+/**
+ * Whether a standings table has no team at all (S130 AC 2): the first spring morning, before a spring
+ * game is final (S139 AC 4), comes back with `divisions: []` or with divisions whose `teams` are
+ * empty, and both read as empty here. Standings draws S129's empty-spring text for it. The standings
+ * service still has its own copy (`isEmpty`, `functions/src/services/standings.ts`), outside S130's
+ * fence; an enhancement moves it onto this one.
+ */
+export function standingsHasNoTeams(table: Pick<StandingsSnapshot, "divisions">): boolean
+{
+	return table.divisions.every((division) => division.teams.length === 0);
+}
+
 /** A team before its season's first game (S139 AC 4): its name and division, 0-0, every other figure blank. */
 function blankRecord(team: StandingsTeamRecord): StandingsTeamRecord
 {

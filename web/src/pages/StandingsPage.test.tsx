@@ -219,7 +219,11 @@ const BASE_TABLE: Snapshot = {
 	windowMode: STANDINGS.windowMode,
 };
 
-/** The 2026 final table: the Rays `z`, the Guardians `y`, the Yankees `w`, the others not clinched. */
+/**
+ * A 2026 final table for these tests, illustrative: the Rays `z`, the Guardians `y` and the Yankees `w`
+ * are MLB's own letters for those three teams (`fixtures/raw/standings-2026-final.json`), but they are set
+ * on the 2026-09-05 recording's records, so this is not a recorded final table; the others are not clinched.
+ */
 function finalTable(letters: Record<string, string | null | undefined> = {
 	TB: "z",
 	CLE: "y",
@@ -257,6 +261,8 @@ const SPRING_TABLE: Snapshot = {
 	season: 2027,
 };
 
+// The phase dates, the champion and its `wonOn` below are illustrative (as `e2e/design/S130.spec.ts`'s are),
+// chosen to exercise S130's rules; they are not a recording of what MLB's calendar or the API served.
 const SPRING_2027 = {
 	startDate: "2027-02-19",
 	endDate: "2027-03-24",
@@ -395,10 +401,13 @@ function answer(season: Season, phases: string[]): Payload
 
 /**
  * Serves `season`, recording each request's phases. A request naming one of `held` waits until
- * `release()` is called, so a test can look at the page between two answers.
+ * `release()` is called, so a test can look at the page between two answers; the first `failing.times`
+ * requests naming `failing.phase` answer 500.
  */
-function serveSeason(season: Season, held: SeasonPhaseName[] = [])
+function serveSeason(season: Season, held: SeasonPhaseName[] = [], failing: { phase: SeasonPhaseName;
+	times: number; } | null = null)
 {
+	let failures = 0;
 	const asked: string[][] = [];
 	let release = () => undefined as void;
 	const gate = new Promise<void>((resolve) =>
@@ -410,6 +419,13 @@ function serveSeason(season: Season, held: SeasonPhaseName[] = [])
 		const phases = phasesOf(request);
 		asked.push(phases);
 		if (phases.some((p) => held.includes(p as SeasonPhaseName))) await gate;
+		if (failing && phases.includes(failing.phase) && failures < failing.times)
+		{
+			failures += 1;
+			return jsonResponse({
+				error: "unavailable",
+			}, 500);
+		}
 		return jsonResponse(answer(season, phases));
 	});
 	vi.stubGlobal("fetch", fetchMock);
@@ -588,6 +604,8 @@ describe("StandingsPage: which views, the requests and the switch (S130 AC 1)", 
 		expect(search()).toBe("?date=2026-11-04&view=playoffs");
 		await waitFor(() => expect(server.asked.at(-1)).toEqual(["regularSeason", "playoffs"]));
 		expect(columns()).toContain("GB");
+		// The tab title follows the marked tab while the new view's table is on its way (A9's title table).
+		expect(document.title).toBe("Standings as of November 4, 2026 · Playoffs · Baseball Theater");
 		expect(screen.queryByLabelText("Loading")).toBeNull();
 		server.release();
 		await waitFor(() => expect(columns()).toEqual(["Team", ""]));
@@ -599,6 +617,96 @@ describe("StandingsPage: which views, the requests and the switch (S130 AC 1)", 
 		await waitFor(() => expect(columns()).toContain("GB"));
 		expect(screen.queryByLabelText("Loading")).toBeNull();
 		onlyAsked(server.asked, ["playoffs"]);
+	});
+
+	it("S130 AC 1: a switch whose phase fails shows the error state with no switch, and Retry asks for that view again until it comes", async () =>
+	{
+		const server = serveSeason(afterSeries(), [], {
+			phase: "playoffs",
+			times: 2,
+		});
+		const user = userEvent.setup();
+		renderPage("/standings?date=2026-11-04");
+		await screen.findAllByTestId("division-table");
+		await user.click(screen.getByRole("tab", {
+			name: "Playoffs",
+		}));
+		const alert = await screen.findByRole("alert");
+		expect(within(alert).getByText("Couldn't load standings")).toBeInTheDocument();
+		expect(search()).toBe("?date=2026-11-04&view=playoffs");
+		expect(tabs()).toEqual([]);
+		expect(screen.queryByTestId("division-table")).toBeNull();
+		expect(screen.queryByTestId("world-series-box")).toBeNull();
+		expect(document.title).not.toContain("Regular season");
+		const playoffAsks = () => server.asked.filter((phases) => phases.includes("playoffs")).length;
+		expect(playoffAsks()).toBe(1);
+		await user.click(within(alert).getByRole("button", {
+			name: "Retry",
+		}));
+		await waitFor(() => expect(playoffAsks()).toBe(2));
+		expect(await screen.findByRole("alert")).toBeInTheDocument();
+		expect(screen.queryByTestId("division-table")).toBeNull();
+		await user.click(within(screen.getByRole("alert")).getByRole("button", {
+			name: "Retry",
+		}));
+		await waitFor(() => expect(columns()).toEqual(["Team", ""]));
+		expect(playoffAsks()).toBe(3);
+		expect(server.asked.at(-1)).toEqual(["regularSeason", "playoffs"]);
+		expect(marked()).toBe("Playoffs");
+		expect(screen.queryByRole("alert")).toBeNull();
+	});
+
+	it("S130 AC 1: an empty ?date= reads as no day: the day's views and default are today's", async () =>
+	{
+		today("2027-03-02");
+		const server = serveSeason(SPRING_DAY);
+		renderPage("/standings?date=");
+		await screen.findAllByTestId("division-table");
+		expect(tabs()).toEqual(["Spring training", "Regular season"]);
+		expect(marked()).toBe("Spring training");
+		expect(server.asked).toEqual([["regularSeason"], ["regularSeason", "spring"]]);
+	});
+
+	it("S130 AC 1: choosing the view already shown adds no history entry and asks for nothing", async () =>
+	{
+		const server = serveSeason(afterSeries());
+		const user = userEvent.setup();
+		renderPage("/standings?date=2026-11-04");
+		await screen.findAllByTestId("division-table");
+		const asks = server.asked.length;
+		await user.click(screen.getByRole("tab", {
+			name: "Regular season",
+		}));
+		expect(search()).toBe("?date=2026-11-04");
+		expect(screen.getByTestId("nav-type").textContent).toBe("POP");
+		expect(server.asked).toHaveLength(asks);
+		cleanup();
+		serveSeason(afterSeries());
+		renderPage("/standings?date=2026-11-04&view=playoffs");
+		await screen.findAllByTestId("division-table");
+		await user.click(screen.getByRole("tab", {
+			name: "Playoffs",
+		}));
+		expect(search()).toBe("?date=2026-11-04&view=playoffs");
+		expect(screen.getByTestId("nav-type").textContent).toBe("POP");
+	});
+
+	it("S130 AC 1: each tab names a panel that exists, and the tables are in the marked tab's panel", async () =>
+	{
+		serveSeason(afterSeries());
+		renderPage("/standings?date=2026-11-04");
+		await screen.findAllByTestId("division-table");
+		for (const tab of screen.getAllByRole("tab"))
+		{
+			const id = tab.getAttribute("aria-controls");
+			expect(id).toBeTruthy();
+			expect(document.getElementById(id!)).not.toBeNull();
+		}
+		const panel = screen.getByRole("tabpanel");
+		expect(within(panel).getAllByTestId("division-table")).toHaveLength(6);
+		expect(panel).toHaveAttribute("aria-labelledby", screen.getByRole("tab", {
+			selected: true,
+		}).id);
 	});
 
 	it("S130 AC 1: each set of views S129 draws, and all three when the day offers them", async () =>
@@ -613,7 +721,7 @@ describe("StandingsPage: which views, the requests and the switch (S130 AC 1)", 
 		await screen.findAllByRole("tab");
 		expect(tabs()).toEqual(["Regular season", "Playoffs"]);
 		cleanup();
-		serveSeason({
+		const three = serveSeason({
 			...SPRING_DAY,
 			phase: "regularSeason",
 			regularSeason: {
@@ -628,6 +736,7 @@ describe("StandingsPage: which views, the requests and the switch (S130 AC 1)", 
 		renderPage("/standings?date=2027-03-30&view=regularSeason");
 		await screen.findAllByRole("tab");
 		expect(tabs()).toEqual(["Spring training", "Regular season", "Playoffs"]);
+		expect(three.asked).toEqual([["regularSeason"]]);
 	});
 
 	it("S130 AC 1: an answer without phases (cached before S139) draws S128's table with no switch", async () =>
@@ -721,6 +830,32 @@ describe("StandingsPage: each view and the clinch marks (S130 AC 2)", () =>
 		expect(screen.getAllByTestId("clinch-legend-line").map((l) => l.textContent?.charAt(0))).toEqual(["y"]);
 	});
 
+	it("S130 AC 2: a team with a letter that hasn't clinched shows no prefix, isn't bold and adds no legend line", async () =>
+	{
+		const season = afterSeries({
+			TB: "z",
+		});
+		season.regularSeason.table = {
+			...season.regularSeason.table,
+			divisions: season.regularSeason.table.divisions.map((division) => ({
+				...division,
+				teams: division.teams.map((team) => (team.abbreviation === "BAL"
+					? {
+						...team,
+						clinched: false,
+						clinchIndicator: "x",
+					}
+					: team)),
+			})),
+		};
+		serveSeason(season);
+		renderPage("/standings?date=2026-12-01");
+		await screen.findAllByTestId("division-table");
+		expect(within(rowCells("BAL")).getAllByRole("cell")[0]!.textContent).toBe("Baltimore Orioles");
+		expect(rowCells("BAL")).not.toHaveAttribute("data-clinched");
+		expect(screen.getAllByTestId("clinch-legend-line").map((l) => l.textContent?.charAt(0))).toEqual(["z"]);
+	});
+
 	it("S130 AC 2: on mobile each team is its abbreviation after its letter, the table full width with no abbreviation column (A7, A9)", async () =>
 	{
 		const season = afterSeries();
@@ -808,6 +943,19 @@ describe("StandingsPage: the \"as of\" line (S130 AC 3)", () =>
 		expect(heading()).toBe("Standings as of October 29, 2026");
 	});
 
+	it("S130 AC 3: a ?date= that isn't a calendar day gets no \"as of\" words in the heading or the tab", async () =>
+	{
+		for (const date of ["bogus", "2027-02-30"])
+		{
+			serveSeason(REGULAR_DAY);
+			renderPage(`/standings?date=${date}`);
+			await screen.findAllByTestId("division-table");
+			expect(heading()).toBe("Standings");
+			expect(document.title).not.toContain("as of");
+			cleanup();
+		}
+	});
+
 	it("S130 AC 3: today's date in the address, or none, reads just Standings", async () =>
 	{
 		today("2027-03-02");
@@ -885,6 +1033,30 @@ describe("StandingsPage: the World Series box (S130 AC 4)", () =>
 		renderPage("/standings?date=2026-10-28");
 		await screen.findAllByTestId("division-table");
 		expect(box()).toBeNull();
+	});
+
+	it("S130 AC 4: switching views keeps the same box on screen, so its sheen doesn't run again", async () =>
+	{
+		const server = serveSeason(afterSeries(), ["playoffs"]);
+		const user = userEvent.setup();
+		renderPage("/standings?date=2026-11-04");
+		await screen.findAllByTestId("division-table");
+		const before = box();
+		expect(before).toHaveAttribute("data-sheen", "once");
+		await user.click(screen.getByRole("tab", {
+			name: "Playoffs",
+		}));
+		expect(box()).toBe(before);
+		server.release();
+		await waitFor(() => expect(columns()).toEqual(["Team", ""]));
+		expect(box()).toBe(before);
+	});
+
+	it("S130 AC 4: the stylesheet itself stops the sheen under reduced motion, before the component reads the setting", () =>
+	{
+		// jsdom applies no media queries and Vitest stands in for CSS modules, so this reads the file's text.
+		const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../components/standings/ChampionBox.module.css"), "utf8");
+		expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*\{[^@]*\.sheen::after\s*\{[^}]*animation: none/);
 	});
 
 	it("S130 AC 4: its sheen runs once, and not at all for a fan whose device asks for reduced motion", async () =>

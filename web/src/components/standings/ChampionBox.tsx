@@ -17,7 +17,10 @@ type Champion = NonNullable<StandingsPayload["champion"]>;
  * <day>" (`formatLongDate`, as the "as of" line writes its day), and, when `playoffsHref` is given,
  * "View the playoffs →". Whether it shows and whether it links are the page's (`championBoxShows`,
  * `standingsViews`). One gold sheen sweeps it as it appears, except for a fan whose device asks for
- * reduced motion (`useReducedMotion`, as `LiveIndicator` reads it), who gets it still, as the frames draw it.
+ * reduced motion, who gets it still, as the frames draw it: `useReducedMotion` (as `LiveIndicator` reads
+ * it) leaves the sheen class off, and since that hook answers false on the first render, the stylesheet's
+ * own `prefers-reduced-motion` rule stops the sweep before it has read the setting. The page keeps this
+ * box mounted while the fan switches views, so the sheen runs once, when the box first appears (A9).
  * 420px wide on medium and desktop, full width on mobile.
  */
 export function ChampionBox({

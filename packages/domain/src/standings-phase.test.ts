@@ -4,8 +4,8 @@ import {
 } from "vitest";
 import type { SeasonCalendar } from "./scoreboard-date.js";
 import {
-	blankRegularSeasonTable, championBoxShows, clinchLegend, playoffsTable, previousStandingsPhase, seasonSettling, standingsChampion, standingsPhase, standingsPhases,
-	standingsViews,
+	blankRegularSeasonTable, championBoxShows, clinchLegend, playoffsTable, previousStandingsPhase, seasonSettling, standingsChampion, standingsHasNoTeams, standingsPhase,
+	standingsPhases, standingsViews,
 } from "./standings-phase.js";
 import type { StandingsPhaseAnswer } from "./api-routes.js";
 import type {
@@ -896,6 +896,18 @@ describe("clinchLegend (S130 AC 2)", () =>
 		expect(clinchLegend([table([row(1, true, null), row(2, true)])])).toEqual([]);
 		expect(clinchLegend([table([row(1, false, null)])])).toEqual([]);
 		expect(clinchLegend([])).toEqual([]);
+	});
+
+	it("S130 AC 2: a letter on a team that hasn't clinched adds no line", () =>
+	{
+		expect(clinchLegend([table([row(1, false, "x"), row(2, true, "y")])]).map((l) => l.letter)).toEqual(["y"]);
+	});
+
+	it("S130 AC 2: standingsHasNoTeams: no divisions, or divisions with no team, have none; one team anywhere is enough", () =>
+	{
+		expect(standingsHasNoTeams(table())).toBe(true);
+		expect(standingsHasNoTeams(table([], []))).toBe(true);
+		expect(standingsHasNoTeams(table([], [row(1, false)]))).toBe(false);
 	});
 });
 

@@ -5,7 +5,7 @@ import {
 import { useSearchParams } from "react-router-dom";
 import type { SeasonPhaseName, StandingsViews } from "@bt/domain";
 import {
-	championBoxShows, clinchLegend, mlbToday, SEASON_PHASES, standingsViews,
+	championBoxShows, clinchLegend, isCalendarDate, mlbToday, SEASON_PHASES, standingsHasNoTeams, standingsViews,
 } from "@bt/domain";
 import { useStandings } from "../api/standings.js";
 import type { StandingsPayload } from "../api/standings.js";
@@ -43,12 +43,6 @@ function phasesFor(view: SeasonPhaseName | null): SeasonPhaseName[]
 	return view && view !== "regularSeason" ? ["regularSeason", view] : ["regularSeason"];
 }
 
-/** Whether a phase's table has no team at all: the first spring morning (S139 AC 4), divisions or not. */
-function hasNoTeams(table: Table): boolean
-{
-	return table.divisions.every((division) => division.teams.length === 0);
-}
-
 /**
  * Standings (S4; S130; standings-search-settings `standings-*` and A9): the heading, with "as of
  * <day>" on a day in the address that isn't MLB's today; the view switch (spring training, the regular
@@ -64,13 +58,19 @@ function hasNoTeams(table: Table): boolean
  * playoffs are offered), plus the address's view when it is spring or the playoffs; when the default
  * is another view it asks again for that phase. Until the shown view's table arrives the page draws
  * the loading state the first time, and afterwards keeps the table already on screen (`drawn`), so
- * switching views or correcting the address never blanks it. The tab title is Standings' own and goes
- * back to the app's on leaving.
+ * switching views or correcting the address never blanks it. S28's keep-what's-on-screen rule
+ * (`queryScreen`) is applied to each of the two requests on its own: a refetch of an answer the page
+ * already had that fails keeps it, but a request that has never answered (the first load, or a view
+ * just chosen) shows the error state, with no switch and no box (A9), and Retry asks for that request
+ * again. Choosing the view already shown does nothing (no history entry). The tab title is Standings'
+ * own, names the view the switch marks (none while the error state shows), and goes back to the
+ * app's on leaving.
  */
 export function StandingsPage({ variant = "desktop" }: { variant?: LayoutVariant })
 {
 	const [params, setParams] = useSearchParams();
-	const date = params.get("date") ?? undefined;
+	// An empty `?date=` is no day at all, as the request already treats it (`fetchStandings`).
+	const date = params.get("date") || undefined;
 	const asked = params.get("view");
 	const day = date ?? mlbToday(new Date());
 
@@ -129,9 +129,16 @@ export function StandingsPage({ variant = "desktop" }: { variant?: LayoutVariant
 		});
 	}, [correct, setParams]);
 
-	const asOf = date && date !== mlbToday(new Date()) ? formatLongDate(date) : null;
+	// S28's rule per request: one that has never answered and failed is the error state, even with
+	// another view's table on screen; a failed refetch of an answer already had keeps it.
+	const failed = [base, current].find((query) => queryScreen(query) === "error");
+
+	// The "as of" words only for a real calendar day, so `?date=bogus` or `2027-02-30` never reaches the
+	// heading; S138 extends this check with its lower bound on the days it accepts (1901-04-18).
+	const asOf = date && isCalendarDate(date) && date !== mlbToday(new Date()) ? formatLongDate(date) : null;
 	const heading = asOf ? `Standings as of ${asOf}` : "Standings";
-	const titleView = display?.view ?? shown;
+	// The view the switch marks, even while its table is on its way; no view while the error state shows.
+	const titleView = failed ? null : shown ?? display?.view ?? null;
 	const title = titleView ? `${heading} · ${VIEW_LABELS[titleView]} · Baseball Theater` : `${heading} · Baseball Theater`;
 
 	// Only Standings sets the tab's title (A9): put back whatever the app had on leaving.
@@ -150,6 +157,7 @@ export function StandingsPage({ variant = "desktop" }: { variant?: LayoutVariant
 
 	const choose = (view: SeasonPhaseName) =>
 	{
+		if (view === shown) return;
 		setParams((p) =>
 		{
 			p.set("view", view);
@@ -158,16 +166,11 @@ export function StandingsPage({ variant = "desktop" }: { variant?: LayoutVariant
 	};
 
 	let body;
-	// As the scoreboard: a failed refetch keeps the tables already shown (S28's one rule).
-	const screen = queryScreen({
-		data: display?.answer,
-		error: base.error ?? current.error,
-	});
-	if (screen === "error")
+	if (failed)
 	{
-		body = <ViewState kind="error" title="Couldn't load standings" onRetry={() => void (base.error ? base.refetch() : current.refetch())} />;
+		body = <ViewState kind="error" title="Couldn't load standings" onRetry={() => void failed.refetch()} />;
 	}
-	else if (screen === "loading" || !display)
+	else if (!display)
 	{
 		body = <ViewState kind="loading" />;
 	}
@@ -197,7 +200,7 @@ export function StandingsPage({ variant = "desktop" }: { variant?: LayoutVariant
 /**
  * The page under its heading once a table is in: the switch (marking `shown`, the view the address
  * asks for, even while its table is still on its way), the World Series box, the drawn view's tables
- * and the clinch legend, then the footer line.
+ * and the clinch legend (in the switch's panel when there is a switch), then the footer line.
  */
 function StandingsBody({
 	display, shown, day, date, variant, onChoose,
@@ -223,7 +226,7 @@ function StandingsBody({
 		: null;
 
 	let tables;
-	if (view === "spring" && hasNoTeams(table))
+	if (view === "spring" && standingsHasNoTeams(table))
 	{
 		tables = (
 			<Stack gap={4} data-testid="spring-empty">
@@ -247,11 +250,18 @@ function StandingsBody({
 		);
 	}
 
-	return (
+	const content = (
 		<>
-			{views && views.offered.length > 1 ? <ViewSwitch offered={views.offered} shown={shown} onChoose={onChoose} /> : null}
 			{champion && championBoxShows(champion, view, day) ? <ChampionBox champion={champion} playoffsHref={playoffsHref} variant={variant} /> : null}
 			{tables}
+		</>
+	);
+
+	return (
+		<>
+			{views && views.offered.length > 1
+				? <ViewSwitch offered={views.offered} shown={shown} onChoose={onChoose}>{content}</ViewSwitch>
+				: content}
 			<FooterMeta fetchedAt={answer.fetchedAt} />
 		</>
 	);
