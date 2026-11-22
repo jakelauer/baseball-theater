@@ -281,6 +281,34 @@ describe("CI runs pnpm verify (law P11)", () =>
 		expect(staging).not.toMatch(/always\(\)/);
 	});
 
+	it("a docs-only push to stage is code=false at once, so it never deploys staging or records a deployment", () =>
+	{
+		// Owner, 2026-11-22: "I don't like that I can't tell when the last actual change that triggered a
+		// deploy to stage happened since some changes skip that" (#339's docs merge redeployed #338's code),
+		// then, asked whether a docs-only merge should simply never deploy: "Never deploy docs-only (Recommended)".
+		const deploy = readFileSync(DEPLOY_YML, "utf8");
+		const start = deploy.indexOf("\n    changes:\n");
+		const changesJob = deploy.slice(start, deploy.indexOf("\n    # ", start + 1));
+		// The push's own change is read against its first parent, without writing the job's output.
+		expect(changesJob).toContain('parent="$(git rev-parse -q --verify "${{ github.sha }}^" || true)"');
+		expect(changesJob).toContain('own="$(GITHUB_OUTPUT= scripts/ci-changes.sh push "$parent" "${{ github.sha }}")"');
+		// Docs-only: code=false, and the last-passing lookup sits only in the other branch, so earlier
+		// runs (going, failed or cancelled) can't turn it into a deploy.
+		const shortCircuit = /\n( +)if \[ "\$own" = "code=false" \]; then\n\1 {4}echo "code=false" >> "\$GITHUB_OUTPUT"\n\1else\n((?:\1 {4}.*\n)+)\1fi\n/.exec(changesJob);
+		expect(shortCircuit, "the docs-only short-circuit").not.toBeNull();
+		const otherwise = shortCircuit?.[2] ?? "";
+		expect(otherwise).toContain("&event=push&status=success&per_page=1");
+		expect(otherwise).toContain('scripts/ci-changes.sh push "$checked" "${{ github.sha }}"');
+		expect(changesJob.match(/status=success&per_page=1/g)).toHaveLength(1);
+		// No waiting on other runs.
+		expect(changesJob).not.toContain("sleep");
+		expect(changesJob).not.toContain("timeout-minutes");
+		// The staging job itself is still skipped by its job-level condition, so it records no deployment.
+		const staging = deploy.slice(deploy.indexOf("\n    staging:\n"), deploy.indexOf("\n    production:\n"));
+		expect(staging).toMatch(/\n {8}if: >-\n[^]*needs\.changes\.outputs\.code == 'true'[^]*\n {8}needs: \[changes, verify\]\n/);
+		expect(staging).toContain("environment:\n            name: staging");
+	});
+
 	it("a push reads no cache: the restores and the read switch are for pull requests only (S152)", () =>
 	{
 		const ci = readFileSync(CI_YML, "utf8");
