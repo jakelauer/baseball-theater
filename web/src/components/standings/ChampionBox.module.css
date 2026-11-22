@@ -1,0 +1,41 @@
+/*
+ * The World Series box (standings-search-settings A9 `world-series-box`): a 2px gold border running
+ * from Accent through a pale gold highlight and back, a soft gold glow, the winner's name filled with
+ * the same gradient. The gradient and glow are this box's alone, not tokens (A9, Interpretation).
+ */
+.box {
+	position: relative;
+	overflow: hidden;
+	box-sizing: border-box;
+	border: 2px solid transparent;
+	border-radius: 12px;
+	padding: 18px 20px;
+	background:
+		linear-gradient(var(--bt-raised), var(--bt-raised)) padding-box,
+		linear-gradient(100deg, var(--bt-accent), #ffe3a1 50%, var(--bt-accent)) border-box;
+	box-shadow: 0 0 18px rgb(245 173 29 / 35%);
+}
+
+.name {
+	background: linear-gradient(100deg, var(--bt-accent), #ffe3a1 50%, var(--bt-accent));
+	background-clip: text;
+	-webkit-background-clip: text;
+	color: transparent;
+}
+
+/* One sheen, once, left to right in 1.2s on Material's standard curve; never under reduced motion (the component leaves the class off). */
+.sheen::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	background: linear-gradient(100deg, transparent 35%, rgb(255 236 190 / 40%) 50%, transparent 65%);
+	transform: translateX(-100%);
+	animation: bt-world-series-sheen 1.2s var(--bt-ease) 1 forwards;
+}
+
+@keyframes bt-world-series-sheen {
+	to {
+		transform: translateX(100%);
+	}
+}

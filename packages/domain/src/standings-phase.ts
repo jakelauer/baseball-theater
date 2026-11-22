@@ -21,10 +21,11 @@
  * compare as strings. MLB's season id is the year a date falls in, so a January day's final
  * table is the previous season's, which only the calendars can say.
  */
+import type { StandingsPhases } from "./api-routes.js";
 import { addDays } from "./calendar-date.js";
 import type { SeasonCalendar, SeasonChampion } from "./scoreboard-date.js";
 import type {
-	StandingsPhaseName, StandingsSnapshot, StandingsTeamRecord,
+	SeasonPhaseName, StandingsPhaseName, StandingsSnapshot, StandingsTeamRecord,
 } from "./types.js";
 
 /** The table to ask MLB for: which kind, for which season, and the day it stands as of. */
@@ -348,4 +349,132 @@ export function standingsChampion(day: string, seasons: readonly SeasonCalendar[
 		season: pick.season,
 		...champion,
 	};
+}
+
+/** The views of the Standings page a day offers (S130 AC 1): in the season's order, and the one that opens first. */
+export interface StandingsViews {
+	/** Always holds `regularSeason`; in the order `spring`, `regularSeason`, `playoffs`. */
+	offered: SeasonPhaseName[];
+	/** One of `offered`. */
+	first: SeasonPhaseName;
+}
+
+/**
+ * Which views the Standings page offers on `day` and which opens first (S130 AC 1; moved from S139
+ * when the API stopped knowing views, owner 2026-11-13), from the day and the standings answer only,
+ * never the clock (owner, 2026-11-10, of a past date: "Same rules as if that date were today."). The
+ * answer needs its `phases` (every phase's dates come in every answer) and, for `playoffs`, the
+ * regular season's table, whose `clinched` teams the playoffs list is built from; its top-level
+ * `phase` matters only on opening day's morning.
+ *
+ * - **regularSeason** can always be chosen, and opens first on every day the two rules below don't name.
+ * - **spring** can be chosen from its `startDate` through April 15 of that year (owner: "In fact,
+ *   just do April 15th."), or through its `endDate` when that is later (the agent's reading for a
+ *   season opening after April 15, as 2020's did). It opens first from `startDate` through `endDate`,
+ *   and on opening day's morning, when the answer's own `phase` is still `spring` (S128 falls back to
+ *   spring's last table until the regular season's has a team), and is offered whenever it opens first.
+ * - **playoffs** can be chosen once the regular season's table has a clinched team, through the
+ *   seventh day after the phase's `endDate` (the last World Series game once played; owner,
+ *   2026-11-13: "a week after the last world series game ends."). It opens first from its
+ *   `startDate` through the sixth day after `endDate`; on the seventh the regular season opens
+ *   first again (owner: "A week after the last playoff game, we should switch back to the regular
+ *   season by default").
+ */
+export function standingsViews(day: string, answer: { phase?: StandingsPhaseName;
+	phases: StandingsPhases; }): StandingsViews
+{
+	const {
+		spring, regularSeason, playoffs,
+	} = answer.phases;
+	let springOffered = false;
+	let springFirst = false;
+	if (spring?.startDate && spring.endDate && day >= spring.startDate)
+	{
+		const april15 = `${spring.startDate.slice(0, 4)}-04-15`;
+		const lastOffered = spring.endDate > april15 ? spring.endDate : april15;
+		const openingMorning = day === addDays(spring.endDate, 1) && answer.phase === "spring";
+		springFirst = day <= spring.endDate || openingMorning;
+		springOffered = springFirst || day <= lastOffered;
+	}
+	let playoffsOffered = false;
+	let playoffsFirst = false;
+	const clinched = regularSeason?.table?.divisions.some((division) => division.teams.some((team) => team.clinched)) ?? false;
+	if (playoffs?.startDate && playoffs.endDate && clinched)
+	{
+		playoffsOffered = day <= addDays(playoffs.endDate, 7);
+		playoffsFirst = day >= playoffs.startDate && day <= addDays(playoffs.endDate, 6);
+	}
+	const offered: SeasonPhaseName[] = [];
+	if (springOffered) offered.push("spring");
+	offered.push("regularSeason");
+	if (playoffsOffered) offered.push("playoffs");
+	return {
+		offered,
+		first: springFirst ? "spring" : playoffsFirst ? "playoffs" : "regularSeason",
+	};
+}
+
+/** One line of the clinch legend (S130 AC 2): MLB's letter and what it means. */
+export interface ClinchLegendLine {
+	letter: "z" | "y" | "w" | "x";
+	meaning: string;
+}
+
+/** MLB's clinch letters, strongest first, with S129's (A9's) meaning for each. */
+const CLINCH_MEANINGS: readonly ClinchLegendLine[] = [
+	{
+		letter: "z",
+		meaning: "Clinched the league's best record",
+	},
+	{
+		letter: "y",
+		meaning: "Clinched the division",
+	},
+	{
+		letter: "w",
+		meaning: "Clinched a wild card",
+	},
+	{
+		letter: "x",
+		meaning: "Clinched a playoff spot",
+	},
+];
+
+/**
+ * The legend under the Standings tables (S130 AC 2; A9 "Clinched teams"): one line per clinch letter a
+ * clinched team in `tables` shows, each once, strongest first (`z`, `y`, `w`, `x`). A letter outside
+ * those four (owner, 2026-11-20: "Print it anyway") is still drawn before its team's name but has no
+ * line here, since nothing says what it means; a team with no letter (`null`, or an answer cached
+ * before S160) adds none. Empty when no team has clinched, which draws no legend.
+ */
+export function clinchLegend(tables: readonly Pick<StandingsSnapshot, "divisions">[]): ClinchLegendLine[]
+{
+	const shown = new Set<string>();
+	for (const table of tables)
+	{
+		for (const division of table.divisions)
+		{
+			for (const team of division.teams)
+			{
+				if (team.clinched && team.clinchIndicator) shown.add(team.clinchIndicator);
+			}
+		}
+	}
+	return CLINCH_MEANINGS.filter((line) => shown.has(line.letter));
+}
+
+/**
+ * Whether the Standings page draws the World Series box (S130 AC 4; A9 "When it shows", "How long it
+ * stays"): from the day after the Series was won (`wonOn`; owner, 2026-11-13: "option a") through
+ * January 31 after it (owner, 2026-11-16: "Until Jan 31"), above the regular season or the playoffs,
+ * never spring training. `champion` is the answer's (S140's `standingsChampion`, which already names a
+ * winner only in its off-season from `wonOn` on); this narrows it and never re-derives it, and reads
+ * the day being viewed, never the clock. Whether the box links to the playoffs is the page's, from
+ * `standingsViews`.
+ */
+export function championBoxShows(champion: SeasonChampion | null, view: SeasonPhaseName, day: string): boolean
+{
+	if (!champion || view === "spring") return false;
+	const lastDay = `${Number(champion.wonOn.slice(0, 4)) + 1}-01-31`;
+	return day > champion.wonOn && day <= lastDay;
 }

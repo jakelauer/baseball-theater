@@ -4,9 +4,13 @@ import {
 } from "vitest";
 import type { SeasonCalendar } from "./scoreboard-date.js";
 import {
-	blankRegularSeasonTable, playoffsTable, previousStandingsPhase, seasonSettling, standingsChampion, standingsPhase, standingsPhases,
+	blankRegularSeasonTable, championBoxShows, clinchLegend, playoffsTable, previousStandingsPhase, seasonSettling, standingsChampion, standingsPhase, standingsPhases,
+	standingsViews,
 } from "./standings-phase.js";
-import type { StandingsSnapshot, StandingsTeamRecord } from "./types.js";
+import type { StandingsPhaseAnswer } from "./api-routes.js";
+import type {
+	StandingsPhaseName, StandingsSnapshot, StandingsTeamRecord,
+} from "./types.js";
 
 /** A season's calendar from the committed recording `fixtures/raw/seasons-<season>.json` (MLB's own dates). */
 function recorded(season: number): SeasonCalendar
@@ -655,5 +659,274 @@ describe("a season with no spring (S155 AC 3)", () =>
 	it("a season with spring days keeps its spring phase", () =>
 	{
 		expect(standingsPhases("2026-03-01", ALL).spring).not.toBeNull();
+	});
+});
+
+/**
+ * A standings answer for `day` as the API builds it (S139): every phase's dates from `standingsPhases`
+ * over the given calendars, the regular season's table with one team, clinched or not, and the
+ * top-level `phase` (S128's) the test names.
+ */
+function answerFor(day: string, {
+	clinched = false, phase, calendars = ALL,
+}: { clinched?: boolean;
+	phase?: StandingsPhaseName;
+	calendars?: SeasonCalendar[]; } = {})
+{
+	const plan = standingsPhases(day, calendars);
+	const dates = (p: { startDate: string | null;
+		endDate: string | null; } | null): StandingsPhaseAnswer | null => (p ? {
+		startDate: p.startDate,
+		endDate: p.endDate,
+	} : null);
+	return {
+		phase,
+		phases: {
+			spring: dates(plan.spring),
+			regularSeason: {
+				...dates(plan.regularSeason)!,
+				table: {
+					...TABLE,
+					divisions: [{
+						...TABLE.divisions[1]!,
+						teams: [{
+							...team(114, "Cleveland Guardians", clinched),
+							clinchIndicator: clinched ? "y" : null,
+						}],
+					}],
+				},
+			},
+			playoffs: dates(plan.playoffs),
+		},
+	};
+}
+
+describe("standingsViews (S130 AC 1)", () =>
+{
+	const views = (offered: string[], first: string) => ({
+		offered,
+		first,
+	});
+
+	it("S130 AC 1: 2027-02-18, the off-season's last day: only the regular season, with or without a clinched team (a week having passed)", () =>
+	{
+		expect(standingsViews("2027-02-18", answerFor("2027-02-18", {
+			phase: "final",
+		}))).toEqual(views(["regularSeason"], "regularSeason"));
+		expect(standingsViews("2027-02-18", answerFor("2027-02-18", {
+			clinched: true,
+			phase: "final",
+		}))).toEqual(views(["regularSeason"], "regularSeason"));
+	});
+
+	it("S130 AC 1: 2027-02-19, spring's first day: spring opens first even with an empty spring table; playoffs gone", () =>
+	{
+		expect(standingsViews("2027-02-19", answerFor("2027-02-19", {
+			phase: "final",
+		}))).toEqual(views(["spring", "regularSeason"], "spring"));
+	});
+
+	it("S130 AC 1: 2027-03-24, spring's last day, spring opens first; 2027-03-25 with a regularSeason phase, the regular season does and spring is still offered", () =>
+	{
+		expect(standingsViews("2027-03-24", answerFor("2027-03-24", {
+			phase: "spring",
+		}))).toEqual(views(["spring", "regularSeason"], "spring"));
+		expect(standingsViews("2027-03-25", answerFor("2027-03-25", {
+			phase: "regularSeason",
+		}))).toEqual(views(["spring", "regularSeason"], "regularSeason"));
+	});
+
+	it("S130 AC 1: opening day's morning, the answer's phase still spring: spring opens first", () =>
+	{
+		expect(standingsViews("2027-03-25", answerFor("2027-03-25", {
+			phase: "spring",
+		}))).toEqual(views(["spring", "regularSeason"], "spring"));
+	});
+
+	const S2020: SeasonCalendar = {
+		season: 2020,
+		springStartDate: "2020-02-21",
+		regularSeasonStartDate: "2020-07-23",
+		regularSeasonEndDate: "2020-09-27",
+		lastGameDate: "2020-10-27",
+	};
+
+	it("S130 AC 1: a season whose first regular-season game is after April 15: spring offered and first through its end and on opening day's morning, gone the day after", () =>
+	{
+		const calendars = [S2020];
+		expect(standingsViews("2020-07-10", answerFor("2020-07-10", {
+			phase: "spring",
+			calendars,
+		}))).toEqual(views(["spring", "regularSeason"], "spring"));
+		expect(standingsViews("2020-07-23", answerFor("2020-07-23", {
+			phase: "spring",
+			calendars,
+		}))).toEqual(views(["spring", "regularSeason"], "spring"));
+		expect(standingsViews("2020-07-23", answerFor("2020-07-23", {
+			phase: "regularSeason",
+			calendars,
+		}))).toEqual(views(["regularSeason"], "regularSeason"));
+		expect(standingsViews("2020-07-24", answerFor("2020-07-24", {
+			phase: "regularSeason",
+			calendars,
+		}))).toEqual(views(["regularSeason"], "regularSeason"));
+	});
+
+	it("S130 AC 1: 2027-04-15 offers spring, 2027-04-16 does not", () =>
+	{
+		expect(standingsViews("2027-04-15", answerFor("2027-04-15", {
+			phase: "regularSeason",
+		}))).toEqual(views(["spring", "regularSeason"], "regularSeason"));
+		expect(standingsViews("2027-04-16", answerFor("2027-04-16", {
+			phase: "regularSeason",
+		}))).toEqual(views(["regularSeason"], "regularSeason"));
+	});
+
+	it("S130 AC 1: 2026-09-05 and 2026-09-27: the regular season opens first; a clinched team offers the playoffs", () =>
+	{
+		for (const day of ["2026-09-05", "2026-09-27"])
+		{
+			expect(standingsViews(day, answerFor(day, {
+				phase: "regularSeason",
+			}))).toEqual(views(["regularSeason"], "regularSeason"));
+			expect(standingsViews(day, answerFor(day, {
+				clinched: true,
+				phase: "regularSeason",
+			}))).toEqual(views(["regularSeason", "playoffs"], "regularSeason"));
+		}
+	});
+
+	it("S130 AC 1: 2026-09-28: the playoffs open first; with no clinched team the regular season does, alone", () =>
+	{
+		expect(standingsViews("2026-09-28", answerFor("2026-09-28", {
+			clinched: true,
+			phase: "final",
+		}))).toEqual(views(["regularSeason", "playoffs"], "playoffs"));
+		expect(standingsViews("2026-09-28", answerFor("2026-09-28", {
+			phase: "final",
+		}))).toEqual(views(["regularSeason"], "regularSeason"));
+	});
+
+	it("S130 AC 1: the sixth, seventh and eighth days after 2026's lastGameDate: playoffs first; offered but not first; gone", () =>
+	{
+		const opts = {
+			clinched: true,
+			phase: "final" as const,
+		};
+		expect(S2026.lastGameDate).toBe("2026-10-31");
+		expect(standingsViews("2026-11-06", answerFor("2026-11-06", opts))).toEqual(views(["regularSeason", "playoffs"], "playoffs"));
+		expect(standingsViews("2026-11-07", answerFor("2026-11-07", opts))).toEqual(views(["regularSeason", "playoffs"], "regularSeason"));
+		expect(standingsViews("2026-11-08", answerFor("2026-11-08", opts))).toEqual(views(["regularSeason"], "regularSeason"));
+	});
+
+	it("S130 AC 1: an answer with no spring or playoffs (before every known season, or no calendar): only the regular season", () =>
+	{
+		expect(standingsViews("2026-09-28", answerFor("2026-09-28", {
+			clinched: true,
+			calendars: [],
+		}))).toEqual(views(["regularSeason"], "regularSeason"));
+		expect(standingsViews("2026-09-28", {
+			phases: {
+				spring: null,
+				regularSeason: null,
+				playoffs: null,
+			},
+		})).toEqual(views(["regularSeason"], "regularSeason"));
+	});
+
+	it("S130 AC 1: all three at once, when a clinched team falls on a day through April 15", () =>
+	{
+		const answer = answerFor("2027-03-30", {
+			phase: "regularSeason",
+		});
+		answer.phases.playoffs = {
+			startDate: "2027-03-28",
+			endDate: "2027-03-29",
+		};
+		answer.phases.regularSeason.table.divisions[0]!.teams[0]!.clinched = true;
+		expect(standingsViews("2027-03-30", answer)).toEqual(views(["spring", "regularSeason", "playoffs"], "playoffs"));
+	});
+});
+
+describe("clinchLegend (S130 AC 2)", () =>
+{
+	const row = (teamId: number, clinched: boolean, clinchIndicator?: string | null): StandingsTeamRecord => ({
+		...team(teamId, `Team ${teamId}`, clinched),
+		...(clinchIndicator === undefined ? {} : {
+			clinchIndicator,
+		}),
+	});
+	const table = (...divisions: StandingsTeamRecord[][]) => ({
+		divisions: divisions.map((teams, i) => ({
+			divisionId: 200 + i,
+			name: null,
+			leagueId: 103,
+			teams,
+		})),
+	});
+
+	it("S130 AC 2: letters across divisions in any order come back strongest first, each once", () =>
+	{
+		expect(clinchLegend([table([row(1, true, "w"), row(2, true, "y")], [row(3, true, "x"), row(4, true, "z"), row(5, false, null)])]).map((l) => l.letter))
+			.toEqual(["z", "y", "w", "x"]);
+		expect(clinchLegend([table([row(1, true, "z")])])).toEqual([{
+			letter: "z",
+			meaning: "Clinched the league's best record",
+		}]);
+	});
+
+	it("S130 AC 2: the same letter in two divisions is listed once, with its meaning", () =>
+	{
+		expect(clinchLegend([table([row(1, true, "y")], [row(2, true, "y")])])).toEqual([{
+			letter: "y",
+			meaning: "Clinched the division",
+		}]);
+		expect(clinchLegend([table([row(1, true, "w")]), table([row(2, true, "x")])])).toEqual([{
+			letter: "w",
+			meaning: "Clinched a wild card",
+		}, {
+			letter: "x",
+			meaning: "Clinched a playoff spot",
+		}]);
+	});
+
+	it("S130 AC 2: an unknown letter is left out; a clinched team with no letter, or none clinched, gives no line", () =>
+	{
+		expect(clinchLegend([table([row(1, true, "e"), row(2, true, "y")])]).map((l) => l.letter)).toEqual(["y"]);
+		expect(clinchLegend([table([row(1, true, null), row(2, true)])])).toEqual([]);
+		expect(clinchLegend([table([row(1, false, null)])])).toEqual([]);
+		expect(clinchLegend([])).toEqual([]);
+	});
+});
+
+describe("championBoxShows (S130 AC 4)", () =>
+{
+	const BREWERS = {
+		teamId: 158,
+		name: "Milwaukee Brewers",
+		wonOn: "2026-10-28",
+	};
+
+	it("S130 AC 4: not on wonOn itself; from the first, seventh and eighth days after it", () =>
+	{
+		expect(championBoxShows(BREWERS, "playoffs", "2026-10-28")).toBe(false);
+		for (const day of ["2026-10-29", "2026-11-04", "2026-11-05"])
+		{
+			expect(championBoxShows(BREWERS, "playoffs", day)).toBe(true);
+			expect(championBoxShows(BREWERS, "regularSeason", day)).toBe(true);
+		}
+	});
+
+	it("S130 AC 4: through January 31 after the Series, gone on February 1", () =>
+	{
+		expect(championBoxShows(BREWERS, "regularSeason", "2026-12-01")).toBe(true);
+		expect(championBoxShows(BREWERS, "regularSeason", "2027-01-31")).toBe(true);
+		expect(championBoxShows(BREWERS, "regularSeason", "2027-02-01")).toBe(false);
+	});
+
+	it("S130 AC 4: no champion, or the spring view: no box", () =>
+	{
+		expect(championBoxShows(null, "regularSeason", "2026-11-01")).toBe(false);
+		expect(championBoxShows(BREWERS, "spring", "2026-11-01")).toBe(false);
 	});
 });
