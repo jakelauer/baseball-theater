@@ -8,6 +8,12 @@
  * season's first and last days (S128) are carried when MLB lists them; standings need both. The
  * World Series winner and the day it was won (S140) come from the same schedule, so they cost no
  * request of their own.
+ *
+ * A season MLB gives no `springStartDate` for (every season before 2010, such as 1950) but whose
+ * regular-season days it does give starts on its first regular-season day: it had no spring MLB
+ * records, and without a calendar an off-season day would fall to that day's own table, which MLB
+ * doesn't keep. With one, the day after `regularSeasonEndDate` answers the season's final table
+ * (S155 AC 3; owner, 2026-11-22: "Use the season's last day (Recommended)").
  */
 import type { SeasonCalendar, SeasonChampion } from "@bt/domain";
 import type {
@@ -62,11 +68,12 @@ export function mapSeasonCalendar(seasons: SeasonsResponse, worldSeries: Schedul
 {
 	const season = seasons.seasons[0];
 	const lastGameDate = worldSeriesFinal(worldSeries) ?? season?.postSeasonEndDate ?? season?.seasonEndDate;
-	if (!season?.springStartDate || !lastGameDate) return null;
+	const firstDay = season?.springStartDate ?? (season?.regularSeasonEndDate ? season.regularSeasonStartDate : undefined);
+	if (!season || !firstDay || !lastGameDate) return null;
 	const champion = worldSeriesChampion(worldSeries);
 	return {
 		season: Number(season.seasonId),
-		springStartDate: season.springStartDate,
+		springStartDate: firstDay,
 		lastGameDate,
 		...(season.regularSeasonStartDate ? {
 			regularSeasonStartDate: season.regularSeasonStartDate,

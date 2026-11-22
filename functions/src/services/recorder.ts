@@ -139,6 +139,21 @@ export function seasonEndpoints(season: number, springDate?: string, baseUrl = D
 }
 
 /**
+ * One day's standings alone (S155): MLB's dated table, `standings-<date>`, with the URL the HTTP
+ * client asks. The `--date` form without `--game` records this, so a day with no game worth
+ * recording (1950-07-04's, say) still gets its table.
+ */
+export function standingsDayEndpoints(date: string, baseUrl = DEFAULT_BASE_URL): RawEndpoint[]
+{
+	return [
+		{
+			name: `standings-${date}`,
+			url: standingsUrl(date, baseUrl),
+		},
+	];
+}
+
+/**
  * Raw path. Writes each upstream response verbatim into `<outDir>/raw/`.
  * Returns the basenames written, in order.
  */
@@ -226,17 +241,7 @@ export async function recordNormalized(
 	await writeJson(path.join(outDir, `plays-${gamePk}.json`), (plays ?? []) as AtBat[]);
 	written.push(`plays-${gamePk}.json`);
 
-	// Precedence (S160): FixtureMlbStatsClient.fetchStandings serves `raw/standings-<date>.json` when
-	// it can read it, and this mapped file only for a day with no recording. So this file is the
-	// fallback, never a way to refresh a recorded day on its own: `record-fixtures` runs `recordRaw`
-	// (whose `standings-<date>` endpoint rewrites the recording) before this, in the same run. A
-	// caller that runs this path alone over a recorded day leaves the old recording served.
-	const standings = await client.fetchStandings(date);
-	await writeJson(path.join(outDir, `standings-${date}.json`), {
-		date: standings.date,
-		divisions: standings.divisions,
-	});
-	written.push(`standings-${date}.json`);
+	written.push(await recordStandings(client, date, outDir));
 
 	const ids = target.playerIds ?? [];
 	if (ids.length > 0)
@@ -248,6 +253,28 @@ export async function recordNormalized(
 		written.push(`players-${gamePk}.json`);
 	}
 	return written;
+}
+
+/**
+ * Writes `standings-<date>.json`, the day's table as `client` maps it, and returns its name.
+ *
+ * Precedence (S160): FixtureMlbStatsClient.fetchStandings serves `raw/standings-<date>.json` when
+ * it can read it, and this mapped file only for a day with no recording. So this file is the
+ * fallback, never a way to refresh a recorded day on its own: `record-fixtures` records the raw
+ * `standings-<date>` (through `recordRaw` or `standingsDayEndpoints`) before this, in the same run.
+ * A caller that runs this alone over a recorded day leaves the old recording served.
+ */
+export async function recordStandings(client: MlbStatsClient, date: string, outDir: string): Promise<string>
+{
+	await mkdir(outDir, {
+		recursive: true,
+	});
+	const standings = await client.fetchStandings(date);
+	await writeJson(path.join(outDir, `standings-${date}.json`), {
+		date: standings.date,
+		divisions: standings.divisions,
+	});
+	return `standings-${date}.json`;
 }
 
 export type RecordedGame = Omit<Unversioned<GameSnapshot>, "fetchedAt" | "windowMode">;

@@ -1,6 +1,7 @@
 /**
  * `pnpm --filter @bt/functions record-fixtures -- --date=… --game=…`
  * `pnpm --filter @bt/functions record-fixtures -- --season=YYYY [--spring-date=YYYY-MM-DD]`
+ * `pnpm --filter @bt/functions record-fixtures -- --date=YYYY-MM-DD` (one day's standings alone, S155)
  *
  * The `--season` form records one season's calendar, World Series, final standings and (with
  * `--spring-date`) its spring training standings as of that day, through `seasonEndpoints` (S128).
@@ -20,7 +21,9 @@ import {
 	recordEndpoints,
 	recordNormalized,
 	recordRaw,
+	recordStandings,
 	seasonEndpoints,
+	standingsDayEndpoints,
 	type RecorderTarget,
 } from "../services/recorder.js";
 
@@ -46,10 +49,19 @@ async function main(): Promise<void>
 	}
 	const date = arg("date");
 	const game = arg("game");
+	if (date && !game)
+	{
+		// One day's standings alone (S155): MLB's raw table, then the mapped one written from it.
+		const outDir = arg("out") ?? FIXTURES_ROOT;
+		const raw = await recordEndpoints(standingsDayEndpoints(date), outDir);
+		const mapped = await recordStandings(new HttpMlbStatsClient(), date, outDir);
+		for (const file of [...raw.map((f) => `raw/${f}`), mapped]) console.log(`wrote ${file}`);
+		return;
+	}
 	if (!date || !game)
 	{
 		console.error(
-			"usage: record-fixtures --date=YYYY-MM-DD --game=<gamePk> [--players=1,2,3] [--out=<dir>]",
+			"usage: record-fixtures --date=YYYY-MM-DD [--game=<gamePk> [--players=1,2,3]] [--out=<dir>] | --season=YYYY [--spring-date=YYYY-MM-DD]",
 		);
 		process.exit(2);
 	}

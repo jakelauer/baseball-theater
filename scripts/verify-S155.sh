@@ -15,7 +15,7 @@ source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "recorded, not typed: fixtures/raw/{seasons-1950,worldseries-1950,standings-1950-final,standings-1950-07-04}.json are MLB's verbatim answers (copyright line), fixtures/standings-1950-07-04.json is the mapped table, the standings ones parse with parseStandingsResponse (mapper test), and bundled.ts lists every file the fixture client reads by name (bundled.test.ts passes)"
 check 2 "the mapper makes one table per league: leagueName in packages/domain beside divisionName, called by the mapper; mapper tests on the 1950-07-04 and 1950 final recordings (two tables, names, league ids, team count, first and last team; the committed mapped file equals the mapper's output on the raw one) and the existing 2026 tests pass"
-check 3 "the API answers them: GET /api/v1/standings?date=1950-07-04 answers the two league tables at the top and in phases.regularSeason; ?date=1950-12-01 answers 1950's final as two league tables, or MLB's recorded dated table for that day (route tests named 1950)"
+check 3 "the API answers them: GET /api/v1/standings?date=1950-07-04 answers the two league tables at the top and in phases.regularSeason; ?date=1950-12-01, after 1950's last regular-season day, answers 1950's final table (two league tables, equal to fetchFinalStandings(1950) from fixtures/raw/standings-1950-final.json), never a dated table for that day (owner, 2026-11-22: \"Use the season's last day (Recommended)\"); the existing 2026 route tests pass"
 check 4 "the page shows them: StandingsPage, answered the committed fixtures/standings-1950-07-04.json, renders tables headed American League then National League with W, L, PCT, GB through DivisionTable; no new table component under web/src"
 check 5 "files this story adds or edits don't call useMediaQuery, hiddenFrom or visibleFrom outside web/src/layout/"
 check 6 "S155's snapshot records Status done (story_snapshot_status)"
@@ -63,12 +63,18 @@ run_vitest 2 functions src/mappers/standings.test.ts
 # --- Check 3: the API answers them ---------------------------------------------------------------------
 grep -qF '1950-07-04' functions/src/handlers/api.test.ts || bad 3 "functions/src/handlers/api.test.ts has no 1950-07-04 route test"
 grep -qF '1950-12-01' functions/src/handlers/api.test.ts || bad 3 "functions/src/handlers/api.test.ts has no 1950-12-01 route test"
+grep -qF 'fetchFinalStandings' functions/src/handlers/api.test.ts || bad 3 "functions/src/handlers/api.test.ts does not compare 1950-12-01 against fetchFinalStandings(1950)"
+for f in fixtures/standings-1950-12-01.json fixtures/raw/standings-1950-12-01.json; do
+  [ -e "$f" ] && bad 3 "$f is recorded: AC 3 answers 1950-12-01 with 1950's final table, never a dated table for that day"
+done
+grep -qF 'standings-1950-12-01' functions/src/adapters/fixtures/bundled.ts && bad 3 "bundled.ts lists a dated 1950-12-01 table"
 run_vitest 3 functions src/handlers/api.test.ts -t 1950
+run_vitest 3 functions src/handlers/api.test.ts
 
 # --- Check 4: the page shows them ----------------------------------------------------------------------
 grep -qF 'standings-1950-07-04.json' web/src/pages/StandingsPage.test.tsx || bad 4 "StandingsPage.test.tsx does not answer the committed fixtures/standings-1950-07-04.json"
 run_vitest 4 web src/pages/StandingsPage.test.tsx -t 1950
-story_own_diff S155 "$BASE" --name-status -- web/src | awk '$1 == "A" && $2 ~ /Table[^/]*\.tsx$/ && $2 !~ /\.test\.tsx$/ { print $2 }' >"$TMP/tables.txt"
+story_own_diff S155 "$BASE" --name-status -- web/src | awk '$1 == "A" && $2 ~ /Table[^\/]*\.tsx$/ && $2 !~ /\.test\.tsx$/ { print $2 }' >"$TMP/tables.txt"
 [ -s "$TMP/tables.txt" ] && bad 4 "a new table component is added: $(tr '\n' ' ' <"$TMP/tables.txt")"
 
 # --- Check 5: no viewport queries outside web/src/layout/ ----------------------------------------------

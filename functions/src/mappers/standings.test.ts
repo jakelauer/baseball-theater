@@ -223,3 +223,46 @@ describe("clinch letter (S160)", () =>
 		});
 	});
 });
+
+describe("mapStandings before 1969: one table per league (S155 AC 2)", () =>
+{
+	const recording = (name: string): unknown => JSON.parse(readFileSync(fileURLToPath(new URL(`../../../fixtures/${name}`, import.meta.url)), "utf8"));
+	const july = parseStandingsResponse(recording("raw/standings-1950-07-04.json"));
+	const final = parseStandingsResponse(recording("raw/standings-1950-final.json"));
+
+	/** Each table's id, league, name, team count and first and last team. */
+	const outline = (divisions: ReturnType<typeof mapStandings>["divisions"]) => divisions.map((d) => [d.divisionId, d.leagueId, d.name, d.teams.length, d.teams[0]?.abbreviation, d.teams.at(-1)?.abbreviation]);
+
+	it("1950-07-04: the American League, then the National League, each its eight teams in the order they stood", () =>
+	{
+		const { divisions } = mapStandings(july, "1950-07-04");
+		expect(outline(divisions)).toEqual([
+			[null, 103, "American League", 8, "DET", "SLB"],
+			[null, 104, "National League", 8, "STL", "PIT"],
+		]);
+		// The league's games-back, the leader's shown as none.
+		expect(divisions[0]!.teams.map((t) => t.gamesBack)).toEqual([null, "4.0", "5.0", "6.5", "14.5", "15.0", "21.0", "22.0"]);
+	});
+
+	it("1950 final: the two leagues' final tables", () =>
+	{
+		expect(outline(mapStandings(final, "1950-10-01").divisions)).toEqual([
+			[null, 103, "American League", 8, "NYY", "PHA"],
+			[null, 104, "National League", 8, "PHI", "PIT"],
+		]);
+	});
+
+	it("1950: the order is MLB's league rank and the American League first, whatever order MLB sends them in", () =>
+	{
+		const shuffled = structuredClone(july);
+		shuffled.records!.reverse();
+		for (const group of shuffled.records!) group.teamRecords!.reverse();
+		expect(outline(mapStandings(shuffled, "1950-07-04").divisions)).toEqual(outline(mapStandings(july, "1950-07-04").divisions));
+	});
+
+	it("1950-07-04: the committed fixtures/standings-1950-07-04.json is the mapper's output on the raw recording", () =>
+	{
+		const committed = recording("standings-1950-07-04.json") as { divisions: unknown };
+		expect(committed.divisions).toEqual(mapStandings(july, "1950-07-04").divisions);
+	});
+});

@@ -32,10 +32,10 @@ import type { GameDiffPatchResponse } from "@bt/mlb-api";
 import type { MlbStatsClient } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	finalStandingsUrl, graphContentRequest, seasonsUrl, springStandingsUrl, worldSeriesUrl,
+	finalStandingsUrl, graphContentRequest, seasonsUrl, springStandingsUrl, standingsUrl, worldSeriesUrl,
 } from "../adapters/http/mlb.js";
 import {
-	rawEndpoints, recordEndpoints, recordNormalized, recordRaw, seasonEndpoints,
+	rawEndpoints, recordEndpoints, recordNormalized, recordRaw, recordStandings, seasonEndpoints, standingsDayEndpoints,
 } from "./recorder.js";
 
 const FIXTURES = path.resolve(
@@ -336,6 +336,23 @@ describe("fixture recorder", () =>
 		// The mapped file the normalized path just wrote is on disk and differs; it is only the fallback.
 		expect(mapped.divisions.length).toBeGreaterThan(0);
 		expect(served.divisions).not.toEqual(mapped.divisions);
+	});
+
+	it("S155: one day's standings alone, MLB's raw table then the mapped one from it, with no game", async () =>
+	{
+		expect(standingsDayEndpoints("1950-07-04")).toEqual([{
+			name: "standings-1950-07-04",
+			url: standingsUrl("1950-07-04", "https://statsapi.mlb.com"),
+		}]);
+		const out = await mkdtemp(path.join(tmpdir(), "bt-standings-day-"));
+		const recording = await readFile(path.join(FIXTURES, "raw", "standings-1950-07-04.json"), "utf8");
+		expect(await recordEndpoints(standingsDayEndpoints("1950-07-04", ""), out, {
+			fetchImpl: (async () => new Response(recording)) as unknown as typeof fetch,
+		})).toEqual(["standings-1950-07-04.json"]);
+		expect(await readFile(path.join(out, "raw", "standings-1950-07-04.json"), "utf8")).toBe(recording);
+		// The mapped file, written through the client from that recording, is the committed one.
+		expect(await recordStandings(new FixtureMlbStatsClient(out), "1950-07-04", out)).toBe("standings-1950-07-04.json");
+		expect(JSON.parse(await readFile(path.join(out, "standings-1950-07-04.json"), "utf8"))).toEqual(await readFixture("standings-1950-07-04.json"));
 	});
 
 	it("writes plays as a separate file, not inlined into the game", async () =>

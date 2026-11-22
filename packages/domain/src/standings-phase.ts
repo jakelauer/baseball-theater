@@ -46,6 +46,16 @@ function knownSeasons(seasons: readonly SeasonCalendar[]): KnownCalendar[]
 		.sort((a, b) => a.springStartDate.localeCompare(b.springStartDate));
 }
 
+/**
+ * True when the season had spring days (S155): its first day comes before its first regular-season
+ * day. A season MLB gives no spring for (before 2010) starts on its first regular-season day
+ * (`mapSeasonCalendar`), so it has no spring phase and no spring table.
+ */
+function hasSpring(season: KnownCalendar): boolean
+{
+	return season.springStartDate < season.regularSeasonStartDate;
+}
+
 function finalOf(season: KnownCalendar): StandingsPick
 {
 	return {
@@ -110,6 +120,12 @@ export function previousStandingsPhase(pick: StandingsPick, seasons: readonly Se
 	if (pick.phase === "regularSeason")
 	{
 		if (pick.date !== season.regularSeasonStartDate) return null;
+		if (!hasSpring(season))
+		{
+			// No spring to fall back to (S155): the previous season's final, as spring's first day does.
+			const previous = known.filter((s) => s.season < pick.season).at(-1);
+			return previous ? finalOf(previous) : null;
+		}
 		return {
 			phase: "spring",
 			season: season.season,
@@ -157,7 +173,8 @@ export interface StandingsPhasesPlan {
  * `springStartDate` to the day before the next known season's.
  *
  * - **spring:** `springStartDate` through the day before `regularSeasonStartDate`; that spring's
- *   table as of the day, or as of its last day once the day is past it.
+ *   table as of the day, or as of its last day once the day is past it. Null for a season with no
+ *   spring days (S155: before 2010 MLB gives none, so its calendar starts on opening day).
  * - **regularSeason:** `regularSeasonStartDate` through `regularSeasonEndDate`; the day's table
  *   inside those dates, the season's `final` after them, and no MLB table on a spring day (MLB has
  *   none before opening day).
@@ -200,15 +217,17 @@ export function standingsPhases(day: string, seasons: readonly SeasonCalendar[])
 	const playoffsStart = addDays(calendar.regularSeasonEndDate, 1);
 	return {
 		season: calendar.season,
-		spring: {
-			startDate: calendar.springStartDate,
-			endDate: springEnd,
-			pick: {
-				phase: "spring",
-				season: calendar.season,
-				date: day < springEnd ? day : springEnd,
-			},
-		},
+		spring: hasSpring(calendar)
+			? {
+				startDate: calendar.springStartDate,
+				endDate: springEnd,
+				pick: {
+					phase: "spring",
+					season: calendar.season,
+					date: day < springEnd ? day : springEnd,
+				},
+			}
+			: null,
 		regularSeason: {
 			startDate: calendar.regularSeasonStartDate,
 			endDate: calendar.regularSeasonEndDate,

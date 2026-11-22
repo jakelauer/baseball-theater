@@ -160,3 +160,27 @@ describe("StandingsPage (S4)", () =>
 		expect(await screen.findByText("New York Yankees")).toBeInTheDocument();
 	});
 });
+
+describe("StandingsPage before 1969 (S155 AC 4)", () =>
+{
+	const LEAGUES = JSON.parse(readFileSync(join(FIXTURES, "standings-1950-07-04.json"), "utf8")) as StandingsPayload;
+
+	it("1950-07-04: two tables, the American League then the National League, through DivisionTable with W, L, PCT and GB", async () =>
+	{
+		serve(() => jsonResponse(LEAGUES));
+		renderStandings("/standings?date=1950-07-04");
+		const tables = await screen.findAllByTestId("division-table");
+		expect(tables).toHaveLength(2);
+		expect(screen.getAllByRole("heading", {
+			level: 3,
+		}).map((h) => h.textContent)).toEqual(["American League", "National League"]);
+		for (const table of tables)
+		{
+			expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Team", "", "W", "L", "PCT", "GB"]);
+			expect(within(table).getAllByTestId("standings-row")).toHaveLength(8);
+		}
+		const [al, nl] = tables;
+		expect(within(within(al!).getAllByTestId("standings-row")[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["Detroit Tigers", "DET", "46", "24", ".657", "—"]);
+		expect(within(within(nl!).getAllByTestId("standings-row")[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["St. Louis Cardinals", "STL", "41", "27", ".603", "—"]);
+	});
+});

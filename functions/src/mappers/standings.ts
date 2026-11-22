@@ -10,6 +10,7 @@ import type {
 	StandingsSnapshot,
 	StandingsTeamRecord,
 } from "@bt/domain";
+import { leagueName } from "@bt/domain";
 import type {
 	StandingsRecordEntry,
 	StandingsRecordGroup,
@@ -64,17 +65,39 @@ export function mapStandingsTeam(entry: StandingsRecordEntry): StandingsTeamReco
 	};
 }
 
+/**
+ * One record group as a table. A group with a division is that division's, its teams by division
+ * rank. A group with no division is a whole league's (S155: before 1969 the leagues had none, and
+ * MLB sends each as one group, fixtures/raw/standings-1950-07-04.json): it is named for its league
+ * (`leagueName`), never from a row's hydrated division, which is the team's current one, and its
+ * teams keep the order they stood in, MLB's `leagueRank`. Its games-back is already the league's.
+ */
 export function mapStandingsDivision(group: StandingsRecordGroup): StandingsDivision
 {
 	const rows = group.teamRecords ?? [];
+	const leagueId = group.league?.id ?? null;
+	if (!group.division)
+	{
+		const ranked = rows.map((row) => ({
+			rank: toRank(row.leagueRank) ?? Infinity,
+			team: mapStandingsTeam(row),
+		}));
+		ranked.sort((a, b) => a.rank - b.rank);
+		return {
+			divisionId: null,
+			name: leagueId === null ? null : leagueName(leagueId) ?? null,
+			leagueId,
+			teams: ranked.map((row) => row.team),
+		};
+	}
 	const teams = rows.map(mapStandingsTeam);
 	teams.sort((a, b) => (a.divisionRank ?? Infinity) - (b.divisionRank ?? Infinity));
 	// The group's own division ref is unnamed; the readable name is on each row.
 	const named = rows.find((row) => row.team?.division?.name);
 	return {
-		divisionId: group.division?.id ?? null,
+		divisionId: group.division.id ?? null,
 		name: named?.team?.division?.name ?? null,
-		leagueId: group.league?.id ?? null,
+		leagueId,
 		teams,
 	};
 }
@@ -86,11 +109,22 @@ export function mapStandingsDivision(group: StandingsRecordGroup): StandingsDivi
  */
 const DIVISION_ORDER: readonly number[] = [201, 202, 200, 204, 205, 203];
 
-/** A division's place in `DIVISION_ORDER`; one MLB doesn't list there keeps its place after them. */
+/** The leagues' order (S155): the American League's table before the National League's. */
+const LEAGUE_ORDER: readonly number[] = [103, 104];
+
+/**
+ * A table's place: a division's in `DIVISION_ORDER`, then a whole league's in `LEAGUE_ORDER` (only
+ * before 1969, so never beside divisions in practice); any other keeps its place after them.
+ */
 function divisionPlace(division: StandingsDivision): number
 {
-	const place = division.divisionId === null ? -1 : DIVISION_ORDER.indexOf(division.divisionId);
-	return place === -1 ? DIVISION_ORDER.length : place;
+	if (division.divisionId === null)
+	{
+		const league = division.leagueId === null ? -1 : LEAGUE_ORDER.indexOf(division.leagueId);
+		return DIVISION_ORDER.length + (league === -1 ? LEAGUE_ORDER.length : league);
+	}
+	const place = DIVISION_ORDER.indexOf(division.divisionId);
+	return place === -1 ? DIVISION_ORDER.length + LEAGUE_ORDER.length : place;
 }
 
 export function mapStandings(
