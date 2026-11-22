@@ -48,7 +48,11 @@ export interface ReleaseNotes
 {
 	/** `vMAJOR.MINOR.PATCH` ({@link parseReleaseVersion}). */
 	version: string;
-	/** The release's calendar date, `YYYY-MM-DD`, once known. */
+	/**
+	 * A calendar date, `YYYY-MM-DD`, if given. The release procedure (CLAUDE.md, step (4)) leaves it empty:
+	 * the file is frozen in the release commit before the day the release ships, and the GitHub Release
+	 * records that day.
+	 */
 	date?: string;
 	/** The really big additions. */
 	headline: ReleaseEntry[];
@@ -56,6 +60,7 @@ export interface ReleaseNotes
 	items: ReleaseItem[];
 	/** The one sentence that stands for every minor fix and bit of polish. */
 	fixesAndPolish?: string;
+	/** The owner's in-session approval, dated and quoted; absent on a draft, which never deploys. */
 	approval?: ReleaseApproval;
 }
 
@@ -89,18 +94,21 @@ const VERSION = new RegExp(`^v${PART}\\.${PART}\\.${PART}$`);
 /**
  * The one check of a release version (S131 AC 2): `vMAJOR.MINOR.PATCH`, each part a number with no
  * leading zero, so `v3.01.0` is rejected rather than read as `v3.1.0`, and `3.1.0` (no `v`) is not a
- * version. Returns the parts, or null for anything else. Git tags, notes files and the release check
- * all go through it.
+ * version. A part too big to be a safe integer is not one either, so {@link compareReleaseVersions}
+ * never compares rounded numbers (two distinct versions tied, or NaN). Returns the parts, or null for
+ * anything else. Git tags, notes files and the release check all go through it.
  */
 export function parseReleaseVersion(text: string): ReleaseVersion | null
 {
 	const match = VERSION.exec(text);
 	if (!match) return null;
+	const [major, minor, patch] = [Number(match[1]), Number(match[2]), Number(match[3])];
+	if (![major, minor, patch].every(Number.isSafeInteger)) return null;
 	return {
 		text,
-		major: Number(match[1]),
-		minor: Number(match[2]),
-		patch: Number(match[3]),
+		major,
+		minor,
+		patch,
 	};
 }
 

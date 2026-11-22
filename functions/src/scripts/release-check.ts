@@ -2,10 +2,13 @@
  * The release check behind `pnpm release:check <version>` (S131 AC 3), kept apart from its command
  * (`release-check-cli.ts`) so it can be tested over temporary folders, as `backfill-args.ts` is. The
  * production deploy job runs it on the release's tag before it builds anything (AC 4), so a release
- * from the public launch on can't publish without notes the owner approved in the tagged commit.
+ * from the public launch on can't deploy without notes the owner approved in the tagged commit.
+ * {@link checkReleasesDir} checks every notes file in the repository from the functions suite, so a
+ * bad one fails `pnpm verify` rather than waiting for production's deploy.
  */
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	isApproved, parseReleaseNotes, parseReleaseVersion,
 } from "@bt/domain";
@@ -16,6 +19,13 @@ import {
  * release below it carries none, so the check passes it without reading `releases/`.
  */
 export const FIRST_NOTED_MAJOR = 4;
+
+/**
+ * The repository's `releases/` folder, found from this file's place in the repo (`functions/src/scripts/`),
+ * never from the working directory: `pnpm --filter @bt/functions exec` runs the command in `functions/`.
+ * Exported so a test can prove it is `<repo>/releases`.
+ */
+export const RELEASES_DIR = fileURLToPath(new URL("../../../releases/", import.meta.url));
 
 /** The check's verdict: whether the release may deploy, and the lines to print (each problem, or why it passed). */
 export interface ReleaseCheck
@@ -51,13 +61,24 @@ export async function checkRelease(tag: string, releasesDir: string): Promise<Re
 	{
 		text = await readFile(file, "utf8");
 	}
-	catch
+	catch (error)
 	{
-		return {
+		// Only a file that isn't there is "missing"; anything else (a folder by that name, no permission) is named as it is.
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return {
 			ok: false,
 			lines: [`${file} is missing: draft the release's notes and land them, approved, before publishing it`],
 		};
+		return {
+			ok: false,
+			lines: [`${file} can't be read: ${error instanceof Error ? error.message : String(error)}`],
+		};
 	}
+	// JSON.parse reports a byte-order mark as an unexpected token; named here so the fix is obvious, and
+	// refused rather than stripped so every reader of releases/ (S132, S134) sees the same clean files.
+	if (text.startsWith("\uFEFF")) return {
+		ok: false,
+		lines: [`${file} starts with a byte-order mark: save it as UTF-8 without one`],
+	};
 	let json: unknown;
 	try
 	{
@@ -86,5 +107,54 @@ export async function checkRelease(tag: string, releasesDir: string): Promise<Re
 	return {
 		ok: true,
 		lines: [`${tag}: notes approved ${parsed.notes.approval!.date}: "${parsed.notes.approval!.quote}"`],
+	};
+}
+
+/**
+ * Checks every file in `dir` (the repository's {@link RELEASES_DIR} in the functions suite, S131 AC 6):
+ * each must be `<version>.json` for a release from v4.0.0 on, since the change log starts there (owner,
+ * 2026-11-19: "Start at v4.0.0 (Recommended)"), and pass {@link checkRelease}. A folder that isn't
+ * there yet passes: no notes land before v4.0.0's. Hidden files are skipped; any other read error throws.
+ */
+export async function checkReleasesDir(dir: string): Promise<ReleaseCheck>
+{
+	let names: string[];
+	try
+	{
+		// Hidden files (`.DS_Store`, `.gitkeep`) are skipped, as the grader's `releases/*` glob skips them.
+		names = (await readdir(dir)).filter((name) => !name.startsWith(".")).sort();
+	}
+	catch (error)
+	{
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return {
+			ok: true,
+			lines: [`${dir} doesn't exist yet: no release has notes`],
+		};
+		throw error;
+	}
+	const lines: string[] = [];
+	let ok = true;
+	for (const name of names)
+	{
+		const version = name.endsWith(".json") ? parseReleaseVersion(name.slice(0, -".json".length)) : null;
+		if (!version)
+		{
+			ok = false;
+			lines.push(`${join(dir, name)} is not a release notes file: releases/ holds only <vMAJOR.MINOR.PATCH>.json`);
+			continue;
+		}
+		if (version.major < FIRST_NOTED_MAJOR)
+		{
+			ok = false;
+			lines.push(`${join(dir, name)} is a pre-launch release's notes file: fan-facing notes start with v${FIRST_NOTED_MAJOR}.0.0`);
+			continue;
+		}
+		const result = await checkRelease(version.text, dir);
+		ok &&= result.ok;
+		lines.push(...result.lines);
+	}
+	return {
+		ok,
+		lines,
 	};
 }

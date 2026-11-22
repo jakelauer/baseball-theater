@@ -490,7 +490,7 @@ jobs:
             - name: Install
               run: pnpm install --frozen-lockfile
 
-            # S131: from v4.0.0 on, a release publishes only with fan-facing notes the owner approved,
+            # S131: from v4.0.0 on, a release deploys only with fan-facing notes the owner approved,
             # in the tagged commit's releases/<tag>.json; a pre-launch tag (below v4.0.0) carries none
             # and passes. Before anything is built, migrated or deployed. The tag comes in through env,
             # never pasted into the script.

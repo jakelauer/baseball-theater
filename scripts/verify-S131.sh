@@ -20,7 +20,7 @@ check 1 "packages/domain defines ReleaseNotes and parseReleaseNotes (version wit
 check 2 "packages/domain exports parseReleaseVersion (used by parseReleaseNotes), compareReleaseVersions (numeric per part) and currentRelease (newest approved notes, drafts ignored), tested on each edge the AC names"
 check 3 "pnpm release:check <version> refuses a tag that isn't a version, passes a pre-launch version (below v4.0.0) without reading releases/, and from v4.0.0 on exits 0 only for releases/<version>.json that exists, parses, is approved and names its own version; otherwise nonzero with each problem (tested over temporary directories)"
 check 4 "deploy.yml's production job runs pnpm release:check with github.event.release.tag_name after Install and before any build step"
-check 5 "CLAUDE.md's release rule drafts releases/<version>.json from the milestone's changelog.d/ fragments (keeping step (4)'s pnpm changelog:build) in FEATURES' buckets, quotes the owner's in-session approval, lands it through a pull request, publishes only where release:check exits 0, and no longer keeps the notes in the GitHub Release until S131"
+check 5 "CLAUDE.md's release rule drafts releases/<version>.json from the milestone's changelog.d/ fragments (keeping step (4)'s pnpm changelog:build) in FEATURES' buckets, quotes the owner's in-session approval, lands it through a pull request, publishes only where release:check exits 0, makes v4.0.0's notes a general overview (owner, 2026-11-22), and no longer keeps the notes in the GitHub Release until S131"
 check 6 "no file in releases/ names a version below v4.0.0, and pnpm release:check exits 0 for every file in releases/ (there may be none)"
 check 7 "S131's snapshot records Status done (story_snapshot_status), and the story stays inside its scope files (plus its own records and scripts/verify-S131.sh)"
 
@@ -90,7 +90,7 @@ node -e 'const s = require("./package.json").scripts || {}; process.exit(/releas
   bad 3 "package.json has no release:check script running the release check"
 [ -f functions/src/scripts/release-check.ts ] || bad 3 "functions/src/scripts/release-check.ts missing"
 for t in "missing file" "draft" "mismatched version" "valid" "v3.3.0 with no file passes" "v4.0.0 with no file fails" \
-  "bare 3.3.0 fails" "v3.01.0 fails"; do
+  "bare 3.3.0 fails" "v3.01.0 fails" "releases folder"; do
   cli 3 "S131 AC 3 $t"
 done
 # End to end, through the real script: tags that aren't versions fail, a pre-launch tag passes with no notes,
@@ -112,7 +112,8 @@ fi
 #     newlines, `&&` and `;`; the check is a command that starts with `pnpm`, then any of `run`/`-s`/`--silent`,
 #     then `release:check`, whose first argument is the tag itself (${{ github.event.release.tag_name }}) or a
 #     $VAR / ${VAR} that an `env:` block (the step's or the job's) sets to it — GitHub's injection-safe form;
-#   - a `--` before the argument is allowed (pnpm passes it through); a YAML-quoted inline run: is unquoted;
+#   - a `--` before the argument is rejected: pnpm passes it through, and the command's usage check then fails
+#     the deploy; a YAML-quoted inline run: is unquoted;
 #   - nothing after the argument may pipe, `||` or background (`&`) its failure away, and no `set +e` may come
 #     before it in the same run block;
 #   - the step may not carry `continue-on-error` (other than false) or a `shell:` of its own, and its `if:`
@@ -167,7 +168,7 @@ const script = (run) => {
   let text = /^[|>]/.test(style) ? (style.startsWith(">") ? body.join(" ") : body.join("\n")) : unquote(style);
   return text.replace(/\\\n\s*/g, " ");
 };
-const CMD = /^pnpm\s+(?:(?:run|-s|--silent)\s+)*release:check\s+(?:--\s+)?("[^"]*"|'[^']*'|\$\{\{[^}]*\}\}|\S+)(.*)$/;
+const CMD = /^pnpm\s+(?:(?:run|-s|--silent)\s+)*release:check\s+("[^"]*"|'[^']*'|\$\{\{[^}]*\}\}|\S+)(.*)$/;
 const isCheck = (keys) => {
   if (keys.if && !/^(\$\{\{\s*)?(always|success)\(\)(\s*\}\})?$/.test(unquote(keys.if.value))) return false;
   if (keys.shell) return false;
@@ -216,6 +217,11 @@ for s in 'releases/<version>.json' \
   'the notes all describe'; do
   grep -qF -- "$s" "$TMP/rule.md" || bad 5 "CLAUDE.md's release rule does not say: $s"
 done
+# AC 5 as the owner amended it before shipping (2026-11-22): v4.0.0, the initial release, is the exception, its notes
+# a general overview against the live version rather than one entry per pull request; the rule quotes the owner.
+grep -qF "4.0.0 notes are going to be special compared to later releases because it's the initial release. We aren't going to detail every PR on that one; it'll be a more generalized update comparing to the current live version" "$TMP/rule.md" ||
+  bad 5 "CLAUDE.md's release rule does not quote the owner's v4.0.0 exception (2026-11-22)"
+grep -qF 'general overview' "$TMP/rule.md" || bad 5 "CLAUDE.md's release rule does not say v4.0.0's notes are a general overview"
 # AC 5's own wording is "never writing"; a rule written as "never writes" says the same.
 grep -qE "never (writes|writing) an approval the owner didn('|’)t give in the current session" "$TMP/rule.md" ||
   bad 5 "CLAUDE.md's release rule does not say: never writing an approval the owner didn't give in the current session"
@@ -231,6 +237,8 @@ grep -qF "one line for minor fixes and polish), with the owner's in-session appr
   bad 5 "CLAUDE.md's release rule still quotes the owner's approval in the GitHub Release"
 
 # --- Check 6: no notes before the public launch release, v4.0.0 (owner, 2026-11-19) ----------------------------
+# The same rule as a test in the functions suite, so `pnpm verify` holds it on every later commit too.
+cli 6 "S131 AC 6 every file in releases/"
 for f in releases/*; do
   [ -e "$f" ] || continue
   n="$(basename "$f")"

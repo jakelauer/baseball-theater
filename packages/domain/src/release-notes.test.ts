@@ -264,6 +264,14 @@ describe("parseReleaseVersion (S131 AC 2)", () =>
 	{
 		expect(parseReleaseVersion("")).toBeNull();
 	});
+
+	it("rejects a part too big to be a safe integer, so comparing two versions never gives NaN or a false tie", () =>
+	{
+		expect(parseReleaseVersion("v9007199254740991.0.0")?.major).toBe(Number.MAX_SAFE_INTEGER);
+		expect(parseReleaseVersion("v9007199254740993.0.0")).toBeNull();
+		expect(parseReleaseVersion(`v4.${"9".repeat(400)}.0`)).toBeNull();
+		expect(() => compareReleaseVersions("v9007199254740993.0.0", "v9007199254740992.0.0")).toThrow("v9007199254740993.0.0");
+	});
 });
 
 describe("compareReleaseVersions (S131 AC 2)", () =>

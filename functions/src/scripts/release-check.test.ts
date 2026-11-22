@@ -1,12 +1,15 @@
+import { existsSync } from "node:fs";
 import {
-	mkdtemp, rm, writeFile,
+	mkdir, mkdtemp, rm, writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
 	afterEach, beforeEach, describe, expect, it,
 } from "vitest";
-import { checkRelease } from "./release-check.js";
+import {
+	checkRelease, checkReleasesDir, RELEASES_DIR,
+} from "./release-check.js";
 
 const approved = (version: string) => ({
 	version,
@@ -112,5 +115,102 @@ describe("checkRelease (S131 AC 3)", () =>
 	it("S131 AC 3 v3.01.0 fails: a leading zero is not a version", async () =>
 	{
 		expect((await checkRelease("v3.01.0", dir)).ok).toBe(false);
+	});
+
+	it("refuses a malformed tag: surrounding space, a trailing newline, a capital V, a pre-release suffix", async () =>
+	{
+		for (const tag of [" v4.0.0", "v4.0.0\n", "V4.0.0", "v3.3.0-rc.1"])
+		{
+			const result = await checkRelease(tag, dir);
+			expect(result.ok, JSON.stringify(tag)).toBe(false);
+			expect(result.lines.join("\n")).toContain("not a release version");
+		}
+	});
+
+	it("names a byte-order mark rather than reporting a confusing JSON error", async () =>
+	{
+		await put("v4.0.0.json", `\uFEFF${JSON.stringify(approved("v4.0.0"))}`);
+		const result = await checkRelease("v4.0.0", dir);
+		expect(result.ok).toBe(false);
+		expect(result.lines.join("\n")).toContain("starts with a byte-order mark");
+	});
+
+	it("reports a notes file that can't be read as unreadable, not as missing", async () =>
+	{
+		await mkdir(join(dir, "v4.0.0.json"));
+		const result = await checkRelease("v4.0.0", dir);
+		expect(result.ok).toBe(false);
+		expect(result.lines.join("\n")).toContain("can't be read");
+		expect(result.lines.join("\n")).not.toContain("is missing");
+	});
+});
+
+describe("RELEASES_DIR (S131 AC 3)", () =>
+{
+	it("S131 AC 3 releases folder: the command reads <repo>/releases, wherever it is run from", () =>
+	{
+		expect(basename(RELEASES_DIR)).toBe("releases");
+		expect(existsSync(join(RELEASES_DIR, "..", "pnpm-workspace.yaml"))).toBe(true);
+	});
+});
+
+describe("checkReleasesDir (S131 AC 6)", () =>
+{
+	let dir: string;
+	beforeEach(async () =>
+	{
+		dir = await mkdtemp(join(tmpdir(), "release-dir-"));
+	});
+	afterEach(async () =>
+	{
+		await rm(dir, {
+			recursive: true,
+			force: true,
+		});
+	});
+
+	it("S131 AC 6 every file in releases/: the repository's notes all pass, and none names a pre-launch version", async () =>
+	{
+		const result = await checkReleasesDir(RELEASES_DIR);
+		expect(result.ok, result.lines.join("\n")).toBe(true);
+	});
+
+	it("passes a folder that doesn't exist yet: no release has notes before v4.0.0's land", async () =>
+	{
+		expect((await checkReleasesDir(join(dir, "releases"))).ok).toBe(true);
+	});
+
+	it("flags a draft, a pre-launch notes file and a file that isn't release notes, and passes approved notes", async () =>
+	{
+		await writeFile(join(dir, "v4.0.0.json"), JSON.stringify(approved("v4.0.0")));
+		await writeFile(join(dir, "v4.1.0.json"), JSON.stringify({
+			version: "v4.1.0",
+			fixesAndPolish: "Small fixes.",
+		}));
+		await writeFile(join(dir, "v3.9.0.json"), JSON.stringify(approved("v3.9.0")));
+		await writeFile(join(dir, "notes.txt"), "hello");
+		const result = await checkReleasesDir(dir);
+		expect(result.ok).toBe(false);
+		const text = result.lines.join("\n");
+		expect(text).toContain("v4.1.0.json: is a draft");
+		expect(text).toContain("v3.9.0.json is a pre-launch release's notes file");
+		expect(text).toContain("notes.txt is not a release notes file");
+		expect(text).not.toContain("v4.0.0.json:");
+	});
+
+	it("skips hidden files such as .DS_Store, as the grader's releases/* glob does", async () =>
+	{
+		await writeFile(join(dir, ".DS_Store"), "junk");
+		await writeFile(join(dir, ".gitkeep"), "");
+		await writeFile(join(dir, "v4.0.0.json"), JSON.stringify(approved("v4.0.0")));
+		const result = await checkReleasesDir(dir);
+		expect(result.ok, result.lines.join("\n")).toBe(true);
+	});
+
+	it("throws when the folder can't be read for any reason but not existing", async () =>
+	{
+		const file = join(dir, "not-a-folder");
+		await writeFile(file, "");
+		await expect(checkReleasesDir(file)).rejects.toThrow("ENOTDIR");
 	});
 });
