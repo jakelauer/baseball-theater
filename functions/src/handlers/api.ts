@@ -3,7 +3,8 @@ import type {
 } from "@bt/domain";
 import type { SettingsRepository } from "@bt/ports";
 import {
-	API_VERSIONS, DEFAULT_SETTINGS, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate, isCalendarMonth, latestScheduleMonth,
+	API_VERSIONS, DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
+	isCalendarMonth, latestScheduleMonth,
 	mlbDayEndsAt, mlbToday, parseAccountSettings, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
 import type { AccountDataDeps } from "../services/account-deletion.js";
@@ -21,6 +22,7 @@ import {
 import type { ApiUsageLog } from "../services/api-usage.js";
 import { getDayDigest } from "../services/digest.js";
 import { getScheduleMonth } from "../services/schedule-month.js";
+import { searchHighlights } from "../services/search.js";
 import { BUNDLED_RELEASE_NOTES, getReleases } from "../services/releases.js";
 import { getDefaultScoreboardDate } from "../services/scoreboard-date.js";
 import type { StandingsRead } from "../services/standings.js";
@@ -317,6 +319,47 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			// The digest is cached by the graduated rule (S71, #61): not while the day or a game is live,
 			// then by how long since the latest of them changed.
 			return withCacheControl(sendJson(200, "GET /api/v1/digest", digest), freshness, ctx);
+		},
+	},
+	{
+		route: "GET /api/v1/search/highlights",
+		handle: async (url, _params, ctx) =>
+		{
+			const q = url.searchParams.get("q") ?? "";
+			// The one limit the web app's box shares (`SEARCH_QUERY_MAX_LENGTH`: UTF-16 units after trimming).
+			if (q.trim().length > SEARCH_QUERY_MAX_LENGTH)
+			{
+				return noStore(sendError(400, {
+					error: "query_too_long",
+					hint: `q: at most ${SEARCH_QUERY_MAX_LENGTH} characters`,
+				}));
+			}
+			let answer;
+			try
+			{
+				answer = await searchHighlights(ctx.ingest.mlb, q);
+			}
+			catch (error)
+			{
+				// MLB couldn't answer: an error, never cached, and never "no results". Logged by the error's name only, so the
+				// words searched for (ADR-028) and MLB's URL, which carries them, stay out of the log.
+				console.error("search failed:", error instanceof Error ? error.name : typeof error);
+				return noStore(sendError(502, {
+					error: "search_unavailable",
+					hint: "MLB could not be reached; try again shortly",
+				}));
+			}
+			if (!answer)
+			{
+				return noStore(sendError(400, {
+					error: "query_required",
+					hint: "q: the words to search highlights for",
+				}));
+			}
+			const response = sendJson(200, "GET /api/v1/search/highlights", answer);
+			// MLB adds clips as games are played; five minutes spares it a request per repeated search.
+			response.headers.set("Cache-Control", "public, max-age=300");
+			return response;
 		},
 	},
 	{

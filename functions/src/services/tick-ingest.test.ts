@@ -14,6 +14,7 @@ import type {
 	MediaHighlight,
 	Unversioned,
 	PlayerProfile,
+	SearchHighlightsPage,
 	ScheduleDay,
 	StandingsSnapshot,
 } from "@bt/domain";
@@ -110,6 +111,14 @@ class CountingMlbClient implements MlbStatsClient
 	async fetchPlayers(): Promise<PlayerProfile[]>
 	{
 		return [];
+	}
+
+	async searchHighlights(): Promise<SearchHighlightsPage>
+	{
+		return {
+			total: 0,
+			highlights: [],
+		};
 	}
 
 	fetchGameTimestamps(gamePk: number): Promise<string[]>

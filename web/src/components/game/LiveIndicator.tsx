@@ -4,10 +4,11 @@ import {
 import { useReducedMotion } from "@mantine/hooks";
 
 /**
- * The live marker (S32 `game-topbar`; S31 live row): an Accent 2 dot that
+ * The game's in-progress marker (S32 `game-topbar`; S31 live row): an Accent 2 dot that
  * blinks, and a label — `LIVE` in the game top bar, the inning on the scoreboard's
- * live row (`BOT 7`, S66), always in capitals. One component for every live marker (S60).
- * Under `prefers-reduced-motion` the dot holds still (VISUAL-DESIGN §7) — an
+ * live row (`BOT 7`, S66), always in capitals. It says the game is being played; the
+ * page's connection marker, the footer's red "Live Data · Active" saying pushes are
+ * arriving, is `LiveMarker` (`web/src/layout/`, S148), a different component. Under `prefers-reduced-motion` the dot holds still (VISUAL-DESIGN §7) — an
  * accessibility preference, not a viewport read.
  */
 export function LiveIndicator({ label = "LIVE" }: { label?: string })
