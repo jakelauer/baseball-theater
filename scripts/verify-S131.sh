@@ -4,9 +4,10 @@
 # parseReleaseNotes), the one version check and comparison (parseReleaseVersion,
 # compareReleaseVersions) and "which release is this build" (currentRelease); `pnpm release:check
 # <version>` refuses notes that are missing, drafts or misnamed; production's deploy job runs it
-# before building; CLAUDE.md's release rule drafts, approves and lands the notes; releases/ holds
-# the notes of every release published before S131. A commit-time proof of this story (S84).
-# Contract: docs/v3/BACKLOG.md#verify-script-contract
+# before building (a pre-launch tag, below v4.0.0, passes with no notes); CLAUDE.md's release rule
+# drafts, approves and lands the notes; releases/ holds no notes for a version below v4.0.0, where the
+# change log starts (owner, 2026-11-19). A commit-time proof of this story (S84).
+# Contract: frame note 00, "Verify-script contract" (docs/v3/backlog/frame/).
 # No network. No writes outside /tmp. Does its own checking (never `pnpm verify`).
 
 set -uo pipefail
@@ -17,22 +18,18 @@ source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "packages/domain defines ReleaseNotes and parseReleaseNotes (version with no leading zero, calendar date, headline, kinded items, fixesAndPolish, quoted approval, no entry in both buckets, every problem by field), tested on each edge the AC names"
 check 2 "packages/domain exports parseReleaseVersion (used by parseReleaseNotes), compareReleaseVersions (numeric per part) and currentRelease (newest approved notes, drafts ignored), tested on each edge the AC names"
-check 3 "pnpm release:check <version> exits 0 only for releases/<version>.json that exists, parses, is approved and names its own version; otherwise nonzero with each problem (tested over temporary directories)"
+check 3 "pnpm release:check <version> refuses a tag that isn't a version, passes a pre-launch version (below v4.0.0) without reading releases/, and from v4.0.0 on exits 0 only for releases/<version>.json that exists, parses, is approved and names its own version; otherwise nonzero with each problem (tested over temporary directories)"
 check 4 "deploy.yml's production job runs pnpm release:check with github.event.release.tag_name after Install and before any build step"
-check 5 "CLAUDE.md's release rule drafts releases/<version>.json from CHANGELOG entries in FEATURES' buckets, quotes the owner's in-session approval, lands it through a pull request, publishes only where release:check exits 0, and no longer keeps the notes in the GitHub Release until S131"
-check 6 "releases/v3.1.0.json exists and pnpm release:check exits 0 for every file in releases/"
-check 7 "backlog Status is done (story heading and Story status table), and the story stays inside its scope files"
+check 5 "CLAUDE.md's release rule drafts releases/<version>.json from the milestone's changelog.d/ fragments (keeping step (4)'s pnpm changelog:build) in FEATURES' buckets, quotes the owner's in-session approval, lands it through a pull request, publishes only where release:check exits 0, and no longer keeps the notes in the GitHub Release until S131"
+check 6 "no file in releases/ names a version below v4.0.0, and pnpm release:check exits 0 for every file in releases/ (there may be none)"
+check 7 "S131's snapshot records Status done (story_snapshot_status), and the story stays inside its scope files (plus its own records and scripts/verify-S131.sh)"
 
-# The commit this story's branch was cut from. The fence (check 7) reads only S131's own commits: the
-# first-parent, non-merge commits from BASE to the shipping commit (or HEAD, plus the working tree, while
-# unshipped), as verify-S123.sh does. Merging a newer `stage` into this branch when S131 resumes is handled:
-# the merge commit is skipped, and the stage commits it brings in are not on the first-parent line. Rebasing
-# onto a newer `stage` replays this branch's commits on the first-parent line, so they still count; stage's
-# own first-parent line is only `gh pr merge --merge` merges, which --no-merges skips. Only a fresh branch cut
-# from `stage` after this checkpoint's pull request merges changes the count: the checkpoint then sits behind
-# a merge's second parent and stops counting. That under-counts, so it can't make the fence fail wrongly;
-# moving BASE to the new fork point is optional tidying (allowed while the grader is unshipped).
-BASE=28c2059
+# The commit S131's own changes start from: `git merge-base origin/stage HEAD` when the story resumed on
+# 2026-11-21 (its checkpoint commits merged into `stage` through #26 and sit behind that merge's second parent).
+# The fence (check 7) reads only S131's own commits from here, through story_own_changed_files
+# (scripts/lib/checks.sh): first-parent, non-merge commits to the shipping commit, plus the working tree while
+# unshipped, so a merge from `stage` never counts as S131's.
+BASE=15cf6f7a
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 NOTES="packages/domain/src/release-notes.ts"
@@ -66,24 +63,11 @@ tagged() {
 domain() { tagged "$1" "$DOMAIN_OK" "$TMP/domain.json" "packages/domain/$NOTES_TEST" "$2"; }
 cli() { tagged "$1" "$CHECK_OK" "$TMP/check.json" "functions/$CHECK_TEST" "$2"; }
 
-# Files S131's own commits changed (see BASE): first-parent, non-merge commits from BASE to the shipping
-# commit, plus, while unshipped, the uncommitted and untracked files in the tree.
-s131_changed() {
-  local tip
-  tip="$(story_tip S131)"
-  {
-    git log --first-parent --no-merges --no-renames --format= --name-only "$BASE..${tip:-HEAD}"
-    if [ -z "$tip" ]; then
-      git diff --no-renames --name-only HEAD
-      git ls-files --others --exclude-standard
-    fi
-  } | sed '/^$/d' | sort -u
-}
-
 # --- Check 1: the notes and their parser -------------------------------------------------------------------
 grep -qE '^export (interface|type) ReleaseNotes\b' "$NOTES" 2>/dev/null || bad 1 "$NOTES has no exported ReleaseNotes"
 grep -qE '^export function parseReleaseNotes\(' "$NOTES" 2>/dev/null || bad 1 "$NOTES has no exported parseReleaseNotes"
 grep -qE 'isCalendarDate' "$NOTES" 2>/dev/null || bad 1 "parseReleaseNotes does not check dates with isCalendarDate (one implementation)"
+grep -qF '"performance"' "$NOTES" 2>/dev/null || bad 1 "$NOTES does not list the performance kind (owner, 2026-11-16: Performance)"
 grep -qE 'release-notes' packages/domain/src/index.ts || bad 1 "packages/domain/src/index.ts does not export the release notes"
 for t in "valid file" "bad version" "leading zero" "impossible date" "unknown kind" "empty title" "empty sentence" \
   "approval with no quote" "headline and items" "nothing in any bucket" "only fixesAndPolish" "v3.0.0"; do
@@ -105,12 +89,19 @@ done
 node -e 'const s = require("./package.json").scripts || {}; process.exit(/release-check/.test(s["release:check"] || "") ? 0 : 1)' ||
   bad 3 "package.json has no release:check script running the release check"
 [ -f functions/src/scripts/release-check.ts ] || bad 3 "functions/src/scripts/release-check.ts missing"
-for t in "missing file" "draft" "mismatched version" "valid"; do
+for t in "missing file" "draft" "mismatched version" "valid" "v3.3.0 with no file passes" "v4.0.0 with no file fails" \
+  "bare 3.3.0 fails" "v3.01.0 fails"; do
   cli 3 "S131 AC 3 $t"
 done
-# End to end, through the real script, on a version no release will ever use.
+# End to end, through the real script: tags that aren't versions fail, a pre-launch tag passes with no notes,
+# and a post-launch version no release will ever use (no notes file) fails.
 if node -e 'process.exit(require("./package.json").scripts?.["release:check"] ? 0 : 1)'; then
-  pnpm -s release:check v0.0.0 >"$TMP/missing.log" 2>&1 && bad 3 "pnpm release:check v0.0.0 (no notes file) exits 0"
+  for v in 3.3.0 v3.01.0 v99.0.0; do
+    pnpm -s release:check "$v" >"$TMP/e2e.log" 2>&1 && bad 3 "pnpm release:check $v exits 0"
+  done
+  pnpm -s release:check v3.3.0 >"$TMP/e2e.log" 2>&1 || { bad 3 "pnpm release:check v3.3.0 (pre-launch, no notes file) fails:"; tail -5 "$TMP/e2e.log" | sed 's/^/        /'; }
+else
+  bad 3 "package.json has no release:check script to run end to end"
 fi
 
 # --- Check 4: the production deploy runs it --------------------------------------------------------------------
@@ -210,12 +201,14 @@ node "$TMP/check4.cjs" "$TMP/production.yml" || bad 4 "the production job does n
 
 # --- Check 5: the release rule ----------------------------------------------------------------------------------
 # The rule's own bullet, up to the next rule. Each phrase stands for one clause of AC 5, and none of them is in
-# CLAUDE.md before S131 (checked at 28c2059), so the check can't pass on the old rule.
+# CLAUDE.md before S131 (checked at 28c2059), so the check can't pass on the old rule; `changelog.d/` and
+# `pnpm changelog:build` are already in it at 15cf6f7a (S156) and guard against their deletion.
 # It ends at the next top-level rule, whatever that rule is called (the next one was Copilot's review until Claude's
 # review replaced it on 2026-11-11).
 awk '/^- \*\*The coordinator manages releases/{f=1; print; next} f&&/^- \*\*/{exit} f' CLAUDE.md >"$TMP/rule.md"
 for s in 'releases/<version>.json' \
-  'CHANGELOG.md' \
+  'changelog.d/' 'pnpm changelog:build' 'CHANGELOG.md' \
+  'performance' 'drafted in and re-approved' \
   '`headline`' '`items`' '`fixesAndPolish`' '`approval`' \
   'shows the draft to the owner' \
   'lands it in `stage` through a pull request' \
@@ -237,8 +230,13 @@ grep -qE 'contains \(no others\) and,[^;]*fan-facing notes' "$TMP/rule.md" &&
 grep -qF "one line for minor fixes and polish), with the owner's in-session approval quoted" "$TMP/rule.md" &&
   bad 5 "CLAUDE.md's release rule still quotes the owner's approval in the GitHub Release"
 
-# --- Check 6: the notes of releases published before S131 ------------------------------------------------------
-[ -f releases/v3.1.0.json ] || bad 6 "releases/v3.1.0.json missing"
+# --- Check 6: no notes before the public launch release, v4.0.0 (owner, 2026-11-19) ----------------------------
+for f in releases/*; do
+  [ -e "$f" ] || continue
+  n="$(basename "$f")"
+  major="$(sed -nE 's/^v([0-9]+)\..*$/\1/p' <<<"$n")"
+  [ -n "$major" ] && [ "$major" -lt 4 ] && bad 6 "releases/$n names a version below v4.0.0"
+done
 for f in releases/*.json; do
   [ -f "$f" ] || continue
   v="$(basename "$f" .json)"
@@ -246,11 +244,9 @@ for f in releases/*.json; do
 done
 
 # --- Check 7: Status done, inside the fence ---------------------------------------------------------------------
-grep -qE '^\| [0-9]+ \| \[S131\].*\| `done` \|$' docs/v3/BACKLOG.md || bad 7 "S131 row in the Story status table is not \`done\`"
-awk '/^### S131 —/{f=1;next} /^### S[0-9]/{f=0} f' docs/v3/BACKLOG.md >"$TMP/s131.md"
-grep -qE '^\*\*Status:\*\* `done`$' "$TMP/s131.md" || bad 7 "S131 story heading Status is not \`done\`"
-s131_changed >"$TMP/changed.txt"
-grep -vE '^(releases/|packages/domain/|functions/src/|functions/vitest\.config\.ts$|package\.json$|\.github/workflows/deploy\.yml$|CLAUDE\.md$|docs/v3/BACKLOG\.md$|docs/v3/backlog/|docs/v3/AUDIT\.md$|docs/v3/audit\.jsonl$|docs/v3/INDEX\.md$|CHANGELOG\.md$|scripts/verify-S131\.sh$)' "$TMP/changed.txt" >"$TMP/fence.txt"
+[ "$(story_snapshot_status S131)" = "done" ] || bad 7 "S131's snapshot does not record Status done"
+story_own_changed_files S131 "$BASE" . >"$TMP/changed.txt"
+grep -vE '^(releases/|packages/domain/|functions/src/|functions/vitest\.config\.ts$|package\.json$|\.github/workflows/deploy\.yml$|CLAUDE\.md$|docs/v3/backlog/|docs/v3/AUDIT\.md$|docs/v3/audit\.jsonl$|docs/v3/INDEX\.md$|CHANGELOG\.md$|scripts/verify-S131\.sh$|docs/v3/audit/[^/]+/[^/]*-S131-[^/]*\.md$|changelog\.d/S131\.md$)' "$TMP/changed.txt" >"$TMP/fence.txt"
 [ -s "$TMP/fence.txt" ] && bad 7 "the story changes files outside its scope: $(tr '\n' ' ' <"$TMP/fence.txt")"
 grep -E '^test/' "$TMP/changed.txt" >"$TMP/test-dir.txt"
 [ -s "$TMP/test-dir.txt" ] && bad 7 "the story changes files under test/: $(tr '\n' ' ' <"$TMP/test-dir.txt")"
