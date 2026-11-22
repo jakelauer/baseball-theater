@@ -14,9 +14,9 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "AC 1: no page shows 'Fetched … ago' and no footer reads 'baseball.theater'; socket open the footer is the strip alone, no socket no footer line (RTL named 'S148 AC 1' on the scoreboard, a game page and Standings); FooterMeta.tsx gone, nothing in web/src/layout/ takes fetchedAt; fetchedAgo and its test stay, its comment names the offline banner, not the footer; no 'Offline · saved' under web/src"
+check 1 "AC 1: no page shows 'Fetched … ago' and no footer reads 'baseball.theater'; socket open the footer is the strip alone, no socket no footer line (one RTL test per page, each passing: 'S148 AC 1 scoreboard', 'S148 AC 1 game, socket open', 'S148 AC 1 game, socket closed', 'S148 AC 1 game, no socket', 'S148 AC 1 Standings'); FooterMeta.tsx gone, nothing in web/src/layout/ takes fetchedAt; fetchedAgo and its test stay, its comment names the offline banner, not the footer; no 'Offline · saved' under web/src"
 check 2 "AC 2: LiveGameStream reports its socket open and not open (before onopen, open, close, reconnect wait, polling, reopened, back from polling with polling stopped, unmount), useLiveGame returns the in-window flag and the open state, GamePage feeds useGame the in-window flag, no refetch interval during a reconnect wait (tests named 'S148 AC 2')"
-check 3 "AC 3: LiveMarker and SiteFooter in web/src/layout/ (the marker reads 'Live Data · Active', dot aria-hidden, a 2s blink keyframe; footer-live-strip drawn only by SiteFooter); the three pages render SiteFooter, none FooterMeta; the game page shows it on Live and Box while open, not closed, not on Standings; the scoreboard follows useLiveDay if it exists, else shows none; LiveIndicator's comment names it the game's in-progress marker and LiveMarker the connection marker (RTL named 'S148 AC 3')"
+check 3 "AC 3: LiveMarker and SiteFooter in web/src/layout/ (the marker reads 'Live Data · Active', dot aria-hidden, a 2s blink keyframe; footer-live-strip drawn only by SiteFooter); the three pages render SiteFooter, none FooterMeta; the game page shows it on Live and Box while open, not closed, not on Standings; the scoreboard follows useLiveDay if it exists, else shows none; LiveIndicator's comment names it the game's in-progress marker and LiveMarker the connection marker (RTL named 'S148 AC 3', with 'S148 AC 3 Live room' and 'S148 AC 3 Box room' each passing)"
 check 4 "AC 4: under prefers-reduced-motion: reduce the dot glows but doesn't blink (tests named 'S148 AC 4')"
 check 5 "AC 5: files this story adds or edits don't call useMediaQuery, hiddenFrom or visibleFrom outside web/src/layout/"
 check 6 "AC 6: the design captures from e2e/design/S148.spec.ts under docs/v3/design-checks/S148/ at their pairing widths (scoreboard-live only if useLiveDay exists); the spec emulates reduced motion and routes the WebSocket"
@@ -61,6 +61,13 @@ file_passed() {
 src_files() { grep -rlF --exclude='*.test.*' --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=coverage -- "$1" "${@:2}" 2>/dev/null; }
 
 for n in 1 2 3 4; do passed "$TMP/web.json" "S148 AC $n\\b" || bad "$n" "no passing web test named 'S148 AC $n' (or one failed)"; done
+# Each page and state the ACs name has its own passing test, so one passing test can't stand for all of them.
+for name in "S148 AC 1 scoreboard" "S148 AC 1 game, socket open" "S148 AC 1 game, socket closed" "S148 AC 1 game, no socket" "S148 AC 1 Standings"; do
+	passed "$TMP/web.json" "$name\\b" || bad 1 "no passing web test named '$name'"
+done
+for name in "S148 AC 3 Live room" "S148 AC 3 Box room"; do
+	passed "$TMP/web.json" "$name\\b" || bad 3 "no passing web test named '$name'"
+done
 
 # --- Check 1: the label goes ---
 [ -e "$L/FooterMeta.tsx" ] && bad 1 "$L/FooterMeta.tsx still exists"

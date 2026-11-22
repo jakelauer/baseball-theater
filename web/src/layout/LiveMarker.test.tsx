@@ -3,6 +3,9 @@
  * accessible text, the dot is decoration and blinks slowly, and holds still under reduced motion.
  */
 import { MantineProvider } from "@mantine/core";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	cleanup, render, screen,
 } from "@testing-library/react";
@@ -66,4 +69,16 @@ describe("LiveMarker (S148)", () =>
 		expect(dot.style.boxShadow).toBe("0 0 8px var(--bt-primary-light)");
 		expect(screen.getByText("Live Data · Active")).toBeInTheDocument();
 	});
+
+	it("S148 AC 4: styles.css stops the dot's blink under prefers-reduced-motion itself, before the hook has read the preference", () =>
+	{
+		preferReducedMotion(false);
+		renderMarker();
+		expect(screen.getByTestId("live-marker-dot")).toHaveClass("bt-live-marker-dot");
+		const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../styles.css"), "utf8");
+		const media = [...css.matchAll(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*?)\n\}/g)].map((m) => m[1]).join("\n");
+		// The inline animation outranks a stylesheet rule, so the rule needs !important to win.
+		expect(media).toMatch(/\.bt-live-marker-dot\s*\{[^}]*animation:\s*none\s*!important/);
+	});
 });
+

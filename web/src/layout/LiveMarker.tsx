@@ -10,7 +10,9 @@ import { useReducedMotion } from "@mantine/hooks";
  * which is `LiveIndicator`'s green "LIVE" (colour, words, speed and meaning all differ, so
  * that component isn't extended). The dot blinks slowly between A13's `Phase=Bright` and
  * `Phase=Dim` (`bt-live-marker`, `styles.css`); under `prefers-reduced-motion` it holds at
- * `Phase=Bright`, still glowing — an accessibility preference, not a viewport read. The dot
+ * `Phase=Bright`, still glowing — an accessibility preference, not a viewport read. The hook
+ * drops the inline animation, and `styles.css` stops it under the same media query from the
+ * first frame, before the hook has read the preference. The dot
  * is decoration (`aria-hidden`); the words are what a screen reader announces.
  */
 export function LiveMarker()
@@ -22,6 +24,7 @@ export function LiveMarker()
 				w={8}
 				h={8}
 				bg="var(--bt-primary-light)"
+				className="bt-live-marker-dot"
 				data-testid="live-marker-dot"
 				style={{
 					borderRadius: "50%",

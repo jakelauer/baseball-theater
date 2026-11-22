@@ -231,7 +231,7 @@ describe("GamePage live (S19)", () =>
 		expect(counter.count()).toBe(2);
 	});
 
-	it("S148 AC 3: the Live marker shows on the Live room while the socket is open, and goes when it drops", async () =>
+	it("S148 AC 3 Live room: the Live marker shows while the socket is open, and goes when it drops", async () =>
 	{
 		renderGame("live");
 		const socket = await opened();
@@ -247,7 +247,7 @@ describe("GamePage live (S19)", () =>
 		expect(screen.queryByText("Live Data · Active")).toBeNull();
 	});
 
-	it("S148 AC 3: the marker is the game page's, so the Box room shows it too while the socket is open", async () =>
+	it("S148 AC 3 Box room: the marker is the game page's, so the Box room shows it too while the socket is open", async () =>
 	{
 		renderGame("box");
 		const socket = await opened();
@@ -255,7 +255,18 @@ describe("GamePage live (S19)", () =>
 		expect(await screen.findByTestId("footer-live-strip")).toHaveTextContent("Live Data · Active");
 	});
 
-	it("S148 AC 1: socket open, the footer is the strip alone: no 'Fetched … ago', no 'baseball.theater'", async () =>
+	it("S148 AC 1 game, socket closed: in its window with the socket dropped, no footer line: no 'Fetched … ago', no 'baseball.theater'", async () =>
+	{
+		const { container } = renderGame("live");
+		const socket = await opened();
+		await screen.findByTestId("matchup-cards");
+		await act(async () => socket.onopen?.({}));
+		await act(async () => socket.onclose?.({}));
+		expect(screen.queryByRole("contentinfo")).toBeNull();
+		expect(container).not.toHaveTextContent(/Fetched|baseball\.theater/);
+	});
+
+	it("S148 AC 1 game, socket open: the footer is the strip alone: no 'Fetched … ago', no 'baseball.theater'", async () =>
 	{
 		const { container } = renderGame("live");
 		const socket = await opened();

@@ -97,7 +97,8 @@ for (const pairing of ["mobile", "desktop"] as const)
 		}));
 		await page.goto("/games/2026-09-05");
 		await page.getByTestId("scoreboard-module").first().waitFor();
-		await page.waitForTimeout(500);
+		// The frame draws the day's highlights below the final: wait for them, not a fixed time.
+		await page.getByTestId("digest-item").first().waitFor();
 		await page.evaluate(async () =>
 		{
 			await document.fonts.ready;

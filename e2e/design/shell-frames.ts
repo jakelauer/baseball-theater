@@ -89,8 +89,9 @@ export function captureShellFrames(): void
 					name: "Sign in",
 				}).first().waitFor();
 			}
-			// The footer line marks a loaded page (inside <main>, so no contentinfo role in a real browser).
-			await page.getByText(/baseball\.theater$/).waitFor();
+			// The day's first game card marks a loaded page (the "Fetched … ago · baseball.theater" footer
+			// that marked it before is gone, S148).
+			await page.getByTestId("scoreboard-module").first().waitFor();
 			if (drawer) await openDrawer(page);
 			// The wordmark's face comes from the Adobe Fonts kit; capture once it has loaded.
 			await page.evaluate(async () =>

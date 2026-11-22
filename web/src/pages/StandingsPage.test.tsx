@@ -187,7 +187,7 @@ describe("StandingsPage before 1969 (S155 AC 4)", () =>
 
 describe("StandingsPage footer (S148)", () =>
 {
-	it("S148 AC 1: Standings opens no socket, so it ends with no footer line: no 'Fetched … ago', no 'baseball.theater'", async () =>
+	it("S148 AC 1 Standings: it opens no socket, so it ends with no footer line: no 'Fetched … ago', no 'baseball.theater'", async () =>
 	{
 		serve(() => jsonResponse(STANDINGS));
 		const { container } = render(

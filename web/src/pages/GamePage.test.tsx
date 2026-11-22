@@ -300,7 +300,7 @@ describe("GamePage room tabs (S60, S56 game-rooms A2)", () =>
 		}
 	});
 
-	it("S148 AC 1: a game out of its window opens no socket and ends with no footer line: no 'Fetched … ago', no 'baseball.theater', no Live marker", async () =>
+	it("S148 AC 1 game, no socket: a game out of its window opens no socket and ends with no footer line: no 'Fetched … ago', no 'baseball.theater', no Live marker", async () =>
 	{
 		serve(fixture(744834));
 		const { container } = renderGame("/game/744834");

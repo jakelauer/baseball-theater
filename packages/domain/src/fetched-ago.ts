@@ -1,8 +1,9 @@
 /**
- * How long ago BT fetched a payload, as the offline banner names the saved copy's age
- * (S74 AC 2; shell-scoreboard A1: "saved 18m ago"). One implementation (ADR-025): the
- * banner formats this value and never subtracts times itself. No page ends in an
- * age any more: shell-scoreboard A13 (S148) replaced that line with the Live marker.
+ * How long ago BT fetched a payload. Kept for S74's offline banner (S74 AC 2;
+ * shell-scoreboard A1: "saved 18m ago"), which will name the saved copy's age with it once
+ * it is built; one implementation (ADR-025), so that banner will format this value and
+ * never subtract times itself. Nothing shows it today: no page ends in an age any more,
+ * since shell-scoreboard A13 (S148) replaced that line with the Live marker.
  */
 
 const MINUTE = 60;
