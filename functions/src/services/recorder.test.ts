@@ -10,7 +10,7 @@
  * pass against a recorder that wrote nothing.
  */
 import {
-	mkdtemp, readFile, readdir,
+	mkdir, mkdtemp, readFile, readdir, writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -301,6 +301,41 @@ describe("fixture recorder", () =>
 		expect(game.gamePk).toBe(GAME_PK);
 		// plays-<gamePk>.json must be its own file; fetchGame overwrites inlined plays.
 		expect(game.plays.length).toBeGreaterThan(0);
+	});
+
+	it("S160: re-recording a recorded day refreshes raw/standings-<date> first, and that recording, not the mapped file, is what fetchStandings serves", async () =>
+	{
+		const out = await mkdtemp(path.join(tmpdir(), "bt-standings-precedence-"));
+		const stale = await readFile(path.join(FIXTURES, "raw", "standings-2026-09-05.json"), "utf8");
+		const fresh = await readFile(path.join(FIXTURES, "raw", "standings-2026-09-12.json"), "utf8");
+		// The day is already recorded (as 2026-09-05 and 2026-09-12 are in fixtures/raw).
+		await mkdir(path.join(out, "raw"), {
+			recursive: true,
+		});
+		await writeFile(path.join(out, "raw", `standings-${DATE}.json`), stale);
+
+		// record-fixtures' run, in its order: the raw path, then the normalized path.
+		await recordRaw({
+			date: DATE,
+			gamePk: GAME_PK,
+		}, out, {
+			baseUrl: "",
+			fetchImpl: (async (input: string | URL | Request) => new Response(String(input).includes("/api/v1/standings") ? fresh : "{}")) as unknown as typeof fetch,
+		});
+		await recordNormalized(new FakeMlbStatsClient(), {
+			date: DATE,
+			gamePk: GAME_PK,
+		}, out);
+
+		const served = await new FixtureMlbStatsClient(out).fetchStandings(DATE);
+		const recorded = await new FixtureMlbStatsClient(FIXTURES).fetchStandings("2026-09-12");
+		const stalePrior = await new FixtureMlbStatsClient(FIXTURES).fetchStandings("2026-09-05");
+		const mapped = JSON.parse(await readFile(path.join(out, `standings-${DATE}.json`), "utf8")) as StandingsSnapshot;
+		expect(served.divisions).toEqual(recorded.divisions);
+		expect(served.divisions).not.toEqual(stalePrior.divisions);
+		// The mapped file the normalized path just wrote is on disk and differs; it is only the fallback.
+		expect(mapped.divisions.length).toBeGreaterThan(0);
+		expect(served.divisions).not.toEqual(mapped.divisions);
 	});
 
 	it("writes plays as a separate file, not inlined into the game", async () =>

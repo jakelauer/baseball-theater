@@ -226,6 +226,11 @@ export async function recordNormalized(
 	await writeJson(path.join(outDir, `plays-${gamePk}.json`), (plays ?? []) as AtBat[]);
 	written.push(`plays-${gamePk}.json`);
 
+	// Precedence (S160): FixtureMlbStatsClient.fetchStandings serves `raw/standings-<date>.json` when
+	// it can read it, and this mapped file only for a day with no recording. So this file is the
+	// fallback, never a way to refresh a recorded day on its own: `record-fixtures` runs `recordRaw`
+	// (whose `standings-<date>` endpoint rewrites the recording) before this, in the same run. A
+	// caller that runs this path alone over a recorded day leaves the old recording served.
 	const standings = await client.fetchStandings(date);
 	await writeJson(path.join(outDir, `standings-${date}.json`), {
 		date: standings.date,
