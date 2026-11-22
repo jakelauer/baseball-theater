@@ -33,7 +33,10 @@ export function edgeCacheControl(entity: { windowMode?: "active" | "cache";
 /**
  * The releases API's `Cache-Control` (S132 AC 4): a release's notes should show within five minutes
  * of its deploy, so the whole budget, fresh plus stale, is at most 300s: 240s fresh, browser and edge
- * alike, then 60s served stale while the edge refetches. Neither {@link edgeCacheControl} (a lifetime
+ * alike, then 60s served stale while the edge refetches. The 300s total assumes the edge cache sends
+ * `Age` with a hit, as Cloudflare's does, so a browser counts its `max-age` from when the edge
+ * fetched the answer, not from when it received it; without `Age` the two lifetimes would add up.
+ * Neither {@link edgeCacheControl} (a lifetime
  * of at least the floor plus a floor's stale window) nor {@link STALE_WHILE_REVALIDATE_S} (300s by
  * itself) fits that budget.
  */

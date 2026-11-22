@@ -24,7 +24,7 @@ export const RELEASE_BUNDLE_FILE = fileURLToPath(new URL("../generated/release-n
 /**
  * Reads and parses every notes file in `dir`, newest version first. Refuses, naming every problem at
  * once, a file whose name isn't `<vMAJOR.MINOR.PATCH>.json`, that starts with a byte-order mark, isn't
- * JSON, doesn't parse as notes, or whose `version` isn't the one its name gives (so two files can't
+ * JSON, can't be read (a folder by that name), doesn't parse as notes, or whose `version` isn't the one its name gives (so two files can't
  * claim one release). Drafts are kept: the API leaves them out (`approvedReleasesNewestFirst`), and
  * `checkReleasesDir` already fails `pnpm verify` on one. A folder that isn't there yet holds no notes.
  * Hidden files are skipped, as `checkReleasesDir` skips them.
@@ -52,7 +52,17 @@ export async function readReleaseNotesDir(dir: string): Promise<ReleaseNotes[]>
 			problems.push(`${file} is not a release notes file: releases/ holds only <vMAJOR.MINOR.PATCH>.json`);
 			continue;
 		}
-		const text = await readFile(file, "utf8");
+		let text: string;
+		try
+		{
+			text = await readFile(file, "utf8");
+		}
+		catch (error)
+		{
+			// A folder named like a notes file (EISDIR) or one without permission is named as it is, as `checkRelease` does.
+			problems.push(`${file} can't be read: ${error instanceof Error ? error.message : String(error)}`);
+			continue;
+		}
 		if (text.startsWith("\uFEFF"))
 		{
 			problems.push(`${file} starts with a byte-order mark: save it as UTF-8 without one`);

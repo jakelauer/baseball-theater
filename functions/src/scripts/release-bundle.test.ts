@@ -1,11 +1,12 @@
 import {
-	mkdtemp, readFile, rm, writeFile,
+	mkdir, mkdtemp, readFile, rm, writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	afterEach, beforeEach, describe, expect, it,
 } from "vitest";
+import { BUNDLED_RELEASE_NOTES } from "../services/releases.js";
 import { RELEASES_DIR } from "./release-check.js";
 import {
 	readReleaseNotesDir, RELEASE_BUNDLE_FILE, renderReleaseBundle, writeReleaseBundle,
@@ -89,6 +90,20 @@ describe("release-notes bundle (S132 AC 3)", () =>
 		expect(error?.message).toContain("v4.1.0.json: items[0].kind must be one of");
 		expect(error?.message).toContain("v4.2.0.json starts with a byte-order mark");
 		expect(error?.message).toContain("notes.json is not a release notes file");
+	});
+
+	it("S132 AC 3 unparsable: names a folder called like a notes file and one that can't be read, alongside the other problems", async () =>
+	{
+		await mkdir(join(dir, "v4.0.0.json"));
+		await put("v4.1.0.json", "{ not json");
+		const error = await readReleaseNotesDir(dir).then(() => null, (e: unknown) => e as Error);
+		expect(error?.message).toContain(`${join(dir, "v4.0.0.json")} can't be read:`);
+		expect(error?.message).toContain("v4.1.0.json is not JSON");
+	});
+
+	it("S132 AC 3 drift: the build's bundled notes are releases/ as the one parser reads it, so the route serves the committed notes", async () =>
+	{
+		expect(BUNDLED_RELEASE_NOTES).toEqual(await readReleaseNotesDir(RELEASES_DIR));
 	});
 
 	it("S132 AC 3 version mismatch: refuses a file whose version isn't the one its name gives, so two files can't claim one release", async () =>
