@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "AC 1: game-shell A7 headed '(S157)' draws, at mobile and desktop, a suspended and a delayed game on the top bar and as scoreboard rows beside an in-progress game, from one component set with a variant per state placed as instances; it names the MLB codes each state covers, what the marker shows once a suspended game resumes, and asks whether a delayed start (MLB P) gets the marker"
+check 1 "AC 1: game-shell A7 headed '(S157)' draws, at mobile and desktop, a suspended and a delayed game on the top bar and as scoreboard rows beside an in-progress game, and (owner, 2026-11-22, Q1) a delayed start pre-game, from one component set with a variant per state placed as instances; it names the MLB codes each state covers, what the marker shows once a suspended game resumes, and asks whether a delayed start (MLB P) gets the marker"
 check 2 "AC 2: every open question in A7 is answered by the owner, quoted"
 check 3 "AC 3: A7's ratification record names who ratified, the date and quotes the owner's go-ahead; its ## Manifest hashes exactly its own PNGs; a build story created by S157 names S157 as its design, and FEATURES' Game status marker row names it"
 check 4 "AC 4: S157's snapshot records the status done"
@@ -51,6 +51,7 @@ FRAMES=(status-marker-states.png
 	status-marker-game-live-mobile.png status-marker-game-live-desktop.png
 	status-marker-game-suspended-mobile.png status-marker-game-suspended-desktop.png
 	status-marker-game-delayed-mobile.png status-marker-game-delayed-desktop.png
+	status-marker-game-delayed-start-mobile.png status-marker-game-delayed-start-desktop.png
 	status-marker-scoreboard-mobile.png status-marker-scoreboard-desktop.png)
 
 if ! grep -qE '^# A7 .*\(S157\)$' "$A" 2>/dev/null; then
@@ -76,14 +77,15 @@ else
 		echo "$frames_table" | grep -qF "\`$f\`" || bad 1 "$f is not listed in ## Frames"
 	done
 	row() { echo "$frames_table" | grep -F "\`$1\`"; }
-	for s in Live Suspended Delayed; do
+	for s in Live Suspended Delayed "Delayed start"; do
 		row status-marker-states.png | grep -qF "State=$s" || bad 1 "the component frame's row does not name its State=$s variant"
 	done
 	for p in mobile desktop; do
 		row "status-marker-game-suspended-$p.png" | grep -qi 'suspended' || bad 1 "the suspended $p game frame's row does not say Suspended"
 		row "status-marker-game-delayed-$p.png" | grep -qi 'delayed' || bad 1 "the delayed $p game frame's row does not say Delayed"
 		row "status-marker-game-live-$p.png" | grep -qi 'in progress' || bad 1 "the live $p game frame's row does not say the game is in progress"
-		for s in suspended delayed 'in progress'; do
+		row "status-marker-game-delayed-start-$p.png" | grep -qi 'delayed start' || bad 1 "the delayed-start $p game frame's row does not say Delayed start"
+		for s in suspended delayed 'in progress' 'delayed start'; do
 			row "status-marker-scoreboard-$p.png" | grep -qi "$s" || bad 1 "the $p scoreboard frame's row has no $s game"
 		done
 	done
@@ -92,7 +94,7 @@ else
 	done
 	decision "One component" | grep -qiE 'instance' || bad 1 "One component: does not say every frame places an instance"
 	codes=$(decision "Codes")
-	for c in '`T`' '`U`' '`I`' '`IR`'; do
+	for c in '`T`' '`U`' '`I`' '`IR`' '`P`' '`PR`'; do
 		echo "$codes" | grep -qF "$c" || bad 1 "Codes: does not name MLB's $c"
 	done
 	decision "Resumed" | grep -qiE 'resume' || bad 1 "Resumed: does not say what the marker shows once a suspended game resumes"
