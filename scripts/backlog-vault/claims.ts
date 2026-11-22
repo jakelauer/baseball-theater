@@ -80,6 +80,7 @@ import {
 	dirname, join, resolve,
 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isRunDirectly } from "./run-directly.ts";
 import { parseArgs } from "node:util";
 import type { IssueCache } from "./github.ts";
 import {
@@ -1263,7 +1264,7 @@ function main(argv: string[]): number
 	}
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+if (isRunDirectly(import.meta.url))
 {
 	try
 	{

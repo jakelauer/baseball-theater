@@ -37,10 +37,8 @@ import {
 	existsSync, readdirSync, readFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
-import {
-	dirname, join, resolve,
-} from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { isRunDirectly } from "./run-directly.ts";
 import { parseArgs } from "node:util";
 import type { RunEvent, RunJournal } from "./claims.ts";
 import type { LedgerEntry, TurnCapHit } from "./ledger.ts";
@@ -615,8 +613,7 @@ function main(argv: string[]): number
 	}
 }
 
-// No scripts/backlog-vault/run-directly.ts yet (S166): the same check the other scripts make, for S166 AC 1 to replace.
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+if (isRunDirectly(import.meta.url))
 {
 	// Exit 1 is a refusal (check-end); anything else that fails (a fragment that doesn't parse, a missing file) is 2.
 	try

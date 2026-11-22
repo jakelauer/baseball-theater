@@ -163,6 +163,16 @@ export class FakeGithub
 			const more = all.length > page * this.pageSize;
 			return r(200, slice.map((i) => this.view(i)), more ? [`link: <repos/{owner}/{repo}/issues?state=all&since=${list[1]}&per_page=100&page=${page + 1}>; rel="next"`] : []);
 		}
+		// S166: the open listing an incremental sync checks its cached open issues against.
+		const open = /^repos\/\{owner\}\/\{repo\}\/issues\?state=open&per_page=100(?:&page=(\d+))?$/.exec(path);
+		if (open && method === "GET")
+		{
+			const page = Number(open[1] ?? 1);
+			const all = [...this.issues.values()].filter((i) => !i.gone && i.state === "open").sort((a, b) => a.number - b.number);
+			const more = all.length > page * this.pageSize;
+			return r(200, all.slice((page - 1) * this.pageSize, page * this.pageSize).map((i) => this.view(i)),
+				more ? [`link: <repos/{owner}/{repo}/issues?state=open&per_page=100&page=${page + 1}>; rel="next"`] : []);
+		}
 		if (path.startsWith(`${prefix}/releases`) && method === "GET")
 		{
 			return r(200, this.releases);

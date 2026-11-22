@@ -95,6 +95,12 @@ function issue(over: Partial<CachedIssue> & { title: string }): CachedIssue
  */
 const fakeNow = (): Date => new Date("2026-11-21T01:00:00Z");
 
+/** A request for one issue (`issues/<n>`), which an incremental sync never makes (S166 AC 2). */
+const PER_ISSUE = /\/issues\/\d+/;
+
+/** An `updated_at` long before any sync here, so an incremental since listing leaves the issue out. */
+const QUIET = "2026-11-01T00:00:00Z";
+
 describe("sync (AC 1)", () =>
 {
 	it("follows pagination through the Link header and writes every issue to the cache", () =>
@@ -217,7 +223,7 @@ describe("sync (AC 1)", () =>
 		expect(main(["sync", "--full"], fake.run, dir)).not.toContain("dropped");
 	});
 
-	it("drops a deleted and a transferred issue on an incremental sync, by reading each open backlog issue the listing left out", () =>
+	it("drops a deleted and a transferred issue on an incremental sync, as missing from both the open and the since listing", () =>
 	{
 		const fake = new FakeGithub();
 		const a = fake.add({
@@ -253,6 +259,156 @@ describe("sync (AC 1)", () =>
 		expect(result.full).toBe(false);
 		expect(result.dropped).toEqual([1, 2]);
 		expect(result.cache.issues.map((i) => i.number)).toEqual([3]);
+		// The dropped story still reaches the cache's dropped list (the removed drift event reads it).
+		expect(result.cache.dropped?.map((d) => [d.id, d.number])).toEqual([["S1", 1]]);
+		expect(fake.calls.filter((c) => PER_ISSUE.test(c.path))).toEqual([]);
+	});
+
+	it("an incremental sync over 45 open backlog issues makes no per-issue request", () =>
+	{
+		const fake = new FakeGithub();
+		for (let k = 1; k <= 45; k++)
+		{
+			fake.add({
+				title: `S${k}: story ${k}`,
+				labels: [{
+					name: "story",
+				}],
+				updated_at: QUIET,
+			});
+		}
+		syncIssues(dir, {
+			now: fakeNow,
+			run: fake.run,
+			env,
+		});
+		fake.calls = [];
+		const result = syncIssues(dir, {
+			now: fakeNow,
+			run: fake.run,
+			env,
+		});
+		expect(result.full).toBe(false);
+		expect(result.dropped).toEqual([]);
+		expect(result.cache.issues).toHaveLength(45);
+		// The repository, the user, then the open listing's one page before the since listing's one page.
+		expect(fake.calls.map((c) => c.path.replace(/\?.*$/, (q) => (q.includes("state=open") ? "?open" : "?since")))).toEqual([
+			"repos/{owner}/{repo}",
+			"user",
+			"repos/{owner}/{repo}/issues?open",
+			"repos/{owner}/{repo}/issues?since",
+		]);
+		expect(fake.calls.filter((c) => PER_ISSUE.test(c.path))).toEqual([]);
+	});
+
+	it("an open listing of two pages is read whole", () =>
+	{
+		const fake = new FakeGithub();
+		for (let k = 1; k <= 150; k++)
+		{
+			fake.add({
+				title: `S${k}: story ${k}`,
+				labels: [{
+					name: "story",
+				}],
+				updated_at: QUIET,
+			});
+		}
+		syncIssues(dir, {
+			now: fakeNow,
+			run: fake.run,
+			env,
+		});
+		fake.issues.get(140)!.gone = "deleted";
+		fake.calls = [];
+		const result = syncIssues(dir, {
+			now: fakeNow,
+			run: fake.run,
+			env,
+		});
+		expect(fake.calls.filter((c) => c.path.includes("state=open"))).toHaveLength(2);
+		// Only the deleted one: every other issue on the second page was seen there.
+		expect(result.dropped).toEqual([140]);
+		expect(result.cache.issues).toHaveLength(149);
+		expect(fake.calls.filter((c) => PER_ISSUE.test(c.path))).toEqual([]);
+	});
+
+	it("an issue closed between the two listings is kept, with its closed state", () =>
+	{
+		const fake = new FakeGithub();
+		for (let k = 1; k <= 3; k++)
+		{
+			fake.add({
+				title: `S${k}: story ${k}`,
+				labels: [{
+					name: "story",
+				}],
+				updated_at: QUIET,
+			});
+		}
+		syncIssues(dir, {
+			now: fakeNow,
+			run: fake.run,
+			env,
+		});
+		// Close #2 just before the second listing is answered: after the first, whichever that is.
+		let listings = 0;
+		fake.intercept = (call, f) =>
+		{
+			if (/\/issues\?state=/.test(call.path) && ++listings === 2)
+			{
+				const two = f.issues.get(2)!;
+				two.state = "closed";
+				two.state_reason = "completed";
+				two.updated_at = f.now();
+			}
+			return undefined;
+		};
+		const result = syncIssues(dir, {
+			now: fakeNow,
+			run: fake.run,
+			env,
+		});
+		expect(result.dropped).toEqual([]);
+		expect(result.cache.issues.map((i) => [i.number, i.state])).toEqual([[1, "open"], [2, "closed"], [3, "open"]]);
+	});
+
+	it("a closed issue is never re-read", () =>
+	{
+		const fake = new FakeGithub();
+		fake.add({
+			title: "S1: a",
+			labels: [{
+				name: "story",
+			}],
+			updated_at: QUIET,
+		});
+		const closed = fake.add({
+			title: "S2: b",
+			labels: [{
+				name: "story",
+			}],
+			state: "closed",
+			state_reason: "completed",
+			updated_at: QUIET,
+		});
+		syncIssues(dir, {
+			now: fakeNow,
+			run: fake.run,
+			env,
+		});
+		closed.gone = "deleted";
+		fake.calls = [];
+		const result = syncIssues(dir, {
+			now: fakeNow,
+			run: fake.run,
+			env,
+		});
+		expect(result.full).toBe(false);
+		expect(fake.calls.filter((c) => PER_ISSUE.test(c.path))).toEqual([]);
+		// Left as it was: only a full re-list notices a closed issue went away.
+		expect(result.dropped).toEqual([]);
+		expect(result.cache.issues.find((i) => i.number === 2)?.state).toBe("closed");
 	});
 
 	it("two syncs at once each write their own temporary file, and the cache is one whole copy", () =>

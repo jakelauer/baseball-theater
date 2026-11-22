@@ -53,7 +53,7 @@ beforeEach(() =>
 {
 	repo = mkdtempSync(join(tmpdir(), "audit-queries-"));
 	git("init", "-q", "-b", "main");
-	for (const f of ["audit.sh", "lib/checks.sh", "lib/reverify.sh", "backlog-vault/design-reference.ts", "backlog-vault/in-flight.ts"])
+	for (const f of ["audit.sh", "lib/checks.sh", "lib/reverify.sh", "backlog-vault/design-reference.ts", "backlog-vault/in-flight.ts", "backlog-vault/run-directly.ts"])
 	{
 		mkdirSync(dirname(join(repo, "scripts", f)), {
 			recursive: true,

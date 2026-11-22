@@ -43,6 +43,7 @@ import {
 	dirname, join, relative, resolve,
 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isRunDirectly } from "./run-directly.ts";
 import { buildFromNotes } from "./assemble.ts";
 import { bugsIn } from "./bugs.ts";
 import { compareOpen, OPEN } from "./doc-index.ts";
@@ -945,7 +946,7 @@ export async function main(argv: string[], source: BacklogSource = githubSource(
 	return [...found.map(itemLine), line].join("\n");
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+if (isRunDirectly(import.meta.url))
 {
 	try
 	{

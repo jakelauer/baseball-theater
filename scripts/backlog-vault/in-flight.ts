@@ -13,8 +13,8 @@
  */
 
 import { readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { isRunDirectly } from "./run-directly.ts";
 
 /**
  * A backlog item's ID, the one definition (ADR-025): a story `S156`, a bug `B87`, a parallel run's
@@ -59,7 +59,7 @@ export function invalidInFlight(value: string): string[]
 	return value === "" ? [] : value.split(",").filter((id) => !ITEM_ID.test(id));
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+if (isRunDirectly(import.meta.url))
 {
 	const [command, value] = process.argv.slice(2);
 	if (command !== "check" || value === undefined)

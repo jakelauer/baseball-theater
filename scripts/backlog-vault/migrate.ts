@@ -44,6 +44,7 @@ import {
 	join, posix, resolve,
 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isRunDirectly } from "./run-directly.ts";
 import { parse as parseYaml } from "yaml";
 import type {
 	CachedIssue, GhRunner, IssueCache, Sleep,
@@ -784,7 +785,7 @@ export function realView(stage: string, records: TextRecord[]): ReconcileView
 	};
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+if (isRunDirectly(import.meta.url))
 {
 	try
 	{

@@ -51,6 +51,7 @@ import {
 	dirname, join, resolve,
 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isRunDirectly } from "./run-directly.ts";
 import type { BacklogItem, BacklogSource } from "./search.ts";
 import type { TextRecord } from "./text-records.ts";
 import {
@@ -281,10 +282,26 @@ function responseDate(headers: string): number | undefined
 export function listRawIssues(since: string, run: GhRunner, now: () => Date = () => new Date(), sleep: Sleep = sleepSync): { issues: CachedIssue[];
 	started: string }
 {
+	return listPages(`repos/{owner}/{repo}/issues?state=all&since=${encodeURIComponent(since)}&per_page=100`, run, now, sleep);
+}
+
+/**
+ * Every open issue (`issues?state=open&per_page=100`, every page), pull requests left out: what an
+ * incremental sync checks its cached open issues against, a page per 100 open issues (S166).
+ */
+export function listOpenIssues(run: GhRunner, now: () => Date = () => new Date(), sleep: Sleep = sleepSync): CachedIssue[]
+{
+	return listPages("repos/{owner}/{repo}/issues?state=open&per_page=100", run, now, sleep).issues;
+}
+
+/** The one pager both listings share: reads `first` and each `rel="next"` page after it, as {@link listRawIssues} describes. */
+function listPages(first: string, run: GhRunner, now: () => Date, sleep: Sleep): { issues: CachedIssue[];
+	started: string }
+{
 	const before = now().getTime();
 	let started: string | undefined;
 	const issues: CachedIssue[] = [];
-	let page: string | undefined = `repos/{owner}/{repo}/issues?state=all&since=${encodeURIComponent(since)}&per_page=100`;
+	let page: string | undefined = first;
 	while (page !== undefined)
 	{
 		const response = request(run, "GET", page, [], sleep);
@@ -470,18 +487,15 @@ export interface SyncResult
 	listed: number;
 }
 
-/** Is `issue` one of this repository's own, at its own number (not moved away by a transfer)? */
-function isHere(issue: CachedIssue, repo: string, n: number): boolean
-{
-	return issue.number === n && (issue.repository_url === undefined || issue.repository_url.endsWith(`/repos/${repo}`));
-}
-
 /**
  * `pnpm backlog:sync`: reads GitHub, writes only the cache. Incremental from the last sync's start
  * time, or a full re-list with `full`, with no cache, or when the last full one is over a day old. An
- * issue missing from a full re-list is dropped; on an incremental sync each open backlog issue the
- * listing didn't return is read on its own, and one answering 404, 410 or a redirect (deleted or
- * transferred) is dropped. Dropped issues are named in the result.
+ * issue missing from a full re-list is dropped. An incremental sync finds drops with two listings and
+ * no per-issue read (S166): it lists the repository's open issues first, then the issues changed since
+ * the last sync, and drops a cached open backlog issue that is in neither (deleted, or transferred to
+ * another repository). The open listing comes first so an issue closed between the two reads moved its
+ * `updated_at` and is in the second, kept with its closed state, never dropped. A closed cached issue
+ * is never re-read. Dropped issues are named in the result.
  */
 export function syncIssues(root: string, opts: { run?: GhRunner;
 	now?: () => Date;
@@ -508,6 +522,8 @@ export function syncIssues(root: string, opts: { run?: GhRunner;
 		trusted.add(ok<{ login: string }>(viewer, "reading the token's user").login);
 	}
 	const since = full ? FULL_SINCE : old!.syncedAt;
+	// Read before the since listing (see above): an issue closed in between is then in the since listing.
+	const open = full ? [] : listOpenIssues(run, now, sleep);
 	const { issues, started } = listRawIssues(since, run, now, sleep);
 	const byNumber = new Map<number, CachedIssue>(full ? [] : old!.issues.map((i) => [i.number, i]));
 	const dropped: number[] = [];
@@ -521,21 +537,11 @@ export function syncIssues(root: string, opts: { run?: GhRunner;
 	}
 	else
 	{
-		const listed = new Set(issues.map((i) => i.number));
-		for (const issue of old!.issues.filter((i) => i.state === "open" && !listed.has(i.number) && isBacklog(i)))
+		const seen = new Set([...open, ...issues].map((i) => i.number));
+		for (const issue of old!.issues.filter((i) => i.state === "open" && !seen.has(i.number) && isBacklog(i)))
 		{
-			const response = request(run, "GET", `repos/{owner}/{repo}/issues/${issue.number}`, [], sleep);
-			const gone = response.status === 404 || response.status === 410 || (response.status >= 300 && response.status < 400);
-			const fresh = gone ? undefined : slim(ok<Record<string, unknown>>(response, `reading issue #${issue.number}`));
-			if (gone || !isHere(fresh!, info.full_name, issue.number))
-			{
-				byNumber.delete(issue.number);
-				dropped.push(issue.number);
-			}
-			else
-			{
-				byNumber.set(issue.number, fresh!);
-			}
+			byNumber.delete(issue.number);
+			dropped.push(issue.number);
 		}
 	}
 	// A dropped trusted story is kept by ID and time, so the `removed` drift event still sees it.
@@ -1513,7 +1519,7 @@ export function main(argv: string[], run: GhRunner = ghRunner, root = repoRoot, 
 	}
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+if (isRunDirectly(import.meta.url))
 {
 	try
 	{
