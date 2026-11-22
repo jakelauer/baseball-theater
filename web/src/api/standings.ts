@@ -25,12 +25,19 @@ export function standingsKey(date: string | undefined, phases?: readonly SeasonP
 	return ["standings", date ?? "today", asked.join(",")] as const;
 }
 
+/**
+ * While a new set of phases for the same day loads, the hook keeps the answer it last had for that
+ * day (`isPlaceholderData` true), so Standings keeps its table on screen as the fan switches views
+ * (S130 AC 1); an answer for another day is never kept, since its views and tables are that day's.
+ */
 export function standingsQueryOptions(date: string | undefined, phases?: readonly SeasonPhaseName[])
 {
+	const queryKey = standingsKey(date, phases);
 	return queryOptions({
-		queryKey: standingsKey(date, phases),
+		queryKey,
 		queryFn: (): Promise<StandingsPayload> => fetchStandings(date, phases),
 		staleTime: (query) => freshnessPolicy(query.state.data?.windowMode).staleTime,
+		placeholderData: (previous: StandingsPayload | undefined, previousQuery) => (previousQuery?.queryKey[1] === queryKey[1] ? previous : undefined),
 	});
 }
 

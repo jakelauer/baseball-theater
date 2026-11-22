@@ -15,8 +15,8 @@
  * Expected differences: the frames' "ACTIVE FILTERS" chips (All Dates · NYY · Home Runs), which are
  * S72's; the frames' count line ("5 RESULTS FOUND"), which S5 leaves out until Search pages through MLB's
  * matches (owner, 2026-11-22: "Don’t show any number until we support paging"); the frames' five sample results versus MLB's recorded 36 (one page, newest first, a clip MLB
- * ties to no game showing no matchup); the player's own parts, which are S70's. The footer's
- * "Fetched … ago" is the real time.
+ * ties to no game showing no matchup); the player's own parts, which are S70's; and the frames'
+ * "Fetched … ago" footer line, which shell-scoreboard A13 removed (S148), so the page ends at its rows.
  */
 import { test } from "@playwright/test";
 import type { Page } from "@playwright/test";

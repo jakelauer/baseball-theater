@@ -12,7 +12,7 @@ import type { SearchResult } from "../components/search/SearchResultRow.js";
 import { SearchResultRow } from "../components/search/SearchResultRow.js";
 import { gameLabel } from "../components/videos/gameLabel.js";
 import { LazyPlayerDialog } from "../components/videos/LazyPlayerDialog.js";
-import { FooterMeta } from "../layout/FooterMeta.js";
+import { SiteFooter } from "../layout/SiteFooter.js";
 
 /**
  * Search Highlights (S5; standings-search-settings `search-*`, retitled by A2 for a highlights-only
@@ -36,7 +36,7 @@ export function SearchPage()
 	const q = (params.get("q") ?? "").trim();
 	const [playing, setPlaying] = useState<SearchResult | null>(null);
 	const {
-		data, error, refetch, dataUpdatedAt,
+		data, error, refetch,
 	} = useHighlightSearch(q);
 
 	let body = null;
@@ -64,7 +64,6 @@ export function SearchPage()
 			body = (
 				<Stack gap={0}>
 					{data.highlights.map((result) => <SearchResultRow key={result.highlight.id} result={result} onPlay={setPlaying} />)}
-					<FooterMeta fetchedAt={new Date(dataUpdatedAt).toISOString()} />
 				</Stack>
 			);
 		}
@@ -92,6 +91,8 @@ export function SearchPage()
 					}}
 				/>
 			) : null}
+			{/* The page's foot (S148; shell-scoreboard A13): Search has no live socket, so it draws nothing until S142's links. */}
+			<SiteFooter live={false} />
 		</Stack>
 	);
 }

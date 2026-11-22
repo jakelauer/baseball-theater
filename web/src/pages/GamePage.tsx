@@ -10,7 +10,7 @@ import { PlaysPanel } from "../components/pitch/PlaysPanel.js";
 import { VideosRoom } from "../components/videos/VideosRoom.js";
 import { ViewState } from "../components/ViewState.js";
 import { queryScreen } from "../components/queryScreen.js";
-import { FooterMeta } from "../layout/FooterMeta.js";
+import { SiteFooter } from "../layout/SiteFooter.js";
 import type { LayoutVariant } from "../layout/variant.js";
 import {
 	gamePhase, openingRoom, roomsForPhase,
@@ -31,11 +31,13 @@ export function GamePage({ variant }: { variant: LayoutVariant })
 {
 	const { gamePk, tab } = useParams();
 	const navigate = useNavigate();
-	// A game in its window streams (S19); the stream then owns its freshness, so the query stops refetching.
-	const streaming = useLiveGame(Number(gamePk), useCachedGame(Number(gamePk))?.windowMode === "active");
+	// A game in its window streams (S19); the stream then owns its freshness, so the query stops
+	// refetching. The query gets the in-window flag, never `open`: a reconnect wait mustn't start
+	// query polling on top of the stream's own fallback (S148).
+	const live = useLiveGame(Number(gamePk), useCachedGame(Number(gamePk))?.windowMode === "active");
 	const {
 		data: game, error, refetch,
-	} = useGame(Number(gamePk), streaming);
+	} = useGame(Number(gamePk), live.inWindow);
 	// Signed out, the store holds the house defaults, so games open on the default room.
 	const { opensFirst } = useSettings();
 
@@ -131,7 +133,8 @@ export function GamePage({ variant }: { variant: LayoutVariant })
 					</Tabs.Panel>
 				) : null}
 			</Tabs>
-			<FooterMeta fetchedAt={game.fetchedAt} />
+			{/* The Live marker shows exactly while the game's socket is open, on every room (A13 Which pages). */}
+			<SiteFooter live={live.open} />
 		</Stack>
 	);
 }

@@ -22,8 +22,9 @@ test("scoreboard-mobile", async ({ page }, testInfo) =>
 	});
 	await page.goto("/");
 	await page.waitForURL("**/games/2026-09-05");
-	// The footer line marks a loaded page.
-	await page.getByText(/baseball\.theater$/).waitFor();
+	// The day's first game card marks a loaded page (the "Fetched … ago · baseball.theater" footer
+	// that marked it before is gone, S148).
+	await page.getByTestId("scoreboard-module").first().waitFor();
 	await page.evaluate(async () =>
 	{
 		await document.fonts.ready;
