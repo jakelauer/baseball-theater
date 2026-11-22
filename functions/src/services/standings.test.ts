@@ -562,8 +562,7 @@ describe("getStandings clinch letter (S160)", () =>
 		const final = ["w", "w", "w", "w", "w", "w", "y", "y", "y", "y", "z", "z"];
 		expect(answer.phase).toBe("final");
 		expect(letters(rowsOf(answer))).toEqual(final);
-		rowsOf(answer.phases.spring!.table);
-		expect(answer.phases.spring!.table).toBeDefined();
+		expect(rowsOf(answer.phases.spring!.table)).toHaveLength(30);
 		expect(letters(rowsOf(answer.phases.regularSeason!.table))).toEqual(final);
 		const playoffs = rowsOf(answer.phases.playoffs!.table);
 		expect(playoffs).toHaveLength(12);

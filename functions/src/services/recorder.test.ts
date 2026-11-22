@@ -4,9 +4,10 @@
  * stub `fetch`, the normalized path a fake `MlbStatsClient` adapter.
  *
  * The asserts are deliberately non-empty rather than non-throwing —
- * `FixtureMlbStatsClient.fetchSchedule`/`fetchStandings` swallow read errors
- * and return empty shells, so "it loaded" would pass against a recorder that
- * wrote nothing.
+ * `FixtureMlbStatsClient.fetchSchedule` swallows read errors, and `fetchStandings`
+ * swallows them for both the recording and the mapped table (S160: it throws only
+ * on a recording of the wrong shape), returning empty shells, so "it loaded" would
+ * pass against a recorder that wrote nothing.
  */
 import {
 	mkdtemp, readFile, readdir,

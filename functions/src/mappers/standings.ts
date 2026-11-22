@@ -31,13 +31,15 @@ function toRank(value: string | undefined): number | null
 }
 
 /**
- * MLB's clinch letter (S160) as it sends it, only on a clinched team: a letter on a row that isn't
- * `clinched`, or an empty one, is no letter (`null`), so the letter never says more than `clinched` does.
+ * MLB's clinch letter (S160) as it sends it (case kept, surrounding whitespace trimmed), only on a
+ * clinched team: a letter on a row that isn't `clinched`, or an empty or whitespace-only one, is no
+ * letter (`null`), so the letter never says more than `clinched` does.
  */
 function clinchLetter(entry: StandingsRecordEntry): string | null
 {
 	if (entry.clinched !== true) return null;
-	return entry.clinchIndicator ? entry.clinchIndicator : null;
+	const letter = entry.clinchIndicator?.trim();
+	return letter ? letter : null;
 }
 
 export function mapStandingsTeam(entry: StandingsRecordEntry): StandingsTeamRecord

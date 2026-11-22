@@ -212,6 +212,11 @@ describe("clinch letter (S160)", () =>
 			clinched: true,
 			clinchIndicator: null,
 		});
+		// A letter of only whitespace is no letter either.
+		expect(row(true, " ")).toMatchObject({
+			clinched: true,
+			clinchIndicator: null,
+		});
 		expect(row(false, "x")).toMatchObject({
 			clinched: false,
 			clinchIndicator: null,

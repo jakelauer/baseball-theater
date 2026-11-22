@@ -14,16 +14,18 @@ import { BUNDLED_FIXTURES, bundledFixtureFiles } from "./bundled.js";
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 
 /**
- * What `FixtureClient` reads by name: `schedule-<date>`, `game-<pk>`, `plays-<pk>`, `standings-<date>`,
- * `players-*`, and from `raw/` the play-metrics recordings (S93), the GraphQL game content (S94)
- * the season calendars and World Series (S111), and each season's final and spring standings (S128) —
- * a season's table with no date, which before its first game lists the new season's teams (S139
- * reads 2027's for the regular season's blank list), included.
+ * What `FixtureClient` reads by name: `schedule-<date>`, `game-<pk>`, `plays-<pk>`, `standings-<date>`
+ * (the mapped table, `fetchStandings`' fallback for a day with no recording), `players-*`, and from `raw/`
+ * the play-metrics recordings (S93), the GraphQL game content (S94), the season calendars and World
+ * Series (S111), each day's recorded table, `raw/standings-<date>` (S160, which `fetchStandings` maps
+ * first), and each season's final and spring standings (S128) — a season's table with no date, which
+ * before its first game lists the new season's teams (S139 reads 2027's for the regular season's blank
+ * list), included. A recording with a suffix after its date (`-wildcard`, `-spring-regular`) is never served.
  */
 const SERVED = new RegExp(`^(${[
 	String.raw`schedule-\d{4}-\d{2}-\d{2}`, String.raw`game-\d+`, String.raw`plays-\d+`, String.raw`standings-\d{4}-\d{2}-\d{2}`, "players-.+",
 	String.raw`raw/playmetrics-\d+`, String.raw`raw/graphql-content-\d+`, String.raw`raw/seasons-\d{4}`, String.raw`raw/worldseries-\d{4}`,
-	String.raw`raw/standings-\d{4}-(?:final|spring)`,
+	String.raw`raw/standings-\d{4}-(?:final|spring)`, String.raw`raw/standings-\d{4}-\d{2}-\d{2}`,
 ].join("|")})\\.json$`);
 
 describe("bundled fixtures (S45)", () =>
@@ -41,8 +43,8 @@ describe("bundled fixtures (S45)", () =>
 
 	it("the guard covers S139's recordings: without them in bundled.ts it fails", () =>
 	{
-		// The new season's team list and the clinched-day table are read by name, so the guard must match them.
-		for (const name of ["raw/standings-2027-final.json", "standings-2026-09-12.json"])
+		// The new season's team list and the clinched-day table (mapped, and MLB's recording S160 maps) are read by name, so the guard must match them.
+		for (const name of ["raw/standings-2027-final.json", "standings-2026-09-12.json", "raw/standings-2026-09-12.json"])
 		{
 			expect(SERVED.test(name), name).toBe(true);
 			const { [name]: _left, ...without } = BUNDLED_FIXTURES;

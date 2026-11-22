@@ -178,6 +178,25 @@ describe("handleApiRequest", () =>
 		}, () => new Date("2026-11-08T03:00:00Z"));
 	});
 
+	it("S160 AC 3: the fixture server's in-season table (2026-09-12) carries x on TB and MIL, null on every other team, at the top and in phases.regularSeason", async () =>
+	{
+		await withServer(async (base) =>
+		{
+			const body = (await (await fetch(`${base}/api/v1/standings?date=2026-09-12&includePhases=regularSeason`)).json()) as StandingsResponse;
+			for (const table of [body, body.phases.regularSeason!.table!])
+			{
+				const rows = table.divisions.flatMap((d) => d.teams);
+				expect(rows).toHaveLength(30);
+				for (const row of rows) expect(row).toHaveProperty("clinchIndicator");
+				const lettered = Object.fromEntries(rows.filter((r) => r.clinchIndicator !== null).map((r) => [r.abbreviation, r.clinchIndicator]));
+				expect(lettered).toEqual({
+					TB: "x",
+					MIL: "x",
+				});
+			}
+		});
+	});
+
 	it("serves the day digest (S71): every game's videos ranked together, the first to watch first", async () =>
 	{
 		await withServer(async (base) =>
