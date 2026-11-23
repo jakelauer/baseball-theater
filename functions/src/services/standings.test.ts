@@ -580,3 +580,119 @@ describe("getStandings clinch letter (S160)", () =>
 		expect(blank.every((r) => r.clinchIndicator === null)).toBe(true);
 	});
 });
+
+describe("getStandings empty tables, judged by the domain's standingsHasNoTeams (S175)", () =>
+{
+	/** The three shapes each empty-table check must tell apart: two with no team, one with a single team. */
+	type Recorded = { records: { teamRecords: unknown[] }[] };
+	const recorded = SEPTEMBER_5 as Recorded;
+	const SHAPES = {
+		noDivisions: () => emptyTable(),
+		noTeams: () => json({
+			...recorded,
+			records: recorded.records.map((r) => ({
+				...r,
+				teamRecords: [],
+			})),
+		}),
+		oneTeam: () => json({
+			...recorded,
+			records: recorded.records.map((r, i) => ({
+				...r,
+				teamRecords: i === 0 ? r.teamRecords.slice(0, 1) : [],
+			})),
+		}),
+	};
+	type Shape = keyof typeof SHAPES;
+	/** Answers one day's table with `shape`: its spring table (`standingsTypes=springTraining`) or its regular-season one. */
+	const tableOn = (date: string, spring: boolean, shape: Shape) => (url: URL) =>
+		url.pathname === "/api/v1/standings" && url.searchParams.get("date") === date && (url.searchParams.get("standingsTypes") === "springTraining") === spring
+			? SHAPES[shape]()
+			: undefined;
+	const rows = (table: { divisions: { teams: { wins: number;
+		losses: number; }[] }[] }) => table.divisions.flatMap((d) => d.teams);
+
+	it("S175 AC 2: opening day's own table: no divisions or divisions with no team give the 0-0 list from spring's teams; one team is MLB's table as it is", async () =>
+	{
+		for (const shape of ["noDivisions", "noTeams"] as const)
+		{
+			const regular = (await answerOf({
+				mlb: recordedClient(tableOn("2026-03-25", false, shape)).mlb,
+			}, "2026-03-25", ["regularSeason"])).phases.regularSeason!.table!;
+			expect(regular).toMatchObject({
+				phase: "regularSeason",
+				season: 2026,
+				date: "2026-03-25",
+			});
+			expect(rows(regular)).toHaveLength(30);
+			expect(rows(regular).every((t) => t.wins === 0 && t.losses === 0)).toBe(true);
+		}
+		const one = (await answerOf({
+			mlb: recordedClient(tableOn("2026-03-25", false, "oneTeam")).mlb,
+		}, "2026-03-25", ["regularSeason"])).phases.regularSeason!.table!;
+		expect(rows(one)).toHaveLength(1);
+		expect(rows(one)[0]!.wins).toBeGreaterThan(0);
+	});
+
+	it("S175 AC 2: the first spring morning's spring table: with no team the 0-0 list comes from the new season's team list; with one team it comes from spring's", async () =>
+	{
+		const NEW_SEASON_TEAMS = "https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2027&hydrate=team";
+		for (const shape of ["noDivisions", "noTeams"] as const)
+		{
+			const { mlb, asked } = recordedClient(tableOn("2027-02-19", true, shape));
+			const regular = (await answerOf({
+				mlb,
+			}, "2027-02-19", ["regularSeason"])).phases.regularSeason!.table!;
+			expect(asked).toContain(NEW_SEASON_TEAMS);
+			expect(regular).toMatchObject({
+				phase: "regularSeason",
+				season: 2027,
+			});
+			expect(rows(regular)).toHaveLength(30);
+		}
+		const { mlb, asked } = recordedClient(tableOn("2027-02-19", true, "oneTeam"));
+		const regular = (await answerOf({
+			mlb,
+		}, "2027-02-19", ["regularSeason"])).phases.regularSeason!.table!;
+		expect(asked).not.toContain(NEW_SEASON_TEAMS);
+		expect(rows(regular)).toHaveLength(1);
+		expect(rows(regular).every((t) => t.wins === 0 && t.losses === 0)).toBe(true);
+	});
+
+	it("S175 AC 2: S128's table: with no team it is the previous phase's table (spring's last day); with one team it is the day's own", async () =>
+	{
+		for (const shape of ["noDivisions", "noTeams"] as const)
+		{
+			const top = await answerOf({
+				mlb: recordedClient(tableOn("2026-03-25", false, shape)).mlb,
+			}, "2026-03-25", []);
+			expect(top).toMatchObject({
+				phase: "spring",
+				season: 2026,
+				date: "2026-03-24",
+			});
+			expect(rows(top)).toHaveLength(30);
+		}
+		const top = await answerOf({
+			mlb: recordedClient(tableOn("2026-03-25", false, "oneTeam")).mlb,
+		}, "2026-03-25", []);
+		expect(top).toMatchObject({
+			phase: "regularSeason",
+			date: "2026-03-25",
+		});
+		expect(rows(top)).toHaveLength(1);
+	});
+
+	it("S175 AC 2: nothing yet: an included spring table with no team counts, one with a single team doesn't, and the first spring morning's empty spring still reads as not missing", async () =>
+	{
+		// 2026-09-05 asks spring's table as of its last day, 2026-03-24.
+		const nothingYet = async (day: string, springDate: string, shape: Shape) => standingsNothingYet(await answerOf({
+			mlb: recordedClient(tableOn(springDate, true, shape)).mlb,
+		}, day), day);
+		expect(await nothingYet("2026-09-05", "2026-03-24", "noDivisions")).toBe(true);
+		expect(await nothingYet("2026-09-05", "2026-03-24", "noTeams")).toBe(true);
+		expect(await nothingYet("2026-09-05", "2026-03-24", "oneTeam")).toBe(false);
+		expect(await nothingYet("2027-02-19", "2027-02-19", "noDivisions")).toBe(false);
+		expect(await nothingYet("2027-02-19", "2027-02-19", "noTeams")).toBe(false);
+	});
+});
