@@ -39,10 +39,6 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 	// refetching. The query gets the in-window flag, never `open`: a reconnect wait mustn't start
 	// query polling on top of the stream's own fallback (S148).
 	const live = useLiveGame(Number(gamePk), useCachedGame(Number(gamePk))?.windowMode === "active");
-	// Called before the loading and error returns below (hooks must be), so while the socket is open the
-	// strip also shows under the room's loading or error state: A13 ties the marker to the open socket,
-	// not to what the page draws above it ("any page that has an active websocket"), so this is kept.
-	useFooterMode(setFooter, live.open ? "live" : "plain");
 	const {
 		data: game, error, refetch,
 	} = useGame(Number(gamePk), live.inWindow);
@@ -55,6 +51,11 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 		data: game,
 		error,
 	});
+	// Before the loading and error returns below, as hooks must be. No footer while the game loads, so
+	// it never draws under the spinner and jumps (S142; `FooterMode`). Once loaded, or failed, the strip
+	// shows while the socket is open, over the error state too: A13 ties the marker to the open socket,
+	// not to what the page draws above it ("any page that has an active websocket").
+	useFooterMode(setFooter, screen === "loading" || (screen !== "error" && !game) ? "none" : live.open ? "live" : "plain");
 	if (screen === "error")
 	{
 		return <ViewState kind="error" title="Couldn't load this room" onRetry={() => void refetch()} />;

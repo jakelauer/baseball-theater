@@ -17,6 +17,8 @@ import { DivisionTable } from "../components/standings/DivisionTable.js";
 import { ViewSwitch } from "../components/standings/ViewSwitch.js";
 import { VIEW_LABELS } from "../components/standings/viewLabels.js";
 import { formatLongDate } from "../format/datetime.js";
+import type { SetFooterMode } from "../layout/footerMode.js";
+import { useFooterMode } from "../layout/footerMode.js";
 import type { LayoutVariant } from "../layout/variant.js";
 
 type Table = Pick<StandingsPayload, "divisions">;
@@ -65,7 +67,8 @@ function phasesFor(view: SeasonPhaseName | null): SeasonPhaseName[]
  * own, names the view the switch marks (none while the error state shows), and goes back to the
  * app's on leaving.
  */
-export function StandingsPage({ variant = "desktop" }: { variant?: LayoutVariant })
+export function StandingsPage({ variant = "desktop", setFooter }: { variant?: LayoutVariant;
+	setFooter?: SetFooterMode; })
 {
 	const [params, setParams] = useSearchParams();
 	// An empty `?date=` is no day at all, as the request already treats it (`fetchStandings`).
@@ -164,6 +167,8 @@ export function StandingsPage({ variant = "desktop" }: { variant?: LayoutVariant
 		});
 	};
 
+	// No shell footer until the tables (or the error) are in, so it never jumps (S142; `FooterMode`).
+	useFooterMode(setFooter, failed || display ? "plain" : "none");
 	let body;
 	if (failed)
 	{

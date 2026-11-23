@@ -2,9 +2,9 @@
  * The site footer in the real shell and routes (S142; shell-scoreboard A14): the shell draws it
  * after `<main>` on every page (`contentinfo`, so never inside `<main>`), not on the
  * account-deleted Settings page and not in the nav drawer; the game page's open socket reaches it
- * through the render prop's setter and is cleared when the page goes. Requests other than the
- * session's (and the game's, where a test serves one) stay pending, as `stubMeApi` leaves them,
- * so each page shows its loading state above the footer.
+ * through the render prop's setter and is cleared when the page goes. `serveApp` answers every
+ * page's requests from the fixtures, since the footer waits for a page to settle (no footer under
+ * a loading state, which would jump as the content arrives: CI's Lighthouse CLS budget).
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -42,6 +42,53 @@ function liveGame(): unknown
 		windowMode: "active",
 		version: 1,
 	};
+}
+
+/** A fixture file, parsed. */
+function read(name: string): Record<string, unknown>
+{
+	return JSON.parse(readFileSync(join(FIXTURES, name), "utf8")) as Record<string, unknown>;
+}
+
+const SERVED = {
+	fetchedAt: "2026-09-05T20:57:20.000Z",
+	windowMode: "cache",
+	version: 1,
+	lastChangedAt: "2026-09-05T20:57:20.000Z",
+};
+
+/**
+ * Answers the API the way each page needs to settle: the session (`stubMeApi`), 2026-09-05's
+ * schedule with an empty digest, games 744834 (final) and 823823 (live, in its window),
+ * Standings, and an empty change log. Anything else stays pending.
+ */
+function serveApp(): void
+{
+	const me = stubMeApi();
+	vi.stubGlobal("fetch", vi.fn((request: Request) =>
+	{
+		const path = new URL(request.url).pathname;
+		if (path === "/api/v1/schedule") return Promise.resolve(jsonResponse({
+			...read("schedule-2026-09-05.json"),
+			...SERVED,
+		}));
+		if (path === "/api/v1/digest") return Promise.resolve(jsonResponse({
+			date: "2026-09-05",
+			items: [],
+			windowMode: "cache",
+		}));
+		if (path === "/api/v1/games/744834") return Promise.resolve(jsonResponse({
+			...read("game-744834.json"),
+			...SERVED,
+		}));
+		if (path === "/api/v1/games/823823") return Promise.resolve(jsonResponse(liveGame()));
+		if (path === "/api/v1/standings") return Promise.resolve(jsonResponse(read("standings-2026-09-05.json")));
+		if (path === "/api/v1/releases") return Promise.resolve(jsonResponse({
+			current: null,
+			releases: [],
+		}));
+		return me(request);
+	}));
 }
 
 /** The browser WebSocket, stood in: the test opens it by hand. */
@@ -103,7 +150,7 @@ async function footer(): Promise<HTMLElement>
 beforeEach(() =>
 {
 	setSessionToken(null);
-	stubMeApi();
+	serveApp();
 	FakeWebSocket.opened = [];
 	vi.stubGlobal("WebSocket", FakeWebSocket);
 });
@@ -160,6 +207,30 @@ describe("the shell's site footer (S142)", () =>
 		await footer();
 	});
 
+	it("S142 AC 1 loading: no footer while a page loads, so it never jumps; it appears under the page once it settles", async () =>
+	{
+		let answer: (response: Response) => void = () => undefined;
+		const me = stubMeApi();
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/releases"
+			? new Promise<Response>((resolve) =>
+			{
+				answer = resolve;
+			})
+			: me(request)));
+		renderApp("/changelog");
+		expect(await screen.findByRole("heading", {
+			level: 1,
+			name: "Change log",
+		})).toBeInTheDocument();
+		expect(screen.queryByRole("contentinfo")).toBeNull();
+		await act(async () => answer(jsonResponse({
+			current: null,
+			releases: [],
+		})));
+		expect(await screen.findByText("No release notes yet.")).toBeInTheDocument();
+		await footer();
+	});
+
 	it("S142 AC 1 deleted page: the account-deleted Settings page has no footer (A5)", async () =>
 	{
 		vi.stubGlobal("fetch", vi.fn(async (request: Request) => new URL(request.url).pathname === "/api/v1/me"
@@ -191,11 +262,6 @@ describe("the shell's site footer (S142)", () =>
 
 	it("S142 AC 1 dialog: a dialog opened over a page holds no footer and none of its links", async () =>
 	{
-		vi.stubGlobal("fetch", vi.fn(async (request: Request) => new URL(request.url).pathname === "/api/v1/me"
-			? jsonResponse({
-				error: "unauthorized",
-			}, 401)
-			: new Promise<Response>(() => undefined)));
 		const { rerender } = renderApp("/standings");
 		await footer();
 		rerender(
@@ -248,10 +314,6 @@ describe("the shell's site footer (S142)", () =>
 
 	it("S142 AC 1 state channel: a live game page with its socket open shows the strip; on to Standings it goes", async () =>
 	{
-		const me = stubMeApi();
-		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/games/823823"
-			? Promise.resolve(jsonResponse(liveGame()))
-			: me(request)));
 		renderApp("/game/823823/live");
 		await waitFor(() => expect(FakeWebSocket.opened).toHaveLength(1));
 		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
@@ -268,10 +330,6 @@ describe("the shell's site footer (S142)", () =>
 
 	it("S142 AC 2: the Live marker shows on a live game page with its socket open, and not once it closes", async () =>
 	{
-		const me = stubMeApi();
-		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/games/823823"
-			? Promise.resolve(jsonResponse(liveGame()))
-			: me(request)));
 		renderApp("/game/823823/live");
 		await waitFor(() => expect(FakeWebSocket.opened).toHaveLength(1));
 		await act(async () => FakeWebSocket.opened[0]!.onopen?.({}));
@@ -284,13 +342,7 @@ describe("the shell's site footer (S142)", () =>
 	it("S142 AC 3: each BT link opens a page a route serves, not a catch-all", async () =>
 	{
 		setSessionToken(DEV_SIGN_IN_TOKEN);
-		const me = stubMeApi();
-		vi.stubGlobal("fetch", vi.fn(async (request: Request) => new URL(request.url).pathname === "/api/v1/releases"
-			? jsonResponse({
-				current: null,
-				releases: [],
-			})
-			: me(request)));
+		serveApp();
 		renderApp("/standings");
 		await userEvent.click(within(await footer()).getByRole("link", {
 			name: "Changelog",

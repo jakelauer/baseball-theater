@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ViewState } from "../components/ViewState.js";
+import type { SetFooterMode } from "../layout/footerMode.js";
+import { useFooterMode } from "../layout/footerMode.js";
 import { useSession } from "./session.js";
 
 /**
@@ -8,9 +10,11 @@ import { useSession } from "./session.js";
  * It draws nothing new: the app's loading state while the ID token goes to BT once
  * (`Session.finishSignIn`), then back to the page the sign-in started from. A sign-in that
  * fails (a refused token, a stale callback) lands on `/`, signed out, where "Sign in" starts over.
+ * Like every loading page it holds the shell's footer back (S142; `FooterMode`).
  */
-export function SignInCallback()
+export function SignInCallback({ setFooter }: { setFooter?: SetFooterMode })
 {
+	useFooterMode(setFooter, "none");
 	const session = useSession();
 	const navigate = useNavigate();
 	const { finishSignIn } = session;
