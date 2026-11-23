@@ -1,5 +1,5 @@
 /**
- * Team colors (S61; VISUAL-DESIGN §3 "Team colors").
+ * Team colors and league names (S61, S155; VISUAL-DESIGN §3 "Team colors").
  *
  * MLB's API carries no team colors, so this is a hand-made table of each club's
  * official primary color (owner, 2026-10-19), keyed by the `MLB_TEAMS` ids (`teams.ts`) — never a

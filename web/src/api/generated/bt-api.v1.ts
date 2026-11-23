@@ -883,7 +883,7 @@ export interface components {
             leagueId: number | null;
             /** @description The table's full name from MLB (`American League East`), or its league's (`American League`) for a league table before 1969. */
             name: string | null;
-            /** @description MLB's short name for the division (`AL East`; S102, from `hydrate=division`), what the Standings headings show. `null` on a league table and when MLB sends none; optional because an answer cached before S102 lacks it, which means none. */
+            /** @description MLB's short name for the division (`AL East`; S102, from `hydrate=division`), what the Standings headings show. `null` on a league table and when MLB sends none. Optional because an answer cached before S102 lacks it; the heading then falls back to `name` until that entry expires. */
             nameShort?: string | null;
             teams: components["schemas"]["StandingsTeamRecord"][];
         };

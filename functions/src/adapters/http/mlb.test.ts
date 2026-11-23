@@ -215,6 +215,16 @@ describe("HttpMlbStatsClient (S2)", () =>
 		expect(spring.searchParams.get("date")).toBe("2026-03-01");
 	});
 
+	it("S102 AC 1: the final and spring standings hydrate each record group's division too", async () =>
+	{
+		const { mlb, urls } = client();
+		await mlb.fetchFinalStandings(2026);
+		await mlb.fetchSpringStandings(2026, "2026-03-01");
+		const [final, spring] = urls.map((url) => new URL(url));
+		expect(final!.searchParams.get("hydrate")).toBe("team,division");
+		expect(spring!.searchParams.get("hydrate")).toBe("team,division");
+	});
+
 	it("fetchPlayers asks for this season's stats, and asks nothing for no ids", async () =>
 	{
 		const { mlb, urls } = client();

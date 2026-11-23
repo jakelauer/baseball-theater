@@ -1240,7 +1240,7 @@
 						"type": ["string", "null"]
 					},
 					"nameShort": {
-						"description": "MLB's short name for the division (`AL East`; S102, from `hydrate=division`), what the Standings headings show. `null` on a league table and when MLB sends none; optional because an answer cached before S102 lacks it, which means none.",
+						"description": "MLB's short name for the division (`AL East`; S102, from `hydrate=division`), what the Standings headings show. `null` on a league table and when MLB sends none. Optional because an answer cached before S102 lacks it; the heading then falls back to `name` until that entry expires.",
 						"type": ["string", "null"]
 					},
 					"teams": { "items": { "$ref": "#/components/schemas/StandingsTeamRecord" }, "type": "array" }
