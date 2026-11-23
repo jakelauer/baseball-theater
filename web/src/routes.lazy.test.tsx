@@ -40,7 +40,7 @@ describe("lazy pages (S110)", () =>
 		render(
 			<MantineProvider>
 				<MemoryRouter initialEntries={["/standings"]}>
-					<AppRoutes variant="mobile" />
+					<AppRoutes variant="mobile" setFooter={() => undefined} />
 				</MemoryRouter>
 			</MantineProvider>,
 		);

@@ -1,25 +1,23 @@
 import {
 	Box, Stack, Text,
 } from "@mantine/core";
+import { useElementSize } from "@mantine/hooks";
+import type { Ref } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { DevSessionControl } from "../session/DevSessionControl.js";
 import { useSession } from "../session/session.js";
-import { NAV, activeSection } from "./nav.js";
+import type { AfterUpdate } from "../pwa/afterUpdate.js";
+import { AfterUpdatePointer } from "../pwa/afterUpdate.js";
+import {
+	CHANGELOG_PATH, NAV, RAIL_WIDTH, activeSection, isChangelog,
+} from "./nav.js";
 import { VERSION_LINE } from "./version.js";
 import { HomeLink } from "./Wordmark.js";
 
-/** The change log's address (S134; A9, owner 2026-11-10: "The changelog will just be at /changelog."). */
-const CHANGELOG_PATH = "/changelog";
-
-/**
- * Whether `pathname` is the change log page, matched as React Router matches its route: the whole
- * path, any letter case, a trailing slash allowed. The query string is not part of it, so
- * `/changelog?x=1` counts; `/changelog/x` does not.
- */
-function isChangelog(pathname: string): boolean
-{
-	return pathname.toLowerCase().replace(/\/+$/, "") === CHANGELOG_PATH;
-}
+/** The rail's padding (Figma `nav-rail`: 24px). */
+const RAIL_PAD = 24;
+/** How far past the rail's edge the pointer's box starts (A9 `updated-pointer-desktop`: 11px; Popover adds its arrow's reach, 7px, to the offset). */
+const RAIL_POINTER_GAP = 4;
 
 /**
  * The menu's way to the change log (S134; Figma `changelog-link` 651:13388, shell-scoreboard A9):
@@ -27,28 +25,43 @@ function isChangelog(pathname: string): boolean
  * outside the nav list (the page isn't a section, so `activeSection` lights no item there). Plain
  * (Regular 13, Light) everywhere but the change log itself, where it is current: filled Primary and
  * SemiBold, as an active nav item, and `aria-current="page"`. In the drawer `onNavigate` closes it.
- * S135 adds its highlighted state; current wins over it.
+ * Highlighted (S135; `changelog-link` State=Highlighted) while the after-update pointer aims at it, or in
+ * the drawer opened while the pointer showed: Raised current fill, a 1px Primary Light edge and Primary
+ * Light SemiBold words. Current wins over highlighted (A9: on the page itself "the rail's link stays current").
+ * It is the pointer's Popover target, so it takes the target's `ref` and `aria-describedby`.
  */
-function ChangelogLink({ current, onNavigate }: { current: boolean;
-	onNavigate?: () => void; })
+function ChangelogLink({
+	current, highlighted, onNavigate, ref, ...target
+}: {
+	current: boolean;
+	highlighted: boolean;
+	onNavigate?: () => void;
+	ref?: Ref<HTMLAnchorElement>;
+	"aria-describedby"?: string;
+})
 {
+	const lit = highlighted && !current;
 	return (
 		<Box
+			{...target}
+			ref={ref}
 			component={Link}
 			to={CHANGELOG_PATH}
 			onClick={onNavigate}
 			aria-current={current ? "page" : undefined}
 			data-testid="changelog-link"
 			data-current={current || undefined}
+			data-highlighted={lit || undefined}
 			className={current ? undefined : "bt-hover"}
 			style={{
 				display: "inline-block",
-				padding: "4px 10px",
+				padding: lit ? "3px 9px" : "4px 10px",
 				borderRadius: 6,
-				background: current ? "var(--bt-primary)" : "transparent",
+				background: current ? "var(--bt-primary)" : lit ? "var(--bt-raised-current)" : "transparent",
+				border: lit ? "1px solid var(--bt-primary-light)" : undefined,
 			}}
 		>
-			<Text component="span" fz={13} fw={current ? 600 : 400} c="var(--bt-light)">
+			<Text component="span" fz={13} fw={current || lit ? 600 : 400} c={lit ? "var(--bt-primary-light)" : "var(--bt-light)"}>
 				Changelog
 			</Text>
 		</Box>
@@ -61,6 +74,10 @@ function ChangelogLink({ current, onNavigate }: { current: boolean;
  * build's version line, which has no label (S56 A2). The desktop host shows it beside the page; on
  * mobile and medium it is the drawer's content, and `onNavigate` closes the drawer.
  *
+ * After an update (S135) the rail's host passes `pointer`, and the after-update pointer aims at the
+ * change log link, highlighted while it shows; the drawer's host passes `highlight` instead, when the
+ * drawer was opened while the pointer showed (A9's `updated-pointer-menu-open-*` frames).
+ *
  * Values from the Figma `nav-rail` (Active=Scoreboard, 163:919; S83): 24px
  * padding, 32px from the wordmark to the list, items 8px apart, each 44px tall
  * with an 8px radius and 12px / 16px padding; a 4×20 marker (2px radius) 12px
@@ -70,14 +87,22 @@ function ChangelogLink({ current, onNavigate }: { current: boolean;
  * the version line 11px Light. An item that isn't active takes the Light wash on hover
  * (`.bt-hover`); the active one is already filled.
  */
-export function NavRail({ onNavigate }: { onNavigate?: () => void })
+export function NavRail({
+	onNavigate, pointer = null, highlight = false,
+}: {
+	onNavigate?: () => void;
+	pointer?: AfterUpdate | null;
+	highlight?: boolean;
+})
 {
 	const { pathname } = useLocation();
+	// The link's width (its words in the loaded font), so the pointer's gap clears the rail's edge.
+	const { ref: linkRef, width: linkWidth } = useElementSize<HTMLAnchorElement>();
 	const signedIn = useSession().status === "signedIn";
 	const active = activeSection(pathname);
 
 	return (
-		<Stack h="100%" justify="space-between" p={24} gap="md">
+		<Stack h="100%" justify="space-between" p={RAIL_PAD} gap="md">
 			<Stack gap={32}>
 				<Box>
 					<HomeLink onClick={onNavigate} />
@@ -129,7 +154,11 @@ export function NavRail({ onNavigate }: { onNavigate?: () => void })
 			</Stack>
 			<Stack gap="xs" align="flex-start">
 				<DevSessionControl />
-				<ChangelogLink current={isChangelog(pathname)} onNavigate={onNavigate} />
+				{/* Aimed at the link, the popover sits 11px past the rail's edge (A9 `updated-pointer-desktop`),
+				    its foot level with the link: the gap is what the rail leaves right of the link, plus that. */}
+				<AfterUpdatePointer pointer={pointer} position="right-end" offset={RAIL_WIDTH - RAIL_PAD - linkWidth + RAIL_POINTER_GAP}>
+					<ChangelogLink ref={linkRef} current={isChangelog(pathname)} highlighted={highlight || pointer !== null} onNavigate={onNavigate} />
+				</AfterUpdatePointer>
 				<Text fz={11} c="var(--bt-light)" data-testid="version-line">
 					{VERSION_LINE}
 				</Text>

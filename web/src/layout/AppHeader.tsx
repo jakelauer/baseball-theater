@@ -6,6 +6,8 @@ import {
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import type { AfterUpdate } from "../pwa/afterUpdate.js";
+import { AfterUpdatePointer } from "../pwa/afterUpdate.js";
 import { useSession } from "../session/session.js";
 import { HomeLink } from "./Wordmark.js";
 
@@ -117,13 +119,15 @@ function AccountControl()
  * home page"). Game routes draw the game top bar instead of this header.
  */
 export function AppHeader({
-	burger, wordmark, drawerOpened, onBurger,
+	burger, wordmark, drawerOpened, onBurger, pointer = null,
 }: {
 	burger: boolean;
 	/** Whether the header shows the wordmark: not on desktop, where the rail shows it. */
 	wordmark: boolean;
 	drawerOpened: boolean;
 	onBurger: () => void;
+	/** The after-update pointer (S135), aimed at the burger on mobile and medium, where the menu is behind it (A9). */
+	pointer?: AfterUpdate | null;
 })
 {
 	return (
@@ -139,7 +143,11 @@ export function AppHeader({
 			}}
 		>
 			<Group gap="md" wrap="nowrap">
-				{burger ? <Burger opened={drawerOpened} onClick={onBurger} size="sm" aria-label="Open navigation" /> : null}
+				{burger ? (
+					<AfterUpdatePointer pointer={pointer} position="bottom-start" offset={1}>
+						<Burger opened={drawerOpened} onClick={onBurger} size="sm" aria-label="Open navigation" />
+					</AfterUpdatePointer>
+				) : null}
 				{wordmark ? <HomeLink /> : null}
 			</Group>
 			<AccountControl />

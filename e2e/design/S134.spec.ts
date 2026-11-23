@@ -180,7 +180,10 @@ for (const pairing of ["mobile", "medium"])
 FRAMES.push(["rail-version-release-desktop", async (page) =>
 {
 	await page.goto(SCOREBOARD);
-	await page.getByRole("link", {
+	// The rail's link; the site footer has a "Changelog" link too since S142.
+	await page.getByRole("navigation", {
+		name: "Main",
+	}).getByRole("link", {
 		name: "Changelog",
 	}).waitFor();
 	await page.getByRole("link", {

@@ -20,6 +20,9 @@ import {
 } from "vitest";
 import type { GamePayload } from "../api/game.js";
 import { createQueryClient } from "../api/queryClient.js";
+import { AppShellLayout } from "../layout/AppShellLayout.js";
+import { SessionProvider } from "../session/SessionProvider.js";
+import { setSessionToken } from "../session/token.js";
 import { jsonResponse } from "../test/jsonResponse.js";
 import { createRenderCounter } from "../test/renderCount.js";
 import { GamePage } from "./GamePage.js";
@@ -104,6 +107,38 @@ function renderGame(room: string, Wrap: (props: { children: React.ReactNode }) =
 						</Routes>
 					</Wrap>
 				</MemoryRouter>
+			</QueryClientProvider>
+		</MantineProvider>,
+	);
+}
+
+/**
+ * The game page inside the shell, which draws the site footer since S142: the page tells it
+ * through `setFooter` whether its socket is open. Signed out: the session's `/api/v1/me` is
+ * answered 401, every other request with the live game.
+ */
+function renderGameInShell(room: string)
+{
+	setSessionToken(null);
+	vi.stubGlobal("fetch", vi.fn((request: Request) => Promise.resolve(new URL(request.url).pathname === "/api/v1/me"
+		? jsonResponse({
+			error: "unauthorized",
+		}, 401)
+		: jsonResponse(live()))));
+	return render(
+		<MantineProvider>
+			<QueryClientProvider client={createQueryClient()}>
+				<SessionProvider>
+					<MemoryRouter initialEntries={[`/game/823823/${room}`]}>
+						<AppShellLayout>
+							{(variant, setFooter) => (
+								<Routes>
+									<Route path="/game/:gamePk/:tab" element={<GamePage variant={variant} setFooter={setFooter} />} />
+								</Routes>
+							)}
+						</AppShellLayout>
+					</MemoryRouter>
+				</SessionProvider>
 			</QueryClientProvider>
 		</MantineProvider>,
 	);
@@ -233,7 +268,7 @@ describe("GamePage live (S19)", () =>
 
 	it("S148 AC 3 Live room: the Live marker shows while the socket is open, and goes when it drops", async () =>
 	{
-		renderGame("live");
+		renderGameInShell("live");
 		const socket = await opened();
 		await screen.findByTestId("matchup-cards");
 		// Connecting, not yet open: no marker.
@@ -241,7 +276,7 @@ describe("GamePage live (S19)", () =>
 		await act(async () => socket.onopen?.({}));
 		const footer = screen.getByRole("contentinfo");
 		expect(footer).toContainElement(screen.getByTestId("footer-live-strip"));
-		expect(footer).toHaveTextContent(/^Live Data · Active$/);
+		expect(footer.firstElementChild).toBe(screen.getByTestId("footer-live-strip"));
 		await act(async () => socket.onclose?.({}));
 		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
 		expect(screen.queryByText("Live Data · Active")).toBeNull();
@@ -249,31 +284,31 @@ describe("GamePage live (S19)", () =>
 
 	it("S148 AC 3 Box room: the marker is the game page's, so the Box room shows it too while the socket is open", async () =>
 	{
-		renderGame("box");
+		renderGameInShell("box");
 		const socket = await opened();
 		await act(async () => socket.onopen?.({}));
 		expect(await screen.findByTestId("footer-live-strip")).toHaveTextContent("Live Data · Active");
 	});
 
-	it("S148 AC 1 game, socket closed: in its window with the socket dropped, no footer line: no 'Fetched … ago', no 'baseball.theater'", async () =>
+	it("S148 AC 1 game, socket closed: in its window with the socket dropped, the footer has no strip: no 'Fetched … ago', no 'baseball.theater'", async () =>
 	{
-		const { container } = renderGame("live");
+		const { container } = renderGameInShell("live");
 		const socket = await opened();
 		await screen.findByTestId("matchup-cards");
 		await act(async () => socket.onopen?.({}));
 		await act(async () => socket.onclose?.({}));
-		expect(screen.queryByRole("contentinfo")).toBeNull();
+		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
 		expect(container).not.toHaveTextContent(/Fetched|baseball\.theater/);
 	});
 
-	it("S148 AC 1 game, socket open: the footer is the strip alone: no 'Fetched … ago', no 'baseball.theater'", async () =>
+	it("S148 AC 1 game, socket open: the footer opens with the strip (S142 adds the links under it): no 'Fetched … ago', no 'baseball.theater'", async () =>
 	{
-		const { container } = renderGame("live");
+		const { container } = renderGameInShell("live");
 		const socket = await opened();
 		await act(async () => socket.onopen?.({}));
 		const footer = await screen.findByRole("contentinfo");
-		expect(footer.children).toHaveLength(1);
-		expect(footer).toHaveTextContent(/^Live Data · Active$/);
+		expect(footer.firstElementChild).toBe(screen.getByTestId("footer-live-strip"));
+		expect(footer.firstElementChild).toHaveTextContent(/^Live Data · Active$/);
 		expect(container).not.toHaveTextContent(/Fetched|baseball\.theater/);
 	});
 });
