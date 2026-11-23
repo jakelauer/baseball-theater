@@ -19,6 +19,7 @@ import type {
 } from "@bt/domain";
 import { addDays, datesBetween } from "@bt/domain";
 import type { MlbStatsClient } from "@bt/ports";
+import { inPool } from "../adapters/in-pool.js";
 import { overlayMlbClient } from "../adapters/overlay-mlb.js";
 import type { IngestDeps } from "./ingest.js";
 import { ingestScheduleDay } from "./ingest.js";
@@ -81,25 +82,6 @@ export async function defaultSeedRange(mlb: SeasonDates, today: string): Promise
 export function seedDays(start: string, end: string): string[]
 {
 	return datesBetween(start, end);
-}
-
-/** Runs `work` over `items`, `limit` at a time, keeping their order. */
-async function inPool<T, R>(items: readonly T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]>
-{
-	const results: R[] = new Array<R>(items.length);
-	let next = 0;
-	const runners = Array.from({
-		length: Math.min(limit, items.length),
-	}, async () =>
-	{
-		while (next < items.length)
-		{
-			const index = next++;
-			results[index] = await work(items[index]!);
-		}
-	});
-	await Promise.all(runners);
-	return results;
 }
 
 /**

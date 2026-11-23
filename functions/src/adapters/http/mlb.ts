@@ -21,7 +21,7 @@ import type {
 	Unversioned,
 } from "@bt/domain";
 import {
-	feedTimeToIso, mlbSearchText, rankHighlightsByImpact,
+	datesBetween, feedTimeToIso, mlbSearchText, rankHighlightsByImpact,
 } from "@bt/domain";
 import type { GameContentResponse, GameDiffPatchResponse } from "@bt/mlb-api";
 import {
@@ -39,6 +39,7 @@ import {
 import type {
 	GameEditorial, MlbGameSources, MlbStatsClient,
 } from "@bt/ports";
+import { inPool } from "../in-pool.js";
 import { mapContentHighlights, mapRecap } from "../../mappers/content.js";
 import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
@@ -210,8 +211,32 @@ function editorialOf(content: GameContentResponse): GameEditorial
 	};
 }
 
+/** The single-day schedule hydrate, the one the recorder records with (`services/recorder.ts`). */
 const SCHEDULE_HYDRATE =
 	"team,linescore(matchup,runners),flags,liveLookin,review,decisions,person,probablePitcher,stats,game(content(media(featured,epg),summary))";
+
+/**
+ * What a schedule range request hydrates (#399): {@link SCHEDULE_HYDRATE} without the four parts
+ * `mapScheduleGame` never reads (flags, live look-in, review and game content), so a day stored
+ * from a range maps the same as one from a single-day request (the tests pin the exact difference
+ * and strip those parts from the recording to compare). With them a month's answer was 20–29 MB
+ * and 10–15 s cold, and a staging month read came back with no days at all.
+ */
+const SCHEDULE_RANGE_HYDRATE = "team,linescore(matchup,runners),decisions,person,probablePitcher,stats";
+
+/**
+ * The longest span one schedule request asks for (#399). The `stats` hydrate the probables need is
+ * still ~0.5 MB a day, so a month in one request was ~15 MB and ~6 s cold even without content;
+ * a week is ~4 MB and ~1.5–2 s.
+ */
+const SCHEDULE_RANGE_DAYS = 7;
+
+/**
+ * How many of a range's week-long requests are in flight at once (#399): a month's five go out
+ * together, and a longer range (a year is 53) never holds more than five bodies, ~20 MB, at a time
+ * in a Worker's 128 MB.
+ */
+const SCHEDULE_RANGE_CONCURRENCY = 5;
 
 export interface HttpMlbStatsClientOptions {
 	baseUrl?: string;
@@ -240,12 +265,27 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		return mapScheduleResponse(payload, date, this.now().toISOString(), "active");
 	}
 
-	/** One request for the whole range (S124), with the same hydrate as a day, so a stored day reads the same either way. */
+	/**
+	 * The range (S124) as requests of at most {@link SCHEDULE_RANGE_DAYS} days, at most
+	 * {@link SCHEDULE_RANGE_CONCURRENCY} in flight, each parsed and mapped before the next starts in
+	 * its place (#399), with {@link SCHEDULE_RANGE_HYDRATE}, so a stored day reads the same as one
+	 * from the single-day request. Any one failing rejects the whole range, as one request failing did.
+	 */
 	async fetchScheduleRange(startDate: string, endDate: string): Promise<Unversioned<ScheduleDay>[]>
 	{
-		const url = `${this.baseUrl}/api/v1/schedule?sportId=1&startDate=${startDate}&endDate=${endDate}&hydrate=${SCHEDULE_HYDRATE}`;
-		const payload = parseScheduleResponse(await this.getJson(url));
-		return mapScheduleRange(payload, startDate, endDate, this.now().toISOString(), "active");
+		const fetchedAt = this.now().toISOString();
+		const dates = datesBetween(startDate, endDate);
+		const spans: [string, string][] = [];
+		for (let i = 0; i < dates.length; i += SCHEDULE_RANGE_DAYS)
+		{
+			spans.push([dates[i]!, dates[Math.min(i + SCHEDULE_RANGE_DAYS, dates.length) - 1]!]);
+		}
+		const parts = await inPool(spans, SCHEDULE_RANGE_CONCURRENCY, async ([first, last]) =>
+		{
+			const url = `${this.baseUrl}/api/v1/schedule?sportId=1&startDate=${first}&endDate=${last}&hydrate=${SCHEDULE_RANGE_HYDRATE}`;
+			return mapScheduleRange(parseScheduleResponse(await this.getJson(url)), first, last, fetchedAt, "active");
+		});
+		return parts.flat();
 	}
 
 	async fetchGame(gamePk: number): Promise<FetchedGame>

@@ -2,7 +2,7 @@ import type {
 	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	contentHash, dayRegularSeason, distinctTeamIds, downloadExpired, storedGameType,
+	contentHash, downloadExpired, scheduleDayTally,
 } from "@bt/domain";
 import type {
 	DataDownload,
@@ -117,20 +117,7 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 		return this.store.values()
 			.filter((day) => day.date >= from && day.date <= to)
 			.sort((a, b) => a.date.localeCompare(b.date))
-			.map((day) =>
-			{
-				// One entry per game, `null` for an untyped one, as the Postgres adapter reads it (S167).
-				const gameTypes = day.games.map((game) => storedGameType(game.gameType));
-				return {
-					date: day.date,
-					gameCount: day.games.length,
-					teamIds: distinctTeamIds(day.games.flatMap((game) => [game.teams.away.id, game.teams.home.id])),
-					gameTypes,
-					regularSeason: dayRegularSeason(gameTypes),
-					fetchedAt: day.fetchedAt,
-					lastChangedAt: day.lastChangedAt,
-				};
-			});
+			.map(scheduleDayTally);
 	}
 
 	clear(): void
