@@ -316,7 +316,33 @@ describe("scoreboard fields — sparse input (S65)", () =>
 			wins: null,
 			losses: null,
 			era: null,
+			pitchHand: null,
 		});
+	});
+
+	it("S171 AC 2: mapProbable keeps the hydrated person's throwing hand, null when MLB sends none", () =>
+	{
+		const lefty = mapProbable({
+			id: 8,
+			fullName: "Justin Steele",
+			pitchHand: {
+				code: "L",
+				description: "Left",
+			},
+		}, undefined);
+		expect(lefty?.pitchHand).toBe("L");
+		expect(mapProbable({
+			id: 9,
+			fullName: "Freddy Peralta",
+			pitchHand: {
+				code: "R",
+				description: "Right",
+			},
+		}, undefined)?.pitchHand).toBe("R");
+		expect(mapProbable({
+			id: 10,
+			fullName: "No Hand",
+		}, undefined)?.pitchHand).toBeNull();
 	});
 
 	it("mapDecisions: none yet is null; a missing save is null", () =>

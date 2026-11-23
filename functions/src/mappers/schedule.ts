@@ -114,7 +114,11 @@ function playerRef(person: Person | undefined): PlayerRef | null
 	} : null;
 }
 
-/** A probable pitcher and his season pitching line (S65), when MLB names one. */
+/**
+ * A probable pitcher, his season pitching line (S65) and the hand he throws with (S171,
+ * `pitchHand.code` of the hydrated person), when MLB names one; each part MLB didn't
+ * send is `null`.
+ */
 export function mapProbable(person: Person | undefined, season: PitchingStatLine | undefined): ProbablePitcher | null
 {
 	const ref = playerRef(person);
@@ -124,6 +128,7 @@ export function mapProbable(person: Person | undefined, season: PitchingStatLine
 		wins: season?.wins ?? null,
 		losses: season?.losses ?? null,
 		era: season?.era ?? null,
+		pitchHand: person?.pitchHand?.code ?? null,
 	};
 }
 

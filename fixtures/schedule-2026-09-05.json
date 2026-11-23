@@ -148,14 +148,16 @@
           "fullName": "Anthony Molina",
           "wins": 3,
           "losses": 0,
-          "era": "2.79"
+          "era": "2.79",
+          "pitchHand": "R"
         },
         "home": {
           "id": 804267,
           "fullName": "Zac Thornton",
           "wins": 3,
           "losses": 5,
-          "era": "3.53"
+          "era": "3.53",
+          "pitchHand": "L"
         }
       },
       "decisions": {
@@ -318,14 +320,16 @@
           "fullName": "Javier Assad",
           "wins": 6,
           "losses": 1,
-          "era": "3.58"
+          "era": "3.58",
+          "pitchHand": "R"
         },
         "home": {
           "id": 687473,
           "fullName": "Ryan Gusto",
           "wins": 1,
           "losses": 4,
-          "era": "4.23"
+          "era": "4.23",
+          "pitchHand": "R"
         }
       },
       "decisions": {
@@ -491,14 +495,16 @@
           "fullName": "Martín Pérez",
           "wins": 8,
           "losses": 9,
-          "era": "3.25"
+          "era": "3.25",
+          "pitchHand": "L"
         },
         "home": {
           "id": 554430,
           "fullName": "Zack Wheeler",
           "wins": 12,
           "losses": 5,
-          "era": "3.23"
+          "era": "3.23",
+          "pitchHand": "R"
         }
       },
       "decisions": {
@@ -664,14 +670,16 @@
           "fullName": "Framber Valdez",
           "wins": 9,
           "losses": 10,
-          "era": "4.17"
+          "era": "4.17",
+          "pitchHand": "L"
         },
         "home": {
           "id": 800048,
           "fullName": "Parker Messick",
           "wins": 11,
           "losses": 9,
-          "era": "2.53"
+          "era": "2.53",
+          "pitchHand": "L"
         }
       },
       "decisions": {
@@ -834,14 +842,16 @@
           "fullName": "Yusei Kikuchi",
           "wins": 1,
           "losses": 5,
-          "era": "4.96"
+          "era": "4.96",
+          "pitchHand": "L"
         },
         "home": {
           "id": 677952,
           "fullName": "Braxton Ashcraft",
           "wins": 14,
           "losses": 6,
-          "era": "3.65"
+          "era": "3.65",
+          "pitchHand": "R"
         }
       },
       "decisions": {
@@ -1004,14 +1014,16 @@
           "fullName": "Dustin May",
           "wins": 6,
           "losses": 9,
-          "era": "4.69"
+          "era": "4.69",
+          "pitchHand": "R"
         },
         "home": {
           "id": 671096,
           "fullName": "Andrew Abbott",
           "wins": 6,
           "losses": 10,
-          "era": "4.43"
+          "era": "4.43",
+          "pitchHand": "L"
         }
       },
       "decisions": {
@@ -1177,14 +1189,16 @@
           "fullName": "Sonny Gray",
           "wins": 17,
           "losses": 4,
-          "era": "2.69"
+          "era": "2.69",
+          "pitchHand": "R"
         },
         "home": {
           "id": 605135,
           "fullName": "Chris Bassitt",
           "wins": 6,
           "losses": 5,
-          "era": "4.96"
+          "era": "4.96",
+          "pitchHand": "R"
         }
       },
       "decisions": {
@@ -1356,14 +1370,16 @@
           "fullName": "Drew Rasmussen",
           "wins": 14,
           "losses": 5,
-          "era": "2.88"
+          "era": "2.88",
+          "pitchHand": "R"
         },
         "home": {
           "id": 594798,
           "fullName": "Jacob deGrom",
           "wins": 10,
           "losses": 9,
-          "era": "3.96"
+          "era": "3.96",
+          "pitchHand": "R"
         }
       },
       "decisions": {
@@ -1526,14 +1542,16 @@
           "fullName": "Max Scherzer",
           "wins": 2,
           "losses": 7,
-          "era": "6.03"
+          "era": "6.03",
+          "pitchHand": "R"
         },
         "home": {
           "id": 607625,
           "fullName": "Seth Lugo",
           "wins": 6,
           "losses": 8,
-          "era": "5.04"
+          "era": "5.04",
+          "pitchHand": "R"
         }
       },
       "decisions": {
@@ -1699,14 +1717,16 @@
           "fullName": "Taj Bradley",
           "wins": 11,
           "losses": 6,
-          "era": "3.95"
+          "era": "3.95",
+          "pitchHand": "R"
         },
         "home": {
           "id": 641743,
           "fullName": "Anthony Kay",
           "wins": 9,
           "losses": 8,
-          "era": "4.47"
+          "era": "4.47",
+          "pitchHand": "L"
         }
       },
       "decisions": {
@@ -1881,14 +1901,16 @@
           "fullName": "Brandon Pfaadt",
           "wins": 7,
           "losses": 2,
-          "era": "3.53"
+          "era": "3.53",
+          "pitchHand": "R"
         },
         "home": {
           "id": 814490,
           "fullName": "Ethan Pecko",
           "wins": 1,
           "losses": 0,
-          "era": "5.19"
+          "era": "5.19",
+          "pitchHand": "R"
         }
       },
       "decisions": {
@@ -2054,14 +2076,16 @@
           "fullName": "Carlos Rodón",
           "wins": 5,
           "losses": 3,
-          "era": "3.09"
+          "era": "3.09",
+          "pitchHand": "L"
         },
         "home": {
           "id": 592662,
           "fullName": "Robbie Ray",
           "wins": 11,
           "losses": 8,
-          "era": "3.39"
+          "era": "3.39",
+          "pitchHand": "L"
         }
       },
       "decisions": {
@@ -2224,14 +2248,16 @@
           "fullName": "Matthew Liberatore",
           "wins": 5,
           "losses": 14,
-          "era": "5.57"
+          "era": "5.57",
+          "pitchHand": "L"
         },
         "home": {
           "id": 690279,
           "fullName": "Mason Adams",
           "wins": 0,
           "losses": 0,
-          "era": "3.95"
+          "era": "3.95",
+          "pitchHand": "R"
         }
       },
       "decisions": {
@@ -2397,14 +2423,16 @@
           "fullName": "Cade Cavalli",
           "wins": 12,
           "losses": 5,
-          "era": "3.12"
+          "era": "3.12",
+          "pitchHand": "R"
         },
         "home": {
           "id": 607192,
           "fullName": "Tyler Glasnow",
           "wins": 4,
           "losses": 0,
-          "era": "3.12"
+          "era": "3.12",
+          "pitchHand": "R"
         }
       },
       "decisions": {
@@ -2570,14 +2598,16 @@
           "fullName": "Jeffrey Springs",
           "wins": 4,
           "losses": 13,
-          "era": "6.02"
+          "era": "6.02",
+          "pitchHand": "L"
         },
         "home": {
           "id": 669923,
           "fullName": "George Kirby",
           "wins": 9,
           "losses": 11,
-          "era": "4.18"
+          "era": "4.18",
+          "pitchHand": "R"
         }
       },
       "decisions": {
