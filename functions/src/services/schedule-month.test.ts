@@ -500,6 +500,51 @@ describe("S124 AC 2", () =>
 	});
 });
 
+/**
+ * #410: Hyperdrive caches read queries for up to a minute (#408), so the month read after a fill,
+ * the same query with the same range as the read before it, came back as the pre-fill answer and a
+ * freshly filled month was sent with every day unknown. The fake below answers `listGameCounts`
+ * the way that cache did: always its first answer for a range.
+ */
+describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] as const)("a month read through a caching database (#410) %s", (_name, makeRepos) =>
+{
+	it("a fill answers every day it stored, even when the month read keeps returning its pre-fill answer (#410)", async () =>
+	{
+		const repos = await makeRepos();
+		await store(repos, "2026-12-25", []);
+		const cached = new Map<string, ReturnType<ScheduleRepository["listGameCounts"]>>();
+		let reads = 0;
+		const schedules: ScheduleRepository = {
+			getByDate: (date) => repos.schedules.getByDate(date),
+			upsert: (day) => repos.schedules.upsert(day),
+			listGameCounts: (from, to) =>
+			{
+				reads++;
+				const key = `${from}..${to}`;
+				if (!cached.has(key)) cached.set(key, repos.schedules.listGameCounts(from, to));
+				return cached.get(key)!;
+			},
+		};
+		const mlb = new CountingClient();
+		mlb.gamesOn.set("2026-12-12", await mixedGames());
+		const {
+			body, count, teams, cacheControl,
+		} = await api({
+			...repos,
+			schedules,
+		}, mlb).month("2026-12");
+		expect(mlb.ranges).toEqual([["2026-12-01", "2026-12-31"]]);
+		expect(body.days.filter((day) => day.count === null).map((day) => day.date)).toEqual([]);
+		expect(count("2026-12-12")).toBe(2);
+		expect(teams("2026-12-12")).toEqual([111, 120, 121, 147]);
+		expect(count("2026-12-25")).toBe(0);
+		// A complete month just changed: the ladder's floor, not the incomplete month's cooldown.
+		expect(cacheControl).toBe(`public, s-maxage=300, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
+		// The answer comes from what the fill stored, not from a second month read.
+		expect(reads).toBe(1);
+	});
+});
+
 describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] as const)("S124 AC 3 %s", (_name, makeRepos) =>
 {
 	it("S124 AC 3 headers reset: a past month unchanged for a month is cached for the cap, and one that changes drops to the floor", async () =>

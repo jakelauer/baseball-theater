@@ -2,8 +2,10 @@
  * Games per day for a month (S124) and the teams playing each day (S136), for S125's calendar
  * date picker, from BT's stored schedule days (ADR-002: clients read BT only), counted by
  * `monthGameCounts`. A month BT needn't ask MLB about is one count read; a fill adds one MLB
- * range read (week-long requests sent together, #399), a version-guarded write per day it
- * returns (`storeSchedule`, which reads the stored day first) and a second count read.
+ * range read (week-long requests sent together, #399) and a version-guarded write per day it
+ * returns (`storeSchedule`, which reads the stored day first), and answers from what it stored
+ * rather than a second count read (#410). Those per-day reads and writes, two database round trips
+ * a day, are most of a cold month's time through Hyperdrive.
  *
  * Days inside `scheduleFillWindow` (the current season through December of next year; later
  * months are refused at the route, owner 2026-11-09: "Reject past next year") that BT doesn't
@@ -21,7 +23,7 @@ import type {
 	ScheduleDay, ScheduleDayCount, ScheduleDayTally, Unversioned,
 } from "@bt/domain";
 import {
-	daysOfMonth, mlbToday, monthComplete, monthGameCounts, monthLastChangedAt, scheduleFillWindow,
+	daysOfMonth, mlbToday, monthComplete, monthGameCounts, monthLastChangedAt, scheduleDayTally, scheduleFillWindow,
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
 import {
@@ -81,6 +83,17 @@ function rangeToAsk(deps: IngestDeps, key: string, fillable: string[], stored: S
 }
 
 /**
+ * `stored` with each of `fresh` in place of the stored day of its date, or added when none was
+ * stored (#410), in date order as `listGameCounts` gives them.
+ */
+function overlayDays(stored: ScheduleDayTally[], fresh: ScheduleDayTally[]): ScheduleDayTally[]
+{
+	const byDate = new Map(stored.map((day) => [day.date, day]));
+	for (const day of fresh) byDate.set(day.date, day);
+	return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
  * The number of games on each day of `month` (`YYYY-MM`, already checked by `isCalendarMonth`
  * and `latestScheduleMonth` at the route) and the teams playing it (S136), from BT's stored
  * schedule days, filling or refreshing the days inside `scheduleFillWindow` first as the module
@@ -114,20 +127,28 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 				// MLB unreachable, or an answer that doesn't parse: the days stay as stored, and
 				// unknown ones say so (`count: null`). Not a check of the month, so it is asked
 				// again once the cooldown allows rather than after a lifetime it never earned.
-				return false;
+				return null;
 			}
 			// A store write that fails is BT's (the database), not MLB's: it rejects, and the read fails.
+			const written: ScheduleDay[] = [];
 			for (const day of days)
 			{
-				await storeSchedule(deps, {
+				written.push(await storeSchedule(deps, {
 					...day,
 					fetchedAt,
 					windowMode: await scheduleDayWindowMode(deps, day, now),
-				});
+				}));
 			}
-			return true;
-		}, (ok) => ok);
-		if (filled) stored = await deps.schedules.listGameCounts(first, last);
+			return written;
+		}, (written) => written !== null);
+		// The answer is the stored tallies with what the fill just stored laid over them, not a second
+		// month read (#410): with Hyperdrive's query cache on (#408), that read is the same query as the
+		// first and came back as the pre-fill answer, every filled day unknown. `storeSchedule` returns
+		// each day as this fill computed it (the stored day itself when unchanged), which is what a fresh
+		// read gives unless a newer write lands between its read and its write (the version guard, ADR-022,
+		// then keeps that newer day); such a write shows on the next read.
+		// A reader that joined another's fill in flight gets the same days (the coordinator shares it).
+		if (filled) stored = overlayDays(stored, filled.map(scheduleDayTally));
 	}
 
 	const days = monthGameCounts(dates, stored);

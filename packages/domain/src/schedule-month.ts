@@ -4,6 +4,7 @@
  * game on the day (scheduled, postponed, final, in or out of the live window), never from the
  * games table, which holds only the games ingest hydrated.
  */
+import type { ScheduleDay } from "./types.js";
 
 /**
  * One stored schedule day as the month view needs it: its game count, the teams playing it
@@ -101,6 +102,28 @@ export function dayRegularSeason(gameTypes: readonly unknown[]): boolean | null
 export function storedGameType(type: unknown): string | null
 {
 	return typeof type === "string" ? type : null;
+}
+
+/**
+ * A stored schedule day's tally for the month view (ADR-025: the one implementation in code; the
+ * Postgres adapter computes the same in SQL and the repository contract holds the two together).
+ * The memory adapter's `listGameCounts` maps each stored day through it, and the month fill tallies
+ * the days it just stored with it (#410) rather than reading the month again, which a caching
+ * database could answer with its pre-fill result.
+ */
+export function scheduleDayTally(day: Pick<ScheduleDay, "date" | "games" | "fetchedAt" | "lastChangedAt">): ScheduleDayTally
+{
+	// One entry per game, `null` for an untyped one, as the Postgres adapter reads it (S167).
+	const gameTypes = day.games.map((game) => storedGameType(game.gameType));
+	return {
+		date: day.date,
+		gameCount: day.games.length,
+		teamIds: distinctTeamIds(day.games.flatMap((game) => [game.teams.away.id, game.teams.home.id])),
+		gameTypes,
+		regularSeason: dayRegularSeason(gameTypes),
+		fetchedAt: day.fetchedAt,
+		lastChangedAt: day.lastChangedAt,
+	};
 }
 
 /**
