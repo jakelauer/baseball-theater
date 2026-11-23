@@ -72,16 +72,14 @@ export function ScoreboardPage({ variant, setFooter }: { variant: LayoutVariant;
 	setFooter?: SetFooterMode; })
 {
 	const { date } = useParams();
-	return date ? <ScoreboardDay date={date} variant={variant} setFooter={setFooter} /> : <DefaultScoreboardDay variant={variant} setFooter={setFooter} />;
-}
-
-/** No day in the URL: ask for the default; it is MLB's today if the server can't say. */
-function DefaultScoreboardDay({ variant, setFooter }: { variant: LayoutVariant;
-	setFooter?: SetFooterMode; })
-{
-	const date = useScoreboardDefaultDate();
-	useFooterMode(setFooter, date ? null : "none");
-	return date ? <ScoreboardDay date={date} variant={variant} setFooter={setFooter} /> : <ViewState kind="loading" />;
+	// Asked once here, above the day: it is the undated page's day and the calendar's `Today`
+	// (S125). A second reader inside the day would remount on an error and refetch it in a loop.
+	const today = useScoreboardDefaultDate();
+	const shown = date ?? today;
+	// No day in the URL and the default not known yet: hold the footer back (S142).
+	useFooterMode(setFooter, shown ? null : "none");
+	// No day in the URL: the default; it is MLB's today if the server can't say.
+	return shown ? <ScoreboardDay date={shown} variant={variant} today={today} setFooter={setFooter} /> : <ViewState kind="loading" />;
 }
 
 /**
@@ -89,12 +87,14 @@ function DefaultScoreboardDay({ variant, setFooter }: { variant: LayoutVariant;
  * `ScoreboardModule`s — one column on mobile, two on medium and desktop, from the
  * host's `variant` — and the day digest under them (S71), or the loading, empty or
  * error state from `ViewState`. The
- * date control stays through every state so the reader can always move to another day.
+ * date control stays through every state so the reader can always move to another day; its
+ * calendar's `Today` is the server's default day (S125, shell-scoreboard A8).
  */
 function ScoreboardDay({
-	date, variant, setFooter,
+	date, variant, today, setFooter,
 }: { date: string;
 	variant: LayoutVariant;
+	today: string | undefined;
 	setFooter?: SetFooterMode; })
 {
 	const {
@@ -135,7 +135,8 @@ function ScoreboardDay({
 
 	return (
 		<Stack gap="md">
-			<DateControl date={date} />
+			{/* Keyed by the day, so a change of day (a pick, an arrow, Back) closes the calendar (S125). */}
+			<DateControl key={date} date={date} variant={variant} today={today} />
 			{body}
 		</Stack>
 	);
