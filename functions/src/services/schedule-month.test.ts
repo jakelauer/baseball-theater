@@ -42,6 +42,8 @@ const DAY = 24 * 60 * MINUTE;
 /** In the 2026 off-season: 2026 is the current season, 2024 a past one. */
 const T0 = new Date("2026-11-09T17:00:00Z");
 const RAW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../fixtures/raw");
+/** What a month with an unknown day is sent with (#399): kept for the fill's one-minute cooldown, nothing stale after. */
+const INCOMPLETE_MONTH_CACHE = "public, s-maxage=60";
 
 type Repos = {
 	schedules: ScheduleRepository;
@@ -397,7 +399,8 @@ describe("S124 AC 2", () =>
 	{
 		const { mlb, asked } = recordedClient();
 		const { count } = await api(memoryRepos(), mlb).month("2026-09");
-		expect(asked).toHaveLength(1);
+		// One range read: the month's five week-long requests (#399).
+		expect(asked).toHaveLength(5);
 		expect(count("2026-09-05")).toBe(15);
 		expect(count("2026-09-06")).toBe(0);
 	});
@@ -488,8 +491,8 @@ describe("S124 AC 2", () =>
 		});
 		const repos = memoryRepos();
 		const { count } = await api(repos, mlb).month("2026-09");
-		expect(urls).toHaveLength(1);
-		expect(new URL(urls[0]!).searchParams.get("startDate")).toBe("2026-09-01");
+		// One range, asked as week-long requests (#399).
+		expect(urls.map((url) => new URL(url).searchParams.get("startDate")).sort()).toEqual(["2026-09-01", "2026-09-08", "2026-09-15", "2026-09-22", "2026-09-29"]);
 		expect(count("2026-09-05")).toBe(15);
 		expect(count("2026-09-04")).toBe(0);
 		expect(count("2026-09-30")).toBe(0);
@@ -511,16 +514,42 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 		expect((await reader.month("2024-07")).cacheControl).toBe(`public, s-maxage=300, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
 	});
 
-	it("S124 AC 3 headers reset: a month with an unknown day is checked again at the floor", async () =>
+	it("S124 AC 3 headers reset: a month with an unknown day is cached only as long as the fill's cooldown, with nothing stale served after (#399)", async () =>
 	{
-		expect((await api(await makeRepos()).month("2019-05")).cacheControl).toBe(`public, s-maxage=300, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
+		expect((await api(await makeRepos()).month("2019-05")).cacheControl).toBe(INCOMPLETE_MONTH_CACHE);
 	});
 
-	it("S124 AC 3 headers reset: a partly stored past month is checked again at the floor, not by its stored day's age", async () =>
+	it("S124 AC 3 headers reset: a partly stored past month is cached only as long as the fill's cooldown, whatever its stored day's age (#399)", async () =>
 	{
 		const repos = await makeRepos();
 		await store(repos, "2024-07-04", [], new Date(T0.getTime() - 30 * DAY));
-		expect((await api(repos).month("2024-07")).cacheControl).toBe(`public, s-maxage=300, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
+		expect((await api(repos).month("2024-07")).cacheControl).toBe(INCOMPLETE_MONTH_CACHE);
+	});
+
+	it("a fill MLB didn't answer is cached at the edge only as long as the fill's cooldown, not as a month with no games (#399)", async () =>
+	{
+		const mlb = new CountingClient();
+		mlb.fail = true;
+		const { body, cacheControl } = await api(await makeRepos(), mlb).month("2026-06");
+		expect(mlb.ranges).toHaveLength(1);
+		expect(body.days.every((day) => day.count === null)).toBe(true);
+		expect(cacheControl).toBe(INCOMPLETE_MONTH_CACHE);
+	});
+
+	it("a fill one of whose week requests fails stores nothing and answers the month unknown (#399)", async () =>
+	{
+		const mlb = new HttpMlbStatsClient({
+			now: () => T0,
+			fetchImpl: async (input) =>
+				new URL(String(input)).searchParams.get("startDate") === "2026-09-15" ? new Response("{}", {
+					status: 500,
+				}) : new Response(readFileSync(path.join(RAW, "schedule-2026-09-05.json"))),
+		});
+		const repos = await makeRepos();
+		const { body, cacheControl } = await api(repos, mlb).month("2026-09");
+		expect(body.days.every((day) => day.count === null)).toBe(true);
+		expect(await repos.schedules.getByDate("2026-09-05")).toBeNull();
+		expect(cacheControl).toBe(INCOMPLETE_MONTH_CACHE);
 	});
 
 	it("S124 AC 3 lifetime: past the cooldown but inside the month's lifetime, nothing is asked again", async () =>
