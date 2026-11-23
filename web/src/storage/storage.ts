@@ -17,9 +17,10 @@
  * must not overwrite the first's). Logto's browser SDK would otherwise keep its tokens and sign-in
  * session under keys of its own; the `AuthClient` (S116) hands it a storage adapter over this
  * module instead, so every key it writes is listed here, labeled personal, and gone after sign-out
- * and account deletion. Two keys say nothing about the person (S73; ADR-028's `none`): when the
- * update notice's Snooze runs out (shell-scoreboard A6) and that the Settings install tip was
- * dismissed (standings-search-settings A8). They belong to this browser, survive sign-out, and
+ * and account deletion. Three keys say nothing about the person (ADR-028's `none`): when the
+ * update notice's Snooze runs out (S73, shell-scoreboard A6), the release this browser last
+ * loaded (S135, A9's after-update pointer) and that the Settings install tip was dismissed (S73,
+ * standings-search-settings A8). They belong to this browser, survive sign-out, and
  * never sync to the account.
  */
 export const STORAGE_KEYS = {
@@ -59,6 +60,15 @@ export const STORAGE_KEYS = {
 	},
 	/** When the update notice's Snooze ends, in epoch ms (S73, shell-scoreboard A6), so a reload within the hour keeps it hidden. */
 	"bt.updateSnoozedUntil": {
+		personal: false,
+		area: "shared",
+	},
+	/**
+	 * The release this browser last loaded (S135, shell-scoreboard A9), written on every load of a build whose
+	 * release is known, an older one after a rollback included, so a load of a newer one shows the after-update
+	 * pointer. Not the snooze key.
+	 */
+	"bt.lastRelease": {
 		personal: false,
 		area: "shared",
 	},

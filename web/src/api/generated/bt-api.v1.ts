@@ -738,9 +738,9 @@ export interface components {
             count: number | null;
             /** @description The day, `YYYY-MM-DD`. */
             date: string;
-            /** @description Whether the day has a regular-season game (S167; `dayRegularSeason`), so S159's calendar marks a favorite team's day off only during the regular season. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular season and at least one was stored without a game type (a day stored before S167, until the backfill re-stores it). Per day rather than per game, since the calendar needs only the day's answer and the month answer stays one small, shared, cached response (ADR-021). */
+            /** @description Whether the day has a regular-season game (S167; `dayRegularSeason`), so S125's calendar, through `favoriteTeamsOff` (S159), marks a favorite team's day off only during the regular season. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular season and at least one was stored without a game type (a day stored before S167, until the backfill re-stores it). Per day rather than per game, since the calendar needs only the day's answer and the month answer stays one small, shared, cached response (ADR-021). */
             regularSeason: boolean | null;
-            /** @description The MLB team IDs playing that day (away and home of every game counted in `count`, each once, ascending; S136), so a client can mark the days a fan's favorites play without one request per day. `[]` for a stored day with no games; `null` exactly when `count` is. Every team is sent, not "a favorite plays", because favorites are personal and the month answer is one shared, cached response (ADR-021). */
+            /** @description The MLB team IDs playing that day (away and home of every game counted in `count`, each once, ascending; S136), so a client can mark the days a fan's favorites don't play (`favoriteTeamsOff`, S159) without one request per day. `[]` for a stored day with no games; `null` exactly when `count` is. Every team is sent, not "a favorite plays", because favorites are personal and the month answer is one shared, cached response (ADR-021). */
             teamIds: number[] | null;
         };
         ScheduleDayResponse: components["schemas"]["ScheduleDay"];
