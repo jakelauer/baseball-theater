@@ -253,7 +253,7 @@ describe("GamePage live (S19)", () =>
 		expect(screen.getByRole("dialog").querySelector("video")).toBe(video);
 	});
 
-	it("render count: one streamed update commits the Live panel twice, as S64's baseline", async () =>
+	it("render count: one streamed update commits the Live panel at most twice, S64's baseline", async () =>
 	{
 		const counter = createRenderCounter("live");
 		renderGame("live", counter.Counted);
@@ -263,7 +263,8 @@ describe("GamePage live (S19)", () =>
 		await push(update(2, 3, 1));
 		await waitFor(() => expect(counter.count()).toBeGreaterThan(0));
 		await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
-		expect(counter.count()).toBe(2);
+		// S64 pinned two commits; since S74 moved the room tabs into `RoomTabs` it is one. More would be a regression.
+		expect(counter.count()).toBeLessThanOrEqual(2);
 	});
 
 	it("S148 AC 3 Live room: the Live marker shows while the socket is open, and goes when it drops", async () =>

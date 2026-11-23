@@ -7,13 +7,19 @@ import { App } from "./App.js";
 import { BUILD_RELEASE } from "./layout/version.js";
 import { exposeDevUpdatedTrigger, startAfterUpdate } from "./pwa/afterUpdate.js";
 import { captureInstallPrompt } from "./pwa/install.js";
+import { registerPeriodicSync } from "./pwa/prefetch.js";
 import { exposeDevUpdateTrigger, startUpdates } from "./pwa/updates.js";
 
 // The installed app (ADR-023, S73): hold the browser's install offer from the start, and
 // register the service worker. The register module (workbox-window) loads on its own, after
 // the page, so it stays out of the entry bundle.
 captureInstallPrompt();
-if ("serviceWorker" in navigator) void import("virtual:pwa-register").then(({ registerSW }) => startUpdates(registerSW));
+if ("serviceWorker" in navigator)
+{
+	void import("virtual:pwa-register").then(({ registerSW }) => startUpdates(registerSW));
+	// Offline reading (S74): where the browser offers Periodic Background Sync, today's schedule is refreshed in the background too.
+	void navigator.serviceWorker.ready.then(registerPeriodicSync);
+}
 if (import.meta.env.DEV) exposeDevUpdateTrigger();
 // After an update (S135): record this build's release, and arm the pointer when it is newer than the last one this browser loaded.
 startAfterUpdate(BUILD_RELEASE);

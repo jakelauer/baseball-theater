@@ -32,6 +32,16 @@ const SECOND = 1000;
  */
 export const LIVE_REFRESH_MS = 15 * SECOND;
 
+/**
+ * The least time the installed app asks the browser to leave between background wakes (S74,
+ * Periodic Background Sync's `minInterval`): a request, not a schedule, since the browser picks
+ * the real cadence (often far longer) by how much the app is used. It decides when today's schedule
+ * is asked for again in the background, never how long a stored copy may be shown (the worker
+ * keeps the newest answer it got, ADR-014 rule 3). An hour, so a fan opening the app offline
+ * during a game day finds that day's schedule from earlier in it.
+ */
+export const BACKGROUND_PREFETCH_MS = 60 * 60 * SECOND;
+
 /** In-window: the ingest cadence is writing; follow it closely enough to feel live. */
 const ACTIVE: Freshness = {
 	staleTime: 10 * SECOND,

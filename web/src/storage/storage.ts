@@ -82,6 +82,21 @@ export const STORAGE_KEYS = {
 
 export type StorageKey = keyof typeof STORAGE_KEYS;
 
+/**
+ * The one Cache Storage cache BT's service worker keeps at runtime (S74, ADR-023): the last answer
+ * to each `/api/v1/*` GET, so anything already viewed stays readable offline. It is not a
+ * `localStorage` key, so it is not in {@link STORAGE_KEYS} and {@link clearPersonalData} never
+ * tries to remove it. Labeled not personal (ADR-028's `none`): `/api/v1/me` and everything under
+ * it (the account, its settings, its export) never enter it (`isRuntimeCached`, `pwa/options.ts`),
+ * so it holds only what every visitor is served alike (schedules, games, standings). The worker
+ * stores the newest copy it was given and never decides freshness (ADR-014 rule 3).
+ */
+export const API_CACHE = {
+	name: "bt-api-v1",
+	area: "cache",
+	personal: false,
+} as const;
+
 /** The browser store `key` lives in. Reading the global can itself throw (blocked site data), so callers guard it. */
 function areaOf(key: StorageKey): Storage
 {

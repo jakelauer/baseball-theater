@@ -2,7 +2,7 @@ import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
 import {
-	clearPersonalData, readStored, STORAGE_KEYS, writeStored,
+	API_CACHE, clearPersonalData, readStored, STORAGE_KEYS, writeStored,
 } from "./storage.js";
 
 afterEach(() =>
@@ -97,5 +97,18 @@ describe("browser storage", () =>
 		clearPersonalData();
 		expect(Object.keys(localStorage)).toEqual([]);
 		expect(Object.keys(sessionStorage)).toEqual([]);
+	});
+
+	it("S74 AC 1 cache name: the API runtime cache is declared here, labeled Cache Storage and not personal, and is no localStorage key sign-out would remove", () =>
+	{
+		expect(API_CACHE).toEqual({
+			name: "bt-api-v1",
+			area: "cache",
+			personal: false,
+		});
+		expect(Object.keys(STORAGE_KEYS)).not.toContain(API_CACHE.name);
+		localStorage.setItem(API_CACHE.name, "not ours to clear");
+		clearPersonalData();
+		expect(localStorage.getItem(API_CACHE.name)).toBe("not ours to clear");
 	});
 });
