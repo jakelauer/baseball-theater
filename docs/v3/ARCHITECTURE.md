@@ -1207,13 +1207,11 @@ Calls between objects retry on errors flagged `retryable`. Every deploy restarts
 - **Applied twice:** the edge `s-maxage` (how often a request reaches the Worker) and the MLB refresh-on-read (whether the Worker asks MLB again).
 - **`stale-while-revalidate`** so viewers never wait on a refresh; **Tiered Cache** so a miss checks other data centers first.
 - **The cap is the staleness guarantee** for late MLB scoring corrections; ingest may also purge a game it knows changed.
-- **Amended 2026-11-13 — standings only:** standings keep the graduated lifetime but not the 48h cap; their cap is 30 days (owner, 2026-11-13: *"Make an exception for standings. They should still use the graduated thing, but make it an exception for the 48h cap. Increase the cap to 30 days."*). The ladder carries on past 48h for them (S139), in the edge's `s-maxage` only, never a long browser `max-age`, which couldn't be purged. Games and schedules keep the 48h cap.
-- **Amended 2026-11-23: the cap is 30 days, and anything past 48h needs a reason.** Owner, 2026-11-23, while B399 (#399, the slow month calendar) was being fixed: *"48 hours would be long enough if we have the CRON shorter than that"*, then *"we should increase the ADR-021 cap to 30 days though, but require a reason for it to exceed 48 hours."*
-    - **The default cap stays 48h.** Every cache lifetime the ladder sets still stops at 48h, unless its use states why it may go longer.
-    - **How far it can go:** up to 30 days. As with standings, a lifetime past 48h is set only in the edge's `s-maxage`, never in a long browser `max-age`, which couldn't be purged.
-    - **Where the reason is written:** at the code that sets the lifetime, in the story or bug that adds it, and here.
-    - **What a reason looks like:** something that refreshes or purges the cached answer sooner when the data changes. For example, a scheduled refresh that runs more often than every 48h and busts the cache for what it updates.
-    - **Standings:** their 30-day cap (the amendment above) predates this rule and stands as the owner set it.
+- **Amended 2026-11-13 — standings only:** standings keep the graduated lifetime but not the 48h cap; their cap is 30 days (owner, 2026-11-13: *"Make an exception for standings. They should still use the graduated thing, but make it an exception for the 48h cap. Increase the cap to 30 days."*). The ladder carries on past 48h for them (S139), in the edge's `s-maxage` only, never a long browser `max-age`, which couldn't be purged. Games and schedules keep the 48h cap unless a reason is stated (the 2026-11-23 amendment below).
+- **Amended 2026-11-23: a hard cap of 30 days; 48h stays the default.** Owner, 2026-11-23, while B399 (#399, the slow month calendar) was being fixed: *"48 hours would be long enough if we have the CRON shorter than that"*, then *"we should increase the ADR-021 cap to 30 days though, but require a reason for it to exceed 48 hours."*
+    - Every lifetime still stops at 48h unless a reason is stated for going longer. The longest any lifetime may be is 30 days.
+    - The owner's example of a reason: a scheduled refresh that runs more often than every 48h.
+    - Past 48h, the guarantee in the bullet above weakens. A cached answer is then only as fresh as the stated reason keeps it.
 
 **Why:** finished games stop costing MLB calls and Postgres reads within hours, without a fixed "forever" TTL that would hide corrections.
 
