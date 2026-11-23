@@ -7,6 +7,7 @@ import { ViewState } from "./components/ViewState.js";
 import { ScoreboardPage } from "./pages/ScoreboardPage.js";
 import type { LayoutVariant } from "./layout/variant.js";
 import type { SetFooterMode } from "./layout/footerMode.js";
+import { useFooterMode } from "./layout/footerMode.js";
 import { useAccountDeleted } from "./api/accountDeleted.js";
 import { useScoreboardDefaultDate } from "./api/scoreboardDate.js";
 import { DeletedAccountPage } from "./pages/settings/DeletedAccountPage.js";
@@ -17,12 +18,15 @@ import { SIGN_IN_CALLBACK_PATH } from "@bt/domain";
 /**
  * Signed out on `/settings`: if this browser's account was just deleted, A5's
  * page, once; otherwise off to the scoreboard. The server alone knows (S87's
- * `HttpOnly` cookie), so the page stays empty while it is asked (S79). The deleted page
- * takes `setFooter` to switch the shell's footer off (A5; S142).
+ * `HttpOnly` cookie), so the page stays empty while it is asked (S79). The shell's footer is
+ * off while it is asked as well as on the deleted page (A5; S142): otherwise a blank page would
+ * show the footer and then lose it once the answer is "deleted". The hook runs before the early
+ * return, as hooks must.
  */
-function SignedOutSettings({ setFooter }: { setFooter?: SetFooterMode })
+function SignedOutSettings({ setFooter }: { setFooter: SetFooterMode })
 {
 	const { data: deleted, isPending } = useAccountDeleted();
+	useFooterMode(setFooter, isPending || deleted ? "none" : "plain");
 	if (isPending) return null;
 	return deleted ? <DeletedAccountPage setFooter={setFooter} /> : <Navigate to="/games" replace />;
 }
@@ -34,7 +38,7 @@ function SignedOutSettings({ setFooter }: { setFooter?: SetFooterMode })
  * signed-in reload isn't bounced away before the session arrives.
  */
 function SignedInOnly({ children, setFooter }: { children: ReactNode;
-	setFooter?: SetFooterMode; })
+	setFooter: SetFooterMode; })
 {
 	const session = useSession();
 	if (session.status === "loading") return null;
@@ -79,11 +83,11 @@ const ChangelogPage = lazy(() => import("./pages/ChangelogPage.js").then((m) => 
  * chunk arrives, the page area shows ViewState's loading treatment (S110), the one every
  * page uses while its data loads, so there is no extra screen. `setFooter` is the shell's say
  * over the site footer (S142), passed to the pages that change it: the game page (its live
- * socket) and the deleted-account page (no footer). Optional, so a test may render the routes
- * without the shell's footer.
+ * socket) and the deleted-account page (no footer). Required, so the app can't drop the wiring;
+ * a render with no shell passes a no-op.
  */
 export function AppRoutes({ variant, setFooter }: { variant: LayoutVariant;
-	setFooter?: SetFooterMode; })
+	setFooter: SetFooterMode; })
 {
 	return (
 		<Suspense fallback={<ViewState kind="loading" />}>

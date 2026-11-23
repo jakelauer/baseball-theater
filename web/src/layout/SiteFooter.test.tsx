@@ -74,6 +74,11 @@ describe("SiteFooter (S142)", () =>
 		vi.setSystemTime(new Date("2027-01-01T03:00:00Z"));
 		renderFooter(false);
 		expect(screen.getByText("© 2026 Baseball Theater")).toBeInTheDocument();
+		cleanup();
+		// 05:00 UTC is midnight in New York: 2027, so a year written into the footer can't pass.
+		vi.setSystemTime(new Date("2027-01-01T05:00:00Z"));
+		renderFooter(false);
+		expect(screen.getByText("© 2027 Baseball Theater")).toBeInTheDocument();
 	});
 
 	it("S142 AC 2: no 'Fetched … ago' and no 'baseball.theater', live or not", () =>
@@ -92,6 +97,10 @@ describe("SiteFooter (S142)", () =>
 		const strip = screen.getByTestId("footer-live-strip");
 		expect(footer.firstElementChild).toBe(strip);
 		expect(strip).toContainElement(screen.getByTestId("live-marker"));
+		// Centred in the strip, with nothing beside it (A13 Site footer): the strip's one child is the marker's centred group.
+		expect(strip.children).toHaveLength(1);
+		expect(strip.firstElementChild).toBe(screen.getByTestId("live-marker"));
+		expect(screen.getByTestId("live-marker").getAttribute("style") ?? "").toContain("--group-justify: center");
 		expect(strip).toHaveTextContent(/^Live Data · Active$/);
 		expect(strip.style.background).toBe("rgba(0, 0, 0, 0.4)");
 		cleanup();

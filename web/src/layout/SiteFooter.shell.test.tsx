@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { MantineProvider } from "@mantine/core";
+import { MantineProvider, Modal } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
 	act, cleanup, render, screen, waitFor, within,
@@ -170,6 +170,60 @@ describe("the shell's site footer (S142)", () =>
 		renderApp("/settings");
 		expect(await screen.findByText("Your account and your data are deleted.")).toBeInTheDocument();
 		expect(screen.queryByRole("contentinfo")).toBeNull();
+	});
+
+	it("S142 AC 1 deleted page, while asked: signed out on /settings, no footer while the server is asked whether the account was deleted", async () =>
+	{
+		let asked = 0;
+		vi.stubGlobal("fetch", vi.fn(async (request: Request) =>
+		{
+			const path = new URL(request.url).pathname;
+			if (path !== "/api/v1/me") return new Promise<Response>(() => undefined);
+			// Signed out (no token), the one `/api/v1/me` is the deleted-account question: held unanswered.
+			asked++;
+			return new Promise<Response>(() => undefined);
+		}));
+		renderApp("/settings");
+		await waitFor(() => expect(asked).toBeGreaterThan(0));
+		expect(screen.getByLabelText("path")).toHaveTextContent(/^\/settings$/);
+		expect(screen.queryByRole("contentinfo")).toBeNull();
+	});
+
+	it("S142 AC 1 dialog: a dialog opened over a page holds no footer and none of its links", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(async (request: Request) => new URL(request.url).pathname === "/api/v1/me"
+			? jsonResponse({
+				error: "unauthorized",
+			}, 401)
+			: new Promise<Response>(() => undefined)));
+		const { rerender } = renderApp("/standings");
+		await footer();
+		rerender(
+			<MantineProvider>
+				<QueryClientProvider client={createQueryClient()}>
+					<SessionProvider>
+						<MemoryRouter initialEntries={["/standings"]}>
+							<AppShellLayout>
+								{(variant, setFooter) => (
+									<>
+										<AppRoutes variant={variant} setFooter={setFooter} />
+										<Modal opened onClose={() => undefined} title="A dialog">
+											<p>Inside the dialog</p>
+										</Modal>
+									</>
+								)}
+							</AppShellLayout>
+						</MemoryRouter>
+					</SessionProvider>
+				</QueryClientProvider>
+			</MantineProvider>,
+		);
+		const dialog = await screen.findByRole("dialog");
+		expect(within(dialog).getByText("Inside the dialog")).toBeInTheDocument();
+		expect(within(dialog).queryByRole("contentinfo")).toBeNull();
+		expect(within(dialog).queryByRole("link")).toBeNull();
+		// The page's own footer is still the shell's, outside the dialog.
+		expect(dialog).not.toContainElement(screen.getByRole("contentinfo"));
 	});
 
 	it("S142 AC 1 drawer: the open nav drawer holds no footer and none of its links", async () =>

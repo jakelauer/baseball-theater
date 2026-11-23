@@ -37,7 +37,7 @@ function renderApp(path: string)
 				<SessionProvider>
 					<MemoryRouter initialEntries={[path]}>
 						<AppShellLayout>
-							{(variant) => <AppRoutes variant={variant} />}
+							{(variant, setFooter) => <AppRoutes variant={variant} setFooter={setFooter} />}
 						</AppShellLayout>
 						<CurrentPath />
 					</MemoryRouter>

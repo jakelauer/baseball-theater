@@ -104,7 +104,8 @@ else
 	passed "$TMP/domain.json" "S142 AC 1 copyrightYear" || bad 1 "no passing domain test named 'S142 AC 1 copyrightYear'"
 	grep -q '2027-01-01T03:00' packages/domain/src/copyright-year.test.ts && grep -q '2027-01-01T05:00' packages/domain/src/copyright-year.test.ts ||
 		bad 1 "copyright-year.test.ts does not test 2027-01-01T03:00Z and T05:00Z"
-	grep -q 'copyrightYear' "$F" 2>/dev/null || bad 1 "SiteFooter does not take its year from copyrightYear"
+	# A call, not a mention: a comment naming copyrightYear beside a literal year must not pass (pre-ship update, rule 7).
+	grep -q 'copyrightYear(' "$F" 2>/dev/null || bad 1 "SiteFooter does not call copyrightYear( for its year"
 fi
 
 # --- Check 2: the fetched line goes, the marker stays ---

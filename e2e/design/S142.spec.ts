@@ -12,7 +12,10 @@
  *   first game alone (SF @ NYM, final) and its highlights left out (the digest answered empty), so
  *   the footer follows the card and the leftover height is empty below it.
  * - `site-footer-standalone-mobile`: `site-footer-mobile` in the installed app: Chromium told the
- *   display mode is standalone the way `S73.spec.ts` does (DevTools protocol).
+ *   display mode is standalone the way `S73.spec.ts` does (DevTools protocol). Its capture comes out
+ *   byte-identical to `site-footer-mobile`: headless Chromium has no safe-area insets, so A1's 47px
+ *   status bar and 34px home-indicator areas are zero here; what it proves is that standalone mode
+ *   changes nothing about the footer itself.
  * - `site-footer-signed-out-mobile`: `site-footer-mobile` signed out: no "Your data", the "Legal"
  *   heading alone until S154.
  *
