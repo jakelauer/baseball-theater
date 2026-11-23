@@ -9,6 +9,7 @@
  * the live feed hydrate carries no playback URLs.
  */
 import type {
+	FetchedGame,
 	GameGraphContent,
 	GamePlayMetrics,
 	GameSnapshot,
@@ -19,7 +20,9 @@ import type {
 	StandingsSnapshot,
 	Unversioned,
 } from "@bt/domain";
-import { mlbSearchText, rankHighlightsByImpact } from "@bt/domain";
+import {
+	feedTimeToIso, mlbSearchText, rankHighlightsByImpact,
+} from "@bt/domain";
 import type { GameContentResponse, GameDiffPatchResponse } from "@bt/mlb-api";
 import {
 	parseGameContentResponse,
@@ -245,19 +248,33 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		return mapScheduleRange(payload, startDate, endDate, this.now().toISOString(), "active");
 	}
 
-	async fetchGame(gamePk: number): Promise<Unversioned<GameSnapshot>>
+	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
-		const feed = await this.fetchGameFeed(gamePk);
+		const { game: feed, feedTime } = await this.fetchGameFeed(gamePk);
 		const [content, playMetrics, graph] = await Promise.all([this.fetchContent(gamePk), this.fetchPlayMetrics(gamePk), this.fetchGameGraphContent(gamePk)]);
-		return assembleGame(feed, content ? editorialOf(content) : null, playMetrics, graph);
+		return {
+			game: assembleGame(feed, content ? editorialOf(content) : null, playMetrics, graph),
+			...feedTime !== undefined && {
+				feedTime,
+			},
+		};
 	}
 
-	/** The live feed alone (S122): what `fetchGame` adds its extras to. */
-	async fetchGameFeed(gamePk: number): Promise<Unversioned<GameSnapshot>>
+	/**
+	 * The live feed alone (S122): what `fetchGame` adds its extras to. Beside the game, the feed's own time (MLB's
+	 * `metaData.timeStamp`) as an ISO instant (S150 AC 2), left out when the feed has none.
+	 */
+	async fetchGameFeed(gamePk: number): Promise<FetchedGame>
 	{
 		const feedUrl = `${this.baseUrl}/api/v1.1/game/${gamePk}/feed/live`;
 		const feed = parseLiveFeedResponse(await this.getJson(feedUrl));
-		return mapLiveFeed(feed, this.now().toISOString(), "active");
+		const feedTime = feedTimeToIso(feed.metaData?.timeStamp);
+		return {
+			game: mapLiveFeed(feed, this.now().toISOString(), "active"),
+			...feedTime !== undefined && {
+				feedTime,
+			},
+		};
 	}
 
 	/** The content endpoint's videos and recap (S122); null when it fails or has neither. */

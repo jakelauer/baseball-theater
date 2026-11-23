@@ -1,5 +1,5 @@
 import type {
-	AccountSettings, Entitlements, GameProjection, GameSnapshot, ScheduleDay, ScheduleDayTally, UserProfile,
+	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateRow, ScheduleDayTally, StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
 	dayRegularSeason, distinctTeamIds, downloadExpired, storedGameType,
@@ -9,6 +9,7 @@ import type {
 	ExportStore,
 	GameProjectionRepository,
 	GameRepository,
+	GameStateRepository,
 	ReplayArtifact,
 	ReplayArtifactRepository,
 	DeletionLog,
@@ -72,16 +73,31 @@ class VersionedMemoryStore<K, T>
 
 export class InMemoryScheduleRepository implements ScheduleRepository
 {
-	private readonly store = new VersionedMemoryStore<string, ScheduleDay>((d) => d.version);
+	private readonly store = new VersionedMemoryStore<string, StoredScheduleDay>((d) => d.version);
+	private readonly servedBases = new Map<string, number>();
 
-	async getByDate(date: string): Promise<ScheduleDay | null>
+	async getByDate(date: string): Promise<StoredScheduleDay | null>
 	{
 		return this.store.get(date);
 	}
 
-	async upsert(day: ScheduleDay): Promise<void>
+	async getWithServedBase(date: string): Promise<{ day: StoredScheduleDay;
+		servedBase: number; } | null>
 	{
+		const day = this.store.get(date);
+		return day ? {
+			day,
+			servedBase: this.servedBases.get(date) ?? 0,
+		} : null;
+	}
+
+	/** The `served_base` raise lands only with a write the version guard takes, as the Postgres statement does. */
+	async upsert(day: StoredScheduleDay, raiseServedBase = 0): Promise<void>
+	{
+		const before = this.store.get(day.date);
 		this.store.put(day.date, day);
+		if (before !== null && day.version <= before.version) return;
+		this.servedBases.set(day.date, (this.servedBases.get(day.date) ?? 0) + raiseServedBase);
 	}
 
 	async listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>
@@ -108,6 +124,47 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 	clear(): void
 	{
 		this.store.clear();
+		this.servedBases.clear();
+	}
+}
+
+/** `game_states` in memory (S150 AC 3), under the same write rule as the Postgres adapter. */
+export class InMemoryGameStateRepository implements GameStateRepository
+{
+	private readonly rows = new Map<number, GameStateRow>();
+
+	async getByPk(gamePk: number): Promise<GameStateRow | null>
+	{
+		const row = this.rows.get(gamePk);
+		return row ? jsonCopy(row) : null;
+	}
+
+	async getMany(gamePks: readonly number[]): Promise<GameStateRow[]>
+	{
+		return gamePks.flatMap((gamePk) => this.rows.has(gamePk) ? [jsonCopy(this.rows.get(gamePk)!)] : []);
+	}
+
+	async write(row: GameStateRow): Promise<boolean>
+	{
+		const stored = this.rows.get(row.gamePk);
+		if (stored)
+		{
+			const newer = row.state.version > stored.state.version;
+			const laterFeed = row.state.version === stored.state.version && row.feedTime !== null && row.feedTime > (stored.feedTime ?? "");
+			if (!newer && !laterFeed) return false;
+		}
+		const feedTime = [stored?.feedTime ?? null, row.feedTime].filter((t): t is string => t !== null).sort().at(-1) ?? null;
+		this.rows.set(row.gamePk, jsonCopy({
+			...row,
+			feedTime,
+			startTime: row.startTime ?? stored?.startTime ?? null,
+		}));
+		return true;
+	}
+
+	clear(): void
+	{
+		this.rows.clear();
 	}
 }
 

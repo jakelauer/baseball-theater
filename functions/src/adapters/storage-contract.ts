@@ -6,7 +6,7 @@
  * `describeStorageContract`, so their case counts match by construction.
  */
 import type {
-	AccountSettings, GameProjection, GameSnapshot, ScheduleDay,
+	AccountSettings, GameProjection, GameSnapshot, StoredScheduleDay,
 } from "@bt/domain";
 import { entitlementsForTier, projectGame } from "@bt/domain";
 import type {
@@ -37,7 +37,7 @@ const fixtures = new FixtureMlbStatsClient();
 /** The fixture game re-keyed and versioned; its detailed state names the version so content differs. */
 async function game(gamePk: number, version: number, date = "2024-07-04"): Promise<GameSnapshot>
 {
-	const fetched = await fixtures.fetchGame(744834);
+	const { game: fetched } = await fixtures.fetchGame(744834);
 	return {
 		...fetched,
 		gamePk,
@@ -63,7 +63,7 @@ type StoredSettings = { uid: string;
  */
 export function describeStorageContract(prefix: string, stores: StoreFactories): void
 {
-	describeRepositoryContract<string, ScheduleDay>(`${prefix}ScheduleRepository`, {
+	describeRepositoryContract<string, StoredScheduleDay>(`${prefix}ScheduleRepository`, {
 		create: () =>
 		{
 			const repo = stores.schedules();

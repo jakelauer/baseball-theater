@@ -10,7 +10,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import type {
-	GameSnapshot,
+	FetchedGame,
 	MediaHighlight,
 	Unversioned,
 	PlayerProfile,
@@ -22,7 +22,7 @@ import { datesBetween } from "@bt/domain";
 import type { MlbStatsClient } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
+	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
 	InMemoryGameRepository,
 	InMemoryScheduleRepository,
 } from "../adapters/memory/repos.js";
@@ -58,13 +58,15 @@ class CountingMlbClient implements MlbStatsClient
 		}));
 	}
 
-	async fetchGame(gamePk: number): Promise<Unversioned<GameSnapshot>>
+	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
 		this.gameCalls.push(gamePk);
-		const game = await this.fixtures.fetchGame(IN_WINDOW);
+		const game = (await this.fixtures.fetchGame(IN_WINDOW)).game;
 		return {
-			...game,
-			gamePk,
+			game: {
+				...game,
+				gamePk,
+			},
 		};
 	}
 
@@ -181,6 +183,7 @@ function deps(mlb: MlbStatsClient)
 		schedules: new InMemoryScheduleRepository(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
+		gameStates: new InMemoryGameStateRepository(),
 	};
 }
 

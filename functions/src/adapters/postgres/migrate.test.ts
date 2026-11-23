@@ -6,15 +6,23 @@
  * classification manifest labels (ADR-028). A database whose migrations differ from the code's
  * fails, before any DDL where it can, except one only ahead of the code with `mayBeAhead` (#48).
  */
+import {
+	cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
+import { sql } from "drizzle-orm";
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
+import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
 import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
 import { DATA_CLASSIFICATION } from "../../services/data-classification.js";
 import { FIRST_WHEN, migrationsWith } from "../../test/migrations-folder.js";
 import {
-	MAY_BE_AHEAD_ENV, mayBeAheadFrom, migrateDatabaseAt, migrationDrift,
+	MAY_BE_AHEAD_ENV, MIGRATIONS_FOLDER, mayBeAheadFrom, migrateDatabaseAt, migrationDrift,
 } from "./migrate.js";
 
 let stop: (() => Promise<void>) | undefined;
@@ -318,5 +326,132 @@ describe("mayBeAheadFrom (#48)", () =>
 			[MAY_BE_AHEAD_ENV]: value,
 		}), String(value)).toBe(false);
 		expect(mayBeAheadFrom({})).toBe(false);
+	});
+});
+
+describe("the game_states migration (S150 AC 3)", () =>
+{
+	/** The committed folder as it was before S150: the first migration alone. */
+	function folderBeforeGameStates(): string
+	{
+		const folder = mkdtempSync(join(tmpdir(), "bt-migrations-"));
+		cpSync(MIGRATIONS_FOLDER, folder, {
+			recursive: true,
+		});
+		const journalPath = join(folder, "meta", "_journal.json");
+		const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries: { tag: string }[] };
+		for (const entry of journal.entries.slice(1)) rmSync(join(folder, `${entry.tag}.sql`));
+		writeFileSync(journalPath, JSON.stringify({
+			...journal,
+			entries: journal.entries.slice(0, 1),
+		}));
+		return folder;
+	}
+
+	/** A scoreboard game as a day stored it before S150, with its status and linescore. */
+	function listed(gamePk: number, code: string, homeRuns: number | null)
+	{
+		return {
+			gamePk,
+			officialDate: "2026-09-04",
+			startTime: "2026-09-04T23:05:00Z",
+			status: {
+				abstractGameState: code === "F" ? "Final" : "Preview",
+				codedGameState: code,
+				detailedState: code === "F" ? "Final" : "Scheduled",
+			},
+			linescore: homeRuns === null ? null : {
+				teams: {
+					home: {
+						runs: homeRuns,
+					},
+					away: {
+						runs: 1,
+					},
+				},
+			},
+			live: null,
+		};
+	}
+
+	it("S150 AC 3 migration: fills one row per game from the stored days (the copy changed last) and the stored games no day lists", async () =>
+	{
+		const pglite = new PGlite();
+		const db = drizzlePglite(pglite);
+		await migratePglite(db, {
+			migrationsFolder: folderBeforeGameStates(),
+		});
+		const day = (date: string, games: unknown[], lastChangedAt: string) => JSON.stringify({
+			date,
+			games,
+			fetchedAt: lastChangedAt,
+			windowMode: "cache",
+			version: 1,
+			lastChangedAt,
+		});
+		// Game 10 is listed on two days (suspended, resumed the next day); the later copy has its final.
+		await db.execute(sql`INSERT INTO schedule_days (date, version, document) VALUES
+			('2026-09-04', 1, ${day("2026-09-04", [listed(10, "S", null)], "2026-09-04T12:00:00.000Z")}),
+			('2026-09-05', 1, ${day("2026-09-05", [listed(10, "F", 5)], "2026-09-06T03:00:00.000Z")})`);
+		// Game 20 is stored only as a snapshot.
+		await db.execute(sql`INSERT INTO games (game_pk, official_date, version, document) VALUES (20, '2026-09-03', 3, ${JSON.stringify({
+			gamePk: 20,
+			officialDate: "2026-09-03",
+			startTime: "2026-09-03T17:05:00Z",
+			status: {
+				abstractGameState: "Final",
+				codedGameState: "F",
+				detailedState: "Final",
+			},
+			linescore: {
+				teams: {
+					home: {
+						runs: 4,
+					},
+					away: {
+						runs: 2,
+					},
+				},
+			},
+			live: null,
+			version: 3,
+			lastChangedAt: "2026-09-04T01:00:00.000Z",
+		})})`);
+		await migratePglite(db, {
+			migrationsFolder: MIGRATIONS_FOLDER,
+		});
+		const rows = (await db.execute(sql`SELECT game_pk, version, source, feed_time, official_date, start_time,
+			document->'status'->>'codedGameState' AS code, document->'linescore'->'teams'->'home'->>'runs' AS home, document->>'lastChangedAt' AS changed
+			FROM game_states ORDER BY game_pk`)).rows;
+		expect(rows).toEqual([
+			{
+				game_pk: 10,
+				version: 1,
+				source: "schedule",
+				feed_time: null,
+				official_date: "2026-09-04",
+				start_time: "2026-09-04T23:05:00Z",
+				code: "F",
+				home: "5",
+				changed: "2026-09-06T03:00:00.000Z",
+			},
+			{
+				game_pk: 20,
+				version: 1,
+				source: "feed",
+				feed_time: null,
+				official_date: "2026-09-03",
+				start_time: "2026-09-03T17:05:00Z",
+				code: "F",
+				home: "4",
+				changed: "2026-09-04T01:00:00.000Z",
+			},
+		]);
+		expect((await db.execute(sql`SELECT served_base FROM schedule_days ORDER BY date`)).rows).toEqual([{
+			served_base: 0,
+		}, {
+			served_base: 0,
+		}]);
+		await pglite.close();
 	});
 });

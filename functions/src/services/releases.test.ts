@@ -9,7 +9,7 @@ import {
 import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
+	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
 	InMemoryGameRepository,
 	InMemoryScheduleRepository,
 	InMemorySettingsRepository,
@@ -46,6 +46,7 @@ function getReleasesRoute(releases?: readonly ReleaseNotes[])
 			schedules: new InMemoryScheduleRepository(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
+			gameStates: new InMemoryGameStateRepository(),
 		},
 		auth,
 		settings,

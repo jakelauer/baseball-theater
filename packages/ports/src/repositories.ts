@@ -7,13 +7,26 @@
  * the stored one is a no-op (ADR-022 apply-if-newer).
  */
 import type {
-	AccountSettings, GameProjection, GameSnapshot, ScheduleDay, ScheduleDayTally,
+	AccountSettings, GameProjection, GameSnapshot, GameStateRow, ScheduleDayTally, StoredScheduleDay,
 } from "@bt/domain";
 import type { ReplayPatchEntry } from "@bt/mlb-api";
 
+/**
+ * Stored schedule days (S150 AC 5: `StoredScheduleDay`, no game's status, linescore or live moment, which
+ * `GameStateRepository` holds). Beside each day's document is its `served_base` (S150 AC 6), a counter of this
+ * database's own, outside the document so it isn't hashed: the served day's version adds it, so dropping a game from a
+ * day never lowers that version.
+ */
 export interface ScheduleRepository {
-	getByDate(date: string): Promise<ScheduleDay | null>;
-	upsert(day: ScheduleDay): Promise<void>;
+	getByDate(date: string): Promise<StoredScheduleDay | null>;
+	/** The day and its `served_base` in one read, so the served version is never summed from two different moments. */
+	getWithServedBase(date: string): Promise<{ day: StoredScheduleDay;
+		servedBase: number; } | null>;
+	/**
+	 * Writes the day if its version is newer (ADR-022), raising its `served_base` by `raiseServedBase` (the state
+	 * versions of the games the write drops) in the same write, so a stop can never leave one without the other.
+	 */
+	upsert(day: StoredScheduleDay, raiseServedBase?: number): Promise<void>;
 	/**
 	 * Every stored day from `from` to `to` (both included, `YYYY-MM-DD`) as its game count, its
 	 * teams' IDs (S136; each once, ascending), its games' types with whether it has a
@@ -21,6 +34,22 @@ export interface ScheduleRepository {
 	 * order, in one read (S124's month view): days nothing stored are left out.
 	 */
 	listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>;
+}
+
+/**
+ * One `game_states` row per game (S150 AC 3): the one stored copy of a game's status, linescore and live moment.
+ * Only `switchGameState` writes it (the baseball-data copy aside).
+ */
+export interface GameStateRepository {
+	getByPk(gamePk: number): Promise<GameStateRow | null>;
+	/** The rows of `gamePks` that exist, in no particular order. */
+	getMany(gamePks: readonly number[]): Promise<GameStateRow[]>;
+	/**
+	 * Takes `row` only when its state's version is newer than the stored one, or the same with a newer feed time (which
+	 * moves the accepted feed time and marks the row `feed`). The accepted feed time never moves back, and a write with
+	 * no first pitch never clears a stored one. Says whether it took the row.
+	 */
+	write(row: GameStateRow): Promise<boolean>;
 }
 
 export interface GameRepository {

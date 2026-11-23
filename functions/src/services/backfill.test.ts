@@ -12,14 +12,14 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type {
-	GameSnapshot, ScheduleDay, ScheduleGameSummary, Unversioned,
+	FetchedGame, ScheduleDay, ScheduleGameSummary, Unversioned,
 } from "@bt/domain";
 import {
 	addDays, GIVE_UP_AFTER_DAYS, sourceGivenUpAt,
 } from "@bt/domain";
 import { parseLiveFeedResponse, parseScheduleResponse } from "@bt/mlb-api";
 import type {
-	GameProjectionRepository, GameRepository, MlbGameSources, ScheduleRepository,
+	GameProjectionRepository, GameRepository, GameStateRepository, MlbGameSources, ScheduleRepository,
 } from "@bt/ports";
 import {
 	afterEach, describe, expect, it,
@@ -27,11 +27,11 @@ import {
 import { FIXTURES_ROOT, FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { HttpMlbStatsClient } from "../adapters/http/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemoryScheduleRepository,
+	InMemoryGameProjectionRepository, InMemoryGameStateRepository, InMemoryGameRepository, InMemoryScheduleRepository,
 } from "../adapters/memory/repos.js";
 import { migratedPglite } from "../adapters/postgres/migrate.js";
 import {
-	PostgresGameProjectionRepository, PostgresGameRepository, PostgresScheduleRepository,
+	PostgresGameProjectionRepository, PostgresGameStateRepository, PostgresGameRepository, PostgresScheduleRepository,
 } from "../adapters/postgres/repos.js";
 import type {
 	BackfillDeps, BackfillState, ExtraSource, ResumeStore,
@@ -46,7 +46,7 @@ import {
 const NOW = () => new Date("2026-11-08T17:00:00.000Z");
 const TEMPLATE_SUMMARY = (JSON.parse(readFileSync(path.join(FIXTURES_ROOT, "schedule-2026-09-05.json"), "utf8")) as { games: ScheduleGameSummary[] }).games
 	.find((game) => game.gamePk === 823823)!;
-const TEMPLATE_FEED = await new FixtureMlbStatsClient().fetchGameFeed(823823);
+const TEMPLATE_FEED = (await new FixtureMlbStatsClient().fetchGameFeed(823823)).game;
 
 const dirs: string[] = [];
 afterEach(async () =>
@@ -135,17 +135,19 @@ class FakeMlb implements MlbGameSources
 		};
 	}
 
-	async fetchGameFeed(gamePk: number): Promise<Unversioned<GameSnapshot>>
+	async fetchGameFeed(gamePk: number): Promise<FetchedGame>
 	{
 		const date = this.dateOf(gamePk);
 		this.requests.push(`feed ${gamePk} ${date}`);
 		if (this.failing("feed", gamePk, date)) throw new Error("MLB Stats API 404");
 		return {
-			...TEMPLATE_FEED,
-			gamePk,
-			gameDate: date,
-			officialDate: date,
-			status: this.status(date, gamePk % 10),
+			game: {
+				...TEMPLATE_FEED,
+				gamePk,
+				gameDate: date,
+				officialDate: date,
+				status: this.status(date, gamePk % 10),
+			},
 		};
 	}
 
@@ -186,11 +188,13 @@ class FakeMlb implements MlbGameSources
 type Counted = { schedules: ScheduleRepository;
 	games: GameRepository;
 	projections: GameProjectionRepository;
+	gameStates: GameStateRepository;
 	writes: string[]; };
 
 function counted(base: { schedules: ScheduleRepository;
 	games: GameRepository;
-	projections: GameProjectionRepository; }, failProjectionFor?: number): Counted
+	projections: GameProjectionRepository;
+	gameStates: GameStateRepository; }, failProjectionFor?: number): Counted
 {
 	const writes: string[] = [];
 	let failed = false;
@@ -198,13 +202,15 @@ function counted(base: { schedules: ScheduleRepository;
 		writes,
 		schedules: {
 			getByDate: (date) => base.schedules.getByDate(date),
+			getWithServedBase: (date) => base.schedules.getWithServedBase(date),
 			listGameCounts: (from, to) => base.schedules.listGameCounts(from, to),
-			upsert: async (day) =>
+			upsert: async (day, raise) =>
 			{
 				writes.push(`schedule ${day.date}`);
-				await base.schedules.upsert(day);
+				await base.schedules.upsert(day, raise);
 			},
 		},
+		gameStates: base.gameStates,
 		games: {
 			getByPk: (pk) => base.games.getByPk(pk),
 			listByDate: (date) => base.games.listByDate(date),
@@ -236,6 +242,7 @@ function memoryRepos()
 		schedules: new InMemoryScheduleRepository(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
+		gameStates: new InMemoryGameStateRepository(),
 	};
 }
 
@@ -265,6 +272,7 @@ function deps(mlb: MlbGameSources, repos: Counted, state: ResumeStore, extra: Pa
 		schedules: repos.schedules,
 		games: repos.games,
 		projections: repos.projections,
+		gameStates: repos.gameStates,
 		state,
 		now: NOW,
 		...extra,
@@ -1239,6 +1247,7 @@ describe("runBackfill on the recordings through PGlite (S122 AC 3)", () =>
 			schedules: new PostgresScheduleRepository(db),
 			games: new PostgresGameRepository(db),
 			projections: new PostgresGameProjectionRepository(db),
+			gameStates: new PostgresGameStateRepository(db),
 		});
 		const day = {
 			from: "2026-09-05",
@@ -1258,7 +1267,7 @@ describe("runBackfill on the recordings through PGlite (S122 AC 3)", () =>
 		expect((await repos.projections.getByPk(823823))?.header.version).toBe(1);
 		expect((await repos.schedules.getByDate("2026-09-05"))?.games).toHaveLength(15);
 		// The same game the adapter's fetchGame builds (one assembly, both paths).
-		const whole = await mlb.fetchGame(823823);
+		const whole = (await mlb.fetchGame(823823)).game;
 		expect(stored.highlights.map((h) => h.id)).toEqual(whole.highlights.map((h) => h.id));
 		expect(stored.recap).toEqual(whole.recap);
 
@@ -1327,6 +1336,7 @@ describe("runBackfill on records before 2005 (#359)", () =>
 			schedules: new PostgresScheduleRepository(db),
 			games: new PostgresGameRepository(db),
 			projections: new PostgresGameProjectionRepository(db),
+			gameStates: new PostgresGameStateRepository(db),
 		});
 		const result = await runBackfill(deps(mlb, repos, memoryStore()), {
 			from: date,

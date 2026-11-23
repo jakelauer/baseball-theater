@@ -8,7 +8,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	InMemoryGameProjectionRepository,
+	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
 	InMemoryGameRepository,
 	InMemoryScheduleRepository,
 } from "../adapters/memory/repos.js";
@@ -35,6 +35,7 @@ function deps(mlb: IngestDeps["mlb"], now: string): IngestDeps
 		schedules: new InMemoryScheduleRepository(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
+		gameStates: new InMemoryGameStateRepository(),
 		now: () => new Date(now),
 	};
 }

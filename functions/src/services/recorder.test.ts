@@ -75,16 +75,21 @@ class FakeMlbStatsClient implements MlbStatsClient
 		return Promise.all(datesBetween(startDate, endDate).map((date) => this.fetchSchedule(date)));
 	}
 
-	async fetchGame(gamePk: number): Promise<GameSnapshot>
+	async fetchGame(gamePk: number): Promise<{ game: GameSnapshot;
+		feedTime: string; }>
 	{
 		const game = await readFixture<GameSnapshot>("game-744834.json");
 		const plays = await readFixture<AtBat[]>("plays-744834.json");
 		return {
-			...game,
-			gamePk,
-			plays,
-			fetchedAt: "",
-			windowMode: "cache",
+			game: {
+				...game,
+				gamePk,
+				plays,
+				fetchedAt: "",
+				windowMode: "cache",
+			},
+			// S150 AC 2: a feed time beside the game, which the recorder never writes to the fixture.
+			feedTime: "2024-07-05T03:00:00.000Z",
 		};
 	}
 
@@ -313,7 +318,7 @@ describe("fixture recorder", () =>
 		const standings = await client.fetchStandings(DATE);
 		expect(standings.divisions.length).toBeGreaterThan(0);
 
-		const game = await client.fetchGame(GAME_PK);
+		const game = (await client.fetchGame(GAME_PK)).game;
 		expect(game.gamePk).toBe(GAME_PK);
 		// plays-<gamePk>.json must be its own file; fetchGame overwrites inlined plays.
 		expect(game.plays.length).toBeGreaterThan(0);

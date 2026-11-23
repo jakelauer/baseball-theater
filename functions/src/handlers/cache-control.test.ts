@@ -10,7 +10,7 @@ import {
 import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
+	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
 	InMemoryGameRepository,
 	InMemoryScheduleRepository,
 	InMemorySettingsRepository,
@@ -37,6 +37,7 @@ function api(mlb: MlbStatsClient = new FixtureMlbStatsClient())
 			schedules: new InMemoryScheduleRepository(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
+			gameStates: new InMemoryGameStateRepository(),
 			now: () => clock.now,
 			refresh: new RefreshCoordinator(() => clock.now),
 		},
@@ -130,14 +131,18 @@ describe("GET /api/v1/games/:gamePk and /api/v1/schedule Cache-Control (S47)", (
 			fetchScheduleRange: (from, to) => real.fetchScheduleRange(from, to),
 			fetchGame: async (pk) =>
 			{
-				const game = await real.fetchGame(pk);
-				return changed && game ? {
-					...game,
-					status: {
-						...game.status,
-						detailedState: "Final: scoring change",
+				const { game } = await real.fetchGame(pk);
+				return changed ? {
+					game: {
+						...game,
+						status: {
+							...game.status,
+							detailedState: "Final: scoring change",
+						},
 					},
-				} : game;
+				} : {
+					game,
+				};
 			},
 			fetchGameContent: (pk) => real.fetchGameContent(pk),
 			fetchPlayMetrics: (pk) => real.fetchPlayMetrics(pk),

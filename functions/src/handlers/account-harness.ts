@@ -14,7 +14,7 @@ import {
 } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
+	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
 	InMemoryGameRepository,
 	InMemoryScheduleRepository,
 	InMemorySettingsRepository,
@@ -67,6 +67,7 @@ export async function withAccountServer(run: (h: AccountHarness) => Promise<void
 			schedules: new InMemoryScheduleRepository(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
+			gameStates: new InMemoryGameStateRepository(),
 		},
 		auth,
 		settings,

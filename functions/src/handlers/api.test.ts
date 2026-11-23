@@ -11,6 +11,7 @@ import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.j
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
 	InMemoryGameProjectionRepository,
+	InMemoryGameStateRepository,
 	InMemoryGameRepository,
 	InMemoryScheduleRepository,
 	InMemorySettingsRepository,
@@ -24,16 +25,19 @@ import { ingestScheduleDay } from "../services/ingest.js";
  * `prepare` may change what is stored before the server starts.
  */
 async function withServer(run: (base: string) => Promise<void>, now?: () => Date, prepare?: (repos: { schedules: InMemoryScheduleRepository;
-	games: InMemoryGameRepository; }) => Promise<void>, mlb: MlbStatsClient = new FixtureMlbStatsClient()): Promise<void>
+	games: InMemoryGameRepository;
+	gameStates: InMemoryGameStateRepository; }) => Promise<void>, mlb: MlbStatsClient = new FixtureMlbStatsClient()): Promise<void>
 {
 	const schedules = new InMemoryScheduleRepository();
 	const games = new InMemoryGameRepository();
 	const projections = new InMemoryGameProjectionRepository();
+	const gameStates = new InMemoryGameStateRepository();
 	const ingest = {
 		mlb,
 		schedules,
 		games,
 		projections,
+		gameStates,
 		...now && {
 			now,
 		},
@@ -42,6 +46,7 @@ async function withServer(run: (base: string) => Promise<void>, now?: () => Date
 	await prepare?.({
 		schedules,
 		games,
+		gameStates,
 	});
 
 	const auth = createDevAuth();
@@ -234,7 +239,9 @@ describe("handleApiRequest", () =>
 				lastChangedAt: gameChanged,
 			}, now));
 			expect(((await response.json()) as DayDigestResponse).windowMode).toBe("cache");
-		}, () => now, async ({ schedules, games }) =>
+		}, () => now, async ({
+			schedules, games, gameStates,
+		}) =>
 		{
 			// The day and its games settled long ago, out of the window; then one game changed an hour ago.
 			const day = (await schedules.getByDate("2024-07-04"))!;
@@ -247,6 +254,22 @@ describe("handleApiRequest", () =>
 			});
 			for (const [index, { gamePk }] of day.games.entries())
 			{
+				// Each game's one stored state (S150) settled too, so the joined day is out of its window.
+				const row = (await gameStates.getByPk(gamePk))!;
+				await gameStates.write({
+					...row,
+					state: {
+						...row.state,
+						status: {
+							abstractGameState: "Final",
+							codedGameState: "F",
+							detailedState: "Final",
+						},
+						live: null,
+						version: row.state.version + 1,
+						lastChangedAt: "2024-07-05T06:00:00.000Z",
+					},
+				});
 				const game = (await games.getByPk(gamePk))!;
 				await games.upsert({
 					...game,

@@ -11,7 +11,7 @@
  * holds aliases the store.
  */
 import type {
-	AccountSettings, Entitlements, GameProjection, GameSnapshot, PatronTier, Role, ScheduleDay, ScheduleDayTally, UserProfile,
+	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateRow, GameStateSource, PatronTier, Role, ScheduleDayTally, StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
 	dayRegularSeason, distinctTeamIds, storedGameType,
@@ -21,6 +21,7 @@ import type {
 	DeletionLogEntry,
 	GameProjectionRepository,
 	GameRepository,
+	GameStateRepository,
 	ReplayArtifact,
 	ReplayArtifactRepository,
 	ScheduleRepository,
@@ -29,11 +30,11 @@ import type {
 	UserRepository,
 } from "@bt/ports";
 import {
-	and, asc, between, eq, sql,
+	and, asc, between, eq, inArray, sql,
 } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
-	accountSettings, deletionLog, entitlements, gameProjections, games, identityLinks, replayArtifacts, scheduleDays, users,
+	accountSettings, deletionLog, entitlements, gameProjections, games, gameStates, identityLinks, replayArtifacts, scheduleDays, users,
 } from "./schema.js";
 
 /** Any Drizzle Postgres database: PGlite in tests, node-postgres behind Hyperdrive in the Worker (S51). */
@@ -70,24 +71,37 @@ export class PostgresScheduleRepository implements ScheduleRepository
 {
 	constructor(private readonly db: PostgresDb) {}
 
-	async getByDate(date: string): Promise<ScheduleDay | null>
+	async getByDate(date: string): Promise<StoredScheduleDay | null>
+	{
+		return (await this.getWithServedBase(date))?.day ?? null;
+	}
+
+	async getWithServedBase(date: string): Promise<{ day: StoredScheduleDay;
+		servedBase: number; } | null>
 	{
 		const [row] = await this.db.select({
 			document: scheduleDays.document,
+			servedBase: scheduleDays.servedBase,
 		}).from(scheduleDays).where(eq(scheduleDays.date, date));
-		return row?.document ?? null;
+		return row ? {
+			day: row.document,
+			servedBase: Number(row.servedBase),
+		} : null;
 	}
 
-	async upsert(day: ScheduleDay): Promise<void>
+	/** One statement: the version-guarded write and the `served_base` raise land together or not at all (S150 AC 6). */
+	async upsert(day: StoredScheduleDay, raiseServedBase = 0): Promise<void>
 	{
 		await this.db.insert(scheduleDays).values({
 			date: day.date,
 			version: day.version,
+			servedBase: raiseServedBase,
 			document: day,
 		}).onConflictDoUpdate({
 			target: scheduleDays.date,
 			set: {
 				version: sql`excluded.version`,
+				servedBase: sql`${scheduleDays.servedBase} + ${raiseServedBase}`,
 				document: sql`excluded.document`,
 			},
 			setWhere: sql`excluded.version > ${scheduleDays.version}`,
@@ -129,6 +143,69 @@ export class PostgresScheduleRepository implements ScheduleRepository
 				regularSeason: dayRegularSeason(gameTypes),
 			};
 		});
+	}
+}
+
+/** A `game_states` row as the port hands it over. */
+function gameStateRow(row: typeof gameStates.$inferSelect): GameStateRow
+{
+	return {
+		gamePk: row.gamePk,
+		source: row.source as GameStateSource,
+		feedTime: row.feedTime,
+		officialDate: row.officialDate,
+		startTime: row.startTime,
+		state: row.document,
+	};
+}
+
+/**
+ * `game_states` (S150 AC 3). The write is one statement, the port's rule applied by the database: it takes a row
+ * whose version is newer, or the same with a newer feed time (ISO instants, so they compare as text); the accepted
+ * feed time only moves forward (`GREATEST` ignores a null) and a write with no first pitch keeps the stored one.
+ */
+export class PostgresGameStateRepository implements GameStateRepository
+{
+	constructor(private readonly db: PostgresDb) {}
+
+	async getByPk(gamePk: number): Promise<GameStateRow | null>
+	{
+		const [row] = await this.db.select().from(gameStates).where(eq(gameStates.gamePk, gamePk));
+		return row ? gameStateRow(row) : null;
+	}
+
+	async getMany(gamePks: readonly number[]): Promise<GameStateRow[]>
+	{
+		if (gamePks.length === 0) return [];
+		return (await this.db.select().from(gameStates).where(inArray(gameStates.gamePk, [...gamePks]))).map(gameStateRow);
+	}
+
+	async write(row: GameStateRow): Promise<boolean>
+	{
+		const written = await this.db.insert(gameStates).values({
+			gamePk: row.gamePk,
+			version: row.state.version,
+			source: row.source,
+			feedTime: row.feedTime,
+			officialDate: row.officialDate,
+			startTime: row.startTime,
+			document: row.state,
+		}).onConflictDoUpdate({
+			target: gameStates.gamePk,
+			set: {
+				version: sql`excluded.version`,
+				source: sql`excluded.source`,
+				feedTime: sql`GREATEST(${gameStates.feedTime}, excluded.feed_time)`,
+				officialDate: sql`excluded.official_date`,
+				startTime: sql`COALESCE(excluded.start_time, ${gameStates.startTime})`,
+				document: sql`excluded.document`,
+			},
+			setWhere: sql`excluded.version > ${gameStates.version}
+				OR (excluded.version = ${gameStates.version} AND excluded.feed_time > COALESCE(${gameStates.feedTime}, ''))`,
+		}).returning({
+			gamePk: gameStates.gamePk,
+		});
+		return written.length > 0;
 	}
 }
 

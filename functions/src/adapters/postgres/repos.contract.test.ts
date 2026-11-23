@@ -13,12 +13,14 @@ import {
 	beforeAll, describe, expect, it,
 } from "vitest";
 import { FixtureMlbStatsClient } from "../fixtures/mlb.js";
+import { describeGameStateContract } from "../repository-contract.js";
 import { describeStorageContract } from "../storage-contract.js";
 import type { PostgresDb } from "./repos.js";
 import {
 	PostgresDeletionLog,
 	PostgresGameProjectionRepository,
 	PostgresGameRepository,
+	PostgresGameStateRepository,
 	PostgresReplayArtifactRepository,
 	PostgresScheduleRepository,
 	PostgresSettingsRepository,
@@ -32,7 +34,7 @@ const migrated = migrate(db as Parameters<typeof migrate>[0], {
 });
 
 /** Every table the migrations create, emptied between cases. */
-const TABLES = ["schedule_days", "games", "game_projections", "replay_artifacts", "identity_links", "entitlements", "users", "account_settings", "deletion_log"];
+const TABLES = ["schedule_days", "game_states", "games", "game_projections", "replay_artifacts", "identity_links", "entitlements", "users", "account_settings", "deletion_log"];
 
 /** Empties every table, after the migrations have run. */
 function emptied(): Promise<unknown>
@@ -94,6 +96,8 @@ describeStorageContract("Postgres", {
 	settings: together((d) => new PostgresSettingsRepository(d)),
 });
 
+describeGameStateContract("PostgresGameStateRepository", fresh((d) => new PostgresGameStateRepository(d)));
+
 describe("Postgres adapter (S50)", () =>
 {
 	beforeAll(async () =>
@@ -105,7 +109,7 @@ describe("Postgres adapter (S50)", () =>
 	{
 		await db.execute(sql.raw("TRUNCATE games"));
 		const game = {
-			...await new FixtureMlbStatsClient().fetchGame(744834),
+			...(await new FixtureMlbStatsClient().fetchGame(744834)).game,
 			lastChangedAt: "2024-07-05T00:00:00.000Z",
 		};
 		const v2 = {

@@ -42,9 +42,10 @@ import {
 	sourceGivenUpAt,
 } from "@bt/domain";
 import type {
-	GameEditorial, GameProjectionRepository, GameRepository, MlbGameSources, ScheduleRepository,
+	GameEditorial, GameProjectionRepository, GameRepository, GameStateRepository, MlbGameSources, ScheduleRepository,
 } from "@bt/ports";
 import { assembleGame } from "../mappers/game-extras.js";
+import { readScheduleDay } from "./game-state.js";
 import {
 	ingestGame, repairProjection, scheduleDayWindowMode, storeSchedule,
 } from "./ingest.js";
@@ -76,6 +77,8 @@ export type BackfillDeps = {
 	schedules: ScheduleRepository;
 	games: GameRepository;
 	projections: GameProjectionRepository;
+	/** Each game's one stored state (S150): written through ingest's switch, read into the joined day. */
+	gameStates: GameStateRepository;
 	state: ResumeStore;
 	now?: () => Date;
 	/** Called with each day before its first request, so the pacer can pick that day's gap. */
@@ -147,6 +150,8 @@ type GameOutcome =
 		reason: string; }
 	| { kind: "fetched";
 		game: Unversioned<GameSnapshot>;
+		/** The feed's own time (S150 AC 2), handed to the game-state switch beside the game. */
+		feedTime?: string;
 		answered: Partial<Record<ExtraSource, boolean>>; };
 
 /**
@@ -180,7 +185,7 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 		ask<GameGraphContent>(asking.graphContent, () => deps.mlb.fetchGameGraphContent(gamePk)),
 	]);
 	const game = {
-		...assembleGame(feed, editorial, playMetrics, graph),
+		...assembleGame(feed.game, editorial, playMetrics, graph),
 		fetchedAt,
 		windowMode,
 	};
@@ -191,6 +196,9 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 	return {
 		kind: "fetched",
 		game,
+		...feed.feedTime !== undefined && {
+			feedTime: feed.feedTime,
+		},
 		answered,
 	};
 }
@@ -236,14 +244,19 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 		// MLB is asked again. An untyped settled day (stored before S167) is asked once here; the
 		// version guard lets its new types through, and it counts as complete whatever MLB sent, or
 		// with its stored games when the request fails.
-		let scheduleDay = await deps.schedules.getByDate(day);
+		// The joined day (S150 AC 6): each game's status from its one stored state, since the stored day has none.
+		let scheduleDay = await readScheduleDay(deps, day, now);
 		let askedMlb = false;
+		// Games MLB's schedule calls final this run. A game whose one stored state says otherwise (written in play,
+		// and the switch then hands it to the feed, S150) is fetched too, so its feed's final mends it.
+		const fetchedFinals = new Set<number>();
 		if (!scheduleDay || !isScheduleDaySettled(scheduleDay, today) || scheduleDayLacksGameType(scheduleDay))
 		{
 			askedMlb = true;
 			try
 			{
 				const fetched = await deps.mlb.fetchSchedule(day);
+				for (const game of fetched.games) if (isFinalSummary(game)) fetchedFinals.add(game.gamePk);
 				scheduleDay = await storeSchedule(deps, {
 					...fetched,
 					fetchedAt: now.toISOString(),
@@ -264,11 +277,10 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 				}
 				log(`${day}: the schedule fetch or store failed (${reason}); its stored games keep no game type until a later run`);
 			}
-			if (!isScheduleDaySettled(scheduleDay, today)) complete = false;
 		}
 
 		const asking = Object.fromEntries(EXTRA_SOURCES.map((source) => [source, !isSourceGivenUp(state.sources[source], day)])) as Record<ExtraSource, boolean>;
-		const finals = scheduleDay.games.filter(isFinalSummary);
+		const finals = scheduleDay.games.filter((game) => isFinalSummary(game) || fetchedFinals.has(game.gamePk));
 		const windowMode = scheduleDay.windowMode;
 		const outcomes = await Promise.all(finals.map((game) => fetchGame(deps, game.gamePk, asking, now.toISOString(), windowMode)));
 
@@ -312,9 +324,11 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 		let stored = 0;
 		for (const outcome of outcomes)
 		{
-			if (outcome.kind === "fetched" && (await ingestGame(deps, outcome.game)).changed) stored++;
+			if (outcome.kind === "fetched" && (await ingestGame(deps, outcome.game, outcome.feedTime)).changed) stored++;
 		}
 		result.gamesStored += stored;
+		// Judged once the day's games are written, since a feed's final can settle a game's state (S150).
+		if (askedMlb && !isScheduleDaySettled(await readScheduleDay(deps, day, now) ?? scheduleDay, today)) complete = false;
 
 		if (!complete) result.incomplete.push(day);
 		if (!askedMlb && complete && repaired === 0)

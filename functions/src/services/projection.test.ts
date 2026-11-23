@@ -3,7 +3,7 @@ import {
 } from "vitest";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
+	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
 	InMemoryGameRepository,
 	InMemoryScheduleRepository,
 } from "../adapters/memory/repos.js";
@@ -20,6 +20,7 @@ function deps()
 		schedules: new InMemoryScheduleRepository(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
+		gameStates: new InMemoryGameStateRepository(),
 	};
 }
 

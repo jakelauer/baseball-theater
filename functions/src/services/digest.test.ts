@@ -3,7 +3,7 @@ import {
 } from "vitest";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
+	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
 	InMemoryGameRepository,
 	InMemoryScheduleRepository,
 } from "../adapters/memory/repos.js";
@@ -25,6 +25,7 @@ async function storedDay()
 		schedules: new InMemoryScheduleRepository(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
+		gameStates: new InMemoryGameStateRepository(),
 		now: () => NOW,
 	};
 	await ingestScheduleDay(deps, "2024-07-04");
@@ -38,6 +39,22 @@ async function storedDay()
 	});
 	for (const { gamePk } of day.games)
 	{
+		// Each game's one stored state (S150) settled too, so the joined day is out of its window.
+		const row = (await deps.gameStates.getByPk(gamePk))!;
+		await deps.gameStates.write({
+			...row,
+			state: {
+				...row.state,
+				status: {
+					abstractGameState: "Final",
+					codedGameState: "F",
+					detailedState: "Final",
+				},
+				live: null,
+				version: row.state.version + 1,
+				lastChangedAt: SETTLED,
+			},
+		});
 		const game = (await deps.games.getByPk(gamePk))!;
 		await deps.games.upsert({
 			...game,

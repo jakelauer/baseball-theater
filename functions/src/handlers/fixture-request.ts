@@ -6,7 +6,7 @@
 import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
+	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
 	InMemoryGameRepository,
 	InMemoryScheduleRepository,
 	InMemorySettingsRepository,
@@ -28,6 +28,7 @@ export function fixtureGet(path: string, extra: Pick<ApiContext, "usage" | "vers
 			schedules: new InMemoryScheduleRepository(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
+			gameStates: new InMemoryGameStateRepository(),
 		},
 		auth,
 		settings,
