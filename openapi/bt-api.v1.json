@@ -821,6 +821,10 @@
 					"fullName": { "type": "string" },
 					"id": { "type": "number" },
 					"losses": { "type": ["number", "null"] },
+					"pitchHand": {
+						"description": "The hand he throws with, MLB's `pitchHand.code` (`\"L\"` / `\"R\"`; S171, the row's `J. Steele (L)`); `null` when MLB sent none. Optional because schedule rows stored before S171 have no such field.",
+						"type": ["string", "null"]
+					},
 					"wins": { "type": ["number", "null"] }
 				},
 				"required": ["era", "fullName", "id", "losses", "wins"],
