@@ -1211,7 +1211,7 @@ Calls between objects retry on errors flagged `retryable`. Every deploy restarts
 - **Amended 2026-11-23: a hard cap of 30 days; 48h stays the default.** Owner, 2026-11-23, while B399 (#399, the slow month calendar) was being fixed: *"48 hours would be long enough if we have the CRON shorter than that"*, then *"we should increase the ADR-021 cap to 30 days though, but require a reason for it to exceed 48 hours."*
     - Every lifetime still stops at 48h unless a reason is stated for going longer. The longest any lifetime may be is 30 days.
     - The owner's example of a reason: a scheduled refresh that runs more often than every 48h.
-    - Past 48h, the guarantee in the bullet above weakens. A cached answer is then only as fresh as the stated reason keeps it.
+    - Past 48h, the cap's staleness guarantee weakens. A cached answer is then only as fresh as the stated reason keeps it.
 
 **Why:** finished games stop costing MLB calls and Postgres reads within hours, without a fixed "forever" TTL that would hide corrections.
 
