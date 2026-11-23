@@ -389,3 +389,105 @@ describe("Search Highlights (S5)", () =>
 		expect(document.querySelector("[aria-label='Recap (score hidden)']")).toBeNull();
 	});
 });
+
+describe("Search's active filter chips (S72)", () =>
+{
+	/** Every search asked, as its query string; answered by `answer` from the request's parameters. */
+	let requests: string[] = [];
+
+	function serveFiltered(answer: (params: URLSearchParams) => SearchHighlightsPayload): void
+	{
+		requests = [];
+		vi.stubGlobal("fetch", vi.fn((request: Request) =>
+		{
+			const url = new URL(request.url);
+			if (url.pathname === "/api/v1/me/settings") return Promise.resolve(jsonResponse(DEFAULT_SETTINGS));
+			if (url.pathname !== "/api/v1/search/highlights") return Promise.resolve(jsonResponse({
+				error: "not_found",
+			}, 404));
+			const params = new URLSearchParams(url.search);
+			params.sort();
+			requests.push(params.toString());
+			return Promise.resolve(jsonResponse(answer(params)));
+		}));
+	}
+
+	/** Both clips while the tag filter is set's opposite: with `tag` only the World Series clip matches. */
+	const byTag = (params: URLSearchParams): SearchHighlightsPayload => ({
+		query: params.get("q") ?? "",
+		total: params.has("tag") ? 1 : 2,
+		highlights: params.has("tag") ? [WORLD_SERIES] : [WORLD_SERIES, MONTAGE],
+	});
+
+	it("S72 AC 2: draws a chip with ✕ per active filter; removing one asks again without it and the results update", async () =>
+	{
+		serveFiltered(byTag);
+		renderSearch("/search?date=2026-10-27&team=147&tag=home-run");
+		expect(await screen.findAllByTestId("search-result")).toHaveLength(1);
+		const chips = screen.getByTestId("search-filters");
+		expect(chips).toHaveTextContent("Active filters");
+		for (const label of ["Oct 27, 2026", "NYY", "Home Runs"])
+		{
+			expect(within(chips).getByText(label)).toBeInTheDocument();
+			expect(within(chips).getByRole("button", {
+				name: `Remove filter ${label}`,
+			})).toBeInTheDocument();
+		}
+		expect(requests).toEqual(["date=2026-10-27&q=&tag=home-run&team=147"]);
+
+		await userEvent.click(within(chips).getByRole("button", {
+			name: "Remove filter Home Runs",
+		}));
+		await waitFor(() => expect(screen.getAllByTestId("search-result")).toHaveLength(2));
+		expect(requests.at(-1)).toBe("date=2026-10-27&q=&team=147");
+		expect(within(screen.getByTestId("search-filters")).queryByText("Home Runs")).toBeNull();
+		expect(screen.getByTestId("where")).toHaveTextContent("/search?date=2026-10-27&team=147");
+		// Still no number drawn (owner, 2026-11-22: "Don’t show any number until we support paging").
+		expect(screen.queryByText(/results? found/i)).toBeNull();
+	});
+
+	it("S72 AC 2: words and filters search together; a new search keeps the filters; removing the last filter with no words empties the page", async () =>
+	{
+		serveFiltered(byTag);
+		renderSearch("/search?tag=home-run");
+		await screen.findAllByTestId("search-result");
+		await searchFor("walk-off");
+		await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/search?q=walk-off&tag=home-run"));
+		await waitFor(() => expect(requests.at(-1)).toBe("q=walk-off&tag=home-run"));
+		await userEvent.clear(screen.getByRole("searchbox", {
+			name: "Search highlights",
+		}));
+		await userEvent.type(screen.getByRole("searchbox", {
+			name: "Search highlights",
+		}), "{Enter}");
+		await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/search?tag=home-run"));
+		await userEvent.click(screen.getByRole("button", {
+			name: "Remove filter Home Runs",
+		}));
+		await waitFor(() => expect(screen.queryByTestId("search-filters")).toBeNull());
+		expect(screen.queryByTestId("search-result")).toBeNull();
+		expect(screen.queryByRole("alert")).toBeNull();
+	});
+
+	it("draws no chips and asks nothing for a malformed filter, as an empty box does", async () =>
+	{
+		serveFiltered(byTag);
+		renderSearch("/search?team=NYY");
+		await screen.findByRole("searchbox", {
+			name: "Search highlights",
+		});
+		expect(screen.queryByTestId("search-filters")).toBeNull();
+		expect(requests).toEqual([]);
+	});
+
+	it("says no highlights match the filters when a filter-only search finds none", async () =>
+	{
+		serveFiltered(() => ({
+			query: "",
+			total: 0,
+			highlights: [],
+		}));
+		renderSearch("/search?team=147");
+		expect(await screen.findByText("No highlights match these filters.")).toBeInTheDocument();
+	});
+});

@@ -22,6 +22,7 @@ import path from "node:path";
 import type {
 	AtBat,
 	GameSnapshot,
+	SearchFilters,
 	StandingsSnapshot,
 	Unversioned,
 } from "@bt/domain";
@@ -242,14 +243,16 @@ export async function recordEndpoints(
  * (`searchHighlightsRequest`), so the recording carries every field it asks for, `guid` and
  * `playInfo` among them. The answer is checked first (`parseSearchResponse`): MLB's `errors` or a
  * changed shape throws and leaves any earlier recording as it was. Returns the name written.
+ * `options.filters` (S72) records a filtered search under its filtered name.
  *
  * A library function only: `pnpm record-fixtures` (`scripts/record-fixtures.ts`) has no search form
- * yet, so `fixtures/search-walk-off.json` was recorded by calling this directly (S5, 2026-11-22).
+ * yet, so `fixtures/search-walk-off.json` was recorded by calling this directly (S5, 2026-11-22), as was
+ * `fixtures/search-team-147-tag-home-run.json` (S72, 2026-11-23).
  */
-export async function recordSearch(query: string, outDir: string, options: Pick<RawRecorderOptions, "fetchImpl"> = {}): Promise<string>
+export async function recordSearch(query: string, outDir: string, options: Pick<RawRecorderOptions, "fetchImpl"> & { filters?: SearchFilters } = {}): Promise<string>
 {
 	const doFetch = options.fetchImpl ?? ((input, init) => fetch(input, init));
-	const { url, headers } = searchHighlightsRequest(query);
+	const { url, headers } = searchHighlightsRequest(query, options.filters);
 	const response = await doFetch(url, {
 		headers: {
 			accept: "application/json",
@@ -259,7 +262,7 @@ export async function recordSearch(query: string, outDir: string, options: Pick<
 	if (!response.ok) throw new Error(`MLB search ${response.status} for ${query}`);
 	const text = await response.text();
 	parseSearchResponse(JSON.parse(text));
-	const name = searchFixtureName(query);
+	const name = searchFixtureName(query, options.filters);
 	await mkdir(outDir, {
 		recursive: true,
 	});

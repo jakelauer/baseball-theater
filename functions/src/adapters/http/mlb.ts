@@ -14,12 +14,13 @@ import type {
 	GameSnapshot,
 	PlayerProfile,
 	ScheduleDay,
+	SearchFilters,
 	SearchHighlightsPage,
 	SeasonCalendar,
 	StandingsSnapshot,
 	Unversioned,
 } from "@bt/domain";
-import { mlbSearchText, rankHighlightsByImpact } from "@bt/domain";
+import { mlbSearchQuery, rankHighlightsByImpact } from "@bt/domain";
 import type { GameContentResponse, GameDiffPatchResponse } from "@bt/mlb-api";
 import {
 	parseGameContentResponse,
@@ -107,7 +108,7 @@ export const SEARCH_PAGE_SIZE = 36;
  * `playInfo.teams` today. `recordSearch` (`services/recorder.ts`) records the same request; it is a
  * library function, with no `pnpm record-fixtures` form yet, so a recording is made by calling it.
  */
-export function searchHighlightsRequest(query: string): MlbRequest
+export function searchHighlightsRequest(query: string, filters: SearchFilters = {}): MlbRequest
 {
 	const graphql = `query Search($queryType: QueryType!, $query: String!, $page: Int, $limit: Int, $languagePreference: LanguagePreference, $contentPreference: ContentPreference) {
 	search(queryType: $queryType, languagePreference: $languagePreference, contentPreference: $contentPreference, limit: $limit, page: $page, query: $query) {
@@ -129,12 +130,14 @@ export function searchHighlightsRequest(query: string): MlbRequest
 		}
 	}
 }`;
+	// Free text, or MLB's filter language once a filter is set (S72): `mlbSearchQuery` is the one rule.
+	const asked = mlbSearchQuery(query, filters);
 	const params = new URLSearchParams({
 		operationName: "Search",
 		query: graphql,
 		variables: JSON.stringify({
-			queryType: "FREETEXT",
-			query: mlbSearchText(query),
+			queryType: asked.queryType,
+			query: asked.query,
 			limit: SEARCH_PAGE_SIZE,
 			page: 0,
 			languagePreference: "EN",
@@ -305,9 +308,9 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 	}
 
 	/** MLB's free-text search (S5): rejects when MLB errors or answers something that isn't the search's shape. */
-	async searchHighlights(query: string): Promise<SearchHighlightsPage>
+	async searchHighlights(query: string, filters?: SearchFilters): Promise<SearchHighlightsPage>
 	{
-		const { url, headers } = searchHighlightsRequest(query);
+		const { url, headers } = searchHighlightsRequest(query, filters);
 		return mapSearchResults(parseSearchResponse(await this.getJson(url, headers)));
 	}
 

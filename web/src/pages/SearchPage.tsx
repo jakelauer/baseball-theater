@@ -4,10 +4,15 @@ import {
 import { IconSearch } from "@tabler/icons-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { SEARCH_QUERY_MAX_LENGTH, searchableQuery } from "@bt/domain";
+import type { SearchFilters } from "@bt/domain";
+import {
+	SEARCH_QUERY_MAX_LENGTH, parseSearchFilters, searchableWith,
+} from "@bt/domain";
 import { useHighlightSearch } from "../api/search.js";
 import { ViewState } from "../components/ViewState.js";
 import { queryScreen } from "../components/queryScreen.js";
+import type { SearchFilterName } from "../components/search/SearchFilterChips.js";
+import { SearchFilterChips } from "../components/search/SearchFilterChips.js";
 import type { SearchResult } from "../components/search/SearchResultRow.js";
 import { SearchResultRow } from "../components/search/SearchResultRow.js";
 import { gameLabel } from "../components/videos/gameLabel.js";
@@ -20,8 +25,12 @@ import { LazyPlayerDialog } from "../components/videos/LazyPlayerDialog.js";
  * count line above the rows is not drawn: no number shows until Search pages through MLB's matches
  * (owner, 2026-11-22: "Don’t show any number until we support paging"), since one page lists 36
  * clips while MLB may match thousands. The words live in the URL (`?q=`), so a search can be shared, Back
- * returns to it, and closing the player leaves the same results and words. The filter chips the
- * frames draw are S72's, not built here.
+ * returns to it, and closing the player leaves the same results and words.
+ *
+ * S72's filters live in the URL too (`?date=`, `?team=`, `?tag=`, read by `parseSearchFilters`, the
+ * route's own parser), each drawn as an "Active filters" chip under the box; removing one drops it from
+ * the URL, which asks the search again without it, and a new search keeps the filters set. A filter alone
+ * is a search (every Yankees home run); a URL with a malformed filter shows what an empty box does.
  *
  * A row plays its clip in S70's floating player over the results, whatever the Video Player setting
  * (there is no stage on Search), with the link to its game when it has one (A2, A6). Loading, no
@@ -33,14 +42,30 @@ export function SearchPage()
 {
 	const [params, setParams] = useSearchParams();
 	const q = (params.get("q") ?? "").trim();
+	const parsed = parseSearchFilters((name) => params.get(name));
+	const filters: SearchFilters = parsed === "invalid" ? {} : parsed;
 	const [playing, setPlaying] = useState<SearchResult | null>(null);
 	const {
 		data, error, refetch,
-	} = useHighlightSearch(q);
+	} = useHighlightSearch(q, filters);
+
+	/** The URL for words `words` with the filters set now, less `without` (a removed chip's). */
+	function navigate(words: string, without?: SearchFilterName)
+	{
+		const next = new URLSearchParams();
+		if (words) next.set("q", words);
+		for (const name of ["date", "team", "tag"] as const)
+		{
+			const value = params.get(name);
+			if (value !== null && name !== without) next.set(name, value);
+		}
+		setParams(next);
+	}
 
 	let body = null;
-	// Words the route would refuse (only hyphens or spaces, or past the limit, as a pasted URL can hold) show what an empty box does.
-	if (searchableQuery(q))
+	// Words the route would refuse (only hyphens or spaces with no filter, or past the limit, as a pasted URL can hold) and
+	// malformed filters show what an empty box does.
+	if (parsed !== "invalid" && searchableWith(q, filters))
 	{
 		const screen = queryScreen({
 			data,
@@ -56,7 +81,7 @@ export function SearchPage()
 		}
 		else if (data.highlights.length === 0)
 		{
-			body = <ViewState kind="empty" message={`No highlights found for “${data.query}”.`} />;
+			body = <ViewState kind="empty" message={data.query ? `No highlights found for “${data.query}”.` : "No highlights match these filters."} />;
 		}
 		else
 		{
@@ -73,10 +98,9 @@ export function SearchPage()
 			<Title order={1}>Search Highlights</Title>
 			<SearchForm
 				q={q}
-				onSearch={(words) => setParams(words ? {
-					q: words,
-				} : {})}
+				onSearch={(words) => navigate(words)}
 			/>
+			<SearchFilterChips filters={filters} onRemove={(name) => navigate(q, name)} />
 			{body}
 			{playing ? (
 				<LazyPlayerDialog

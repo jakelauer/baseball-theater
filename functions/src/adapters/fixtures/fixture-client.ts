@@ -5,6 +5,7 @@ import type {
 	MediaHighlight,
 	PlayerProfile,
 	ScheduleDay,
+	SearchFilters,
 	SearchHighlightsPage,
 	SeasonCalendar,
 	StandingsSnapshot,
@@ -41,11 +42,17 @@ type GameFixture = Omit<Unversioned<GameSnapshot>, "fetchedAt" | "windowMode" | 
  * The fixture name of a recorded highlight search (S5): `search-<words>.json`, the words MLB is sent
  * (`mlbSearchText`), lower-cased, each run of other characters a hyphen, so `walk-off` and
  * `Walk off` both read `search-walk-off.json`. `recordSearch` (`services/recorder.ts`, a library function
- * with no `pnpm record-fixtures` form yet) writes the same name.
+ * with no `pnpm record-fixtures` form yet) writes the same name. A filtered search (S72) adds each filter
+ * after the words, in the order date, team, tag: `search-team-147-tag-home-run.json` is every Yankees
+ * home run, `search-judge-date-2026-09-14.json` Judge's clips that day.
  */
-export function searchFixtureName(query: string): string
+export function searchFixtureName(query: string, filters: SearchFilters = {}): string
 {
-	return `search-${mlbSearchText(query).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.json`;
+	const parts = [mlbSearchText(query)];
+	if (filters.date !== undefined) parts.push(`date ${filters.date}`);
+	if (filters.teamId !== undefined) parts.push(`team ${filters.teamId}`);
+	if (filters.tag !== undefined) parts.push(`tag ${filters.tag}`);
+	return `search-${parts.join(" ").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.json`;
 }
 
 /**
@@ -230,12 +237,12 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 	 * as the HTTP client maps it; no results for words with no recording, so local search answers
 	 * offline. A recording that reads but isn't the search's shape throws, as MLB's would.
 	 */
-	async searchHighlights(query: string): Promise<SearchHighlightsPage>
+	async searchHighlights(query: string, filters?: SearchFilters): Promise<SearchHighlightsPage>
 	{
 		let payload: unknown;
 		try
 		{
-			payload = await this.readJson(searchFixtureName(query));
+			payload = await this.readJson(searchFixtureName(query, filters));
 		}
 		catch
 		{
