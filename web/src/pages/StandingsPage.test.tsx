@@ -22,6 +22,7 @@ import type { SeasonPhaseName, StandingsTeamRecord } from "@bt/domain";
 import { blankRegularSeasonTable, playoffsTable } from "@bt/domain";
 import { createQueryClient } from "../api/queryClient.js";
 import type { StandingsPayload } from "../api/standings.js";
+import { busyMonth } from "../test/calendar.js";
 import { jsonResponse } from "../test/jsonResponse.js";
 import { StandingsPage } from "./StandingsPage.js";
 
@@ -42,10 +43,23 @@ function renderStandings(path = "/standings?date=2026-09-05")
 	);
 }
 
+/**
+ * Stubs `fetch` with `standings` for every request but the date control's month (S138), which gets a
+ * busy month without reaching `standings`, so its calls are the page's standings requests alone.
+ */
+function stubFetch(standings: (request: Request) => Promise<Response>)
+{
+	vi.stubGlobal("fetch", (request: Request) =>
+	{
+		const month = /^\/api\/v1\/schedule\/month\/(.+)$/.exec(new URL(request.url).pathname)?.[1];
+		return month ? Promise.resolve(jsonResponse(busyMonth(month))) : standings(request);
+	});
+}
+
 function serve(response: () => Response)
 {
 	const fetchMock = vi.fn((_request: Request) => Promise.resolve(response()));
-	vi.stubGlobal("fetch", fetchMock);
+	stubFetch(fetchMock);
 	return fetchMock;
 }
 
@@ -457,7 +471,7 @@ function serveSeason(season: Season, held: SeasonPhaseName[] = [], failing: { ph
 		}
 		return jsonResponse(answer(season, phases));
 	});
-	vi.stubGlobal("fetch", fetchMock);
+	stubFetch(fetchMock);
 	return {
 		asked,
 		release: () => release(),

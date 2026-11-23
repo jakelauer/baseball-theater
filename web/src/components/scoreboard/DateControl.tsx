@@ -30,6 +30,12 @@ export interface DateControlProps
 	today: string | undefined;
 	/** Where a day goes; the scoreboard's `/games/<date>` unless a page (S138) gives its own. */
 	dayPath?: (date: string) => string;
+	/**
+	 * What `Today` on today's month does once the calendar has closed, for a page whose today is not
+	 * a day (Standings, S138: its own page with no `date`). Without it, `Today` goes to `today` as a
+	 * pick does (the scoreboard).
+	 */
+	onToday?: () => void;
 }
 
 /**
@@ -47,7 +53,7 @@ export interface DateControlProps
  * filled (owner, 2026-11-10: "It should already be loaded.").
  */
 export function DateControl({
-	date, variant, today, dayPath = scoreboardPath,
+	date, variant, today, dayPath = scoreboardPath, onToday,
 }: DateControlProps)
 {
 	const [open, setOpen] = useState(false);
@@ -75,6 +81,11 @@ export function DateControl({
 			favoriteTeamIds={favoriteTeamIds}
 			container={variant === "mobile" ? "sheet" : "dropdown"}
 			onPick={goTo}
+			onToday={onToday && (() =>
+			{
+				setOpen(false);
+				onToday();
+			})}
 			onClose={() => setOpen(false)}
 			open={open}
 		/>

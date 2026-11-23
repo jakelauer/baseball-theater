@@ -2,15 +2,16 @@ import { useEffect, useState } from "react";
 import {
 	Stack, Text, Title,
 } from "@mantine/core";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import type { SeasonPhaseName, StandingsViews } from "@bt/domain";
 import {
-	championBoxShows, clinchLegend, isCalendarDate, mlbToday, SEASON_PHASES, standingsHasNoTeams, standingsViews,
+	BACKFILL_EARLIEST_DATE, championBoxShows, clinchLegend, isCalendarDate, mlbToday, SEASON_PHASES, standingsHasNoTeams, standingsViews,
 } from "@bt/domain";
 import { useStandings } from "../api/standings.js";
 import type { StandingsPayload } from "../api/standings.js";
 import { ViewState } from "../components/ViewState.js";
 import { queryScreen } from "../components/queryScreen.js";
+import { DateControl } from "../components/scoreboard/DateControl.js";
 import { ChampionBox } from "../components/standings/ChampionBox.js";
 import { ClinchLegend } from "../components/standings/ClinchLegend.js";
 import { DivisionTable } from "../components/standings/DivisionTable.js";
@@ -38,6 +39,22 @@ function isView(value: string | null): value is SeasonPhaseName
 	return SEASON_PHASES.some((phase) => phase === value);
 }
 
+/**
+ * Whether an address's `date` is a day Standings can stand on: a real calendar day from the first
+ * day BT keeps (1901-04-18, the calendar's own bound, S125) on. The date control and the heading's
+ * "as of" words both read this one check, so they always name the same day (S138 AC 3).
+ */
+function isViewableDay(date: string | undefined): date is string
+{
+	return date !== undefined && isCalendarDate(date) && date >= BACKFILL_EARLIEST_DATE;
+}
+
+/** Where the date control sends a day on Standings (S138): that day's standings, with no `?view=`, so it opens its own first view. */
+function standingsDayPath(date: string): string
+{
+	return `/standings?date=${date}`;
+}
+
 /** The phases a request names (S130 AC 1): always the regular season, plus the view shown when it is another. */
 function phasesFor(view: SeasonPhaseName | null): SeasonPhaseName[]
 {
@@ -45,7 +62,11 @@ function phasesFor(view: SeasonPhaseName | null): SeasonPhaseName[]
 }
 
 /**
- * Standings (S4; S130; standings-search-settings `standings-*` and A9): the heading, with "as of
+ * Standings (S4; S130; S138; standings-search-settings `standings-*` and A9): first under the app
+ * header, the scoreboard's date control and calendar (shell-scoreboard A8, as S125 built them), reading
+ * the address's `date` when it is a day `isViewableDay` accepts and MLB's today otherwise, never the
+ * table's own `date`; a pick, a typed date or an arrow goes to `/standings?date=<day>`, and `Today` to
+ * `/standings` (Standings' own today, owner 2026-11-19). Then the heading, with "as of
  * <day>" on a day in the address that isn't MLB's today; the view switch (spring training, the regular
  * season, the playoffs) when the day offers more than the regular season; the World Series box when
  * `championBoxShows`; then one `DivisionTable` per division of the shown view's table, the clinch
@@ -71,10 +92,15 @@ export function StandingsPage({ variant = "desktop", setFooter }: { variant?: La
 	setFooter?: SetFooterMode; })
 {
 	const [params, setParams] = useSearchParams();
+	const navigate = useNavigate();
 	// An empty `?date=` is no day at all, as the request already treats it (`fetchStandings`).
 	const date = params.get("date") || undefined;
 	const asked = params.get("view");
-	const day = date ?? mlbToday(new Date());
+	const today = mlbToday(new Date());
+	const day = date ?? today;
+	// The day the control and the "as of" words name: the address's when it is one Standings can stand
+	// on, otherwise today (S138 AC 3). `useStandings` still gets the address's `date` unchanged.
+	const viewing = isViewableDay(date) ? date : today;
 
 	const basePhases = phasesFor(asked === "spring" || asked === "playoffs" ? asked : null);
 	const base = useStandings(date, basePhases);
@@ -135,9 +161,9 @@ export function StandingsPage({ variant = "desktop", setFooter }: { variant?: La
 	// another view's table on screen; a failed refetch of an answer already had keeps it.
 	const failed = [base, current].find((query) => queryScreen(query) === "error");
 
-	// The "as of" words only for a real calendar day, so `?date=bogus` or `2027-02-30` never reaches the
-	// heading; S138 extends this check with its lower bound on the days it accepts (1901-04-18).
-	const asOf = date && isCalendarDate(date) && date !== mlbToday(new Date()) ? formatLongDate(date) : null;
+	// The "as of" words only for a day `isViewableDay` accepts, so `?date=bogus`, `2027-02-30` or
+	// `1850-01-01` never reaches the heading, and the heading and the control name one day (S138 AC 3).
+	const asOf = viewing !== today ? formatLongDate(viewing) : null;
 	const heading = asOf ? `Standings as of ${asOf}` : "Standings";
 	// The view the switch marks, even while its table is on its way; no view while the error state shows.
 	const titleView = failed ? null : shown ?? display?.view ?? null;
@@ -183,20 +209,30 @@ export function StandingsPage({ variant = "desktop", setFooter }: { variant?: La
 		body = <StandingsBody display={display} shown={shown ?? display.view} day={day} date={date} variant={variant} onChoose={choose} />;
 	}
 
+	// Standings' own `Today` (S138 AC 2): the page with no date picked; already there, it only closes.
+	const goToday = () =>
+	{
+		if (date) void navigate("/standings");
+	};
+
 	return (
-		<Stack gap="xl">
-			<Title order={1}>
-				Standings
-				{asOf
-					? (
-						<Text span inherit={false} fz={variant === "mobile" ? 18 : 20} fw={400} c="var(--bt-muted)" ml={4}>
-							{" "}
-							{`as of ${asOf}`}
-						</Text>
-					)
-					: null}
-			</Title>
-			{body}
+		<Stack gap="md">
+			{/* Keyed by the day, so a change of day (a pick, an arrow, Back) closes the calendar (S125). */}
+			<DateControl key={viewing} date={viewing} variant={variant} today={today} dayPath={standingsDayPath} onToday={goToday} />
+			<Stack gap="xl">
+				<Title order={1}>
+					Standings
+					{asOf
+						? (
+							<Text span inherit={false} fz={variant === "mobile" ? 18 : 20} fw={400} c="var(--bt-muted)" ml={4}>
+								{" "}
+								{`as of ${asOf}`}
+							</Text>
+						)
+						: null}
+				</Title>
+				{body}
+			</Stack>
 		</Stack>
 	);
 }

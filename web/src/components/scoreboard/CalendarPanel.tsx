@@ -93,8 +93,14 @@ export interface CalendarPanelProps
 	/** The fan's favorite teams, in their order (`useSettings`). */
 	favoriteTeamIds: readonly number[];
 	container: CalendarContainer;
-	/** Go to a day (a pick, a typed date, `Today` on today's month); the caller navigates and closes. */
+	/** Go to a day (a pick, a typed date, and `Today` on today's month unless `onToday` is given); the caller navigates and closes. */
 	onPick: (date: string) => void;
+	/**
+	 * `Today` on today's month, when the page's today is a destination of its own rather than a day
+	 * (Standings, S138: `/standings` with no `date`); the caller navigates and closes. Without it,
+	 * `Today` picks `today` through `onPick`, as on the scoreboard.
+	 */
+	onToday?: () => void;
 	/** The sheet's ✕. */
 	onClose: () => void;
 	/** Whether the calendar is open; false while the sheet slides away, so its blur commits nothing. */
@@ -109,7 +115,7 @@ export interface CalendarPanelProps
  * tap-and-hold on touch); and the `Today` footer with S136's off-season line.
  */
 export function CalendarPanel({
-	date, today, favoriteTeamIds, container, onPick, onClose, open,
+	date, today, favoriteTeamIds, container, onPick, onToday, onClose, open,
 }: CalendarPanelProps)
 {
 	const [shown, setShown] = useState(date.slice(0, 7));
@@ -391,8 +397,10 @@ export function CalendarPanel({
 					onClick={() =>
 					{
 						if (!today) return;
-						if (today.slice(0, 7) === shown) onPick(today);
-						else setShown(today.slice(0, 7));
+						// Off today's month it only moves the calendar there (A8); on it, it goes.
+						if (today.slice(0, 7) !== shown) setShown(today.slice(0, 7));
+						else if (onToday) onToday();
+						else onPick(today);
 					}}
 				>
 					Today
