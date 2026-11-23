@@ -1,7 +1,9 @@
 import type {
-	AccountSettings, Entitlements, GameProjection, GameSnapshot, ScheduleDay, ScheduleDayTally, UserProfile,
+	AccountSettings, Entitlements, GameProjection, GameSnapshot, ScheduleDay, ScheduleDayTally, ScheduleMonthCheck, UserProfile,
 } from "@bt/domain";
-import { downloadExpired, scheduleDayTally } from "@bt/domain";
+import {
+	downloadExpired, SCHEDULE_MONTH_CLAIM_LEASE_MS, scheduleDayTally,
+} from "@bt/domain";
 import type {
 	DataDownload,
 	ExportStore,
@@ -90,9 +92,46 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 			.map(scheduleDayTally);
 	}
 
+	/** Each month's record (S194), the Postgres adapter's `schedule_months` rows. */
+	private readonly months = new Map<string, ScheduleMonthCheck>();
+
+	async listScheduleMonthChecks(from: string, to: string): Promise<ScheduleMonthCheck[]>
+	{
+		return [...this.months.values()]
+			.filter((check) => check.month >= from && check.month <= to)
+			.sort((a, b) => a.month.localeCompare(b.month))
+			.map(jsonCopy);
+	}
+
+	/** Moves `checkedAt` forward only, as the Postgres adapter's guarded update does. */
+	async recordScheduleMonthCheck(month: string, checkedAt: string): Promise<void>
+	{
+		const stored = this.months.get(month);
+		if (stored?.checkedAt && !(Date.parse(checkedAt) > Date.parse(stored.checkedAt))) return;
+		this.months.set(month, {
+			month,
+			checkedAt,
+			claimedAt: stored?.claimedAt ?? null,
+		});
+	}
+
+	/** Takes the claim only when there is none or it is at least the lease old, as the Postgres adapter's conditional write does. */
+	async claimScheduleMonth(month: string, at: string): Promise<boolean>
+	{
+		const stored = this.months.get(month);
+		if (stored?.claimedAt && Date.parse(at) - Date.parse(stored.claimedAt) < SCHEDULE_MONTH_CLAIM_LEASE_MS) return false;
+		this.months.set(month, {
+			month,
+			checkedAt: stored?.checkedAt ?? null,
+			claimedAt: at,
+		});
+		return true;
+	}
+
 	clear(): void
 	{
 		this.store.clear();
+		this.months.clear();
 	}
 }
 

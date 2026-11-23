@@ -9,11 +9,12 @@ import type { GameSnapshot, ScheduleDay } from "./types.js";
 
 describe("ApiRoutes", () =>
 {
-	it("is a runtime-enumerable table covering the schedule, schedule month, game, digest, highlight search, standings, scoreboard default-date, account, sign-in and releases routes", () =>
+	it("is a runtime-enumerable table covering the schedule, schedule month, schedule month versions (S194), game, digest, highlight search, standings, scoreboard default-date, account, sign-in and releases routes", () =>
 	{
 		expect(Object.keys(ApiRoutes)).toEqual([
 			"GET /api/v1/schedule",
 			"GET /api/v1/schedule/month/:month",
+			"GET /api/v1/schedule/month-versions/:year",
 			"GET /api/v1/games/:gamePk",
 			"GET /api/v1/digest",
 			"GET /api/v1/search/highlights",

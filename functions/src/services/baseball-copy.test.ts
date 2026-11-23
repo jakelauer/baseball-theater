@@ -24,7 +24,7 @@ import { PostgresGameProjectionRepository, upsertGame } from "../adapters/postgr
 import { isProjectionCurrent } from "./ingest.js";
 import type { CopyDeps } from "./baseball-copy.js";
 import {
-	baseballTables, checkCopyRules, copyBaseballData, CopyRefused, tablesNamedIn,
+	baseballTables, checkCopyRules, copyBaseballData, COPY_RULES, CopyRefused, NEVER_COPIED_WHY, tablesNamedIn,
 } from "./baseball-copy.js";
 import { DATA_CLASSIFICATION } from "./data-classification.js";
 import { FIRST_WHEN, migrationsWith } from "../test/migrations-folder.js";
@@ -268,10 +268,33 @@ describe("copyBaseballData (S117)", () =>
 		const { db: target } = await openDb();
 		await forbid(target, PERSONAL_TABLES, ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]);
 		const copies = await copy(source, target);
-		expect(copies.map((entry) => entry.table)).toEqual(["schedule_days", "games", "game_projections", "replay_artifacts"]);
+		expect(copies.map((entry) => entry.table)).toEqual(["schedule_days", "schedule_months", "games", "game_projections", "replay_artifacts"]);
 		expect(PERSONAL_TABLES.sort()).toEqual(["account_settings", "deletion_log", "entitlements", "identity_links", "users"]);
 		for (const table of COPIED_TABLES) expect(await dump(target, table)).toEqual(await dump(source, table));
 		for (const table of PERSONAL_TABLES) expect(await dump(target, table)).toEqual([]);
+	});
+
+	it("S194 AC 1: never copies schedule_months, neither reading production's checks nor touching the target's own", async () =>
+	{
+		const source = await production();
+		await source.execute(sql`INSERT INTO schedule_months (month, checked_at, claimed_at) VALUES ('2026-04', '2026-11-09T17:00:00.000Z', NULL)`);
+		const { db: target } = await openDb();
+		await target.execute(sql`INSERT INTO schedule_months (month, checked_at, claimed_at) VALUES ('2026-05', '2026-11-01T00:00:00.000Z', NULL)`);
+		await forbid(target, ["schedule_months"], ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]);
+		const watched = watchTarget(source);
+		const copies = await copy(watched.db, target);
+		expect(copies.find((entry) => entry.table === "schedule_months")).toMatchObject({
+			read: 0,
+			written: 0,
+			skipped: NEVER_COPIED_WHY,
+		});
+		expect(watched.statements.some((text) => text.includes("schedule_months"))).toBe(false);
+		expect(await dump(target, "schedule_months")).toEqual([{
+			month: "2026-05",
+			checked_at: "2026-11-01T00:00:00.000Z",
+			claimed_at: null,
+		}]);
+		expect(COPY_RULES.schedule_months).toBe("neverCopied");
 	});
 
 	it("AC 1 personal: pages through a table larger than one batch", async () =>
@@ -320,7 +343,8 @@ describe("copyBaseballData (S117)", () =>
 		const { db: target } = await openDb();
 		const copies = await copy(source, target);
 		await source.execute(sql`RESET ROLE`);
-		expect(copies.map((entry) => entry.read)).toEqual([2, 3, 0, 1]);
+		// schedule_months (S194) is never copied, so it is never read.
+		expect(copies.map((entry) => entry.read)).toEqual([2, 0, 3, 0, 1]);
 		for (const table of COPIED_TABLES) expect(await dump(target, table)).toEqual(await dump(source, table));
 	});
 
@@ -331,8 +355,8 @@ describe("copyBaseballData (S117)", () =>
 		await copy(source, target);
 		const before = await Promise.all(baseballTables().map((table) => dump(target, table)));
 		const again = await copy(source, target);
-		expect(again.map((entry) => entry.written)).toEqual([0, 0, 0, 0]);
-		expect(again.map((entry) => entry.read)).toEqual([2, 3, 0, 1]);
+		expect(again.map((entry) => entry.written)).toEqual([0, 0, 0, 0, 0]);
+		expect(again.map((entry) => entry.read)).toEqual([2, 0, 3, 0, 1]);
 		expect(await Promise.all(baseballTables().map((table) => dump(target, table)))).toEqual(before);
 	});
 

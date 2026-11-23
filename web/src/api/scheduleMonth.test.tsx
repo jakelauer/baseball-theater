@@ -2,15 +2,22 @@
  * S125 AC 2 and AC 8: the one month hook, and which months it may ask for; and its freshness (#399):
  * a month whose days are known is kept for five minutes, but one whose days BT couldn't say (a fill
  * that failed) is asked again on the next read, so the calendar doesn't hold a month with no game
- * labels for five minutes.
+ * labels for five minutes. S194 AC 7: the hook asks for a month with its year's version.
  */
+import { CACHE_LIFETIME_FLOOR_MS } from "@bt/domain";
+import { focusManager, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import {
-	describe, expect, it, vi,
+	act, cleanup, renderHook,
+} from "@testing-library/react";
+import {
+	afterEach, describe, expect, it, vi,
 } from "vitest";
+import { jsonResponse } from "../test/jsonResponse.js";
 import { createQueryClient } from "./queryClient.js";
 import type { ScheduleMonthPayload } from "./scheduleMonth.js";
 import {
-	scheduleMonthAnswerable, scheduleMonthKey, scheduleMonthQueryOptions,
+	scheduleMonthAnswerable, scheduleMonthKey, scheduleMonthQueryOptions, scheduleMonthVersionsKey, useScheduleMonth,
 } from "./scheduleMonth.js";
 
 describe("scheduleMonth (S125)", () =>
@@ -116,5 +123,134 @@ describe("schedule month freshness (#399)", () =>
 	{
 		expect(await requestsForTwoReads(june(0), 61 * SECOND)).toBe(1);
 		expect(await requestsForTwoReads(june(3), 61 * SECOND)).toBe(1);
+	});
+});
+
+/**
+ * Serves the versions route with `versions()` (an answer, or a status to fail with, or a thrown
+ * network error) and every month with June; returns the month requests' URLs.
+ */
+function serveVersions(versions: () => Record<string, string> | number | Error): () => URL[]
+{
+	const months: URL[] = [];
+	vi.stubGlobal("fetch", vi.fn(async (request: Request) =>
+	{
+		const url = new URL(request.url);
+		if (url.pathname.startsWith("/api/v1/schedule/month-versions/"))
+		{
+			const answer = versions();
+			if (answer instanceof Error) throw answer;
+			return typeof answer === "number" ? jsonResponse({
+				error: "boom",
+			}, answer) : jsonResponse({
+				year: 2026,
+				versions: answer,
+			});
+		}
+		if (url.pathname.startsWith("/api/v1/schedule/month/"))
+		{
+			months.push(url);
+			return jsonResponse(june(2));
+		}
+		return jsonResponse({}, 404);
+	}));
+	return () => months;
+}
+
+/** Mounts `useScheduleMonth("2026-06")` on a fresh client; resolves once the month has an answer. */
+async function renderJune()
+{
+	const client = createQueryClient();
+	const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+	const hook = renderHook(() => useScheduleMonth("2026-06"), {
+		wrapper,
+	});
+	await vi.waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+	return {
+		client,
+		hook,
+	};
+}
+
+describe("S194 AC 7 the versioned month (web)", () =>
+{
+	afterEach(() =>
+	{
+		cleanup();
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+	});
+
+	it("S194 AC 7 key: with no version the month's key stays [\"schedule-month\", month]; with one it adds the version", () =>
+	{
+		expect(scheduleMonthKey("2026-06")).toEqual(["schedule-month", "2026-06"]);
+		expect(scheduleMonthQueryOptions("2026-06").queryKey).toEqual(["schedule-month", "2026-06"]);
+		expect(scheduleMonthQueryOptions("2026-06", "abc").queryKey).toEqual(["schedule-month", "2026-06", "abc"]);
+		expect(scheduleMonthVersionsKey("2026")).toEqual(["schedule-month-versions", "2026"]);
+	});
+
+	it("S194 AC 7 with v: the month is asked with ?v= from its year's versions answer, one shared query per year", async () =>
+	{
+		const months = serveVersions(() => ({
+			"2026-06": "abc",
+		}));
+		const { client } = await renderJune();
+		expect(months().map((url) => `${url.pathname}${url.search}`)).toEqual(["/api/v1/schedule/month/2026-06?v=abc"]);
+		expect(client.getQueryData(["schedule-month", "2026-06", "abc"])).toEqual(june(2));
+		expect(client.getQueryData(["schedule-month-versions", "2026"])).toEqual({
+			year: 2026,
+			versions: {
+				"2026-06": "abc",
+			},
+		});
+	});
+
+	it("S194 AC 7 after the floor: once the versions answer is older than the floor, a changed version makes a new month request", async () =>
+	{
+		vi.useFakeTimers({
+			toFake: ["Date"],
+		});
+		let version = "abc";
+		const months = serveVersions(() => ({
+			"2026-06": version,
+		}));
+		const { hook } = await renderJune();
+		version = "def";
+		// Inside the floor a focus asks nothing again.
+		await act(async () =>
+		{
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+		expect(months().map((url) => url.search)).toEqual(["?v=abc"]);
+		vi.setSystemTime(Date.now() + CACHE_LIFETIME_FLOOR_MS + 1000);
+		await act(async () =>
+		{
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+		await vi.waitFor(() => expect(months().map((url) => url.search)).toEqual(["?v=abc", "?v=def"]));
+		// The previous answer for the same month stays meanwhile, never a loading state.
+		expect(hook.result.current.data).toEqual(june(2));
+		focusManager.setFocused(undefined);
+	});
+
+	it("S194 AC 7 left out: a month the versions answer leaves out is asked without v, under its plain key", async () =>
+	{
+		const months = serveVersions(() => ({
+			"2026-05": "abc",
+		}));
+		const { client } = await renderJune();
+		expect(months().map((url) => `${url.pathname}${url.search}`)).toEqual(["/api/v1/schedule/month/2026-06"]);
+		expect(client.getQueryData(["schedule-month", "2026-06"])).toEqual(june(2));
+	});
+
+	const failures: [string, () => number | Error][] = [["an error answer", () => 500], ["a network failure", () => new Error("offline")]];
+	it.each(failures)("S194 AC 7 versions fail: %s for the versions asks for the month without v", async (_name, answer) =>
+	{
+		const months = serveVersions(answer);
+		const { client } = await renderJune();
+		expect(months().map((url) => url.search)).toEqual([""]);
+		expect(client.getQueryData(["schedule-month", "2026-06"])).toEqual(june(2));
 	});
 });

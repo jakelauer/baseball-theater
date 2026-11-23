@@ -25,6 +25,18 @@ export const scheduleDays = pgTable("schedule_days", {
 	document: jsonb("document").$type<ScheduleDay>().notNull(),
 });
 
+/**
+ * One record per schedule month (`ScheduleRepository`'s month checks, S194): when BT last checked the
+ * month against MLB and when a refresh last claimed it, each an ISO instant or null. The adapter
+ * compares them as `timestamptz` (casting the text), so how a writer formats the instant can't
+ * reorder them.
+ */
+export const scheduleMonths = pgTable("schedule_months", {
+	month: text("month").primaryKey(),
+	checkedAt: text("checked_at"),
+	claimedAt: text("claimed_at"),
+});
+
 /** One game snapshot per game (`GameRepository`): its day for `listByDate`, the document for queries into it. */
 export const games = pgTable("games", {
 	gamePk: integer("game_pk").primaryKey(),

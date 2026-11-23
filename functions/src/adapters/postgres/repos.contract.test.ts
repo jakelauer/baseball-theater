@@ -8,11 +8,14 @@ import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
+import { SCHEDULE_MONTH_CLAIM_LEASE_MS } from "@bt/domain";
 import { sql } from "drizzle-orm";
 import {
 	beforeAll, describe, expect, it,
 } from "vitest";
+import type { ScheduleRepository } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../fixtures/mlb.js";
+import { InMemoryScheduleRepository } from "../memory/repos.js";
 import { describeStorageContract } from "../storage-contract.js";
 import type { PostgresDb } from "./repos.js";
 import {
@@ -32,7 +35,7 @@ const migrated = migrate(db as Parameters<typeof migrate>[0], {
 });
 
 /** Every table the migrations create, emptied between cases. */
-const TABLES = ["schedule_days", "games", "game_projections", "replay_artifacts", "identity_links", "entitlements", "users", "account_settings", "deletion_log"];
+const TABLES = ["schedule_days", "schedule_months", "games", "game_projections", "replay_artifacts", "identity_links", "entitlements", "users", "account_settings", "deletion_log"];
 
 /** Empties every table, after the migrations have run. */
 function emptied(): Promise<unknown>
@@ -185,5 +188,76 @@ describe("Postgres adapter (S50)", () =>
 		expect(user?.entitlements.tier).toBe("Backer");
 		expect(user?.updatedAt).not.toBe("2026-10-24T00:00:00.000Z");
 		expect(await users.getByUid("nobody")).toBeNull();
+	});
+});
+
+/**
+ * S194 AC 1: the schedule month record, against both adapters: what a month never recorded reads as,
+ * a check read back, a check that only moves forward, and a claim that holds for its lease.
+ */
+describe.each([
+	["memory", async (): Promise<ScheduleRepository> => new InMemoryScheduleRepository()],
+	["Postgres", async (): Promise<ScheduleRepository> =>
+	{
+		await emptied();
+		return new PostgresScheduleRepository(db);
+	}],
+] as const)("S194 AC 1 %s schedule month checks", (_name, make) =>
+{
+	const T = "2026-11-09T17:00:00.000Z";
+	const later = (ms: number) => new Date(Date.parse(T) + ms).toISOString();
+
+	it("S194 AC 1 never recorded: a month never recorded reads as none", async () =>
+	{
+		const repo = await make();
+		expect(await repo.listScheduleMonthChecks("2026-01", "2027-12")).toEqual([]);
+	});
+
+	it("S194 AC 1 read back: a recorded check reads back, in month order, only inside the range asked", async () =>
+	{
+		const repo = await make();
+		await repo.recordScheduleMonthCheck("2026-05", T);
+		await repo.recordScheduleMonthCheck("2026-04", later(1000));
+		await repo.recordScheduleMonthCheck("2025-12", T);
+		expect(await repo.listScheduleMonthChecks("2026-01", "2027-12")).toEqual([
+			{
+				month: "2026-04",
+				checkedAt: later(1000),
+				claimedAt: null,
+			},
+			{
+				month: "2026-05",
+				checkedAt: T,
+				claimedAt: null,
+			},
+		]);
+	});
+
+	it("S194 AC 1 older check: recording an older check leaves a newer checkedAt as it was, a newer one moves it", async () =>
+	{
+		const repo = await make();
+		await repo.recordScheduleMonthCheck("2026-05", later(60_000));
+		await repo.recordScheduleMonthCheck("2026-05", T);
+		expect((await repo.listScheduleMonthChecks("2026-05", "2026-05"))[0]?.checkedAt).toBe(later(60_000));
+		await repo.recordScheduleMonthCheck("2026-05", later(120_000));
+		expect((await repo.listScheduleMonthChecks("2026-05", "2026-05"))[0]?.checkedAt).toBe(later(120_000));
+	});
+
+	it("S194 AC 1 lease: a claim inside the lease is refused to a second claimant and granted after it, keeping the month's check", async () =>
+	{
+		const repo = await make();
+		await repo.recordScheduleMonthCheck("2026-05", T);
+		expect(await repo.claimScheduleMonth("2026-05", T)).toBe(true);
+		expect(await repo.claimScheduleMonth("2026-05", later(SCHEDULE_MONTH_CLAIM_LEASE_MS - 1))).toBe(false);
+		expect((await repo.listScheduleMonthChecks("2026-05", "2026-05"))[0]?.claimedAt).toBe(T);
+		expect(await repo.claimScheduleMonth("2026-05", later(SCHEDULE_MONTH_CLAIM_LEASE_MS))).toBe(true);
+		expect(await repo.listScheduleMonthChecks("2026-05", "2026-05")).toEqual([{
+			month: "2026-05",
+			checkedAt: T,
+			claimedAt: later(SCHEDULE_MONTH_CLAIM_LEASE_MS),
+		}]);
+		// A month never recorded is unclaimed: the first claim creates its record.
+		expect(await repo.claimScheduleMonth("2026-06", T)).toBe(true);
+		expect(await repo.claimScheduleMonth("2026-06", T)).toBe(false);
 	});
 });

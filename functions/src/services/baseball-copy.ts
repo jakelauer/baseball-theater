@@ -105,10 +105,19 @@ export function baseballTables(): string[]
  * labels `none` must have one (`checkCopyRules`), so a table added later can't fall back to comparing two
  * databases' counters. `rebuiltFromGames` assumes the `games` table and a projection per `game_pk`.
  */
-export type CopyRule = "changedLater" | "rebuiltFromGames" | "patchCount";
+export type CopyRule = "changedLater" | "rebuiltFromGames" | "patchCount" | "neverCopied";
+
+/**
+ * Why a `neverCopied` table gets none of production's rows. `schedule_months` (S194) records when this
+ * database's own refresh last checked each month against MLB: production's checks describe data the
+ * target doesn't hold, so copying them would stop the target's refresh from rebuilding the months it
+ * hasn't checked itself.
+ */
+export const NEVER_COPIED_WHY = "never copied: it records the target's own schedule checks, which its refresh rebuilds";
 
 export const COPY_RULES: Readonly<Record<string, CopyRule>> = {
 	schedule_days: "changedLater",
+	schedule_months: "neverCopied",
 	games: "changedLater",
 	game_projections: "rebuiltFromGames",
 	replay_artifacts: "patchCount",
@@ -696,6 +705,9 @@ export async function copyBaseballData(deps: CopyDeps): Promise<TableCopy[]>
 			?? (table === "games" ? gamesWait : undefined);
 		if (why) copy = entry(table, {
 			skipped: why,
+		});
+		else if (rule === "neverCopied") copy = entry(table, {
+			skipped: NEVER_COPIED_WHY,
 		});
 		else if (rule === "rebuiltFromGames")
 		{

@@ -7,7 +7,7 @@
  * the stored one is a no-op (ADR-022 apply-if-newer).
  */
 import type {
-	AccountSettings, GameProjection, GameSnapshot, ScheduleDay, ScheduleDayTally,
+	AccountSettings, GameProjection, GameSnapshot, ScheduleDay, ScheduleDayTally, ScheduleMonthCheck,
 } from "@bt/domain";
 import type { ReplayPatchEntry } from "@bt/mlb-api";
 
@@ -21,6 +21,25 @@ export interface ScheduleRepository {
 	 * order, in one read (S124's month view): days nothing stored are left out.
 	 */
 	listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>;
+	/**
+	 * Every recorded schedule month from `from` to `to` (both included, `YYYY-MM`), in month order, in
+	 * one read (S194): when BT last checked each against MLB and when a refresh last claimed it. Months
+	 * never recorded are left out.
+	 */
+	listScheduleMonthChecks(from: string, to: string): Promise<ScheduleMonthCheck[]>;
+	/**
+	 * Records that BT checked `month` against MLB at `checkedAt` (an ISO instant), moving the stored
+	 * `checkedAt` only forward: the later of the stored and the given time stays, so a fill that
+	 * finishes late never moves it back (S194 AC 1).
+	 */
+	recordScheduleMonthCheck(month: string, checkedAt: string): Promise<void>;
+	/**
+	 * Claims `month` for a refresh at `at` (an ISO instant), in one conditional write: it succeeds,
+	 * and returns true, only when the month is unclaimed or its claim is at least
+	 * `SCHEDULE_MONTH_CLAIM_LEASE_MS` older than `at`; otherwise it changes nothing and returns false
+	 * (S194 AC 1), so two refreshes racing for a month never both take it.
+	 */
+	claimScheduleMonth(month: string, at: string): Promise<boolean>;
 }
 
 export interface GameRepository {
