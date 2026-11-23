@@ -727,6 +727,22 @@ describe("review-debt.sh and parity-debt.sh --json: the events behind a review's
 		]));
 	}, TIMEOUT);
 
+	it("review-debt.sh: a change to verify:run alone, the gate behind the verify lock, is verify-changed", () =>
+	{
+		const pkg = (gate: string) => `{\n"type": "module",\n"scripts": {\n"verify": "scripts/with-verify-lock.sh pnpm verify:run",\n"verify:run": "${gate}"\n}\n}\n`;
+		reviewed({
+			"package.json": pkg("pnpm build && pnpm size"),
+		});
+		write("package.json", pkg("pnpm build"));
+		commit("the gate drops a step");
+		expect(report("review-debt.sh").events).toEqual(expect.arrayContaining([
+			{
+				kind: "verify-changed",
+				path: "package.json",
+			},
+		]));
+	}, TIMEOUT);
+
 	it("review-debt.sh and parity-debt.sh: count carries the done IDs", () =>
 	{
 		reviewed();
