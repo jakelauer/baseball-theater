@@ -171,10 +171,10 @@ export interface LiveInningHit {
 	description?: string;
 }
 
-/** Gameday field pixels, origin at home plate. */
+/** Gameday field pixels, origin at home plate; `null` when an older record didn't place the hit (#359). */
 export interface SprayChartCoordinates {
-	x?: number;
-	y?: number;
+	x?: number | null;
+	y?: number | null;
 }
 
 /** One at-bat. `playEvents` is every pitch and action inside it. */
@@ -292,6 +292,9 @@ export interface LiveGamePlayEvent {
 	isSubstitution?: boolean;
 	type?: string;
 	playId?: string;
+	/** The id of the action this event belongs to, and whether it was a base-running play (older records). */
+	actionPlayId?: string;
+	isBaseRunningPlay?: boolean;
 	pitchNumber?: number;
 	startTime?: string;
 	endTime?: string;
@@ -480,6 +483,7 @@ export interface LiveTopPerformer {
 	type?: string;
 	gameScore?: number;
 	hittingGameScore?: number;
+	pitchingGameScore?: number;
 }
 
 export interface LiveDecisions {
