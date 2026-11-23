@@ -288,6 +288,7 @@ describe("opening, closing and moving (S125 AC 7)", () =>
 		expect(visits()).toEqual(["/games/2026-07-04"]);
 	});
 
+	// Many clicks and selects: give a loaded machine (two worktrees' gates at once) the time.
 	it("S125 AC 7: ‹ and › move one month, across a year's end into the neighbouring year, and stop at April 1901 and at latestScheduleMonth", async () =>
 	{
 		vi.useFakeTimers({
@@ -327,7 +328,7 @@ describe("opening, closing and moving (S125 AC 7)", () =>
 		await user.selectOptions(screen.getByLabelText("Month"), "4");
 		expect(prev()).toBeDisabled();
 		expect(next()).toBeEnabled();
-	});
+	}, 20_000);
 });
 
 describe("filled when it opens (S125 AC 8)", () =>
