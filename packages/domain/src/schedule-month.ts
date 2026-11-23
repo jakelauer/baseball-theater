@@ -48,8 +48,9 @@ export interface ScheduleDayCount
 	count: number | null;
 	/**
 	 * The MLB team IDs playing that day (away and home of every game counted in `count`, each
-	 * once, ascending; S136), so a client can mark the days a fan's favorites play without one
-	 * request per day. `[]` for a stored day with no games; `null` exactly when `count` is.
+	 * once, ascending; S136), so a client can mark the days a fan's favorites don't play
+	 * (`favoriteTeamsOff`, S159) without one request per day. `[]` for a stored day with no
+	 * games; `null` exactly when `count` is.
 	 * Every team is sent, not "a favorite plays", because favorites are personal and the month
 	 * answer is one shared, cached response (ADR-021).
 	 */

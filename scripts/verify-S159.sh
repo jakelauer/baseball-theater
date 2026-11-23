@@ -15,7 +15,7 @@ source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "favoriteTeamsOff(day, favoriteTeamIds, monthDays) in packages/domain/src/schedule-month.ts, exported from @bt/domain, days typed { teamIds?: readonly number[] | null; regularSeason?: boolean | null }, with every unit-test case AC 1 lists passing in schedule-month.test.ts (tagged \"S159 AC 1 <case>\")"
 check 2 "dayHasFavoriteTeam is removed with its tests: no dayHasFavoriteTeam under packages/, web/src/ or functions/src/; ScheduleDayCount.teamIds' comment, and so the committed spec openapi/bt-api.v1.json, says the days a fan's favorites don't play"
-check 3 "S159's snapshot records Status done (story_snapshot_status), and the story stays inside its scope files (packages/domain/, docs/v3/backlog/, docs/v3/audit/, changelog.d/, openapi/bt-api.v1.json since the owner's 2026-11-22 answer, plus its own records and scripts/verify-S159.sh), touching nothing else under scripts/ or test/"
+check 3 "S159's snapshot records Status done (story_snapshot_status), and the story stays inside its scope files (packages/domain/, docs/v3/backlog/, docs/v3/audit/, changelog.d/, openapi/bt-api.v1.json and web/src/api/generated/bt-api.v1.ts since the owner's 2026-11-22 and 2026-11-23 answers, plus its own records and scripts/verify-S159.sh), touching nothing else under scripts/ or test/"
 
 # The fence (check 3) reads only S159's own commits from here, through story_own_changed_files.
 BASE=b47be925
@@ -55,12 +55,13 @@ SPEC="openapi/bt-api.v1.json"
 grep -q "a fan's favorites play without" "$DOMAIN" "$SPEC" && bad 2 "teamIds' comment or $SPEC still says the days a fan's favorites play"
 grep -q "favorites don't play" "$DOMAIN" || bad 2 "$DOMAIN's teamIds comment does not say the days a fan's favorites don't play"
 grep -q "favorites don't play" "$SPEC" || bad 2 "$SPEC is not regenerated with teamIds' corrected description (pnpm api:spec)"
+grep -q "favorites don't play" web/src/api/generated/bt-api.v1.ts || bad 2 "web/src/api/generated/bt-api.v1.ts is not regenerated from the spec (pnpm --filter @bt/web api:types)"
 grep -q '{@link  *favoriteTeamsOff' "$SPEC" && bad 2 "$SPEC carries a {@link favoriteTeamsOff} tag"
 
 # --- Check 3: Status done, inside the fence --------------------------------------------------------------
 [ "$(story_snapshot_status S159)" = "done" ] || bad 3 "S159's snapshot does not record Status done"
 story_own_changed_files S159 "$BASE" . >"$TMP/changed.txt"
-grep -vE '^(packages/domain/|docs/v3/backlog/|docs/v3/audit/|changelog\.d/|openapi/bt-api\.v1\.json$|scripts/verify-S159\.sh$)' "$TMP/changed.txt" >"$TMP/fence.txt"
+grep -vE '^(packages/domain/|docs/v3/backlog/|docs/v3/audit/|changelog\.d/|openapi/bt-api\.v1\.json$|web/src/api/generated/bt-api\.v1\.ts$|scripts/verify-S159\.sh$)' "$TMP/changed.txt" >"$TMP/fence.txt"
 [ -s "$TMP/fence.txt" ] && bad 3 "the story changes files outside its scope: $(tr '\n' ' ' <"$TMP/fence.txt")"
 grep -E '^(test/|scripts/)' "$TMP/changed.txt" | grep -vE '^scripts/verify-S159\.sh$' >"$TMP/test-dir.txt"
 [ -s "$TMP/test-dir.txt" ] && bad 3 "the story changes files under scripts/ or test/: $(tr '\n' ' ' <"$TMP/test-dir.txt")"
