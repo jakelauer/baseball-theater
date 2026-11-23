@@ -182,6 +182,22 @@ describe("HttpMlbStatsClient (S2)", () =>
 		expect(asked.searchParams.get("leagueId")).toBe("103,104");
 	});
 
+	it("S102 AC 1: fetchStandings hydrates each record group's division, the request fixtures/raw/standings-2026-09-05-division.json records", async () =>
+	{
+		const { mlb, urls } = client();
+		await mlb.fetchStandings("2026-09-05");
+		const asked = new URL(urls.at(-1)!);
+		expect(asked.searchParams.get("hydrate")?.split(",")).toEqual(["team", "division"]);
+		// The recording is MLB's answer to that request: every group's division arrives named.
+		const recording = JSON.parse(readFileSync(path.join(RAW, "standings-2026-09-05-division.json"), "utf8")) as {
+			records: { league: { id: number };
+				division: { id: number;
+					nameShort?: string; }; }[];
+		};
+		expect(new Set(recording.records.map((r) => r.league.id))).toEqual(new Set([103, 104]));
+		expect(recording.records.every((r) => typeof r.division.nameShort === "string")).toBe(true);
+	});
+
 	it("fetchFinalStandings and fetchSpringStandings ask their own standings URLs (S128)", async () =>
 	{
 		const { mlb, urls } = client();
@@ -197,6 +213,16 @@ describe("HttpMlbStatsClient (S2)", () =>
 		const spring = new URL(urls[1]!);
 		expect(spring.searchParams.get("standingsTypes")).toBe("springTraining");
 		expect(spring.searchParams.get("date")).toBe("2026-03-01");
+	});
+
+	it("S102 AC 1: the final and spring standings hydrate each record group's division too", async () =>
+	{
+		const { mlb, urls } = client();
+		await mlb.fetchFinalStandings(2026);
+		await mlb.fetchSpringStandings(2026, "2026-03-01");
+		const [final, spring] = urls.map((url) => new URL(url));
+		expect(final!.searchParams.get("hydrate")).toBe("team,division");
+		expect(spring!.searchParams.get("hydrate")).toBe("team,division");
 	});
 
 	it("fetchPlayers asks for this season's stats, and asks nothing for no ids", async () =>

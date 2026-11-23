@@ -40,6 +40,7 @@ const fixtures: ReadonlyArray<[string, (input: unknown) => unknown]> = [
 	["graphql-content-823823.json", parseGraphContentResponse],
 	["timestamps-823823.json", parseGameTimestamps],
 	["standings-2026-09-05.json", parseStandingsResponse],
+	["standings-2026-09-05-division.json", parseStandingsResponse],
 	["seasons-2025.json", parseSeasonsResponse],
 	["seasons-2026.json", parseSeasonsResponse],
 	["seasons-2027.json", parseSeasonsResponse],

@@ -1,7 +1,6 @@
 import {
 	Box, Group, Stack, Table, Text, Title,
 } from "@mantine/core";
-import { divisionName } from "@bt/domain";
 import type { StandingsPayload } from "../../api/standings.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { TeamSwatch } from "../team/TeamSwatch.js";
@@ -44,8 +43,9 @@ function teamLabel(team: Team, short: boolean): string
  * One division's table (S4; standings-search-settings `standings-*`, A7, A9): the division name as
  * its heading, then each team in rank order — color swatch and name, abbreviation, then the figures
  * `columns` names. The leader's GB is "—": MLB's `"-"` arrives as `null` (the standings mapper), so
- * the dash is drawn here, never stored. The heading is `divisionName`, since the recording names no
- * division; an id it doesn't know falls back to MLB's own name.
+ * the dash is drawn here, never stored. The heading is MLB's short name for the division, `nameShort`
+ * (`AL East`, the text the ratified frames show; S102), and otherwise the table's full `name` (a league
+ * table before 1969 has no division, so it is `American League`).
  *
  * A7: on medium and desktop the table is only as wide as its content (the team column 166px, or
  * 192px in a table with a clinched team so a bold name with its letter fits, A9), scrolling inside
@@ -59,7 +59,7 @@ export function DivisionTable({
 	columns?: DivisionColumns;
 	variant?: LayoutVariant; })
 {
-	const heading = (division.divisionId !== null ? divisionName(division.divisionId) : undefined) ?? division.name ?? "Division";
+	const heading = division.nameShort ?? division.name ?? "Division";
 	const short = variant === "mobile";
 	const anyClinched = division.teams.some((team) => team.clinched);
 	const figures = columns !== "teams";
