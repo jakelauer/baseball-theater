@@ -68,14 +68,12 @@ function Games({ day, variant }: { day: ScheduleDayPayload;
 export function ScoreboardPage({ variant }: { variant: LayoutVariant })
 {
 	const { date } = useParams();
-	return date ? <ScoreboardDay date={date} variant={variant} /> : <DefaultScoreboardDay variant={variant} />;
-}
-
-/** No day in the URL: ask for the default; it is MLB's today if the server can't say. */
-function DefaultScoreboardDay({ variant }: { variant: LayoutVariant })
-{
-	const date = useScoreboardDefaultDate();
-	return date ? <ScoreboardDay date={date} variant={variant} /> : <ViewState kind="loading" />;
+	// Asked once here, above the day: it is the undated page's day and the calendar's `Today`
+	// (S125). A second reader inside the day would remount on an error and refetch it in a loop.
+	const today = useScoreboardDefaultDate();
+	if (date) return <ScoreboardDay date={date} variant={variant} today={today} />;
+	// No day in the URL: the default; it is MLB's today if the server can't say.
+	return today ? <ScoreboardDay date={today} variant={variant} today={today} /> : <ViewState kind="loading" />;
 }
 
 /**
@@ -83,10 +81,14 @@ function DefaultScoreboardDay({ variant }: { variant: LayoutVariant })
  * `ScoreboardModule`s — one column on mobile, two on medium and desktop, from the
  * host's `variant` — and the day digest under them (S71), or the loading, empty or
  * error state from `ViewState`. The
- * date control stays through every state so the reader can always move to another day.
+ * date control stays through every state so the reader can always move to another day; its
+ * calendar's `Today` is the server's default day (S125, shell-scoreboard A8).
  */
-function ScoreboardDay({ date, variant }: { date: string;
-	variant: LayoutVariant; })
+function ScoreboardDay({
+	date, variant, today,
+}: { date: string;
+	variant: LayoutVariant;
+	today: string | undefined; })
 {
 	const {
 		data: day, error, refetch,
@@ -121,7 +123,8 @@ function ScoreboardDay({ date, variant }: { date: string;
 
 	return (
 		<Stack gap="md">
-			<DateControl date={date} />
+			{/* Keyed by the day, so a change of day (a pick, an arrow, Back) closes the calendar (S125). */}
+			<DateControl key={date} date={date} variant={variant} today={today} />
 			{body}
 		</Stack>
 	);
