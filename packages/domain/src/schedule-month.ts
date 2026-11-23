@@ -160,10 +160,10 @@ export function dayRegularSeasonTeamIds(games: readonly { gameType: unknown;
  *
  * The answer is only as fresh as the other months' stored days: a team's first or last game that
  * MLB moved (a postponement at a season's edge) shows once that day is stored again. The month
- * service's fill asks MLB, inside its fill window, for the year's days it doesn't hold and for
- * the shown month's and the rest of the year's stored days once their lifetimes run out, so the
- * other months' days are at most one lifetime old there; an earlier season's are as fresh as the
- * backfill left them.
+ * service's fill asks MLB, inside its fill window, for the year's days it doesn't hold, for any
+ * season month still stored with no games once the year holds games, and for the shown month once
+ * its lifetime runs out; another month's stored days are otherwise as fresh as its own last fill,
+ * and an earlier season's as the backfill left them.
  */
 export function teamsInOwnSeason(
 	yearDays: readonly Pick<ScheduleDayTally, "date" | "gameTypes" | "regularSeasonTeamIds">[],

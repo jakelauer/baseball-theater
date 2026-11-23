@@ -17,10 +17,11 @@
  * the scoreboard's own refresh and the backfill (S122), so one month read is one MLB request,
  * not hundreds. Past seasons are never asked for here; what the backfill stored is what they show.
  *
- * Stored days inside the window are asked for again once their ADR-021 lifetime has run out
- * (`needsRefresh`, the ladder single days use), judged for the month's days and, since S191, for
- * the rest of its year's, in the same one request, so a future month stored empty before MLB
- * published its schedule gains its games later, whichever month of its year is opened.
+ * The month's stored days inside the window are asked for again once its ADR-021 lifetime has run
+ * out (`needsRefresh`, the ladder single days use), so a future month stored empty before MLB
+ * published its schedule gains its games later; since S191 so does any season month of its year
+ * still stored with no games once the year holds games, in the same one request, whichever month
+ * of the year is opened (`rangeToAsk`).
  */
 import type {
 	ScheduleDay, ScheduleDayCount, ScheduleDayTally, Unversioned,
@@ -52,66 +53,62 @@ export interface ScheduleMonth
 }
 
 /**
- * A group of stored days as `needsRefresh` judges it (ADR-021's ladder over the group): last
- * checked no later than its oldest fetch, since every held day has been fetched since then but
- * nothing says the oldest one was fetched again after (an unchanged refresh writes nothing,
- * ADR-022), so this is the safe lower bound; a stamp that doesn't parse means "never checked".
- * Its last change is the newest among its days. `null` for no days.
+ * The months of a year that hold MLB's regular season (S191): its openers, even an overseas one in
+ * mid-March, fall in March, and its last games, a tiebreaker included, by early October. The other
+ * months are empty in an ordinary year, so a season month stored with no games at all, in a year
+ * that holds games, was stored before MLB published its schedule.
  */
-function asChecked(held: readonly ScheduleDayTally[])
+const SEASON_MONTHS = ["03", "04", "05", "06", "07", "08", "09", "10"];
+
+/**
+ * The span of days to ask MLB for, or null when none needs asking. It runs from the first to the
+ * last of the days that need asking, so any held day between them is asked again too:
+ *
+ * - every one of `fillable` (the month's in-window days) once the month's stored data has outlived
+ *   its lifetime (`needsRefresh` under `key`, as before S191);
+ * - every one of `yearFillable` (its year's in-window days, which include the month's, S191) that
+ *   BT doesn't hold;
+ * - every in-window day of a season month ({@link SEASON_MONTHS}) whose stored days all hold no
+ *   games, when the year holds a game somewhere (so MLB has published it): a month stored before
+ *   MLB published, which a fill gives its games and so stops asking for.
+ *
+ * The rest of the year's held days are not judged by a lifetime: an unchanged refresh writes
+ * nothing (ADR-022), so a stored row's fetch and change stamps stay equal and every such judgment
+ * would land on the ladder's floor, asking for the whole year every few minutes. One range either
+ * way, so a month is never more than one request (at most 366 days; `storeSchedule` writes only
+ * what changed).
+ */
+function rangeToAsk(deps: IngestDeps, key: string, fillable: string[], yearFillable: string[], stored: ScheduleDayTally[], now: Date): [string, string] | null
 {
-	if (held.length === 0) return null;
+	const heldDates = new Set(stored.map((day) => day.date));
+	const ends = yearFillable.filter((date) => !heldDates.has(date));
+	ends.splice(1, Math.max(0, ends.length - 2));
+	if (stored.some((day) => day.gameCount > 0))
+	{
+		for (const season of SEASON_MONTHS)
+		{
+			const days = yearFillable.filter((date) => date.slice(5, 7) === season);
+			const held = stored.filter((day) => day.date.slice(5, 7) === season && heldDates.has(day.date));
+			if (days.length > 0 && held.length > 0 && held.every((day) => day.gameCount === 0)) ends.push(days[0]!, days.at(-1)!);
+		}
+	}
+	const inMonth = new Set(fillable);
+	const held = stored.filter((day) => inMonth.has(day.date));
+	// The month was last checked no later than its oldest fetch: every held day has been fetched
+	// since then, but nothing says the oldest one was fetched again after (an unchanged refresh
+	// writes nothing, ADR-022), so this is the safe lower bound; a stamp that doesn't parse means
+	// "never checked". Its last change is the newest among its days (ADR-021's ladder over the month).
 	const fetchedTimes = held.map((day) => Date.parse(day.fetchedAt));
 	const oldestFetch = fetchedTimes.some(Number.isNaN) ? undefined : Math.min(...fetchedTimes);
-	return {
+	const month = held.length === 0 ? null : {
 		fetchedAt: oldestFetch === undefined ? undefined : new Date(oldestFetch).toISOString(),
 		lastChangedAt: monthLastChangedAt(held),
 		windowMode: "cache" as const,
 	};
-}
-
-/**
- * What to ask MLB for, or null when nothing needs asking: one range of days and the refresh key it
- * runs under. The range runs from the first to the last of the days that need asking, which are
- * every one of `fillable` (the month's in-window days) once the month's stored data has outlived
- * its lifetime (judged under `monthKey`), every one of `yearFillable` (its year's in-window days,
- * which include the month's, S191) once the year's other held in-window days have outlived theirs
- * (judged under `yearKey`), and every one of `yearFillable` BT doesn't hold. Any held day between
- * the first and the last is asked again too, so a fill of the year's stale days is its whole
- * in-window span. One range either way, so a month is never more than one request (at most 366
- * days; `storeSchedule` writes only what changed, ADR-022). A range that refreshes the other
- * months runs under `yearKey`, which then counts as a check of the month too (the range covers
- * it); any other runs under `monthKey`.
- */
-function rangeToAsk(
-	deps: IngestDeps,
-	keys: { monthKey: string;
-		yearKey: string; },
-	fillable: string[],
-	yearFillable: string[],
-	stored: ScheduleDayTally[],
-	now: Date,
-): { range: [string, string];
-	key: string; } | null
-{
-	const heldDates = new Set(stored.map((day) => day.date));
-	const missing = yearFillable.filter((date) => !heldDates.has(date));
-	const inMonth = new Set(fillable);
-	const inYear = new Set(yearFillable);
-	const month = asChecked(stored.filter((day) => inMonth.has(day.date)));
-	const others = asChecked(stored.filter((day) => inYear.has(day.date) && !inMonth.has(day.date)));
-	// A refresh under the year key covered the month too, so the month is stale only if both say so.
-	const monthStale = month !== null && needsRefresh(deps, keys.monthKey, month, now, false) && needsRefresh(deps, keys.yearKey, month, now, false);
-	const othersStale = others !== null && needsRefresh(deps, keys.yearKey, others, now, false);
-	const ends = [...missing.slice(0, 1), ...missing.slice(-1)];
-	if (monthStale) ends.push(fillable[0]!, fillable.at(-1)!);
-	if (othersStale) ends.push(yearFillable[0]!, yearFillable.at(-1)!);
+	if (month && needsRefresh(deps, key, month, now, false)) ends.push(fillable[0]!, fillable.at(-1)!);
 	if (ends.length === 0) return null;
 	ends.sort();
-	return {
-		range: [ends[0]!, ends.at(-1)!],
-		key: othersStale ? keys.yearKey : keys.monthKey,
-	};
+	return [ends[0]!, ends.at(-1)!];
 }
 
 /**
@@ -134,16 +131,12 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 
 	// MLB's today, not UTC's: 03:00 UTC on January 1 is still December 31 for MLB.
 	const window = scheduleFillWindow(mlbToday(now));
-	const keys = {
-		monthKey: `schedule-month:${month}`,
-		yearKey: `schedule-year:${month.slice(0, 4)}`,
-	};
+	const key = `schedule-month:${month}`;
 	const inWindow = (date: string) => date >= window.first && date <= window.last;
-	const ask = rangeToAsk(deps, keys, dates.filter(inWindow), datesBetween(yearFirst, yearLast).filter(inWindow), stored, now);
-	if (ask)
+	const range = rangeToAsk(deps, key, dates.filter(inWindow), datesBetween(yearFirst, yearLast).filter(inWindow), stored, now);
+	if (range)
 	{
-		const { range } = ask;
-		const filled = await runRefresh(deps, ask.key, async () =>
+		const filled = await runRefresh(deps, key, async () =>
 		{
 			const fetchedAt = now.toISOString();
 			let days: Unversioned<ScheduleDay>[];
