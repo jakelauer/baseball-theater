@@ -20,7 +20,8 @@
  * The game's three extra sources — content (videos and recap), play metrics and the GraphQL
  * game content — exist only for recent games, so each is asked on its own and given up after
  * {@link GIVE_UP_AFTER_DAYS} consecutive failed days of games (`recordSourceDay`). The live
- * feed is never given up: a game whose feed fails leaves its day incomplete for the next run.
+ * feed is never given up: a game whose feed fails leaves its day incomplete for the next run, and
+ * its reason is logged (#359).
  *
  * A day's games are all fetched first, its source answers counted and saved, and only then
  * are its games written. A stop after the save re-fetches the day's games on resume but can't
@@ -123,11 +124,27 @@ async function ask<T>(asked: boolean, call: () => Promise<T | null>): Promise<T 
 }
 
 /**
+ * Why a game's feed failed, in one short line for the progress log (#359): a parser's error
+ * (zod's `issues`) names each distinct field path it rejected, indices collapsed, so a feed with
+ * a hundred bad hits reads as one path; any other error is its message.
+ */
+function failureReason(error: unknown): string
+{
+	const issues = (error as { issues?: { path: (string | number)[];
+		message: string; }[]; } | null)?.issues;
+	if (!Array.isArray(issues)) return error instanceof Error ? error.message : String(error);
+	const distinct = [...new Set(issues.map((issue) => `${issue.path.map((part) => typeof part === "number" ? "*" : part).join(".")}: ${issue.message}`))];
+	return distinct.join("; ");
+}
+
+/**
  * What one game's fetch came to, for the day's tally. A fetched game is not yet written: the
  * day's answers are saved first (see the module comment), then {@link ingestGame} writes it.
  */
 type GameOutcome =
-	| { kind: "unchanged" | "repaired" | "feedFailed" }
+	| { kind: "unchanged" | "repaired" }
+	| { kind: "feedFailed";
+		reason: string; }
 	| { kind: "fetched";
 		game: Unversioned<GameSnapshot>;
 		answered: Partial<Record<ExtraSource, boolean>>; };
@@ -150,10 +167,11 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 	{
 		feed = await deps.mlb.fetchGameFeed(gamePk);
 	}
-	catch
+	catch (error)
 	{
 		return {
 			kind: "feedFailed",
+			reason: failureReason(error),
 		};
 	}
 	const [editorial, playMetrics, graph] = await Promise.all([
@@ -255,9 +273,13 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 		const outcomes = await Promise.all(finals.map((game) => fetchGame(deps, game.gamePk, asking, now.toISOString(), windowMode)));
 
 		let repaired = 0;
-		for (const outcome of outcomes)
+		for (const [index, outcome] of outcomes.entries())
 		{
-			if (outcome.kind === "feedFailed") complete = false;
+			if (outcome.kind === "feedFailed")
+			{
+				complete = false;
+				log(`${day}: game ${finals[index]!.gamePk}'s live feed failed (${outcome.reason}); left for the next run`);
+			}
 			if (outcome.kind === "repaired") repaired++;
 			if (outcome.kind === "fetched") askedMlb = true;
 		}

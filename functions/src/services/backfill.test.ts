@@ -17,6 +17,7 @@ import type {
 import {
 	addDays, GIVE_UP_AFTER_DAYS, sourceGivenUpAt,
 } from "@bt/domain";
+import { parseLiveFeedResponse, parseScheduleResponse } from "@bt/mlb-api";
 import type {
 	GameProjectionRepository, GameRepository, MlbGameSources, ScheduleRepository,
 } from "@bt/ports";
@@ -1277,6 +1278,90 @@ describe("runBackfill on the recordings through PGlite (S122 AC 3)", () =>
 		expect(asked.filter((u) => u.includes("/schedule"))).toEqual([]);
 		expect(asked.filter((u) => u.includes("/feed/live"))).toHaveLength(14);
 		expect(repos.writes).toEqual([]);
+	});
+});
+
+/**
+ * #359: older MLB records stored almost no games. Each day here is a real recording (2026-11-23),
+ * trimmed to its one game, with that game's live feed: the 2002 All-Star Game, whose schedule
+ * linescore names no team for its All-Star sides, and a 1995 and a 1985 regular-season game, whose
+ * feeds (like every pre-Statcast feed recorded) send `null` spray-chart coordinates for each hit.
+ */
+describe("runBackfill on records before 2005 (#359)", () =>
+{
+	const OLD_DAYS = [
+		["2002-07-09", 12048],
+		["1995-07-09", 209865],
+		["1985-07-07", 189236],
+	] as const;
+
+	/** The day's trimmed schedule and its game's feed from fixtures/raw; a 404 for everything else. */
+	function oldDayFetch(): typeof fetch
+	{
+		const raw = path.join(FIXTURES_ROOT, "raw");
+		return async (input) =>
+		{
+			const url = new URL(String(input));
+			const date = url.searchParams.get("date");
+			const feed = /^\/api\/v1\.1\/game\/(\d+)\/feed\/live$/.exec(url.pathname)?.[1];
+			const file = url.pathname === "/api/v1/schedule" && date ? `schedule-${date}.json`
+				: feed && OLD_DAYS.some(([, pk]) => String(pk) === feed) ? `live-${feed}.json` : null;
+			return file ? new Response(readFileSync(path.join(raw, file))) : new Response("{}", {
+				status: 404,
+			});
+		};
+	}
+
+	it.each(OLD_DAYS)("%s: the day and its final game %i are stored (#359)", async (date, gamePk) =>
+	{
+		// The parsers first, so a failure names the field MLB's older record left out.
+		const raw = path.join(FIXTURES_ROOT, "raw");
+		parseScheduleResponse(JSON.parse(readFileSync(path.join(raw, `schedule-${date}.json`), "utf8")));
+		parseLiveFeedResponse(JSON.parse(readFileSync(path.join(raw, `live-${gamePk}.json`), "utf8")));
+		const { db } = await migratedPglite();
+		const mlb = new HttpMlbStatsClient({
+			fetchImpl: oldDayFetch(),
+			now: NOW,
+		});
+		const repos = counted({
+			schedules: new PostgresScheduleRepository(db),
+			games: new PostgresGameRepository(db),
+			projections: new PostgresGameProjectionRepository(db),
+		});
+		const result = await runBackfill(deps(mlb, repos, memoryStore()), {
+			from: date,
+			to: date,
+		});
+		expect(result.incomplete).toEqual([]);
+		expect(result.gamesStored).toBe(1);
+		expect((await repos.schedules.getByDate(date))?.games.map((game) => game.gamePk)).toEqual([gamePk]);
+		const stored = await repos.games.getByPk(gamePk);
+		expect(stored?.status.codedGameState).toBe("F");
+		expect(stored?.plays.length).toBeGreaterThan(0);
+		expect((await repos.projections.getByPk(gamePk))?.header.version).toBe(1);
+	});
+
+	it("a game whose feed the parser rejects logs its gamePk and each rejected field once, and leaves its day for the next run (#359)", async () =>
+	{
+		const raw = path.join(FIXTURES_ROOT, "raw");
+		const feed = JSON.parse(readFileSync(path.join(raw, "live-189236.json"), "utf8")) as { liveData: { plays: { playsByInning: { hits: { away: { coordinates: { x: unknown } }[] } }[] } } };
+		for (const inning of feed.liveData.plays.playsByInning) for (const hit of inning.hits.away) hit.coordinates.x = "left field";
+		const fetchImpl = oldDayFetch();
+		const mlb = new HttpMlbStatsClient({
+			fetchImpl: async (input, init) => String(input).includes("/feed/live") ? new Response(JSON.stringify(feed)) : fetchImpl(input, init),
+			now: NOW,
+		});
+		const lines: string[] = [];
+		const result = await runBackfill(deps(mlb, counted(memoryRepos()), memoryStore(), {
+			log: (line) => lines.push(line),
+		}), {
+			from: "1985-07-07",
+			to: "1985-07-07",
+		});
+		expect(result.incomplete).toEqual(["1985-07-07"]);
+		expect(lines).toContain(
+			"1985-07-07: game 189236's live feed failed (liveData.plays.playsByInning.*.hits.away.*.coordinates.x: Expected number, received string); left for the next run",
+		);
 	});
 });
 

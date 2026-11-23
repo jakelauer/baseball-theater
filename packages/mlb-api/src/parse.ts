@@ -88,6 +88,7 @@ const statusSchema = z.object({
 	statusCode: z.string().optional(),
 	abstractGameCode: z.string().optional(),
 	startTimeTBD: z.boolean().optional(),
+	reason: z.string().optional(),
 });
 
 const venueSchema = mlbRefSchema.extend({
@@ -101,6 +102,7 @@ const venueSchema = mlbRefSchema.extend({
 			country: z.string().optional(),
 			address1: z.string().optional(),
 			postalCode: z.string().optional(),
+			phone: z.string().optional(),
 			elevation: z.number().optional(),
 			azimuthAngle: z.number().optional(),
 			defaultCoordinates: z
@@ -308,6 +310,11 @@ const personSchema = z.object({
 	birthCity: z.string().optional(),
 	birthStateProvince: z.string().optional(),
 	birthCountry: z.string().optional(),
+	deathDate: z.string().optional(),
+	deathCity: z.string().optional(),
+	deathStateProvince: z.string().optional(),
+	deathCountry: z.string().optional(),
+	lastPlayedDate: z.string().optional(),
 	currentAge: z.number().optional(),
 	height: z.string().optional(),
 	weight: z.number().optional(),
@@ -377,6 +384,7 @@ const linescoreInningLineSchema = z.object({
 	hits: z.number().optional(),
 	errors: z.number().optional(),
 	leftOnBase: z.number().optional(),
+	isWinner: z.boolean().optional(),
 });
 
 const linescoreInningSchema = z.object({
@@ -392,7 +400,10 @@ const lineupSchema = z.object({
 	inHole: personSchema.optional(),
 	pitcher: personSchema.optional(),
 	battingOrder: z.number().optional(),
-	team: teamSchema.optional(),
+	// An All-Star or exhibition side (the AL and NL All-Stars, a college club) comes as `{ id, link }` with no name (#359).
+	team: teamSchema.partial({
+		name: true,
+	}).optional(),
 });
 
 const linescoreSchema = z.object({
@@ -428,6 +439,7 @@ const linescoreSchema = z.object({
 	inningHalf: z.string().optional(),
 	isTopInning: z.boolean().optional(),
 	scheduledInnings: z.number().optional(),
+	note: z.string().optional(),
 	balls: z.number().optional(),
 	strikes: z.number().optional(),
 	outs: z.number().optional(),
@@ -455,6 +467,8 @@ const playEventSchema = z.object({
 	isSubstitution: z.boolean().optional(),
 	type: z.string().optional(),
 	playId: z.string().optional(),
+	actionPlayId: z.string().optional(),
+	isBaseRunningPlay: z.boolean().optional(),
 	pitchNumber: z.number().optional(),
 	startTime: z.string().optional(),
 	endTime: z.string().optional(),
@@ -1061,6 +1075,7 @@ const boxscoreSchema = z.object({
 				type: z.string().optional(),
 				gameScore: z.number().optional(),
 				hittingGameScore: z.number().optional(),
+				pitchingGameScore: z.number().optional(),
 			}),
 		)
 		.optional(),
@@ -1071,10 +1086,11 @@ const inningHitSchema = z.object({
 	inning: z.number().optional(),
 	pitcher: personSchema.optional(),
 	batter: personSchema.optional(),
+	// Feeds from before Statcast (every one recorded from 2002, 1995 and 1985) send `null` for a hit with no placement (#359).
 	coordinates: z
 		.object({
-			x: z.number().optional(),
-			y: z.number().optional(),
+			x: z.number().nullable().optional(),
+			y: z.number().nullable().optional(),
 		})
 		.optional(),
 	type: z.string().optional(),
