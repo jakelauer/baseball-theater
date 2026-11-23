@@ -108,6 +108,11 @@ class FakeMlbStatsClient implements MlbStatsClient
 		return null;
 	}
 
+	async fetchPlayerOfTheGame(): Promise<null>
+	{
+		return null;
+	}
+
 	async fetchSeasonCalendar(): Promise<null>
 	{
 		return null;
@@ -193,19 +198,21 @@ describe("fixture recorder", () =>
 			},
 		);
 
-		// The eight names packages/mlb-api/src/coverage.test.ts consumes (play metrics since S93, GraphQL content since S94).
+		// The nine names packages/mlb-api/src/coverage.test.ts consumes (play metrics since S93, GraphQL content since S94,
+		// player of the game since S99).
 		expect(written).toEqual([
 			`schedule-${DATE}.json`,
 			`live-${GAME_PK}.json`,
 			`content-${GAME_PK}.json`,
 			`timestamps-${GAME_PK}.json`,
 			`playmetrics-${GAME_PK}.json`,
+			`potg-${GAME_PK}.json`,
 			`graphql-content-${GAME_PK}.json`,
 			`standings-${DATE}.json`,
 			`people-${GAME_PK}.json`,
 		]);
-		expect(seen).toHaveLength(8);
-		expect(await readdir(path.join(out, "raw"))).toHaveLength(8);
+		expect(seen).toHaveLength(9);
+		expect(await readdir(path.join(out, "raw"))).toHaveLength(9);
 
 		// Byte-exact: not re-stringified through JSON.parse.
 		const onDisk = await readFile(path.join(out, "raw", `live-${GAME_PK}.json`), "utf8");

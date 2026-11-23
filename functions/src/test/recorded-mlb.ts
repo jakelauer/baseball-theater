@@ -1,6 +1,6 @@
 /**
  * `HttpMlbStatsClient` on the committed recordings (S112): an injected fetch stand-in serves
- * `fixtures/raw/` by URL — 823823's feed, content, play metrics and GraphQL content, each
+ * `fixtures/raw/` by URL — 823823's feed, content, play metrics, player of the game (S99) and GraphQL content, each
  * recorded day's schedule, the seasons and World Series, and the standings (a day's, a season's
  * final and spring tables, S128) — and answers MLB's empty day or empty table for one without a
  * recording and 404 for anything else. A schedule range (`startDate`/`endDate`, S124) is answered
@@ -33,6 +33,7 @@ function recorded(url: URL): string | null
 {
 	if (url.hostname === "data-graph.mlb.com") return "graphql-content-823823.json";
 	if (url.pathname.endsWith("/bdfed/playMetrics/823823")) return "playmetrics-823823.json";
+	if (url.hostname === "www.mlb.com" && url.pathname === "/apps/player-of-the-game/game/json/winners/823823.json") return "potg-823823.json";
 	if (url.searchParams.get("gameType") === "W") return `worldseries-${url.searchParams.get("season")}.json`;
 	const season = /\/api\/v1\/seasons\/(\d{4})$/.exec(url.pathname);
 	if (season) return `seasons-${season[1]}.json`;

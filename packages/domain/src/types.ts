@@ -219,6 +219,27 @@ export type GameGraphContent = {
 	relatedArticles: RelatedArticle[];
 };
 
+/**
+ * One player-of-the-game pick (S99): MLB's person id for the player, his team's id, his line as MLB
+ * words it (`1.2 IP, 0 ER, K, BB`) and the win probability he added, in percentage points (40.7).
+ * `summary` and `winProbabilityAdded` are null when MLB's pick leaves them out.
+ */
+export type PlayerOfTheGamePick = {
+	playerId: number;
+	teamId: number | null;
+	summary: string | null;
+	winProbabilityAdded: number | null;
+};
+
+/**
+ * MLB's player of the game (S99): the media's pick and the fans' pick, each absent until MLB names
+ * a player for it. Never an object with neither: a game with no pick has no `playerOfTheGame`.
+ */
+export type PlayerOfTheGame = {
+	media?: PlayerOfTheGamePick;
+	fan?: PlayerOfTheGamePick;
+};
+
 export type GameSnapshot = {
 	gamePk: number;
 	gameDate: string; // YYYY-MM-DD (schedule date)
@@ -266,6 +287,12 @@ export type GameSnapshot = {
 	videoPlayRefs?: VideoPlayRef[];
 	/** mlb.com stories about the game (S94); absent, like `videoPlayRefs`, when the source failed or had none. */
 	relatedArticles?: RelatedArticle[];
+	/**
+	 * MLB's player of the game (S99), asked only once a regular-season or postseason game from 2024 on is over
+	 * (`playerOfTheGameExpected`). Absent when the feed (an mlb.com app feed) failed, was slow or had no pick:
+	 * the game is served as before.
+	 */
+	playerOfTheGame?: PlayerOfTheGame;
 	/** Who is on base and who is batting and pitching (S63); `null` unless in progress, absent on older recordings. */
 	live?: GameLive | null;
 	fetchedAt: string; // ISO

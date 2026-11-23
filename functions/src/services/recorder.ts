@@ -31,7 +31,7 @@ import type { StandingsResponse } from "@bt/mlb-api";
 import { parseSearchResponse, parseStandingsResponse } from "@bt/mlb-api";
 import type { MlbStatsClient } from "@bt/ports";
 import {
-	finalStandingsUrl, graphContentRequest, playMetricsUrl, searchHighlightsRequest, seasonsUrl, springStandingsUrl, standingsUrl, worldSeriesUrl,
+	finalStandingsUrl, graphContentRequest, playMetricsUrl, playerOfTheGameUrl, searchHighlightsRequest, seasonsUrl, springStandingsUrl, standingsUrl, worldSeriesUrl,
 } from "../adapters/http/mlb.js";
 import { searchFixtureName } from "../adapters/fixtures/fixture-client.js";
 import { mapStandings } from "../mappers/standings.js";
@@ -62,7 +62,7 @@ export interface RawEndpoint {
 }
 
 /**
- * The six `fixtures/raw/<endpoint>-<key>.json` names consumed by
+ * The `fixtures/raw/<endpoint>-<key>.json` names consumed by
  * `packages/mlb-api/src/coverage.test.ts`. Re-recording keeps that gate and
  * the S22 prerequisite regenerable instead of orphaning them.
  */
@@ -94,6 +94,11 @@ export function rawEndpoints(
 			// MLB's play-metrics feed (S93), on its own host: the URL the HTTP client asks.
 			name: `playmetrics-${gamePk}`,
 			url: playMetricsUrl(gamePk),
+		},
+		{
+			// MLB's player of the game (S99), an mlb.com app feed: the URL the HTTP client asks.
+			name: `potg-${gamePk}`,
+			url: playerOfTheGameUrl(gamePk),
 		},
 		{
 			// MLB's GraphQL game content (S94): the request the HTTP client makes, headers included.

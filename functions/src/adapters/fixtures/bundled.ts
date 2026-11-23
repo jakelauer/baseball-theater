@@ -3,7 +3,7 @@
  * `node:fs`, so the files the API serves are static JSON imports, and the fixture
  * client reads them through the same `FixtureFiles` port Node uses. Only what
  * `FixtureClient` reads by name is here — schedules, games, plays, standings,
- * players, play metrics, season calendars and each season's final and spring standings (S128; S139 adds 2027's
+ * players, play metrics, player of the game (S99), season calendars and each season's final and spring standings (S128; S139 adds 2027's
  * season table, which lists the new season's teams before its first game, and 2026-09-12's mapped table), and
  * MLB's recorded table for each dated day (S160: `fetchStandings` maps `raw/standings-<date>.json` first, so the
  * Worker serves what the mapper adds, the clinch letter among it; the mapped `standings-<date>.json` stays as the
@@ -19,6 +19,7 @@ import plays744834 from "../../../../fixtures/plays-744834.json" with { type: "j
 import plays823823 from "../../../../fixtures/plays-823823.json" with { type: "json" };
 import graphContent823823 from "../../../../fixtures/raw/graphql-content-823823.json" with { type: "json" };
 import playMetrics823823 from "../../../../fixtures/raw/playmetrics-823823.json" with { type: "json" };
+import playerOfTheGame823823 from "../../../../fixtures/raw/potg-823823.json" with { type: "json" };
 import seasons1950 from "../../../../fixtures/raw/seasons-1950.json" with { type: "json" };
 import seasons2025 from "../../../../fixtures/raw/seasons-2025.json" with { type: "json" };
 import seasons2026 from "../../../../fixtures/raw/seasons-2026.json" with { type: "json" };
@@ -56,6 +57,8 @@ export const BUNDLED_FIXTURES: Readonly<Record<string, unknown>> = {
 	"raw/playmetrics-823823.json": playMetrics823823,
 	// MLB's recorded GraphQL game content (S94).
 	"raw/graphql-content-823823.json": graphContent823823,
+	// MLB's recorded player of the game (S99).
+	"raw/potg-823823.json": playerOfTheGame823823,
 	// The recorded season calendars and World Series (S111), for the scoreboard's default day.
 	// 1950 (S155): a season before divisions, and before MLB gave spring dates.
 	"raw/seasons-1950.json": seasons1950,

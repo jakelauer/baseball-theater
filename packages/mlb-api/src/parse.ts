@@ -13,6 +13,7 @@ import type { LiveFeedResponse } from "./live.js";
 import type { PeopleResponse } from "./people.js";
 import type { GraphContentResponse } from "./graphql-content.js";
 import type { PlayMetricsResponse } from "./playmetrics.js";
+import type { PlayerOfTheGameResponse } from "./player-of-the-game.js";
 import type { ScheduleResponse } from "./schedule.js";
 import type { SeasonsResponse } from "./seasons.js";
 import type { StandingsResponse } from "./standings.js";
@@ -1507,6 +1508,28 @@ const playMetricsResponseSchema = z.object({
 export function parsePlayMetricsResponse(input: unknown): PlayMetricsResponse
 {
 	return playMetricsResponseSchema.parse(input);
+}
+
+const playerOfTheGameWinnerSchema = z.object({
+	playerId: z.number().nullable().optional(),
+	feedId: z.string().nullable().optional(),
+	boxscoreName: z.string().nullable().optional(),
+	WPA: z.number().nullable().optional(),
+	teamID: z.string().nullable().optional(),
+	summary: z.string().nullable().optional(),
+	summaryES: z.string().nullable().optional(),
+});
+
+const playerOfTheGameResponseSchema = z.object({
+	gamePK: z.string().optional(),
+	fanWinner: playerOfTheGameWinnerSchema.optional(),
+	mediaWinner: playerOfTheGameWinnerSchema.optional(),
+});
+
+/** `GET www.mlb.com/apps/player-of-the-game/game/json/winners/{gamePk}.json` (S99; an mlb.com app feed). */
+export function parsePlayerOfTheGameResponse(input: unknown): PlayerOfTheGameResponse
+{
+	return playerOfTheGameResponseSchema.parse(input);
 }
 
 const graphContentTagSchema = z.object({

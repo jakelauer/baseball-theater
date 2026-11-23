@@ -1,0 +1,21 @@
+{
+    "gamePK": "823823",
+    "fanWinner": {
+        "playerId": null,
+        "feedId": null,
+        "boxscoreName": null,
+        "WPA": null,
+        "teamID": null,
+        "summary": null,
+        "summaryES": null
+    },
+    "mediaWinner": {
+        "playerId": 1564,
+        "feedId": "666171",
+        "boxscoreName": "Zeferjahn",
+        "WPA": 40.7,
+        "teamID": "112",
+        "summary": "1.2 IP, 0 ER, K, BB",
+        "summaryES": "1.2 IL, 0 CL, P, BB"
+    }
+}

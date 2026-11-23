@@ -497,6 +497,8 @@ export interface components {
             officialDate: string;
             /** @description MLB's per-at-bat win probability and key-moment flags (S93). Absent when the feed (an internal mlb.com source) failed or had nothing: the game is served as before. */
             playMetrics?: components["schemas"]["GamePlayMetrics"];
+            /** @description MLB's player of the game (S99), asked only once a regular-season or postseason game from 2024 on is over (`playerOfTheGameExpected`). Absent when the feed (an mlb.com app feed) failed, was slow or had no pick: the game is served as before. */
+            playerOfTheGame?: components["schemas"]["PlayerOfTheGame"];
             plays: components["schemas"]["AtBat"][];
             /** @description MLB's editorial recap (S10); absent until MLB publishes one. */
             recap?: components["schemas"]["GameRecap"];
@@ -700,6 +702,18 @@ export interface components {
             x0: number;
             y0: number;
             z0: number;
+        };
+        /** @description MLB's player of the game (S99): the media's pick and the fans' pick, each absent until MLB names a player for it. Never an object with neither: a game with no pick has no `playerOfTheGame`. */
+        PlayerOfTheGame: {
+            fan?: components["schemas"]["PlayerOfTheGamePick"];
+            media?: components["schemas"]["PlayerOfTheGamePick"];
+        };
+        /** @description One player-of-the-game pick (S99): MLB's person id for the player, his team's id, his line as MLB words it (`1.2 IP, 0 ER, K, BB`) and the win probability he added, in percentage points (40.7). `summary` and `winProbabilityAdded` are null when MLB's pick leaves them out. */
+        PlayerOfTheGamePick: {
+            playerId: number;
+            summary: string | null;
+            teamId: number | null;
+            winProbabilityAdded: number | null;
         };
         /** @description A player named on the scoreboard (pitchers of record). */
         PlayerRef: {

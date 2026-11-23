@@ -3765,5 +3765,13 @@
       "headline": "Like father, like son: Conines join exclusive company with HR feat",
       "blurb": "MIAMI – It might be time to anoint the Conines as the “Marlins Family.”\nWhen Griffin Conine demolished Cubs lefty Caleb Thielbar’s inside fastball for a two-run homer in the fifth inning of Saturday’s 6-5 loss at loanDepot park, it made him part of baseball history."
     }
-  ]
+  ],
+  "playerOfTheGame": {
+    "media": {
+      "playerId": 666171,
+      "teamId": 112,
+      "summary": "1.2 IP, 0 ER, K, BB",
+      "winProbabilityAdded": 40.7
+    }
+  }
 }
