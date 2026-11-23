@@ -47,6 +47,21 @@ describe("browser storage", () =>
 		writeStored("bt.installTipDismissed", null);
 	});
 
+	it("S135 AC 3: the recorded release is its own key, not the snooze key, says nothing about the person and survives sign-out", () =>
+	{
+		expect(STORAGE_KEYS["bt.lastRelease"]).toEqual({
+			personal: false,
+			area: "shared",
+		});
+		writeStored("bt.lastRelease", "v3.2.0");
+		writeStored("bt.updateSnoozedUntil", "123");
+		clearPersonalData();
+		expect(readStored("bt.lastRelease")).toBe("v3.2.0");
+		writeStored("bt.updateSnoozedUntil", null);
+		expect(readStored("bt.lastRelease")).toBe("v3.2.0");
+		writeStored("bt.lastRelease", null);
+	});
+
 	it("reads null and drops writes when storage throws", () =>
 	{
 		vi.spyOn(Storage.prototype, "getItem").mockImplementation(() =>

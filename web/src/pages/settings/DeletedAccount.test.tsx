@@ -72,7 +72,7 @@ function renderSettings(): void
 				<QueryClientProvider client={createQueryClient()}>
 					<SessionProvider>
 						<MemoryRouter initialEntries={["/settings"]}>
-							<AppShellLayout>{(variant) => <AppRoutes variant={variant} />}</AppShellLayout>
+							<AppShellLayout>{(variant, setFooter) => <AppRoutes variant={variant} setFooter={setFooter} />}</AppShellLayout>
 							<Path />
 						</MemoryRouter>
 					</SessionProvider>
@@ -139,7 +139,8 @@ describe("the deleted-account page (A5)", () =>
 			expect(screen.getByRole("button", {
 				name: "Sign in",
 			})).toBeInTheDocument();
-			expect(screen.queryByText(/baseball\.theater$/)).toBeNull();
+			// The shell's site footer is switched off on this page (A5; S142).
+			expect(screen.queryByRole("contentinfo")).toBeNull();
 			if (variant === "desktop")
 			{
 				const rail = screen.getByRole("navigation", {
