@@ -124,17 +124,61 @@ export function monthGameCounts(dates: readonly string[], stored: readonly Pick<
 }
 
 /**
- * Whether one of the fan's favorite teams plays on a month view day (S136; S125's calendar marks
- * those days): its `teamIds` include any of `favoriteTeamIds`. The day-level twin of
- * `scoreboardRows`' per-game favorite test. False for a day BT holds no schedule for (`null`), a
- * day with no games (`[]`), a fan with no favorites, and a day with no `teamIds` at all, which an
- * answer cached before S136 shipped can hold for up to the cache cap (`CACHE_LIFETIME_CAP_MS`):
- * the mark is then missing for a while rather than the calendar breaking.
+ * A month view day as {@link favoriteTeamsOff} reads it: the teams playing it (S136) and whether it
+ * has a regular-season game (S167). Both are optional and nullable so `ScheduleDayCount` fits, and
+ * so does a day from an answer cached before S136 or S167 shipped, which lacks the field for up to
+ * the cache cap (`CACHE_LIFETIME_CAP_MS`): such a day then carries no mark rather than breaking.
  */
-export function dayHasFavoriteTeam(teamIds: readonly number[] | null | undefined, favoriteTeamIds: readonly number[]): boolean
+export interface MonthDayTeams
 {
-	if (!teamIds) return false;
-	return teamIds.some((id) => favoriteTeamIds.includes(id));
+	/** The MLB team IDs playing that day; `[]` for no games, `null` or missing when not known. */
+	teamIds?: readonly number[] | null;
+	/** Whether the day has a regular-season game; `null` or missing when that can't be told. */
+	regularSeason?: boolean | null;
+}
+
+/**
+ * A day's favorite-team off-day mark (S159; shell-scoreboard A8): `off` lists the favorites that
+ * don't play, in the fan's order; `mark` is `red` when none of the counted favorites plays and
+ * `yellow` when at least one plays but not all.
+ */
+export interface FavoriteTeamsOff
+{
+	mark: "red" | "yellow";
+	off: number[];
+}
+
+/**
+ * Which of a fan's favorite teams are off on a month view day, and whether S125's calendar marks
+ * that day red or yellow (S159; ADR-025: the one implementation, the calendar only formats it,
+ * naming the teams). Two owner rules decide which favorites count:
+ *
+ * - Only during the regular season (owner, 2026-11-21: "Only during the regular season"): only a
+ *   day whose `regularSeason` is `true` can carry a mark. Spring training, exhibition, All-Star
+ *   (owner, 2026-11-22: "No mark on the All-Star day") and postseason-only days are `false`, and a
+ *   day stored before S167 is `null`; none of them is marked.
+ * - Only the favorites with games that month (owner, 2026-11-21: "Only teams with games that
+ *   month"): a favorite in no day's `teamIds` in `monthDays` (the shown month's days) is left out of
+ *   the mark and of `off`, so a team that didn't exist yet, or whose season ended, marks nothing.
+ *   A day whose `teamIds` is `null` or missing names no team, so it puts no favorite in the month.
+ *
+ * Returns `null` when the day carries no mark: not a regular-season day, no counted favorite (no
+ * favorites, or none with a game that month), the day's teams unknown (`null` or missing) or none
+ * (`[]`, a day A8 already dims), or every counted favorite plays. `off` lists each favorite once,
+ * in `favoriteTeamIds`' order.
+ */
+export function favoriteTeamsOff(day: MonthDayTeams, favoriteTeamIds: readonly number[], monthDays: readonly MonthDayTeams[]): FavoriteTeamsOff | null
+{
+	if (day.regularSeason !== true || !day.teamIds || day.teamIds.length === 0) return null;
+	const inMonth = new Set(monthDays.flatMap((monthDay) => monthDay.teamIds ?? []));
+	const counted = [...new Set(favoriteTeamIds)].filter((id) => inMonth.has(id));
+	const playing = day.teamIds;
+	const off = counted.filter((id) => !playing.includes(id));
+	if (off.length === 0) return null;
+	return {
+		mark: off.length === counted.length ? "red" : "yellow",
+		off,
+	};
 }
 
 /**

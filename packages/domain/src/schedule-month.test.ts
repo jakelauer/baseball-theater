@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	dayHasFavoriteTeam, dayRegularSeason, distinctTeamIds, latestScheduleMonth, monthGameCounts, monthGamesState, monthLastChangedAt, scheduleFillWindow, storedGameType,
+	dayRegularSeason, distinctTeamIds, favoriteTeamsOff, latestScheduleMonth, monthGameCounts, monthGamesState, monthLastChangedAt, scheduleFillWindow, storedGameType,
 } from "./schedule-month.js";
 
 describe("monthGameCounts (S124, S136 AC 1)", () =>
@@ -130,39 +130,238 @@ describe("distinctTeamIds (S136 AC 1)", () =>
 	});
 });
 
-describe("dayHasFavoriteTeam (S136 AC 3)", () =>
+describe("favoriteTeamsOff (S159 AC 1)", () =>
 {
-	it("S136 AC 3 match: true when the day's teams include a favorite, false when they don't", () =>
-	{
-		expect(dayHasFavoriteTeam([108, 147], [147])).toBe(true);
-		expect(dayHasFavoriteTeam([108, 147], [111, 108])).toBe(true);
-		expect(dayHasFavoriteTeam([108, 147], [111])).toBe(false);
+	// MLB team IDs: Yankees 147, Mets 121, Red Sox 111, Dodgers 119, Angels 108, Rays 139, and the
+	// All-Star Game's two league teams, AL 159 and NL 160.
+	const YANKEES = 147;
+	const METS = 121;
+	const RAYS = 139;
+	// A regular-season month in which every favorite these cases use plays at least once.
+	const month = [
+		{
+			teamIds: [111, 121, 147, 119],
+			regularSeason: true,
+		},
+		{
+			teamIds: [108, 119],
+			regularSeason: true,
+		},
+	];
+	const regular = (teamIds: number[]) => ({
+		teamIds,
+		regularSeason: true,
 	});
 
-	it("S136 AC 3 null: false for a day BT holds no schedule for", () =>
+	it("S159 AC 1 no favorites: a fan with no favorites gets no mark", () =>
 	{
-		expect(dayHasFavoriteTeam(null, [147])).toBe(false);
+		expect(favoriteTeamsOff(regular([108, 119]), [], month)).toBeNull();
 	});
 
-	it("S136 AC 3 empty: false for a day with no games", () =>
+	it("S159 AC 1 teamIds null: a day BT holds no schedule for gets no mark", () =>
 	{
-		expect(dayHasFavoriteTeam([], [147])).toBe(false);
+		expect(favoriteTeamsOff({
+			teamIds: null,
+			regularSeason: true,
+		}, [YANKEES], month)).toBeNull();
 	});
 
-	it("S136 AC 3 no favorites: false for a fan with no favorite teams", () =>
+	it("S159 AC 1 teamIds missing: a day cached before S136 (no teamIds at all) gets no mark", () =>
 	{
-		expect(dayHasFavoriteTeam([108, 147], [])).toBe(false);
+		expect(favoriteTeamsOff({
+			regularSeason: true,
+		}, [YANKEES], month)).toBeNull();
 	});
 
-	it("S136 AC 3 cached before: false for a day with no teamIds at all, as an answer cached before S136 has", () =>
+	it("S159 AC 1 no games: a day with no games ([]) gets no mark, since A8 dims it already", () =>
 	{
-		const cached = {
-			date: "2026-09-05",
-			count: 15,
-		} as { date: string;
-			count: number | null;
-			teamIds?: number[] | null; };
-		expect(dayHasFavoriteTeam(cached.teamIds, [147])).toBe(false);
+		expect(favoriteTeamsOff(regular([]), [YANKEES], month)).toBeNull();
+	});
+
+	it("S159 AC 1 one off: one favorite that doesn't play is red", () =>
+	{
+		expect(favoriteTeamsOff(regular([108, 119]), [YANKEES], month)).toEqual({
+			mark: "red",
+			off: [YANKEES],
+		});
+	});
+
+	it("S159 AC 1 two off: two favorites both off are red, in the fan's order, not teamIds' or numeric order", () =>
+	{
+		expect(favoriteTeamsOff(regular([108, 119]), [YANKEES, METS], month)).toEqual({
+			mark: "red",
+			off: [YANKEES, METS],
+		});
+		expect(favoriteTeamsOff(regular([108, 119]), [METS, YANKEES], month)).toEqual({
+			mark: "red",
+			off: [METS, YANKEES],
+		});
+	});
+
+	it("S159 AC 1 one plays: two favorites with one playing are yellow, naming the other", () =>
+	{
+		expect(favoriteTeamsOff(regular([121, 119]), [YANKEES, METS], month)).toEqual({
+			mark: "yellow",
+			off: [YANKEES],
+		});
+	});
+
+	it("S159 AC 1 all play: every favorite playing gets no mark", () =>
+	{
+		expect(favoriteTeamsOff(regular([111, 121, 147, 119]), [YANKEES, METS], month)).toBeNull();
+	});
+
+	it("S159 AC 1 listed twice: a favorite listed twice is named once", () =>
+	{
+		expect(favoriteTeamsOff(regular([108, 119]), [YANKEES, YANKEES], month)).toEqual({
+			mark: "red",
+			off: [YANKEES],
+		});
+		expect(favoriteTeamsOff(regular([121, 119]), [YANKEES, METS, YANKEES], month)).toEqual({
+			mark: "yellow",
+			off: [YANKEES],
+		});
+	});
+
+	it("S159 AC 1 empty month: no days in the month means no favorite has a game in it", () =>
+	{
+		expect(favoriteTeamsOff(regular([108, 119]), [YANKEES], [])).toBeNull();
+	});
+
+	it("S159 AC 1 month unstored: a month whose days all have teamIds null puts no favorite in it", () =>
+	{
+		const unknown = [{
+			teamIds: null,
+			regularSeason: null,
+		}, {
+			teamIds: null,
+			regularSeason: null,
+		}];
+		expect(favoriteTeamsOff(regular([108, 119]), [YANKEES], unknown)).toBeNull();
+	});
+
+	it("S159 AC 1 regularSeason false: a day without a regular-season game gets no mark", () =>
+	{
+		expect(favoriteTeamsOff({
+			teamIds: [108, 119],
+			regularSeason: false,
+		}, [YANKEES], month)).toBeNull();
+	});
+
+	it("S159 AC 1 regularSeason null: a day stored before S167 gets no mark", () =>
+	{
+		expect(favoriteTeamsOff({
+			teamIds: [108, 119],
+			regularSeason: null,
+		}, [YANKEES], month)).toBeNull();
+	});
+
+	it("S159 AC 1 regularSeason missing: a day cached before S167 (no regularSeason at all) gets no mark", () =>
+	{
+		expect(favoriteTeamsOff({
+			teamIds: [108, 119],
+		}, [YANKEES], month)).toBeNull();
+	});
+
+	it("S159 AC 1 october 2023: a Yankees-only fan gets no mark on October 1 (they played) or on a postseason day", () =>
+	{
+		// October 1, 2023 was the regular season's last day (Yankees at Royals); the later days hold
+		// only other teams' postseason games.
+		const october1 = {
+			teamIds: [118, 147, 110, 140],
+			regularSeason: true,
+		};
+		const postseason = {
+			teamIds: [110, 117, 140, 146],
+			regularSeason: false,
+		};
+		const october = [october1, postseason, {
+			teamIds: [119, 109],
+			regularSeason: false,
+		}];
+		expect(favoriteTeamsOff(october1, [YANKEES], october)).toBeNull();
+		expect(favoriteTeamsOff(postseason, [YANKEES], october)).toBeNull();
+	});
+
+	it("S159 AC 1 yankees off: a regular-season day the Yankees don't play, while others do, is red", () =>
+	{
+		const season = [regular([147, 111]), regular([108, 119, 111, 110])];
+		expect(favoriteTeamsOff(season[1]!, [YANKEES], season)).toEqual({
+			mark: "red",
+			off: [YANKEES],
+		});
+	});
+
+	it("S159 AC 1 before 1998: Rays and Yankees in a month before the Rays existed never mark a day for the Rays", () =>
+	{
+		const yankeesDay = regular([147, 111]);
+		const otherDay = regular([108, 119, 111, 110]);
+		const month1997 = [yankeesDay, otherDay];
+		expect(favoriteTeamsOff(yankeesDay, [RAYS, YANKEES], month1997)).toBeNull();
+		expect(favoriteTeamsOff(otherDay, [RAYS, YANKEES], month1997)).toEqual({
+			mark: "red",
+			off: [YANKEES],
+		});
+	});
+
+	it("S159 AC 1 july all-star: an off day is red, the All-Star Game's day and an empty break day carry no mark", () =>
+	{
+		const offDay = regular([108, 119, 111, 110]);
+		const allStar = {
+			teamIds: [159, 160],
+			regularSeason: false,
+		};
+		const breakDay = {
+			teamIds: [],
+			regularSeason: false,
+		};
+		const july = [regular([147, 111]), offDay, breakDay, allStar];
+		expect(favoriteTeamsOff(offDay, [YANKEES], july)).toEqual({
+			mark: "red",
+			off: [YANKEES],
+		});
+		expect(favoriteTeamsOff(allStar, [YANKEES], july)).toBeNull();
+		expect(favoriteTeamsOff(breakDay, [YANKEES], july)).toBeNull();
+	});
+
+	it("S159 AC 1 unstored favorite: a favorite whose only games fall on unstored days is never named", () =>
+	{
+		// The Mets' only games that month are on a day whose teamIds is null (unstored).
+		const unstored = {
+			teamIds: null,
+			regularSeason: null,
+		};
+		const yankeesDay = regular([147, 111]);
+		const otherDay = regular([108, 119]);
+		const days = [unstored, yankeesDay, otherDay];
+		for (const day of days) expect(favoriteTeamsOff(day, [METS], days)).toBeNull();
+		expect(favoriteTeamsOff(otherDay, [METS, YANKEES], days)).toEqual({
+			mark: "red",
+			off: [YANKEES],
+		});
+		expect(favoriteTeamsOff(yankeesDay, [METS, YANKEES], days)).toBeNull();
+	});
+
+	it("S159 AC 1 ScheduleDayCount fits: a month answer's days are accepted as they are", () =>
+	{
+		const days = monthGameCounts(["2026-07-01", "2026-07-02"], [
+			{
+				date: "2026-07-01",
+				gameCount: 1,
+				teamIds: [147, 111],
+				regularSeason: true,
+			},
+			{
+				date: "2026-07-02",
+				gameCount: 1,
+				teamIds: [108, 119],
+				regularSeason: true,
+			},
+		]);
+		expect(favoriteTeamsOff(days[1]!, [YANKEES], days)).toEqual({
+			mark: "red",
+			off: [YANKEES],
+		});
 	});
 });
 
