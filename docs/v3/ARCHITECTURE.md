@@ -1212,8 +1212,16 @@ Calls between objects retry on errors flagged `retryable`. Every deploy restarts
     - Every lifetime still stops at 48h unless a reason is stated for going longer. The longest any lifetime may be is 30 days.
     - The owner's example of a reason: a scheduled refresh that runs more often than every 48h.
     - Past 48h, the cap's staleness guarantee weakens. A cached answer is then only as fresh as the stated reason keeps it.
+    - **Exception to the 30-day cap: a past calendar year's schedule months.** A month answer for a month before MLB's today's year may be kept at the edge as long as the edge allows. Owner, 2026-11-23: *"Oh, also - schedule months from past years should be cached for an entire year. The cron should include the whole schedule (past and future) for the current calendar year (the entire year)."*, then *"in fact, for prior years, I'd make the cache as long as possible, like 100 years"*.
+        - The reason a lifetime past 48h needs is the owner's direction: a finished year's schedule no longer changes.
+        - The lifetime is in `s-maxage` only, never a long browser `max-age`, as the standings amendment says.
+        - Its value is 2,147,483,647 s (2^31−1, about 68 years), not 100 years (3,155,760,000 s). That is the largest value every 32-bit signed parser accepts. RFC 9111 has a cache treat anything larger as 2^31.
+        - Corrections still reach fans, because the long lifetime is given only to a URL that names its own content: the month answer's content hash, which the client learns from a short-lived versions answer. A backfill's correction, or a new field, changes the hash and so the URL. A month asked for without its version keeps the ladder.
+        - The current year's and next year's months keep the 48h cap, kept fresh by a refresh every ~6h.
+        - For those in-window months, refresh-on-read follows the refresh's record of when each month was last checked, not the ladder: a month is asked of MLB on read only when that record is older than the refresh's interval plus a margin.
+        - S194 builds all of this.
 
-**Why:** finished games stop costing MLB calls and Postgres reads within hours, without a fixed "forever" TTL that would hide corrections.
+**Why:** finished games stop costing MLB calls and Postgres reads within hours, without a fixed "forever" TTL that would hide corrections. The one long lifetime is a past year's schedule month at a URL naming its exact content (the 2026-11-23 amendment), so a correction is a new URL.
 
 ### ADR-022 — Idempotent updates (accepted 2026-10-18)
 
