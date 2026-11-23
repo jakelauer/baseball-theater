@@ -297,6 +297,12 @@ export type ProbablePitcher = PlayerRef & {
 	wins: number | null;
 	losses: number | null;
 	era: string | null;
+	/**
+	 * The hand he throws with, MLB's `pitchHand.code` (`"L"` / `"R"`; S171, the row's
+	 * `J. Steele (L)`); `null` when MLB sent none. Optional because schedule rows stored
+	 * before S171 have no such field.
+	 */
+	pitchHand?: string | null;
 };
 
 /** The pitchers of record of a finished game (S65; W / L / S). */

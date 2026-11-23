@@ -16,6 +16,19 @@ export function shortPlayerName(fullName: string): string
 	return first && rest.length > 0 ? `${first[0]}. ${rest.join(" ")}` : fullName;
 }
 
+/**
+ * A probable pitcher's name on the scheduled scoreboard row with the hand he throws
+ * with, `J. Steele (L)` (shell-scoreboard A16, S171); just `J. Steele` when MLB sent no
+ * hand (`null`) or the stored row predates the field (`undefined`). The one place the
+ * `(L)` / `(R)` suffix is written.
+ */
+export function probableLabel(pitcher: { fullName: string;
+	pitchHand?: string | null; }): string
+{
+	const name = shortPlayerName(pitcher.fullName);
+	return pitcher.pitchHand ? `${name} (${pitcher.pitchHand})` : name;
+}
+
 /** The Game info lines the Box frames draw, in their order (game-rooms DESIGN, S33). */
 const GAME_INFO_LABELS = ["Venue", "First pitch", "Weather", "Wind", "T", "Att"] as const;
 

@@ -670,6 +670,8 @@ export interface components {
             fullName: string;
             id: number;
             losses: number | null;
+            /** @description The hand he throws with, MLB's `pitchHand.code` (`"L"` / `"R"`; S171, the row's `J. Steele (L)`); `null` when MLB sent none. Optional because schedule rows stored before S171 have no such field. */
+            pitchHand?: string | null;
             wins: number | null;
         };
         /** @description One release's notes as the public releases API serves them: `ReleaseNotes` without `approval`, the owner's dated, quoted approval, which only `pnpm release:check` and the production deploy's "Release notes approved" step read (#327; owner, 2026-11-22, asked "Should the public releases API include your approval words for each release?": chose "Leave it out"). */

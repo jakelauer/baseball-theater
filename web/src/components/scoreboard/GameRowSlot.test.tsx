@@ -98,14 +98,11 @@ describe("GameRowSlot Status (S67)", () =>
 		expect(slot.getByText("P: R. Gusto")).toBeInTheDocument();
 	});
 
-	it("probables before first pitch: each starter with W-L, ERA, away first", () =>
+	it("S171 AC 1: before first pitch Status draws no box at all; the probables are in the row's body", () =>
 	{
-		renderSlot(GAMES.pregame, "status");
-		const slot = within(screen.getByTestId("slot-probables"));
-		const names = slot.getAllByText(/^[A-Z]\. /).map((n) => n.textContent);
-		expect(names).toEqual(["J. Assad", "R. Gusto"]);
-		expect(slot.getAllByText(/^\d+-\d+, \d+\.\d{2}$/)).toHaveLength(2);
-		expect(slot.getByText("6-1, 3.46")).toBeInTheDocument();
+		const { container } = renderSlot(GAMES.pregame, "status");
+		expect(screen.queryByTestId("game-row-slot")).toBeNull();
+		expect(container.querySelector("[data-occupant]")).toBeNull();
 	});
 });
 
@@ -260,7 +257,7 @@ describe("sparse data (S66 module, S67 slot)", () =>
 		expect(screen.getByTestId("slot-pitchers")).toBeEmptyDOMElement();
 	});
 
-	it("sparse: a scheduled game with no start time, venue, records or probables", () =>
+	it("sparse: a scheduled game with no start time, venue, records or one probable (TBD in the row's body)", () =>
 	{
 		renderModule(sparse("S"));
 		const module = within(screen.getByTestId("scoreboard-module"));
