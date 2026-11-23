@@ -4,7 +4,7 @@ import {
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import {
-	formatGameTime, gamePhase, inningLabel, probableLine, slotOccupant, teamRecordLabel,
+	formatGameTime, gamePhase, gameStatusMarker, inningShortLabel, probableLine, slotOccupant, teamRecordLabel,
 } from "@bt/domain";
 import type { GamePhase } from "@bt/domain";
 import type { ScheduleDayPayload } from "../../api/schedule.js";
@@ -50,16 +50,20 @@ const HEAD: CSSProperties = {
 };
 
 /**
- * The top-left status of a module (S31): `FINAL`, the live dot with the inning
- * (`BOT 7`), or the start time in the viewer's zone and the venue. Venue shows on
- * scheduled games only (R8).
+ * The top-left status of a module (S31): `FINAL`, the game status marker (game-shell A7,
+ * S170), or the start time in the viewer's zone and the venue. A live game's marker reads its
+ * inning (`Bot 7`, `LIVE` with none yet), a delayed one keeps its inning (`Delayed · Bot 3`) and
+ * a suspended one names MLB's reason (`Suspended · Rain`); a delayed start takes the start time's
+ * place, before the venue (`Delayed start · Rain · Citi Field`). Venue shows on scheduled games
+ * only (R8).
  */
 function StatusLine({ game, phase }: { game: ScoreboardGame;
 	phase: GamePhase; })
 {
-	if (phase === "live")
+	const marker = gameStatusMarker(game.status);
+	if (phase === "live" && marker)
 	{
-		return <LiveIndicator label={inningLabel(game.linescore) ?? "LIVE"} />;
+		return <LiveIndicator kind={marker.kind} place="row" reason={marker.reason} inning={inningShortLabel(game.linescore)} />;
 	}
 	if (phase === "final")
 	{
@@ -70,7 +74,7 @@ function StatusLine({ game, phase }: { game: ScoreboardGame;
 			minWidth: 0,
 		}}
 		>
-			{game.startTime ? (
+			{marker?.kind === "delayedStart" ? <LiveIndicator kind="delayedStart" place="row" reason={marker.reason} /> : game.startTime ? (
 				<Text size="xs" fw={700} c="var(--bt-accent)" style={{
 					whiteSpace: "nowrap",
 				}}

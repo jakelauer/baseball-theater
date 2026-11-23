@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	halfInningLabel, halfInningName, inningLabel, ordinal,
+	halfInningLabel, halfInningName, inningLabel, inningShortLabel, ordinal,
 } from "./inning.js";
 
 const at = (currentInning: number | null, inningState: string | null, isTopInning: boolean | null = null) => ({
@@ -81,5 +81,34 @@ describe("the inning pill's words (S145 AC 5)", () =>
 			halfInning,
 			inning,
 		})).toBe(want);
+	});
+});
+
+describe("inningShortLabel and inningLabel share one half resolver (S170)", () =>
+{
+	// Each inningState, isTopInning alone, and no inning, in both forms (A7's row "Bot 7"; the Live status "Bot 7th").
+	const cases: [ReturnType<typeof at>, string | null, string | null][] = [
+		[at(3, "Top", true), "Top 3", "Top 3rd"],
+		[at(7, "Bottom", false), "Bot 7", "Bot 7th"],
+		[at(3, "Middle", true), "Mid 3", "Mid 3rd"],
+		[at(9, "End", false), "End 9", "End 9th"],
+		[at(2, null, false), "Bot 2", "Bot 2nd"],
+		[at(4, null, true), "Top 4", "Top 4th"],
+		[at(11, null, null), "Top 11", "Top 11th"],
+		[at(null, "Top", true), null, null],
+	];
+	for (const [linescore, short, long] of cases)
+	{
+		it(`S170 AC 2: ${JSON.stringify(linescore)} reads ${short} / ${long}`, () =>
+		{
+			expect(inningShortLabel(linescore)).toBe(short);
+			expect(inningLabel(linescore)).toBe(long);
+		});
+	}
+
+	it("S170 AC 2: a null linescore has no label in either form", () =>
+	{
+		expect(inningShortLabel(null)).toBeNull();
+		expect(inningLabel(null)).toBeNull();
 	});
 });
