@@ -2,7 +2,8 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	dayRegularSeason, distinctTeamIds, favoriteTeamsOff, latestScheduleMonth, monthGameCounts, monthGamesState, monthLastChangedAt, scheduleFillWindow, storedGameType,
+	dayRegularSeason, distinctTeamIds, favoriteTeamsOff, latestScheduleMonth, monthComplete, monthGameCounts, monthGamesState, monthLastChangedAt,
+	scheduleFillWindow, storedGameType,
 } from "./schedule-month.js";
 
 describe("monthGameCounts (S124, S136 AC 1)", () =>
@@ -378,6 +379,37 @@ describe("favoriteTeamsOff (S159 AC 1)", () =>
 			mark: "red",
 			off: [YANKEES],
 		});
+	});
+});
+
+describe("monthComplete (#399)", () =>
+{
+	it("every day known, with games or none, is complete", () =>
+	{
+		expect(monthComplete([{
+			count: 0,
+		}, {
+			count: 3,
+		}])).toBe(true);
+	});
+
+	it("one unknown day among known ones is incomplete, even beside a day with games (#399)", () =>
+	{
+		expect(monthComplete([{
+			count: 3,
+		}, {
+			count: null,
+		}, {
+			count: 0,
+		}])).toBe(false);
+	});
+
+	it("a month of unknown days is incomplete; no days at all is vacuously complete", () =>
+	{
+		expect(monthComplete([{
+			count: null,
+		}])).toBe(false);
+		expect(monthComplete([])).toBe(true);
 	});
 });
 

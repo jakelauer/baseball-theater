@@ -8,7 +8,7 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
 import {
-	isCalendarMonth, latestScheduleMonth, mlbToday,
+	isCalendarMonth, latestScheduleMonth, mlbToday, monthComplete,
 } from "@bt/domain";
 import { fetchScheduleMonth } from "./client.js";
 import type { components } from "./generated/bt-api.v1.js";
@@ -38,8 +38,16 @@ export function scheduleMonthQueryOptions(month: string)
 		queryKey: scheduleMonthKey(month),
 		queryFn: (): Promise<ScheduleMonthPayload> => fetchScheduleMonth(month),
 		// A month's counts move only as games are scheduled or postponed; the API caches the answer
-		// on ADR-021's ladder, so five minutes here costs nothing a fan would notice.
-		staleTime: 5 * 60 * 1000,
+		// on ADR-021's ladder, so five minutes here costs nothing a fan would notice. A month with any
+		// day BT couldn't say (`monthComplete`; a fill that failed) is kept one minute, as long as the API's edge
+		// keeps it and the fill's cooldown lasts, so the calendar asks again soon rather than holding
+		// a month with no game labels for five minutes, without asking on every focus (#399).
+		staleTime: (query: { state: { data?: ScheduleMonthPayload } }) =>
+		{
+			// `?.days`: a stand-in answer in a page's tests may carry no days; that is not an unknown month.
+			const days = query.state.data?.days;
+			return days && !monthComplete(days) ? 60 * 1000 : 5 * 60 * 1000;
+		},
 		enabled: scheduleMonthAnswerable(month),
 	});
 }
