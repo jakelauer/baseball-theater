@@ -2,7 +2,8 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	dayRegularSeason, distinctTeamIds, favoriteTeamsOff, latestScheduleMonth, monthGameCounts, monthGamesState, monthLastChangedAt, scheduleFillWindow, storedGameType,
+	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, favoriteTeamsOff, latestScheduleMonth, monthGameCounts, monthGamesState, monthLastChangedAt,
+	scheduleFillWindow, storedGameType, teamsInOwnSeason,
 } from "./schedule-month.js";
 
 describe("monthGameCounts (S124, S136 AC 1)", () =>
@@ -15,12 +16,14 @@ describe("monthGameCounts (S124, S136 AC 1)", () =>
 				gameCount: 2,
 				teamIds: [108, 111, 117, 147],
 				regularSeason: true,
+				regularSeasonTeamIds: [108, 147],
 			},
 			{
 				date: "2026-09-06",
 				gameCount: 0,
 				teamIds: [],
 				regularSeason: false,
+				regularSeasonTeamIds: [],
 			},
 		])).toEqual([
 			{
@@ -28,18 +31,24 @@ describe("monthGameCounts (S124, S136 AC 1)", () =>
 				count: null,
 				teamIds: null,
 				regularSeason: null,
+				regularSeasonTeamIds: null,
+				inSeasonTeamIds: null,
 			},
 			{
 				date: "2026-09-05",
 				count: 2,
 				teamIds: [108, 111, 117, 147],
 				regularSeason: true,
+				regularSeasonTeamIds: [108, 147],
+				inSeasonTeamIds: null,
 			},
 			{
 				date: "2026-09-06",
 				count: 0,
 				teamIds: [],
 				regularSeason: false,
+				regularSeasonTeamIds: [],
+				inSeasonTeamIds: null,
 			},
 		]);
 	});
@@ -52,6 +61,7 @@ describe("monthGameCounts (S124, S136 AC 1)", () =>
 				gameCount: 2,
 				teamIds: [111, 120, 121, 147],
 				regularSeason: null,
+				regularSeasonTeamIds: null,
 			},
 		]).map((day) => [day.date, day.count, day.regularSeason])).toEqual([
 			["2024-07-04", 2, null],
@@ -366,12 +376,14 @@ describe("favoriteTeamsOff (S159 AC 1)", () =>
 				gameCount: 1,
 				teamIds: [147, 111],
 				regularSeason: true,
+				regularSeasonTeamIds: [111, 147],
 			},
 			{
 				date: "2026-07-02",
 				gameCount: 1,
 				teamIds: [108, 119],
 				regularSeason: true,
+				regularSeasonTeamIds: [108, 119],
 			},
 		]);
 		expect(favoriteTeamsOff(days[1]!, [YANKEES], days)).toEqual({
@@ -490,5 +502,394 @@ describe("scheduleFillWindow and latestScheduleMonth (S124)", () =>
 	{
 		expect(latestScheduleMonth("2026-11-09")).toBe("2027-12");
 		expect(latestScheduleMonth("2027-01-01")).toBe("2028-12");
+	});
+});
+
+describe("dayRegularSeasonTeamIds (S191 AC 1)", () =>
+{
+	const game = (gameType: unknown, away: unknown, home: unknown) => ({
+		gameType,
+		teamIds: [away, home],
+	});
+
+	it("S191 AC 1 regular only: every game R gives every team, each once, ascending", () =>
+	{
+		expect(dayRegularSeasonTeamIds([game("R", 147, 111), game("R", 119, 108), game("R", 111, 147)])).toEqual([108, 111, 119, 147]);
+	});
+
+	it("S191 AC 1 mixed: a spring-and-regular day (the 2024-03-20 Seoul opener) gives only the R game's teams", () =>
+	{
+		expect(dayRegularSeasonTeamIds([game("S", 147, 111), game("R", 119, 135), game("S", 108, 136)])).toEqual([119, 135]);
+	});
+
+	it("S191 AC 1 none regular: a typed day without an R game, and a day with no games, give []", () =>
+	{
+		expect(dayRegularSeasonTeamIds([game("S", 147, 111), game("A", 159, 160)])).toEqual([]);
+		expect(dayRegularSeasonTeamIds([])).toEqual([]);
+	});
+
+	it("S191 AC 1 untyped: null exactly when dayRegularSeason is null; an R day with an untyped game keeps only the R game's teams", () =>
+	{
+		expect(dayRegularSeasonTeamIds([game(undefined, 147, 111)])).toBeNull();
+		expect(dayRegularSeasonTeamIds([game("S", 147, 111), game(null, 119, 108)])).toBeNull();
+		expect(dayRegularSeasonTeamIds([game("R", 147, 111), game(82, 119, 108)])).toEqual([111, 147]);
+	});
+
+	it("S191 AC 1 stored values: a null or string team ID adds no team", () =>
+	{
+		expect(dayRegularSeasonTeamIds([game("R", null, "111"), game("R", 147, 147)])).toEqual([147]);
+	});
+});
+
+/**
+ * A calendar year of stored days for {@link teamsInOwnSeason}: every day stored with no
+ * regular-season game except those `regular` lists; `untyped` days are stored without types
+ * (`null`) and `unstored` days are left out.
+ */
+function storedYear(year: number, regular: Record<string, number[]>, options: { untyped?: string[];
+	unstored?: string[]; } = {})
+{
+	const days: { date: string;
+		regularSeasonTeamIds: number[] | null; }[] = [];
+	for (let date = new Date(Date.UTC(year, 0, 1)); date.getUTCFullYear() === year; date.setUTCDate(date.getUTCDate() + 1))
+	{
+		const iso = date.toISOString().slice(0, 10);
+		if (options.unstored?.includes(iso)) continue;
+		days.push({
+			date: iso,
+			regularSeasonTeamIds: options.untyped?.includes(iso) ? null : regular[iso] ?? [],
+		});
+	}
+	return days;
+}
+
+// MLB team IDs these cases use.
+const DODGERS = 119;
+const PADRES = 135;
+const YANKEES_ID = 147;
+const RED_SOX = 111;
+const MARINERS = 136;
+const ATHLETICS = 133;
+const CUBS = 112;
+const BREWERS = 158;
+const ROCKIES = 115;
+const CARDINALS = 138;
+
+/** 2024, modelled: the Seoul series (Dodgers–Padres, March 20–21), then everyone from March 28 through September 29. */
+function season2024()
+{
+	const regular: Record<string, number[]> = {
+		"2024-03-20": [DODGERS, PADRES],
+		"2024-03-21": [DODGERS, PADRES],
+		"2024-03-28": [DODGERS, PADRES, YANKEES_ID, RED_SOX],
+		"2024-06-15": [DODGERS, YANKEES_ID],
+		"2024-06-16": [PADRES, RED_SOX],
+		"2024-09-29": [DODGERS, PADRES, YANKEES_ID, RED_SOX],
+	};
+	return regular;
+}
+
+describe("teamsInOwnSeason (S191 AC 2)", () =>
+{
+	it("S191 AC 2 seoul: on the Seoul opener only the Dodgers and Padres are in season; both stay in season through the days between; all are in season from March 28", () =>
+	{
+		const year = storedYear(2024, season2024());
+		expect(teamsInOwnSeason(year, ["2024-03-20", "2024-03-25", "2024-03-28", "2024-06-16", "2024-09-29", "2024-09-30"])).toEqual([
+			[DODGERS, PADRES],
+			[DODGERS, PADRES],
+			[RED_SOX, DODGERS, PADRES, YANKEES_ID],
+			[RED_SOX, DODGERS, PADRES, YANKEES_ID],
+			[RED_SOX, DODGERS, PADRES, YANKEES_ID],
+			[],
+		]);
+	});
+
+	it("S191 AC 2 first game in the month before: a month's dates read the year, so a team whose first game was in March is in season on April 1", () =>
+	{
+		// The Mariners and Athletics open in Tokyo on 2019-03-20 and play next on April 2.
+		const year = storedYear(2019, {
+			"2019-03-20": [ATHLETICS, MARINERS],
+			"2019-04-02": [ATHLETICS, MARINERS, YANKEES_ID, RED_SOX],
+			"2019-09-29": [ATHLETICS, MARINERS, YANKEES_ID, RED_SOX],
+		});
+		expect(teamsInOwnSeason(year, ["2019-04-01", "2019-04-02"])).toEqual([
+			[ATHLETICS, MARINERS],
+			[RED_SOX, ATHLETICS, MARINERS, YANKEES_ID],
+		]);
+	});
+
+	it("S191 AC 2 untyped day: an untyped day before a date that a not-yet-started team needs is unknown, so the date is null", () =>
+	{
+		const year = storedYear(2024, season2024(), {
+			untyped: ["2024-03-15"],
+		});
+		expect(teamsInOwnSeason(year, ["2024-03-20"])).toEqual([null]);
+		// Mid-season, every team is proven in by games on both sides; the untyped March day doesn't matter.
+		expect(teamsInOwnSeason(year, ["2024-06-16"])).toEqual([[RED_SOX, DODGERS, PADRES, YANKEES_ID]]);
+	});
+
+	it("S191 AC 2 unstored day: an unstored day after a date whose ended teams need it is unknown, so the date is null", () =>
+	{
+		// 2018: everyone through September 30; the Brewers, Cubs, Dodgers and Rockies again on October 1.
+		const regular = {
+			"2018-03-29": [BREWERS, CUBS, DODGERS, ROCKIES, YANKEES_ID, CARDINALS],
+			"2018-09-30": [BREWERS, CUBS, DODGERS, ROCKIES, YANKEES_ID, CARDINALS],
+			"2018-10-01": [BREWERS, CUBS, DODGERS, ROCKIES],
+		};
+		expect(teamsInOwnSeason(storedYear(2018, regular), ["2018-10-01"])).toEqual([[CUBS, ROCKIES, DODGERS, BREWERS].sort((a, b) => a - b)]);
+		expect(teamsInOwnSeason(storedYear(2018, regular, {
+			unstored: ["2018-10-05"],
+		}), ["2018-10-01"])).toEqual([null]);
+	});
+
+	it("S191 AC 2 off-season: a fully stored year has no team in season in January or December; a year with nothing stored can't tell", () =>
+	{
+		const year = storedYear(2024, season2024());
+		expect(teamsInOwnSeason(year, ["2024-01-15", "2024-12-01"])).toEqual([[], []]);
+		expect(teamsInOwnSeason([], ["2024-07-01"])).toEqual([null]);
+		// A date in another year than the stored one reads its own year, which holds nothing.
+		expect(teamsInOwnSeason(year, ["2025-07-01"])).toEqual([null]);
+	});
+
+	it("S191 AC 2 month answer: monthGameCounts carries each date's inSeasonTeamIds and regularSeasonTeamIds from the year", () =>
+	{
+		const year = storedYear(2024, season2024()).map((day) => ({
+			...day,
+			gameCount: day.regularSeasonTeamIds?.length ? 1 : 0,
+			teamIds: day.regularSeasonTeamIds ?? [],
+			regularSeason: day.regularSeasonTeamIds === null ? null : day.regularSeasonTeamIds.length > 0,
+		}));
+		const march = monthGameCounts(["2024-03-20", "2024-03-21"], year);
+		expect(march.map((day) => [day.regularSeasonTeamIds, day.inSeasonTeamIds])).toEqual([
+			[[DODGERS, PADRES], [DODGERS, PADRES]],
+			[[DODGERS, PADRES], [DODGERS, PADRES]],
+		]);
+	});
+});
+
+describe("favoriteTeamsOff follows each team's own season (S191 AC 3)", () =>
+{
+	// Spring-training teams playing beside the Seoul and Tokyo openers.
+	const SPRING = [108, 110, 114, 116];
+
+	it("S191 AC 3 seoul yankees with spring: a Yankees-only fan gets no mark on 2024-03-20 though the Yankees had a spring game that month", () =>
+	{
+		const seoul = {
+			teamIds: [DODGERS, PADRES, ...SPRING],
+			regularSeason: true,
+			inSeasonTeamIds: [DODGERS, PADRES],
+		};
+		const yankeesSpring = {
+			teamIds: [YANKEES_ID, RED_SOX],
+			regularSeason: false,
+			inSeasonTeamIds: [DODGERS, PADRES],
+		};
+		const march = [yankeesSpring, seoul];
+		expect(favoriteTeamsOff(seoul, [YANKEES_ID], march)).toBeNull();
+		// S159's per-day rule alone marked it red.
+		expect(favoriteTeamsOff({
+			teamIds: seoul.teamIds,
+			regularSeason: true,
+		}, [YANKEES_ID], march)).toEqual({
+			mark: "red",
+			off: [YANKEES_ID],
+		});
+	});
+
+	it("S191 AC 3 seoul yankees without spring: over a modelled 2024 year, a Yankees-only fan gets no mark on 2024-03-20 when their only March game is the 28th", () =>
+	{
+		const year = storedYear(2024, season2024()).map((day) => ({
+			...day,
+			gameCount: day.regularSeasonTeamIds?.length ? 1 : 0,
+			teamIds: day.regularSeasonTeamIds ?? [],
+			regularSeason: day.regularSeasonTeamIds === null ? null : day.regularSeasonTeamIds.length > 0,
+		}));
+		const march = monthGameCounts(Array.from({
+			length: 31,
+		}, (_, i) => `2024-03-${String(i + 1).padStart(2, "0")}`), year);
+		const seoul = march.find((day) => day.date === "2024-03-20")!;
+		expect(favoriteTeamsOff(seoul, [YANKEES_ID], march)).toBeNull();
+		expect(favoriteTeamsOff(march.find((day) => day.date === "2024-03-21")!, [YANKEES_ID], march)).toBeNull();
+	});
+
+	it("S191 AC 3 seoul dodgers: a Dodgers fan gets no mark, they play", () =>
+	{
+		const seoul = {
+			teamIds: [DODGERS, PADRES, ...SPRING],
+			regularSeason: true,
+			inSeasonTeamIds: [DODGERS, PADRES],
+		};
+		expect(favoriteTeamsOff(seoul, [DODGERS], [seoul])).toBeNull();
+	});
+
+	it("S191 AC 3 seoul padres and yankees: a Padres-and-Yankees fan gets no mark (the Padres play; the Yankees aren't in season)", () =>
+	{
+		const seoul = {
+			teamIds: [DODGERS, PADRES, ...SPRING],
+			regularSeason: true,
+			inSeasonTeamIds: [DODGERS, PADRES],
+		};
+		const later = {
+			teamIds: [YANKEES_ID, RED_SOX],
+			regularSeason: true,
+			inSeasonTeamIds: [DODGERS, PADRES, YANKEES_ID, RED_SOX],
+		};
+		expect(favoriteTeamsOff(seoul, [PADRES, YANKEES_ID], [seoul, later])).toBeNull();
+	});
+
+	it("S191 AC 3 tokyo 2019: a Yankees-only fan gets no mark on March 20 or 21 (Mariners–Athletics)", () =>
+	{
+		const tokyo = {
+			teamIds: [ATHLETICS, MARINERS, YANKEES_ID, ...SPRING],
+			regularSeason: true,
+			inSeasonTeamIds: [ATHLETICS, MARINERS],
+		};
+		const tokyo2 = {
+			teamIds: [ATHLETICS, MARINERS, ...SPRING],
+			regularSeason: true,
+			inSeasonTeamIds: [ATHLETICS, MARINERS],
+		};
+		const march = [tokyo, tokyo2, {
+			teamIds: [YANKEES_ID, RED_SOX],
+			regularSeason: true,
+			inSeasonTeamIds: [RED_SOX, ATHLETICS, MARINERS, YANKEES_ID],
+		}];
+		expect(favoriteTeamsOff(tokyo, [YANKEES_ID], march)).toBeNull();
+		expect(favoriteTeamsOff(tokyo2, [YANKEES_ID], march)).toBeNull();
+	});
+
+	it("S191 AC 3 tokyo 2025: a Yankees-only fan gets no mark on March 18 or 19 (Cubs–Dodgers)", () =>
+	{
+		const tokyo = {
+			teamIds: [CUBS, DODGERS, ...SPRING],
+			regularSeason: true,
+			inSeasonTeamIds: [CUBS, DODGERS],
+		};
+		const march = [tokyo, {
+			teamIds: [YANKEES_ID, RED_SOX],
+			regularSeason: false,
+			inSeasonTeamIds: [CUBS, DODGERS],
+		}];
+		// March 18 and 19 are alike: the same two teams in season, the rest in spring training.
+		for (const day of [tokyo, {
+			...tokyo,
+			teamIds: [CUBS, DODGERS, 109, 140],
+		}]) expect(favoriteTeamsOff(day, [YANKEES_ID], march)).toBeNull();
+	});
+
+	it("S191 AC 3 tokyo 2019-03-22 mariners: a Mariners fan gets no mark on a day of only spring games", () =>
+	{
+		const springOnly = {
+			teamIds: [MARINERS, ...SPRING],
+			regularSeason: false,
+			inSeasonTeamIds: [ATHLETICS, MARINERS],
+		};
+		const tokyo = {
+			teamIds: [ATHLETICS, MARINERS],
+			regularSeason: true,
+			inSeasonTeamIds: [ATHLETICS, MARINERS],
+		};
+		expect(favoriteTeamsOff(springOnly, [MARINERS], [tokyo, springOnly])).toBeNull();
+	});
+
+	// 2018-10-01: two tiebreakers (Brewers–Cubs, Dodgers–Rockies), regular season; everyone else's season ended September 30.
+	const tiebreakers = {
+		teamIds: [CUBS, ROCKIES, DODGERS, BREWERS],
+		regularSeason: true,
+		inSeasonTeamIds: [CUBS, ROCKIES, DODGERS, BREWERS],
+	};
+	// The Yankees' wild-card game (October 3) and a Cardinals day put both teams in the shown month.
+	const october2018 = [tiebreakers, {
+		teamIds: [YANKEES_ID, 133],
+		regularSeason: false,
+		inSeasonTeamIds: [],
+	}, {
+		teamIds: [CARDINALS, 158],
+		regularSeason: false,
+		inSeasonTeamIds: [],
+	}];
+
+	it("S191 AC 3 tiebreaker yankees: a Yankees-only fan gets no mark on 2018-10-01 (their season ended September 30)", () =>
+	{
+		expect(favoriteTeamsOff(tiebreakers, [YANKEES_ID], october2018)).toBeNull();
+	});
+
+	it("S191 AC 3 tiebreaker cubs and yankees: a Cubs-and-Yankees fan gets no mark (the Cubs play)", () =>
+	{
+		expect(favoriteTeamsOff(tiebreakers, [CUBS, YANKEES_ID], october2018)).toBeNull();
+	});
+
+	it("S191 AC 3 tiebreaker cardinals: a Cardinals fan gets no mark", () =>
+	{
+		expect(favoriteTeamsOff(tiebreakers, [CARDINALS], october2018)).toBeNull();
+	});
+
+	const allTeams = Array.from({
+		length: 40,
+	}, (_, i) => 108 + i).concat([158]);
+
+	it("S191 AC 3 mid-season: an ordinary day the Yankees don't play is still red, off [147]", () =>
+	{
+		const day = {
+			teamIds: [108, 119],
+			regularSeason: true,
+			inSeasonTeamIds: allTeams,
+		};
+		const month = [day, {
+			teamIds: [YANKEES_ID, RED_SOX],
+			regularSeason: true,
+			inSeasonTeamIds: allTeams,
+		}];
+		expect(favoriteTeamsOff(day, [YANKEES_ID], month)).toEqual({
+			mark: "red",
+			off: [147],
+		});
+		// A favorite out of season beside one in season: only the in-season one is counted.
+		expect(favoriteTeamsOff({
+			...day,
+			inSeasonTeamIds: [108, 119, YANKEES_ID],
+		}, [RED_SOX, YANKEES_ID], month)).toEqual({
+			mark: "red",
+			off: [YANKEES_ID],
+		});
+	});
+
+	it("S191 AC 3 missing: a day without inSeasonTeamIds (an answer cached before S191) keeps S159's rule", () =>
+	{
+		const month = [{
+			teamIds: [YANKEES_ID, RED_SOX],
+			regularSeason: true,
+		}];
+		expect(favoriteTeamsOff({
+			teamIds: [108, 119],
+			regularSeason: true,
+		}, [YANKEES_ID], month)).toEqual({
+			mark: "red",
+			off: [YANKEES_ID],
+		});
+		expect(favoriteTeamsOff({
+			teamIds: [DODGERS, PADRES],
+			regularSeason: true,
+		}, [YANKEES_ID], month)).toEqual({
+			mark: "red",
+			off: [YANKEES_ID],
+		});
+	});
+
+	it("S191 AC 3 null: a day whose inSeasonTeamIds is null (the year can't tell) keeps S159's rule", () =>
+	{
+		const month = [{
+			teamIds: [YANKEES_ID, RED_SOX],
+			regularSeason: true,
+			inSeasonTeamIds: null,
+		}];
+		expect(favoriteTeamsOff({
+			teamIds: [108, 119],
+			regularSeason: true,
+			inSeasonTeamIds: null,
+		}, [YANKEES_ID, RED_SOX], month)).toEqual({
+			mark: "red",
+			off: [YANKEES_ID, RED_SOX],
+		});
 	});
 });

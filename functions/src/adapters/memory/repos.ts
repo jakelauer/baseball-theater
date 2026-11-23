@@ -2,7 +2,7 @@ import type {
 	AccountSettings, Entitlements, GameProjection, GameSnapshot, ScheduleDay, ScheduleDayTally, UserProfile,
 } from "@bt/domain";
 import {
-	dayRegularSeason, distinctTeamIds, downloadExpired, storedGameType,
+	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, downloadExpired, storedGameType,
 } from "@bt/domain";
 import type {
 	DataDownload,
@@ -99,6 +99,11 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 					teamIds: distinctTeamIds(day.games.flatMap((game) => [game.teams.away.id, game.teams.home.id])),
 					gameTypes,
 					regularSeason: dayRegularSeason(gameTypes),
+					// Each game's type beside its own teams (S191), as the Postgres adapter reads them.
+					regularSeasonTeamIds: dayRegularSeasonTeamIds(day.games.map((game) => ({
+						gameType: game.gameType,
+						teamIds: [game.teams.away.id, game.teams.home.id],
+					}))),
 					fetchedAt: day.fetchedAt,
 					lastChangedAt: day.lastChangedAt,
 				};

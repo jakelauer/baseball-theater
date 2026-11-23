@@ -4,11 +4,12 @@
  * game on the day (scheduled, postponed, final, in or out of the live window), never from the
  * games table, which holds only the games ingest hydrated.
  */
+import { datesBetween } from "./calendar-date.js";
 
 /**
  * One stored schedule day as the month view needs it: its game count, the teams playing it
- * (S136), its games' types and whether it has a regular-season game (S167), and its ADR-021/022
- * stamps.
+ * (S136), its games' types and whether it has a regular-season game (S167), the teams of its
+ * regular-season games (S191), and its ADR-021/022 stamps.
  */
 export interface ScheduleDayTally
 {
@@ -29,6 +30,8 @@ export interface ScheduleDayTally
 	gameTypes: (string | null)[];
 	/** {@link dayRegularSeason} of `gameTypes`, which both repository adapters call. */
 	regularSeason: boolean | null;
+	/** {@link dayRegularSeasonTeamIds} of the day's games, which both repository adapters call (S191). */
+	regularSeasonTeamIds: number[] | null;
 	/** When the day was last fetched (`ScheduleDay.fetchedAt`). */
 	fetchedAt: string;
 	/** When the day's content last changed (`ScheduleDay.lastChangedAt`, ADR-022). */
@@ -57,13 +60,30 @@ export interface ScheduleDayCount
 	teamIds: number[] | null;
 	/**
 	 * Whether the day has a regular-season game (S167; `dayRegularSeason`), so S125's calendar,
-	 * through `favoriteTeamsOff` (S159), marks a favorite team's day off only during the regular
-	 * season. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular
+	 * through `favoriteTeamsOff` (S159), marks a favorite team's day off only on a regular-season
+	 * day. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular
 	 * season and at least one was stored without a game type (a day stored before S167, until the
 	 * backfill re-stores it). Per day rather than per game, since the calendar needs only the day's
 	 * answer and the month answer stays one small, shared, cached response (ADR-021).
 	 */
 	regularSeason: boolean | null;
+	/**
+	 * The MLB team IDs of the day's regular-season games (S191; `dayRegularSeasonTeamIds`): away
+	 * and home of every game whose type is `R`, each once, ascending. `[]` for a stored day with no
+	 * regular-season game; `null` exactly when `regularSeason` is.
+	 */
+	regularSeasonTeamIds: number[] | null;
+	/**
+	 * The MLB team IDs in their own regular season that day (S191; `teamsInOwnSeason`): each team
+	 * whose first regular-season game of the calendar year is on or before the day and whose last is
+	 * on or after it, worked out from the year's stored days, not only this month's. With it a
+	 * favorite's off-day mark (`favoriteTeamsOff`) follows that team's own season, so an overseas
+	 * opener or a tiebreaker day marks no team whose season hasn't started or is already over.
+	 * `null` when the year's stored days can't tell (a day of the year untyped or not stored where
+	 * it matters); `favoriteTeamsOff` then keeps S159's per-day rule. Every in-season team is sent,
+	 * never "a favorite is in season", for the same shared, cached answer (ADR-021).
+	 */
+	inSeasonTeamIds: number[] | null;
 }
 
 /**
@@ -104,15 +124,115 @@ export function storedGameType(type: unknown): string | null
 }
 
 /**
+ * The teams of a stored day's regular-season games (S191; ADR-025: the one implementation, which
+ * both schedule repository adapters call): away and home of every game whose type is `R`, through
+ * {@link distinctTeamIds}; `[]` for a day with none; `null` exactly when {@link dayRegularSeason}
+ * of the same games is `null` (no `R` game and one untyped, so the day's regular-season teams
+ * can't be told). On a day with an `R` game and an untyped one, the untyped game's teams are left
+ * out: only a typed `R` game proves a team plays a regular-season game. It takes `unknown` because
+ * the types and IDs come out of a stored document, as its two helpers do.
+ */
+export function dayRegularSeasonTeamIds(games: readonly { gameType: unknown;
+	teamIds: readonly unknown[]; }[]): number[] | null
+{
+	if (dayRegularSeason(games.map((game) => game.gameType)) === null) return null;
+	return distinctTeamIds(games.filter((game) => storedGameType(game.gameType) === "R").flatMap((game) => game.teamIds));
+}
+
+/**
+ * Which teams are in their own regular season on each date of `dates` (S191; ADR-025: the one
+ * implementation, which the month answer's `inSeasonTeamIds` carries), from `yearDays`, the stored
+ * days of the dates' calendar year(s) (each with its {@link dayRegularSeasonTeamIds}). A team's own
+ * season is the span from its first regular-season game's day through its last, in that calendar
+ * year, so it is read from the whole year, not the shown month (a team's first game can fall in
+ * the month before). One answer per date, in order: the in-season team IDs ascending, or `null`
+ * when the stored days can't tell.
+ *
+ * "Can't tell" is decided per date. A day of the year that isn't stored, or whose
+ * `regularSeasonTeamIds` is `null` (untyped, stored before S167), is unknown, since it could hold
+ * a regular-season game. A team counts as in season only when known days prove a regular-season
+ * game of it on or before the date and one on or after it. A team left out must be proven out
+ * too: either no day from January 1 through the date is unknown and none holds its regular-season
+ * game, or no day from the date through December 31 is unknown and none holds one. When some
+ * team seen in the year can't be proven either way, or neither side of the date is fully known
+ * (so a team never seen could be in season), the date's answer is `null`.
+ */
+export function teamsInOwnSeason(yearDays: readonly Pick<ScheduleDayTally, "date" | "regularSeasonTeamIds">[], dates: readonly string[]): (number[] | null)[]
+{
+	const byYear = new Map<string, { first: Map<number, string>;
+		last: Map<number, string>;
+		firstUnknown: string | undefined;
+		lastUnknown: string | undefined; }>();
+	const yearOf = (year: string) =>
+	{
+		const known = byYear.get(year);
+		if (known) return known;
+		const stored = new Map(yearDays.filter((day) => day.date.startsWith(`${year}-`)).map((day) => [day.date, day.regularSeasonTeamIds]));
+		const first = new Map<number, string>();
+		const last = new Map<number, string>();
+		let firstUnknown: string | undefined;
+		let lastUnknown: string | undefined;
+		// Walked in date order, so the first sighting is a team's first game and the last its last.
+		for (const date of datesBetween(`${year}-01-01`, `${year}-12-31`))
+		{
+			const teams = stored.get(date);
+			if (!teams)
+			{
+				firstUnknown ??= date;
+				lastUnknown = date;
+				continue;
+			}
+			for (const team of teams)
+			{
+				if (!first.has(team)) first.set(team, date);
+				last.set(team, date);
+			}
+		}
+		const summary = {
+			first,
+			last,
+			firstUnknown,
+			lastUnknown,
+		};
+		byYear.set(year, summary);
+		return summary;
+	};
+	return dates.map((date) =>
+	{
+		const {
+			first, last, firstUnknown, lastUnknown,
+		} = yearOf(date.slice(0, 4));
+		const beforeKnown = firstUnknown === undefined || firstUnknown > date;
+		const afterKnown = lastUnknown === undefined || lastUnknown < date;
+		if (!beforeKnown && !afterKnown) return null;
+		const inSeason: number[] = [];
+		for (const [team, start] of first)
+		{
+			const started = start <= date;
+			const notOver = last.get(team)! >= date;
+			if (started && notOver) inSeason.push(team);
+			else if (!((!started && beforeKnown) || (!notOver && afterKnown))) return null;
+		}
+		return inSeason.sort((a, b) => a - b);
+	});
+}
+
+/**
  * One count per date of `dates`, in order, from the stored days' tallies (ADR-025: the one
  * implementation of a day's game count and teams for the month view): a date with no stored day
- * is `null` for all three, so `teamIds` is `null` exactly when `count` is; `regularSeason` is also
- * `null` for a stored day whose answer {@link dayRegularSeason} can't give.
+ * is `null` for all of them, so `teamIds` is `null` exactly when `count` is; `regularSeason` and
+ * `regularSeasonTeamIds` are also `null` for a stored day whose answer {@link dayRegularSeason}
+ * can't give. `stored` may hold more than the dates' days: the month service passes the whole
+ * calendar year, from which {@link teamsInOwnSeason} works out each date's `inSeasonTeamIds`.
  */
-export function monthGameCounts(dates: readonly string[], stored: readonly Pick<ScheduleDayTally, "date" | "gameCount" | "teamIds" | "regularSeason">[]): ScheduleDayCount[]
+export function monthGameCounts(
+	dates: readonly string[],
+	stored: readonly Pick<ScheduleDayTally, "date" | "gameCount" | "teamIds" | "regularSeason" | "regularSeasonTeamIds">[],
+): ScheduleDayCount[]
 {
 	const byDate = new Map(stored.map((day) => [day.date, day]));
-	return dates.map((date) =>
+	const inSeason = teamsInOwnSeason(stored, dates);
+	return dates.map((date, index) =>
 	{
 		const day = byDate.get(date);
 		return {
@@ -120,15 +240,18 @@ export function monthGameCounts(dates: readonly string[], stored: readonly Pick<
 			count: day?.gameCount ?? null,
 			teamIds: day ? [...day.teamIds] : null,
 			regularSeason: day ? day.regularSeason : null,
+			regularSeasonTeamIds: day?.regularSeasonTeamIds ? [...day.regularSeasonTeamIds] : null,
+			inSeasonTeamIds: inSeason[index] ?? null,
 		};
 	});
 }
 
 /**
- * A month view day as {@link favoriteTeamsOff} reads it: the teams playing it (S136) and whether it
- * has a regular-season game (S167). Both are optional and nullable so `ScheduleDayCount` fits, and
- * so does a day from an answer cached before S136 or S167 shipped, which lacks the field for up to
- * the cache cap (`CACHE_LIFETIME_CAP_MS`): such a day then carries no mark rather than breaking.
+ * A month view day as {@link favoriteTeamsOff} reads it: the teams playing it (S136), whether it
+ * has a regular-season game (S167) and the teams in their own regular season that day (S191). All
+ * are optional and nullable so `ScheduleDayCount` fits, and so does a day from an answer cached
+ * before S136, S167 or S191 shipped, which lacks the field for up to the cache cap
+ * (`CACHE_LIFETIME_CAP_MS`): such a day then carries no mark, or S159's mark, rather than breaking.
  */
 export interface MonthDayTeams
 {
@@ -136,6 +259,8 @@ export interface MonthDayTeams
 	teamIds?: readonly number[] | null;
 	/** Whether the day has a regular-season game; `null` or missing when that can't be told. */
 	regularSeason?: boolean | null;
+	/** The teams in their own regular season that day (`teamsInOwnSeason`); `null` or missing when that can't be told. */
+	inSeasonTeamIds?: readonly number[] | null;
 }
 
 /**
@@ -152,17 +277,19 @@ export interface FavoriteTeamsOff
 /**
  * Which of a fan's favorite teams are off on a month view day, and whether S125's calendar marks
  * that day red or yellow (S159; ADR-025: the one implementation, the calendar only formats it,
- * naming the teams). Two owner rules decide which favorites count:
+ * naming the teams). Three owner rules decide which favorites count:
  *
  * - Only during the regular season (owner, 2026-11-21: "Only during the regular season"): only a
  *   day whose `regularSeason` is `true` can carry a mark. Spring training, exhibition, All-Star
  *   (owner, 2026-11-22: "No mark on the All-Star day") and postseason-only days are `false`, and a
- *   day stored before S167 is `null`; none of them is marked. "Regular season" is decided per
- *   day, from any of the day's games, not per team: on an opener day (MLB's overseas opening
- *   series) or a tiebreaker day, a favorite can be marked off although its own regular season
- *   hasn't started or is already over. A follow-up story is planned to make the mark follow each
- *   team's own season (owner, 2026-11-23: "Ship now, fix later"); it needs each game's type per
- *   team, which the month answer doesn't carry yet.
+ *   day stored before S167 is `null`; none of them is marked.
+ * - Only during the favorite's own regular season (S191; owner, 2026-11-23, asked whether the mark
+ *   should follow each team's own regular season: chose the follow-up that makes it do so): when
+ *   the day's `inSeasonTeamIds` is a list, a favorite not in it (its own season hasn't started or
+ *   is already over, as on an overseas opener day or a tiebreaker day) is left out of the mark and
+ *   of `off`. When it is `null` or missing (the year's stored days can't tell, or an answer cached
+ *   before S191), this rule is skipped and the mark follows the day's `regularSeason` alone, as
+ *   S159 shipped it.
  * - Only the favorites with games that month (owner, 2026-11-21: "Only teams with games that
  *   month"): a favorite in no day's `teamIds` in `monthDays` (the shown month's days) is left out of
  *   the mark and of `off`, so a team that didn't exist yet marks nothing. Any game counts here,
@@ -171,15 +298,16 @@ export interface FavoriteTeamsOff
  *   A day whose `teamIds` is `null` or missing names no team, so it puts no favorite in the month.
  *
  * Returns `null` when the day carries no mark: not a regular-season day, no counted favorite (no
- * favorites, or none with a game that month), the day's teams unknown (`null` or missing) or none
- * (`[]`, a day A8 already dims), or every counted favorite plays. `off` lists each favorite once,
- * in `favoriteTeamIds`' order.
+ * favorites, none with a game that month, or none in its own season that day), the day's teams
+ * unknown (`null` or missing) or none (`[]`, a day A8 already dims), or every counted favorite
+ * plays. `off` lists each favorite once, in `favoriteTeamIds`' order.
  */
 export function favoriteTeamsOff(day: MonthDayTeams, favoriteTeamIds: readonly number[], monthDays: readonly MonthDayTeams[]): FavoriteTeamsOff | null
 {
 	if (day.regularSeason !== true || !day.teamIds || day.teamIds.length === 0) return null;
 	const inMonth = new Set(monthDays.flatMap((monthDay) => monthDay.teamIds ?? []));
-	const counted = [...new Set(favoriteTeamIds)].filter((id) => inMonth.has(id));
+	const inSeason = day.inSeasonTeamIds;
+	const counted = [...new Set(favoriteTeamIds)].filter((id) => inMonth.has(id) && (!inSeason || inSeason.includes(id)));
 	const playing = day.teamIds;
 	const off = counted.filter((id) => !playing.includes(id));
 	if (off.length === 0) return null;

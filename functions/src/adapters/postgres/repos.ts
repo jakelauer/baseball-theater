@@ -14,7 +14,7 @@ import type {
 	AccountSettings, Entitlements, GameProjection, GameSnapshot, PatronTier, Role, ScheduleDay, ScheduleDayTally, UserProfile,
 } from "@bt/domain";
 import {
-	dayRegularSeason, distinctTeamIds, storedGameType,
+	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, storedGameType,
 } from "@bt/domain";
 import type {
 	DeletionLog,
@@ -104,7 +104,9 @@ export class PostgresScheduleRepository implements ScheduleRepository
 	 * `jsonb_array_elements` gives SQL `NULL` for a game without one, which `jsonb_agg` keeps as a
 	 * JSON `null` (a `jsonb_path_query_array` over `$.games[*].gameType` would drop it and turn a
 	 * spring day with an untyped game into a typed one). `dayRegularSeason`, shared with the memory
-	 * adapter, turns the list into the day's answer.
+	 * adapter, turns the list into the day's answer. Each game's type also comes back beside its own
+	 * teams' IDs (S191), one `{ gameType, teamIds }` per game over the same `jsonb_array_elements`,
+	 * so `dayRegularSeasonTeamIds` (shared too) can pick the teams of the `R` games.
 	 */
 	async listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>
 	{
@@ -113,11 +115,13 @@ export class PostgresScheduleRepository implements ScheduleRepository
 			gameCount: sql<number>`jsonb_array_length(${scheduleDays.document}->'games')`,
 			teamIds: sql<unknown[]>`jsonb_path_query_array(${scheduleDays.document}, '$.games[*].teams.*.id')`,
 			gameTypes: sql<unknown[]>`coalesce((select jsonb_agg(game->'gameType' order by ord) from jsonb_array_elements(${scheduleDays.document}->'games') with ordinality as g(game, ord)), '[]'::jsonb)`,
+			games: sql<{ gameType: unknown;
+				teamIds: unknown[]; }[]>`coalesce((select jsonb_agg(jsonb_build_object('gameType', game->'gameType', 'teamIds', jsonb_path_query_array(game, '$.teams.*.id')) order by ord) from jsonb_array_elements(${scheduleDays.document}->'games') with ordinality as g(game, ord)), '[]'::jsonb)`,
 			fetchedAt: sql<string>`${scheduleDays.document}->>'fetchedAt'`,
 			lastChangedAt: sql<string>`${scheduleDays.document}->>'lastChangedAt'`,
 		}).from(scheduleDays).where(between(scheduleDays.date, from, to)).orderBy(asc(scheduleDays.date));
 		// A driver may hand `jsonb_array_length`'s integer back as a string; the port promises a number.
-		return rows.map((row) =>
+		return rows.map(({ games, ...row }) =>
 		{
 			// A stored type that isn't a string (hand-edited or older row) counts as no type (`storedGameType`).
 			const gameTypes = row.gameTypes.map(storedGameType);
@@ -127,6 +131,7 @@ export class PostgresScheduleRepository implements ScheduleRepository
 				teamIds: distinctTeamIds(row.teamIds),
 				gameTypes,
 				regularSeason: dayRegularSeason(gameTypes),
+				regularSeasonTeamIds: dayRegularSeasonTeamIds(games),
 			};
 		});
 	}

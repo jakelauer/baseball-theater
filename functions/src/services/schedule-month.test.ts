@@ -135,12 +135,16 @@ function api(repos: Repos, mlb: MlbStatsClient = new CountingClient(), start: Da
 				days: { date: string;
 					count: number | null;
 					teamIds: number[] | null;
-					regularSeason: boolean | null; }[]; };
+					regularSeason: boolean | null;
+					regularSeasonTeamIds: number[] | null;
+					inSeasonTeamIds: number[] | null; }[]; };
 			return {
 				body,
 				count: (date: string) => body.days.find((day) => day.date === date)?.count,
 				teams: (date: string) => body.days.find((day) => day.date === date)?.teamIds,
 				regularSeason: (date: string) => body.days.find((day) => day.date === date)?.regularSeason,
+				regularSeasonTeams: (date: string) => body.days.find((day) => day.date === date)?.regularSeasonTeamIds,
+				inSeason: (date: string) => body.days.find((day) => day.date === date)?.inSeasonTeamIds,
 				cacheControl: response.headers.get("Cache-Control"),
 			};
 		},
@@ -231,6 +235,8 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 			count: null,
 			teamIds: null,
 			regularSeason: null,
+			regularSeasonTeamIds: null,
+			inSeasonTeamIds: null,
 		});
 		for (const d of body.days) expect(d.teamIds === null, d.date).toBe(d.count === null);
 	});
@@ -260,6 +266,8 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 			count: null,
 			teamIds: null,
 			regularSeason: null,
+			regularSeasonTeamIds: null,
+			inSeasonTeamIds: null,
 		});
 		expect(regularSeason("2024-07-04")).toBe(true);
 		expect(regularSeason("2024-07-09")).toBe(false);
@@ -310,6 +318,124 @@ describe("S124 AC 1 one query", () =>
 			list: 1,
 			day: 0,
 		});
+	});
+});
+
+/**
+ * Stores every day of `year` the way ingest does, with no games except on `regular`'s days, where
+ * each listed `[away, home]` pair plays a regular-season game (S191), and on `spring`'s, a spring one.
+ */
+async function storeYear(repos: Repos, year: number, regular: Record<string, [number, number][]>, spring: Record<string, [number, number][]> = {}): Promise<void>
+{
+	const [template] = (await new FixtureMlbStatsClient().fetchSchedule("2024-07-04")).games;
+	let gamePk = 900000;
+	const game = (gameType: string, [away, home]: [number, number]): ScheduleGameSummary => ({
+		...template!,
+		gamePk: gamePk++,
+		gameType,
+		teams: {
+			away: {
+				...template!.teams.away,
+				id: away,
+			},
+			home: {
+				...template!.teams.home,
+				id: home,
+			},
+		},
+	});
+	for (const date of datesBetween(`${year}-01-01`, `${year}-12-31`))
+	{
+		await store(repos, date, [
+			...(regular[date] ?? []).map((pair) => game("R", pair)),
+			...(spring[date] ?? []).map((pair) => game("S", pair)),
+		]);
+	}
+}
+
+describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] as const)("S191 %s", (_name, makeRepos) =>
+{
+	// 2024, modelled: the Seoul series (Dodgers 119 – Padres 135) on March 20 and 21 beside a spring
+	// game (Yankees 147 – Red Sox 111 on the 20th), then everyone from March 28 through September 29.
+	const regular: Record<string, [number, number][]> = {
+		"2024-03-20": [[119, 135]],
+		"2024-03-21": [[135, 119]],
+		"2024-03-28": [[119, 135], [147, 111]],
+		"2024-09-29": [[119, 135], [147, 111]],
+	};
+	const spring: Record<string, [number, number][]> = {
+		"2024-03-20": [[147, 111]],
+	};
+
+	it("S191 AC 4 fields: each day carries regularSeasonTeamIds and inSeasonTeamIds; the Seoul opener's in-season teams are the Dodgers and Padres, read from the year", async () =>
+	{
+		const repos = await makeRepos();
+		await storeYear(repos, 2024, regular, spring);
+		const {
+			regularSeasonTeams, inSeason, teams,
+		} = await api(repos).month("2024-03");
+		expect(teams("2024-03-20")).toEqual([111, 119, 135, 147]);
+		expect(regularSeasonTeams("2024-03-20")).toEqual([119, 135]);
+		expect(inSeason("2024-03-20")).toEqual([119, 135]);
+		expect(regularSeasonTeams("2024-03-25")).toEqual([]);
+		expect(inSeason("2024-03-25")).toEqual([119, 135]);
+		expect(inSeason("2024-03-28")).toEqual([111, 119, 135, 147]);
+		expect(inSeason("2024-03-01")).toEqual([]);
+		// September's answer reads the same year: the season's last day, then none.
+		const september = await api(repos).month("2024-09");
+		expect(september.inSeason("2024-09-29")).toEqual([111, 119, 135, 147]);
+		expect(september.inSeason("2024-09-30")).toEqual([]);
+	});
+
+	it("S191 AC 4 unknown: a month whose year isn't fully stored answers inSeasonTeamIds null where it can't tell, and regularSeasonTeamIds null on an unstored day", async () =>
+	{
+		const repos = await makeRepos();
+		await store(repos, "2024-07-04", (await new FixtureMlbStatsClient().fetchSchedule("2024-07-04")).games);
+		const { regularSeasonTeams, inSeason } = await api(repos).month("2024-07");
+		expect(regularSeasonTeams("2024-07-04")).toEqual([111, 120, 121, 147]);
+		expect(inSeason("2024-07-04")).toBeNull();
+		expect(regularSeasonTeams("2024-07-05")).toBeNull();
+		expect(inSeason("2024-07-05")).toBeNull();
+	});
+
+	it("S191 AC 4 shared: the answer is one public, cached response that names no favorites (ADR-021)", async () =>
+	{
+		const repos = await makeRepos();
+		await storeYear(repos, 2024, regular, spring);
+		const response = await api(repos).get("/api/v1/schedule/month/2024-03");
+		expect(response.status).toBe(200);
+		expect(await response.text()).not.toMatch(/favorite/i);
+		expect(response.headers.get("Cache-Control")).toMatch(/public/);
+	});
+});
+
+describe("S191 AC 2 one read", () =>
+{
+	it("S191 AC 2 one read: a past month reads its whole calendar year with one repository query, never one per day or per month", async () =>
+	{
+		const repos = memoryRepos();
+		await store(repos, "2024-07-04", await mixedGames());
+		const calls: [string, string][] = [];
+		let days = 0;
+		const schedules: ScheduleRepository = {
+			getByDate: (date) =>
+			{
+				days++;
+				return repos.schedules.getByDate(date);
+			},
+			upsert: (day) => repos.schedules.upsert(day),
+			listGameCounts: (from, to) =>
+			{
+				calls.push([from, to]);
+				return repos.schedules.listGameCounts(from, to);
+			},
+		};
+		await api({
+			...repos,
+			schedules,
+		}).month("2024-07");
+		expect(calls).toEqual([["2024-01-01", "2024-12-31"]]);
+		expect(days).toBe(0);
 	});
 });
 

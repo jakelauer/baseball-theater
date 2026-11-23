@@ -165,7 +165,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The number of games on each day of one month, the teams playing it, and whether it has a regular-season game, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, `teamIds: null` and `regularSeason: null`, distinct from a day with no games (`0`, `[]` and `false`). */
+        /** The number of games on each day of one month, the teams playing it, whether it has a regular-season game and which teams play one, and which teams are in their own regular season that day (worked out from the month's whole year), from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, `teamIds: null`, `regularSeason: null` and `regularSeasonTeamIds: null`, distinct from a day with no games (`0`, `[]`, `false` and `[]`). */
         get: operations["getScheduleMonth"];
         put?: never;
         post?: never;
@@ -736,8 +736,12 @@ export interface components {
             count: number | null;
             /** @description The day, `YYYY-MM-DD`. */
             date: string;
-            /** @description Whether the day has a regular-season game (S167; `dayRegularSeason`), so S125's calendar, through `favoriteTeamsOff` (S159), marks a favorite team's day off only during the regular season. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular season and at least one was stored without a game type (a day stored before S167, until the backfill re-stores it). Per day rather than per game, since the calendar needs only the day's answer and the month answer stays one small, shared, cached response (ADR-021). */
+            /** @description The MLB team IDs in their own regular season that day (S191; `teamsInOwnSeason`): each team whose first regular-season game of the calendar year is on or before the day and whose last is on or after it, worked out from the year's stored days, not only this month's. With it a favorite's off-day mark (`favoriteTeamsOff`) follows that team's own season, so an overseas opener or a tiebreaker day marks no team whose season hasn't started or is already over. `null` when the year's stored days can't tell (a day of the year untyped or not stored where it matters); `favoriteTeamsOff` then keeps S159's per-day rule. Every in-season team is sent, never "a favorite is in season", for the same shared, cached answer (ADR-021). */
+            inSeasonTeamIds: number[] | null;
+            /** @description Whether the day has a regular-season game (S167; `dayRegularSeason`), so S125's calendar, through `favoriteTeamsOff` (S159), marks a favorite team's day off only on a regular-season day. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular season and at least one was stored without a game type (a day stored before S167, until the backfill re-stores it). Per day rather than per game, since the calendar needs only the day's answer and the month answer stays one small, shared, cached response (ADR-021). */
             regularSeason: boolean | null;
+            /** @description The MLB team IDs of the day's regular-season games (S191; `dayRegularSeasonTeamIds`): away and home of every game whose type is `R`, each once, ascending. `[]` for a stored day with no regular-season game; `null` exactly when `regularSeason` is. */
+            regularSeasonTeamIds: number[] | null;
             /** @description The MLB team IDs playing that day (away and home of every game counted in `count`, each once, ascending; S136), so a client can mark the days a fan's favorites don't play (`favoriteTeamsOff`, S159) without one request per day. `[]` for a stored day with no games; `null` exactly when `count` is. Every team is sent, not "a favorite plays", because favorites are personal and the month answer is one shared, cached response (ADR-021). */
             teamIds: number[] | null;
         };

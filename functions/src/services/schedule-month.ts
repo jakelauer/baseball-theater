@@ -1,7 +1,8 @@
 /**
  * Games per day for a month (S124) and the teams playing each day (S136), for S125's calendar
  * date picker, from BT's stored schedule days (ADR-002: clients read BT only), counted by
- * `monthGameCounts`. A month BT needn't ask MLB about is one count read; a fill adds one MLB
+ * `monthGameCounts`, and the teams in their own regular season each day (S191), worked out from the
+ * month's whole calendar year. A month BT needn't ask MLB about is one count read of that year; a fill adds one MLB
  * range request, a version-guarded write per day it returns (`storeSchedule`, which reads the
  * stored day first) and a second count read.
  *
@@ -38,8 +39,9 @@ export interface ScheduleMonth
 	/** Every day of the month, first to last. */
 	days: ScheduleDayCount[];
 	/**
-	 * When the month's stored data last changed: the latest change among its days, or `now`
-	 * while any day is unknown (`count: null`), so an incomplete month is checked again soon.
+	 * When the month's stored data last changed: the latest change among its calendar year's days
+	 * (whose regular seasons its `inSeasonTeamIds` reads, S191), or `now` while any day of the month
+	 * is unknown (`count: null`), so an incomplete month is checked again soon.
 	 */
 	lastChangedAt: string;
 }
@@ -82,9 +84,12 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 {
 	const now = deps.now?.() ?? new Date();
 	const dates = daysOfMonth(month);
-	const first = dates[0]!;
-	const last = dates.at(-1)!;
-	let stored = await deps.schedules.listGameCounts(first, last);
+	// One read of the month's whole calendar year (S191): each day's `inSeasonTeamIds` follows every
+	// team's own regular season, whose first or last game can fall in another month
+	// (`teamsInOwnSeason`). One repository query either way, never one per day.
+	const yearFirst = `${month.slice(0, 4)}-01-01`;
+	const yearLast = `${month.slice(0, 4)}-12-31`;
+	let stored = await deps.schedules.listGameCounts(yearFirst, yearLast);
 
 	// MLB's today, not UTC's: 03:00 UTC on January 1 is still December 31 for MLB.
 	const window = scheduleFillWindow(mlbToday(now));
@@ -118,7 +123,7 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 			}
 			return true;
 		}, (ok) => ok);
-		if (filled) stored = await deps.schedules.listGameCounts(first, last);
+		if (filled) stored = await deps.schedules.listGameCounts(yearFirst, yearLast);
 	}
 
 	const days = monthGameCounts(dates, stored);
@@ -126,6 +131,8 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 	return {
 		month,
 		days,
+		// The year's latest change, not only the month's: `inSeasonTeamIds` reads the whole year, so a
+		// day stored or corrected in another month can change this answer too.
 		lastChangedAt: (complete ? monthLastChangedAt(stored) : undefined) ?? now.toISOString(),
 	};
 }
