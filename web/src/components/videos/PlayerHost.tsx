@@ -2,6 +2,7 @@ import { useSettings } from "../../settings/store.js";
 import { LazyPlayerDialog } from "./LazyPlayerDialog.js";
 import type { PlayerGame } from "./PlayerDialog.js";
 import { PlayerStage } from "./PlayerStage.js";
+import type { StageGame } from "./PlayerStage.js";
 import type { Video } from "./VideoCard.js";
 import type { PlayLink } from "./playLink.js";
 
@@ -13,10 +14,12 @@ import type { PlayLink } from "./playLink.js";
  *
  * `video` is the clip the reader chose, or null; the stage falls back to `first` so it is
  * never empty, while the dialog only opens on a choice. `scoresHidden` (the game page's
- * `useScoresHidden`) goes to whichever one shows, for the recap clip's title (S75).
+ * `useScoresHidden`) goes to whichever one shows, for the recap clip's title (S75). The
+ * dialog gets the chosen clip's `playLink`; the stage gets `stageGame` and builds the link
+ * for the clip it shows itself (S172), since it shows the waiting first clip too.
  */
 export function PlayerHost({
-	video, first, onClose, game, fromGamePk, scoresHidden, playLink,
+	video, first, onClose, game, fromGamePk, scoresHidden, playLink, stageGame,
 }: { video: Video | null;
 	first: Video | undefined;
 	onClose: () => void;
@@ -24,13 +27,15 @@ export function PlayerHost({
 	fromGamePk?: number;
 	scoresHidden?: boolean;
 	/** The playing clip's play link (S97), for the dialog's top-left slot. */
-	playLink?: PlayLink | null; })
+	playLink?: PlayLink | null;
+	/** The room's game and its plays, from which the stage builds the shown clip's inning pill (S172). */
+	stageGame?: StageGame; })
 {
 	const { videoPlayer } = useSettings();
 	if (videoPlayer === "stage")
 	{
 		const shown = video ?? first;
-		return shown ? <PlayerStage video={shown} autoPlay={video !== null} scoresHidden={scoresHidden} /> : null;
+		return shown ? <PlayerStage video={shown} autoPlay={video !== null} scoresHidden={scoresHidden} game={stageGame} /> : null;
 	}
 	return video ? <LazyPlayerDialog video={video} onClose={onClose} game={game} fromGamePk={fromGamePk} scoresHidden={scoresHidden} playLink={playLink} /> : null;
 }
