@@ -565,6 +565,36 @@ describe("S191 AC 2 year fill (owner, 2026-11-23: \"Fetch the year (Recommended)
 		expect(mlb.ranges).toEqual([["2027-03-01", "2027-10-31"]]);
 	});
 
+	it("S191 AC 2 year fill: a season month MLB keeps answering empty (a lockout) is asked once, under its own key, and not again inside its lifetime", async () =>
+	{
+		const repos = memoryRepos();
+		// A published 2027 but for April, stored empty a day ago; MLB still answers April with no games.
+		await holdRestOfYear(repos, "2027-06", ["2027-04"]);
+		for (const date of datesBetween("2027-06-01", "2027-06-30")) await store(repos, date, []);
+		for (const date of datesBetween("2027-04-01", "2027-04-30")) await store(repos, date, [], new Date(T0.getTime() - DAY));
+		const mlb = new CountingClient();
+		const reader = api(repos, mlb);
+		await reader.month("2027-06");
+		expect(mlb.ranges).toEqual([["2027-04-01", "2027-04-30"]]);
+		// Past the coordinator's one-minute cooldown, inside the lifetime April's check earned: nothing is asked.
+		reader.clock.now = new Date(T0.getTime() + 2 * MINUTE);
+		await reader.month("2027-06");
+		await reader.month("2027-08");
+		expect(mlb.ranges).toEqual([["2027-04-01", "2027-04-30"]]);
+	});
+
+	it("S191 AC 2 year fill: a season month already past (before MLB's today's month) stored empty was cancelled, and is never asked for", async () =>
+	{
+		const repos = memoryRepos();
+		// 2026 is the current season (MLB's today is 2026-11-09): July stored empty long ago, the rest published.
+		await holdRestOfYear(repos, "2026-09", ["2026-07"]);
+		for (const date of datesBetween("2026-09-01", "2026-09-30")) await store(repos, date, []);
+		for (const date of datesBetween("2026-07-01", "2026-07-31")) await store(repos, date, [], new Date(T0.getTime() - 30 * DAY));
+		const mlb = new CountingClient();
+		await api(repos, mlb).month("2026-09");
+		expect(mlb.ranges).toEqual([]);
+	});
+
 	it("S191 AC 2 outside window: a month of an earlier season asks MLB nothing, however little of its year is stored", async () =>
 	{
 		const repos = memoryRepos();
