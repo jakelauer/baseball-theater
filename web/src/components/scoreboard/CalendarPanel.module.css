@@ -1,0 +1,146 @@
+/*
+ * The calendar's month grid (shell-scoreboard A8): a very subtle border around the grid (1px
+ * `color/border/default`, 8px corners) with 1px lines between days at 40% of that colour, six week
+ * rows, each day its bold number over its count at 50%. Mantine's `Month` draws the table; these
+ * classes restyle its parts through the Styles API.
+ */
+.month {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	border: 1px solid var(--bt-hairline);
+	border-radius: 8px;
+	overflow: hidden;
+	table-layout: fixed;
+}
+
+.weekday {
+	padding: 6px 0;
+	font-size: 11px;
+	font-weight: 700;
+	text-transform: uppercase;
+	color: var(--bt-muted);
+	border-bottom: 1px solid rgb(255 242 211 / 4.8%);
+}
+
+/* A hidden outside day is `display: none` (Mantine), so the cell keeps the row's height itself. */
+.cell {
+	height: var(--calendar-cell-height, 48px);
+	padding: 0;
+	border-right: 1px solid rgb(255 242 211 / 4.8%);
+	border-bottom: 1px solid rgb(255 242 211 / 4.8%);
+}
+
+.cell:last-child {
+	border-right: none;
+}
+
+tr:last-child > .cell {
+	border-bottom: none;
+}
+
+.day {
+	position: relative;
+	width: 100%;
+	height: var(--calendar-cell-height, 48px);
+	border-radius: 0;
+	color: var(--bt-light);
+	background: transparent;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+.day[data-selected] {
+	background: var(--bt-primary);
+	color: var(--bt-light);
+}
+
+.day[data-disabled] {
+	opacity: 0.2;
+	color: var(--bt-light);
+	background: transparent;
+	cursor: default;
+}
+
+.held {
+	box-shadow: inset 0 0 0 1px var(--bt-light);
+}
+
+/* What each day draws, filling its cell, so the off-day tooltip has the whole day to anchor to. */
+.inner {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+/* A day with no games, or none known in a month that has games: 35%, still pickable (A8). */
+.dimmed {
+	opacity: 0.35;
+}
+
+.number {
+	font-size: 15px;
+	font-weight: 700;
+	line-height: 1.2;
+}
+
+.count {
+	font-size: 11px;
+	line-height: 1.3;
+	opacity: 0.5;
+}
+
+/* A month still loading: a small Raised-current bar where the count will be. */
+.bar {
+	width: 18px;
+	height: 6px;
+	margin-top: 4px;
+	border-radius: 3px;
+	background: var(--bt-raised-current);
+}
+
+/* The favorite teams' off-day ✕: 8px, 3px in from the top right corner. */
+.mark {
+	position: absolute;
+	top: 3px;
+	right: 3px;
+	width: 8px;
+	height: 8px;
+	display: block;
+}
+
+/* On the selected day the ✕ sits on a 14px Dark badge, so either colour keeps its contrast. */
+.badge {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 14px;
+	height: 14px;
+	border-radius: 7px;
+	background: var(--bt-dark);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.badge > .mark {
+	position: static;
+}
+
+.select {
+	background: var(--bt-dark);
+	border: 1px solid var(--bt-hairline);
+	color: var(--bt-light);
+	font-weight: 700;
+}
+
+/* Under 500px tall even the short sheet doesn't fit under the top bar: the grid scrolls inside it. */
+.scroll {
+	max-height: calc(100dvh - 60px);
+	overflow-y: auto;
+}
