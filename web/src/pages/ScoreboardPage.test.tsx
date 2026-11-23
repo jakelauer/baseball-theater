@@ -277,7 +277,9 @@ describe("ScoreboardPage render count (S66, ADR-026)", () =>
 		const counter = createRenderCounter("scoreboard");
 		renderScoreboard("mobile", client, (node) => <counter.Counted>{node}</counter.Counted>);
 		await modules();
-		// Let the day digest's own answer (S71) land before counting.
+		// Let the page's other answers land before counting: the day digest's (S71), and the
+		// calendar's month and default day (S125), which a loaded machine can deliver late.
+		await waitFor(() => expect(client.isFetching()).toBe(0));
 		await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
 		counter.reset();
 		const next = day();
