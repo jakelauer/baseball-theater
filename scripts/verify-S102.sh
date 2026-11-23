@@ -14,7 +14,7 @@ source "$(dirname "$0")/lib/checks.sh"
 check 1 "the standings request adds hydrate=division (standingsUrl asks hydrate=team,division); fixtures/raw/standings-2026-09-05-division.json is MLB's answer to that request for both leagues (AL 103 and NL 104), each record's division named (name, nameShort, abbreviation); tests 'S102 AC 1'"
 check 2 "packages/mlb-api parses the division (id, name, abbreviation, nameShort) with zod, the coverage gate lists the new recording, and pnpm mlb:scan-drift scans it with no drift; tests 'S102 AC 2'"
 check 3 "the mapper carries each division's name and abbreviation into StandingsDivision additively (optional nameShort/abbreviation, spec fresh, pnpm api:breaking 0, generated client rendered, fixtures/standings-2026-09-05.json regenerated from the recording); no divisionName and no hand-written division-name map left in BT; the Standings heading reads nameShort and RTL still finds \"AL East\"; tests 'S102 AC 3'"
-check 4 "S102's snapshot records Status done (story_snapshot_status), and the story stays inside its scope files (plus its own records and scripts/verify-S102.sh), touching nothing under scripts/ or test/ but its grader"
+check 4 "S102's snapshot records Status done (story_snapshot_status), and the story stays inside its scope files (web/src/api/generated/ among them, owner 2026-11-23: \"Add it (Recommended)\"; plus its own records and scripts/verify-S102.sh), touching nothing under scripts/ or test/ but its grader"
 
 # The commit S102's own changes start from (origin/stage when the story started, 2026-11-23). The fence
 # (check 4) reads only S102's own commits from here through story_own_changed_files (scripts/lib/checks.sh).
@@ -113,10 +113,22 @@ run_tagged 3 web "S102 AC 3" tsx
 # --- Check 4: Status done, inside the fence -----------------------------------------------------------------
 [ "$(story_snapshot_status S102)" = "done" ] || bad 4 "S102's snapshot does not record Status done"
 story_own_changed_files S102 "$BASE" . >"$TMP/changed.txt"
-grep -vE '^(fixtures/|packages/mlb-api/src/|packages/ports/src/|packages/domain/src/|functions/src/|functions/vitest\.config\.ts$|openapi/|web/src/pages/|web/src/components/|docs/v3/backlog/|docs/v3/AUDIT\.md$|CHANGELOG\.md$|docs/v3/audit/[^/]+/[^/]+-S102-[a-z-]+\.md$|changelog\.d/S102\.md$|scripts/verify-S102\.sh$)' "$TMP/changed.txt" >"$TMP/fence.txt"
+grep -vE '^(fixtures/|packages/mlb-api/src/|packages/ports/src/|packages/domain/src/|functions/src/|functions/vitest\.config\.ts$|openapi/|web/src/pages/|web/src/components/|web/src/api/generated/|docs/v3/backlog/|docs/v3/AUDIT\.md$|CHANGELOG\.md$|docs/v3/audit/[^/]+/[^/]+-S102-[a-z-]+\.md$|changelog\.d/S102\.md$|scripts/verify-S102\.sh$)' "$TMP/changed.txt" >"$TMP/fence.txt"
 [ -s "$TMP/fence.txt" ] && bad 4 "the story changes files outside its scope: $(tr '\n' ' ' <"$TMP/fence.txt")"
 grep -E '^(scripts/|test/)' "$TMP/changed.txt" | grep -vE '^scripts/verify-S102\.sh$' >"$TMP/scripts.txt"
 [ -s "$TMP/scripts.txt" ] && bad 4 "the story changes files under scripts/ or test/: $(tr '\n' ' ' <"$TMP/scripts.txt")"
+
+# --- Ledger notes (the reuse check), printed so audit.sh captures them ---------------------------------------
+cat <<'NOTES'
+S102 notes (design reasoning, not checked by this grader beyond checks 1-3) —
+Reuse check (ADR-025): the one standings mapper (mapStandingsDivision, functions/src/mappers/standings.ts)
+  already named a division from the team rows' hydrated division; it now reads the group's hydrated division
+  first and keeps the rows as the fallback for an answer recorded before S102. The parser extends the existing
+  mlbLinkSchema; the three standings URLs are the existing standingsUrl / finalStandingsUrl / springStandingsUrl,
+  which the recorder already shares. The heading stays DivisionTable's one expression; leagueName (S155) is kept
+  for league tables, and divisionName (S61), the hand map, is removed. Spec and client follow S160's path
+  (pnpm api:spec, pnpm api:types). Fence: web/src/api/generated/ added by the owner, 2026-11-23: "Add it (Recommended)".
+NOTES
 
 report "verify-S102"
 exit $?

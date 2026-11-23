@@ -444,7 +444,7 @@ describe("getStandings phases (S139)", () =>
 		expect(teams(regular.divisions)).toBe(30);
 		expect(regular.divisions.flatMap((d) => d.teams).every((t) => t.wins === 0 && t.losses === 0)).toBe(true);
 		// The teams come from 2027's season table with no date, never 2026's final.
-		expect(asked).toContain("https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2027&hydrate=team");
+		expect(asked).toContain("https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2027&hydrate=team,division");
 		expect(answer.phases.playoffs!.table!.divisions).toEqual([]);
 
 		const dayBefore = await answerOf({

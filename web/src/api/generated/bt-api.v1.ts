@@ -877,9 +877,14 @@ export interface components {
             wonOn: string;
         };
         StandingsDivision: {
+            /** @description MLB's abbreviation for the division (`ALE`; S102), `null` and optional as `nameShort` is. */
+            abbreviation?: string | null;
             divisionId: number | null;
             leagueId: number | null;
+            /** @description The table's full name from MLB (`American League East`), or its league's (`American League`) for a league table before 1969. */
             name: string | null;
+            /** @description MLB's short name for the division (`AL East`; S102, from `hydrate=division`), what the Standings headings show. `null` on a league table and when MLB sends none; optional because an answer cached before S102 lacks it, which means none. */
+            nameShort?: string | null;
             teams: components["schemas"]["StandingsTeamRecord"][];
         };
         /** @description One season phase in a standings answer (S139): the first and last day the phase runs in the season the answer is for, and its table when the request included the phase (`includePhases`). The dates are always there, so a caller can choose which phases to ask for without their tables. `startDate` and `endDate` are null only on `regularSeason` when the day has no season calendar. `table` keeps S128's meaning of `phase`, `season` and `date` (for `playoffs`, those of the regular-season table its teams come from). */

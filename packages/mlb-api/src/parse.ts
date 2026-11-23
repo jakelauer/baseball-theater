@@ -1316,7 +1316,7 @@ const standingsRecordEntrySchema = z.object({
 
 /**
  * A record group's division (S102). Bare `{ id, link }` unless the request hydrates `division`, which
- * adds its names ("American League East", "AL East", "ALE") and MLB's bookkeeping about it.
+ * adds its names (`American League East`, `AL East`, `ALE`) and MLB's bookkeeping about it.
  */
 const standingsDivisionSchema = mlbLinkSchema.extend({
 	name: z.string().optional(),

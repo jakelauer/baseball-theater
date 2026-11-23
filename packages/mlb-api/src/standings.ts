@@ -37,7 +37,7 @@ export interface StandingsRecordGroup {
 
 /**
  * A record group's division as `hydrate=division` returns it (S102): its full name
- * ("American League East"), short name ("AL East") and abbreviation ("ALE"), plus
+ * (`American League East`), short name (`AL East`) and abbreviation (`ALE`), plus
  * MLB's bookkeeping. Every name is optional, since an unhydrated request sends
  * only `{ id, link }`.
  */
