@@ -1,0 +1,257 @@
+/**
+ * The site footer in the real shell and routes (S142; shell-scoreboard A14): the shell draws it
+ * after `<main>` on every page (`contentinfo`, so never inside `<main>`), not on the
+ * account-deleted Settings page and not in the nav drawer; the game page's open socket reaches it
+ * through the render prop's setter and is cleared when the page goes. Requests other than the
+ * session's (and the game's, where a test serves one) stay pending, as `stubMeApi` leaves them,
+ * so each page shows its loading state above the footer.
+ */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { MantineProvider } from "@mantine/core";
+import { QueryClientProvider } from "@tanstack/react-query";
+import {
+	act, cleanup, render, screen, waitFor, within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import {
+	MemoryRouter, useLocation, useNavigate,
+} from "react-router-dom";
+import {
+	afterEach, beforeEach, describe, expect, it, vi,
+} from "vitest";
+import { createQueryClient } from "../api/queryClient.js";
+import { AppRoutes } from "../routes.js";
+import { DEV_SIGN_IN_TOKEN } from "../session/session.js";
+import { SessionProvider } from "../session/SessionProvider.js";
+import { setSessionToken } from "../session/token.js";
+import { jsonResponse } from "../test/jsonResponse.js";
+import { stubMeApi } from "../test/meApi.js";
+import { AppShellLayout } from "./AppShellLayout.js";
+
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../fixtures");
+
+/** `fixtures/game-823823-live.json` as BT serves it in its window, so the game page opens its socket. */
+function liveGame(): unknown
+{
+	return {
+		...JSON.parse(readFileSync(join(FIXTURES, "game-823823-live.json"), "utf8")),
+		highlights: [],
+		fetchedAt: "2026-09-05T20:57:20.000Z",
+		windowMode: "active",
+		version: 1,
+	};
+}
+
+/** The browser WebSocket, stood in: the test opens it by hand. */
+class FakeWebSocket
+{
+	static opened: FakeWebSocket[] = [];
+	onopen: ((event: unknown) => void) | null = null;
+	onmessage: ((event: { data: unknown }) => void) | null = null;
+	onclose: ((event: unknown) => void) | null = null;
+	readonly close = vi.fn();
+
+	constructor(readonly url: string)
+	{
+		FakeWebSocket.opened.push(this);
+	}
+}
+
+/** Shows the router's path, and lets a test move it as a link would. */
+function Path()
+{
+	const navigate = useNavigate();
+	return (
+		<>
+			<output aria-label="path">{useLocation().pathname}</output>
+			<button type="button" onClick={() => void navigate("/standings")}>to standings</button>
+		</>
+	);
+}
+
+function renderApp(path: string)
+{
+	return render(
+		<MantineProvider>
+			<QueryClientProvider client={createQueryClient()}>
+				<SessionProvider>
+					<MemoryRouter initialEntries={[path]}>
+						<AppShellLayout>
+							{(variant, setFooter) => <AppRoutes variant={variant} setFooter={setFooter} />}
+						</AppShellLayout>
+						<Path />
+					</MemoryRouter>
+				</SessionProvider>
+			</QueryClientProvider>
+		</MantineProvider>,
+	);
+}
+
+/** The footer, after `<main>` and outside it, as the page's `contentinfo`. */
+async function footer(): Promise<HTMLElement>
+{
+	const found = await screen.findByRole("contentinfo");
+	const main = screen.getByRole("main");
+	expect(main).not.toContainElement(found);
+	expect(main.compareDocumentPosition(found) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(within(found).getByText(/^© \d{4} Baseball Theater$/)).toBeInTheDocument();
+	return found;
+}
+
+beforeEach(() =>
+{
+	setSessionToken(null);
+	stubMeApi();
+	FakeWebSocket.opened = [];
+	vi.stubGlobal("WebSocket", FakeWebSocket);
+});
+
+afterEach(() =>
+{
+	cleanup();
+	vi.unstubAllGlobals();
+	vi.restoreAllMocks();
+});
+
+describe("the shell's site footer (S142)", () =>
+{
+	it("S142 AC 1 scoreboard: the footer follows <main>, with no strip (the scoreboard opens no socket yet)", async () =>
+	{
+		renderApp("/games/2026-09-05");
+		const found = await footer();
+		expect(within(found).queryByTestId("footer-live-strip")).toBeNull();
+		expect(found).not.toHaveTextContent(/Fetched|baseball\.theater/);
+	});
+
+	it("S142 AC 1 game page: the footer follows <main> on a game page", async () =>
+	{
+		renderApp("/game/744834/box");
+		await footer();
+	});
+
+	it("S142 AC 1 Standings: the footer follows <main>, with no strip", async () =>
+	{
+		renderApp("/standings");
+		const found = await footer();
+		expect(within(found).queryByTestId("footer-live-strip")).toBeNull();
+	});
+
+	it("S142 AC 1 Search: the footer follows <main>", async () =>
+	{
+		renderApp("/search");
+		await footer();
+	});
+
+	it("S142 AC 1 Settings: signed in, the footer follows <main> on Settings", async () =>
+	{
+		setSessionToken(DEV_SIGN_IN_TOKEN);
+		renderApp("/settings");
+		expect(await screen.findByRole("heading", {
+			name: /settings/i,
+		})).toBeInTheDocument();
+		await footer();
+	});
+
+	it("S142 AC 1 change log: the footer follows <main> on the change log page", async () =>
+	{
+		renderApp("/changelog");
+		await footer();
+	});
+
+	it("S142 AC 1 deleted page: the account-deleted Settings page has no footer (A5)", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(async (request: Request) => new URL(request.url).pathname === "/api/v1/me"
+			? jsonResponse({
+				error: "account_deleted",
+			}, 401)
+			: new Promise<Response>(() => undefined)));
+		renderApp("/settings");
+		expect(await screen.findByText("Your account and your data are deleted.")).toBeInTheDocument();
+		expect(screen.queryByRole("contentinfo")).toBeNull();
+	});
+
+	it("S142 AC 1 drawer: the open nav drawer holds no footer and none of its links", async () =>
+	{
+		renderApp("/standings");
+		await footer();
+		await userEvent.click(screen.getByRole("button", {
+			name: "Open navigation",
+		}));
+		const drawer = await screen.findByRole("dialog");
+		expect(within(drawer).queryByRole("contentinfo")).toBeNull();
+		expect(within(drawer).queryByRole("link", {
+			name: "Support & Community",
+		})).toBeNull();
+		expect(drawer.querySelector('a[href="https://www.reddit.com/r/BaseballTheater/"]')).toBeNull();
+		// The drawer's own way to the change log is the menu's link (S134; A9), not the footer's.
+		for (const link of drawer.querySelectorAll('a[href="/changelog"]'))
+		{
+			expect(link).toHaveAttribute("data-testid", "changelog-link");
+		}
+	});
+
+	it("S142 AC 1 state channel: a live game page with its socket open shows the strip; on to Standings it goes", async () =>
+	{
+		const me = stubMeApi();
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/games/823823"
+			? Promise.resolve(jsonResponse(liveGame()))
+			: me(request)));
+		renderApp("/game/823823/live");
+		await waitFor(() => expect(FakeWebSocket.opened).toHaveLength(1));
+		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
+		await act(async () => FakeWebSocket.opened[0]!.onopen?.({}));
+		const found = await footer();
+		expect(found.firstElementChild).toBe(screen.getByTestId("footer-live-strip"));
+		await userEvent.click(screen.getByRole("button", {
+			name: "to standings",
+		}));
+		await waitFor(() => expect(screen.getByLabelText("path")).toHaveTextContent(/^\/standings$/));
+		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
+		expect(screen.getByRole("contentinfo")).toBeInTheDocument();
+	});
+
+	it("S142 AC 2: the Live marker shows on a live game page with its socket open, and not once it closes", async () =>
+	{
+		const me = stubMeApi();
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/games/823823"
+			? Promise.resolve(jsonResponse(liveGame()))
+			: me(request)));
+		renderApp("/game/823823/live");
+		await waitFor(() => expect(FakeWebSocket.opened).toHaveLength(1));
+		await act(async () => FakeWebSocket.opened[0]!.onopen?.({}));
+		expect(within(await footer()).getByText("Live Data · Active")).toBeInTheDocument();
+		await act(async () => FakeWebSocket.opened[0]!.onclose?.({}));
+		expect(screen.queryByText("Live Data · Active")).toBeNull();
+		expect(screen.getByRole("contentinfo")).toBeInTheDocument();
+	});
+
+	it("S142 AC 3: each BT link opens a page a route serves, not a catch-all", async () =>
+	{
+		setSessionToken(DEV_SIGN_IN_TOKEN);
+		const me = stubMeApi();
+		vi.stubGlobal("fetch", vi.fn(async (request: Request) => new URL(request.url).pathname === "/api/v1/releases"
+			? jsonResponse({
+				current: null,
+				releases: [],
+			})
+			: me(request)));
+		renderApp("/standings");
+		await userEvent.click(within(await footer()).getByRole("link", {
+			name: "Changelog",
+		}));
+		expect(await screen.findByRole("heading", {
+			level: 1,
+			name: "Change log",
+		})).toBeInTheDocument();
+		expect(screen.getByLabelText("path")).toHaveTextContent(/^\/changelog$/);
+		await userEvent.click(within(await footer()).getByRole("link", {
+			name: "Your data",
+		}));
+		expect(await screen.findByRole("heading", {
+			name: /settings/i,
+		})).toBeInTheDocument();
+		expect(screen.getByLabelText("path")).toHaveTextContent(/^\/settings$/);
+	});
+});

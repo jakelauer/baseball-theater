@@ -2,10 +2,13 @@ import { Box, Drawer } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { AppHeader } from "./AppHeader.js";
 import { NavRail } from "./NavRail.js";
 import type { Notice } from "./NoticeSlot.js";
 import { NoticeSlot } from "./NoticeSlot.js";
+import type { FooterMode, SetFooterMode } from "./footerMode.js";
+import { SiteFooter } from "./SiteFooter.js";
 import type { LayoutVariant } from "./variant.js";
 import { useLayoutVariant } from "./variant.js";
 
@@ -27,14 +30,23 @@ const RAIL_WIDTH = 240;
  * The notice slot sits directly under the header (S31 `shell-notice-*`); the reload notice
  * floats fixed at the bottom of the screen instead (shell-scoreboard A6), which `NoticeSlot`
  * decides. The notice's owner (update prompt, offline marker) passes it in.
+ *
+ * The site footer (S142; shell-scoreboard A14) is the shell's, drawn after `<main>` so it is the
+ * page's `contentinfo` and spans the content column edge to edge, never the rail, and never in
+ * the drawer. What only the page knows (its live socket open, or the deleted page's "no footer")
+ * reaches it through `setFooter`, the setter of a `useState` here that the render prop passes
+ * beside `variant` (ADR-024: no store, no context); pages set it with `useFooterMode`. `<main>`
+ * doesn't grow, so on a page shorter than the screen the footer follows the content and the
+ * leftover height is left empty below it (A14 Short page; owner, 2026-11-19: "A13").
  */
 export function AppShellLayout({ children, notice = null }: {
-	children: (variant: LayoutVariant) => ReactNode;
+	children: (variant: LayoutVariant, setFooter: SetFooterMode) => ReactNode;
 	notice?: Notice | null;
 })
 {
 	const variant = useLayoutVariant();
 	const [opened, { toggle, close }] = useDisclosure();
+	const [footer, setFooter] = useState<FooterMode>("plain");
 	const { pathname } = useLocation();
 	const desktop = variant === "desktop";
 	const gameRoute = pathname.startsWith("/game/");
@@ -89,11 +101,10 @@ export function AppShellLayout({ children, notice = null }: {
 			}}>
 				{gameRoute ? null : <AppHeader burger={!desktop} wordmark={!desktop} drawerOpened={opened} onBurger={toggle} />}
 				<NoticeSlot notice={notice} />
-				<Box component="main" px="md" pb="md" pt={gameRoute ? 0 : "md"} style={{
-					flex: 1,
-				}}>
-					{children(variant)}
+				<Box component="main" px="md" pb="md" pt={gameRoute ? 0 : "md"}>
+					{children(variant, setFooter)}
 				</Box>
+				{footer === "none" ? null : <SiteFooter live={footer === "live"} variant={variant} />}
 			</Box>
 		</Box>
 	);

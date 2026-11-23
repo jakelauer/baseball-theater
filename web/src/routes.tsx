@@ -6,6 +6,7 @@ import {
 import { ViewState } from "./components/ViewState.js";
 import { ScoreboardPage } from "./pages/ScoreboardPage.js";
 import type { LayoutVariant } from "./layout/variant.js";
+import type { SetFooterMode } from "./layout/footerMode.js";
 import { useAccountDeleted } from "./api/accountDeleted.js";
 import { useScoreboardDefaultDate } from "./api/scoreboardDate.js";
 import { DeletedAccountPage } from "./pages/settings/DeletedAccountPage.js";
@@ -16,13 +17,14 @@ import { SIGN_IN_CALLBACK_PATH } from "@bt/domain";
 /**
  * Signed out on `/settings`: if this browser's account was just deleted, A5's
  * page, once; otherwise off to the scoreboard. The server alone knows (S87's
- * `HttpOnly` cookie), so the page stays empty while it is asked (S79).
+ * `HttpOnly` cookie), so the page stays empty while it is asked (S79). The deleted page
+ * takes `setFooter` to switch the shell's footer off (A5; S142).
  */
-function SignedOutSettings()
+function SignedOutSettings({ setFooter }: { setFooter?: SetFooterMode })
 {
 	const { data: deleted, isPending } = useAccountDeleted();
 	if (isPending) return null;
-	return deleted ? <DeletedAccountPage /> : <Navigate to="/games" replace />;
+	return deleted ? <DeletedAccountPage setFooter={setFooter} /> : <Navigate to="/games" replace />;
 }
 
 /**
@@ -31,11 +33,12 @@ function SignedOutSettings()
  * scoreboard. While the session is still loading it renders nothing, so a
  * signed-in reload isn't bounced away before the session arrives.
  */
-function SignedInOnly({ children }: { children: ReactNode })
+function SignedInOnly({ children, setFooter }: { children: ReactNode;
+	setFooter?: SetFooterMode; })
 {
 	const session = useSession();
 	if (session.status === "loading") return null;
-	if (session.status === "signedOut") return <SignedOutSettings />;
+	if (session.status === "signedOut") return <SignedOutSettings setFooter={setFooter} />;
 	return children;
 }
 
@@ -74,9 +77,13 @@ const ChangelogPage = lazy(() => import("./pages/ChangelogPage.js").then((m) => 
 /**
  * The routes, each page given the pairing the layout host settled (S60). While a page's
  * chunk arrives, the page area shows ViewState's loading treatment (S110), the one every
- * page uses while its data loads, so there is no extra screen.
+ * page uses while its data loads, so there is no extra screen. `setFooter` is the shell's say
+ * over the site footer (S142), passed to the pages that change it: the game page (its live
+ * socket) and the deleted-account page (no footer). Optional, so a test may render the routes
+ * without the shell's footer.
  */
-export function AppRoutes({ variant }: { variant: LayoutVariant })
+export function AppRoutes({ variant, setFooter }: { variant: LayoutVariant;
+	setFooter?: SetFooterMode; })
 {
 	return (
 		<Suspense fallback={<ViewState kind="loading" />}>
@@ -84,13 +91,13 @@ export function AppRoutes({ variant }: { variant: LayoutVariant })
 				<Route path="/" element={<DefaultDay />} />
 				<Route path="/games" element={<DefaultDay />} />
 				<Route path="/games/:date" element={<ScoreboardPage variant={variant} />} />
-				<Route path="/game/:gamePk" element={<GamePage variant={variant} />} />
-				<Route path="/game/:gamePk/:tab" element={<GamePage variant={variant} />} />
+				<Route path="/game/:gamePk" element={<GamePage variant={variant} setFooter={setFooter} />} />
+				<Route path="/game/:gamePk/:tab" element={<GamePage variant={variant} setFooter={setFooter} />} />
 				<Route path="/standings" element={<StandingsPage variant={variant} />} />
 				<Route path="/search" element={<SearchPage />} />
 				{/* The change log is for everyone, signed in or not (A9, ratified 2026-11-19). */}
 				<Route path="/changelog" element={<ChangelogPage />} />
-				<Route path="/settings" element={<SignedInOnly><SettingsPage variant={variant} /></SignedInOnly>} />
+				<Route path="/settings" element={<SignedInOnly setFooter={setFooter}><SettingsPage variant={variant} /></SignedInOnly>} />
 				<Route path={SIGN_IN_CALLBACK_PATH} element={<SignInCallback />} />
 			</Routes>
 		</Suspense>

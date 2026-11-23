@@ -7,7 +7,7 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
-	cleanup, render, screen, waitFor,
+	cleanup, render, screen, waitFor, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -133,7 +133,8 @@ describe("change log route (S134)", () =>
 		await userEvent.click(screen.getByRole("button", {
 			name: "Open navigation",
 		}));
-		expect(await screen.findByRole("link", {
+		// The drawer's link, not the site footer's "Changelog" (S142), which is never marked current.
+		expect(within(await screen.findByRole("dialog")).getByRole("link", {
 			name: "Changelog",
 		})).toHaveAttribute("aria-current", "page");
 	});
