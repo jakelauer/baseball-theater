@@ -15,6 +15,7 @@ describe("monthGameCounts (S124, S136 AC 1)", () =>
 				date: "2026-09-05",
 				gameCount: 2,
 				teamIds: [108, 111, 117, 147],
+				gameTypes: ["R", "S"],
 				regularSeason: true,
 				regularSeasonTeamIds: [108, 147],
 			},
@@ -22,6 +23,7 @@ describe("monthGameCounts (S124, S136 AC 1)", () =>
 				date: "2026-09-06",
 				gameCount: 0,
 				teamIds: [],
+				gameTypes: [],
 				regularSeason: false,
 				regularSeasonTeamIds: [],
 			},
@@ -60,6 +62,7 @@ describe("monthGameCounts (S124, S136 AC 1)", () =>
 				date: "2024-07-04",
 				gameCount: 2,
 				teamIds: [111, 120, 121, 147],
+				gameTypes: [null, null],
 				regularSeason: null,
 				regularSeasonTeamIds: null,
 			},
@@ -375,6 +378,7 @@ describe("favoriteTeamsOff (S159 AC 1)", () =>
 				date: "2026-07-01",
 				gameCount: 1,
 				teamIds: [147, 111],
+				gameTypes: ["R"],
 				regularSeason: true,
 				regularSeasonTeamIds: [111, 147],
 			},
@@ -382,6 +386,7 @@ describe("favoriteTeamsOff (S159 AC 1)", () =>
 				date: "2026-07-02",
 				gameCount: 1,
 				teamIds: [108, 119],
+				gameTypes: ["R"],
 				regularSeason: true,
 				regularSeasonTeamIds: [108, 119],
 			},
@@ -543,21 +548,26 @@ describe("dayRegularSeasonTeamIds (S191 AC 1)", () =>
 
 /**
  * A calendar year of stored days for {@link teamsInOwnSeason}: every day stored with no
- * regular-season game except those `regular` lists; `untyped` days are stored without types
- * (`null`) and `unstored` days are left out.
+ * regular-season game except those `regular` lists (one `R` game type each); `untyped` days are
+ * stored without types (`null`), `untypedBesideR` days get an untyped game beside their `R` ones,
+ * and `unstored` days are left out.
  */
 function storedYear(year: number, regular: Record<string, number[]>, options: { untyped?: string[];
+	untypedBesideR?: string[];
 	unstored?: string[]; } = {})
 {
 	const days: { date: string;
+		gameTypes: (string | null)[];
 		regularSeasonTeamIds: number[] | null; }[] = [];
 	for (let date = new Date(Date.UTC(year, 0, 1)); date.getUTCFullYear() === year; date.setUTCDate(date.getUTCDate() + 1))
 	{
 		const iso = date.toISOString().slice(0, 10);
 		if (options.unstored?.includes(iso)) continue;
+		const untyped = options.untyped?.includes(iso) ?? false;
 		days.push({
 			date: iso,
-			regularSeasonTeamIds: options.untyped?.includes(iso) ? null : regular[iso] ?? [],
+			gameTypes: untyped ? [null] : [...(regular[iso] ? ["R"] : []), ...(options.untypedBesideR?.includes(iso) ? [null] : [])],
+			regularSeasonTeamIds: untyped ? null : regular[iso] ?? [],
 		});
 	}
 	return days;
@@ -640,6 +650,38 @@ describe("teamsInOwnSeason (S191 AC 2)", () =>
 		expect(teamsInOwnSeason(storedYear(2018, regular, {
 			unstored: ["2018-10-05"],
 		}), ["2018-10-01"])).toEqual([null]);
+	});
+
+	it("S191 AC 2 boundary: a year fully stored except the date itself can't tell that date (2018-10-01, 2024-03-20)", () =>
+	{
+		const regular = {
+			"2018-03-29": [BREWERS, CUBS, DODGERS, ROCKIES, YANKEES_ID, CARDINALS],
+			"2018-09-30": [BREWERS, CUBS, DODGERS, ROCKIES, YANKEES_ID, CARDINALS],
+			"2018-10-01": [BREWERS, CUBS, DODGERS, ROCKIES],
+		};
+		expect(teamsInOwnSeason(storedYear(2018, regular, {
+			unstored: ["2018-10-01"],
+		}), ["2018-10-01"])).toEqual([null]);
+		expect(teamsInOwnSeason(storedYear(2018, regular, {
+			untyped: ["2018-10-01"],
+		}), ["2018-10-01"])).toEqual([null]);
+		// The other edge: 2024 fully stored except the Seoul opener itself can't tell March 20.
+		expect(teamsInOwnSeason(storedYear(2024, season2024(), {
+			unstored: ["2024-03-20"],
+		}), ["2024-03-20"])).toEqual([null]);
+	});
+
+	it("S191 AC 2 untyped beside R: a day with an untyped game beside its R games is unknown, though its R teams still count as having played", () =>
+	{
+		// The Seoul opener with an untyped game beside it: a team in that game could have opened too.
+		const year = storedYear(2024, season2024(), {
+			untypedBesideR: ["2024-03-20"],
+		});
+		expect(teamsInOwnSeason(year, ["2024-03-20"])).toEqual([null]);
+		// Later dates: every team is proven in by games on both sides, the Dodgers and Padres by March 20's R game included.
+		expect(teamsInOwnSeason(year, ["2024-06-16"])).toEqual([[RED_SOX, DODGERS, PADRES, YANKEES_ID]]);
+		// March 21 needs January 1 through the 21st known for the Yankees, which aren't in season yet: it can't tell.
+		expect(teamsInOwnSeason(year, ["2024-03-21"])).toEqual([null]);
 	});
 
 	it("S191 AC 2 off-season: a fully stored year has no team in season in January or December; a year with nothing stored can't tell", () =>

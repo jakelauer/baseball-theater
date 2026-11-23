@@ -91,19 +91,20 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 			.sort((a, b) => a.date.localeCompare(b.date))
 			.map((day) =>
 			{
-				// One entry per game, `null` for an untyped one, as the Postgres adapter reads it (S167).
-				const gameTypes = day.games.map((game) => storedGameType(game.gameType));
+				// One `{ gameType, teamIds }` per game, then read exactly as the Postgres adapter reads its
+				// query's list (S191): count, teams (S136), types (S167, `null` for an untyped one).
+				const games = day.games.map((game) => ({
+					gameType: game.gameType as unknown,
+					teamIds: [game.teams.away.id, game.teams.home.id] as unknown[],
+				}));
+				const gameTypes = games.map((game) => storedGameType(game.gameType));
 				return {
 					date: day.date,
-					gameCount: day.games.length,
-					teamIds: distinctTeamIds(day.games.flatMap((game) => [game.teams.away.id, game.teams.home.id])),
+					gameCount: games.length,
+					teamIds: distinctTeamIds(games.flatMap((game) => game.teamIds)),
 					gameTypes,
 					regularSeason: dayRegularSeason(gameTypes),
-					// Each game's type beside its own teams (S191), as the Postgres adapter reads them.
-					regularSeasonTeamIds: dayRegularSeasonTeamIds(day.games.map((game) => ({
-						gameType: game.gameType,
-						teamIds: [game.teams.away.id, game.teams.home.id],
-					}))),
+					regularSeasonTeamIds: dayRegularSeasonTeamIds(games),
 					fetchedAt: day.fetchedAt,
 					lastChangedAt: day.lastChangedAt,
 				};

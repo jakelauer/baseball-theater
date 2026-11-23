@@ -4,11 +4,15 @@
  * `monthGameCounts`, and the teams in their own regular season each day (S191), worked out from the
  * month's whole calendar year. A month BT needn't ask MLB about is one count read of that year; a fill adds one MLB
  * range request, a version-guarded write per day it returns (`storeSchedule`, which reads the
- * stored day first) and a second count read.
+ * stored day first) and a second count read, of the filled range only.
  *
  * Days inside `scheduleFillWindow` (the current season through December of next year; later
  * months are refused at the route, owner 2026-11-09: "Reject past next year") that BT doesn't
- * hold yet are filled from MLB with one schedule request for their range, stored through
+ * hold yet are filled from MLB with one schedule request for their range: the shown month's and,
+ * since S191, the rest of its year's (owner, 2026-11-23, asked whether the calendar should fetch
+ * the rest of the year's schedule from MLB when it needs it: "Fetch the year (Recommended)"), so
+ * `inSeasonTeamIds` can be told on the days fans open, up to ~365 stored days in that one
+ * request. They are stored through
  * ingest's version-guarded write (ADR-022) without hydrating any game: game snapshots stay with
  * the scoreboard's own refresh and the backfill (S122), so one month read is one MLB request,
  * not hundreds. Past seasons are never asked for here; what the backfill stored is what they show.
@@ -21,7 +25,7 @@ import type {
 	ScheduleDay, ScheduleDayCount, ScheduleDayTally, Unversioned,
 } from "@bt/domain";
 import {
-	daysOfMonth, mlbToday, monthGameCounts, monthLastChangedAt, scheduleFillWindow,
+	datesBetween, daysOfMonth, mlbToday, monthGameCounts, monthLastChangedAt, scheduleFillWindow,
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
 import {
@@ -47,17 +51,20 @@ export interface ScheduleMonth
 }
 
 /**
- * The span of `fillable` days to ask MLB for, or null when none needs asking: all of them when
- * the month's stored data has outlived its lifetime, else from the first to the last day BT
- * doesn't hold. One range either way, so a month is never more than one request.
+ * The span of days to ask MLB for, or null when none needs asking: every one of `fillable` (the
+ * month's in-window days) when the month's stored data has outlived its lifetime, and every one of
+ * `yearFillable` (its year's in-window days, which include the month's, S191) that BT doesn't hold;
+ * the one range runs from the first of those to the last. One range either way, so a month is
+ * never more than one request. Other months' stored days are refreshed when they are shown, not
+ * here, so a year's fill stays the days it lacks.
  */
-function rangeToAsk(deps: IngestDeps, key: string, fillable: string[], stored: ScheduleDayTally[], now: Date): [string, string] | null
+function rangeToAsk(deps: IngestDeps, key: string, fillable: string[], yearFillable: string[], stored: ScheduleDayTally[], now: Date): [string, string] | null
 {
-	if (fillable.length === 0) return null;
+	const heldDates = new Set(stored.map((day) => day.date));
+	const missing = yearFillable.filter((date) => !heldDates.has(date));
+	if (fillable.length === 0) return missing.length === 0 ? null : [missing[0]!, missing.at(-1)!];
 	const wanted = new Set(fillable);
 	const held = stored.filter((day) => wanted.has(day.date));
-	const heldDates = new Set(held.map((day) => day.date));
-	const missing = fillable.filter((date) => !heldDates.has(date));
 	// The month was last checked no later than its oldest fetch: every held day has been fetched
 	// since then, but nothing says the oldest one was fetched again after (an unchanged refresh
 	// writes nothing, ADR-022), so this is the safe lower bound; a stamp that doesn't parse means
@@ -69,8 +76,11 @@ function rangeToAsk(deps: IngestDeps, key: string, fillable: string[], stored: S
 		lastChangedAt: monthLastChangedAt(held),
 		windowMode: "cache" as const,
 	};
-	if (month && needsRefresh(deps, key, month, now, false)) return [fillable[0]!, fillable.at(-1)!];
-	return missing.length === 0 ? null : [missing[0]!, missing.at(-1)!];
+	const ends = month && needsRefresh(deps, key, month, now, false) ? [fillable[0]!, fillable.at(-1)!] : [];
+	ends.push(...missing.slice(0, 1), ...missing.slice(-1));
+	if (ends.length === 0) return null;
+	ends.sort();
+	return [ends[0]!, ends.at(-1)!];
 }
 
 /**
@@ -94,7 +104,8 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 	// MLB's today, not UTC's: 03:00 UTC on January 1 is still December 31 for MLB.
 	const window = scheduleFillWindow(mlbToday(now));
 	const key = `schedule-month:${month}`;
-	const range = rangeToAsk(deps, key, dates.filter((date) => date >= window.first && date <= window.last), stored, now);
+	const inWindow = (date: string) => date >= window.first && date <= window.last;
+	const range = rangeToAsk(deps, key, dates.filter(inWindow), datesBetween(yearFirst, yearLast).filter(inWindow), stored, now);
 	if (range)
 	{
 		const filled = await runRefresh(deps, key, async () =>
@@ -123,7 +134,15 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 			}
 			return true;
 		}, (ok) => ok);
-		if (filled) stored = await deps.schedules.listGameCounts(yearFirst, yearLast);
+		if (filled)
+		{
+			// Only the filled range is read again and spliced into the year (S191): half the cost of a
+			// second year read, and never the same query text as the first (a query cache such as
+			// Hyperdrive's could otherwise answer it with the year as it was before the fill).
+			const [from, to] = range;
+			const fresh = await deps.schedules.listGameCounts(from, to);
+			stored = [...stored.filter((day) => day.date < from || day.date > to), ...fresh].sort((a, b) => a.date.localeCompare(b.date));
+		}
 	}
 
 	const days = monthGameCounts(dates, stored);
@@ -132,7 +151,10 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 		month,
 		days,
 		// The year's latest change, not only the month's: `inSeasonTeamIds` reads the whole year, so a
-		// day stored or corrected in another month can change this answer too.
+		// day stored or corrected in another month can change this answer too. `complete` looks at the
+		// month's days only, so a past-season answer whose `inSeasonTeamIds` is `null` because other
+		// months of its year aren't stored can still be cached up to the cap; a later backfill of them
+		// moves the year's latest change, which drops the answer back to the ladder's floor.
 		lastChangedAt: (complete ? monthLastChangedAt(stored) : undefined) ?? now.toISOString(),
 	};
 }

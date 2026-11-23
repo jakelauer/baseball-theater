@@ -95,40 +95,36 @@ export class PostgresScheduleRepository implements ScheduleRepository
 	}
 
 	/**
-	 * One query for the whole range; the games are counted and their teams' IDs picked out in the
-	 * database (S136), so no document leaves it. They come back as one jsonb array of every game's
-	 * away and home ID, repeats and all, as stored: the driver parses it, so a number arrives as a
-	 * JS number and a `null` or string ID as itself. `distinctTeamIds` (shared with the memory
-	 * adapter) is the one guard: it drops any non-integer ID, de-duplicates and sorts. Each game's
-	 * `gameType` (S167) comes back the same way, one entry per game: `->'gameType'` over
-	 * `jsonb_array_elements` gives SQL `NULL` for a game without one, which `jsonb_agg` keeps as a
-	 * JSON `null` (a `jsonb_path_query_array` over `$.games[*].gameType` would drop it and turn a
-	 * spring day with an untyped game into a typed one). `dayRegularSeason`, shared with the memory
-	 * adapter, turns the list into the day's answer. Each game's type also comes back beside its own
-	 * teams' IDs (S191), one `{ gameType, teamIds }` per game over the same `jsonb_array_elements`,
-	 * so `dayRegularSeasonTeamIds` (shared too) can pick the teams of the `R` games.
+	 * One query for the whole range, unpacking each stored document's games once (S191; a database
+	 * review measured 34.8 ms against 22.2 ms for a year when each field unpacked it again): one
+	 * `{ gameType, teamIds }` per game, in stored order, over `jsonb_array_elements`, plus the two
+	 * stamps, so no document leaves the database. The game count, the teams (S136) and the types
+	 * (S167) are then read from that list here, exactly as the memory adapter reads its stored days.
+	 * The values arrive as stored: the driver parses the jsonb, so a number arrives as a JS number
+	 * and a `null` or string ID as itself, and `distinctTeamIds` (shared with the memory adapter) is
+	 * the one guard that drops any non-integer ID, de-duplicates and sorts. `->'gameType'` gives SQL
+	 * `NULL` for a game without one, which `jsonb_build_object` keeps as a JSON `null` (a
+	 * `jsonb_path_query_array` over `$.games[*].gameType` would drop it and turn a spring day with
+	 * an untyped game into a typed one). `dayRegularSeason` and `dayRegularSeasonTeamIds`, shared
+	 * too, turn the list into the day's answers.
 	 */
 	async listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>
 	{
 		const rows = await this.db.select({
 			date: scheduleDays.date,
-			gameCount: sql<number>`jsonb_array_length(${scheduleDays.document}->'games')`,
-			teamIds: sql<unknown[]>`jsonb_path_query_array(${scheduleDays.document}, '$.games[*].teams.*.id')`,
-			gameTypes: sql<unknown[]>`coalesce((select jsonb_agg(game->'gameType' order by ord) from jsonb_array_elements(${scheduleDays.document}->'games') with ordinality as g(game, ord)), '[]'::jsonb)`,
 			games: sql<{ gameType: unknown;
 				teamIds: unknown[]; }[]>`coalesce((select jsonb_agg(jsonb_build_object('gameType', game->'gameType', 'teamIds', jsonb_path_query_array(game, '$.teams.*.id')) order by ord) from jsonb_array_elements(${scheduleDays.document}->'games') with ordinality as g(game, ord)), '[]'::jsonb)`,
 			fetchedAt: sql<string>`${scheduleDays.document}->>'fetchedAt'`,
 			lastChangedAt: sql<string>`${scheduleDays.document}->>'lastChangedAt'`,
 		}).from(scheduleDays).where(between(scheduleDays.date, from, to)).orderBy(asc(scheduleDays.date));
-		// A driver may hand `jsonb_array_length`'s integer back as a string; the port promises a number.
 		return rows.map(({ games, ...row }) =>
 		{
 			// A stored type that isn't a string (hand-edited or older row) counts as no type (`storedGameType`).
-			const gameTypes = row.gameTypes.map(storedGameType);
+			const gameTypes = games.map((game) => storedGameType(game.gameType));
 			return {
 				...row,
-				gameCount: Number(row.gameCount),
-				teamIds: distinctTeamIds(row.teamIds),
+				gameCount: games.length,
+				teamIds: distinctTeamIds(games.flatMap((game) => game.teamIds)),
 				gameTypes,
 				regularSeason: dayRegularSeason(gameTypes),
 				regularSeasonTeamIds: dayRegularSeasonTeamIds(games),

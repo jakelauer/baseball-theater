@@ -14,7 +14,7 @@ cd "$(dirname "$0")/.."
 source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "ScheduleDayTally and ScheduleDayCount gain regularSeasonTeamIds: number[] | null, built in both schedule repository adapters by one domain function (dayRegularSeasonTeamIds, through distinctTeamIds), with its unit tests and a contract case each on PGlite and memory for a regular-only day, a mixed spring-and-regular day and an untyped day"
-check 2 "one domain function (teamsInOwnSeason) works out, from a year's stored days, which teams are in their own regular season on each day (null when the year's stored days can't tell); ScheduleDayCount gains inSeasonTeamIds: number[] | null; the month service reads the year's stored days in one repository read per request (test counts reads)"
+check 2 "one domain function (teamsInOwnSeason) works out, from a year's stored days, which teams are in their own regular season on each day (null when the year's stored days can't tell); ScheduleDayCount gains inSeasonTeamIds: number[] | null; the month service reads the year's stored days in one repository read per request (test counts reads); inside the fill window the one MLB range request also covers the year's missing days, and after a fill only the filled range is re-read (owner, 2026-11-23: \"Fetch the year (Recommended)\")"
 check 3 "favoriteTeamsOff counts only favorites in day.inSeasonTeamIds, falling back to S159's rule when it is null or missing: table tests for the Seoul opener, the Tokyo openers, the 2018-10-01 tiebreakers, an ordinary mid-season day and a missing field all pass, and S159's own tests still pass"
 check 4 "the OpenAPI spec carries both new fields as required on ScheduleDayCount (pnpm api:spec up to date), pnpm api:breaking exits 0, web/src/api/generated/ is rendered from it, and the month route's tests cover both fields"
 check 5 "ScheduleDayCount's and favoriteTeamsOff's comments say the mark follows each team's own season, and S159's comment no longer describes the old limit as a known gap"
@@ -75,12 +75,17 @@ done
 # --- Check 2: each team's own season, from the year ---------------------------------------------------------
 grep -qE '^export function teamsInOwnSeason\(' "$DOMAIN" || bad 2 "$DOMAIN has no exported teamsInOwnSeason"
 awk '/^export interface ScheduleDayCount/,/^}/' "$DOMAIN" | grep -qE '^\s*inSeasonTeamIds: number\[\] \| null;' || bad 2 "ScheduleDayCount has no inSeasonTeamIds: number[] | null"
-grep -qF 'teamsInOwnSeason(' functions/src/services/schedule-month.ts "$DOMAIN" || bad 2 "nothing on the month answer's path calls teamsInOwnSeason"
+awk '/^export function monthGameCounts\(/,/^}/' "$DOMAIN" | grep -qF 'teamsInOwnSeason(' || bad 2 "monthGameCounts does not call teamsInOwnSeason"
+grep -qF 'monthGameCounts(' functions/src/services/schedule-month.ts || bad 2 "the month service does not build its days through monthGameCounts"
 grep -qE 'getByDate\(' functions/src/services/schedule-month.ts && bad 2 "the month service reads days one by one (getByDate)"
-for t in "seoul" "first game in the month before" "untyped day" "unstored day" "off-season"; do
+for t in "seoul" "first game in the month before" "untyped day" "unstored day" "off-season" "boundary" "untyped beside R"; do
   tagged 2 "$DOMAIN_JSON" "S191 AC 2 $t" "packages/domain/src/schedule-month.test.ts"
 done
 tagged 2 "$SERVICE_JSON" "S191 AC 2 one read" "functions/src/services/schedule-month.test.ts"
+# The owner's 2026-11-23 answer ("Fetch the year (Recommended)"): the year's missing days in the one request.
+for t in "year fill" "fill read" "outside window" "year lifetime"; do
+  tagged 2 "$SERVICE_JSON" "S191 AC 2 $t" "functions/src/services/schedule-month.test.ts"
+done
 
 # --- Check 3: the mark follows the team's season -------------------------------------------------------------
 SIG="$(awk '/^export function favoriteTeamsOff\(/,/^\{/' "$DOMAIN" | tr -d '\n\t')"

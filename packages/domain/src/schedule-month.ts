@@ -148,16 +148,25 @@ export function dayRegularSeasonTeamIds(games: readonly { gameType: unknown;
  * the month before). One answer per date, in order: the in-season team IDs ascending, or `null`
  * when the stored days can't tell.
  *
- * "Can't tell" is decided per date. A day of the year that isn't stored, or whose
- * `regularSeasonTeamIds` is `null` (untyped, stored before S167), is unknown, since it could hold
- * a regular-season game. A team counts as in season only when known days prove a regular-season
+ * "Can't tell" is decided per date. A day of the year that isn't stored, whose
+ * `regularSeasonTeamIds` is `null` (untyped, stored before S167), or that has an untyped game
+ * beside its `R` ones (a `null` in `gameTypes`), is unknown, since it could hold a regular-season
+ * game of a team it doesn't list; the last kind still proves its `R` games' teams played. A team counts as in season only when known days prove a regular-season
  * game of it on or before the date and one on or after it. A team left out must be proven out
  * too: either no day from January 1 through the date is unknown and none holds its regular-season
  * game, or no day from the date through December 31 is unknown and none holds one. When some
  * team seen in the year can't be proven either way, or neither side of the date is fully known
  * (so a team never seen could be in season), the date's answer is `null`.
+ *
+ * The answer is only as fresh as the other months' stored days: a team's first or last game that
+ * MLB moved (a postponement at a season's edge) shows once that day is stored again. The month
+ * service's fill re-asks MLB for the shown month once its lifetime runs out and for the year's
+ * days it doesn't hold, so the other months' days are as fresh as their own last fill.
  */
-export function teamsInOwnSeason(yearDays: readonly Pick<ScheduleDayTally, "date" | "regularSeasonTeamIds">[], dates: readonly string[]): (number[] | null)[]
+export function teamsInOwnSeason(
+	yearDays: readonly Pick<ScheduleDayTally, "date" | "gameTypes" | "regularSeasonTeamIds">[],
+	dates: readonly string[],
+): (number[] | null)[]
 {
 	const byYear = new Map<string, { first: Map<number, string>;
 		last: Map<number, string>;
@@ -167,7 +176,7 @@ export function teamsInOwnSeason(yearDays: readonly Pick<ScheduleDayTally, "date
 	{
 		const known = byYear.get(year);
 		if (known) return known;
-		const stored = new Map(yearDays.filter((day) => day.date.startsWith(`${year}-`)).map((day) => [day.date, day.regularSeasonTeamIds]));
+		const stored = new Map(yearDays.filter((day) => day.date.startsWith(`${year}-`)).map((day) => [day.date, day]));
 		const first = new Map<number, string>();
 		const last = new Map<number, string>();
 		let firstUnknown: string | undefined;
@@ -175,14 +184,14 @@ export function teamsInOwnSeason(yearDays: readonly Pick<ScheduleDayTally, "date
 		// Walked in date order, so the first sighting is a team's first game and the last its last.
 		for (const date of datesBetween(`${year}-01-01`, `${year}-12-31`))
 		{
-			const teams = stored.get(date);
-			if (!teams)
+			const day = stored.get(date);
+			if (!day || day.regularSeasonTeamIds === null || day.gameTypes.includes(null))
 			{
 				firstUnknown ??= date;
 				lastUnknown = date;
-				continue;
 			}
-			for (const team of teams)
+			// An R day with an untyped game is unknown above, yet its R games' teams still played one.
+			for (const team of day?.regularSeasonTeamIds ?? [])
 			{
 				if (!first.has(team)) first.set(team, date);
 				last.set(team, date);
@@ -227,7 +236,7 @@ export function teamsInOwnSeason(yearDays: readonly Pick<ScheduleDayTally, "date
  */
 export function monthGameCounts(
 	dates: readonly string[],
-	stored: readonly Pick<ScheduleDayTally, "date" | "gameCount" | "teamIds" | "regularSeason" | "regularSeasonTeamIds">[],
+	stored: readonly Pick<ScheduleDayTally, "date" | "gameCount" | "teamIds" | "gameTypes" | "regularSeason" | "regularSeasonTeamIds">[],
 ): ScheduleDayCount[]
 {
 	const byDate = new Map(stored.map((day) => [day.date, day]));
@@ -333,7 +342,7 @@ export function monthGamesState(days: readonly Pick<ScheduleDayCount, "count">[]
 }
 
 /**
- * When a month's stored data last changed (ADR-021's input for its cache lifetime): the latest
+ * When a month's or year's stored data last changed (ADR-021's input for its cache lifetime): the latest
  * `lastChangedAt` among its stored days, or undefined when it holds none. A day a backfill fills
  * or MLB corrects moves it, so a past month that changes drops back to the ladder's floor.
  */

@@ -177,6 +177,19 @@ async function mixedGames(): Promise<ScheduleGameSummary[]>
 	];
 }
 
+/**
+ * Stores every other day of `month`'s calendar year with no games, fetched at `T0`, so a test of
+ * the month's own fill sees only the month's days missing (S191 fills the year's missing days in
+ * the same request).
+ */
+async function holdRestOfYear(repos: Repos, month: string): Promise<void>
+{
+	for (const date of datesBetween(`${month.slice(0, 4)}-01-01`, `${month.slice(0, 4)}-12-31`))
+	{
+		if (!date.startsWith(month)) await store(repos, date, []);
+	}
+}
+
 /** Stores a schedule day the way ingest does (version-guarded, ADR-022; its window judged at `at`). */
 async function store(repos: Repos, date: string, games: ScheduleGameSummary[], at: Date = T0): Promise<void>
 {
@@ -439,11 +452,121 @@ describe("S191 AC 2 one read", () =>
 	});
 });
 
+describe("S191 AC 2 year fill (owner, 2026-11-23: \"Fetch the year (Recommended)\")", () =>
+{
+	/** The schedule repository over `repos`, recording each `listGameCounts` range. */
+	function countingSchedules(repos: Repos, calls: [string, string][]): ScheduleRepository
+	{
+		return {
+			getByDate: (date) => repos.schedules.getByDate(date),
+			upsert: (day) => repos.schedules.upsert(day),
+			listGameCounts: (from, to) =>
+			{
+				calls.push([from, to]);
+				return repos.schedules.listGameCounts(from, to);
+			},
+		};
+	}
+
+	it("S191 AC 2 year fill: a month inside the window with nothing stored asks MLB once for its whole year, so its days can tell their in-season teams", async () =>
+	{
+		const repos = memoryRepos();
+		const mlb = new CountingClient();
+		// 2027, modelled: an opener on March 20 (121 at 120, 147 at 111, both R) and the season's last day, September 26.
+		mlb.gamesOn.set("2027-03-20", await mixedGames());
+		mlb.gamesOn.set("2027-09-26", await mixedGames());
+		const { inSeason, count } = await api(repos, mlb).month("2027-04");
+		expect(mlb.ranges).toEqual([["2027-01-01", "2027-12-31"]]);
+		expect(mlb.days).toBe(0);
+		expect(mlb.games).toBe(0);
+		expect(count("2027-04-01")).toBe(0);
+		expect(inSeason("2027-04-01")).toEqual([111, 120, 121, 147]);
+		expect(await repos.schedules.listGameCounts("2027-01-01", "2027-12-31")).toHaveLength(365);
+		// The year is held now: another month of it asks nothing and answers from what is stored.
+		const march = await api(repos, mlb).month("2027-03");
+		expect(mlb.ranges).toHaveLength(1);
+		expect(march.inSeason("2027-03-19")).toEqual([]);
+		expect(march.inSeason("2027-03-20")).toEqual([111, 120, 121, 147]);
+	});
+
+	it("S191 AC 2 year fill: with the month held and fresh, only the year's missing days are asked, in one range", async () =>
+	{
+		const repos = memoryRepos();
+		for (const date of datesBetween("2027-01-01", "2027-06-30")) await store(repos, date, []);
+		for (const date of datesBetween("2027-09-01", "2027-12-31")) await store(repos, date, []);
+		const mlb = new CountingClient();
+		await api(repos, mlb).month("2027-04");
+		expect(mlb.ranges).toEqual([["2027-07-01", "2027-08-31"]]);
+	});
+
+	it("S191 AC 2 year fill: a stale month and the year's missing days share the one range, from the first to the last", async () =>
+	{
+		const repos = memoryRepos();
+		for (const date of datesBetween("2027-01-01", "2027-11-30")) await store(repos, date, [], new Date(T0.getTime() - 30 * DAY));
+		const mlb = new CountingClient();
+		await api(repos, mlb).month("2027-04");
+		expect(mlb.ranges).toEqual([["2027-04-01", "2027-12-31"]]);
+	});
+
+	it("S191 AC 2 outside window: a month of an earlier season asks MLB nothing, however little of its year is stored", async () =>
+	{
+		const repos = memoryRepos();
+		await store(repos, "2025-07-04", await mixedGames());
+		const mlb = new CountingClient();
+		const { inSeason } = await api(repos, mlb).month("2025-07");
+		expect(mlb.ranges).toEqual([]);
+		expect(inSeason("2025-07-04")).toBeNull();
+	});
+
+	it("S191 AC 2 fill read: a filled month reads its year once, then only the filled range, and answers with the filled days", async () =>
+	{
+		const repos = memoryRepos();
+		for (const date of datesBetween("2027-01-01", "2027-03-31")) await store(repos, date, []);
+		const mlb = new CountingClient();
+		mlb.gamesOn.set("2027-04-12", await mixedGames());
+		const calls: [string, string][] = [];
+		const { count } = await api({
+			...repos,
+			schedules: countingSchedules(repos, calls),
+		}, mlb).month("2027-04");
+		expect(mlb.ranges).toEqual([["2027-04-01", "2027-12-31"]]);
+		expect(calls).toEqual([["2027-01-01", "2027-12-31"], ["2027-04-01", "2027-12-31"]]);
+		expect(count("2027-04-12")).toBe(2);
+		expect(count("2027-04-13")).toBe(0);
+	});
+
+	it("S191 AC 2 fill read: a fill MLB didn't answer reads nothing more", async () =>
+	{
+		const repos = memoryRepos();
+		const mlb = new CountingClient();
+		mlb.fail = true;
+		const calls: [string, string][] = [];
+		await api({
+			...repos,
+			schedules: countingSchedules(repos, calls),
+		}, mlb).month("2027-04");
+		expect(calls).toEqual([["2027-01-01", "2027-12-31"]]);
+	});
+
+	it("S191 AC 2 year lifetime: a past month unchanged for a month drops to the floor when a day in another month of its year changes now", async () =>
+	{
+		const repos = memoryRepos();
+		const longAgo = new Date(T0.getTime() - 30 * DAY);
+		for (const date of datesBetween("2024-01-01", "2024-12-31")) await store(repos, date, [], longAgo);
+		const reader = api(repos);
+		expect((await reader.month("2024-07")).cacheControl).toBe(`public, s-maxage=172800, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
+		// A backfill corrects a March day now: July's answer reads March (its in-season teams), so it changes too.
+		await store(repos, "2024-03-20", await mixedGames(), T0);
+		expect((await reader.month("2024-07")).cacheControl).toBe(`public, s-maxage=300, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
+	});
+});
+
 describe("S124 AC 2", () =>
 {
 	it("S124 AC 2 empty month: one schedule request for the whole month, no game request", async () =>
 	{
 		const repos = memoryRepos();
+		await holdRestOfYear(repos, "2026-12");
 		const mlb = new CountingClient();
 		mlb.gamesOn.set("2026-12-12", await mixedGames());
 		const { count } = await api(repos, mlb).month("2026-12");
@@ -462,6 +585,7 @@ describe("S124 AC 2", () =>
 	it("S136 AC 2 fill teams: a day the fill stores answers with its teams in the same response, with one schedule request and no game request", async () =>
 	{
 		const repos = memoryRepos();
+		await holdRestOfYear(repos, "2026-12");
 		const mlb = new CountingClient();
 		mlb.gamesOn.set("2026-12-12", await mixedGames());
 		const { count, teams } = await api(repos, mlb).month("2026-12");
@@ -476,6 +600,7 @@ describe("S124 AC 2", () =>
 	it("S124 AC 2 holding the ends: only the span between the days it holds is asked", async () =>
 	{
 		const repos = memoryRepos();
+		await holdRestOfYear(repos, "2027-04");
 		await store(repos, "2027-04-01", []);
 		await store(repos, "2027-04-30", []);
 		const mlb = new CountingClient();
@@ -491,13 +616,16 @@ describe("S124 AC 2", () =>
 		expect(mlb.ranges).toEqual([]);
 		// 03:00 UTC on 2027-01-01 is still 2026-12-31 for MLB, so 2026 is still the current season.
 		const late = new CountingClient();
-		await api(memoryRepos(), late, new Date("2027-01-01T03:00:00Z")).month("2026-12");
+		const lateRepos = memoryRepos();
+		await holdRestOfYear(lateRepos, "2026-12");
+		await api(lateRepos, late, new Date("2027-01-01T03:00:00Z")).month("2026-12");
 		expect(late.ranges).toEqual([["2026-12-01", "2026-12-31"]]);
 	});
 
 	it("S124 AC 2 store failure: a schedule write that fails rejects the read, rather than passing for MLB being unreachable", async () =>
 	{
 		const repos = memoryRepos();
+		await holdRestOfYear(repos, "2026-12");
 		let writes = 0;
 		const schedules: ScheduleRepository = {
 			getByDate: (date) => repos.schedules.getByDate(date),
@@ -563,6 +691,7 @@ describe("S124 AC 2", () =>
 	it("S124 AC 2 holding one day: the days around it are filled with one schedule request, no game request", async () =>
 	{
 		const repos = memoryRepos();
+		await holdRestOfYear(repos, "2027-04");
 		const games = await mixedGames();
 		await store(repos, "2027-04-05", games);
 		const mlb = new CountingClient();
@@ -613,6 +742,7 @@ describe("S124 AC 2", () =>
 			},
 		});
 		const repos = memoryRepos();
+		await holdRestOfYear(repos, "2026-09");
 		const { count } = await api(repos, mlb).month("2026-09");
 		expect(urls).toHaveLength(1);
 		expect(new URL(urls[0]!).searchParams.get("startDate")).toBe("2026-09-01");
@@ -665,6 +795,7 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 	it("S124 AC 3 lifetime: a month whose every day was fetched a minute ago is not asked, even by a fresh isolate", async () =>
 	{
 		const repos = await makeRepos();
+		await holdRestOfYear(repos, "2026-12");
 		for (const date of datesBetween("2026-12-01", "2026-12-31")) await store(repos, date, [], new Date(T0.getTime() - MINUTE));
 		const mlb = new CountingClient();
 		await api(repos, mlb).month("2026-12");
@@ -674,6 +805,7 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 	it("S124 AC 3 oldest check: the month counts as checked at its oldest day's fetch, so one old day makes it stale", async () =>
 	{
 		const repos = await makeRepos();
+		await holdRestOfYear(repos, "2026-12");
 		await store(repos, "2026-12-01", [], new Date(T0.getTime() - 30 * DAY));
 		for (const date of datesBetween("2026-12-02", "2026-12-31")) await store(repos, date, [], new Date(T0.getTime() - MINUTE));
 		const mlb = new CountingClient();
@@ -701,6 +833,7 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 	it("S124 AC 3 gains games after expiry: a future month stored empty gains its games once its lifetime has run out, with one schedule request and no game request", async () =>
 	{
 		const repos = await makeRepos();
+		await holdRestOfYear(repos, "2027-03");
 		const mlb = new CountingClient();
 		const reader = api(repos, mlb);
 		expect((await reader.month("2027-03")).body.days.every((day) => day.count === 0)).toBe(true);
@@ -739,7 +872,9 @@ describe("S124 AC 5", () =>
 	it("S124 AC 5 horizon: a month after December of next year is a 400 and asks MLB nothing; December itself is answered", async () =>
 	{
 		const mlb = new CountingClient();
-		const { get, month } = api(memoryRepos(), mlb);
+		const repos = memoryRepos();
+		await holdRestOfYear(repos, "2027-12");
+		const { get, month } = api(repos, mlb);
 		for (const tooLate of ["2028-01", "2099-07", "9999-12"])
 		{
 			const response = await get(`/api/v1/schedule/month/${tooLate}`);
