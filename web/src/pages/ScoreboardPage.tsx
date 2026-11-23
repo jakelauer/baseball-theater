@@ -3,6 +3,7 @@ import {
 } from "@mantine/core";
 import { useParams } from "react-router-dom";
 import { scoreboardRows } from "@bt/domain";
+import { useDayDigest } from "../api/digest.js";
 import { useScheduleDay } from "../api/schedule.js";
 import { useScoreboardDefaultDate } from "../api/scoreboardDate.js";
 import type { ScheduleDayPayload } from "../api/schedule.js";
@@ -13,7 +14,8 @@ import { DayDigest } from "../components/scoreboard/DayDigest.js";
 import { DateControl } from "../components/scoreboard/DateControl.js";
 import { ScoreboardModule } from "../components/scoreboard/ScoreboardModule.js";
 import { formatDate } from "../format/datetime.js";
-import { SiteFooter } from "../layout/SiteFooter.js";
+import type { SetFooterMode } from "../layout/footerMode.js";
+import { useFooterMode } from "../layout/footerMode.js";
 import type { LayoutVariant } from "../layout/variant.js";
 import { useSettings } from "../settings/store.js";
 
@@ -64,16 +66,20 @@ function Games({ day, variant }: { day: ScheduleDayPayload;
 /**
  * The scoreboard (S31 frames; S66) for the URL's day, or, with none in the URL, the
  * server's default day (S111) — `ViewState`'s loading treatment until it is known.
+ * `setFooter` holds the shell's footer back while the page loads (S142; `FooterMode`).
  */
-export function ScoreboardPage({ variant }: { variant: LayoutVariant })
+export function ScoreboardPage({ variant, setFooter }: { variant: LayoutVariant;
+	setFooter?: SetFooterMode; })
 {
 	const { date } = useParams();
 	// Asked once here, above the day: it is the undated page's day and the calendar's `Today`
 	// (S125). A second reader inside the day would remount on an error and refetch it in a loop.
 	const today = useScoreboardDefaultDate();
-	if (date) return <ScoreboardDay date={date} variant={variant} today={today} />;
+	const shown = date ?? today;
+	// No day in the URL and the default not known yet: hold the footer back (S142).
+	useFooterMode(setFooter, shown ? null : "none");
 	// No day in the URL: the default; it is MLB's today if the server can't say.
-	return today ? <ScoreboardDay date={today} variant={variant} today={today} /> : <ViewState kind="loading" />;
+	return shown ? <ScoreboardDay date={shown} variant={variant} today={today} setFooter={setFooter} /> : <ViewState kind="loading" />;
 }
 
 /**
@@ -85,14 +91,19 @@ export function ScoreboardPage({ variant }: { variant: LayoutVariant })
  * calendar's `Today` is the server's default day (S125, shell-scoreboard A8).
  */
 function ScoreboardDay({
-	date, variant, today,
+	date, variant, today, setFooter,
 }: { date: string;
 	variant: LayoutVariant;
-	today: string | undefined; })
+	today: string | undefined;
+	setFooter?: SetFooterMode; })
 {
 	const {
 		data: day, error, refetch,
 	} = useScheduleDay(date);
+	// The digest draws under the games once it answers (or nothing, if it fails), so the footer waits
+	// for both: drawn earlier it would sit under the games and jump when the highlights arrive (S142).
+	// The same query `DayDigest` reads, so asking here adds no request; it only starts it with the day's.
+	const digestPending = useDayDigest(date).isPending;
 
 	let body;
 	// A failed background refetch keeps the day already shown (S28's one rule: a retired
@@ -101,6 +112,7 @@ function ScoreboardDay({
 		data: day,
 		error,
 	});
+	useFooterMode(setFooter, screen === "error" || (screen !== "loading" && day && !digestPending) ? "plain" : "none");
 	if (screen === "error")
 	{
 		body = <ViewState kind="error" title="Couldn't load games" onRetry={() => void refetch()} />;
@@ -115,8 +127,8 @@ function ScoreboardDay({
 			<>
 				<Games day={day} variant={variant} />
 				<DayDigest date={day.date} variant={variant} />
-				{/* The scoreboard opens no WebSocket yet: S149 adds its live connection and wires this. */}
-				<SiteFooter live={false} />
+				{/* The site footer is the shell's (S142). The scoreboard opens no WebSocket yet: S149 adds its live
+				    connection and turns the footer's Live strip on through `useFooterMode`. */}
 			</>
 		);
 	}

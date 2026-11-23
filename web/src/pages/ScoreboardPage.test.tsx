@@ -380,7 +380,7 @@ describe("ScoreboardPage without a date (S111)", () =>
 
 describe("ScoreboardPage footer (S148)", () =>
 {
-	it("S148 AC 1 scoreboard: a day with a game in progress still ends with no footer line until S149 opens its socket: no 'Fetched … ago', no 'baseball.theater'", async () =>
+	it("S148 AC 1 scoreboard: a day with a game in progress draws no footer of its own (the shell does, S142) and no strip until S149 opens its socket: no 'Fetched … ago', no 'baseball.theater'", async () =>
 	{
 		serve();
 		const { container } = renderScoreboard();

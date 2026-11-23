@@ -56,9 +56,9 @@ export interface ScheduleDayCount
 	 */
 	teamIds: number[] | null;
 	/**
-	 * Whether the day has a regular-season game (S167; `dayRegularSeason`), so S159's
-	 * calendar marks a favorite team's day off only during the regular season. `null` when it
-	 * can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular
+	 * Whether the day has a regular-season game (S167; `dayRegularSeason`), so S125's calendar,
+	 * through `favoriteTeamsOff` (S159), marks a favorite team's day off only during the regular
+	 * season. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular
 	 * season and at least one was stored without a game type (a day stored before S167, until the
 	 * backfill re-stores it). Per day rather than per game, since the calendar needs only the day's
 	 * answer and the month answer stays one small, shared, cached response (ADR-021).
@@ -157,10 +157,17 @@ export interface FavoriteTeamsOff
  * - Only during the regular season (owner, 2026-11-21: "Only during the regular season"): only a
  *   day whose `regularSeason` is `true` can carry a mark. Spring training, exhibition, All-Star
  *   (owner, 2026-11-22: "No mark on the All-Star day") and postseason-only days are `false`, and a
- *   day stored before S167 is `null`; none of them is marked.
+ *   day stored before S167 is `null`; none of them is marked. "Regular season" is decided per
+ *   day, from any of the day's games, not per team: on an opener day (MLB's overseas opening
+ *   series) or a tiebreaker day, a favorite can be marked off although its own regular season
+ *   hasn't started or is already over. A follow-up story is planned to make the mark follow each
+ *   team's own season (owner, 2026-11-23: "Ship now, fix later"); it needs each game's type per
+ *   team, which the month answer doesn't carry yet.
  * - Only the favorites with games that month (owner, 2026-11-21: "Only teams with games that
  *   month"): a favorite in no day's `teamIds` in `monthDays` (the shown month's days) is left out of
- *   the mark and of `off`, so a team that didn't exist yet, or whose season ended, marks nothing.
+ *   the mark and of `off`, so a team that didn't exist yet marks nothing. Any game counts here,
+ *   regular season or not, so a favorite whose only game that month is a postseason one still
+ *   counts, and is named off on the month's regular-season days it doesn't play.
  *   A day whose `teamIds` is `null` or missing names no team, so it puts no favorite in the month.
  *
  * Returns `null` when the day carries no mark: not a regular-season day, no counted favorite (no
