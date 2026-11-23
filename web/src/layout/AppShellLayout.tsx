@@ -8,7 +8,9 @@ import { AppHeader } from "./AppHeader.js";
 import { NavRail } from "./NavRail.js";
 import type { Notice } from "./NoticeSlot.js";
 import { NoticeSlot } from "./NoticeSlot.js";
+import type { FooterMode, SetFooterMode } from "./footerMode.js";
 import { RAIL_WIDTH } from "./nav.js";
+import { SiteFooter } from "./SiteFooter.js";
 import type { LayoutVariant } from "./variant.js";
 import { useLayoutVariant } from "./variant.js";
 
@@ -35,11 +37,19 @@ import { useLayoutVariant } from "./variant.js";
  * log link stays highlighted until the drawer closes (A9's `updated-pointer-menu-open-*` frames).
  * Game routes draw no app header, so on mobile and medium the pointer has nothing to aim at there
  * and only its time runs.
+ *
+ * The site footer (S142; shell-scoreboard A14) is the shell's, drawn after `<main>` so it is the
+ * page's `contentinfo` and spans the content column edge to edge, never the rail, and never in
+ * the drawer. What only the page knows (its live socket open, or the deleted page's "no footer")
+ * reaches it through `setFooter`, the setter of a `useState` here that the render prop passes
+ * beside `variant` (ADR-024: no store, no context); pages set it with `useFooterMode`. `<main>`
+ * doesn't grow, so on a page shorter than the screen the footer follows the content and the
+ * leftover height is left empty below it (A14 Short page; owner, 2026-11-19: "A13").
  */
 export function AppShellLayout({
 	children, notice = null, pointer = null,
 }: {
-	children: (variant: LayoutVariant) => ReactNode;
+	children: (variant: LayoutVariant, setFooter: SetFooterMode) => ReactNode;
 	notice?: Notice | null;
 	pointer?: AfterUpdate | null;
 })
@@ -47,6 +57,7 @@ export function AppShellLayout({
 	const variant = useLayoutVariant();
 	const [opened, { open, close }] = useDisclosure();
 	const [drawerHighlight, setDrawerHighlight] = useState(false);
+	const [footer, setFooter] = useState<FooterMode>("plain");
 	// However the drawer closes (the burger, a link, the overlay, Escape), its link's highlight goes with it.
 	const closeDrawer = () =>
 	{
@@ -121,11 +132,10 @@ export function AppShellLayout({
 			}}>
 				{gameRoute ? null : <AppHeader burger={!desktop} wordmark={!desktop} drawerOpened={opened} onBurger={onBurger} pointer={desktop ? null : pointer} />}
 				<NoticeSlot notice={notice} />
-				<Box component="main" px="md" pb="md" pt={gameRoute ? 0 : "md"} style={{
-					flex: 1,
-				}}>
-					{children(variant)}
+				<Box component="main" px="md" pb="md" pt={gameRoute ? 0 : "md"}>
+					{children(variant, setFooter)}
 				</Box>
+				{footer === "none" ? null : <SiteFooter live={footer === "live"} variant={variant} />}
 			</Box>
 		</Box>
 	);

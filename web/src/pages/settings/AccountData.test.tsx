@@ -465,7 +465,7 @@ describe("after deletion (A5 settings-deleted-*)", () =>
 				<QueryClientProvider client={client}>
 					<SessionProvider>
 						<MemoryRouter initialEntries={["/settings"]}>
-							<AppShellLayout>{(variant) => <AppRoutes variant={variant} />}</AppShellLayout>
+							<AppShellLayout>{(variant, setFooter) => <AppRoutes variant={variant} setFooter={setFooter} />}</AppShellLayout>
 							<Path />
 						</MemoryRouter>
 					</SessionProvider>

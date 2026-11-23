@@ -12,7 +12,6 @@ import type { SearchResult } from "../components/search/SearchResultRow.js";
 import { SearchResultRow } from "../components/search/SearchResultRow.js";
 import { gameLabel } from "../components/videos/gameLabel.js";
 import { LazyPlayerDialog } from "../components/videos/LazyPlayerDialog.js";
-import { SiteFooter } from "../layout/SiteFooter.js";
 
 /**
  * Search Highlights (S5; standings-search-settings `search-*`, retitled by A2 for a highlights-only
@@ -91,8 +90,6 @@ export function SearchPage()
 					}}
 				/>
 			) : null}
-			{/* The page's foot (S148; shell-scoreboard A13): Search has no live socket, so it draws nothing until S142's links. */}
-			<SiteFooter live={false} />
 		</Stack>
 	);
 }

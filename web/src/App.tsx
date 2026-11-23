@@ -104,7 +104,7 @@ export function App()
 					<SettingsSync />
 					<BrowserRouter>
 						<AppShellLayout notice={notice} pointer={pointer}>
-							{(variant) => <AppRoutes variant={variant} />}
+							{(variant, setFooter) => <AppRoutes variant={variant} setFooter={setFooter} />}
 						</AppShellLayout>
 					</BrowserRouter>
 				</SessionProvider>
