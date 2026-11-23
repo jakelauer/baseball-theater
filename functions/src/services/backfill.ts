@@ -124,7 +124,7 @@ async function ask<T>(asked: boolean, call: () => Promise<T | null>): Promise<T 
 }
 
 /**
- * Why a game's feed failed, in one short line for the progress log (#359): a parser's error
+ * Why a game's feed or a schedule day failed, in one short line for the progress log (#359): a parser's error
  * (zod's `issues`) names each distinct field path it rejected, indices collapsed, so a feed with
  * a hundred bad hits reads as one path; any other error is its message.
  */
@@ -252,7 +252,7 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 			}
 			catch (error)
 			{
-				const reason = error instanceof Error ? error.message : String(error);
+				const reason = failureReason(error);
 				// Only a missing or unsettled day waits for the next run. A settled day asked only for its
 				// game types (stored before S167) carries on with what is stored, so its finals and any
 				// projection repair still run (S122 AC 4; S167 AC 4: it never holds the run's other work back).

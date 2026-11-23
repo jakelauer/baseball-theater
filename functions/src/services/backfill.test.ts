@@ -1344,8 +1344,17 @@ describe("runBackfill on records before 2005 (#359)", () =>
 	it("a game whose feed the parser rejects logs its gamePk and each rejected field once, and leaves its day for the next run (#359)", async () =>
 	{
 		const raw = path.join(FIXTURES_ROOT, "raw");
-		const feed = JSON.parse(readFileSync(path.join(raw, "live-189236.json"), "utf8")) as { liveData: { plays: { playsByInning: { hits: { away: { coordinates: { x: unknown } }[] } }[] } } };
-		for (const inning of feed.liveData.plays.playsByInning) for (const hit of inning.hits.away) hit.coordinates.x = "left field";
+		const feed = JSON.parse(readFileSync(path.join(raw, "live-189236.json"), "utf8")) as { liveData: { plays: { playsByInning: { hits: Record<"away" | "home", { coordinates: { x: unknown;
+			y: unknown; }; }[]>; }[]; }; }; };
+		// Only the away hits' x is wrong; the home hits get placed numbers, so the one rejected path is the one the log must name.
+		for (const inning of feed.liveData.plays.playsByInning)
+		{
+			for (const hit of inning.hits.away) hit.coordinates.x = "left field";
+			for (const hit of inning.hits.home) hit.coordinates = {
+				x: 100,
+				y: 150,
+			};
+		}
 		const fetchImpl = oldDayFetch();
 		const mlb = new HttpMlbStatsClient({
 			fetchImpl: async (input, init) => String(input).includes("/feed/live") ? new Response(JSON.stringify(feed)) : fetchImpl(input, init),
@@ -1362,6 +1371,28 @@ describe("runBackfill on records before 2005 (#359)", () =>
 		expect(lines).toContain(
 			"1985-07-07: game 189236's live feed failed (liveData.plays.playsByInning.*.hits.away.*.coordinates.x: Expected number, received string); left for the next run",
 		);
+	});
+
+	it("a schedule day the parser rejects logs one line naming each rejected field, and is left for the next run (#359)", async () =>
+	{
+		const raw = path.join(FIXTURES_ROOT, "raw");
+		const day = JSON.parse(readFileSync(path.join(raw, "schedule-2002-07-09.json"), "utf8")) as { dates: { games: { linescore: { offense: { team: { name?: unknown } } } }[] }[] };
+		day.dates[0]!.games[0]!.linescore.offense.team.name = 7;
+		const mlb = new HttpMlbStatsClient({
+			fetchImpl: async () => new Response(JSON.stringify(day)),
+			now: NOW,
+		});
+		const lines: string[] = [];
+		const result = await runBackfill(deps(mlb, counted(memoryRepos()), memoryStore(), {
+			log: (line) => lines.push(line),
+		}), {
+			from: "2002-07-09",
+			to: "2002-07-09",
+		});
+		expect(result.incomplete).toEqual(["2002-07-09"]);
+		expect(lines).toEqual([
+			"2002-07-09: the schedule fetch or store failed (dates.*.games.*.linescore.offense.team.name: Expected string, received number); left for the next run",
+		]);
 	});
 });
 

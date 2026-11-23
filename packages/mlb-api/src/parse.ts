@@ -400,7 +400,7 @@ const lineupSchema = z.object({
 	inHole: personSchema.optional(),
 	pitcher: personSchema.optional(),
 	battingOrder: z.number().optional(),
-	// An All-Star or exhibition side (the AL and NL All-Stars, a college club) comes as `{ id, link }` with no name (#359).
+	// The 2002 All-Star Game's sides (the AL and NL All-Stars, team ids 159 and 160) come as `{ id, link }` with no name (#359).
 	team: teamSchema.partial({
 		name: true,
 	}).optional(),

@@ -40,8 +40,8 @@ export interface LinescoreLineup {
 }
 
 /**
- * The side's team. MLB names it for a club, but an All-Star or exhibition side (the AL and NL
- * All-Stars, a college club) comes as `{ id, link }` alone, so the name is optional here (#359).
+ * The side's team. MLB names it for a club, but the recorded 2002 All-Star Game's sides (the AL and
+ * NL All-Stars, team ids 159 and 160) come as `{ id, link }` alone, so the name is optional here (#359).
  */
 export type LinescoreLineupTeam = Omit<MlbTeam, "name"> & { name?: string };
 
