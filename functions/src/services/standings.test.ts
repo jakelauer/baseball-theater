@@ -86,7 +86,7 @@ describe("getStandings (S128)", () =>
 			date: "2026-09-05",
 		});
 		expect(teams(table.divisions)).toBe(30);
-		expect(asked).toContain("https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2026&date=2026-09-05&hydrate=team");
+		expect(asked).toContain("https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2026&date=2026-09-05&hydrate=team,division");
 	});
 
 	it("a past date is judged against its own year's and the year before's calendars (2019-11-01: 2019's final table)", async () =>
@@ -444,7 +444,7 @@ describe("getStandings phases (S139)", () =>
 		expect(teams(regular.divisions)).toBe(30);
 		expect(regular.divisions.flatMap((d) => d.teams).every((t) => t.wins === 0 && t.losses === 0)).toBe(true);
 		// The teams come from 2027's season table with no date, never 2026's final.
-		expect(asked).toContain("https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2027&hydrate=team");
+		expect(asked).toContain("https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2027&hydrate=team,division");
 		expect(answer.phases.playoffs!.table!.divisions).toEqual([]);
 
 		const dayBefore = await answerOf({
@@ -636,7 +636,7 @@ describe("getStandings empty tables, judged by the domain's standingsHasNoTeams 
 
 	it("S175 AC 2: the first spring morning's spring table: with no team the 0-0 list comes from the new season's team list; with one team it comes from spring's", async () =>
 	{
-		const NEW_SEASON_TEAMS = "https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2027&hydrate=team";
+		const NEW_SEASON_TEAMS = "https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2027&hydrate=team,division";
 		for (const shape of ["noDivisions", "noTeams"] as const)
 		{
 			const { mlb, asked } = recordedClient(tableOn("2027-02-19", true, shape));

@@ -447,7 +447,16 @@ export type StandingsTeamRecord = {
 
 export type StandingsDivision = {
 	divisionId: number | null;
+	/** The table's full name from MLB (`American League East`), or its league's (`American League`) for a league table before 1969. */
 	name: string | null;
+	/**
+	 * MLB's short name for the division (`AL East`; S102, from `hydrate=division`), what the Standings
+	 * headings show. `null` on a league table and when MLB sends none. Optional because an answer
+	 * cached before S102 lacks it; the heading then falls back to `name` until that entry expires.
+	 */
+	nameShort?: string | null;
+	/** MLB's abbreviation for the division (`ALE`; S102), `null` and optional as `nameShort` is. */
+	abbreviation?: string | null;
 	leagueId: number | null;
 	teams: StandingsTeamRecord[];
 };
