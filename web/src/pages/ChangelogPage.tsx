@@ -7,6 +7,8 @@ import { useReleases } from "../api/releases.js";
 import { ViewState } from "../components/ViewState.js";
 import { queryScreen } from "../components/queryScreen.js";
 import { formatDate } from "../format/datetime.js";
+import type { SetFooterMode } from "../layout/footerMode.js";
+import { useFooterMode } from "../layout/footerMode.js";
 
 /**
  * The words on each item's kind label (shell-scoreboard A9, Q8 and Q12), one per S131 kind. A tab
@@ -107,7 +109,7 @@ function Release({ release }: { release: PublicRelease })
  * answers an empty list, which is the empty state. Loading, empty and error are `ViewState`'s, the
  * title kept above each. Release notes carry no scores, so Hide Scores changes nothing here.
  */
-export function ChangelogPage()
+export function ChangelogPage({ setFooter }: { setFooter?: SetFooterMode })
 {
 	const {
 		data, error, refetch,
@@ -119,6 +121,8 @@ export function ChangelogPage()
 		data,
 		error,
 	});
+	// No shell footer while the notes load, so it never jumps (S142; `FooterMode`).
+	useFooterMode(setFooter, screen === "error" || (screen !== "loading" && data) ? "plain" : "none");
 	if (screen === "error")
 	{
 		body = <ViewState kind="error" title="Couldn't load the change log" onRetry={() => void refetch()} />;

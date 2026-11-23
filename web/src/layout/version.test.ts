@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	VERSION_LINE, buildInfo, versionLine,
+	BUILD_RELEASE, VERSION_LINE, buildInfo, knownRelease, versionLine,
 } from "./version.js";
 
 describe("versionLine (S60, S56 A2, #47)", () =>
@@ -71,5 +71,39 @@ describe("buildInfo (#47): what vite.config.ts injects", () =>
 		{
 			throw new Error("not a checkout");
 		}).commit).toBe("unknown");
+	});
+});
+
+describe("knownRelease (S135 AC 1): the build's release, only when it is a release version", () =>
+{
+	it("S135 AC 1: keeps v3.2.0 and nulls unreleased, dev, blank, v3.2 and a milestone named Next release", () =>
+	{
+		expect(knownRelease("v3.2.0")).toBe("v3.2.0");
+		for (const label of ["unreleased", "dev", "", "v3.2", "Next release"])
+		{
+			expect(knownRelease(label)).toBeNull();
+		}
+	});
+
+	it("S135 AC 1: buildInfo with BT_RELEASE=v3.2.0 gives the release label knownRelease reads; with none it is null", () =>
+	{
+		const info = buildInfo({
+			BT_RELEASE: "v3.2.0",
+		}, () => "abc1234");
+		expect(info.release).toBe("v3.2.0");
+		expect(knownRelease(info.release)).toBe("v3.2.0");
+		expect(knownRelease(buildInfo({}, () => "abc1234").release)).toBeNull();
+		// Tests skip vite.config.ts's injection, so this build's release is dev: no known release.
+		expect(BUILD_RELEASE).toBeNull();
+	});
+});
+
+describe("the rail's version line, kept as #47 built it (S135 AC 4)", () =>
+{
+	it("S135 AC 4: prints the release with its commit, or unreleased / dev with the commit", () =>
+	{
+		expect(versionLine("v3.2.0", "c46e8531f0a2b9d7e6c5")).toBe("v3.2.0 (c46e853)");
+		expect(versionLine("unreleased", "c46e8531f0a2b9d7e6c5")).toBe("unreleased (c46e853)");
+		expect(versionLine("dev", "c46e8531f0a2b9d7e6c5")).toBe("dev (c46e853)");
 	});
 });

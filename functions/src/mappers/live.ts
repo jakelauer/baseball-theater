@@ -283,7 +283,8 @@ export function mapLiveFeed(
 /**
  * A scoreboard summary from the live feed (S65) — how a game looks on the scoreboard
  * at any moment of its recorded replay, before, during or after it. Records and
- * probables come from `gameData`; each probable's season line from the boxscore;
+ * probables come from `gameData` (each probable's throwing hand from `gameData.players`);
+ * each probable's season line from the boxscore;
  * the live moment is `mapLive` plus the count; the game type (S167) is the feed's
  * `gameData.game.type`, the same code the schedule sends as `gameType`.
  */
@@ -294,7 +295,13 @@ export function mapLiveFeedSummary(feed: LiveFeedResponse): ScheduleGameSummary
 	const live = mapLive(feed);
 	const probable = (side: "away" | "home") =>
 	{
-		const person = gameData.probablePitchers?.[side];
+		const named = gameData.probablePitchers?.[side];
+		// The feed names a probable by id and name only; his throwing hand (S171) is on his
+		// `gameData.players` entry, as the schedule's hydrated person carries it.
+		const person = named ? {
+			...named,
+			pitchHand: named.pitchHand ?? gameData.players?.[`ID${named.id}`]?.pitchHand,
+		} : undefined;
 		const season = person ? liveData.boxscore?.teams?.[side]?.players?.[`ID${person.id}`]?.seasonStats?.pitching : undefined;
 		return mapProbable(person, season);
 	};

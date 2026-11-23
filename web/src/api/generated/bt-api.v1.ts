@@ -670,6 +670,8 @@ export interface components {
             fullName: string;
             id: number;
             losses: number | null;
+            /** @description The hand he throws with, MLB's `pitchHand.code` (`"L"` / `"R"`; S171, the row's `J. Steele (L)`); `null` when MLB sent none. Optional because schedule rows stored before S171 have no such field. */
+            pitchHand?: string | null;
             wins: number | null;
         };
         /** @description One release's notes as the public releases API serves them: `ReleaseNotes` without `approval`, the owner's dated, quoted approval, which only `pnpm release:check` and the production deploy's "Release notes approved" step read (#327; owner, 2026-11-22, asked "Should the public releases API include your approval words for each release?": chose "Leave it out"). */
@@ -736,9 +738,9 @@ export interface components {
             count: number | null;
             /** @description The day, `YYYY-MM-DD`. */
             date: string;
-            /** @description Whether the day has a regular-season game (S167; `dayRegularSeason`), so S159's calendar marks a favorite team's day off only during the regular season. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular season and at least one was stored without a game type (a day stored before S167, until the backfill re-stores it). Per day rather than per game, since the calendar needs only the day's answer and the month answer stays one small, shared, cached response (ADR-021). */
+            /** @description Whether the day has a regular-season game (S167; `dayRegularSeason`), so S125's calendar, through `favoriteTeamsOff` (S159), marks a favorite team's day off only during the regular season. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular season and at least one was stored without a game type (a day stored before S167, until the backfill re-stores it). Per day rather than per game, since the calendar needs only the day's answer and the month answer stays one small, shared, cached response (ADR-021). */
             regularSeason: boolean | null;
-            /** @description The MLB team IDs playing that day (away and home of every game counted in `count`, each once, ascending; S136), so a client can mark the days a fan's favorites play without one request per day. `[]` for a stored day with no games; `null` exactly when `count` is. Every team is sent, not "a favorite plays", because favorites are personal and the month answer is one shared, cached response (ADR-021). */
+            /** @description The MLB team IDs playing that day (away and home of every game counted in `count`, each once, ascending; S136), so a client can mark the days a fan's favorites don't play (`favoriteTeamsOff`, S159) without one request per day. `[]` for a stored day with no games; `null` exactly when `count` is. Every team is sent, not "a favorite plays", because favorites are personal and the month answer is one shared, cached response (ADR-021). */
             teamIds: number[] | null;
         };
         ScheduleDayResponse: components["schemas"]["ScheduleDay"];
