@@ -3,9 +3,7 @@ import {
 } from "vitest";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemoryGameStateRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import type { GameSnapshot, Unversioned } from "@bt/domain";
 import {
@@ -17,10 +15,9 @@ describe("ingest with fixtures", () =>
 {
 	it("loads schedule and games into memory", async () =>
 	{
-		const schedules = new InMemoryScheduleRepository();
+		const { schedules, gameStates } = memoryScheduleStores();
 		const games = new InMemoryGameRepository();
 		const projections = new InMemoryGameProjectionRepository();
-		const gameStates = new InMemoryGameStateRepository();
 		const mlb = new FixtureMlbStatsClient();
 		const day = await ingestScheduleDay(
 			{
@@ -78,10 +75,9 @@ describe("ingest versioning (ADR-022)", () =>
 		let clock = new Date("2024-07-05T12:00:00.000Z");
 		const deps = {
 			mlb,
-			schedules: new InMemoryScheduleRepository(),
+			...memoryScheduleStores(),
 			games,
 			projections,
-			gameStates: new InMemoryGameStateRepository(),
 			now: () => clock,
 		};
 
@@ -112,13 +108,13 @@ describe("ingest versioning (ADR-022)", () =>
 
 	it("keeps a schedule day's version across identical re-ingests", async () =>
 	{
-		const schedules = new InMemoryScheduleRepository();
+		const { schedules, gameStates } = memoryScheduleStores();
 		const deps = {
 			mlb: new FixtureMlbStatsClient(),
 			schedules,
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
-			gameStates: new InMemoryGameStateRepository(),
+			gameStates,
 			now: () => new Date("2024-07-05T12:00:00.000Z"),
 		};
 		const first = await ingestScheduleDay(deps, "2024-07-04");
@@ -148,10 +144,9 @@ describe("refresh-on-read cache lifetime (S47, ADR-021)", () =>
 		let clock = new Date("2026-10-30T12:00:00Z");
 		const deps = {
 			mlb,
-			schedules: new InMemoryScheduleRepository(),
+			...memoryScheduleStores(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
-			gameStates: new InMemoryGameStateRepository(),
 			refresh: new RefreshCoordinator(() => clock, 0),
 			now: () => clock,
 		};
@@ -206,10 +201,9 @@ describe("which games ingest fetches (S48 AC 8, ADR-025)", () =>
 			// Two years on, the day is far outside every window.
 			await ingestScheduleDay({
 				mlb,
-				schedules: new InMemoryScheduleRepository(),
+				...memoryScheduleStores(),
 				games: new InMemoryGameRepository(),
 				projections: new InMemoryGameProjectionRepository(),
-				gameStates: new InMemoryGameStateRepository(),
 				now: () => new Date("2026-10-30T12:00:00Z"),
 			}, "2024-07-04");
 			return pks;
@@ -226,7 +220,7 @@ describe("ingest skips a settled day before S167's game types (S167 AC 4)", () =
 	{
 		const real = new FixtureMlbStatsClient();
 		const stored = await real.fetchSchedule("2024-07-04");
-		const schedules = new InMemoryScheduleRepository();
+		const { schedules, gameStates } = memoryScheduleStores();
 		// The day as stored before S167: settled (every game final), cached, and no game carries a gameType.
 		await schedules.upsert({
 			...stored,
@@ -244,10 +238,9 @@ describe("ingest skips a settled day before S167's game types (S167 AC 4)", () =
 			lastChangedAt: "2024-07-05T06:00:00.000Z",
 		});
 		// Each game's final state, as the S150 migration fills it from such a day.
-		const gameStates = new InMemoryGameStateRepository();
 		for (const game of stored.games)
 		{
-			await gameStates.write({
+			await gameStates.write([{
 				gamePk: game.gamePk,
 				source: "schedule",
 				feedTime: null,
@@ -264,7 +257,7 @@ describe("ingest skips a settled day before S167's game types (S167 AC 4)", () =
 					version: 1,
 					lastChangedAt: "2024-07-05T06:00:00.000Z",
 				},
-			});
+			}]);
 		}
 		const asked: string[] = [];
 		const mlb = new FixtureMlbStatsClient();
@@ -390,10 +383,9 @@ describe("a suspended game's stored suspension time (#79, #323)", () =>
 		});
 		const day = await ingestScheduleDay({
 			mlb,
-			schedules: new InMemoryScheduleRepository(),
+			...memoryScheduleStores(),
 			games,
 			projections: new InMemoryGameProjectionRepository(),
-			gameStates: new InMemoryGameStateRepository(),
 			now: () => new Date("2026-07-05T06:00:00Z"),
 		}, "2026-07-07");
 		expect(day.windowMode).toBe("cache");
@@ -439,13 +431,11 @@ describe("a suspended game's stored suspension time (#79, #323)", () =>
 			version: 3,
 			lastChangedAt: "2026-07-05T06:00:00.000Z",
 		});
-		const schedules = new InMemoryScheduleRepository();
 		const day = await ingestScheduleDay({
 			mlb,
-			schedules,
+			...memoryScheduleStores(),
 			games,
 			projections: new InMemoryGameProjectionRepository(),
-			gameStates: new InMemoryGameStateRepository(),
 			now: () => new Date("2026-07-05T07:00:00Z"),
 		}, "2026-07-04");
 		expect(fetched).toEqual([745001]);

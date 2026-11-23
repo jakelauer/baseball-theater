@@ -62,6 +62,7 @@ has 2 packages/ports/src/mlb.ts 'fetchGameFeed\(gamePk: number\): Promise<Fetche
 grep -qE '^\s*feedTime\??:' packages/domain/src/types.ts && bad 2 "packages/domain/src/types.ts declares a feedTime field (it must never be on the game)"
 grep -q 'feedTime' openapi/bt-api.v1.json && bad 2 "openapi/bt-api.v1.json names feedTime"
 [ -n "$(story_own_changed_files S150 "$BASE" openapi)" ] && bad 2 "the story changes openapi/: $(story_own_changed_files S150 "$BASE" openapi | tr '\n' ' ')"
+run_vitest 2 packages/domain src/game-state.test.ts -t "S150 AC 2"
 run_vitest 2 functions src/adapters/http/mlb.test.ts -t "S150 AC 2"
 run_vitest 2 functions src/services/game-state.test.ts -t "S150 AC 2"
 
@@ -88,6 +89,9 @@ has 3 functions/src/services/data-classification.ts '\bgame_states:' "the data c
 has 3 functions/src/services/baseball-copy.ts '^\s*game_states:' "COPY_RULES has no rule for game_states"
 has 3 functions/src/services/backfill-report.ts 'GAME_TABLES = \[[^]]*"game_states"' "GAME_TABLES does not name game_states"
 has 3 README.md '`game_states`' "README's table lists do not name game_states"
+# Both table lists themselves: the backfill's tables and the copy's (the tables the manifest labels `none`).
+has 3 README.md '\(`schedule_days`, `game_states`, `games`, `game_projections`\)' "README's backfill table list does not name game_states"
+has 3 README.md 'labels `none`: `schedule_days`, `game_states`, `games`,' "README's copy table list does not name game_states"
 has 3 README.md 'pg_dump[^`]*-t game_states' "README's pg_dump line does not name game_states"
 run_vitest 3 functions src/services/baseball-copy.test.ts -t "S150 AC 3"
 run_vitest 3 functions src/adapters/postgres/migrate.test.ts -t "S150 AC 3"
@@ -95,13 +99,22 @@ run_vitest 3 functions src/adapters/postgres/migrate.test.ts -t "S150 AC 3"
 # --- Check 4: the switch ----------------------------------------------------------------------------
 has 4 "$DOMAIN" '^export function gameStateSource\(' "no gameStateSource in packages/domain"
 has 4 "$SERVICE" '^export async function switchGameState\(' "no switchGameState in functions/src/services/game-state.ts"
-grep -rnE 'gameStates\.write\(' functions/src packages --include='*.ts' 2>/dev/null | grep -vE '\.test\.ts:|^functions/src/services/game-state\.ts:|^functions/src/adapters/repository-contract\.ts:' >"$TMP/writers.txt"
+grep -rnE 'gameStates\.write[A-Za-z]*\(' functions/src packages --include='*.ts' 2>/dev/null | grep -vE '\.test\.ts:|^functions/src/services/game-state\.ts:|^functions/src/adapters/repository-contract\.ts:' >"$TMP/writers.txt"
 [ -s "$TMP/writers.txt" ] && bad 4 "the game-state write is called outside switchGameState: $(cut -d: -f1,2 "$TMP/writers.txt" | tr '\n' ' ')"
+# Nor is the table written straight through Drizzle or SQL, but by the adapter, its migrations and the baseball-data copy.
+grep -rnE 'insert\(gameStates\)|INSERT INTO "?game_states' functions/src packages --include='*.ts' --include='*.sql' 2>/dev/null |
+  grep -vE '\.test\.ts:|^functions/src/adapters/postgres/repos\.ts:|^functions/src/adapters/postgres/migrations/|^functions/src/services/baseball-copy\.ts:' >"$TMP/inserts.txt"
+[ -s "$TMP/inserts.txt" ] && bad 4 "game_states is written outside its adapter, migrations and the copy: $(cut -d: -f1,2 "$TMP/inserts.txt" | tr '\n' ' ')"
 run_vitest 4 packages/domain src/game-state.test.ts -t "S150 AC 4"
 run_vitest 4 functions src/services/game-state.test.ts -t "S150 AC 4"
 
 # --- Check 5: writers hand over every poll ----------------------------------------------------------
 has 5 "$DOMAIN" '^export type StoredScheduleDay\b' "no StoredScheduleDay type"
+# The stored game leaves out all three shared fields, which game_states holds.
+for field in status linescore live; do
+  grep -E '^export type StoredScheduleGame = Omit<ScheduleGameSummary, ' "$DOMAIN" 2>/dev/null | grep -q "\"$field\"" ||
+    bad 5 "StoredScheduleGame does not leave out $field"
+done
 awk '/^export async function storeSchedule\(/,/^}/' functions/src/services/ingest.ts | grep -q 'switchGameState' || bad 5 "storeSchedule does not call switchGameState"
 awk '/^async function storeGame\(|^export async function storeGame\(/,/^}/' functions/src/services/ingest.ts | grep -q 'switchGameState' || bad 5 "storeGame does not call switchGameState"
 [ -n "$(story_own_changed_files S150 "$BASE" fixtures)" ] && bad 5 "the story changes fixtures/: $(story_own_changed_files S150 "$BASE" fixtures | tr '\n' ' ')"
@@ -115,6 +128,14 @@ has 6 functions/src/adapters/postgres/schema.ts '"served_base"' "schedule_days h
 awk '/^export async function getOrRefreshGame\(/,/^}/' functions/src/services/ingest.ts | grep -qE 'servedGame|readServedGame' || bad 6 "getOrRefreshGame does not serve servedGame"
 has 6 functions/src/game-hub-object.ts 'readServedGame|servedGame' "the game hub's first send does not use the served game"
 has 6 functions/src/services/game-ingest.ts 'readServedGame|servedGame' "the ingest object's publish does not use the served game"
+has 6 functions/src/adapters/memory/live-hub.ts 'readServedGame|servedGame' "the in-memory hub's first send does not use the served game"
+has 6 functions/src/adapters/repository-contract.ts 'describeServedBaseContract' "the repository contract has no served-base case"
+has 6 functions/src/adapters/memory/repos.contract.test.ts 'describeServedBaseContract' "the memory contract test does not run the served-base case"
+has 6 functions/src/adapters/postgres/repos.contract.test.ts 'describeServedBaseContract' "the Postgres contract test does not run the served-base case"
+run_vitest 6 functions src/adapters/memory/repos.contract.test.ts -t "served base"
+run_vitest 6 functions src/adapters/postgres/repos.contract.test.ts -t "served base"
+run_vitest 6 functions src/game-hub-object.test.ts -t "S150 AC 6"
+run_vitest 6 functions src/adapters/memory/live-hub.test.ts -t "S150 AC 6"
 run_vitest 6 packages/domain src/game-state.test.ts -t "S150 AC 6"
 run_vitest 6 functions src/services/game-state.test.ts -t "S150 AC 6"
 
@@ -125,6 +146,24 @@ status="$(story_snapshot_status S150)"
 # --- Check 8: the fence -----------------------------------------------------------------------------
 story_own_changed_files S150 "$BASE" . | grep -vE '^(functions/src/|packages/domain/|packages/ports/|README\.md$|docs/v3/backlog/|docs/v3/AUDIT\.md$|docs/v3/audit\.jsonl$|docs/v3/INDEX\.md$|CHANGELOG\.md$|scripts/verify-S150\.sh$|changelog\.d/S150\.md$|docs/v3/audit/[0-9-]+/[^/]*-S150-[a-z-]+\.md$)' >"$TMP/fence.txt"
 [ -s "$TMP/fence.txt" ] && bad 8 "the story changes files outside its scope: $(tr '\n' ' ' <"$TMP/fence.txt")"
+
+cat <<'NOTES'
+S150 notes (design reasoning, not checked by this grader beyond checks 1-6) —
+Reuse check (ADR-025): read before writing code, as the story's reuse list asks.
+  - mapLinescore, mapScheduleLive, mapLiveFeedSummary (functions/src/mappers/live.ts): not reused. They map MLB's raw
+    payloads; gameStateFromGame has to work on an already-mapped game (recorded fixtures and the dev seed hand those
+    over), so it builds the moment itself from GameSnapshot.live, its at-bats and its linescore, the same fields.
+    gameStateFromSummary takes the scoreboard row mapScheduleGame already built.
+  - stampVersion and contentHash (packages/domain/src/versioning.ts, content-hash.ts): reused for every state write,
+    and contentHash for the in-memory adapter's same-state check (jsonb = in Postgres).
+  - isGameInActiveWindow and scheduleWindowMode (window.ts): reused as the switch's one rule (gameStateSource), and
+    by the baseball-data copy's "ingesting" case; isGameInActiveWindow gains an optional endedAt for a late final.
+  - isSettledGame / isScheduleDaySettled: reused unchanged, now over the joined day.
+  - storeGame, storeSchedule, getOrRefreshSchedule, getOrRefreshGame: extended in place, no second path.
+  - COPY_RULES: the changedLater path reused with one more rule (stateChangedLater); the served_base raise is one SQL
+    expression (servedBaseRaise, functions/src/adapters/postgres/repos.ts) shared by the repository and the copy.
+  - The repository contract harness (repository-contract.ts, storage-contract.ts): reused for cases (k), (l), (m).
+NOTES
 
 report "verify-S150"
 exit $?

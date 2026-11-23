@@ -13,9 +13,7 @@ import {
 } from "vitest";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { FakeDurableStorage } from "./fake-durable-storage.js";
 import {
@@ -45,10 +43,9 @@ function setup(rewrite: (game: Awaited<ReturnType<FixtureMlbStatsClient["fetchGa
 	};
 	const deps: IngestDeps = {
 		mlb,
-		schedules: new InMemoryScheduleRepository(),
+		...memoryScheduleStores(),
 		games,
 		projections: new InMemoryGameProjectionRepository(),
-		gameStates: new InMemoryGameStateRepository(),
 	};
 	const published: { hubId: string;
 		snapshot: GameSnapshot; }[] = [];

@@ -11,7 +11,8 @@
  * holds aliases the store.
  */
 import type {
-	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateRow, GameStateSource, PatronTier, Role, ScheduleDayTally, StoredScheduleDay, UserProfile,
+	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateFields, GameStateRow, GameStateSource, PatronTier, Role, ScheduleDayTally, StoredScheduleDay,
+	UserProfile,
 } from "@bt/domain";
 import {
 	dayRegularSeason, distinctTeamIds, storedGameType,
@@ -32,6 +33,7 @@ import type {
 import {
 	and, asc, between, eq, inArray, sql,
 } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
 	accountSettings, deletionLog, entitlements, gameProjections, games, gameStates, identityLinks, replayArtifacts, scheduleDays, users,
@@ -67,6 +69,20 @@ export async function upsertGame(db: PostgresDb, game: GameSnapshot): Promise<nu
 	return changed.length;
 }
 
+/**
+ * How much a schedule day's `served_base` rises when an `INSERT … ON CONFLICT (date) DO UPDATE` replaces it (S150 AC 6):
+ * the `game_states` versions, read in that statement, of the games the stored document lists and the incoming one
+ * (`excluded`) doesn't, so the served version (the day's version plus `served_base` plus its games' state versions)
+ * never falls when a game is dropped, and no state write between a read and this write can make it. The one
+ * expression for it: the schedule repository's upsert and the baseball-data copy (`baseball-copy.ts`) both use it.
+ */
+export function servedBaseRaise(): SQL
+{
+	return sql`COALESCE((SELECT sum(s.version) FROM game_states s
+		WHERE s.game_pk IN (SELECT (g->>'gamePk')::integer FROM jsonb_array_elements(schedule_days.document->'games') g)
+		AND s.game_pk NOT IN (SELECT (g->>'gamePk')::integer FROM jsonb_array_elements(excluded.document->'games') g)), 0)`;
+}
+
 export class PostgresScheduleRepository implements ScheduleRepository
 {
 	constructor(private readonly db: PostgresDb) {}
@@ -89,19 +105,21 @@ export class PostgresScheduleRepository implements ScheduleRepository
 		} : null;
 	}
 
-	/** One statement: the version-guarded write and the `served_base` raise land together or not at all (S150 AC 6). */
-	async upsert(day: StoredScheduleDay, raiseServedBase = 0): Promise<void>
+	/**
+	 * One statement: the version-guarded write and the `served_base` raise (`servedBaseRaise`, the dropped games' state
+	 * versions read in this same statement) land together or not at all (S150 AC 6). A new day drops nothing.
+	 */
+	async upsert(day: StoredScheduleDay): Promise<void>
 	{
 		await this.db.insert(scheduleDays).values({
 			date: day.date,
 			version: day.version,
-			servedBase: raiseServedBase,
 			document: day,
 		}).onConflictDoUpdate({
 			target: scheduleDays.date,
 			set: {
 				version: sql`excluded.version`,
-				servedBase: sql`${scheduleDays.servedBase} + ${raiseServedBase}`,
+				servedBase: sql`${scheduleDays.servedBase} + ${servedBaseRaise()}`,
 				document: sql`excluded.document`,
 			},
 			setWhere: sql`excluded.version > ${scheduleDays.version}`,
@@ -160,9 +178,13 @@ function gameStateRow(row: typeof gameStates.$inferSelect): GameStateRow
 }
 
 /**
- * `game_states` (S150 AC 3). The write is one statement, the port's rule applied by the database: it takes a row
- * whose version is newer, or the same with a newer feed time (ISO instants, so they compare as text); the accepted
- * feed time only moves forward (`GREATEST` ignores a null) and a write with no first pitch keeps the stored one.
+ * `game_states` (S150 AC 3). The write is one statement for the whole batch, the port's rule applied by the database:
+ * a row whose version is newer replaces the state, the source and the official date; one at the same version is taken
+ * only when its document equals the stored one (jsonb `=`: the whole state, its `version` and `lastChangedAt`
+ * included) and its feed time is newer (ISO instants, so they compare as text), and then only the accepted feed time
+ * and the source move, never the document, so one version never stands for two states (ADR-022). The accepted feed
+ * time only moves forward (`GREATEST` ignores a null) and a write with no first pitch keeps the stored one. The rows
+ * are written in gamePk order, so two batches over the same games lock them in the same order.
  */
 export class PostgresGameStateRepository implements GameStateRepository
 {
@@ -180,9 +202,11 @@ export class PostgresGameStateRepository implements GameStateRepository
 		return (await this.db.select().from(gameStates).where(inArray(gameStates.gamePk, [...gamePks]))).map(gameStateRow);
 	}
 
-	async write(row: GameStateRow): Promise<boolean>
+	async write(rows: readonly GameStateRow[]): Promise<number[]>
 	{
-		const written = await this.db.insert(gameStates).values({
+		if (rows.length === 0) return [];
+		const newer = sql`excluded.version > ${gameStates.version}`;
+		const written = await this.db.insert(gameStates).values([...rows].sort((a, b) => a.gamePk - b.gamePk).map((row) => ({
 			gamePk: row.gamePk,
 			version: row.state.version,
 			source: row.source,
@@ -190,22 +214,23 @@ export class PostgresGameStateRepository implements GameStateRepository
 			officialDate: row.officialDate,
 			startTime: row.startTime,
 			document: row.state,
-		}).onConflictDoUpdate({
+		}))).onConflictDoUpdate({
 			target: gameStates.gamePk,
 			set: {
 				version: sql`excluded.version`,
 				source: sql`excluded.source`,
 				feedTime: sql`GREATEST(${gameStates.feedTime}, excluded.feed_time)`,
-				officialDate: sql`excluded.official_date`,
+				officialDate: sql`CASE WHEN ${newer} THEN excluded.official_date ELSE ${gameStates.officialDate} END`,
 				startTime: sql`COALESCE(excluded.start_time, ${gameStates.startTime})`,
-				document: sql`excluded.document`,
+				document: sql`CASE WHEN ${newer} THEN excluded.document ELSE ${gameStates.document} END`,
 			},
-			setWhere: sql`excluded.version > ${gameStates.version}
-				OR (excluded.version = ${gameStates.version} AND excluded.feed_time > COALESCE(${gameStates.feedTime}, ''))`,
+			setWhere: sql`${newer}
+				OR (excluded.version = ${gameStates.version} AND excluded.document = ${gameStates.document}
+					AND excluded.feed_time > COALESCE(${gameStates.feedTime}, ''))`,
 		}).returning({
 			gamePk: gameStates.gamePk,
 		});
-		return written.length > 0;
+		return written.map((row) => row.gamePk);
 	}
 }
 
@@ -224,6 +249,30 @@ export class PostgresGameRepository implements GameRepository
 	async upsert(game: GameSnapshot): Promise<void>
 	{
 		await upsertGame(this.db, game);
+	}
+
+	/**
+	 * Each document is read once (`jsonb_to_record`), not once per field, and only its status, linescore, live moment
+	 * and last at-bat's matchup leave the database.
+	 */
+	async getStateFields(gamePks: readonly number[]): Promise<GameStateFields[]>
+	{
+		if (gamePks.length === 0) return [];
+		const rows = await this.db.select({
+			gamePk: games.gamePk,
+			fields: sql<Omit<GameStateFields, "gamePk" | "plays"> & { matchup: GameStateFields["plays"][number]["matchup"] | null }>`(SELECT jsonb_build_object(
+				'status', d.status, 'linescore', d.linescore, 'live', d.live, 'matchup', d.plays->-1->'matchup')
+				FROM jsonb_to_record(${games.document}) AS d(status jsonb, linescore jsonb, live jsonb, plays jsonb))`,
+		}).from(games).where(inArray(games.gamePk, [...gamePks])).orderBy(asc(games.gamePk));
+		return rows.map(({ gamePk, fields }) => ({
+			gamePk,
+			status: fields.status,
+			linescore: fields.linescore ?? null,
+			live: fields.live ?? null,
+			plays: fields.matchup ? [{
+				matchup: fields.matchup,
+			}] : [],
+		}));
 	}
 
 	async listByDate(date: string): Promise<GameSnapshot[]>

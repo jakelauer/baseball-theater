@@ -13,7 +13,7 @@ import {
 	beforeAll, describe, expect, it,
 } from "vitest";
 import { FixtureMlbStatsClient } from "../fixtures/mlb.js";
-import { describeGameStateContract } from "../repository-contract.js";
+import { describeGameStateContract, describeServedBaseContract } from "../repository-contract.js";
 import { describeStorageContract } from "../storage-contract.js";
 import type { PostgresDb } from "./repos.js";
 import {
@@ -97,6 +97,16 @@ describeStorageContract("Postgres", {
 });
 
 describeGameStateContract("PostgresGameStateRepository", fresh((d) => new PostgresGameStateRepository(d)));
+
+// The schedule and game-state stores over one emptied database, as the served-base case needs both.
+describeServedBaseContract("PostgresScheduleRepository", () =>
+{
+	const ready = emptied();
+	return {
+		schedules: gated(new PostgresScheduleRepository(db), ready),
+		gameStates: gated(new PostgresGameStateRepository(db), ready),
+	};
+});
 
 describe("Postgres adapter (S50)", () =>
 {

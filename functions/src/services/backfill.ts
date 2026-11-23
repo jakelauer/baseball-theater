@@ -45,9 +45,9 @@ import type {
 	GameEditorial, GameProjectionRepository, GameRepository, GameStateRepository, MlbGameSources, ScheduleRepository,
 } from "@bt/ports";
 import { assembleGame } from "../mappers/game-extras.js";
-import { readScheduleDay } from "./game-state.js";
+import { readScheduleDay, scheduleDayWindowMode } from "./game-state.js";
 import {
-	ingestGame, repairProjection, scheduleDayWindowMode, storeSchedule,
+	ingestGame, repairProjection, storeSchedule,
 } from "./ingest.js";
 
 /** The extra sources a game is hydrated from beside its live feed, each given up on its own. */

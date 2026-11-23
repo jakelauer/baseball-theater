@@ -9,10 +9,7 @@ import {
 import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
-	InMemorySettingsRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemorySettingsRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { handleApiRequest } from "../handlers/api.js";
 import { RELEASES_CACHE_CONTROL } from "../handlers/cache-control.js";
@@ -43,10 +40,9 @@ function getReleasesRoute(releases?: readonly ReleaseNotes[])
 	return handleApiRequest(new Request("http://localhost:8787/api/v1/releases"), {
 		ingest: {
 			mlb: new FixtureMlbStatsClient(),
-			schedules: new InMemoryScheduleRepository(),
+			...memoryScheduleStores(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
-			gameStates: new InMemoryGameStateRepository(),
 		},
 		auth,
 		settings,

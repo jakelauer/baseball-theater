@@ -22,9 +22,7 @@ import { datesBetween } from "@bt/domain";
 import type { MlbStatsClient } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { tickIngest } from "./ingest.js";
 
@@ -180,10 +178,9 @@ function deps(mlb: MlbStatsClient)
 {
 	return {
 		mlb,
-		schedules: new InMemoryScheduleRepository(),
+		...memoryScheduleStores(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
-		gameStates: new InMemoryGameStateRepository(),
 	};
 }
 

@@ -47,9 +47,9 @@
  * - Replay artifacts compare `version`, which for them is the number of retained patches and so
  *   means the same in both databases; it isn't restamped.
  * - A game's shared state (`game_states`, S150 AC 3) compares `lastChangedAt` the same way, except that a target row
- *   its live feed wrote (`source` `feed`) whose game is in its live window (`isGameInActiveWindow` on the row's status,
- *   first pitch and official date) is the target's own, as `ingesting`. The target's accepted feed time (`feed_time`)
- *   is never copied, and a row without a first pitch never clears the target's.
+ *   its live feed wrote (`source` `feed`) that the switch still gives the feed (`gameStateSource` on the row's status,
+ *   first pitch, official date and last change) is the target's own, as `ingesting`. The target's accepted feed time
+ *   (`feed_time`) is never copied, and a row without a first pitch never clears the target's.
  * - A schedule day's `served_base` (S150 AC 6) is the target's own counter and is never copied. When the copy
  *   replaces a day, the same statement raises the target's `served_base` by the target's state versions of the games
  *   the new copy no longer lists, so the day's served version (its version plus `served_base` plus its games' state
@@ -75,7 +75,7 @@
  */
 import type { GameSnapshot, VersionStamp } from "@bt/domain";
 import {
-	adoptAcrossStores, compareAcrossStores, isGameInActiveWindow, projectGame,
+	adoptAcrossStores, compareAcrossStores, gameStateSource, projectGame,
 } from "@bt/domain";
 import { sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
@@ -84,6 +84,7 @@ import {
 	MIGRATIONS_FOLDER, appliedMigrations, committedMigrations,
 } from "../adapters/postgres/migrate.js";
 import type { PostgresDb } from "../adapters/postgres/repos.js";
+import { servedBaseRaise } from "../adapters/postgres/repos.js";
 import { DATA_CLASSIFICATION } from "./data-classification.js";
 
 /** At most this many rows are read and written per statement (the page's row cap). */
@@ -453,12 +454,7 @@ async function writeRows(target: PostgresDb, table: string, columns: string[], k
 function ownAssignment(table: string, column: string): SQL | undefined
 {
 	if (table === "game_states" && column === "start_time") return sql`COALESCE(excluded.start_time, game_states.start_time)`;
-	if (table === "schedule_days" && column === "served_base")
-	{
-		return sql`schedule_days.served_base + COALESCE((SELECT sum(s.version) FROM game_states s
-			WHERE s.game_pk IN (SELECT (g->>'gamePk')::integer FROM jsonb_array_elements(schedule_days.document->'games') g)
-			AND s.game_pk NOT IN (SELECT (g->>'gamePk')::integer FROM jsonb_array_elements(excluded.document->'games') g)), 0)`;
-	}
+	if (table === "schedule_days" && column === "served_base") return sql`schedule_days.served_base + ${servedBaseRaise()}`;
 	return undefined;
 }
 
@@ -584,12 +580,20 @@ async function copyChangedLaterPage(deps: CopyDeps, table: string, rule: CopyRul
 	for (const row of page)
 	{
 		const stamp = stamps.get(keyOf(row));
-		// S150: a state the target's live feed is writing (its game in its live window) is the target's own.
-		if (stamp?.fed && stamp.status && isGameInActiveWindow({
-			status: stamp.status,
+		// S150: a state the target's live feed is writing is the target's own: the switch's own rule (`gameStateSource`)
+		// on the target's row, so a final the feed wrote late keeps its trail here too.
+		const targetRow = stamp?.fed && stamp.status ? {
+			source: "feed" as const,
+			state: {
+				status: stamp.status,
+				...stamp.changed !== null && {
+					lastChangedAt: stamp.changed,
+				},
+			},
 			officialDate: stamp.official_date ?? "",
 			startTime: stamp.start_time,
-		}, run.now))
+		} : null;
+		if (targetRow && gameStateSource(targetRow, targetRow, run.now) === "feed")
 		{
 			keep("ingesting");
 			continue;

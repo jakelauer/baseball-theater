@@ -149,11 +149,37 @@ describe("game state builders (S150 AC 1)", () =>
 		}).live).toBeNull();
 	});
 
-	it("S150 AC 1 feed time: MLB's YYYYMMDD_HHMMSS (UTC) becomes an ISO instant; anything else is none", () =>
+});
+
+describe("the feed's own time (S150 AC 2)", () =>
+{
+	const fetchedAt = new Date("2026-09-05T23:34:30.000Z");
+
+	it("S150 AC 2 feed time: MLB's YYYYMMDD_HHMMSS (UTC) becomes an ISO instant; anything else is none", () =>
 	{
-		expect(feedTimeToIso("20260905_233435")).toBe("2026-09-05T23:34:35.000Z");
-		expect(feedTimeToIso(undefined)).toBeUndefined();
-		expect(feedTimeToIso("2026-09-05")).toBeUndefined();
+		expect(feedTimeToIso("20260905_233435", fetchedAt)).toBe("2026-09-05T23:34:35.000Z");
+		expect(feedTimeToIso(undefined, fetchedAt)).toBeUndefined();
+		expect(feedTimeToIso("", fetchedAt)).toBeUndefined();
+		expect(feedTimeToIso("2026-09-05", fetchedAt)).toBeUndefined();
+		expect(feedTimeToIso("2026090_233435", fetchedAt)).toBeUndefined();
+	});
+
+	it("S150 AC 2 feed time: a part out of range is none, never rolled over into another date", () =>
+	{
+		expect(feedTimeToIso("20261305_250000", fetchedAt)).toBeUndefined();
+		expect(feedTimeToIso("20260230_120000", fetchedAt)).toBeUndefined();
+		expect(feedTimeToIso("20260905_246000", fetchedAt)).toBeUndefined();
+		expect(feedTimeToIso("20260905_235960", fetchedAt)).toBeUndefined();
+		expect(feedTimeToIso("20260905_240000", fetchedAt)).toBeUndefined();
+	});
+
+	it("S150 AC 2 feed time: a time ahead of the fetch by more than the clock tolerance is none; within it, kept as MLB sent it", () =>
+	{
+		// The fetch time is read before the request, so a real feed time is often a few seconds after it.
+		expect(feedTimeToIso("20260905_233507", fetchedAt)).toBe("2026-09-05T23:35:07.000Z");
+		expect(feedTimeToIso("20260905_233929", fetchedAt)).toBe("2026-09-05T23:39:29.000Z");
+		expect(feedTimeToIso("20260905_234031", fetchedAt)).toBeUndefined();
+		expect(feedTimeToIso("20990101_000000", fetchedAt)).toBeUndefined();
 	});
 });
 
@@ -191,6 +217,55 @@ describe("gameStateSource, the switch (S150 AC 4)", () =>
 		const row = clock(POSTPONED);
 		expect(gameStateSource(row, clock(SCHEDULED), new Date("2026-09-05T13:00:00Z"))).toBe("schedule");
 		expect(gameStateSource(row, clock(SCHEDULED), new Date("2026-09-05T23:30:00Z"))).toBe("schedule");
+	});
+
+	it("S150 AC 4 late final: a final the feed wrote after a long delay keeps its trail from when it changed, so a lagging schedule copy can't put it back to live", () =>
+	{
+		// First pitch 23:00Z; a rain delay, then final at 07:00Z next day (start + 8h, past start + 4h + 3h).
+		const fed: GameStateClock = {
+			...clock(FINAL),
+			source: "feed",
+			state: {
+				status: FINAL,
+				lastChangedAt: "2026-09-06T07:00:00.000Z",
+			},
+		};
+		expect(gameStateSource(fed, clock(LIVE), new Date("2026-09-06T07:30:00Z"))).toBe("feed");
+		expect(gameStateSource(fed, clock(LIVE), new Date("2026-09-06T10:00:00Z"))).toBe("feed");
+		expect(gameStateSource(fed, clock(LIVE), new Date("2026-09-06T10:01:00Z"))).toBe("schedule");
+		// The schedule's own final is judged by first pitch alone.
+		expect(gameStateSource({
+			...fed,
+			source: "schedule",
+		}, clock(LIVE), new Date("2026-09-06T07:30:00Z"))).toBe("schedule");
+		// A final the feed wrote on time keeps the usual trail (the later of the two ends is the assumed one).
+		expect(gameStateSource({
+			...fed,
+			state: {
+				status: FINAL,
+				lastChangedAt: "2026-09-06T01:30:00.000Z",
+			},
+		}, clock(LIVE), new Date("2026-09-06T05:30:00Z"))).toBe("feed");
+	});
+
+	it("S150 AC 4 late suspended: a game the feed saw suspended late keeps its 6 hours from when it changed", () =>
+	{
+		const SUSPENDED = {
+			abstractGameState: "Live",
+			codedGameState: "T",
+			detailedState: "Suspended: Rain",
+		};
+		const fed: GameStateClock = {
+			...clock(SUSPENDED),
+			source: "feed",
+			state: {
+				status: SUSPENDED,
+				lastChangedAt: "2026-09-06T05:30:00.000Z",
+			},
+		};
+		// Start + 6.5h suspended; a schedule copy at start + 7h, past the start's 6 hours, stays the feed's.
+		expect(gameStateSource(fed, clock(LIVE), new Date("2026-09-06T06:00:00Z"))).toBe("feed");
+		expect(gameStateSource(fed, clock(LIVE), new Date("2026-09-06T11:31:00Z"))).toBe("schedule");
 	});
 });
 

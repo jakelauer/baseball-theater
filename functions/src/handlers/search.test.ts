@@ -12,7 +12,7 @@ import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.j
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { searchHighlightsRequest } from "../adapters/http/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameStateRepository, InMemoryGameRepository, InMemoryScheduleRepository, InMemorySettingsRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemorySettingsRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { handleApiRequest } from "./api.js";
 
@@ -24,10 +24,9 @@ async function get(path: string, mlb: MlbStatsClient = new FixtureMlbStatsClient
 	return handleApiRequest(new Request(`http://bt.test${path}`), {
 		ingest: {
 			mlb,
-			schedules: new InMemoryScheduleRepository(),
+			...memoryScheduleStores(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
-			gameStates: new InMemoryGameStateRepository(),
 		},
 		auth,
 		settings,

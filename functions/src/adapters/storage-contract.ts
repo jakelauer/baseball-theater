@@ -18,7 +18,7 @@ import {
 	personalDataStores, SETTINGS_STORE, USERS_STORE,
 } from "../services/personal-data.js";
 import {
-	describeIdentityLinkContract, describePersonalDataStoreContract, describeRepositoryContract, describeScheduleCountsContract,
+	describeGameStateFieldsContract, describeIdentityLinkContract, describePersonalDataStoreContract, describeRepositoryContract, describeScheduleCountsContract,
 } from "./repository-contract.js";
 
 /** A fresh, empty instance of each repository an adapter implements. */
@@ -119,6 +119,8 @@ export function describeStorageContract(prefix: string, stores: StoreFactories):
 			g.teams.home.abbreviation = "XXX";
 		},
 	});
+
+	describeGameStateFieldsContract(`${prefix}GameRepository`, () => stores.games(), (pk) => game(pk, 1));
 
 	describeRepositoryContract<number, GameProjection>(`${prefix}GameProjectionRepository`, {
 		create: () =>

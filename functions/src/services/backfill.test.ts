@@ -27,7 +27,7 @@ import {
 import { FIXTURES_ROOT, FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { HttpMlbStatsClient } from "../adapters/http/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameStateRepository, InMemoryGameRepository, InMemoryScheduleRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { migratedPglite } from "../adapters/postgres/migrate.js";
 import {
@@ -204,15 +204,16 @@ function counted(base: { schedules: ScheduleRepository;
 			getByDate: (date) => base.schedules.getByDate(date),
 			getWithServedBase: (date) => base.schedules.getWithServedBase(date),
 			listGameCounts: (from, to) => base.schedules.listGameCounts(from, to),
-			upsert: async (day, raise) =>
+			upsert: async (day) =>
 			{
 				writes.push(`schedule ${day.date}`);
-				await base.schedules.upsert(day, raise);
+				await base.schedules.upsert(day);
 			},
 		},
 		gameStates: base.gameStates,
 		games: {
 			getByPk: (pk) => base.games.getByPk(pk),
+			getStateFields: (pks) => base.games.getStateFields(pks),
 			listByDate: (date) => base.games.listByDate(date),
 			upsert: async (game) =>
 			{
@@ -239,10 +240,9 @@ function counted(base: { schedules: ScheduleRepository;
 function memoryRepos()
 {
 	return {
-		schedules: new InMemoryScheduleRepository(),
+		...memoryScheduleStores(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
-		gameStates: new InMemoryGameStateRepository(),
 	};
 }
 

@@ -7,9 +7,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import { FixtureMlbStatsClient } from "./fixtures/mlb.js";
-import {
-	InMemoryGameRepository, InMemoryGameStateRepository, InMemoryScheduleRepository,
-} from "./memory/repos.js";
+import { InMemoryGameRepository, memoryScheduleStores } from "./memory/repos.js";
 import { overlayMlbClient, storeOverlay } from "./overlay-mlb.js";
 
 describe("overlayMlbClient (S112)", () =>
@@ -82,7 +80,7 @@ describe("overlayMlbClient (S112)", () =>
 
 	it("storeOverlay hands back a stored day or game without its version, and null for what isn't stored", async () =>
 	{
-		const schedules = new InMemoryScheduleRepository();
+		const { schedules, gameStates } = memoryScheduleStores();
 		await schedules.upsert({
 			date: "2026-09-05",
 			games: [],
@@ -94,7 +92,7 @@ describe("overlayMlbClient (S112)", () =>
 		const source = storeOverlay({
 			schedules,
 			games: new InMemoryGameRepository(),
-			gameStates: new InMemoryGameStateRepository(),
+			gameStates,
 		});
 		const day = await source.schedule("2026-09-05");
 		expect(day).not.toHaveProperty("version");

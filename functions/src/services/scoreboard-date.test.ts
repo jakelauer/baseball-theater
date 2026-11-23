@@ -8,9 +8,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { recordedClient } from "../test/recorded-mlb.js";
 import type { IngestDeps } from "./ingest.js";
@@ -32,10 +30,9 @@ function deps(mlb: IngestDeps["mlb"], now: string): IngestDeps
 {
 	return {
 		mlb,
-		schedules: new InMemoryScheduleRepository(),
+		...memoryScheduleStores(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
-		gameStates: new InMemoryGameStateRepository(),
 		now: () => new Date(now),
 	};
 }

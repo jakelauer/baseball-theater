@@ -1,5 +1,5 @@
 {
-	"id": "10814e52-ec52-4957-ae2d-2757b6602ff4",
+	"id": "fbfe814e-d35a-4716-8988-bb0be2ce90ed",
 	"prevId": "ac98ddcc-7a33-4c81-883b-73a75442b3bf",
 	"version": "7",
 	"dialect": "postgresql",
@@ -232,7 +232,12 @@
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},
 			"policies": {},
-			"checkConstraints": {},
+			"checkConstraints": {
+				"game_states_source_check": {
+					"name": "game_states_source_check",
+					"value": "\"game_states\".\"source\" IN ('feed', 'schedule')"
+				}
+			},
 			"isRLSEnabled": false
 		},
 		"public.games": {

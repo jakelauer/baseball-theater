@@ -160,6 +160,31 @@ describe("isGameInActiveWindow", () =>
 		expect(isGameInActiveWindow(game("F"), afterTrail)).toBe(false);
 	});
 
+	it("measures a final game's trail from its known end when that is later than the assumed one (S150)", () =>
+	{
+		// Assumed end 21:00Z; the game really ended at 03:00Z after a delay, so its trail runs to 06:00Z.
+		const late = {
+			...game("F"),
+			endedAt: "2024-07-05T03:00:00.000Z",
+		};
+		expect(isGameInActiveWindow(late, new Date("2024-07-05T06:00:00.000Z"))).toBe(true);
+		expect(isGameInActiveWindow(late, new Date("2024-07-05T06:00:00.001Z"))).toBe(false);
+		// An end earlier than the assumed one never shortens the trail; one that doesn't parse is ignored.
+		expect(isGameInActiveWindow({
+			...game("F"),
+			endedAt: "2024-07-04T18:00:00.000Z",
+		}, new Date("2024-07-04T23:00:00.000Z"))).toBe(true);
+		expect(isGameInActiveWindow({
+			...game("F"),
+			endedAt: "garbage",
+		}, new Date("2024-07-05T02:00:00.000Z"))).toBe(false);
+		// Only a final game's trail reads it.
+		expect(isGameInActiveWindow({
+			...game("S"),
+			endedAt: "2024-07-05T03:00:00.000Z",
+		}, new Date("2024-07-05T05:00:00.000Z"))).toBe(false);
+	});
+
 	it("keeps a scheduled game in the window inside the lead hours", () =>
 	{
 		// Start 23:05Z, lead 2h -> window opens 21:05Z.

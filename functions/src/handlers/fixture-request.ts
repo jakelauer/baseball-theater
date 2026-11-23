@@ -6,10 +6,7 @@
 import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
-	InMemorySettingsRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemorySettingsRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import type { ApiContext } from "./api.js";
 import { handleApiRequest } from "./api.js";
@@ -25,10 +22,9 @@ export function fixtureGet(path: string, extra: Pick<ApiContext, "usage" | "vers
 	return handleApiRequest(new Request(`http://localhost:8787${path}`), {
 		ingest: {
 			mlb: new FixtureMlbStatsClient(),
-			schedules: new InMemoryScheduleRepository(),
+			...memoryScheduleStores(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
-			gameStates: new InMemoryGameStateRepository(),
 		},
 		auth,
 		settings,

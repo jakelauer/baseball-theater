@@ -139,6 +139,10 @@ const HOUR_MS = 60 * 60 * 1000;
  * one, and a game resumed on a later day, which MLB lists suspended with its resume time as
  * the start, enters through its lead.
  *
+ * A final game's assumed end is first pitch + 4 hours, or `endedAt` when that is later (S150: when the live feed wrote
+ * the final, so a game that went final after a long delay keeps its trail from then); `trailHours` run from it. An
+ * `endedAt` earlier than the assumed end, or one that doesn't parse, changes nothing. Only a final game reads it.
+ *
  * First pitch is `startTime` (the ISO instant `mapScheduleGame` and `mapLiveFeed`
  * set). Both mappers set `gameDate` to the official date alone, so `gameDate` /
  * `gameDateTime` count only when they carry a time of day: read as an instant, a
@@ -154,6 +158,7 @@ export function isGameInActiveWindow(
 		gameDate?: string | null;
 		gameDateTime?: string | null;
 		suspendedAt?: string | null;
+		endedAt?: string | null;
 	},
 	now: Date,
 	params: CadenceParams = DEFAULT_CADENCE,
@@ -181,9 +186,10 @@ export function isGameInActiveWindow(
 
 	if (kind === "final")
 	{
-		// Without exact end time, keep trail from a late-evening assumption on game day.
-		const assumedEnd = new Date(start.getTime() + 4 * HOUR_MS);
-		return now.getTime() <= assumedEnd.getTime() + trailMs;
+		// Without exact end time, keep trail from a late-evening assumption on game day; a known later end (`endedAt`) moves it.
+		const ended = game.endedAt ? Date.parse(game.endedAt) : Number.NaN;
+		const assumedEnd = Math.max(start.getTime() + 4 * HOUR_MS, Number.isNaN(ended) ? 0 : ended);
+		return now.getTime() <= assumedEnd + trailMs;
 	}
 
 	return (

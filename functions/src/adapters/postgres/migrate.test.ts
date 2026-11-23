@@ -348,6 +348,38 @@ describe("the game_states migration (S150 AC 3)", () =>
 		return folder;
 	}
 
+	/** MLB's status for a code the tests use: its abstract group and its detailed state. */
+	const STATUSES: Record<string, [string, string]> = {
+		S: ["Preview", "Scheduled"],
+		I: ["Live", "In Progress"],
+		F: ["Final", "Final"],
+		D: ["Final", "Postponed"],
+	};
+
+	function status(code: string)
+	{
+		const [abstractGameState, detailedState] = STATUSES[code]!;
+		return {
+			abstractGameState,
+			codedGameState: code,
+			detailedState,
+		};
+	}
+
+	function linescore(homeRuns: number | null)
+	{
+		return homeRuns === null ? null : {
+			teams: {
+				home: {
+					runs: homeRuns,
+				},
+				away: {
+					runs: 1,
+				},
+			},
+		};
+	}
+
 	/** A scoreboard game as a day stored it before S150, with its status and linescore. */
 	function listed(gamePk: number, code: string, homeRuns: number | null)
 	{
@@ -355,71 +387,67 @@ describe("the game_states migration (S150 AC 3)", () =>
 			gamePk,
 			officialDate: "2026-09-04",
 			startTime: "2026-09-04T23:05:00Z",
-			status: {
-				abstractGameState: code === "F" ? "Final" : "Preview",
-				codedGameState: code,
-				detailedState: code === "F" ? "Final" : "Scheduled",
-			},
-			linescore: homeRuns === null ? null : {
-				teams: {
-					home: {
-						runs: homeRuns,
-					},
-					away: {
-						runs: 1,
-					},
-				},
-			},
+			status: status(code),
+			linescore: linescore(homeRuns),
 			live: null,
 		};
 	}
 
-	it("S150 AC 3 migration: fills one row per game from the stored days (the copy changed last) and the stored games no day lists", async () =>
+	/** A stored game snapshot as the `games` table holds it. */
+	function snapshot(gamePk: number, code: string, homeRuns: number, lastChangedAt: string)
+	{
+		return JSON.stringify({
+			gamePk,
+			officialDate: "2026-09-03",
+			startTime: "2026-09-03T17:05:00Z",
+			status: status(code),
+			linescore: linescore(homeRuns),
+			live: null,
+			version: 3,
+			lastChangedAt,
+		});
+	}
+
+	/** A PGlite database migrated to just before S150, holding `days` and `games`, then migrated to the code's. */
+	async function migratedWith(days: [string, unknown[], string][], snapshots: [number, string][])
 	{
 		const pglite = new PGlite();
 		const db = drizzlePglite(pglite);
 		await migratePglite(db, {
 			migrationsFolder: folderBeforeGameStates(),
 		});
-		const day = (date: string, games: unknown[], lastChangedAt: string) => JSON.stringify({
-			date,
-			games,
-			fetchedAt: lastChangedAt,
-			windowMode: "cache",
-			version: 1,
-			lastChangedAt,
-		});
-		// Game 10 is listed on two days (suspended, resumed the next day); the later copy has its final.
-		await db.execute(sql`INSERT INTO schedule_days (date, version, document) VALUES
-			('2026-09-04', 1, ${day("2026-09-04", [listed(10, "S", null)], "2026-09-04T12:00:00.000Z")}),
-			('2026-09-05', 1, ${day("2026-09-05", [listed(10, "F", 5)], "2026-09-06T03:00:00.000Z")})`);
-		// Game 20 is stored only as a snapshot.
-		await db.execute(sql`INSERT INTO games (game_pk, official_date, version, document) VALUES (20, '2026-09-03', 3, ${JSON.stringify({
-			gamePk: 20,
-			officialDate: "2026-09-03",
-			startTime: "2026-09-03T17:05:00Z",
-			status: {
-				abstractGameState: "Final",
-				codedGameState: "F",
-				detailedState: "Final",
-			},
-			linescore: {
-				teams: {
-					home: {
-						runs: 4,
-					},
-					away: {
-						runs: 2,
-					},
-				},
-			},
-			live: null,
-			version: 3,
-			lastChangedAt: "2026-09-04T01:00:00.000Z",
-		})})`);
+		for (const [date, games, lastChangedAt] of days)
+		{
+			await db.execute(sql`INSERT INTO schedule_days (date, version, document) VALUES (${date}, 1, ${JSON.stringify({
+				date,
+				games,
+				fetchedAt: lastChangedAt,
+				windowMode: "cache",
+				version: 1,
+				lastChangedAt,
+			})})`);
+		}
+		for (const [gamePk, document] of snapshots)
+		{
+			await db.execute(sql`INSERT INTO games (game_pk, official_date, version, document) VALUES (${gamePk}, '2026-09-03', 3, ${document})`);
+		}
 		await migratePglite(db, {
 			migrationsFolder: MIGRATIONS_FOLDER,
 		});
+		return {
+			pglite,
+			db,
+		};
+	}
+
+	it("S150 AC 3 migration: fills one row per game from the stored days (the copy changed last) and the stored games no day lists", async () =>
+	{
+		// Game 10 is listed on two days (suspended, resumed); the earlier date's copy is the one changed last, so the
+		// copy is chosen by when it changed, never by its date.
+		const { pglite, db } = await migratedWith([
+			["2026-09-04", [listed(10, "F", 5)], "2026-09-06T04:00:00.000Z"],
+			["2026-09-05", [listed(10, "S", null)], "2026-09-05T20:00:00.000Z"],
+		], [[20, snapshot(20, "F", 4, "2026-09-04T01:00:00.000Z")]]);
 		const rows = (await db.execute(sql`SELECT game_pk, version, source, feed_time, official_date, start_time,
 			document->'status'->>'codedGameState' AS code, document->'linescore'->'teams'->'home'->>'runs' AS home, document->>'lastChangedAt' AS changed
 			FROM game_states ORDER BY game_pk`)).rows;
@@ -433,7 +461,7 @@ describe("the game_states migration (S150 AC 3)", () =>
 				start_time: "2026-09-04T23:05:00Z",
 				code: "F",
 				home: "5",
-				changed: "2026-09-06T03:00:00.000Z",
+				changed: "2026-09-06T04:00:00.000Z",
 			},
 			{
 				game_pk: 20,
@@ -453,5 +481,65 @@ describe("the game_states migration (S150 AC 3)", () =>
 			served_base: 0,
 		}]);
 		await pglite.close();
+	});
+
+	it("S150 AC 3 migration: a day's copy that isn't over loses to a snapshot that changed later; a finished day copy is kept", async () =>
+	{
+		const { pglite, db } = await migratedWith([
+			["2026-09-05", [listed(30, "I", 2), listed(40, "F", 7), listed(50, "D", null), listed(60, "I", 1)], "2026-09-05T20:00:00.000Z"],
+		], [
+			// Stored mid-game on the day, final in its snapshot later: the snapshot's final.
+			[30, snapshot(30, "F", 4, "2026-09-06T03:00:00.000Z")],
+			// Final on the day: kept, and its snapshot is never read.
+			[40, snapshot(40, "F", 8, "2026-09-06T03:00:00.000Z")],
+			// Postponed on the day (MLB groups it "Final"), played later under the same gamePk: the snapshot's final.
+			[50, snapshot(50, "F", 3, "2026-09-07T03:00:00.000Z")],
+			// A snapshot older than the day's copy: the day's.
+			[60, snapshot(60, "S", 0, "2026-09-05T12:00:00.000Z")],
+		]);
+		const rows = (await db.execute(sql`SELECT game_pk, source, document->'status'->>'codedGameState' AS code,
+			document->'linescore'->'teams'->'home'->>'runs' AS home FROM game_states ORDER BY game_pk`)).rows;
+		expect(rows).toEqual([
+			{
+				game_pk: 30,
+				source: "feed",
+				code: "F",
+				home: "4",
+			},
+			{
+				game_pk: 40,
+				source: "schedule",
+				code: "F",
+				home: "7",
+			},
+			{
+				game_pk: 50,
+				source: "feed",
+				code: "F",
+				home: "3",
+			},
+			{
+				game_pk: 60,
+				source: "schedule",
+				code: "I",
+				home: "1",
+			},
+		]);
+		// A source other than the two is refused (S150: the column's CHECK).
+		await expect(db.execute(sql`INSERT INTO game_states (game_pk, version, source, official_date, document) VALUES (70, 1, 'cron', '2026-09-05', '{}')`)).rejects.toThrow();
+		await pglite.close();
+	});
+
+	it("S150 AC 3 migration locks: the lock timeout is set first, and schedule_days is altered only after every read of the stored data", () =>
+	{
+		const migration = readFileSync(join(MIGRATIONS_FOLDER, "0001_game_states.sql"), "utf8");
+		const statements = migration.split("--> statement-breakpoint")
+			.map((statement) => statement.split("\n").filter((line) => !line.trim().startsWith("--")).join("\n").trim())
+			.filter((statement) => statement !== "");
+		expect(statements[0]).toMatch(/^SET LOCAL lock_timeout = '5s';$/);
+		const alter = statements.findIndex((statement) => /^ALTER TABLE "schedule_days"/.test(statement));
+		const lastRead = statements.map((statement) => /^(INSERT|UPDATE)\b/.test(statement)).lastIndexOf(true);
+		expect(alter).toBeGreaterThan(lastRead);
+		expect(alter).toBe(statements.length - 1);
 	});
 });

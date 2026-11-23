@@ -262,15 +262,18 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 
 	/**
 	 * The live feed alone (S122): what `fetchGame` adds its extras to. Beside the game, the feed's own time (MLB's
-	 * `metaData.timeStamp`) as an ISO instant (S150 AC 2), left out when the feed has none.
+	 * `metaData.timeStamp`) as an ISO instant (S150 AC 2), left out when the feed has none or it can't be right
+	 * (`feedTimeToIso`).
 	 */
 	async fetchGameFeed(gamePk: number): Promise<FetchedGame>
 	{
 		const feedUrl = `${this.baseUrl}/api/v1.1/game/${gamePk}/feed/live`;
 		const feed = parseLiveFeedResponse(await this.getJson(feedUrl));
-		const feedTime = feedTimeToIso(feed.metaData?.timeStamp);
+		// Read after the response, so the tolerance only has to cover the two clocks' difference.
+		const now = this.now();
+		const feedTime = feedTimeToIso(feed.metaData?.timeStamp, now);
 		return {
-			game: mapLiveFeed(feed, this.now().toISOString(), "active"),
+			game: mapLiveFeed(feed, now.toISOString(), "active"),
 			...feedTime !== undefined && {
 				feedTime,
 			},

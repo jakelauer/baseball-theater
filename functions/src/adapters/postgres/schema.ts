@@ -14,8 +14,9 @@ import type {
 	AccountSettings, GameProjection, GameSnapshot, GameState, StoredScheduleDay,
 } from "@bt/domain";
 import type { ReplayArtifact } from "@bt/ports";
+import { sql } from "drizzle-orm";
 import {
-	boolean, index, integer, jsonb, pgTable, primaryKey, serial, text,
+	boolean, check, index, integer, jsonb, pgTable, primaryKey, serial, text,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -32,8 +33,9 @@ export const scheduleDays = pgTable("schedule_days", {
 });
 
 /**
- * One game's shared state per game (`GameStateRepository`, S150 AC 3): the source that wrote it, the newest feed time
- * it accepted (null until the feed writes), the official date and first pitch the switch reads, and the `GameState`.
+ * One game's shared state per game (`GameStateRepository`, S150 AC 3): the source that wrote it (`feed` or
+ * `schedule`, held to those two by a CHECK), the newest feed time it accepted (null until the feed writes), the
+ * official date and first pitch the switch reads, and the `GameState`.
  */
 export const gameStates = pgTable("game_states", {
 	gamePk: integer("game_pk").primaryKey(),
@@ -43,7 +45,7 @@ export const gameStates = pgTable("game_states", {
 	officialDate: text("official_date").notNull(),
 	startTime: text("start_time"),
 	document: jsonb("document").$type<GameState>().notNull(),
-});
+}, (table) => [check("game_states_source_check", sql`${table.source} IN ('feed', 'schedule')`)]);
 
 /** One game snapshot per game (`GameRepository`): its day for `listByDate`, the document for queries into it. */
 export const games = pgTable("games", {

@@ -28,10 +28,10 @@ async function withServer(run: (base: string) => Promise<void>, now?: () => Date
 	games: InMemoryGameRepository;
 	gameStates: InMemoryGameStateRepository; }) => Promise<void>, mlb: MlbStatsClient = new FixtureMlbStatsClient()): Promise<void>
 {
-	const schedules = new InMemoryScheduleRepository();
+	const gameStates = new InMemoryGameStateRepository();
+	const schedules = new InMemoryScheduleRepository(gameStates);
 	const games = new InMemoryGameRepository();
 	const projections = new InMemoryGameProjectionRepository();
-	const gameStates = new InMemoryGameStateRepository();
 	const ingest = {
 		mlb,
 		schedules,
@@ -256,7 +256,7 @@ describe("handleApiRequest", () =>
 			{
 				// Each game's one stored state (S150) settled too, so the joined day is out of its window.
 				const row = (await gameStates.getByPk(gamePk))!;
-				await gameStates.write({
+				await gameStates.write([{
 					...row,
 					state: {
 						...row.state,
@@ -269,7 +269,7 @@ describe("handleApiRequest", () =>
 						version: row.state.version + 1,
 						lastChangedAt: "2024-07-05T06:00:00.000Z",
 					},
-				});
+				}]);
 				const game = (await games.getByPk(gamePk))!;
 				await games.upsert({
 					...game,

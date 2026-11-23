@@ -10,7 +10,7 @@ import type {
 } from "@bt/ports";
 import type { WindowedSummary } from "./game-state.js";
 import {
-	readJoinedScheduleDay, readScheduleDay, readServedGame, switchGameState, withSuspendedAt,
+	readJoinedScheduleDay, readScheduleDay, readServedGame, scheduleDayWindowMode, servedGame, switchGameState, withSuspendedAt,
 } from "./game-state.js";
 import type { RefreshCoordinator } from "./refresh.js";
 import { CACHE_TTL_MS, isStale } from "./refresh.js";
@@ -66,10 +66,20 @@ export function runRefresh<T>(
  * the projection is what the UI binds to. Returns what is now stored, and the
  * game's state row.
  *
- * Every call, an unchanged snapshot included, then hands the feed's state with its feed
+ * Every call, an unchanged snapshot included, first hands the feed's state with its feed
  * time (`feedTime`, never stored on the game) to `switchGameState` (S150 AC 5), so every
- * feed path reaches the switch, and a stop between the snapshot's write and the row's
- * (or a row backfilled from the schedule while the game is live) is mended by the next poll.
+ * feed path reaches the switch. The row is written before the snapshot: the served game
+ * (`servedGame`) takes its score from the row and its version from the snapshot, so a read
+ * between the two writes gets the old version with the new score, and this poll's new
+ * version, published after, is still newer than anything a viewer was sent. Written the
+ * other way round, a read in between would get the new version with the old score, and the
+ * publish of that version with the new score would be refused as not newer (by the hub and
+ * the client). A stop between the writes, or a row backfilled from the schedule while the
+ * game is live, is mended by the next poll.
+ *
+ * A feed copy the switch skips as older than the row's accepted feed time (strictly older;
+ * a poll with no feed time never is) writes no snapshot either, when one is stored: its
+ * plays are as stale as its score. With nothing stored it is written, so the game has one.
  *
  * Every game write passes here, so this is where `suspendedAt` is set (#79, #323): BT's own field,
  * from `suspendedSince` against the stored game, whatever the caller passed. It is set only by the
@@ -83,7 +93,25 @@ async function storeGame(
 ): Promise<{ snapshot: GameSnapshot;
 	state: GameStateRow | null; }>
 {
+	const outcome = (await switchGameState(deps, [{
+		gamePk: fetched.gamePk,
+		source: "feed",
+		state: gameStateFromGame(fetched),
+		officialDate: fetched.officialDate,
+		startTime: fetched.startTime ?? null,
+		...feedTime !== undefined && {
+			feedTime,
+		},
+	}], new Date(fetched.fetchedAt))).get(fetched.gamePk);
+	const state = outcome?.row ?? null;
 	const stored = await deps.games.getByPk(fetched.gamePk);
+	if (stored && outcome?.staleFeed)
+	{
+		return {
+			snapshot: stored,
+			state,
+		};
+	}
 	const { suspendedAt: _ignored, ...upstream } = fetched;
 	const suspendedAt = suspendedSince(stored, fetched.status.codedGameState, fetched.fetchedAt);
 	const stamped = stampVersion<GameSnapshot>(stored, suspendedAt === undefined ? upstream : {
@@ -96,16 +124,6 @@ async function storeGame(
 		await deps.games.upsert(snapshot);
 		await deps.projections.upsert(projectGame(snapshot));
 	}
-	const state = await switchGameState(deps, {
-		gamePk: fetched.gamePk,
-		source: "feed",
-		state: gameStateFromGame(fetched),
-		officialDate: fetched.officialDate,
-		startTime: fetched.startTime ?? null,
-		...feedTime !== undefined && {
-			feedTime,
-		},
-	}, new Date(fetched.fetchedAt));
 	return {
 		snapshot,
 		state,
@@ -117,35 +135,26 @@ async function storeGame(
  * asks a day's games one source at a time and so can't go through {@link ingestScheduleDay},
  * and for the month view's range fill (S124), which stores schedule days without hydrating games.
  *
- * S150 AC 5: each game's state goes to `switchGameState` first, before the day is written and
- * before the early return for an unchanged day, so an unchanged day still hands over a
- * postponement; the day is stored without its games' states (`StoredScheduleDay`). A write that
- * drops a game from the day raises the day's `served_base` by that game's state version in the
- * same write, so the served day's version never falls. Returns the served day (`readScheduleDay`).
+ * S150 AC 5: the day's games' states go to `switchGameState` first, all in one batch, before
+ * the day is written and before the early return for an unchanged day, so an unchanged day
+ * still hands over a postponement; the day is stored without its games' states
+ * (`StoredScheduleDay`). A write that drops a game from the day raises the day's `served_base`
+ * by that game's state version in the same write (the repository's `upsert`), so the served
+ * day's version never falls. Returns the served day (`readScheduleDay`).
  */
 export async function storeSchedule(deps: Pick<IngestDeps, "schedules" | "games" | "gameStates">, fetched: Unversioned<ScheduleDay>): Promise<ScheduleDay>
 {
 	const now = new Date(fetched.fetchedAt);
-	for (const game of fetched.games)
-	{
-		await switchGameState(deps, {
-			gamePk: game.gamePk,
-			source: "schedule",
-			state: gameStateFromSummary(game),
-			officialDate: game.officialDate,
-			startTime: game.startTime ?? null,
-		}, now);
-	}
-	const held = await deps.schedules.getWithServedBase(fetched.date);
-	const stored = held?.day ?? null;
+	await switchGameState(deps, fetched.games.map((game) => ({
+		gamePk: game.gamePk,
+		source: "schedule" as const,
+		state: gameStateFromSummary(game),
+		officialDate: game.officialDate,
+		startTime: game.startTime ?? null,
+	})), now);
+	const stored = await deps.schedules.getByDate(fetched.date);
 	const day = stampVersion<StoredScheduleDay>(stored, toStoredScheduleDay(fetched), fetched.fetchedAt);
-	if (!stored || day.version !== stored.version)
-	{
-		const listed = new Set(fetched.games.map((game) => game.gamePk));
-		const dropped = (stored?.games ?? []).map((game) => game.gamePk).filter((gamePk) => !listed.has(gamePk));
-		const raise = (await deps.gameStates.getMany(dropped)).reduce((sum, row) => sum + row.state.version, 0);
-		await deps.schedules.upsert(day, raise);
-	}
+	if (!stored || day.version !== stored.version) await deps.schedules.upsert(day);
 	return (await readScheduleDay(deps, fetched.date, now))!;
 }
 
@@ -154,6 +163,13 @@ export async function storeSchedule(deps: Pick<IngestDeps, "schedules" | "games"
  * only when its content changed, ADR-022, its state handed to the switch with the feed's
  * `feedTime`, S150) and says whether the snapshot changed — the per-game ingest object (S48)
  * publishes only then, as the served game (`servedGame` of the snapshot and the returned row).
+ *
+ * A poll that changes only the row (it mends a row the migration or the baseball-data copy
+ * wrote, or one the schedule wrote while the game was live) keeps the snapshot's version, so
+ * it isn't published: the hub and the client take only a newer version, and the served game's
+ * version is the snapshot's. Viewers see the mended score with the game's next snapshot change,
+ * a few seconds later in play; a new HTTP read serves it at once. Since the row is written
+ * first (`storeGame`), a poll never leaves a row behind its own snapshot.
  */
 export async function ingestGame(
 	deps: Pick<IngestDeps, "games" | "projections" | "gameStates">,
@@ -195,21 +211,6 @@ export async function repairProjection(deps: Pick<IngestDeps, "projections">, sn
 	return true;
 }
 
-/**
- * {@link scheduleWindowMode} of a fetched day, its suspended games judged by {@link withSuspendedAt}:
- * what every path that stores a schedule day writes as its `windowMode`, so they judge a day alike
- * (ADR-025).
- */
-export async function scheduleDayWindowMode(
-	deps: Pick<IngestDeps, "games">,
-	day: Pick<ScheduleDay, "date" | "games">,
-	now: Date,
-	params: CadenceParams = DEFAULT_CADENCE,
-): Promise<ScheduleDay["windowMode"]>
-{
-	return scheduleWindowMode(await withSuspendedAt(deps, day.date, day.games, now), now, params);
-}
-
 export async function ingestScheduleDay(
 	deps: IngestDeps,
 	date: string,
@@ -220,7 +221,7 @@ export async function ingestScheduleDay(
 	const day = await storeSchedule(deps, {
 		...fetched,
 		fetchedAt: now.toISOString(),
-		windowMode: scheduleWindowMode(await withSuspendedAt(deps, fetched.date, fetched.games, now), now),
+		windowMode: await scheduleDayWindowMode(deps, fetched, now),
 	});
 
 	// The joined day (S150 AC 6): each game's status as its one stored state says.
@@ -329,7 +330,7 @@ export async function getOrRefreshGame(
 {
 	const now = deps.now?.() ?? new Date();
 	const existing = await deps.games.getByPk(gamePk);
-	if (!needsRefresh(deps, `game:${gamePk}`, existing, now, opts?.force ?? false)) return existing && readServedGame(deps, gamePk);
+	if (!needsRefresh(deps, `game:${gamePk}`, existing, now, opts?.force ?? false)) return existing && servedGame(existing, await deps.gameStates.getByPk(gamePk));
 
 	await runRefresh(deps, `game:${gamePk}`, async () =>
 	{

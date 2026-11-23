@@ -9,6 +9,7 @@
  * its live window the feed (polled every few seconds) owns its row; before and after it the schedule does (owner,
  * 2026-11-17: "I like your idea of a sort of "railroad switch" based on game state.").
  */
+import type { AtBat } from "./plays.js";
 import type {
 	GameSnapshot, LinescoreSummary, ScheduleDay, ScheduleGameSummary, ScheduleLive,
 } from "./types.js";
@@ -94,7 +95,7 @@ export function gameStateFromSummary(summary: Pick<ScheduleGameSummary, "status"
  * feed's current play is its last at-bat, so the moment's batter and pitcher are normally found there; `null` when no
  * at-bat names him.
  */
-function nameIn(plays: GameSnapshot["plays"], id: number | null, role: "batter" | "pitcher"): string | null
+function nameIn(plays: GameStateFields["plays"], id: number | null, role: "batter" | "pitcher"): string | null
 {
 	if (id === null) return null;
 	for (let i = plays.length - 1; i >= 0; i--)
@@ -106,12 +107,21 @@ function nameIn(plays: GameSnapshot["plays"], id: number | null, role: "batter" 
 }
 
 /**
+ * What `gameStateFromGame` reads of a game: its status, linescore and live moment, and the matchups of its at-bats
+ * (for the batter's and pitcher's names). A stored game's are read alone (`GameRepository.getStateFields`), with only
+ * its last at-bat, where the current batter and pitcher are normally found.
+ */
+export type GameStateFields = Pick<GameSnapshot, "gamePk" | "status" | "linescore" | "live"> & {
+	plays: readonly Pick<AtBat, "matchup">[];
+};
+
+/**
  * A game's state (S150 AC 1) from what the feed fetch returns: runners, batter and pitcher from its `live`, their
  * names from its at-bats, the count from its linescore. Like the schedule's (`mapScheduleLive`), the moment is
  * `null` unless the game is live (`isLiveStatus`). Works on any already-mapped game, so MLB, recorded fixtures and the
  * dev seed give the same state.
  */
-export function gameStateFromGame(game: Pick<GameSnapshot, "status" | "linescore" | "live" | "plays">): Unversioned<GameState>
+export function gameStateFromGame(game: Omit<GameStateFields, "gamePk">): Unversioned<GameState>
 {
 	const live = game.live && isLiveStatus(game.status.codedGameState)
 		? {
@@ -134,11 +144,15 @@ export function gameStateFromGame(game: Pick<GameSnapshot, "status" | "linescore
 	};
 }
 
-/** What the switch reads of a row or of an incoming write: its status, first pitch and official date. */
+/**
+ * What the switch reads of a row or of an incoming write: its status, first pitch and official date, and, for a stored
+ * row, which source wrote it and when its state last changed (a write has neither).
+ */
 export type GameStateClock = {
-	state: Pick<GameState, "status">;
+	state: Pick<GameState, "status"> & Partial<Pick<GameState, "lastChangedAt">>;
 	officialDate: string;
 	startTime: string | null;
+	source?: GameStateSource;
 };
 
 /**
@@ -151,14 +165,24 @@ export type GameStateClock = {
  * Reading the stored status is safe: inside the window only the feed writes it, and outside it a schedule write that
  * finds the game started (`I`) is let through, and that write puts the game in its window, handing the row to the feed.
  * The one place the rule lives: neither writer checks anything itself.
+ *
+ * A row the feed wrote final or suspended measures its window from when its state last changed as well as from first
+ * pitch, whichever ends later: a final's trail runs from its change (`endedAt`), a suspended game's six hours too
+ * (`suspendedAt`). Otherwise a game that went final, or was suspended, more than the usual window after first pitch (a
+ * long rain delay) would be out of its window as soon as the feed wrote it, and a lagging schedule copy still showing
+ * it in progress could put it back to live. Once that later window ends the schedule owns the row again, and nothing
+ * polls the feed for it then, which is intended: the game is over or stopped.
  */
 export function gameStateSource(row: GameStateClock | null, incoming: GameStateClock, now: Date, params: CadenceParams = DEFAULT_CADENCE): GameStateSource
 {
 	const clock = row ?? incoming;
+	const fedChange = clock.source === "feed" ? clock.state.lastChangedAt ?? null : null;
 	return isGameInActiveWindow({
 		status: clock.state.status,
 		officialDate: clock.officialDate,
 		startTime: clock.startTime,
+		suspendedAt: fedChange,
+		endedAt: fedChange,
 	}, now, params) ? "feed" : "schedule";
 }
 
@@ -182,8 +206,10 @@ const SCHEDULED: Unversioned<GameState> = {
  *   each game a refresh drops from it) plus the state versions of the games it lists, so it only rises: a state change
  *   raises it, and a dropped game doesn't lower it.
  * - `lastChangedAt` is the latest of the day's and its rows'.
- * - `windowMode` is computed here from the joined games (`scheduleWindowMode`), never taken from the stored day,
- *   whose games carry no status.
+ * - `windowMode` is judged here from the joined games by the clock alone (`scheduleWindowMode`), never taken from the
+ *   stored day, whose games carry no status. A suspended game's window also depends on when BT saw it suspended, which
+ *   only the stored game knows, so the service's day read (`readJoinedScheduleDay`) replaces it with
+ *   `scheduleDayWindowMode` of the joined games.
  */
 export function joinScheduleDay(
 	day: StoredScheduleDay,
@@ -223,14 +249,28 @@ export function joinScheduleDay(
 }
 
 /**
- * The live feed's own time (MLB's `metaData.timeStamp`, `YYYYMMDD_HHMMSS` in UTC, e.g. `20260905_233435`) as an ISO
- * instant (S150 AC 2); `undefined` when there is none or it isn't in that form.
+ * How far ahead of the fetch time a feed time may be and still be taken. The fetch time is read before the request,
+ * so a real feed time is often seconds after it, and MLB's clock and ours differ a little; a time further ahead is
+ * wrong, and taken as the row's accepted feed time it would make every real poll after it look stale.
  */
-export function feedTimeToIso(timeStamp: string | undefined): string | undefined
+export const FEED_TIME_TOLERANCE_MS = 5 * 60 * 1000;
+
+/**
+ * The live feed's own time (MLB's `metaData.timeStamp`, `YYYYMMDD_HHMMSS` in UTC, e.g. `20260905_233435`) as an ISO
+ * instant (S150 AC 2); `undefined` when there is none, it isn't in that form, a part is out of range (a month 13 or a
+ * February 30 is refused, never rolled over into another date), or it is more than `FEED_TIME_TOLERANCE_MS` after
+ * `fetchedAt`, the time the fetch began. A feed time left out is never skipped for its time and never moves the row's
+ * accepted one.
+ */
+export function feedTimeToIso(timeStamp: string | undefined, fetchedAt: Date): string | undefined
 {
 	const match = timeStamp ? /^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/.exec(timeStamp) : null;
 	if (!match) return undefined;
-	const [, y, mo, d, h, mi, s] = match;
-	const at = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s)));
-	return Number.isNaN(at.getTime()) ? undefined : at.toISOString();
+	const [y, mo, d, h, mi, s] = match.slice(1).map(Number) as [number, number, number, number, number, number];
+	const at = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
+	if (Number.isNaN(at.getTime())) return undefined;
+	const roundTrips = at.getUTCFullYear() === y && at.getUTCMonth() === mo - 1 && at.getUTCDate() === d
+		&& at.getUTCHours() === h && at.getUTCMinutes() === mi && at.getUTCSeconds() === s;
+	if (!roundTrips || at.getTime() > fetchedAt.getTime() + FEED_TIME_TOLERANCE_MS) return undefined;
+	return at.toISOString();
 }

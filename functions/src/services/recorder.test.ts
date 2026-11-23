@@ -422,6 +422,10 @@ describe("fixture recorder", () =>
 			await readFile(path.join(out, `game-${GAME_PK}.json`), "utf8"),
 		) as Record<string, unknown>;
 		expect(written.plays).toBeUndefined();
+		// S150 AC 2: the fetch's feed time is beside the game, and the recorder writes the game alone.
+		expect(written).not.toHaveProperty("feedTime");
+		expect(written).not.toHaveProperty("game");
+		expect(written.gamePk).toBe(GAME_PK);
 
 		const plays = JSON.parse(
 			await readFile(path.join(out, `plays-${GAME_PK}.json`), "utf8"),

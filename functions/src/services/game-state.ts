@@ -6,10 +6,10 @@
  * game (`servedGame`), so every page reads a game's score from the one stored place.
  */
 import type {
-	GameSnapshot, GameState, GameStateRow, GameStateSource, ScheduleDay, StoredScheduleDay, Unversioned,
+	CadenceParams, GameSnapshot, GameState, GameStateRow, GameStateSource, ScheduleDay, StoredScheduleDay, Unversioned,
 } from "@bt/domain";
 import {
-	addDays, gameStateFromGame, gameStateSource, isSuspendedStatus, joinScheduleDay, mlbToday, scheduleWindowMode, stampVersion, suspendedSince,
+	addDays, DEFAULT_CADENCE, gameStateFromGame, gameStateSource, isSuspendedStatus, joinScheduleDay, mlbToday, scheduleWindowMode, stampVersion, suspendedSince,
 } from "@bt/domain";
 import type {
 	GameRepository, GameStateRepository, ScheduleRepository,
@@ -35,27 +35,34 @@ export type GameStateWrite = {
 };
 
 /**
- * Writes `write` to its game's row if its source holds the switch at `now` (S150 AC 4), and returns the row as it is
- * then stored (null when the game has none). The decision is `gameStateSource`'s alone, asked once: a game with no row
- * takes its first state from either source; otherwise a state from the other source is dropped. A feed state older
- * than the row's accepted feed time is skipped too (a stale copy of the feed). The state is stamped with
- * `stampVersion`, so an unchanged state isn't a new version, but an unchanged feed poll with a newer feed time is
- * still written, moving the row's accepted feed time (the repository's rule), so a stale copy between two polls is
- * then skipped. A changed official date or first pitch with an unchanged state is a new version too, since the
- * window the switch reads moved.
+ * What the switch did with one game's write: the row as it is then stored (null when the game has none), and whether
+ * the write was skipped as a feed copy older than the row's accepted feed time (`storeGame` then stores no snapshot when one is already stored).
  */
-export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, write: GameStateWrite, now: Date): Promise<GameStateRow | null>
+export type SwitchOutcome = {
+	row: GameStateRow | null;
+	staleFeed: boolean;
+};
+
+/**
+ * The switch's decision for one write against its game's stored row (`row`, null when there is none): the row to
+ * write, or why nothing is written. A game with no row takes its first state from either source; otherwise
+ * `gameStateSource` alone decides whose the row is, and a state from the other source is dropped. A feed state older
+ * than the row's accepted feed time is skipped (a stale copy of the feed). The state is stamped with `stampVersion`,
+ * so an unchanged state isn't a new version; a changed official date or first pitch with an unchanged state is one,
+ * since the window the switch reads moved; and an unchanged feed poll with a newer feed time is written with the stored
+ * state itself, so the repository takes it as the same state and moves only the accepted feed time.
+ */
+function decide(row: GameStateRow | null, write: GameStateWrite, now: Date): GameStateRow | "otherSource" | "staleFeed" | "unchanged"
 {
-	const row = await deps.gameStates.getByPk(write.gamePk);
 	const startTime = write.startTime ?? null;
 	const may = gameStateSource(row, {
 		state: write.state,
 		officialDate: write.officialDate,
 		startTime,
 	}, now);
-	if (row !== null && may !== write.source) return row;
+	if (row !== null && may !== write.source) return "otherSource";
 	const feedTime = write.source === "feed" ? write.feedTime ?? null : null;
-	if (row?.feedTime && feedTime !== null && feedTime < row.feedTime) return row;
+	if (row?.feedTime && feedTime !== null && feedTime < row.feedTime) return "staleFeed";
 
 	const at = now.toISOString();
 	let state = stampVersion<GameState>(row?.state ?? null, write.state, at);
@@ -68,9 +75,10 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 			version: row.state.version + 1,
 			lastChangedAt: at,
 		};
-		else if (!laterFeed) return row;
+		else if (laterFeed) state = row.state;
+		else return "unchanged";
 	}
-	const next: GameStateRow = {
+	return {
 		gamePk: write.gamePk,
 		source: write.source,
 		feedTime,
@@ -78,17 +86,88 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 		startTime,
 		state,
 	};
-	if (!await deps.gameStates.write(next)) return deps.gameStates.getByPk(write.gamePk);
+}
+
+/** The row as the repository stores it once it has taken `next` over `row` (the port's write rule). */
+function storedAfter(row: GameStateRow | null, next: GameStateRow): GameStateRow
+{
+	const feedTime = [row?.feedTime ?? null, next.feedTime].filter((t): t is string => t !== null).sort().at(-1) ?? null;
+	const startTime = next.startTime ?? row?.startTime ?? null;
+	if (row && next.state.version === row.state.version) return {
+		...row,
+		source: next.source,
+		feedTime,
+		startTime,
+	};
 	return {
 		...next,
-		feedTime: [row?.feedTime ?? null, feedTime].filter((t): t is string => t !== null).sort().at(-1) ?? null,
-		startTime: startTime ?? row?.startTime ?? null,
+		feedTime,
+		startTime,
 	};
 }
 
 /**
+ * Writes each of `writes` to its game's row if its source holds the switch at `now` (S150 AC 4, `decide`), and returns
+ * each game's outcome by gamePk. The decision is `gameStateSource`'s alone, asked once per write: neither writer checks
+ * anything itself.
+ *
+ * One read and one write for the whole batch (a schedule day's games together): the rows are read with `getMany`,
+ * decided in memory and written in one `write`. The batch is de-duplicated by gamePk first (the last write for a game
+ * wins: one statement can't write a row twice) and sorted by gamePk, so two batches lock the same rows in the same
+ * order. A row the repository refuses (another writer stored a newer version, or the same version with another state,
+ * between the read and the write) is read again and decided again from the start, the source and the feed time
+ * included, once; a write refused twice leaves the row as the other writer stored it.
+ */
+export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, writes: readonly GameStateWrite[], now: Date): Promise<Map<number, SwitchOutcome>>
+{
+	const latest = new Map<number, GameStateWrite>();
+	for (const write of writes) latest.set(write.gamePk, write);
+	const pending = [...latest.values()].sort((a, b) => a.gamePk - b.gamePk);
+	const outcomes = new Map<number, SwitchOutcome>();
+	let todo = pending;
+	for (let attempt = 0; attempt < 2 && todo.length > 0; attempt++)
+	{
+		const rows = new Map((await deps.gameStates.getMany(todo.map((write) => write.gamePk))).map((row) => [row.gamePk, row]));
+		const nexts: GameStateRow[] = [];
+		for (const write of todo)
+		{
+			const row = rows.get(write.gamePk) ?? null;
+			const decided = decide(row, write, now);
+			if (typeof decided === "string") outcomes.set(write.gamePk, {
+				row,
+				staleFeed: decided === "staleFeed",
+			});
+			else nexts.push(decided);
+		}
+		if (nexts.length === 0) break;
+		const taken = new Set(await deps.gameStates.write(nexts));
+		for (const next of nexts)
+		{
+			if (taken.has(next.gamePk)) outcomes.set(next.gamePk, {
+				row: storedAfter(rows.get(next.gamePk) ?? null, next),
+				staleFeed: false,
+			});
+		}
+		todo = todo.filter((write) => !outcomes.has(write.gamePk));
+	}
+	// Writes refused on both tries: the row as the other writer left it.
+	const refused = pending.filter((write) => !outcomes.has(write.gamePk));
+	if (refused.length > 0)
+	{
+		const stored = new Map((await deps.gameStates.getMany(refused.map((write) => write.gamePk))).map((row) => [row.gamePk, row]));
+		for (const write of refused) outcomes.set(write.gamePk, {
+			row: stored.get(write.gamePk) ?? null,
+			staleFeed: false,
+		});
+	}
+	return outcomes;
+}
+
+/**
  * A stored day and the day it is served as (S150 AC 6), or null when nothing is stored for `date`: `joinScheduleDay`
- * over the day's rows, a game with no row served from its stored snapshot (`gameStateFromGame`), or as scheduled.
+ * over the day's rows, a game with no row served from its stored snapshot (`gameStateFromGame` of the fields
+ * `GameRepository.getStateFields` reads, all such games in one read), or as scheduled. Its `windowMode` is
+ * `scheduleDayWindowMode` of the joined games, which judges a suspended game from when BT saw it suspended.
  * The stored day is returned too, since its own `fetchedAt` and `lastChangedAt` (its schedule data) are what the day
  * read's refresh judges.
  */
@@ -99,19 +178,17 @@ export async function readJoinedScheduleDay(deps: GameStateDeps, date: string, n
 	if (!held) return null;
 	const gamePks = held.day.games.map((game) => game.gamePk);
 	const rows = new Map((await deps.gameStates.getMany(gamePks)).map((row) => [row.gamePk, row.state]));
-	const fallbacks = new Map<number, Unversioned<GameState>>();
-	for (const gamePk of gamePks.filter((pk) => !rows.has(pk)))
-	{
-		const snapshot = await deps.games.getByPk(gamePk);
-		if (snapshot) fallbacks.set(gamePk, gameStateFromGame(snapshot));
-	}
+	const missing = gamePks.filter((pk) => !rows.has(pk));
+	const fallbacks = new Map<number, Unversioned<GameState>>(missing.length === 0
+		? []
+		: (await deps.games.getStateFields(missing)).map((fields) => [fields.gamePk, gameStateFromGame(fields)]));
 	const served = joinScheduleDay(held.day, held.servedBase, rows, fallbacks, now);
 	// The joined games' window, a suspended game's judged from when BT saw it suspended, as every stored day's is.
 	return {
 		stored: held.day,
 		served: {
 			...served,
-			windowMode: scheduleWindowMode(await withSuspendedAt(deps, date, served.games, now), now),
+			windowMode: await scheduleDayWindowMode(deps, served, now),
 		},
 	};
 }
@@ -153,6 +230,20 @@ export async function withSuspendedAt(deps: Pick<GameStateDeps, "games">, date: 
 		});
 	}
 	return windowed;
+}
+
+/**
+ * {@link scheduleWindowMode} of a day's games, its suspended games judged by {@link withSuspendedAt}: what every path
+ * that stores or serves a schedule day uses as its `windowMode`, so they judge a day alike (ADR-025).
+ */
+export async function scheduleDayWindowMode(
+	deps: Pick<GameStateDeps, "games">,
+	day: Pick<ScheduleDay, "date" | "games">,
+	now: Date,
+	params: CadenceParams = DEFAULT_CADENCE,
+): Promise<ScheduleDay["windowMode"]>
+{
+	return scheduleWindowMode(await withSuspendedAt(deps, day.date, day.games, now), now, params);
 }
 
 /** The served day for `date` (S150 AC 6), read only: never asks MLB. Null when nothing is stored for it. */

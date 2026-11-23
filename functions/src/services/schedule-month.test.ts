@@ -20,10 +20,7 @@ import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.j
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { HttpMlbStatsClient } from "../adapters/http/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
-	InMemorySettingsRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemorySettingsRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { migratedPglite } from "../adapters/postgres/migrate.js";
 import {
@@ -88,10 +85,9 @@ class CountingClient extends FixtureMlbStatsClient
 function memoryRepos(): Repos
 {
 	return {
-		schedules: new InMemoryScheduleRepository(),
+		...memoryScheduleStores(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
-		gameStates: new InMemoryGameStateRepository(),
 	};
 }
 
@@ -299,7 +295,7 @@ describe("S124 AC 1 one query", () =>
 				return repos.schedules.getByDate(date);
 			},
 			getWithServedBase: (date) => repos.schedules.getWithServedBase(date),
-			upsert: (day, raise) => repos.schedules.upsert(day, raise),
+			upsert: (day) => repos.schedules.upsert(day),
 			listGameCounts: (from, to) =>
 			{
 				calls.list++;
@@ -382,10 +378,10 @@ describe("S124 AC 2", () =>
 		const schedules: ScheduleRepository = {
 			getByDate: (date) => repos.schedules.getByDate(date),
 			getWithServedBase: (date) => repos.schedules.getWithServedBase(date),
-			upsert: async (day, raise) =>
+			upsert: async (day) =>
 			{
 				if (++writes === 3) throw new Error("database down");
-				await repos.schedules.upsert(day, raise);
+				await repos.schedules.upsert(day);
 			},
 			listGameCounts: (from, to) => repos.schedules.listGameCounts(from, to),
 		};

@@ -10,10 +10,7 @@ import {
 import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameStateRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
-	InMemorySettingsRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemorySettingsRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { RefreshCoordinator } from "../services/refresh.js";
 import { handleApiRequest } from "./api.js";
@@ -34,10 +31,9 @@ function api(mlb: MlbStatsClient = new FixtureMlbStatsClient())
 	const ctx = {
 		ingest: {
 			mlb,
-			schedules: new InMemoryScheduleRepository(),
+			...memoryScheduleStores(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
-			gameStates: new InMemoryGameStateRepository(),
 			now: () => clock.now,
 			refresh: new RefreshCoordinator(() => clock.now),
 		},

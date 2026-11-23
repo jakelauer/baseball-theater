@@ -1,8 +1,8 @@
 import type {
-	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateRow, ScheduleDayTally, StoredScheduleDay, UserProfile,
+	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	dayRegularSeason, distinctTeamIds, downloadExpired, storedGameType,
+	contentHash, dayRegularSeason, distinctTeamIds, downloadExpired, storedGameType,
 } from "@bt/domain";
 import type {
 	DataDownload,
@@ -71,10 +71,17 @@ class VersionedMemoryStore<K, T>
 	}
 }
 
+/**
+ * Schedule days in memory. It reads the games' state versions for `served_base` (S150 AC 6) from `gameStates`, the
+ * game-state store beside it, as the Postgres statement reads `game_states`: required, so no double ever raises it by 0
+ * for a game whose row it can't see.
+ */
 export class InMemoryScheduleRepository implements ScheduleRepository
 {
 	private readonly store = new VersionedMemoryStore<string, StoredScheduleDay>((d) => d.version);
 	private readonly servedBases = new Map<string, number>();
+
+	constructor(private readonly gameStates: InMemoryGameStateRepository) {}
 
 	async getByDate(date: string): Promise<StoredScheduleDay | null>
 	{
@@ -91,13 +98,18 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 		} : null;
 	}
 
-	/** The `served_base` raise lands only with a write the version guard takes, as the Postgres statement does. */
-	async upsert(day: StoredScheduleDay, raiseServedBase = 0): Promise<void>
+	/**
+	 * The version-guarded write, and with it the `served_base` raise: the stored state versions of the games the stored
+	 * day lists and `day` doesn't, read in the same synchronous step, as the Postgres statement reads them.
+	 */
+	async upsert(day: StoredScheduleDay): Promise<void>
 	{
 		const before = this.store.get(day.date);
-		this.store.put(day.date, day);
 		if (before !== null && day.version <= before.version) return;
-		this.servedBases.set(day.date, (this.servedBases.get(day.date) ?? 0) + raiseServedBase);
+		const listed = new Set(day.games.map((game) => game.gamePk));
+		const raise = (before?.games ?? []).filter((game) => !listed.has(game.gamePk)).reduce((sum, game) => sum + this.gameStates.versionOf(game.gamePk), 0);
+		this.store.put(day.date, day);
+		this.servedBases.set(day.date, (this.servedBases.get(day.date) ?? 0) + raise);
 	}
 
 	async listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>
@@ -128,7 +140,11 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 	}
 }
 
-/** `game_states` in memory (S150 AC 3), under the same write rule as the Postgres adapter. */
+/**
+ * `game_states` in memory (S150 AC 3), under the same write rule as the Postgres adapter. A state is "the same" as the
+ * stored one only when the whole of it is, `version` and `lastChangedAt` included, as jsonb `=` compares the document
+ * (`contentHash` of each, independent of key order like jsonb).
+ */
 export class InMemoryGameStateRepository implements GameStateRepository
 {
 	private readonly rows = new Map<number, GameStateRow>();
@@ -144,28 +160,60 @@ export class InMemoryGameStateRepository implements GameStateRepository
 		return gamePks.flatMap((gamePk) => this.rows.has(gamePk) ? [jsonCopy(this.rows.get(gamePk)!)] : []);
 	}
 
-	async write(row: GameStateRow): Promise<boolean>
+	/** The stored state version of `gamePk`, 0 when it has no row (what `served_base` adds for it). */
+	versionOf(gamePk: number): number
 	{
-		const stored = this.rows.get(row.gamePk);
-		if (stored)
+		return this.rows.get(gamePk)?.state.version ?? 0;
+	}
+
+	async write(rows: readonly GameStateRow[]): Promise<number[]>
+	{
+		const taken: number[] = [];
+		for (const row of rows)
 		{
-			const newer = row.state.version > stored.state.version;
-			const laterFeed = row.state.version === stored.state.version && row.feedTime !== null && row.feedTime > (stored.feedTime ?? "");
-			if (!newer && !laterFeed) return false;
+			const stored = this.rows.get(row.gamePk);
+			const feedTime = [stored?.feedTime ?? null, row.feedTime].filter((t): t is string => t !== null).sort().at(-1) ?? null;
+			const startTime = row.startTime ?? stored?.startTime ?? null;
+			if (!stored || row.state.version > stored.state.version)
+			{
+				this.rows.set(row.gamePk, jsonCopy({
+					...row,
+					feedTime,
+					startTime,
+				}));
+			}
+			else if (row.state.version === stored.state.version && contentHash(row.state) === contentHash(stored.state)
+				&& row.feedTime !== null && row.feedTime > (stored.feedTime ?? ""))
+			{
+				// The same state polled later: only the accepted feed time and the source move.
+				this.rows.set(row.gamePk, {
+					...stored,
+					source: row.source,
+					feedTime,
+					startTime,
+				});
+			}
+			else continue;
+			taken.push(row.gamePk);
 		}
-		const feedTime = [stored?.feedTime ?? null, row.feedTime].filter((t): t is string => t !== null).sort().at(-1) ?? null;
-		this.rows.set(row.gamePk, jsonCopy({
-			...row,
-			feedTime,
-			startTime: row.startTime ?? stored?.startTime ?? null,
-		}));
-		return true;
+		return taken;
 	}
 
 	clear(): void
 	{
 		this.rows.clear();
 	}
+}
+
+/** A memory schedule store and the game-state store it reads `served_base` raises from (S150), linked as one database. */
+export function memoryScheduleStores(): { schedules: InMemoryScheduleRepository;
+	gameStates: InMemoryGameStateRepository; }
+{
+	const gameStates = new InMemoryGameStateRepository();
+	return {
+		schedules: new InMemoryScheduleRepository(gameStates),
+		gameStates,
+	};
 }
 
 export class InMemoryGameRepository implements GameRepository
@@ -180,6 +228,24 @@ export class InMemoryGameRepository implements GameRepository
 	async upsert(game: GameSnapshot): Promise<void>
 	{
 		this.store.put(game.gamePk, game);
+	}
+
+	async getStateFields(gamePks: readonly number[]): Promise<GameStateFields[]>
+	{
+		return gamePks.flatMap((gamePk) =>
+		{
+			const game = this.store.get(gamePk);
+			const last = game?.plays.at(-1);
+			return game ? [{
+				gamePk,
+				status: game.status,
+				linescore: game.linescore,
+				live: game.live,
+				plays: last ? [{
+					matchup: last.matchup,
+				}] : [],
+			}] : [];
+		});
 	}
 
 	async listByDate(date: string): Promise<GameSnapshot[]>
