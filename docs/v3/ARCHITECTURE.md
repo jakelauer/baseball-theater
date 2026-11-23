@@ -652,7 +652,21 @@ Campaign webhooks and/or scheduled refresh → update entitlements
 
 **Decision:** Explicit **enrichment / AI** path grounded on BT-owned (and other) data for analysis, statistical commentary, summaries, and **curation** (Intent G2, G4). Includes **multi-source knowledge** ([§3](#3-external-sources--knowledge-layer-direction-accepted)), **impact curation** ([§4](#4-impact-curation-pipeline), ADR-010), and the **inning feed / game package** pipeline ([§5](#5-inning-insight-feed--game-package), ADR-011).
 
-**Still open:** model providers, grounding rules, caching of generations, cost caps, free vs patron outputs.
+**Decided 2026-11-22** (owner, in session; the research is [AI-RESEARCH-2026-11](./AI-RESEARCH-2026-11.md)):
+
+- **No fine-tune.** The owner chose *"No fine-tune (Recommended)"*, the option reading *"Stories use ready-made models given BT's game data. They log outputs and your corrections from day one, so a fine-tune stays possible later."*
+- **Grounding rules.** BT computes each job's facts as a JSON fact pack; the model writes only from it; MLB's editorial recap text is never input (the research's §4).
+- **Verification.** Owner: *"I imagine I could have the recap system write a recap AND evaluate the output with a fact checker agent until it's verified"*. Every text job runs one loop (S176's `writeVerified`): the writer drafts; a rules checker compares every number, name, team, inning and count with the facts; a fact-checker model, from a different provider than the writer where possible, checks the claims rules can't; the errors go back to the writer; at most two revisions; a piece that still fails is not published; every round is logged. Chat uses a lighter version (rules checker only, one revision, otherwise "I don't have that"). Whether a failed piece should show a plain data-built version instead is an open question on S176.
+- **Caching of generations.** Once per (job, subject, source version, prompt version, models), stored in Postgres; never regenerated once verified or failed after the revision cap, while a budget-stopped or transport-failed item retries a few times (S176). Chat is not cached and its questions stay in its own personal store (S184).
+- **Cost cap.** *"$100/month"*, the option reading *"More room for chat use; alert at 80%."*: a hard stop at $100 a calendar month (UTC), an email to the owner at 80% and at the stop, and AI features show nothing once stopped. The verification loop roughly doubles the postgame bill (about $35–45 a month at the research's prices), inside the cap.
+- **Logging.** Every output, every round and the owner's corrections are kept as future training and evaluation data.
+- **Providers are behind a port** (`AiModelClient`, ADR-012), with adapters for Anthropic, OpenAI, Google and Workers AI; which model writes and which checks each job is configuration.
+- **The score.** AI text names the score; a future screen built on it follows Hide Scores (owner chose *"Include it; screens hide it (Recommended)"*).
+- **API first.** The features are API features for now, with no screens (owner: *"Oh ok, fair. I would say we can just make these API features for now."*).
+
+**Decided by S177's quality test:** the provider and model for each job's writer and fact checker. Asked which provider, the owner answered *"I would like a cost comparison as all as an evaluation as to which is likely to be most effective at this category of work"*; the research found Anthropic and OpenAI tied at about $22 a month, Google third at about $33, and no public benchmark covering baseball, so a blind test on 40 of BT's games decides (the research's addendum D). S177 records the owner's choice here.
+
+**Still open:** who may read AI outputs, free or patron (S178); who may chat and how much (S184); whether chat stops before the precompute jobs near the cap (S184); whether a piece that fails its checks shows a plain data-built version (S176).
 
 ### ADR-008 — UI framework (accepted)
 
