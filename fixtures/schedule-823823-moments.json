@@ -74,14 +74,16 @@
         "fullName": "Javier Assad",
         "wins": 6,
         "losses": 1,
-        "era": "3.46"
+        "era": "3.46",
+        "pitchHand": "R"
       },
       "home": {
         "id": 687473,
         "fullName": "Ryan Gusto",
         "wins": 1,
         "losses": 3,
-        "era": "3.86"
+        "era": "3.86",
+        "pitchHand": "R"
       }
     },
     "decisions": null,
@@ -180,14 +182,16 @@
         "fullName": "Javier Assad",
         "wins": 6,
         "losses": 1,
-        "era": "3.38"
+        "era": "3.38",
+        "pitchHand": "R"
       },
       "home": {
         "id": 687473,
         "fullName": "Ryan Gusto",
         "wins": 1,
         "losses": 3,
-        "era": "3.84"
+        "era": "3.84",
+        "pitchHand": "R"
       }
     },
     "decisions": null,

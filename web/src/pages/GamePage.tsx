@@ -10,7 +10,8 @@ import { PlaysPanel } from "../components/pitch/PlaysPanel.js";
 import { VideosRoom } from "../components/videos/VideosRoom.js";
 import { ViewState } from "../components/ViewState.js";
 import { queryScreen } from "../components/queryScreen.js";
-import { SiteFooter } from "../layout/SiteFooter.js";
+import type { SetFooterMode } from "../layout/footerMode.js";
+import { useFooterMode } from "../layout/footerMode.js";
 import type { LayoutVariant } from "../layout/variant.js";
 import {
 	gamePhase, openingRoom, roomsForPhase,
@@ -25,9 +26,12 @@ const TAB_MAX_WIDTH = 160;
  * One game: the game top bar (in place of the app header, S60), the room tabs —
  * equal widths up to `TAB_MAX_WIDTH`, centered (owner, 2026-11-12) — and the room.
  * `variant` comes from the layout host; rooms take their tablet and desktop
- * layouts from it as they're built (S63/S64 and on).
+ * layouts from it as they're built (S63/S64 and on). While the game's live socket is open the
+ * shell's site footer opens with the Live strip on every room (A13 Which pages), told through
+ * `setFooter` (S142).
  */
-export function GamePage({ variant }: { variant: LayoutVariant })
+export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
+	setFooter?: SetFooterMode; })
 {
 	const { gamePk, tab } = useParams();
 	const navigate = useNavigate();
@@ -47,6 +51,11 @@ export function GamePage({ variant }: { variant: LayoutVariant })
 		data: game,
 		error,
 	});
+	// Before the loading and error returns below, as hooks must be. No footer while the game loads, so
+	// it never draws under the spinner and jumps (S142; `FooterMode`). Once loaded, or failed, the strip
+	// shows while the socket is open, over the error state too: A13 ties the marker to the open socket,
+	// not to what the page draws above it ("any page that has an active websocket").
+	useFooterMode(setFooter, screen === "loading" || (screen !== "error" && !game) ? "none" : live.open ? "live" : "plain");
 	if (screen === "error")
 	{
 		return <ViewState kind="error" title="Couldn't load this room" onRetry={() => void refetch()} />;
@@ -133,8 +142,6 @@ export function GamePage({ variant }: { variant: LayoutVariant })
 					</Tabs.Panel>
 				) : null}
 			</Tabs>
-			{/* The Live marker shows exactly while the game's socket is open, on every room (A13 Which pages). */}
-			<SiteFooter live={live.open} />
 		</Stack>
 	);
 }
