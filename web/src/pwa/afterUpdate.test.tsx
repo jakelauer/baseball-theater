@@ -163,6 +163,8 @@ describe("checkAfterUpdate: what a load records and whether it just updated (S13
 
 	it("S135 AC 3: storage that throws on read shows nothing and breaks nothing", () =>
 	{
+		// An older release is recorded, so only the throwing read keeps the pointer away (not a first visit).
+		writeStored("bt.lastRelease", "v3.9.0");
 		vi.spyOn(Storage.prototype, "getItem").mockImplementation(() =>
 		{
 			throw new Error("blocked");

@@ -18,7 +18,7 @@
  * session under keys of its own; the `AuthClient` (S116) hands it a storage adapter over this
  * module instead, so every key it writes is listed here, labeled personal, and gone after sign-out
  * and account deletion. Three keys say nothing about the person (ADR-028's `none`): when the
- * update notice's Snooze runs out (S73, shell-scoreboard A6), the newest release this browser
+ * update notice's Snooze runs out (S73, shell-scoreboard A6), the release this browser last
  * loaded (S135, A9's after-update pointer) and that the Settings install tip was dismissed (S73,
  * standings-search-settings A8). They belong to this browser, survive sign-out, and
  * never sync to the account.
@@ -64,8 +64,9 @@ export const STORAGE_KEYS = {
 		area: "shared",
 	},
 	/**
-	 * The newest release this browser has loaded (S135, shell-scoreboard A9), written on every load of a build
-	 * whose release is known, so the load of a newer one shows the after-update pointer once. Not the snooze key.
+	 * The release this browser last loaded (S135, shell-scoreboard A9), written on every load of a build whose
+	 * release is known, an older one after a rollback included, so a load of a newer one shows the after-update
+	 * pointer. Not the snooze key.
 	 */
 	"bt.lastRelease": {
 		personal: false,

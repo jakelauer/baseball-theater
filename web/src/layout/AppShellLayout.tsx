@@ -8,11 +8,9 @@ import { AppHeader } from "./AppHeader.js";
 import { NavRail } from "./NavRail.js";
 import type { Notice } from "./NoticeSlot.js";
 import { NoticeSlot } from "./NoticeSlot.js";
+import { RAIL_WIDTH } from "./nav.js";
 import type { LayoutVariant } from "./variant.js";
 import { useLayoutVariant } from "./variant.js";
-
-/** The nav rail's width at every pairing it shows (S31 `nav-rail`), in px — not Mantine's scaled rem. */
-const RAIL_WIDTH = 240;
 
 /**
  * The one layout host (ADR-014 rule 8; S60). It is the only reader of the

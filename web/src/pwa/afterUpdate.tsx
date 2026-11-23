@@ -89,7 +89,8 @@ export interface AfterUpdate
  * it has gone, and whenever A6's box is up (`updateUp`): the box wins whichever came first (owner,
  * 2026-11-10: "we'd just show the update notice and no post-update notice"), and a pointer the box
  * meets ends for this load, so neither Snooze nor the end of its 10 seconds brings it back. Its 10
- * seconds run from when it first shows and never pause (owner, 2026-11-16: "don't pause on hover").
+ * seconds run from the load (the shell's first render with it armed, at startup) and never pause
+ * (owner, 2026-11-16: "don't pause on hover").
  */
 export function useAfterUpdate(updateUp: boolean): AfterUpdate | null
 {

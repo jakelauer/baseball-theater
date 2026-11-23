@@ -9,13 +9,12 @@ import { useSession } from "../session/session.js";
 import type { AfterUpdate } from "../pwa/afterUpdate.js";
 import { AfterUpdatePointer } from "../pwa/afterUpdate.js";
 import {
-	CHANGELOG_PATH, NAV, activeSection, isChangelog,
+	CHANGELOG_PATH, NAV, RAIL_WIDTH, activeSection, isChangelog,
 } from "./nav.js";
 import { VERSION_LINE } from "./version.js";
 import { HomeLink } from "./Wordmark.js";
 
-/** The rail's width and padding (Figma `nav-rail`: 240px, 24px; `AppShellLayout` hosts it at that width). */
-const RAIL_WIDTH = 240;
+/** The rail's padding (Figma `nav-rail`: 24px). */
 const RAIL_PAD = 24;
 /** How far past the rail's edge the pointer's box starts (A9 `updated-pointer-desktop`: 11px; Popover adds its arrow's reach, 7px, to the offset). */
 const RAIL_POINTER_GAP = 4;
