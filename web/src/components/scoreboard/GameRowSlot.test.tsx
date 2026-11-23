@@ -100,6 +100,11 @@ describe("GameRowSlot Status (S67)", () =>
 
 	it("S171 AC 1: before first pitch Status draws no box at all; the probables are in the row's body", () =>
 	{
+		// The component itself returns null, not an empty box.
+		expect(GameRowSlot({
+			game: GAMES.pregame,
+			setting: "status",
+		})).toBeNull();
 		const { container } = renderSlot(GAMES.pregame, "status");
 		expect(screen.queryByTestId("game-row-slot")).toBeNull();
 		expect(container.querySelector("[data-occupant]")).toBeNull();
@@ -215,6 +220,7 @@ function sparse(codedGameState: string): ScoreboardGame
 		linescore: null,
 		probablePitchers: {
 			away: null,
+			// No `pitchHand` on purpose: a schedule row stored before S171 lacks the field (the `undefined` case).
 			home: {
 				id: 1,
 				fullName: "Pat Unknown",

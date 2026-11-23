@@ -12,7 +12,7 @@ import { viewerTimeZone } from "../../format/datetime.js";
 import { useSettings } from "../../settings/store.js";
 import { useScoresHidden } from "../../settings/useScoresHidden.js";
 import { HiddenValue } from "../HiddenValue.js";
-import { probableLabel } from "../game/format.js";
+import { probableLabel, probableSpoken } from "../game/format.js";
 import { LiveIndicator } from "../game/LiveIndicator.js";
 import { TeamEdge } from "../team/TeamEdge.js";
 import { GameRowSlot, SLOT_WIDTH } from "./GameRowSlot.js";
@@ -23,9 +23,24 @@ export type ScoreboardGame = ScheduleDayPayload["games"][number];
 const SCORED_GRID = "minmax(0, 1fr) repeat(3, 28px)";
 
 /** A scheduled row: each team, then its probable pitcher beside it (shell-scoreboard A16). */
-const SCHEDULED_GRID = "minmax(0, 1fr) minmax(0, 1fr)";
+export const SCHEDULED_GRID = "minmax(0, 1fr) minmax(0, 1fr)";
 
 type Probable = NonNullable<ScoreboardGame["probablePitchers"]>["away"];
+
+/**
+ * The card link's accessible name. Its `aria-label` replaces the text inside it, so on a
+ * scheduled row it also names the probables (S171), which are drawn inside the link:
+ * `Braves at Phillies, probable pitchers M. Pérez, left-handed, and Z. Wheeler,
+ * right-handed`, a side MLB names none for read as "to be announced".
+ */
+function cardLabel(game: ScoreboardGame, scored: boolean): string
+{
+	const matchup = `${game.teams.away.teamName} at ${game.teams.home.teamName}`;
+	const { away, home } = game.probablePitchers ?? {};
+	if (scored || (!away && !home)) return matchup;
+	const spoken = (pitcher: Probable | undefined) => (pitcher ? probableSpoken(pitcher) : "to be announced");
+	return `${matchup}, probable pitchers ${spoken(away)}, and ${spoken(home)}`;
+}
 
 const HEAD: CSSProperties = {
 	color: "var(--bt-muted)",
@@ -159,7 +174,7 @@ export function ScoreboardModule({ game }: { game: ScoreboardGame })
 			<Box
 				component={Link}
 				to={`/game/${game.gamePk}`}
-				aria-label={`${game.teams.away.teamName} at ${game.teams.home.teamName}`}
+				aria-label={cardLabel(game, scored)}
 				className="bt-card-link"
 				style={{
 					flex: 1,

@@ -23,7 +23,7 @@ import {
 	resetSettings, setGameRowSlot, setHideScores,
 } from "../../settings/store.js";
 import { clearPersonalData } from "../../storage/storage.js";
-import { ScoreboardModule } from "./ScoreboardModule.js";
+import { SCHEDULED_GRID, ScoreboardModule } from "./ScoreboardModule.js";
 import type { ScoreboardGame } from "./ScoreboardModule.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
@@ -100,6 +100,43 @@ describe("the scheduled row (S171, shell-scoreboard A16)", () =>
 		const teams = within(link).getAllByTestId("team-row");
 		const cells = within(link).getAllByTestId("row-probable");
 		teams.forEach((team, i) => expect(team.nextElementSibling).toBe(cells[i]));
+		// …in a two-column grid, team then probable, so each pitcher is beside his team, not under it.
+		expect(SCHEDULED_GRID.match(/minmax\(/g)).toHaveLength(2);
+		expect(link.style.gridTemplateColumns).toBe(SCHEDULED_GRID);
+	});
+
+	it("S171 AC 4 Status: the card's accessible name carries the probables, which its label would otherwise hide", () =>
+	{
+		const card = renderRow(scheduled());
+		expect(within(card).getByRole("link", {
+			name: "Braves at Phillies, probable pitchers M. Pérez, left-handed, and Z. Wheeler, right-handed",
+		})).toBeInTheDocument();
+	});
+
+	it("S171 AC 4 TBD: a side with no probable is spoken as to be announced; no probables at all leaves the matchup", () =>
+	{
+		const game = scheduled();
+		renderRow({
+			...game,
+			probablePitchers: {
+				away: null,
+				home: game.probablePitchers!.home,
+			},
+		});
+		expect(screen.getByRole("link", {
+			name: "Braves at Phillies, probable pitchers to be announced, and Z. Wheeler, right-handed",
+		})).toBeInTheDocument();
+		cleanup();
+		renderRow({
+			...game,
+			probablePitchers: {
+				away: null,
+				home: null,
+			},
+		});
+		expect(screen.getByRole("link", {
+			name: "Braves at Phillies",
+		})).toBeInTheDocument();
 	});
 
 	it.each(["status", "roomMenu"] as Setting[])("S171 AC 4 Status / Room Menu both draw the probables in the body (%s)", async (setting) =>

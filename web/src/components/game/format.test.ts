@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	gameInfoLines, probableLabel, roomLabel, shortPlayerName,
+	gameInfoLines, probableLabel, probableSpoken, roomLabel, shortPlayerName,
 } from "./format.js";
 
 describe("roomLabel", () =>
@@ -62,6 +62,32 @@ describe("probableLabel (S171)", () =>
 		expect(probableLabel({
 			fullName: "Justin Steele",
 		})).toBe("J. Steele");
+	});
+});
+
+describe("probableSpoken (S171)", () =>
+{
+	it("says the hand in words; no hand, or an unknown code, leaves just the name", () =>
+	{
+		expect(probableSpoken({
+			fullName: "Martín Pérez",
+			pitchHand: "L",
+		})).toBe("M. Pérez, left-handed");
+		expect(probableSpoken({
+			fullName: "Zack Wheeler",
+			pitchHand: "R",
+		})).toBe("Z. Wheeler, right-handed");
+		expect(probableSpoken({
+			fullName: "Zack Wheeler",
+			pitchHand: null,
+		})).toBe("Z. Wheeler");
+		expect(probableSpoken({
+			fullName: "Zack Wheeler",
+			pitchHand: "S",
+		})).toBe("Z. Wheeler");
+		expect(probableSpoken({
+			fullName: "Zack Wheeler",
+		})).toBe("Z. Wheeler");
 	});
 });
 
