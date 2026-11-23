@@ -2,6 +2,7 @@ import { MantineProvider, createTheme } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { createQueryClient } from "./api/queryClient.js";
+import { useAfterUpdate } from "./pwa/afterUpdate.js";
 import { useUpdateNotice } from "./pwa/updates.js";
 import { AppShellLayout } from "./layout/AppShellLayout.js";
 import { AppRoutes } from "./routes.js";
@@ -94,13 +95,15 @@ export function App()
 	// (S73) both raise it through `useUpdateNotice`, which floats it at the bottom (A6); the
 	// offline marker joins it under the header in S74.
 	const notice = useUpdateNotice();
+	// After an update, the pointer at the menu (S135, A9), never while A6's box is up.
+	const pointer = useAfterUpdate(Boolean(notice?.update));
 	return (
 		<MantineProvider theme={theme} forceColorScheme="dark">
 			<QueryClientProvider client={queryClient}>
 				<SessionProvider>
 					<SettingsSync />
 					<BrowserRouter>
-						<AppShellLayout notice={notice}>
+						<AppShellLayout notice={notice} pointer={pointer}>
 							{(variant) => <AppRoutes variant={variant} />}
 						</AppShellLayout>
 					</BrowserRouter>

@@ -7,6 +7,8 @@
  * (`btShowUpdate`, `src/pwa/updates.ts`), which stands in for a waiting worker and reloads
  * on Update Now. The hour Snooze waits is a fake-timer unit test (`UpdateNotice.test.tsx`);
  * here a reload within it stays quiet, because the snooze is remembered in the browser.
+ * S135 (shell-scoreboard A9): the notice carries the link "See the changelog", which opens the
+ * change log page, where the notice shows no link.
  */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
@@ -30,6 +32,9 @@ test("update notice: Update Now reloads the page without it; Snooze hides it, th
 	await expect(page.getByRole("button", {
 		name: "Dismiss",
 	})).toHaveCount(0);
+	await expect(page.getByTestId("notice-float").getByRole("link", {
+		name: "See the changelog",
+	})).toHaveAttribute("href", "/changelog");
 	await Promise.all([
 		page.waitForEvent("load"),
 		page.getByRole("button", {
@@ -50,4 +55,20 @@ test("update notice: Update Now reloads the page without it; Snooze hides it, th
 	await page.getByTestId("scoreboard-module").first().waitFor();
 	await showUpdate(page);
 	await expect(page.getByText(MESSAGE)).toHaveCount(0);
+});
+
+test("S135: the update notice's 'See the changelog' opens the change log, where the notice shows no link", async ({ page }) =>
+{
+	await page.goto("/games/2024-07-04");
+	await page.getByTestId("scoreboard-module").first().waitFor();
+	await showUpdate(page);
+	await page.getByTestId("notice-float").getByRole("link", {
+		name: "See the changelog",
+	}).click();
+	await expect(page).toHaveURL(/\/changelog$/);
+	await expect(page.getByText(MESSAGE)).toBeVisible();
+	await expect(page.getByTestId("notice-float").getByRole("link")).toHaveCount(0);
+	await expect(page.getByRole("button", {
+		name: "Update Now",
+	})).toBeVisible();
 });

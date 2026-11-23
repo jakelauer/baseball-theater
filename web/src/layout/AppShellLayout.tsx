@@ -1,7 +1,9 @@
 import { Box, Drawer } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
+import type { AfterUpdate } from "../pwa/afterUpdate.js";
 import { AppHeader } from "./AppHeader.js";
 import { NavRail } from "./NavRail.js";
 import type { Notice } from "./NoticeSlot.js";
@@ -27,14 +29,46 @@ const RAIL_WIDTH = 240;
  * The notice slot sits directly under the header (S31 `shell-notice-*`); the reload notice
  * floats fixed at the bottom of the screen instead (shell-scoreboard A6), which `NoticeSlot`
  * decides. The notice's owner (update prompt, offline marker) passes it in.
+ *
+ * After an update (S135, shell-scoreboard A9) `pointer` is the after-update pointer while it shows
+ * (`useAfterUpdate`, which already keeps it away whenever A6's box is up). The shell aims it by its
+ * own `variant`, never a second viewport read: at the rail's change log link on desktop, at the
+ * burger on mobile and medium. Opening the drawer while it shows ends it, and the drawer's change
+ * log link stays highlighted until the drawer closes (A9's `updated-pointer-menu-open-*` frames).
+ * Game routes draw no app header, so on mobile and medium the pointer has nothing to aim at there
+ * and only its time runs.
  */
-export function AppShellLayout({ children, notice = null }: {
+export function AppShellLayout({
+	children, notice = null, pointer = null,
+}: {
 	children: (variant: LayoutVariant) => ReactNode;
 	notice?: Notice | null;
+	pointer?: AfterUpdate | null;
 })
 {
 	const variant = useLayoutVariant();
-	const [opened, { toggle, close }] = useDisclosure();
+	const [opened, { open, close }] = useDisclosure();
+	const [drawerHighlight, setDrawerHighlight] = useState(false);
+	// However the drawer closes (the burger, a link, the overlay, Escape), its link's highlight goes with it.
+	const closeDrawer = () =>
+	{
+		setDrawerHighlight(false);
+		close();
+	};
+	const onBurger = () =>
+	{
+		if (opened)
+		{
+			closeDrawer();
+			return;
+		}
+		if (pointer)
+		{
+			setDrawerHighlight(true);
+			pointer.end();
+		}
+		open();
+	};
 	const { pathname } = useLocation();
 	const desktop = variant === "desktop";
 	const gameRoute = pathname.startsWith("/game/");
@@ -57,12 +91,12 @@ export function AppShellLayout({ children, notice = null }: {
 						borderRight: "1px solid var(--mantine-color-dark-4)",
 					}}
 				>
-					<NavRail />
+					<NavRail pointer={pointer} />
 				</Box>
 			) : (
 				<Drawer
 					opened={opened}
-					onClose={close}
+					onClose={closeDrawer}
 					size={RAIL_WIDTH}
 					padding={0}
 					withCloseButton={false}
@@ -77,7 +111,7 @@ export function AppShellLayout({ children, notice = null }: {
 					<nav aria-label="Main" style={{
 						height: "100%",
 					}}>
-						<NavRail onNavigate={close} />
+						<NavRail onNavigate={closeDrawer} highlight={drawerHighlight} />
 					</nav>
 				</Drawer>
 			)}
@@ -87,7 +121,7 @@ export function AppShellLayout({ children, notice = null }: {
 				display: "flex",
 				flexDirection: "column",
 			}}>
-				{gameRoute ? null : <AppHeader burger={!desktop} wordmark={!desktop} drawerOpened={opened} onBurger={toggle} />}
+				{gameRoute ? null : <AppHeader burger={!desktop} wordmark={!desktop} drawerOpened={opened} onBurger={onBurger} pointer={desktop ? null : pointer} />}
 				<NoticeSlot notice={notice} />
 				<Box component="main" px="md" pb="md" pt={gameRoute ? 0 : "md"} style={{
 					flex: 1,
