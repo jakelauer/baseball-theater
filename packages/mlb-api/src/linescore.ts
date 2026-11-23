@@ -11,6 +11,8 @@ export interface LinescoreInningLine {
 	hits?: number;
 	errors?: number;
 	leftOnBase?: number;
+	/** Set on a final game's totals. */
+	isWinner?: boolean;
 }
 
 export interface LinescoreInning {
@@ -34,8 +36,14 @@ export interface LinescoreLineup {
 	inHole?: Person;
 	pitcher?: Person;
 	battingOrder?: number;
-	team?: MlbTeam;
+	team?: LinescoreLineupTeam;
 }
+
+/**
+ * The side's team. MLB names it for a club, but the recorded 2002 All-Star Game's sides (the AL and
+ * NL All-Stars, team ids 159 and 160) come as `{ id, link }` alone, so the name is optional here (#359).
+ */
+export type LinescoreLineupTeam = Omit<MlbTeam, "name"> & { name?: string };
 
 /** The batting side: who is up, and who is standing on which base. */
 export interface LinescoreOffense extends LinescoreLineup {
@@ -63,6 +71,8 @@ export interface Linescore extends CountState {
 	inningHalf?: string;
 	isTopInning?: boolean;
 	scheduledInnings?: number;
+	/** A scorer's note under the line score (`"None out when winning run scored."`). */
+	note?: string;
 	innings: LinescoreInning[];
 	teams?: LinescoreTeams;
 	defense?: LinescoreDefense;
