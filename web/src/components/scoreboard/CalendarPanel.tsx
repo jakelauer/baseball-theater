@@ -7,7 +7,9 @@ import {
 import {
 	IconChevronDown, IconChevronLeft, IconChevronRight,
 } from "@tabler/icons-react";
-import { useRef, useState } from "react";
+import {
+	useEffect, useRef, useState,
+} from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import {
 	BACKFILL_EARLIEST_DATE, EARLIEST_CALENDAR_MONTH, favoriteTeamsOff, latestScheduleMonth, MLB_TEAMS, mlbToday, monthGamesState,
@@ -95,6 +97,8 @@ export interface CalendarPanelProps
 	onPick: (date: string) => void;
 	/** The sheet's ✕. */
 	onClose: () => void;
+	/** Whether the calendar is open; false while the sheet slides away, so its blur commits nothing. */
+	open: boolean;
 }
 
 /**
@@ -105,7 +109,7 @@ export interface CalendarPanelProps
  * tap-and-hold on touch); and the `Today` footer with S136's off-season line.
  */
 export function CalendarPanel({
-	date, today, favoriteTeamIds, container, onPick, onClose,
+	date, today, favoriteTeamIds, container, onPick, onClose, open,
 }: CalendarPanelProps)
 {
 	const [shown, setShown] = useState(date.slice(0, 7));
@@ -118,6 +122,30 @@ export function CalendarPanel({
 	const holdTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 	// A hold that ended: the click the touch then makes must pick nothing.
 	const swallowClick = useRef(false);
+	const panel = useRef<HTMLDivElement>(null);
+	// Set when the fan's next action closes the calendar (a press outside it or on its ✕, or Esc),
+	// before the field's blur that action causes, so that blur goes to no typed date (AC 7). Captured
+	// on the document so it is known before the browser moves focus.
+	const closing = useRef(false);
+	useEffect(() =>
+	{
+		function onPointerDown(event: PointerEvent): void
+		{
+			const target = event.target instanceof Element ? event.target : null;
+			closing.current = !target || !panel.current?.contains(target) || target.closest("[data-calendar-close]") !== null;
+		}
+		function onKeyDown(event: globalThis.KeyboardEvent): void
+		{
+			if (event.key === "Escape") closing.current = true;
+		}
+		document.addEventListener("pointerdown", onPointerDown, true);
+		document.addEventListener("keydown", onKeyDown, true);
+		return () =>
+		{
+			document.removeEventListener("pointerdown", onPointerDown, true);
+			document.removeEventListener("keydown", onKeyDown, true);
+		};
+	}, []);
 	const short = useShortScreen() && container === "sheet";
 	const answerable = scheduleMonthAnswerable(shown);
 	const {
@@ -280,7 +308,7 @@ export function CalendarPanel({
 	);
 
 	return (
-		<Stack gap={12} p={container === "sheet" ? 16 : 12} className={classes.scroll} data-testid="calendar-panel" data-container={container}>
+		<Stack ref={panel} gap={12} p={container === "sheet" ? 16 : 12} className={classes.scroll} data-testid="calendar-panel" data-container={container}>
 			<Box>
 				<Group justify="space-between" wrap="nowrap" mb={4}>
 					<Text component="label" htmlFor="calendar-date-field" size="xs" fw={700} tt="uppercase" c="var(--bt-muted)">Date</Text>
@@ -304,14 +332,17 @@ export function CalendarPanel({
 					{
 						if (event.key === "Enter") commit(event.currentTarget.value);
 					}}
-					// Read on blur only when focus moves to another of the calendar's own controls: a
-					// calendar closing (Esc, the ✕, a tap outside, or the sheet handing focus back to the
-					// date button) never goes to a date the fan didn't enter.
+					onFocus={() =>
+					{
+						closing.current = false;
+					}}
+					// Every blur reads the field (AC 1: leaving it keeps the text and shows its error), Tab or
+					// a click anywhere in the calendar included, except the blur a closing calendar causes
+					// (AC 7: Esc, the ✕, a tap or click outside, or the sheet handing focus back as it slides
+					// away), which goes to no date the fan didn't enter.
 					onBlur={(event) =>
 					{
-						const to = event.relatedTarget;
-						const inside = to instanceof Element && !to.closest("[data-calendar-close]") && event.currentTarget.closest("[data-testid=calendar-panel]")?.contains(to);
-						if (inside) commit(event.currentTarget.value);
+						if (open && !closing.current) commit(event.currentTarget.value);
 					}}
 				/>
 			</Box>

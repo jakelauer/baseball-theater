@@ -76,6 +76,7 @@ export function DateControl({
 			container={variant === "mobile" ? "sheet" : "dropdown"}
 			onPick={goTo}
 			onClose={() => setOpen(false)}
+			open={open}
 		/>
 	);
 

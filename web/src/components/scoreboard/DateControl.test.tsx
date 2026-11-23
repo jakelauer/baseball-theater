@@ -114,6 +114,20 @@ describe("the typed date (S125 AC 1)", () =>
 		expect(visits()).toEqual(["/games/2026-09-21"]);
 	});
 
+	it("S125 AC 1: leaving the field by a click on the calendar's own non-focusable parts (the weekday row) still reads it: 'Not a date.'", async () =>
+	{
+		serveCalendar();
+		const user = userEvent.setup();
+		const { visits } = renderControl(["/games/2026-09-21"]);
+		const panel = await openCalendar(user);
+		await user.clear(field());
+		await user.type(field(), "Feb 30, 2026");
+		await user.click(panel.querySelector("thead th")!);
+		expect(await screen.findByText("Not a date.")).toBeInTheDocument();
+		expect(field().value).toBe("Feb 30, 2026");
+		expect(visits()).toEqual(["/games/2026-09-21"]);
+	});
+
 	it("S125 AC 1: Apr 17, 1901 shows 'No data before Apr 18, 1901.' without navigating; a valid date then clears it", async () =>
 	{
 		serveCalendar();
