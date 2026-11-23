@@ -342,6 +342,22 @@ describe("favoriteTeamsOff (S159 AC 1)", () =>
 		expect(favoriteTeamsOff(yankeesDay, [METS, YANKEES], days)).toBeNull();
 	});
 
+	it("S159 AC 1 postseason-only favorite: a favorite whose only game that month isn't regular season still counts", () =>
+	{
+		// The Mets' only day that month is a postseason one (regularSeason false); "regular season" is per day, not per team.
+		const metsDay = {
+			teamIds: [121, 111],
+			regularSeason: false,
+		};
+		const otherDay = regular([108, 119]);
+		const days = [metsDay, otherDay];
+		expect(favoriteTeamsOff(metsDay, [METS], days)).toBeNull();
+		expect(favoriteTeamsOff(otherDay, [METS], days)).toEqual({
+			mark: "red",
+			off: [121],
+		});
+	});
+
 	it("S159 AC 1 ScheduleDayCount fits: a month answer's days are accepted as they are", () =>
 	{
 		const days = monthGameCounts(["2026-07-01", "2026-07-02"], [
