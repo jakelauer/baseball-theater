@@ -190,6 +190,17 @@ export function favoriteTeamsOff(day: MonthDayTeams, favoriteTeamIds: readonly n
 }
 
 /**
+ * Whether every day of a month is known (#399): none has `count: null`, the mark of a day BT holds
+ * no schedule for (a fill MLB didn't answer, or a past day nothing stored). The month route caches
+ * an incomplete month only for the fill's cooldown and the web keeps it only that long, so both ask
+ * this one question; unlike {@link monthGamesState}, one unknown day beside a day with games counts.
+ */
+export function monthComplete(days: readonly Pick<ScheduleDayCount, "count">[]): boolean
+{
+	return days.every((day) => day.count !== null);
+}
+
+/**
  * What a month's days say about its games (S136; S125's calendar shows the off-season line from
  * it): `"games"` when any day's count is above 0; `"none"` when there is at least one day and
  * every day's count is 0; `"unknown"` otherwise, that is a `null` day with no day above 0 (BT

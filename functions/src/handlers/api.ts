@@ -21,6 +21,7 @@ import {
 } from "../services/data-downloads.js";
 import type { ApiUsageLog } from "../services/api-usage.js";
 import { getDayDigest } from "../services/digest.js";
+import { REFRESH_COOLDOWN_MS } from "../services/refresh.js";
 import { getScheduleMonth } from "../services/schedule-month.js";
 import { searchHighlights } from "../services/search.js";
 import { BUNDLED_RELEASE_NOTES, getReleases } from "../services/releases.js";
@@ -293,11 +294,21 @@ export const API_ROUTER: readonly RouteEntry[] = [
 				});
 			}
 			const result = await getScheduleMonth(ctx.ingest, month);
-			// Cached by when the month's data last changed (ADR-021), never by whether it is past.
-			return withCacheControl(sendJson(200, "GET /api/v1/schedule/month/:month", {
+			const response = sendJson(200, "GET /api/v1/schedule/month/:month", {
 				month: result.month,
 				days: result.days,
-			}), {
+			});
+			// A month with an unknown day (a fill MLB didn't answer, or a past day nothing stored) is kept
+			// at the edge only as long as the fill's cooldown and never served stale after (#399): the
+			// ladder's floor served such answers for up to ten minutes as months with no games, and
+			// no-store would send every open of a past month nothing stored to the Worker and Postgres.
+			if (!result.complete)
+			{
+				response.headers.set("Cache-Control", `public, s-maxage=${REFRESH_COOLDOWN_MS / 1000}`);
+				return response;
+			}
+			// Cached by when the month's data last changed (ADR-021), never by whether it is past.
+			return withCacheControl(response, {
 				windowMode: "cache",
 				lastChangedAt: result.lastChangedAt,
 			}, ctx);

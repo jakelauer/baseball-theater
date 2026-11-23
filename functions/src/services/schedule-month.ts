@@ -2,15 +2,16 @@
  * Games per day for a month (S124) and the teams playing each day (S136), for S125's calendar
  * date picker, from BT's stored schedule days (ADR-002: clients read BT only), counted by
  * `monthGameCounts`. A month BT needn't ask MLB about is one count read; a fill adds one MLB
- * range request, a version-guarded write per day it returns (`storeSchedule`, which reads the
- * stored day first) and a second count read.
+ * range read (week-long requests sent together, #399), a version-guarded write per day it
+ * returns (`storeSchedule`, which reads the stored day first) and a second count read.
  *
  * Days inside `scheduleFillWindow` (the current season through December of next year; later
  * months are refused at the route, owner 2026-11-09: "Reject past next year") that BT doesn't
- * hold yet are filled from MLB with one schedule request for their range, stored through
+ * hold yet are filled from MLB with one range read (`fetchScheduleRange`), stored through
  * ingest's version-guarded write (ADR-022) without hydrating any game: game snapshots stay with
- * the scoreboard's own refresh and the backfill (S122), so one month read is one MLB request,
- * not hundreds. Past seasons are never asked for here; what the backfill stored is what they show.
+ * the scoreboard's own refresh and the backfill (S122), so one month read is one MLB range read
+ * (at most five week-long requests), not hundreds. Past seasons are never asked for here; what
+ * the backfill stored is what they show.
  *
  * Stored days inside the window are asked for again once the month's ADR-021 lifetime has run
  * out (`needsRefresh`, the ladder single days use), so a future month stored empty before MLB
@@ -20,7 +21,7 @@ import type {
 	ScheduleDay, ScheduleDayCount, ScheduleDayTally, Unversioned,
 } from "@bt/domain";
 import {
-	daysOfMonth, mlbToday, monthGameCounts, monthLastChangedAt, scheduleFillWindow,
+	daysOfMonth, mlbToday, monthComplete, monthGameCounts, monthLastChangedAt, scheduleFillWindow,
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
 import {
@@ -39,15 +40,23 @@ export interface ScheduleMonth
 	days: ScheduleDayCount[];
 	/**
 	 * When the month's stored data last changed: the latest change among its days, or `now`
-	 * while any day is unknown (`count: null`), so an incomplete month is checked again soon.
+	 * while any day is unknown (`count: null`), so an incomplete month is checked again soon (the
+	 * route caches an incomplete month only for the fill's cooldown, {@link ScheduleMonth.complete}).
 	 */
 	lastChangedAt: string;
+	/**
+	 * Whether every day is known (`monthComplete`: none `count: null`). The route keeps an incomplete month at the
+	 * edge only for the fill's cooldown (#399): a fill MLB didn't answer would otherwise be served
+	 * for minutes as a month with no games.
+	 */
+	complete: boolean;
 }
 
 /**
  * The span of `fillable` days to ask MLB for, or null when none needs asking: all of them when
  * the month's stored data has outlived its lifetime, else from the first to the last day BT
- * doesn't hold. One range either way, so a month is never more than one request.
+ * doesn't hold. One range either way, so a month is never more than one range read (at most
+ * five week-long requests, #399).
  */
 function rangeToAsk(deps: IngestDeps, key: string, fillable: string[], stored: ScheduleDayTally[], now: Date): [string, string] | null
 {
@@ -122,10 +131,11 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 	}
 
 	const days = monthGameCounts(dates, stored);
-	const complete = days.every((day) => day.count !== null);
+	const complete = monthComplete(days);
 	return {
 		month,
 		days,
 		lastChangedAt: (complete ? monthLastChangedAt(stored) : undefined) ?? now.toISOString(),
+		complete,
 	};
 }
