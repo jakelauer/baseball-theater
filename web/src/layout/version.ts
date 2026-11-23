@@ -20,6 +20,12 @@
  * runs: if a merged pull request's milestone is changed after staging built
  * it, staging keeps the old label until its next deploy.
  */
+// S131's parser, from its module in `packages/domain` rather than `@bt/domain`: `web/vite.config.ts`
+// imports this file for `buildInfo`, and Vite's config bundler leaves every bare import to Node,
+// which can't load the domain package's TypeScript (its `.js` import paths name `.ts` files). A
+// relative path is bundled with the config instead. The app itself gets the same module either way.
+import { parseReleaseVersion } from "../../../packages/domain/src/release-notes.js";
+
 declare const __BT_RELEASE__: string | undefined;
 declare const __BT_COMMIT__: string | undefined;
 
@@ -67,7 +73,28 @@ export function buildInfo(env: Record<string, string | undefined>, gitShort: () 
 	}
 }
 
+/** The build's release label as injected (`buildInfo`'s `release`), `dev` when nothing was injected (tests). */
+const RELEASE_LABEL = typeof __BT_RELEASE__ === "string" ? __BT_RELEASE__ : "dev";
+
 export const VERSION_LINE = versionLine(
-	typeof __BT_RELEASE__ === "string" ? __BT_RELEASE__ : "dev",
+	RELEASE_LABEL,
 	typeof __BT_COMMIT__ === "string" ? __BT_COMMIT__ : "unknown",
 );
+
+/**
+ * The release this build is, as a release version, or null when it isn't one (S135 AC 1). The
+ * label (`buildInfo`'s `release`) stays whatever the deploy looked up, so the version line can
+ * still print `unreleased`, `dev` or a milestone named something else; only a `vMAJOR.MINOR.PATCH`
+ * that S131's `parseReleaseVersion` accepts counts as a known release. The after-update pointer
+ * (`web/src/pwa/afterUpdate.tsx`) records and compares only known releases, so a build labelled
+ * `v3.2` or `Next release` records nothing, like `dev`, and never hands `compareReleaseVersions`
+ * a value it can't order (2026-11-16 backlog review).
+ */
+export function knownRelease(release: string): string | null
+{
+	const trimmed = release.trim();
+	return parseReleaseVersion(trimmed) ? trimmed : null;
+}
+
+/** This build's known release (`knownRelease` over the injected `__BT_RELEASE__`), null for `dev`, `unreleased` and the like. */
+export const BUILD_RELEASE = knownRelease(RELEASE_LABEL);

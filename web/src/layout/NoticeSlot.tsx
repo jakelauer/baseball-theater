@@ -1,6 +1,8 @@
 import {
-	Button, Group, Paper, Text,
+	Anchor, Button, Group, Paper, Text,
 } from "@mantine/core";
+import { Link, useLocation } from "react-router-dom";
+import { CHANGELOG_PATH, isChangelog } from "./nav.js";
 
 /**
  * An app-level notice (S31 `notice-banner`, 438:2959), in one of two places:
@@ -9,6 +11,10 @@ import {
  *   `update`: shell-scoreboard A6 (ratified 2026-11-02) floats it in a box fixed at the
  *   bottom of the screen, its message on top and two right-aligned buttons underneath,
  *   Snooze then Update Now. A6 repealed its ✕ and `Reload` link and its place under the header.
+ *   A9 (S135) puts the link "See the changelog" at the left of its button row (Figma `update-notice`
+ *   762:22596, `Link=Yes`), the retired-version notice too, and leaves it off on the change log page
+ *   itself (`Link=No`). It shows no addition from the release notes and asks the server nothing,
+ *   so it is up the moment the update is known (owner, 2026-11-10).
  * - **A marker** with no actions (S74's offline marker) stays in the slot under the header
  *   and holds until its owner clears it.
  *
@@ -27,19 +33,27 @@ export interface Notice
 }
 
 /**
- * The notice itself: the message, then (for the reload notice) Snooze as the secondary button
- * and Update Now as the primary one, right-aligned so Update Now sits at the far right (A6's
- * interpretation). The one notice component (ADR-025): every notice in the app draws through it.
+ * The notice itself: the message, then (for the reload notice) the change log link at the left
+ * (A9, but not on the change log page), and Snooze as the secondary button and Update Now as the
+ * primary one, right-aligned so Update Now sits at the far right (A6's interpretation). The one notice component (ADR-025): every notice in the app draws through it.
  */
 export function NoticeBanner({ notice }: { notice: Notice })
 {
+	const onChangelog = isChangelog(useLocation().pathname);
 	return (
 		<Paper role="status" bg="var(--bt-raised)" radius="md" px="md" py="sm" withBorder shadow={notice.update ? "md" : undefined}>
 			<Text size="sm">{notice.message}</Text>
 			{notice.update ? (
-				<Group justify="flex-end" gap="xs" mt="sm" wrap="nowrap">
-					<Button size="xs" variant="default" onClick={notice.update.onSnooze}>Snooze</Button>
-					<Button size="xs" onClick={notice.update.onUpdate}>Update Now</Button>
+				<Group gap="xs" mt="sm" wrap="nowrap">
+					{onChangelog ? null : (
+						<Anchor component={Link} to={CHANGELOG_PATH} fz={13} fw={600} c="var(--bt-primary-light)" underline="never">
+							See the changelog
+						</Anchor>
+					)}
+					<Group gap="xs" wrap="nowrap" ml="auto">
+						<Button size="xs" variant="default" onClick={notice.update.onSnooze}>Snooze</Button>
+						<Button size="xs" onClick={notice.update.onUpdate}>Update Now</Button>
+					</Group>
 				</Group>
 			) : null}
 		</Paper>

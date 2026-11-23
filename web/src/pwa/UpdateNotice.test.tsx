@@ -6,7 +6,7 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
-	act, cleanup, fireEvent, render, screen,
+	act, cleanup, fireEvent, render, screen, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -14,6 +14,7 @@ import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
 import { createQueryClient } from "../api/queryClient.js";
+import { markVersionUnsupported, resetVersionNotice } from "../api/versionNotice.js";
 import { AppShellLayout } from "../layout/AppShellLayout.js";
 import { SessionProvider } from "../session/SessionProvider.js";
 import { readStored, writeStored } from "../storage/storage.js";
@@ -32,20 +33,27 @@ function Shell()
 	);
 }
 
-function renderShell()
+function renderShell(path = "/")
 {
-	stubMeApi();
+	const fetchMock = stubMeApi();
 	render(
 		<MantineProvider>
 			<QueryClientProvider client={createQueryClient()}>
 				<SessionProvider>
-					<MemoryRouter>
+					<MemoryRouter initialEntries={[path]}>
 						<Shell />
 					</MemoryRouter>
 				</SessionProvider>
 			</QueryClientProvider>
 		</MantineProvider>,
 	);
+	return fetchMock;
+}
+
+/** Every path the page asked the API for, so a test can say the notice asked nothing about releases. */
+function requestedPaths(fetchMock: ReturnType<typeof stubMeApi>): string[]
+{
+	return fetchMock.mock.calls.map(([request]) => new URL((request as Request).url).pathname);
 }
 
 /** A `registerSW` stand-in: records its options and returns a mocked activate. */
@@ -69,6 +77,7 @@ function fakeRegister()
 afterEach(() =>
 {
 	cleanup();
+	resetVersionNotice();
 	resetUpdates();
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
@@ -167,5 +176,46 @@ describe("the update notice (S73)", () =>
 		renderShell();
 		act(() => (window as { btShowUpdate?: () => void }).btShowUpdate?.());
 		expect(screen.getByText(UPDATE_MESSAGE)).toBeInTheDocument();
+	});
+
+	it("S135 AC 2: the notice carries 'See the changelog' to /changelog, no release addition, and asks /api/v1/releases nothing, the moment the worker waits", async () =>
+	{
+		const sw = fakeRegister();
+		startUpdates(sw.register);
+		const fetchMock = renderShell();
+		await sw.waiting();
+		const notice = screen.getByRole("status");
+		expect(notice).toHaveTextContent(UPDATE_MESSAGE);
+		const link = within(notice).getByRole("link", {
+			name: "See the changelog",
+		});
+		expect(link).toHaveAttribute("href", "/changelog");
+		// The message, the link and the two buttons are all it says: no headline addition.
+		expect(notice.textContent).toBe(`${UPDATE_MESSAGE}See the changelogSnoozeUpdate Now`);
+		expect(requestedPaths(fetchMock).filter((p) => p.startsWith("/api/v1/releases"))).toEqual([]);
+	});
+
+	it("S135 AC 2: retired version (S28): the same notice with the same link, raised by markVersionUnsupported", () =>
+	{
+		const fetchMock = renderShell();
+		act(() => markVersionUnsupported());
+		const notice = screen.getByRole("status");
+		expect(notice).toHaveTextContent(UPDATE_MESSAGE);
+		expect(within(notice).getByRole("link", {
+			name: "See the changelog",
+		})).toHaveAttribute("href", "/changelog");
+		expect(within(notice).getAllByRole("button").map((b) => b.textContent)).toEqual(["Snooze", "Update Now"]);
+		expect(requestedPaths(fetchMock).filter((p) => p.startsWith("/api/v1/releases"))).toEqual([]);
+	});
+
+	it("S135 AC 2: on /changelog the notice shows no link", async () =>
+	{
+		const sw = fakeRegister();
+		startUpdates(sw.register);
+		renderShell("/changelog");
+		await sw.waiting();
+		const notice = screen.getByTestId("notice-float");
+		expect(notice).toHaveTextContent(UPDATE_MESSAGE);
+		expect(within(notice).queryByRole("link")).toBeNull();
 	});
 });
