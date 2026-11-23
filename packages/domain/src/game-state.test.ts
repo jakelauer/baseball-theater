@@ -2,10 +2,10 @@ import {
 	describe, expect, it,
 } from "vitest";
 import type {
-	GameState, GameStateClock, StoredScheduleDay,
+	GameState, GameStateClock, GameStateRow, StoredScheduleDay,
 } from "./game-state.js";
 import {
-	feedTimeToIso, gameStateFromGame, gameStateFromSummary, gameStateSource, joinScheduleDay, toStoredScheduleDay,
+	feedTimeToIso, gameStateFromGame, gameStateFromSummary, gameStateSource, isOtherDaysListing, joinScheduleDay, listingMovedAway, toStoredScheduleDay,
 } from "./game-state.js";
 import type { AtBat } from "./plays.js";
 import type { GameSnapshot, ScheduleGameSummary } from "./types.js";
@@ -318,11 +318,56 @@ function state(status: GameState["status"], version: number, lastChangedAt: stri
 	};
 }
 
+/** A game's stored row as the join reads it: its state, and the official date it now belongs to. */
+function row(status: GameState["status"], version: number, lastChangedAt: string, home = 1, officialDate = "2026-09-05"): Pick<GameStateRow, "state" | "officialDate">
+{
+	return {
+		state: state(status, version, lastChangedAt, home),
+		officialDate,
+	};
+}
+
+describe("isOtherDaysListing, which schedule listings never change a row (S150 AC 4)", () =>
+{
+	const SUSPENDED = {
+		abstractGameState: "Live",
+		codedGameState: "U",
+		detailedState: "Suspended",
+	};
+	/** A row or a listing: its status and official date. */
+	const at = (status: GameState["status"], officialDate: string) => ({
+		state: {
+			status,
+		},
+		officialDate,
+	});
+
+	it("S150 AC 4 other day's listing: only a postponed or suspended listing of another date is skipped, and against a row that is itself postponed or suspended only an earlier one", () =>
+	{
+		// The makeup holds the row: the original day's postponed listing is skipped.
+		expect(isOtherDaysListing(at(SCHEDULED, "2026-09-06"), at(POSTPONED, "2026-09-05"))).toBe(true);
+		expect(isOtherDaysListing(at(FINAL, "2026-09-06"), at(POSTPONED, "2026-09-05"))).toBe(true);
+		// The makeup's own listing takes over a row the original day wrote.
+		expect(isOtherDaysListing(at(POSTPONED, "2026-09-05"), at(SCHEDULED, "2026-09-06"))).toBe(false);
+		// A game MLB moved, earlier or later, with no postponement: its new listing takes the row.
+		expect(isOtherDaysListing(at(SCHEDULED, "2026-09-06"), at(SCHEDULED, "2026-09-05"))).toBe(false);
+		expect(isOtherDaysListing(at(SCHEDULED, "2026-09-05"), at(SCHEDULED, "2026-09-06"))).toBe(false);
+		// Postponed again on its makeup day: the first day's listing is skipped, the later one's taken.
+		expect(isOtherDaysListing(at(POSTPONED, "2026-09-06"), at(POSTPONED, "2026-09-05"))).toBe(true);
+		expect(isOtherDaysListing(at(POSTPONED, "2026-09-05"), at(POSTPONED, "2026-09-06"))).toBe(false);
+		// Suspended with its own resumption date: the resumption's listing is taken, the original day's then skipped.
+		expect(isOtherDaysListing(at(SUSPENDED, "2026-09-05"), at(SUSPENDED, "2026-09-06"))).toBe(false);
+		expect(isOtherDaysListing(at(SUSPENDED, "2026-09-06"), at(SUSPENDED, "2026-09-05"))).toBe(true);
+		// The row's own date is never another day's.
+		expect(isOtherDaysListing(at(LIVE, "2026-09-05"), at(POSTPONED, "2026-09-05"))).toBe(false);
+	});
+});
+
 describe("joinScheduleDay (S150 AC 6)", () =>
 {
 	it("S150 AC 6 join: each listed game takes its row's state, else its snapshot's, else scheduled with no score", () =>
 	{
-		const rows = new Map([[1, state(FINAL, 3, "2026-09-06T03:00:00.000Z", 5)]]);
+		const rows = new Map([[1, row(FINAL, 3, "2026-09-06T03:00:00.000Z", 5)]]);
 		const fallbacks = new Map<number, Unversioned<GameState>>([[2, {
 			status: FINAL,
 			linescore: linescore(7, 2),
@@ -337,23 +382,23 @@ describe("joinScheduleDay (S150 AC 6)", () =>
 
 	it("S150 AC 6 window: a day stored active whose joined games are all final past their trails is served cache", () =>
 	{
-		const rows = new Map([[1, state(FINAL, 1, "2026-09-06T03:00:00.000Z")], [2, state(FINAL, 1, "2026-09-06T03:00:00.000Z")]]);
+		const rows = new Map([[1, row(FINAL, 1, "2026-09-06T03:00:00.000Z")], [2, row(FINAL, 1, "2026-09-06T03:00:00.000Z")]]);
 		const day = joinScheduleDay(stored([1, 2], "active"), 0, rows, new Map(), new Date("2026-09-07T12:00:00Z"));
 		expect(day.windowMode).toBe("cache");
-		expect(joinScheduleDay(stored([1, 2], "cache"), 0, new Map([[1, state(LIVE, 1, "2026-09-06T00:00:00.000Z")]]), new Map(), new Date("2026-09-07T12:00:00Z")).windowMode).toBe("active");
+		expect(joinScheduleDay(stored([1, 2], "cache"), 0, new Map([[1, row(LIVE, 1, "2026-09-06T00:00:00.000Z")]]), new Map(), new Date("2026-09-07T12:00:00Z")).windowMode).toBe("active");
 	});
 
 	it("S150 AC 6 rising: a state change raises the served version, and a dropped game's version in the served base keeps it from falling", () =>
 	{
 		const now = new Date("2026-09-08T12:00:00Z");
-		const before = joinScheduleDay(stored([1, 2]), 0, new Map([[1, state(FINAL, 2, "2026-09-06T03:00:00.000Z")], [2, state(FINAL, 5, "2026-09-06T03:00:00.000Z")]]), new Map(), now);
-		const changed = joinScheduleDay(stored([1, 2]), 0, new Map([[1, state(FINAL, 3, "2026-09-07T03:00:00.000Z")], [2, state(FINAL, 5, "2026-09-06T03:00:00.000Z")]]), new Map(), now);
+		const before = joinScheduleDay(stored([1, 2]), 0, new Map([[1, row(FINAL, 2, "2026-09-06T03:00:00.000Z")], [2, row(FINAL, 5, "2026-09-06T03:00:00.000Z")]]), new Map(), now);
+		const changed = joinScheduleDay(stored([1, 2]), 0, new Map([[1, row(FINAL, 3, "2026-09-07T03:00:00.000Z")], [2, row(FINAL, 5, "2026-09-06T03:00:00.000Z")]]), new Map(), now);
 		expect(changed.version).toBeGreaterThan(before.version);
 		// Game 2 dropped: the day is rewritten (version + 1) and its served base raised by game 2's state version.
 		const dropped = joinScheduleDay({
 			...stored([1]),
 			version: 5,
-		}, 5, new Map([[1, state(FINAL, 3, "2026-09-07T03:00:00.000Z")]]), new Map(), now);
+		}, 5, new Map([[1, row(FINAL, 3, "2026-09-07T03:00:00.000Z")]]), new Map(), now);
 		expect(dropped.version).toBeGreaterThan(changed.version);
 	});
 
@@ -371,5 +416,132 @@ describe("joinScheduleDay (S150 AC 6)", () =>
 		});
 		expect(day.games[0]).toEqual(storedGame(1));
 		expect(day.games[0]).not.toHaveProperty("status");
+	});
+
+	it("S150 AC 5 listing: a postponed or suspended listing keeps its own status beside the game (listingStatus), no other does", () =>
+	{
+		const SUSPENDED = {
+			abstractGameState: "Live",
+			codedGameState: "U",
+			detailedState: "Suspended",
+		};
+		const day = toStoredScheduleDay({
+			date: "2026-09-05",
+			games: [POSTPONED, SUSPENDED, LIVE, FINAL, SCHEDULED].map((status, i) => ({
+				...storedGame(i + 1),
+				status,
+				linescore: linescore(1, 0),
+				live: null,
+			})),
+		});
+		expect(day.games.map((game) => game.listingStatus ?? null)).toEqual([POSTPONED, SUSPENDED, null, null, null]);
+		expect(day.games.every((game) => !("status" in game) && !("linescore" in game) && !("live" in game))).toBe(true);
+	});
+
+	it("S150 AC 6 old-shape day: a day stored before S150, its games still carrying their own status, serves a postponed or suspended game that moved away as postponed or suspended", () =>
+	{
+		const now = new Date("2026-09-08T12:00:00Z");
+		const oldShape = (status: GameState["status"]) => ({
+			...stored([1]),
+			games: [{
+				...storedGame(1),
+				status,
+				linescore: linescore(0, 0),
+				live: null,
+			}],
+		}) as unknown as StoredScheduleDay;
+		const madeUp = new Map([[1, row(FINAL, 4, "2026-09-07T03:00:00.000Z", 6, "2026-09-06")]]);
+		expect(joinScheduleDay(oldShape(POSTPONED), 0, madeUp, new Map(), now).games[0]).toMatchObject({
+			status: POSTPONED,
+			linescore: null,
+		});
+		// A game the old day stored in any other status takes the row's state, as before.
+		expect(joinScheduleDay(oldShape(SCHEDULED), 0, madeUp, new Map(), now).games[0]?.status).toEqual(FINAL);
+		// The old field is never served beside the joined one.
+		expect(Object.keys(joinScheduleDay(oldShape(POSTPONED), 0, madeUp, new Map(), now).games[0]!)).not.toContain("listingStatus");
+	});
+
+	it("S150 AC 6 listing with no row: a listing that kept its own status and whose game has no row is served with that status", () =>
+	{
+		const day = joinScheduleDay({
+			...stored([1]),
+			games: [{
+				...storedGame(1),
+				listingStatus: POSTPONED,
+			}],
+		}, 0, new Map(), new Map([[1, {
+			status: FINAL,
+			linescore: linescore(3, 2),
+			live: null,
+		}]]), new Date("2026-09-08T12:00:00Z"));
+		expect(day.games[0]).toMatchObject({
+			status: POSTPONED,
+			linescore: null,
+		});
+	});
+
+	it("S150 AC 6 suspended original day: served suspended, with the row's linescore while the row is still suspended and none once it isn't", () =>
+	{
+		const SUSPENDED = {
+			abstractGameState: "Live",
+			codedGameState: "U",
+			detailedState: "Suspended",
+		};
+		const listing: StoredScheduleDay = {
+			...stored([1]),
+			games: [{
+				...storedGame(1),
+				listingStatus: SUSPENDED,
+			}],
+		};
+		const now = new Date("2026-09-08T12:00:00Z");
+		const awaiting = joinScheduleDay(listing, 0, new Map([[1, row(SUSPENDED, 3, "2026-09-06T03:00:00.000Z", 4, "2026-09-07")]]), new Map(), now);
+		expect(awaiting.games[0]).toMatchObject({
+			status: SUSPENDED,
+			live: null,
+		});
+		expect(awaiting.games[0]?.linescore?.teams.home.runs).toBe(4);
+		const resumed = joinScheduleDay(listing, 0, new Map([[1, row(FINAL, 5, "2026-09-07T23:00:00.000Z", 6, "2026-09-07")]]), new Map(), now);
+		expect(resumed.games[0]).toMatchObject({
+			status: SUSPENDED,
+			linescore: null,
+		});
+		expect(listingMovedAway(listing.games[0]!, {
+			officialDate: "2026-09-07",
+		}, listing.date)).toBe(true);
+		expect(listingMovedAway(listing.games[0]!, {
+			officialDate: listing.date,
+		}, listing.date)).toBe(false);
+		expect(listingMovedAway(storedGame(1), {
+			officialDate: "2026-09-07",
+		}, listing.date)).toBe(false);
+		expect(listingMovedAway(listing.games[0]!, undefined, listing.date)).toBe(false);
+	});
+
+	it("S150 AC 6 makeup: a listing whose game now belongs to another day is served with its own postponed status; on the game's own day, the row's", () =>
+	{
+		const now = new Date("2026-09-08T12:00:00Z");
+		const postponedListing: StoredScheduleDay = {
+			...stored([1]),
+			games: [{
+				...storedGame(1),
+				listingStatus: POSTPONED,
+			}],
+		};
+		// The game was made up on 2026-09-06: its row is final there.
+		const madeUp = new Map([[1, row(FINAL, 4, "2026-09-07T03:00:00.000Z", 6, "2026-09-06")]]);
+		const original = joinScheduleDay(postponedListing, 0, madeUp, new Map(), now);
+		expect(original.games[0]).toMatchObject({
+			status: POSTPONED,
+			linescore: null,
+			live: null,
+		});
+		// The row's version still counts, so the day's version only rises.
+		expect(original.version).toBe(4 + 4);
+		expect(original.windowMode).toBe("cache");
+		// While the game still belongs to this day (postponed, not yet made up), the row is served.
+		const inPlace = joinScheduleDay(postponedListing, 0, new Map([[1, row(LIVE, 2, "2026-09-05T23:30:00.000Z", 2)]]), new Map(), now);
+		expect(inPlace.games[0]?.status).toEqual(LIVE);
+		expect(inPlace.games[0]?.linescore?.teams.home.runs).toBe(2);
 	});
 });

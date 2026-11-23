@@ -24,11 +24,11 @@ import { FakeDurableStorage } from "./fake-durable-storage.js";
 import { GameIngest } from "./game-ingest.js";
 import type { GameStateWrite } from "./game-state.js";
 import {
-	readScheduleDay, readServedGame, servedGame, switchGameState,
+	readJoinedScheduleDay, readScheduleDay, readServedGame, servedGame, switchGameState,
 } from "./game-state.js";
 import type { IngestDeps } from "./ingest.js";
 import {
-	getOrRefreshGame, getOrRefreshSchedule, ingestGame, storeSchedule, tickIngest,
+	getOrRefreshGame, getOrRefreshSchedule, ingestGame, refreshTodaysWindow, storeSchedule, tickIngest,
 } from "./ingest.js";
 import { liveFixtureAt, scheduleMomentsAt } from "./live-fixture.js";
 import { LiveHubState } from "./live-hub.js";
@@ -407,13 +407,16 @@ describe("both writers hand over every poll (S150 AC 5)", () =>
 	it("S150 AC 5 unchanged day: a stored day that doesn't change still hands over a postponement", async () =>
 	{
 		const deps = memoryDeps();
-		await storeSchedule(deps, fetchedDay([await summary(SCHEDULED, 0)], BEFORE));
-		const stored = await deps.schedules.getByDate(DATE);
-		const postponed = await summary(POSTPONED, 0);
-		const day = await storeSchedule(deps, fetchedDay([{
-			...postponed,
+		const postponed = {
+			...await summary(POSTPONED, 0),
 			linescore: null,
-		}], new Date("2026-09-05T13:00:00Z")));
+		};
+		await storeSchedule(deps, fetchedDay([postponed], new Date("2026-09-05T13:00:00Z")));
+		const stored = await deps.schedules.getByDate(DATE);
+		// The row moves away from the postponement without the stored day changing (as another writer could leave it).
+		await one(deps, write("schedule", gameStateFromSummary(await summary(SCHEDULED, 0))), new Date("2026-09-05T13:30:00Z"));
+		expect((await deps.gameStates.getByPk(PK))?.state.status.codedGameState).toBe("S");
+		const day = await storeSchedule(deps, fetchedDay([postponed], new Date("2026-09-05T14:00:00Z")));
 		expect((await deps.schedules.getByDate(DATE))?.version).toBe(stored?.version);
 		expect(day.games[0]?.status.codedGameState).toBe("D");
 		expect((await deps.gameStates.getByPk(PK))?.state.status.codedGameState).toBe("D");
@@ -633,6 +636,171 @@ describe("readers use the one stored state (S150 AC 6)", () =>
 		const second = (await readScheduleDay(deps, DATE, AFTER))!;
 		expect(homeRuns(first.games[0])).toBe(5);
 		expect(first.games[0]?.status).toEqual(second.games[0]?.status);
+	});
+
+	it("S150 AC 6 makeup: a game postponed on one day and made up on another, refreshed in either order: the makeup day has its state, the original day shows Postponed, and the original day's refresh never changes the row", async () =>
+	{
+		const MAKEUP = "2026-09-06";
+		const listing = async (date: string, status: ScheduleGameSummary["status"], home: number) => ({
+			...await summary(status, home),
+			gameDate: date,
+			officialDate: date,
+			startTime: date === DATE ? START : "2026-09-06T17:05:00.000Z",
+		});
+		const original = async (at: Date) => storeSchedule(deps, fetchedDay([{
+			...await listing(DATE, POSTPONED, 0),
+			linescore: null,
+		}], at));
+		const makeup = async (status: ScheduleGameSummary["status"], home: number, at: Date) => storeSchedule(deps, fetchedDay([await listing(MAKEUP, status, home)], at, MAKEUP));
+		const morning = new Date("2026-09-05T12:00:00Z");
+		const later = new Date("2026-09-08T12:00:00Z");
+		let deps = memoryDeps();
+		for (const order of ["original first", "makeup first"])
+		{
+			deps = memoryDeps();
+			if (order === "original first")
+			{
+				await original(morning);
+				await makeup(SCHEDULED, 0, new Date(morning.getTime() + 60_000));
+			}
+			else
+			{
+				await makeup(SCHEDULED, 0, morning);
+				await original(new Date(morning.getTime() + 60_000));
+			}
+			expect((await deps.gameStates.getByPk(PK))?.officialDate, order).toBe(MAKEUP);
+			await makeup(FINAL, 6, later);
+			const row = (await deps.gameStates.getByPk(PK))!;
+			// The original day's refresh, after the makeup, leaves the row alone.
+			await original(new Date(later.getTime() + 60_000));
+			expect(await deps.gameStates.getByPk(PK), order).toEqual(row);
+			const madeUp = (await readScheduleDay(deps, MAKEUP, later))!;
+			expect([madeUp.games[0]?.status.codedGameState, homeRuns(madeUp.games[0])], order).toEqual(["F", 6]);
+			const postponed = (await readScheduleDay(deps, DATE, later))!;
+			expect([postponed.games[0]?.status.codedGameState, homeRuns(postponed.games[0])], order).toEqual(["D", null]);
+		}
+	});
+
+	/** The fixture game listed on `date` at `status` (first pitch 23:05Z that day unless given), as that day's schedule fetch returns it. */
+	async function listedOn(date: string, status: ScheduleGameSummary["status"], home: number | null = 0, startTime = `${date}T23:05:00.000Z`): Promise<ScheduleGameSummary>
+	{
+		const row = await summary(status, home ?? 0);
+		return {
+			...row,
+			gameDate: date,
+			officialDate: date,
+			startTime,
+			linescore: home === null ? null : row.linescore,
+		};
+	}
+
+	/** Stores `date`'s schedule listing the fixture game at `status`, fetched at `at`. */
+	async function listOn(deps: ReturnType<typeof memoryDeps>, date: string, status: ScheduleGameSummary["status"], at: Date, home: number | null = 0, startTime?: string)
+	{
+		return storeSchedule(deps, fetchedDay([await listedOn(date, status, home, startTime)], at, date));
+	}
+
+	const SUSPENDED = {
+		abstractGameState: "Live",
+		codedGameState: "U",
+		detailedState: "Suspended",
+	};
+
+	it("S150 AC 4 moved earlier: a game MLB moves to an earlier day takes that day's listing, and its feed then writes it", async () =>
+	{
+		const deps = memoryDeps();
+		await listOn(deps, "2026-09-06", SCHEDULED, new Date("2026-09-05T10:00:00Z"));
+		// MLB moves it a day earlier, to 2026-09-05 at 23:05Z.
+		await listOn(deps, DATE, SCHEDULED, new Date("2026-09-05T12:00:00Z"));
+		expect((await deps.gameStates.getByPk(PK))?.officialDate).toBe(DATE);
+		await ingestGame(deps, {
+			...await feedGame(LIVE, 2),
+			startTime: START,
+			fetchedAt: IN.toISOString(),
+			windowMode: "active",
+		}, IN.toISOString());
+		expect(await deps.gameStates.getByPk(PK)).toMatchObject({
+			source: "feed",
+			state: {
+				status: LIVE,
+			},
+		});
+	});
+
+	it("S150 AC 4 moved later: a game MLB moves to a later day with no postponement takes that day's listing", async () =>
+	{
+		const deps = memoryDeps();
+		await listOn(deps, DATE, SCHEDULED, new Date("2026-09-05T10:00:00Z"));
+		await listOn(deps, "2026-09-06", SCHEDULED, new Date("2026-09-05T12:00:00Z"));
+		expect(await deps.gameStates.getByPk(PK)).toMatchObject({
+			officialDate: "2026-09-06",
+			startTime: "2026-09-06T23:05:00.000Z",
+		});
+	});
+
+	it("S150 AC 4 postponed again: a makeup postponed in its turn keeps the row, and the first day's listing never flips it back", async () =>
+	{
+		const deps = memoryDeps();
+		const morning = new Date("2026-09-05T10:00:00Z");
+		await listOn(deps, DATE, POSTPONED, morning, null);
+		await listOn(deps, "2026-09-06", SCHEDULED, new Date(morning.getTime() + 60_000));
+		await listOn(deps, "2026-09-06", POSTPONED, new Date("2026-09-06T12:00:00Z"), null);
+		const row = (await deps.gameStates.getByPk(PK))!;
+		expect([row.officialDate, row.state.status.codedGameState]).toEqual(["2026-09-06", "D"]);
+		for (const at of ["2026-09-06T12:01:00Z", "2026-09-06T12:02:00Z"])
+		{
+			await listOn(deps, DATE, POSTPONED, new Date(at), null);
+			expect(await deps.gameStates.getByPk(PK)).toEqual(row);
+		}
+		expect((await readScheduleDay(deps, DATE, new Date("2026-09-06T12:03:00Z")))?.games[0]?.status.codedGameState).toBe("D");
+		expect((await readScheduleDay(deps, "2026-09-06", new Date("2026-09-06T12:03:00Z")))?.games[0]?.status.codedGameState).toBe("D");
+	});
+
+	it("S150 AC 4 suspended with its own resumption date: the resumption's listing takes the row, and the original day's never flips it back", async () =>
+	{
+		const deps = memoryDeps();
+		const later = new Date("2026-09-08T12:00:00Z");
+		await listOn(deps, DATE, SUSPENDED, later, 3);
+		await listOn(deps, "2026-09-07", SUSPENDED, new Date(later.getTime() + 60_000), 3);
+		const row = (await deps.gameStates.getByPk(PK))!;
+		expect(row.officialDate).toBe("2026-09-07");
+		for (const minute of [2, 3])
+		{
+			await listOn(deps, DATE, SUSPENDED, new Date(later.getTime() + minute * 60_000), 3);
+			expect(await deps.gameStates.getByPk(PK)).toEqual(row);
+		}
+	});
+
+	it("S150 AC 6 suspended original day: once the game has moved to another day, the cron counts the original day settled and stops asking MLB for it", async () =>
+	{
+		const deps = memoryDeps();
+		// Suspended late on 2026-09-05, resumed at 1:05pm ET on 2026-09-06 under its own date, and final by 5pm ET (the
+		// original day's six suspended hours long past, so the schedule owns the row).
+		const resumed = "2026-09-06T17:05:00.000Z";
+		await listOn(deps, DATE, SUSPENDED, new Date("2026-09-06T05:00:00Z"), 3);
+		await listOn(deps, "2026-09-06", FINAL, new Date("2026-09-06T21:00:00Z"), 5, resumed);
+		const now = new Date("2026-09-06T21:30:00Z");
+		// The original day stored out of its window, as the fetch that finds it out of window stores it.
+		await listOn(deps, DATE, SUSPENDED, now, 3);
+		await deps.schedules.upsert({
+			...(await deps.schedules.getByDate(DATE))!,
+			windowMode: "cache",
+			version: (await deps.schedules.getByDate(DATE))!.version + 1,
+		});
+		const held = (await readJoinedScheduleDay(deps, DATE, now))!;
+		expect(held.served.games[0]).toMatchObject({
+			status: SUSPENDED,
+			linescore: null,
+		});
+		expect([...held.moved]).toEqual([PK]);
+		const asked: string[] = [];
+		deps.mlb.fetchSchedule = async (date: string) =>
+		{
+			asked.push(date);
+			return fetchedDay([await listedOn("2026-09-06", FINAL, 5, resumed)], now, date);
+		};
+		await refreshTodaysWindow(deps, now);
+		expect(asked).toEqual(["2026-09-06"]);
 	});
 
 	it("S150 AC 6 window: a day stored active whose joined games are all final past their trails is served cache and goes stale on the cache ladder", async () =>

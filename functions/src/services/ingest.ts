@@ -400,8 +400,9 @@ export async function refreshTodaysWindow(
 	// The stored day's own `windowMode` says whether it was last stored out of its window; its games' statuses are the
 	// joined day's (S150 AC 6), since the stored day has none.
 	const held = await readJoinedScheduleDay(deps, dayBefore, now);
-	// Read without `withSuspendedAt`: a day listing a suspended game is never settled (`isSettledGame`), so its time can't matter here.
-	const dayBeforeDone = held !== null && held.stored.windowMode === "cache" && isScheduleDaySettled(held.served, date)
+	// Read without `withSuspendedAt`: a day listing a suspended game is settled only once the game has moved to another
+	// day (`held.moved`), whose own listing then carries its window, so its suspension time can't matter here.
+	const dayBeforeDone = held !== null && held.stored.windowMode === "cache" && isScheduleDaySettled(held.served, date, held.moved)
 		&& !held.served.games.some((g) => isGameInActiveWindow(g, now, params));
 	if (!dayBeforeDone)
 	{

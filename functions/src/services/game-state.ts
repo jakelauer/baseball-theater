@@ -9,7 +9,8 @@ import type {
 	CadenceParams, GameSnapshot, GameState, GameStateRow, GameStateSource, ScheduleDay, StoredScheduleDay, Unversioned,
 } from "@bt/domain";
 import {
-	addDays, DEFAULT_CADENCE, gameStateFromGame, gameStateSource, isSuspendedStatus, joinScheduleDay, mlbToday, scheduleWindowMode, stampVersion, suspendedSince,
+	addDays, DEFAULT_CADENCE, gameStateFromGame, gameStateSource, isOtherDaysListing, isSuspendedStatus, joinScheduleDay, listingMovedAway, mlbToday, scheduleWindowMode,
+	stampVersion, suspendedSince,
 } from "@bt/domain";
 import type {
 	GameRepository, GameStateRepository, ScheduleRepository,
@@ -46,13 +47,15 @@ export type SwitchOutcome = {
 /**
  * The switch's decision for one write against its game's stored row (`row`, null when there is none): the row to
  * write, or why nothing is written. A game with no row takes its first state from either source; otherwise
- * `gameStateSource` alone decides whose the row is, and a state from the other source is dropped. A feed state older
+ * `gameStateSource` alone decides whose the row is, and a state from the other source is dropped. Another day's
+ * postponed or suspended listing of the game is dropped too (`isOtherDaysListing`: a postponed game's original day once
+ * its makeup day holds the row; that day serves its own status, `joinScheduleDay`). A feed state older
  * than the row's accepted feed time is skipped (a stale copy of the feed). The state is stamped with `stampVersion`,
  * so an unchanged state isn't a new version; a changed official date or first pitch with an unchanged state is one,
  * since the window the switch reads moved; and an unchanged feed poll with a newer feed time is written with the stored
  * state itself, so the repository takes it as the same state and moves only the accepted feed time.
  */
-function decide(row: GameStateRow | null, write: GameStateWrite, now: Date): GameStateRow | "otherSource" | "staleFeed" | "unchanged"
+function decide(row: GameStateRow | null, write: GameStateWrite, now: Date): GameStateRow | "otherSource" | "otherDaysListing" | "staleFeed" | "unchanged"
 {
 	const startTime = write.startTime ?? null;
 	const may = gameStateSource(row, {
@@ -61,6 +64,12 @@ function decide(row: GameStateRow | null, write: GameStateWrite, now: Date): Gam
 		startTime,
 	}, now);
 	if (row !== null && may !== write.source) return "otherSource";
+	// Another day's postponed or suspended listing of the game, not its state (`isOtherDaysListing`): it never changes the
+	// row, so the two days' refreshes can't flip it; that day shows its own status (`joinScheduleDay`).
+	if (row !== null && write.source === "schedule" && isOtherDaysListing(row, {
+		state: write.state,
+		officialDate: write.officialDate,
+	})) return "otherDaysListing";
 	const feedTime = write.source === "feed" ? write.feedTime ?? null : null;
 	if (row?.feedTime && feedTime !== null && feedTime < row.feedTime) return "staleFeed";
 
@@ -169,15 +178,17 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
  * `GameRepository.getStateFields` reads, all such games in one read), or as scheduled. Its `windowMode` is
  * `scheduleDayWindowMode` of the joined games, which judges a suspended game from when BT saw it suspended.
  * The stored day is returned too, since its own `fetchedAt` and `lastChangedAt` (its schedule data) are what the day
- * read's refresh judges.
+ * read's refresh judges, and so are the gamePks of the listings served as this day's because their games moved to
+ * another day (`listingMovedAway`), which the day's settledness counts as settled (`isScheduleDaySettled`).
  */
 export async function readJoinedScheduleDay(deps: GameStateDeps, date: string, now: Date): Promise<{ stored: StoredScheduleDay;
-	served: ScheduleDay; } | null>
+	served: ScheduleDay;
+	moved: ReadonlySet<number>; } | null>
 {
 	const held = await deps.schedules.getWithServedBase(date);
 	if (!held) return null;
 	const gamePks = held.day.games.map((game) => game.gamePk);
-	const rows = new Map((await deps.gameStates.getMany(gamePks)).map((row) => [row.gamePk, row.state]));
+	const rows = new Map((await deps.gameStates.getMany(gamePks)).map((row) => [row.gamePk, row]));
 	const missing = gamePks.filter((pk) => !rows.has(pk));
 	const fallbacks = new Map<number, Unversioned<GameState>>(missing.length === 0
 		? []
@@ -190,6 +201,7 @@ export async function readJoinedScheduleDay(deps: GameStateDeps, date: string, n
 			...served,
 			windowMode: await scheduleDayWindowMode(deps, served, now),
 		},
+		moved: new Set(held.day.games.filter((game) => listingMovedAway(game, rows.get(game.gamePk), date)).map((game) => game.gamePk)),
 	};
 }
 

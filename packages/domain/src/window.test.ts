@@ -8,6 +8,7 @@ import {
 	isFinalStatus,
 	isGameInActiveWindow,
 	isLiveStatus,
+	isPostponedStatus,
 	isSuspendedStatus,
 	normalizeStatusCode,
 	scheduleWindowMode,
@@ -49,6 +50,16 @@ describe("isLiveStatus", () =>
 		expect(isLiveStatus("S")).toBe(false);
 		expect(isLiveStatus("F")).toBe(false);
 		expect(isLiveStatus("X")).toBe(false);
+	});
+});
+
+describe("isPostponedStatus", () =>
+{
+	it("is true for MLB's postponed code alone (S150)", () =>
+	{
+		expect(isPostponedStatus("D")).toBe(true);
+		expect(isPostponedStatus("d")).toBe(true);
+		for (const code of ["S", "P", "I", "T", "U", "F", "O", "C", "X", ""]) expect(isPostponedStatus(code)).toBe(false);
 	});
 });
 

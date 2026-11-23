@@ -13,9 +13,9 @@ import type { ReplayPatchEntry } from "@bt/mlb-api";
 
 /**
  * Stored schedule days (S150 AC 5: `StoredScheduleDay`, no game's status, linescore or live moment, which
- * `GameStateRepository` holds). Beside each day's document is its `served_base` (S150 AC 6), a counter of this
- * database's own, outside the document so it isn't hashed: the served day's version adds it, so dropping a game from a
- * day never lowers that version. An adapter reads the games' state versions itself, from the same store as
+ * `GameStateRepository` holds; a postponed or suspended listing keeps its own status as `listingStatus`). Beside each
+ * day's document is its `served_base` (S150 AC 6), a counter of this database's own, outside the document so it isn't
+ * hashed: the served day's version adds it, so dropping a game from a day never lowers that version. An adapter reads the games' state versions itself, from the same store as
  * `GameStateRepository`.
  */
 export interface ScheduleRepository {

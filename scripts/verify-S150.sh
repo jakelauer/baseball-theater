@@ -115,6 +115,10 @@ for field in status linescore live; do
   grep -E '^export type StoredScheduleGame = Omit<ScheduleGameSummary, ' "$DOMAIN" 2>/dev/null | grep -q "\"$field\"" ||
     bad 5 "StoredScheduleGame does not leave out $field"
 done
+# Nor adds any of them back under its own name: a postponed or suspended listing keeps its status as a separately
+# named field (listingStatus, owner, 2026-11-23: "Original day: Postponed (Recommended)"), never as status.
+awk '/^export type StoredScheduleGame = /,/^};?$/' "$DOMAIN" 2>/dev/null | grep -nE '^[[:space:]]*(status|linescore|live)\??:' >"$TMP/stored-fields.txt"
+[ -s "$TMP/stored-fields.txt" ] && bad 5 "StoredScheduleGame declares a field game_states holds: $(tr '\n' ' ' <"$TMP/stored-fields.txt")"
 awk '/^export async function storeSchedule\(/,/^}/' functions/src/services/ingest.ts | grep -q 'switchGameState' || bad 5 "storeSchedule does not call switchGameState"
 awk '/^async function storeGame\(|^export async function storeGame\(/,/^}/' functions/src/services/ingest.ts | grep -q 'switchGameState' || bad 5 "storeGame does not call switchGameState"
 [ -n "$(story_own_changed_files S150 "$BASE" fixtures)" ] && bad 5 "the story changes fixtures/: $(story_own_changed_files S150 "$BASE" fixtures | tr '\n' ' ')"

@@ -106,6 +106,12 @@ export function isSuspendedStatus(code: string): boolean
 	return statusKind(code) === "suspended";
 }
 
+/** Whether a game is postponed (MLB's `D`, #72): it won't be played on its day, and may be made up on another. */
+export function isPostponedStatus(code: string): boolean
+{
+	return statusKind(code) === "postponed";
+}
+
 /** Whether a game looks live: in progress, or suspended (which shows what happened so far, #79). */
 export function isLiveStatus(code: string): boolean
 {

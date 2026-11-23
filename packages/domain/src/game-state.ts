@@ -16,7 +16,7 @@ import type {
 import type { Unversioned, VersionStamp } from "./versioning.js";
 import type { CadenceParams } from "./window.js";
 import {
-	DEFAULT_CADENCE, isGameInActiveWindow, isLiveStatus, scheduleWindowMode,
+	DEFAULT_CADENCE, isGameInActiveWindow, isLiveStatus, isPostponedStatus, isSuspendedStatus, scheduleWindowMode,
 } from "./window.js";
 
 /**
@@ -57,8 +57,15 @@ export type FetchedGame = {
 	feedTime?: string;
 };
 
-/** A scoreboard game as a stored day keeps it (S150 AC 5): everything but the shared state, which `game_states` holds. */
-export type StoredScheduleGame = Omit<ScheduleGameSummary, "status" | "linescore" | "live">;
+/**
+ * A scoreboard game as a stored day keeps it (S150 AC 5): everything but the shared state, which `game_states` holds.
+ * A postponed or suspended listing also keeps its own status as `listingStatus` (owner, 2026-11-23, on a postponed game
+ * made up on a later day: "Original day: Postponed (Recommended)"), which `joinScheduleDay` serves when the game has
+ * since moved to another day; it is never named `status`, which only the game's row holds.
+ */
+export type StoredScheduleGame = Omit<ScheduleGameSummary, "status" | "linescore" | "live"> & {
+	listingStatus?: ScheduleGameSummary["status"];
+};
 
 /**
  * A schedule day as `schedule_days` stores it (S150 AC 5): which games, their start times, probable pitchers,
@@ -69,14 +76,23 @@ export type StoredScheduleDay = Omit<ScheduleDay, "games"> & {
 	games: StoredScheduleGame[];
 };
 
-/** A fetched day as it is stored: each game without its status, linescore and live moment. */
+/**
+ * A fetched day as it is stored: each game without its status, linescore and live moment, a postponed or suspended
+ * listing keeping its status as `listingStatus` (`StoredScheduleGame`). It is kept for every such listing, since the
+ * listing alone can't say whether its game will be made up elsewhere; the join decides when to serve it.
+ */
 export function toStoredScheduleDay<T extends Pick<ScheduleDay, "games">>(day: T): Omit<T, "games"> & { games: StoredScheduleGame[] }
 {
 	return {
 		...day,
 		games: day.games.map(({
-			status: _status, linescore: _linescore, live: _live, ...game
-		}) => game),
+			status, linescore: _linescore, live: _live, ...game
+		}) => isPostponedStatus(status.codedGameState) || isSuspendedStatus(status.codedGameState)
+			? {
+				...game,
+				listingStatus: status,
+			}
+			: game),
 	};
 }
 
@@ -186,6 +202,47 @@ export function gameStateSource(row: GameStateClock | null, incoming: GameStateC
 	}, now, params) ? "feed" : "schedule";
 }
 
+/**
+ * Whether a stored listing is served with its own postponed or suspended status because its game has moved to another
+ * day (S150 AC 6): it kept one (`listingStatus`), the game has a row, and the row's official date isn't the listing's
+ * day. The join serves such a listing as that day's (`joinScheduleDay`), and a day whose other games are all settled
+ * counts as settled with it (`isScheduleDaySettled`), since what is left of the game is the other day's.
+ */
+export function listingMovedAway(game: Pick<StoredScheduleGame, "listingStatus">, row: Pick<GameStateRow, "officialDate"> | undefined, date: string): boolean
+{
+	return listingStatusOf(game) !== undefined && row !== undefined && row.officialDate !== date;
+}
+
+/**
+ * A stored listing's own postponed or suspended status: its `listingStatus`, or, for a game a day stored before S150
+ * (whose games still carry their own `status`, which the stored type no longer names), that status when it is
+ * postponed or suspended. Such days are re-stored in the new shape by their next refresh; until then a postponed
+ * game's original day would otherwise serve its makeup's state.
+ */
+function listingStatusOf(game: Pick<StoredScheduleGame, "listingStatus">): ScheduleGameSummary["status"] | undefined
+{
+	if (game.listingStatus) return game.listingStatus;
+	const old = (game as { status?: ScheduleGameSummary["status"] }).status;
+	return old && (isPostponedStatus(old.codedGameState) || isSuspendedStatus(old.codedGameState)) ? old : undefined;
+}
+
+/**
+ * Whether a schedule write is another day's listing of the game rather than the game's state (S150 AC 4), so it never
+ * changes the row: the listing is itself postponed or suspended, its official date isn't the row's, and either the row
+ * isn't postponed or suspended (the game is now listed to be played, or played, on the row's day) or the listing's date
+ * is earlier than the row's (the game was postponed or suspended again on a later day, which holds it now). So a
+ * postponed or suspended game's original day never takes the row back from its makeup or resumption day (owner,
+ * 2026-11-23: "Original day: Postponed (Recommended)"), while a game MLB simply moves, earlier or later, takes its new
+ * day's listing, and a makeup's or resumption's own listing takes over a row its original day wrote. The one case it
+ * doesn't settle, MLB keeping the original official date on both listings, is #439.
+ */
+export function isOtherDaysListing(row: Pick<GameStateClock, "state" | "officialDate">, incoming: Pick<GameStateClock, "state" | "officialDate">): boolean
+{
+	const setAside = (code: string) => isPostponedStatus(code) || isSuspendedStatus(code);
+	return setAside(incoming.state.status.codedGameState) && incoming.officialDate !== row.officialDate
+		&& (!setAside(row.state.status.codedGameState) || incoming.officialDate < row.officialDate);
+}
+
 /** A game BT has no state for: scheduled, with no score. */
 const SCHEDULED: Unversioned<GameState> = {
 	status: {
@@ -202,6 +259,18 @@ const SCHEDULED: Unversioned<GameState> = {
  * is served with `fallbacks`' state for it (what its stored snapshot holds, `gameStateFromGame`), or as scheduled
  * with no score when BT has neither.
  *
+ * A listing with its own postponed or suspended status (`listingStatus`, or the old-shape status of a day stored
+ * before S150, `listingStatusOf`) is served with that status when its game
+ * has moved to another day (`listingMovedAway`: the row's official date isn't this day's), or has no row at all, so the
+ * original day shows Postponed and only the makeup day shows the game (owner, 2026-11-23: "Original day: Postponed
+ * (Recommended)"). It has no moment, and no linescore except a suspended listing's while the row is still suspended
+ * (the game stopped and not yet resumed, whose score so far is the row's); once the game has resumed or finished, its
+ * score belongs to the day it moved to. Its row's version still counts in the day's version below.
+ *
+ * A limit (#439): the test is the row's official date against the day's date. If MLB keeps a game's original official
+ * date on both listings (as it may for a suspended game resumed on a later day), the row's date never moves, the two
+ * days' listings both write the row, and both days can flip between the listings' states on every refresh.
+ *
  * - `version` is the stored day's version plus `servedBase` (the day's `served_base`, raised by the state version of
  *   each game a refresh drops from it) plus the state versions of the games it lists, so it only rises: a state change
  *   raises it, and a dropped game doesn't lower it.
@@ -214,7 +283,7 @@ const SCHEDULED: Unversioned<GameState> = {
 export function joinScheduleDay(
 	day: StoredScheduleDay,
 	servedBase: number,
-	rows: ReadonlyMap<number, GameState>,
+	rows: ReadonlyMap<number, Pick<GameStateRow, "state" | "officialDate">>,
 	fallbacks: ReadonlyMap<number, Unversioned<GameState>>,
 	now: Date,
 	params: CadenceParams = DEFAULT_CADENCE,
@@ -224,15 +293,24 @@ export function joinScheduleDay(
 	let lastChangedAt = day.lastChangedAt;
 	const games: ScheduleGameSummary[] = day.games.map((game) =>
 	{
+		const { listingStatus: _own, ...listed } = game;
+		const listingStatus = listingStatusOf(game);
 		const row = rows.get(game.gamePk);
 		if (row)
 		{
-			version += row.version;
-			if (Date.parse(row.lastChangedAt) > Date.parse(lastChangedAt)) lastChangedAt = row.lastChangedAt;
+			version += row.state.version;
+			if (Date.parse(row.state.lastChangedAt) > Date.parse(lastChangedAt)) lastChangedAt = row.state.lastChangedAt;
 		}
-		const state = row ?? fallbacks.get(game.gamePk) ?? SCHEDULED;
+		const ownListing = listingStatus && (!row || listingMovedAway(game, row, day.date));
+		const state = ownListing
+			? {
+				status: listingStatus,
+				linescore: isSuspendedStatus(listingStatus.codedGameState) && row && isSuspendedStatus(row.state.status.codedGameState) ? row.state.linescore : null,
+				live: null,
+			}
+			: row?.state ?? fallbacks.get(game.gamePk) ?? SCHEDULED;
 		return {
-			...game,
+			...listed,
 			status: state.status,
 			linescore: state.linescore,
 			live: state.live,

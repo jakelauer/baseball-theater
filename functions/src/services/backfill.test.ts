@@ -38,6 +38,7 @@ import type {
 } from "./backfill.js";
 import { runBackfill } from "./backfill.js";
 import { fileResumeStore } from "./backfill-state.js";
+import { switchGameState } from "./game-state.js";
 import { ingestGame } from "./ingest.js";
 import {
 	OLD_GAP_MS, PoliteFetch, RECENT_GAP_MS,
@@ -387,6 +388,35 @@ describe("runBackfill (S122)", () =>
 		expect(mlb.count("schedule")).toBe(1);
 		expect(mlb.count("feed")).toBe(1);
 
+		mlb.requests.length = 0;
+		await runBackfill(deps(mlb, repos, memoryStore()), JULY);
+		expect(mlb.requests).toEqual([]);
+	});
+
+	it("S150 moved: a day listing a suspended game that has since moved to another day is settled, and isn't asked about again", async () =>
+	{
+		const mlb = new FakeMlb();
+		const suspended = {
+			codedGameState: "U",
+			detailedState: "Suspended",
+			abstractGameState: "Live",
+		};
+		mlb.status = (date, n) => date === "2026-07-10" && n === 1 ? suspended : FINAL;
+		const repos = counted(memoryRepos());
+		// The game's row already belongs to the day it was resumed and finished on.
+		await switchGameState(repos, [{
+			gamePk: pkOf("2026-07-10", 1),
+			source: "schedule",
+			state: {
+				status: FINAL,
+				linescore: null,
+				live: null,
+			},
+			officialDate: "2026-07-11",
+			startTime: "2026-07-11T17:05:00Z",
+		}], NOW());
+		const first = await runBackfill(deps(mlb, repos, memoryStore()), JULY);
+		expect(first.incomplete).toEqual([]);
 		mlb.requests.length = 0;
 		await runBackfill(deps(mlb, repos, memoryStore()), JULY);
 		expect(mlb.requests).toEqual([]);

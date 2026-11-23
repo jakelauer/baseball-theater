@@ -45,7 +45,7 @@ import type {
 	GameEditorial, GameProjectionRepository, GameRepository, GameStateRepository, MlbGameSources, ScheduleRepository,
 } from "@bt/ports";
 import { assembleGame } from "../mappers/game-extras.js";
-import { readScheduleDay, scheduleDayWindowMode } from "./game-state.js";
+import { readJoinedScheduleDay, scheduleDayWindowMode } from "./game-state.js";
 import {
 	ingestGame, repairProjection, storeSchedule,
 } from "./ingest.js";
@@ -244,13 +244,16 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 		// MLB is asked again. An untyped settled day (stored before S167) is asked once here; the
 		// version guard lets its new types through, and it counts as complete whatever MLB sent, or
 		// with its stored games when the request fails.
-		// The joined day (S150 AC 6): each game's status from its one stored state, since the stored day has none.
-		let scheduleDay = await readScheduleDay(deps, day, now);
+		// The joined day (S150 AC 6): each game's status from its one stored state, since the stored day has none; a
+		// listing whose game moved to another day counts as settled (`moved`).
+		let held = await readJoinedScheduleDay(deps, day, now);
+		let scheduleDay = held?.served ?? null;
+		const settled = () => held !== null && isScheduleDaySettled(held.served, today, held.moved);
 		let askedMlb = false;
 		// Games MLB's schedule calls final this run. A game whose one stored state says otherwise (written in play,
 		// and the switch then hands it to the feed, S150) is fetched too, so its feed's final mends it.
 		const fetchedFinals = new Set<number>();
-		if (!scheduleDay || !isScheduleDaySettled(scheduleDay, today) || scheduleDayLacksGameType(scheduleDay))
+		if (!scheduleDay || !settled() || scheduleDayLacksGameType(scheduleDay))
 		{
 			askedMlb = true;
 			try
@@ -262,6 +265,7 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 					fetchedAt: now.toISOString(),
 					windowMode: await scheduleDayWindowMode(deps, fetched, now),
 				});
+				held = await readJoinedScheduleDay(deps, day, now);
 			}
 			catch (error)
 			{
@@ -269,7 +273,7 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 				// Only a missing or unsettled day waits for the next run. A settled day asked only for its
 				// game types (stored before S167) carries on with what is stored, so its finals and any
 				// projection repair still run (S122 AC 4; S167 AC 4: it never holds the run's other work back).
-				if (!scheduleDay || !isScheduleDaySettled(scheduleDay, today))
+				if (!scheduleDay || !settled())
 				{
 					log(`${day}: the schedule fetch or store failed (${reason}); left for the next run`);
 					result.incomplete.push(day);
@@ -328,7 +332,11 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 		}
 		result.gamesStored += stored;
 		// Judged once the day's games are written, since a feed's final can settle a game's state (S150).
-		if (askedMlb && !isScheduleDaySettled(await readScheduleDay(deps, day, now) ?? scheduleDay, today)) complete = false;
+		if (askedMlb)
+		{
+			held = await readJoinedScheduleDay(deps, day, now) ?? held;
+			if (!settled()) complete = false;
+		}
 
 		if (!complete) result.incomplete.push(day);
 		if (!askedMlb && complete && repaired === 0)
