@@ -1314,6 +1314,23 @@ const standingsRecordEntrySchema = z.object({
 	wildCardEliminationNumber: z.string().optional(),
 });
 
+/**
+ * A record group's division (S102). Bare `{ id, link }` unless the request hydrates `division`, which
+ * adds its names ("American League East", "AL East", "ALE") and MLB's bookkeeping about it.
+ */
+const standingsDivisionSchema = mlbLinkSchema.extend({
+	name: z.string().optional(),
+	nameShort: z.string().optional(),
+	abbreviation: z.string().optional(),
+	season: z.string().optional(),
+	league: mlbLinkSchema.optional(),
+	sport: mlbLinkSchema.optional(),
+	hasWildcard: z.boolean().optional(),
+	sortOrder: z.number().optional(),
+	numPlayoffTeams: z.number().optional(),
+	active: z.boolean().optional(),
+});
+
 const standingsResponseSchema = z.object({
 	copyright: z.string().optional(),
 	records: z
@@ -1321,7 +1338,7 @@ const standingsResponseSchema = z.object({
 			z.object({
 				standingsType: z.string().optional(),
 				league: mlbLinkSchema.optional(),
-				division: mlbLinkSchema.optional(),
+				division: standingsDivisionSchema.optional(),
 				sport: mlbLinkSchema.optional(),
 				roundRobin: z.object({
 					status: z.string().optional(),

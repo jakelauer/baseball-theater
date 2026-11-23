@@ -86,7 +86,7 @@ describe("getStandings (S128)", () =>
 			date: "2026-09-05",
 		});
 		expect(teams(table.divisions)).toBe(30);
-		expect(asked).toContain("https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2026&date=2026-09-05&hydrate=team");
+		expect(asked).toContain("https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2026&date=2026-09-05&hydrate=team,division");
 	});
 
 	it("a past date is judged against its own year's and the year before's calendars (2019-11-01: 2019's final table)", async () =>

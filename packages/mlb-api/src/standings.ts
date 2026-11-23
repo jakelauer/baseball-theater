@@ -22,17 +22,36 @@ export interface StandingsResponse {
 /**
  * One division's (or league's) table, as MLB groups them.
  *
- * The group's own refs are bare `{ id, link }` — MLB does not name the
- * division here. The readable name is on each row's `team.division`.
+ * The group's refs are bare `{ id, link }` unless the request hydrates them:
+ * with `hydrate=division` (S102) the division carries its names.
  */
 export interface StandingsRecordGroup {
 	standingsType?: string;
 	league?: MlbLink;
-	division?: MlbLink;
+	division?: StandingsDivisionRef;
 	sport?: MlbLink;
 	roundRobin?: StandingsRoundRobin;
 	lastUpdated?: string;
 	teamRecords?: StandingsRecordEntry[];
+}
+
+/**
+ * A record group's division as `hydrate=division` returns it (S102): its full name
+ * ("American League East"), short name ("AL East") and abbreviation ("ALE"), plus
+ * MLB's bookkeeping. Every name is optional, since an unhydrated request sends
+ * only `{ id, link }`.
+ */
+export interface StandingsDivisionRef extends MlbLink {
+	name?: string;
+	nameShort?: string;
+	abbreviation?: string;
+	season?: string;
+	league?: MlbLink;
+	sport?: MlbLink;
+	hasWildcard?: boolean;
+	sortOrder?: number;
+	numPlayoffTeams?: number;
+	active?: boolean;
 }
 
 /** Postseason round-robin flag; `status` comes back as the string `"false"`. */
