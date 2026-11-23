@@ -210,7 +210,7 @@ importers:
         specifier: ^5
         version: 5.102.8(react@19.2.8)
       dayjs:
-        specifier: ^1
+        specifier: ^1.11.23
         version: 1.11.23
       openapi-fetch:
         specifier: ^0.17.0
@@ -8115,14 +8115,6 @@ snapshots:
     optionalDependencies:
       vite: 6.4.3(@types/node@22.20.1)(sugarss@5.0.1(postcss@8.5.26))(terser@5.51.2)(tsx@4.23.12)(yaml@2.9.0)
 
-  '@vitest/mocker@3.2.7(vite@6.4.3(@types/node@25.9.6)(sugarss@5.0.1(postcss@8.5.26))(terser@5.51.2)(tsx@4.23.12)(yaml@2.9.0))':
-    dependencies:
-      '@vitest/spy': 3.2.7
-      estree-walker: 3.0.3
-      magic-string: 0.30.21
-    optionalDependencies:
-      vite: 6.4.3(@types/node@25.9.6)(sugarss@5.0.1(postcss@8.5.26))(terser@5.51.2)(tsx@4.23.12)(yaml@2.9.0)
-
   '@vitest/pretty-format@3.2.7':
     dependencies:
       tinyrainbow: 2.0.0
@@ -11469,7 +11461,7 @@ snapshots:
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.7
-      '@vitest/mocker': 3.2.7(vite@6.4.3(@types/node@25.9.6)(sugarss@5.0.1(postcss@8.5.26))(terser@5.51.2)(tsx@4.23.12)(yaml@2.9.0))
+      '@vitest/mocker': 3.2.7(vite@6.4.3(@types/node@22.20.1)(sugarss@5.0.1(postcss@8.5.26))(terser@5.51.2)(tsx@4.23.12)(yaml@2.9.0))
       '@vitest/pretty-format': 3.2.7
       '@vitest/runner': 3.2.7
       '@vitest/snapshot': 3.2.7

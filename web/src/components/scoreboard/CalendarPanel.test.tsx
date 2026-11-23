@@ -6,6 +6,7 @@
 import {
 	act, cleanup, fireEvent, screen, waitFor, within,
 } from "@testing-library/react";
+import { onlineManager } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import {
 	afterEach, describe, expect, it, vi,
@@ -24,6 +25,7 @@ afterEach(() =>
 	vi.unstubAllGlobals();
 	vi.useRealTimers();
 	resetSettings();
+	onlineManager.setOnline(true);
 });
 
 const OTHER_A = 111;
@@ -259,6 +261,67 @@ describe("the month grid (S125 AC 2)", () =>
 		fireEvent.contextMenu(day("2026-09-04"));
 		await user.click(day("2026-09-04"));
 		await waitFor(() => expect(path()).toBe("/games/2026-09-04"));
+	});
+
+	it("S125 AC 2: a hold that ends with no click (the finger moved) doesn't swallow the next tap", async () =>
+	{
+		const user = await open({
+			"2026-09": MARKED,
+		}, "/games/2026-09-21", [YANKEES, METS]);
+		await screen.findAllByText("10 gm");
+		fireEvent.touchStart(day("2026-09-04"));
+		await act(async () =>
+		{
+			await new Promise((resolve) => setTimeout(resolve, HOLD_MS + 50));
+		});
+		fireEvent.touchMove(day("2026-09-04"));
+		fireEvent.touchEnd(day("2026-09-04"));
+		await user.click(day("2026-09-10"));
+		await waitFor(() => expect(path()).toBe("/games/2026-09-10"));
+	});
+
+	it("S125 AC 2: offline, a month moved to shows numbers only, not loading bars forever", async () =>
+	{
+		const user = await open({
+			"2026-09": MARKED,
+		});
+		await screen.findAllByText("10 gm");
+		act(() => onlineManager.setOnline(false));
+		await user.click(screen.getByRole("button", {
+			name: "Previous month",
+		}));
+		expect(await screen.findByTestId("day-2026-08-31")).toBeInTheDocument();
+		expect(screen.queryAllByTestId("count-loading")).toHaveLength(0);
+		expect(screen.queryAllByText(/gm$/)).toHaveLength(0);
+		await user.click(day("2026-08-10"));
+		await waitFor(() => expect(path()).toBe("/games/2026-08-10"));
+	});
+
+	it("S125 AC 2: a failed refetch keeps the counts the calendar already has", async () =>
+	{
+		serveCalendar({
+			"2026-09": MARKED,
+		});
+		const user = userEvent.setup();
+		const { client } = renderControl(["/games/2026-09-21"]);
+		await user.click(screen.getByTestId("date-selector"));
+		await screen.findAllByText("10 gm");
+		vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("{}", {
+			status: 500,
+		}))));
+		await act(async () =>
+		{
+			await client.refetchQueries({
+				queryKey: ["schedule-month", "2026-09"],
+			});
+		});
+		expect(client.getQueryState(["schedule-month", "2026-09"])?.status).toBe("error");
+		await act(async () =>
+		{
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(screen.getAllByText("10 gm").length).toBeGreaterThan(0);
+		expect(dayButton("2026-09-28")).toHaveClass(classes.dimmed!);
 	});
 
 	it.each([

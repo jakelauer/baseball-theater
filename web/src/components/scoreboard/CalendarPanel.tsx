@@ -52,12 +52,14 @@ type MonthPhase = "loading" | "games" | "none" | "bare";
 /**
  * The phase A8 draws for a month: `loading` while its counts are on the way; `bare` (bold numbers,
  * nothing dimmed or marked, no message) for a month S124 doesn't answer for, one whose counts
- * failed, and one S136's `monthGamesState` calls unknown; otherwise `games` or `none`.
+ * failed or can't be asked for (`failed`: an error, or a request TanStack paused because the
+ * device is offline), and one S136's `monthGamesState` calls unknown; otherwise `games` or `none`.
+ * Counts already held win over a later failure: a failed background refetch keeps them on screen.
  */
 function monthPhase(answerable: boolean, data: ScheduleMonthPayload | undefined, failed: boolean): MonthPhase
 {
-	if (!answerable || failed) return "bare";
-	if (!data) return "loading";
+	if (!answerable) return "bare";
+	if (!data) return failed ? "bare" : "loading";
 	const state = monthGamesState(data.days);
 	return state === "unknown" ? "bare" : state;
 }
@@ -118,8 +120,10 @@ export function CalendarPanel({
 	const swallowClick = useRef(false);
 	const short = useShortScreen() && container === "sheet";
 	const answerable = scheduleMonthAnswerable(shown);
-	const { data, isError } = useScheduleMonth(shown);
-	const phase = monthPhase(answerable, data, isError);
+	const {
+		data, isError, fetchStatus,
+	} = useScheduleMonth(shown);
+	const phase = monthPhase(answerable, data, isError || fetchStatus === "paused");
 	const latest = latestScheduleMonth(mlbToday(new Date()));
 	const latestYear = Number(latest.slice(0, 4));
 	const shownYear = Number(shown.slice(0, 4));
@@ -160,6 +164,8 @@ export function CalendarPanel({
 
 	function startHold(iso: string, off: FavoriteTeamsOff | null): void
 	{
+		// A new touch starts fresh: an earlier hold whose finger moved off made no click to swallow.
+		swallowClick.current = false;
 		clearTimeout(holdTimer.current);
 		holdTimer.current = setTimeout(() =>
 		{
@@ -172,6 +178,13 @@ export function CalendarPanel({
 	{
 		clearTimeout(holdTimer.current);
 		setHeld(null);
+	}
+
+	/** A finger that moves is no tap: the touch ends with no click, so nothing is left to swallow. */
+	function cancelHold(): void
+	{
+		swallowClick.current = false;
+		endHold();
 	}
 
 	function renderDay(day: Date): ReactNode
@@ -189,7 +202,7 @@ export function CalendarPanel({
 				className={classes.inner}
 				data-testid={`day-${iso}`}
 				onTouchStart={() => startHold(iso, off)}
-				onTouchMove={endHold}
+				onTouchMove={cancelHold}
 				onTouchEnd={endHold}
 				onContextMenu={(event) => event.preventDefault()}
 			>
@@ -271,7 +284,7 @@ export function CalendarPanel({
 			<Box>
 				<Group justify="space-between" wrap="nowrap" mb={4}>
 					<Text component="label" htmlFor="calendar-date-field" size="xs" fw={700} tt="uppercase" c="var(--bt-muted)">Date</Text>
-					{container === "sheet" && <CloseButton size="sm" aria-label="Close calendar" onClick={onClose} data-autofocus />}
+					{container === "sheet" && <CloseButton size="sm" aria-label="Close calendar" onClick={onClose} data-autofocus data-calendar-close />}
 				</Group>
 				<DateInput
 					id="calendar-date-field"
@@ -291,7 +304,15 @@ export function CalendarPanel({
 					{
 						if (event.key === "Enter") commit(event.currentTarget.value);
 					}}
-					onBlur={(event) => commit(event.currentTarget.value)}
+					// Read on blur only when focus moves to another of the calendar's own controls: a
+					// calendar closing (Esc, the ✕, a tap outside, or the sheet handing focus back to the
+					// date button) never goes to a date the fan didn't enter.
+					onBlur={(event) =>
+					{
+						const to = event.relatedTarget;
+						const inside = to instanceof Element && !to.closest("[data-calendar-close]") && event.currentTarget.closest("[data-testid=calendar-panel]")?.contains(to);
+						if (inside) commit(event.currentTarget.value);
+					}}
 				/>
 			</Box>
 			{header}

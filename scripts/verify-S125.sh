@@ -124,6 +124,25 @@ if [ -n "$dates" ]; then
 fi
 grep -qE "^  '?@mantine/dates@7\." pnpm-lock.yaml || bad 4 "pnpm-lock.yaml has no @mantine/dates 7.x package"
 grep -qE "^  '?dayjs@" pnpm-lock.yaml || bad 4 "pnpm-lock.yaml has no dayjs package"
+# Every web dependency's specifier in package.json is the one the lockfile's `web` importer records,
+# so CI's `pnpm install --frozen-lockfile` accepts it (read offline, no install).
+node -e '
+	const fs = require("fs");
+	const pkg = require("./web/package.json");
+	const want = { ...pkg.dependencies, ...pkg.devDependencies };
+	const lines = fs.readFileSync("pnpm-lock.yaml", "utf8").split("\n");
+	const start = lines.indexOf("  web:");
+	const got = {};
+	let name;
+	for (let i = start + 1; i < lines.length && (lines[i].startsWith("    ") || lines[i] === ""); i++) {
+		const dep = /^      (\S.*):$/.exec(lines[i]);
+		if (dep) name = dep[1].replace(/^\x27|\x27$/g, "");
+		const spec = /^        specifier: (.*)$/.exec(lines[i]);
+		if (spec && name) got[name] = spec[1].replace(/^\x27|\x27$/g, "");
+	}
+	const off = Object.keys(want).filter((d) => got[d] !== want[d]);
+	if (start < 0 || off.length) { console.error(off.map((d) => `${d}: package.json ${want[d]}, lockfile ${got[d]}`).join("; ")); process.exit(1); }
+' 2>"$TMP/lock.err" || bad 4 "pnpm-lock.yaml's web importer doesn't match web/package.json ($(cat "$TMP/lock.err")), so pnpm install --frozen-lockfile fails"
 grep -q '@mantine/dates/styles.css' web/src/main.tsx || bad 4 "web/src/main.tsx does not load @mantine/dates/styles.css"
 
 # --- Check 5: no viewport reads outside the layout host ---
@@ -157,7 +176,8 @@ if [ -f "$CONTROL" ]; then
 	grep -q 'useReducedMotion' "$CONTROL" || bad 7 "$CONTROL does not read reduced motion through Mantine's useReducedMotion"
 	grep -q 'Drawer' "$CONTROL" || bad 7 "$CONTROL has no bottom-sheet Drawer for mobile"
 	grep -q 'Popover' "$CONTROL" || bad 7 "$CONTROL has no Popover dropdown for medium and desktop"
-	grep -qE 'variant' "$CONTROL" || bad 7 "$CONTROL does not choose its container from the layout variant"
+	grep -qE 'variant === "mobile"' "$CONTROL" || bad 7 "$CONTROL does not choose its container from the layout variant"
+	grep -qE '<DateControl key=\{date\}[^>]*variant=\{variant\}' web/src/pages/ScoreboardPage.tsx || bad 7 "ScoreboardPage does not key DateControl by the day and pass it the host's variant"
 fi
 grep -q 'useLayoutVariant()' web/src/layout/AppShellLayout.tsx || bad 7 "the layout host no longer reads useLayoutVariant()"
 

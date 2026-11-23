@@ -93,7 +93,8 @@ describe("the typed date (S125 AC 1)", () =>
 		await user.clear(field());
 		await user.type(field(), "9/21/2026");
 		expect(visits()).toEqual(["/games/2026-09-05"]);
-		fireEvent.blur(field());
+		// Leaving the field for another of the calendar's controls reads it.
+		await user.tab();
 		await waitFor(() => expect(visits()).toEqual(["/games/2026-09-05", "/games/2026-09-21"]));
 	});
 
@@ -216,11 +217,68 @@ describe("opening, closing and moving (S125 AC 7)", () =>
 		expect(visits()).toEqual(["/games/2026-09-21"]);
 	});
 
+	it.each(["Esc", "✕", "overlay"] as const)("S125 AC 7: mobile: a typed date never entered doesn't navigate when the sheet closes by %s", async (how) =>
+	{
+		serveCalendar();
+		const user = userEvent.setup();
+		const { visits } = renderControl(["/games/2026-09-21"], "mobile");
+		await openCalendar(user);
+		await user.clear(field());
+		await user.type(field(), "9/25/2026");
+		if (how === "Esc") await user.keyboard("{Escape}");
+		else if (how === "✕") await user.click(screen.getByRole("button", {
+			name: "Close calendar",
+		}));
+		else await user.click(document.querySelector<HTMLElement>(".mantine-Drawer-overlay")!);
+		await waitFor(() => expect(screen.queryByTestId("calendar-panel")).toBeNull());
+		await act(async () =>
+		{
+			await new Promise((resolve) => setTimeout(resolve, 300));
+		});
+		expect(visits()).toEqual(["/games/2026-09-21"]);
+	});
+
+	it.each(["medium", "desktop"] as const)("S125 AC 7: %s: a typed date never entered doesn't navigate on an outside click", async (variant) =>
+	{
+		serveCalendar();
+		const user = userEvent.setup();
+		const { visits } = renderControl(["/games/2026-09-21"], variant);
+		await openCalendar(user);
+		await user.clear(field());
+		await user.type(field(), "9/25/2026");
+		await user.click(screen.getByRole("button", {
+			name: "Outside",
+		}));
+		await waitFor(() => expect(screen.queryByTestId("calendar-panel")).toBeNull());
+		expect(visits()).toEqual(["/games/2026-09-21"]);
+	});
+
+	it("S125 AC 7: the scoreboard gives the calendar its Today: enabled once the default day answers, and it goes there", async () =>
+	{
+		serveCalendar({}, "2026-09-21");
+		const user = userEvent.setup();
+		renderScoreboard(["/games/2026-07-04"]);
+		await screen.findByTestId("date-selector");
+		await openCalendar(user);
+		const today = await screen.findByRole("button", {
+			name: "Today",
+		});
+		await waitFor(() => expect(today).not.toHaveAttribute("data-muted"));
+		await user.click(today);
+		expect(screen.getByLabelText("Month")).toHaveValue("9");
+		await user.click(screen.getByRole("button", {
+			name: "Today",
+		}));
+		await waitFor(() => expect(path()).toBe("/games/2026-09-21"));
+	});
+
 	it("S125 AC 7: Back with the sheet open goes to the previous day, which opening never pushed, and the calendar is closed there", async () =>
 	{
 		serveCalendar();
 		const user = userEvent.setup();
-		renderControl(["/games/2026-09-20", "/games/2026-09-21"], "mobile");
+		// Through the page, so the scoreboard's own `key={date}` on DateControl is what closes it.
+		renderScoreboard(["/games/2026-09-20", "/games/2026-09-21"], "mobile");
+		await screen.findByTestId("date-selector");
 		await openCalendar(user);
 		await user.click(screen.getByRole("button", {
 			name: "Browser back",
@@ -235,7 +293,8 @@ describe("opening, closing and moving (S125 AC 7)", () =>
 	{
 		serveCalendar();
 		const user = userEvent.setup();
-		const { visits } = renderControl(["/games/2026-09-21"], "mobile");
+		const { visits } = renderScoreboard(["/games/2026-09-21"], "mobile");
+		await screen.findByTestId("date-selector");
 		await openCalendar(user);
 		await user.click(await screen.findByTestId("day-2026-09-14"));
 		await waitFor(() => expect(path()).toBe("/games/2026-09-14"));
