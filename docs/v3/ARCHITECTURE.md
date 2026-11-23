@@ -1361,6 +1361,8 @@ Owner, 2026-10-23: *"I need tools to allow a user to delete all of their data, a
 | BT database: settings | favorites, preferences | `deleteFor` | Same |
 | BT database: Patreon link (later) | encrypted refresh token | `deleteFor`, after revoking | Same |
 | Cloud storage: data downloads | the user's export files and their download-request times | `deleteFor` | 14-day R2 lifecycle rule |
+| BT database: game chat (S184) | a fan's questions about a game, BT's answers and their check rounds, and the account's daily question counts (owner, 2026-11-23, asked whether this list should gain a row for BT's store of a fan's chat questions and answers and one for the AI provider that receives each question: *"Yes, add both rows (Recommended)"*, the option reading *"Both rows go in; the provider row's retention is filled from the chosen provider's terms when S177 picks it."*) | `deleteFor` | Backups: the Neon restore window |
+| AI provider: game chat (S184) | each question a fan asks, sent with the game's data (same answer as the row above) | — | From the provider S177 picks: its terms, filled in when S177 chooses it |
 | Logto | account, email | `IdentityAdmin.deleteAccount` | Logto's own logs |
 | Cloudflare Email | the address a download-ready email went to | — | Cloudflare's retention; labeled in the manifest when its adapter lands |
 | Patreon | membership, pledge | BT deletes its copy and revokes access | Patreon's records are Patreon's |
