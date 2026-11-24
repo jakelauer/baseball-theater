@@ -139,7 +139,9 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 					away={listed.teams.away.abbreviation ?? ""}
 					home={listed.teams.home.abbreviation ?? ""}
 					officialDate={listed.officialDate}
-					live={phase === "live"}
+					// The status as the cached day lists it (S170's marker reads it, as online).
+					status={listed.status}
+					variant={variant}
 				/>
 				<NoticeSlot notice={marker} flush />
 				<RoomTabs gamePk={listed.gamePk} rooms={roomsForPhase(phase, false)} active={openingRoom(tab, opensFirst, phase, false)} />
@@ -169,7 +171,8 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 				away={game.teams.away.abbreviation}
 				home={game.teams.home.abbreviation}
 				officialDate={game.officialDate}
-				live={phase === "live"}
+				status={game.status}
+				variant={variant}
 			/>
 
 			<NoticeSlot notice={marker} flush />

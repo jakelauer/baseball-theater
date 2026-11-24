@@ -1,6 +1,7 @@
 /**
- * S145 AC 5: `playInningLink` adds the arrow, the spoken `Open play - ` prefix and the play's
- * address to the domain's half-inning words, from plain fields; `videoPlayLink` calls it.
+ * S145 AC 5: `playInningLink` adds the arrow, the spoken name and the play's address to the
+ * domain's half-inning words, from plain fields; `videoPlayLink` calls it. S172 AC 5: the spoken
+ * name starts with the visible words, `Top 6: open play, top of 6th inning` (owner, 2026-11-22).
  */
 import type { AtBat } from "@bt/domain";
 import {
@@ -10,7 +11,7 @@ import { playInningLink, videoPlayLink } from "./playLink.js";
 
 describe("playInningLink (S145)", () =>
 {
-	it("S145 AC 5: Top 6 →, spoken Open play - Top of 6th inning, to the Plays room on the play (id URI-encoded)", () =>
+	it("S145 AC 5: Top 6 →, spoken Top 6: open play, top of 6th inning, to the Plays room on the play (id URI-encoded)", () =>
 	{
 		expect(playInningLink({
 			gamePk: 823823,
@@ -19,7 +20,7 @@ describe("playInningLink (S145)", () =>
 			inning: 6,
 		})).toEqual({
 			label: "Top 6 →",
-			name: "Open play - Top of 6th inning",
+			name: "Top 6: open play, top of 6th inning",
 			to: "/game/823823/plays?play=abc",
 		});
 		expect(playInningLink({
@@ -29,7 +30,7 @@ describe("playInningLink (S145)", () =>
 			inning: 3,
 		})).toEqual({
 			label: "Bot 3 →",
-			name: "Open play - Bottom of 3rd inning",
+			name: "Bot 3: open play, bottom of 3rd inning",
 			to: "/game/1/plays?play=a%20b%2Fc%3Fd",
 		});
 		expect(playInningLink({
@@ -38,6 +39,19 @@ describe("playInningLink (S145)", () =>
 			halfInning: "top",
 			inning: 10,
 		}).label).toBe("Top 10 →");
+	});
+
+	it("S172 AC 5: the spoken name is the visible words without the arrow, then 'open play,' and the half-inning spoken", () =>
+	{
+		const name = (halfInning: "top" | "bottom", inning: number) => playInningLink({
+			gamePk: 1,
+			playId: "x",
+			halfInning,
+			inning,
+		}).name;
+		expect(name("top", 6)).toBe("Top 6: open play, top of 6th inning");
+		expect(name("bottom", 10)).toBe("Bot 10: open play, bottom of 10th inning");
+		expect(name("bottom", 1)).toBe("Bot 1: open play, bottom of 1st inning");
 	});
 
 	it("S145 AC 5: videoPlayLink is playInningLink with its at-bat's half-inning; null with no play or an unknown one", () =>
