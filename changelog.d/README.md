@@ -1,6 +1,6 @@
 # Changelog fragments
 
-One file per finished backlog item, `changelog.d/<ID>.md` (S156; backlog rule 16). Nothing per story edits `CHANGELOG.md`: `pnpm changelog:build` assembles it from these files once per release (CLAUDE.md, the release rule's step 4), newest first and grouped by effort, above the history it keeps whole. The format and the assembler are `scripts/backlog-vault/changelog.ts`.
+One file per finished backlog item, `changelog.d/<ID>.md` (S156; backlog rule 16). Nothing per story edits `CHANGELOG.md`: `pnpm changelog:build` assembles it from these files once per release (`.claude/skills/release/SKILL.md`, the release rule's step 4), newest first and grouped by effort, above the history it keeps whole. The format and the assembler are `scripts/backlog-vault/changelog.ts`.
 
 ```markdown
 ---

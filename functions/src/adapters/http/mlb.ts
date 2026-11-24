@@ -15,13 +15,14 @@ import type {
 	GameSnapshot,
 	PlayerProfile,
 	ScheduleDay,
+	SearchFilters,
 	SearchHighlightsPage,
 	SeasonCalendar,
 	StandingsSnapshot,
 	Unversioned,
 } from "@bt/domain";
 import {
-	datesBetween, feedTimeToIso, mlbSearchText, rankHighlightsByImpact,
+	datesBetween, feedTimeToIso, mlbSearchQuery, rankHighlightsByImpact,
 } from "@bt/domain";
 import type { GameContentResponse, GameDiffPatchResponse } from "@bt/mlb-api";
 import {
@@ -101,17 +102,19 @@ export function graphContentRequest(gamePk: number): MlbRequest
 export const SEARCH_PAGE_SIZE = 36;
 
 /**
- * MLB's free-text highlight search (S5; ADR-029): the `search` query on `fastball-gateway.mlb.com`,
- * as the prior site's search page asks it, with `queryType: FREETEXT` (without it MLB reads the words
- * as Film Room filters and refuses them), newest first. `query` goes out as `mlbSearchText` words, so
- * `walk-off` is sent as `walk off`, which MLB matches (a hyphenated word matches nothing). The gateway
+ * MLB's highlight search (S5, S72; ADR-029): the `search` query on `fastball-gateway.mlb.com`, as the
+ * prior site's search page asks it, newest first. Words alone go as `queryType: FREETEXT` (without it MLB
+ * reads the words as Film Room filters and refuses them). With a `date`, `team` or `tag` filter it is
+ * `mlbSearchQuery`'s `STRUCTURED` query instead (`Date`, `TeamId` and `ContentTags` clauses, the words as
+ * `Description ~ [...]`), since MLB's free-text search ignores filters written into it. `query` goes out
+ * as `mlbSearchText` words, so `walk-off` is sent as `walk off`, which MLB matches (a hyphenated word matches nothing). The gateway
  * answers a GET, so this is an `MlbRequest` the client's one sender sends, like
  * `graphContentRequest`. Each clip's `guid` and `playInfo { inning inningHalf gamePk }` are asked for
  * beside its `id` so the recording carries them for S153's inning pill; BT reads only
  * `playInfo.teams` today. `recordSearch` (`services/recorder.ts`) records the same request; it is a
  * library function, with no `pnpm record-fixtures` form yet, so a recording is made by calling it.
  */
-export function searchHighlightsRequest(query: string): MlbRequest
+export function searchHighlightsRequest(query: string, filters: SearchFilters = {}): MlbRequest
 {
 	const graphql = `query Search($queryType: QueryType!, $query: String!, $page: Int, $limit: Int, $languagePreference: LanguagePreference, $contentPreference: ContentPreference) {
 	search(queryType: $queryType, languagePreference: $languagePreference, contentPreference: $contentPreference, limit: $limit, page: $page, query: $query) {
@@ -133,12 +136,14 @@ export function searchHighlightsRequest(query: string): MlbRequest
 		}
 	}
 }`;
+	// Free text, or MLB's filter language once a filter is set (S72): `mlbSearchQuery` is the one rule.
+	const asked = mlbSearchQuery(query, filters);
 	const params = new URLSearchParams({
 		operationName: "Search",
 		query: graphql,
 		variables: JSON.stringify({
-			queryType: "FREETEXT",
-			query: mlbSearchText(query),
+			queryType: asked.queryType,
+			query: asked.query,
 			limit: SEARCH_PAGE_SIZE,
 			page: 0,
 			languagePreference: "EN",
@@ -367,10 +372,13 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		return mapPeople(parsePeopleResponse(await this.getJson(url)));
 	}
 
-	/** MLB's free-text search (S5): rejects when MLB errors or answers something that isn't the search's shape. */
-	async searchHighlights(query: string): Promise<SearchHighlightsPage>
+	/**
+	 * MLB's highlight search (S5, S72): free text, or `mlbSearchQuery`'s filtered `STRUCTURED` query once a
+	 * filter is set; rejects when MLB errors or answers something that isn't the search's shape.
+	 */
+	async searchHighlights(query: string, filters?: SearchFilters): Promise<SearchHighlightsPage>
 	{
-		const { url, headers } = searchHighlightsRequest(query);
+		const { url, headers } = searchHighlightsRequest(query, filters);
 		return mapSearchResults(parseSearchResponse(await this.getJson(url, headers)));
 	}
 

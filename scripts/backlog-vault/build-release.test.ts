@@ -240,7 +240,7 @@ describe("scripts/build-release.sh require <number> (CI's milestone check)", () 
 		expect(r.status).toBe(1);
 		expect(r.output).toBe("");
 		expect(r.stderr).toContain("closed");
-		// A milestone closes when its release is prepared, before it publishes (CLAUDE.md release rule).
+		// A milestone closes when its release is prepared, before it publishes (.claude/skills/release/SKILL.md).
 		expect(r.stderr).toContain("a release already prepared or published");
 	});
 
