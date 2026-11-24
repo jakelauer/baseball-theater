@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	defaultVideoQuality, fileQuality, videoQualities,
+	defaultVideoQuality, fileQuality, rememberedVideoQuality, videoQualities,
 } from "./video-quality.js";
 
 const BASE = "https://mlb-cuts-diamond.mlb.com/FORGE/2026/2026-09/05/68e1ef46-6669f6b0-5b1ac736-csvm-diamondgcp-asset";
@@ -178,5 +178,71 @@ describe("fileQuality", () =>
 		const portraitStreamOnly = cuts.filter((quality) => quality.id !== "portrait_mp4Avc");
 		expect(fileQuality(portraitStreamOnly, byId(cuts, "portrait_hlsCloud"))).toBeUndefined();
 		expect(fileQuality(landscape, undefined)).toBeUndefined();
+	});
+});
+
+describe("rememberedVideoQuality (#416)", () =>
+{
+	const landscape = videoQualities({
+		playbackUrl: MP4,
+		renditions: MLB_RENDITIONS,
+	});
+	const files = landscape.filter((quality) => !quality.hls);
+	const noHigh = landscape.filter((quality) => quality.id !== "highBit");
+	const cuts = videoQualities({
+		playbackUrl: null,
+		renditions: [{
+			name: "hlsCloud",
+			url: "https://darkroom-clips.mlb.com/a.m3u8",
+		}, {
+			name: "mp4Avc",
+			url: "https://darkroom-clips.mlb.com/a.mp4",
+		}, {
+			name: "portrait_hlsCloud",
+			url: "https://darkroom-clips.mlb.com/b.m3u8",
+		}, {
+			name: "portrait_mp4Avc",
+			url: "https://darkroom-clips.mlb.com/b.mp4",
+		}],
+	});
+	const pick = (qualities: typeof landscape, id: string | null) => rememberedVideoQuality(qualities, id, MP4)?.id;
+
+	it("plays the remembered quality when the clip has it", () =>
+	{
+		expect(pick(landscape, "highBit")).toBe("highBit");
+		expect(pick(landscape, "hlsCloud")).toBe("hlsCloud");
+		expect(pick(cuts, "portrait_mp4Avc")).toBe("portrait_mp4Avc");
+	});
+
+	it("else the nearest lower quality the clip has, else the nearest higher", () =>
+	{
+		expect(pick(noHigh, "highBit")).toBe("mp4Avc");
+		expect(pick(landscape.filter((quality) => quality.id !== "mp4Avc"), "mp4Avc")).toBe("highBit");
+		expect(pick(noHigh.filter((quality) => quality.id !== "mp4Avc"), "mp4Avc")).toBe("hlsCloud");
+	});
+
+	it("Auto a clip can't play falls to its cut's sharpest MP4, where a failed hls.js lands too (#415)", () =>
+	{
+		expect(pick(files, "hlsCloud")).toBe("highBit");
+		expect(pick(files, "hlsCloud")).toBe(fileQuality(landscape, landscape.find((quality) => quality.id === "hlsCloud"))?.id);
+		expect(pick(files.filter((quality) => quality.id !== "highBit"), "hlsCloud")).toBe("mp4Avc");
+		expect(rememberedVideoQuality(cuts.filter((quality) => !quality.hls), "portrait_hlsCloud", null)?.id).toBe("portrait_mp4Avc");
+		expect(rememberedVideoQuality(cuts.filter((quality) => !quality.hls), "hlsCloud", null)?.id).toBe("mp4Avc");
+	});
+
+	it("stays within the remembered cut first, and crosses to the other cut only when the clip has none of it", () =>
+	{
+		const portraitStream = cuts.filter((quality) => quality.id !== "portrait_mp4Avc");
+		expect(rememberedVideoQuality(portraitStream, "portrait_mp4Avc", null)?.id).toBe("portrait_hlsCloud");
+		expect(pick(landscape, "portrait_mp4Avc")).toBe("mp4Avc");
+		expect(pick(landscape, "portrait_hlsCloud")).toBe("mp4Avc");
+	});
+
+	it("with no preference, or one it doesn't know, starts where defaultVideoQuality does", () =>
+	{
+		expect(pick(landscape, null)).toBe("mp4Avc");
+		expect(pick(landscape, "default")).toBe("mp4Avc");
+		expect(pick(landscape, "trickplay")).toBe("mp4Avc");
+		expect(rememberedVideoQuality([], "highBit", MP4)).toBeUndefined();
 	});
 });
