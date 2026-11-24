@@ -211,18 +211,35 @@ export async function repairProjection(deps: Pick<IngestDeps, "projections">, sn
 	return true;
 }
 
+/**
+ * Asks MLB for one day's schedule, once, and stores it (`storeSchedule`: its games' states handed to the switch in one
+ * batch, the day written only when it changed, ADR-022), its `windowMode` judged as every stored day's is. Returns the
+ * served day. It fetches no game: the day read (`getOrRefreshSchedule`) needs only this, since a scoreboard is the
+ * schedule's summaries and the games' stored states (#419: hydrating each final game here made a past day's first
+ * read ask MLB for every game's feed in turn, 25–45 s on staging for a 15-game day).
+ */
+async function refreshScheduleDay(deps: IngestDeps, date: string, now: Date): Promise<ScheduleDay>
+{
+	const fetched = await deps.mlb.fetchSchedule(date);
+	return storeSchedule(deps, {
+		...fetched,
+		fetchedAt: now.toISOString(),
+		windowMode: await scheduleDayWindowMode(deps, fetched, now),
+	});
+}
+
+/**
+ * A day's schedule ({@link refreshScheduleDay}) and then each of its games in their window or finished, fetched and
+ * stored one by one: the seed paths' fill (`seed.ts`, `dev-seed.ts`), which want the games stored too. The day read
+ * doesn't use it (#419).
+ */
 export async function ingestScheduleDay(
 	deps: IngestDeps,
 	date: string,
 ): Promise<ScheduleDay>
 {
 	const now = deps.now?.() ?? new Date();
-	const fetched = await deps.mlb.fetchSchedule(date);
-	const day = await storeSchedule(deps, {
-		...fetched,
-		fetchedAt: now.toISOString(),
-		windowMode: await scheduleDayWindowMode(deps, fetched, now),
-	});
+	const day = await refreshScheduleDay(deps, date, now);
 
 	// The joined day (S150 AC 6): each game's status as its one stored state says.
 	for (const summary of await withSuspendedAt(deps, day.date, day.games, now))
@@ -294,7 +311,9 @@ export function needsRefresh(
 /**
  * The day read (`GET /api/v1/schedule`): the served day (S150 AC 6, `readJoinedScheduleDay`), refreshed from MLB first
  * when the stored day is missing or stale (`needsRefresh` on the joined day's `windowMode` and the stored day's own
- * stamps, its schedule data). A game's score is kept current by its writers, not by this refresh.
+ * stamps, its schedule data). A game's score is kept current by its writers, not by this refresh, and the refresh
+ * fetches no game (#419): one schedule request, whatever the day holds. A game is fetched when it is read itself
+ * (`getOrRefreshGame`) or by the cron's window (`tickIngest`).
  */
 export async function getOrRefreshSchedule(
 	deps: IngestDeps,
@@ -313,9 +332,9 @@ export async function getOrRefreshSchedule(
 	}, now, opts?.force ?? false)) return existing.served;
 
 	const refreshed = await runRefresh(deps, `schedule:${date}`, () =>
-		ingestScheduleDay(deps, date),
+		refreshScheduleDay(deps, date, now),
 	);
-	return refreshed ?? existing?.served ?? ingestScheduleDay(deps, date);
+	return refreshed ?? existing?.served ?? refreshScheduleDay(deps, date, now);
 }
 
 /**
