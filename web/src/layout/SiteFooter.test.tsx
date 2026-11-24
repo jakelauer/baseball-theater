@@ -1,6 +1,6 @@
 /**
  * The site footer (S142; shell-scoreboard A14), on its own: A13's Live strip first on a live page
- * (S148), then the two ratified columns of links and a centred "© {year} Baseball Theater". No
+ * (S148), then the two ratified columns of links (S154 adding About, Privacy policy and Terms of use) and a centred "© {year} Baseball Theater". No
  * "Fetched … ago", no "baseball.theater", nothing beyond the list. The session is set directly
  * through `SessionContext`, so each state (signed in, signed out, loading) is exact.
  */
@@ -109,20 +109,37 @@ describe("SiteFooter (S142)", () =>
 		expect(screen.queryByText("Live Data · Active")).toBeNull();
 	});
 
-	it("S142 AC 3: each link's words, href, target and rel are A14's, less S154's three pages", () =>
+	it("S154 AC 4 signed in: each link's words, href, target and rel are A14's, in A14's order, all six", () =>
 	{
 		renderFooter(false);
 		expect(links()).toEqual([
+			["About", "/about", null, null],
 			["Changelog", "/changelog", null, null],
 			["Support & Community", "https://www.reddit.com/r/BaseballTheater/", "_blank", "noopener noreferrer"],
+			["Privacy policy", "/privacy", null, null],
+			["Terms of use", "/terms", null, null],
 			["Your data", "/settings", null, null],
 		]);
-		for (const name of ["About", "Privacy policy", "Terms of use"])
-		{
-			expect(screen.queryByRole("link", {
-				name,
-			})).toBeNull();
-		}
+		// Each column holds its own links: About, Changelog, Support & Community under "Baseball Theater"; the rest under "Legal".
+		const column = (heading: string) => Array.from(screen.getByText(heading).parentElement!.querySelectorAll("a")).map((a) => a.textContent);
+		expect(column("Baseball Theater")).toEqual(["About", "Changelog", "Support & Community"]);
+		expect(column("Legal")).toEqual(["Privacy policy", "Terms of use", "Your data"]);
+	});
+
+	it("S154 AC 4 signed out: 'Legal' holds Privacy policy and Terms of use only, as site-footer-signed-out-mobile draws", () =>
+	{
+		renderFooter(false, {
+			status: "signedOut",
+		});
+		expect(links()).toEqual([
+			["About", "/about", null, null],
+			["Changelog", "/changelog", null, null],
+			["Support & Community", "https://www.reddit.com/r/BaseballTheater/", "_blank", "noopener noreferrer"],
+			["Privacy policy", "/privacy", null, null],
+			["Terms of use", "/terms", null, null],
+		]);
+		const legal = screen.getByText("Legal").parentElement!;
+		expect(Array.from(legal.querySelectorAll("a")).map((a) => [a.textContent, a.getAttribute("href")])).toEqual([["Privacy policy", "/privacy"], ["Terms of use", "/terms"]]);
 	});
 
 	it("S142 AC 3: every link is a Mantine Anchor, so it gets the site-wide hover and focus", () =>
@@ -140,12 +157,12 @@ describe("SiteFooter (S142)", () =>
 	{
 		renderFooter(false);
 		const parts = (el: HTMLElement) => Array.from(el.querySelectorAll("p, a")).map((n) => n.textContent);
-		expect(parts(screen.getByRole("contentinfo"))).toEqual(["Baseball Theater", "Changelog", "Support & Community", "Legal", "Your data", "© 2026 Baseball Theater"]);
-		expect(screen.getByRole("contentinfo")).toHaveTextContent(/^Baseball TheaterChangelogSupport & CommunityLegalYour data© 2026 Baseball Theater$/);
+		expect(parts(screen.getByRole("contentinfo"))).toEqual(["Baseball Theater", "About", "Changelog", "Support & Community", "Legal", "Privacy policy", "Terms of use", "Your data", "© 2026 Baseball Theater"]);
+		expect(screen.getByRole("contentinfo")).toHaveTextContent(/^Baseball TheaterAboutChangelogSupport & CommunityLegalPrivacy policyTerms of useYour data© 2026 Baseball Theater$/);
 		expect(screen.getByRole("contentinfo").querySelector("img, svg")).toBeNull();
 		cleanup();
 		renderFooter(true);
-		expect(screen.getByRole("contentinfo")).toHaveTextContent(/^Live Data · ActiveBaseball TheaterChangelogSupport & CommunityLegalYour data© 2026 Baseball Theater$/);
+		expect(screen.getByRole("contentinfo")).toHaveTextContent(/^Live Data · ActiveBaseball TheaterAboutChangelogSupport & CommunityLegalPrivacy policyTerms of useYour data© 2026 Baseball Theater$/);
 	});
 
 	it("S142 AC 4: the copyright line is last, centred", () =>
@@ -165,7 +182,7 @@ describe("SiteFooter (S142)", () =>
 		})).toHaveAttribute("href", "/settings");
 	});
 
-	it("S142 AC 5 signed out: no 'Your data', and the 'Legal' heading stands alone", () =>
+	it("S142 AC 5 signed out: no 'Your data' (since S154, 'Legal' holds the two policy links alone)", () =>
 	{
 		renderFooter(false, {
 			status: "signedOut",
@@ -174,8 +191,7 @@ describe("SiteFooter (S142)", () =>
 			name: "Your data",
 		})).toBeNull();
 		const legal = screen.getByText("Legal");
-		expect(legal.parentElement?.querySelectorAll("a")).toHaveLength(0);
-		expect(legal.parentElement?.children).toHaveLength(1);
+		expect(legal.parentElement?.querySelectorAll("a")).toHaveLength(2);
 	});
 
 	it("S142 AC 5 loading: while the session loads 'Your data' is left out, so it never flashes", () =>

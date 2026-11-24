@@ -79,6 +79,9 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage.js").then((m) => ({
 const ChangelogPage = lazy(() => import("./pages/ChangelogPage.js").then((m) => ({
 	default: m.ChangelogPage,
 })));
+const LegalPage = lazy(() => import("./pages/LegalPage.js").then((m) => ({
+	default: m.LegalPage,
+})));
 
 /**
  * The routes, each page given the pairing the layout host settled (S60). While a page's
@@ -105,6 +108,10 @@ export function AppRoutes({ variant, setFooter }: { variant: LayoutVariant;
 				<Route path="/search" element={<SearchPage />} />
 				{/* The change log is for everyone, signed in or not (A9, ratified 2026-11-19). */}
 				<Route path="/changelog" element={<ChangelogPage setFooter={setFooter} />} />
+				{/* The footer's pages of words (S154), for everyone, each its own route; static text, so no loading state of their own. */}
+				<Route path="/about" element={<LegalPage page="about" />} />
+				<Route path="/privacy" element={<LegalPage page="privacy" />} />
+				<Route path="/terms" element={<LegalPage page="terms" />} />
 				<Route path="/settings" element={<SignedInOnly setFooter={setFooter}><SettingsPage variant={variant} /></SignedInOnly>} />
 				<Route path={SIGN_IN_CALLBACK_PATH} element={<SignInCallback setFooter={setFooter} />} />
 			</Routes>
