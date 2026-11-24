@@ -1,4 +1,6 @@
-import type { AccountSettings, SeasonPhaseName } from "@bt/domain";
+import type {
+	AccountSettings, SearchFilters, SeasonPhaseName,
+} from "@bt/domain";
 import createClient from "openapi-fetch";
 import { getSessionToken } from "../session/token.js";
 import { STORED_COPY_HEADER, storedCopyTime } from "./freshness.js";
@@ -190,13 +192,22 @@ export async function fetchDigest(date: string)
 	}));
 }
 
-/** Highlight search (S5): MLB's free-text search for `q`, asked through BT. */
-export async function fetchSearchHighlights(q: string)
+/** Highlight search (S5): MLB's free-text search for `q`, asked through BT, narrowed by S72's filters when any is set. */
+export async function fetchSearchHighlights(q: string, filters: SearchFilters = {})
 {
 	return unwrap(await api.GET("/api/v1/search/highlights", {
 		params: {
 			query: {
 				q,
+				...filters.date !== undefined && {
+					date: filters.date,
+				},
+				...filters.teamId !== undefined && {
+					team: filters.teamId,
+				},
+				...filters.tag !== undefined && {
+					tag: filters.tag,
+				},
 			},
 		},
 	}));

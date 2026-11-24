@@ -5,7 +5,7 @@ import type { SettingsRepository } from "@bt/ports";
 import {
 	API_VERSIONS, DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
 	isCalendarMonth, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
-	mlbDayEndsAt, mlbToday, parseAccountSettings, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
+	mlbDayEndsAt, mlbToday, parseAccountSettings, parseSearchFilters, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
 import type { AccountDataDeps } from "../services/account-deletion.js";
 import { deleteAccount } from "../services/account-deletion.js";
@@ -381,10 +381,20 @@ export const API_ROUTER: readonly RouteEntry[] = [
 					hint: `q: at most ${SEARCH_QUERY_MAX_LENGTH} characters`,
 				}));
 			}
+			// S72's optional filters, each MLB's own: a game date, a club's id and a content tag. One that isn't
+			// well formed is refused rather than dropped, so a fan never sees unfiltered results under a chip.
+			const filters = parseSearchFilters((name) => url.searchParams.get(name));
+			if (filters === "invalid")
+			{
+				return noStore(sendError(400, {
+					error: "invalid_filter",
+					hint: "date: YYYY-MM-DD; team: an MLB team id; tag: a content tag such as home-run",
+				}));
+			}
 			let answer;
 			try
 			{
-				answer = await searchHighlights(ctx.ingest.mlb, q);
+				answer = await searchHighlights(ctx.ingest.mlb, q, filters);
 			}
 			catch (error)
 			{
@@ -400,7 +410,7 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			{
 				return noStore(sendError(400, {
 					error: "query_required",
-					hint: "q: the words to search highlights for",
+					hint: "q: the words to search highlights for, or a date, team or tag filter",
 				}));
 			}
 			const response = sendJson(200, "GET /api/v1/search/highlights", answer);

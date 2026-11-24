@@ -216,7 +216,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Highlight search: MLB's free-text search for the words, asked as each search is made, newest first. Each result is a playable clip and its game (teams and date), or no game for a clip MLB ties to none. `total` is MLB's count of every clip it matched; `highlights` is the first page of them, so it may hold fewer. Cached for five minutes. */
+        /** Highlight search: MLB's free-text search for the words, asked as each search is made, newest first; with a `date`, `team` or `tag` filter, MLB's filtered search instead, the words then matched against each clip's description. Each result is a playable clip and its game (teams and date), or no game for a clip MLB ties to none. `total` is MLB's count of every clip it matched; `highlights` is the first page of them, so it may hold fewer. Cached for five minutes. */
         get: operations["searchHighlights"];
         put?: never;
         post?: never;
@@ -1616,8 +1616,14 @@ export interface operations {
     searchHighlights: {
         parameters: {
             query: {
-                /** @description The words to search for, as typed, at most 200 characters (UTF-16 code units, counted after trimming); hyphens are sent to MLB as spaces (`walk-off` searches `walk off`). */
+                /** @description The words to search for, as typed, at most 200 characters (UTF-16 code units, counted after trimming); hyphens are sent to MLB as spaces (`walk-off` searches `walk off`). May be empty when a filter (`date`, `team` or `tag`) is given: a filter alone is a search. */
                 q: string;
+                /** @description Only clips from games on this day, `YYYY-MM-DD` (MLB's `Date` filter). */
+                date?: string;
+                /** @description Only clips from games this club played, by MLB team id (`147` is the Yankees; MLB's `TeamId` filter). */
+                team?: number;
+                /** @description Only clips MLB tags with this kind of play, a lower-case taxonomy slug such as `home-run` (MLB's `ContentTags` filter). */
+                tag?: string;
             };
             header?: never;
             path?: never;
@@ -1634,7 +1640,7 @@ export interface operations {
                     "application/json": components["schemas"]["SearchHighlightsResponse"];
                 };
             };
-            /** @description `q` is missing or holds nothing to search for (`query_required`), or is longer than 200 characters after trimming (`query_too_long`). */
+            /** @description `q` is missing or holds nothing to search for (`query_required`), or is longer than 200 characters after trimming (`query_too_long`), or a filter is malformed (`invalid_filter`). */
             400: {
                 headers: {
                     [name: string]: unknown;
