@@ -53,7 +53,7 @@ import sys
 
 RECORD_VERSION = 1
 RECORD_RE = re.compile(r"<!-- claude-review-record (\{[^\n]*\}) -->\s*\Z")
-RULE_FILES = ["CLAUDE.md", "docs/v3/LOOP.md", ".github/workflows/claude-review.yml", "scripts/claude-review/plan-review.py", "scripts/claude-review/post-review.py"]
+RULE_FILES = ["CLAUDE.md", "docs/v3/LOOP.md", ".claude/skills/release/SKILL.md", ".github/workflows/claude-review.yml", "scripts/claude-review/plan-review.py", "scripts/claude-review/post-review.py"]
 SENSITIVE_PREFIXES = (".github/", ".claude/settings.json", ".cursor/", "scripts/claude-review/", "functions/src/deploy/", "wrangler.jsonc", "web/src/session/")
 SENSITIVE_WORDS = re.compile(r"(^|[/_.-])(auth|oauth|session|sessions|logto|migrations|secret|secrets|account|accounts)([/_.-]|$)", re.I)
 # Paths that could forge or rewrite a review record (see the docstring): reviewed in full on every run.
@@ -213,6 +213,9 @@ ranges you need, and keep your last turn for the JSON answer.
 1. Read CLAUDE.md, then docs/v3/LOOP.md §7 and its "Review-class checklist". The
    checklist is your method: ask each item of every change, and answer it with the
    input that breaks the change or why none can.
+   When the pull request changes release, pull request, push or merge machinery
+   (workflows, scripts/, the release rule), also read docs/v3/LOOP.md §9 and
+   .claude/skills/release/SKILL.md, where CLAUDE.md points for those rules.
 2. Read the diff and pr.json. Read every file in reviewed.txt in full from head/, and
    every caller of anything whose behavior changes (Grep head/).
 3. Read previous-review.json and review-comments.json. Do not repeat a finding already

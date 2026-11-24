@@ -11,6 +11,7 @@ import {
 import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { searchHighlightsRequest } from "../adapters/http/mlb.js";
+import { ROUTE_DESCRIPTIONS } from "../services/openapi.js";
 import {
 	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemorySettingsRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
@@ -151,6 +152,88 @@ describe("GET /api/v1/search/highlights (S5)", () =>
 			query: "nothing recorded",
 			total: 0,
 			highlights: [],
+		});
+	});
+});
+
+describe("GET /api/v1/search/highlights filters (S72)", () =>
+{
+	it("S72 AC 1: accepts optional team and tag (no words needed), answered from MLB's recorded filtered search", async () =>
+	{
+		const response = await get("/api/v1/search/highlights?team=147&tag=home-run");
+		expect(response.status).toBe(200);
+		const body = await response.json() as SearchHighlightsResponse;
+		expect(body.query).toBe("");
+		expect(body.highlights.length).toBeGreaterThanOrEqual(1);
+		expect(body.total).toBeGreaterThanOrEqual(body.highlights.length);
+		// Every clip tied to a game is from a game the Yankees (147) played: MLB's own filter, not a page filter.
+		for (const result of body.highlights)
+		{
+			if (result.game) expect([result.game.awayId, result.game.homeId]).toContain(147);
+		}
+	});
+
+	it("S72 AC 1: passes date, team and tag to the MLB port with the words, and leaves an unfiltered search as S5 asks it", async () =>
+	{
+		const inner = new FixtureMlbStatsClient();
+		const calls: unknown[][] = [];
+		const spy = Object.assign(Object.create(inner) as MlbStatsClient, {
+			searchHighlights: async (...args: unknown[]) =>
+			{
+				calls.push(args);
+				return {
+					total: 0,
+					highlights: [],
+				};
+			},
+		});
+		expect((await get("/api/v1/search/highlights?q=Judge&date=2026-09-14&team=147&tag=home-run", spy)).status).toBe(200);
+		expect((await get("/api/v1/search/highlights?q=walk-off", spy)).status).toBe(200);
+		expect(calls).toEqual([
+			["Judge", {
+				date: "2026-09-14",
+				teamId: 147,
+				tag: "home-run",
+			}],
+			["walk-off"],
+		]);
+	});
+
+	it("S72 AC 1: answers 400 invalid_filter, never cached, for a malformed date, team or tag, and query_required with neither words nor filter", async () =>
+	{
+		for (const bad of ["date=2026-13-40", "team=NYY", "team=0", "tag=Home%20Runs", "tag=a%22%5D"])
+		{
+			const response = await get(`/api/v1/search/highlights?${bad}`);
+			expect(response.status, bad).toBe(400);
+			expect((await response.json() as { error: string }).error).toBe("invalid_filter");
+			expect(response.headers.get("Cache-Control")).toBe("no-store");
+		}
+		expect((await get("/api/v1/search/highlights?q=")).status).toBe(400);
+	});
+
+	it("the spec bounds team as the route does: 999999 is a search, 1000000 a 400 invalid_filter", async () =>
+	{
+		const team = ROUTE_DESCRIPTIONS["GET /api/v1/search/highlights"].parameters.find((parameter) => parameter.name === "team");
+		expect(team?.schema).toMatchObject({
+			minimum: 1,
+			maximum: 999999,
+		});
+		expect((await get("/api/v1/search/highlights?team=999999")).status).toBe(200);
+		const tooBig = await get("/api/v1/search/highlights?team=1000000");
+		expect(tooBig.status).toBe(400);
+		expect((await tooBig.json() as { error: string }).error).toBe("invalid_filter");
+	});
+
+	it("S72 AC 1: a filtered request asks MLB's filter language, the words as a Description clause", () =>
+	{
+		const { url } = searchHighlightsRequest("Judge", {
+			date: "2026-09-14",
+			teamId: 147,
+			tag: "home-run",
+		});
+		expect(JSON.parse(new URL(url).searchParams.get("variables") ?? "{}")).toMatchObject({
+			queryType: "STRUCTURED",
+			query: "Description ~ [\"Judge\"] AND Date = [\"2026-09-14\"] AND TeamId = [147] AND ContentTags = [\"home-run\"] Order By Timestamp DESC",
 		});
 	});
 });

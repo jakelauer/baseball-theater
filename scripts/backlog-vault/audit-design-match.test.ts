@@ -130,6 +130,76 @@ describe("audit.sh story --design-match (rule 22)", () =>
 		expect(ledger).not.toContain("amendments/thing-mobile.png");
 	});
 
+	describe("with a frames.json map (owner, 2026-11-24: \"Change the tool (Recommended)\")", () =>
+	{
+		/** The world plus ratified frames a map can name, and the map itself (frames as docs/v3/visual/ paths). */
+		function mapped(map: unknown): Record<string, string>
+		{
+			const env = world(true);
+			writeFileSync(join(root, "visual/surface/RATIFIED.md"), "Ratified by: owner\n");
+			writeFileSync(join(root, "visual/surface/amendments/A1.md"), "## Frames\n\n- `thing-mobile.png`\n- `page-mobile.png`\n\nRatified by: owner\n");
+			writeFileSync(join(root, "visual/surface/amendments/page-mobile.png"), "page-frame");
+			writeFileSync(join(root, "visual/surface/other-mobile.png"), "other-frame");
+			writeFileSync(join(root, "checks/S900/frames.json"), JSON.stringify(map));
+			return env;
+		}
+
+		it("records a row for each frame a two-frame capture names", () =>
+		{
+			const env = mapped({
+				"thing-mobile.png": ["docs/v3/visual/surface/amendments/page-mobile.png", "docs/v3/visual/surface/other-mobile.png"],
+			});
+			const run = audit(env, ["--design-match", "-"], "Matches both\n");
+			expect(run.stderr).toBe("");
+			expect(run.status).toBe(0);
+			const ledger = written();
+			expect(ledger).toContain(`| \`${join(root, "visual/surface/amendments/page-mobile.png")}\` | \`${sha("page-frame")}\` | \`${join(root, "checks/S900/thing-mobile.png")}\` | \`${sha("capture-bytes")}\` |`);
+			expect(ledger).toContain(`| \`${join(root, "visual/surface/other-mobile.png")}\` | \`${sha("other-frame")}\` | \`${join(root, "checks/S900/thing-mobile.png")}\` |`);
+			expect(ledger).not.toContain("amendments/thing-mobile.png");
+		});
+
+		it("pairs a capture with a differently named frame, and leaves unmapped captures to the same-name rule", () =>
+		{
+			const env = mapped({
+				"about-mobile.png": "docs/v3/visual/surface/amendments/page-mobile.png",
+			});
+			writeFileSync(join(root, "checks/S900/about-mobile.png"), "about-capture");
+			const run = audit(env, ["--design-match", "-"], "Matches\n");
+			expect(run.status).toBe(0);
+			const ledger = written();
+			expect(ledger).toContain(`| \`${join(root, "visual/surface/amendments/page-mobile.png")}\` | \`${sha("page-frame")}\` | \`${join(root, "checks/S900/about-mobile.png")}\` |`);
+			expect(ledger).toContain(`| \`${join(root, "visual/surface/amendments/thing-mobile.png")}\` | \`${sha("frame-bytes")}\` | \`${join(root, "checks/S900/thing-mobile.png")}\` |`);
+		});
+
+		it.each([
+			["outside docs/v3/visual/", "docs/v3/other/x.png", /not under docs\/v3\/visual\//],
+			["escaping it with ..", "docs/v3/visual/../../secret.png", /not under docs\/v3\/visual\//],
+			["a missing file", "docs/v3/visual/surface/amendments/gone-mobile.png", /does not exist/],
+		])("refuses a map entry pointing %s", (_why, path, message) =>
+		{
+			const env = mapped({
+				"thing-mobile.png": [path],
+			});
+			const run = audit(env, ["--design-match", "-"], "Matches\n");
+			expect(run.status).toBe(2);
+			expect(String(run.stderr)).toMatch(message);
+			expect(written()).toBe("");
+		});
+
+		it("refuses a map entry naming a frame only a draft amendment draws", () =>
+		{
+			const env = mapped({
+				"thing-mobile.png": ["docs/v3/visual/surface/amendments/draft-mobile.png"],
+			});
+			writeFileSync(join(root, "visual/surface/amendments/draft-mobile.png"), "draft-frame");
+			writeFileSync(join(root, "visual/surface/amendments/A2.md"), "**Draft** — not yet ratified.\n\n## Frames\n\n- `draft-mobile.png`\n");
+			const run = audit(env, ["--design-match", "-"], "Matches\n");
+			expect(run.status).toBe(2);
+			expect(String(run.stderr)).toMatch(/still a draft/);
+			expect(written()).toBe("");
+		});
+	});
+
 	it("refuses a verdict when the story has no captures", () =>
 	{
 		const env = world(true);

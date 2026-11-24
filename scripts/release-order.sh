@@ -5,7 +5,7 @@
 # deploy. If it still needs to be deployed, it'd need a new release."). Run by the production job of
 # .github/workflows/deploy.yml before anything installs, builds or deploys.
 #
-# Prepared releases wait as drafts (CLAUDE.md release rule), so more than one can exist and the
+# Prepared releases wait as drafts (.claude/skills/release/SKILL.md), so more than one can exist and the
 # owner could publish an older one after a newer one is live. That fails here when:
 #   - the release's tag isn't vMAJOR.MINOR.PATCH;
 #   - another published (non-draft, pre-releases included) vMAJOR.MINOR.PATCH release has the same

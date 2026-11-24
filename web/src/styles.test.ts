@@ -154,6 +154,44 @@ describe("hover feedback", () =>
 		}
 	});
 
+	it("every hover movement runs on its own compositor layer (will-change: transform), so it glides in subpixel steps instead of juddering (#413)", () =>
+	{
+		// Without the hint the browser promotes the element to a layer only once the transition
+		// starts and drops it when it ends, re-rasterising the card or still at each end: the jolt
+		// the owner saw on the card lift and the thumbnail zoom.
+		const layered = new Set(allRules().filter(({ rule, media }) => media === "" && decl(rule, "will-change") === "transform").flatMap(({ rule }) => rule.selectors));
+		const moving = hoverRules.filter((rule) => decl(rule, "transform"));
+		expect(moving.length).toBeGreaterThanOrEqual(3);
+		for (const rule of moving)
+		{
+			for (const selector of rule.selectors) expect(subjects(selector).some((name) => layered.has(name)), selector).toBe(true);
+		}
+	});
+
+	it("reduced motion drops those layers (will-change: auto), since nothing moves there (#413)", () =>
+	{
+		const layered = allRules().filter(({ rule, media }) => media === "" && decl(rule, "will-change") === "transform").flatMap(({ rule }) => rule.selectors);
+		const reset = new Set(reducedRules.filter((rule) => decl(rule, "will-change") === "auto").flatMap((rule) => rule.selectors));
+		expect(layered.length).toBeGreaterThanOrEqual(3);
+		for (const selector of layered) expect(reset.has(selector), selector).toBe(true);
+	});
+
+	it("no transition animates position or size (top/left/margin/width/height/background-size…): movement is transform only (#413)", () =>
+	{
+		const layout = /^(top|left|right|bottom|inset|margin|padding|width|height|min-|max-|background-size|background-position|all$)/;
+		let checked = 0;
+		ROOT.walkDecls(/^transition(-property)?$/, (declaration) =>
+		{
+			for (const part of declaration.value.split(/,\s*/))
+			{
+				const prop = part.trim().split(/\s+/)[0]!;
+				checked++;
+				expect(layout.test(prop), `${declaration.prop}: ${declaration.value}`).toBe(false);
+			}
+		});
+		expect(checked).toBeGreaterThanOrEqual(5);
+	});
+
 	it("a card that lifts keeps a strip under it, so the pointer on its bottom edge doesn't flicker", () =>
 	{
 		const lift = hoverRules.find((rule) => rule.selector === ".bt-card:hover");
