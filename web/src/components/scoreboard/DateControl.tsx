@@ -30,6 +30,19 @@ export interface DateControlProps
 	today: string | undefined;
 	/** Where a day goes; the scoreboard's `/games/<date>` unless a page (S138) gives its own. */
 	dayPath?: (date: string) => string;
+	/**
+	 * What `Today` on today's month does once the calendar has closed, for a page whose today is not
+	 * a day (Standings, S138: its own page with no `date`). Without it, `Today` goes to `today` as a
+	 * pick does (the scoreboard).
+	 */
+	onToday?: () => void;
+	/**
+	 * The page's own address (path and query), for a page whose address can differ from `dayPath` of
+	 * the day shown (Standings, S138: a `?view=`, or a `date` the control can't hold and so reads as
+	 * today). A pick then goes unless it would land on this same address. Without it, a pick of the
+	 * day shown only closes (the scoreboard, whose address is that day's path).
+	 */
+	here?: string;
 }
 
 /**
@@ -50,7 +63,7 @@ export interface DateControlProps
  * filled (owner, 2026-11-10: "It should already be loaded.").
  */
 export function DateControl({
-	date, variant, today, dayPath = scoreboardPath,
+	date, variant, today, dayPath = scoreboardPath, onToday, here,
 }: DateControlProps)
 {
 	const [open, setOpen] = useState(false);
@@ -68,7 +81,7 @@ export function DateControl({
 	function goTo(day: string): void
 	{
 		setOpen(false);
-		if (day !== date) void navigate(dayPath(day));
+		if (here === undefined ? day !== date : dayPath(day) !== here) void navigate(dayPath(day));
 	}
 
 	const panel = (
@@ -78,6 +91,12 @@ export function DateControl({
 			favoriteTeamIds={favoriteTeamIds}
 			container={variant === "mobile" ? "sheet" : "dropdown"}
 			onPick={goTo}
+			isHere={here === undefined ? undefined : (day) => dayPath(day) === here}
+			onToday={onToday && (() =>
+			{
+				setOpen(false);
+				onToday();
+			})}
 			onClose={() => setOpen(false)}
 			open={open}
 		/>

@@ -1314,7 +1314,7 @@ Owner, 2026-10-19: *"I prioritize intuitive code that is highly maintainable, an
 |--------|--------|--------------------|
 | JavaScript before the page is usable | ≤ **200 KB** gzipped | `size-limit` on the build, in `pnpm verify` (deterministic) |
 | Largest Contentful Paint | < **2.5 s** | Lighthouse CI, median of 3–5 runs, in CI |
-| Interaction to Next Paint | < **200 ms** | Lab proxy: Total Blocking Time in Lighthouse CI; real INP from production Web Vitals later |
+| Interaction to Next Paint | < **200 ms** | Lab proxy: Total Blocking Time in Lighthouse CI, failing over 400 ms on the median of 3 runs (owner, 2026-11-24, after the 200 ms limit kept failing on slow CI runners: "Median of several and raise the budget to 400"); real INP from production Web Vitals later |
 | Cumulative Layout Shift | < **0.1** | Lighthouse CI |
 | Render cost of heavy views (Live, Box, scoreboard) | Render counts per update stay at their recorded baseline | React Profiler assertions in tests; absolute times are too noisy to gate |
 
