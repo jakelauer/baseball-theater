@@ -10,7 +10,7 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
 import {
-	CACHE_LIFETIME_FLOOR_MS, isCalendarMonth, latestScheduleMonth, mlbToday, monthComplete,
+	CACHE_LIFETIME_FLOOR_MS, isCalendarMonth, latestScheduleMonth, mlbToday, monthComplete, scheduleMonthVersion,
 } from "@bt/domain";
 import { fetchScheduleMonth, fetchScheduleMonthVersions } from "./client.js";
 import type { components } from "./generated/bt-api.v1.js";
@@ -46,8 +46,10 @@ export function scheduleMonthAnswerable(month: string, now: Date = new Date()): 
 
 /**
  * One year's month versions (S194), shared by every month of the year. Kept for
- * `CACHE_LIFETIME_FLOOR_MS`, as long as the API's edge keeps the answer, so a month the scheduled
- * refresh changed gets its new version, and so its new URL, within about one floor.
+ * `CACHE_LIFETIME_FLOOR_MS`, as long as the API's edge keeps the answer fresh, so a month the
+ * scheduled refresh changed gets its new version, and so its new URL, usually within about a
+ * quarter of an hour: the edge may serve the old versions for the floor plus its
+ * stale-while-revalidate (about ten minutes), and this query keeps them one more floor.
  */
 export function scheduleMonthVersionsQueryOptions(year: string, enabled = true)
 {
@@ -68,19 +70,23 @@ export function scheduleMonthQueryOptions(month: string, version?: string)
 	return queryOptions({
 		queryKey: scheduleMonthKey(month, version),
 		queryFn: (): Promise<ScheduleMonthPayload> => fetchScheduleMonth(month, version),
-		// A versioned answer never changes (its URL names its content), so it never goes stale here: a
-		// new version arrives through the versions query, under a new key. An unversioned month's counts
-		// move only as games are scheduled or postponed, and the API caches it by how long it has gone
-		// unchanged, so five minutes here costs nothing a fan would notice. A month with any day BT
-		// couldn't say (`monthComplete`; a fill that failed, which never has a version) is kept one
-		// minute, as long as the API's edge keeps it and the fill's cooldown lasts, so the calendar asks
-		// again soon rather than holding a month with no game labels for five minutes, without asking on
-		// every focus (#399).
+		// A versioned answer whose content hashes to its version (`scheduleMonthVersion`, the function
+		// the API names it with) never changes, so it never goes stale here: a new version arrives
+		// through the versions query, under a new key. One that doesn't (a read that lagged the write
+		// the version came from, such as Hyperdrive's query cache, which the API keeps only the floor)
+		// is kept like an unversioned month, so it is asked again rather than held until the next
+		// version. An unversioned month's counts move only as games are scheduled or postponed, and
+		// the API caches it by how long it has gone unchanged, so five minutes here costs nothing a fan
+		// would notice. A month with any day BT couldn't say (`monthComplete`; a fill that failed,
+		// which never has a version) is kept one minute, as long as the API's edge keeps it and the
+		// fill's cooldown lasts, so the calendar asks again soon rather than holding a month with no
+		// game labels for five minutes, without asking on every focus (#399).
 		staleTime: (query: { state: { data?: ScheduleMonthPayload } }) =>
 		{
-			if (version !== undefined) return Infinity;
+			const data = query.state.data;
+			if (version !== undefined && data && scheduleMonthVersion(data) === version) return Infinity;
 			// `?.days`: a stand-in answer in a page's tests may carry no days; that is not an unknown month.
-			const days = query.state.data?.days;
+			const days = data?.days;
 			return days && !monthComplete(days) ? 60 * 1000 : 5 * 60 * 1000;
 		},
 		enabled: scheduleMonthAnswerable(month),

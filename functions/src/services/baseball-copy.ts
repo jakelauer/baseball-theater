@@ -10,7 +10,8 @@
  * the deletion log (`retained`) are never read from production and never written to the target,
  * so no fan's row reaches staging, not even for a moment. A table added later is copied only once
  * the manifest labels it `none` and `COPY_RULES` says how its rows are compared; a `none` table with
- * no rule stops the copy before it touches anything.
+ * no rule stops the copy before it touches anything. `COPY_RULES` may also exclude a `none` table
+ * (`neverCopied`): it is listed in the report as skipped, and none of its rows is read or written.
  *
  * It only adds (owner, 2026-11-05: "if I make changes to data and schemas that's different from
  * production, it'll need to have data in staging that isn't present in production"):
@@ -54,6 +55,9 @@
  *   replaces a day, the same statement raises the target's `served_base` by the target's state versions of the games
  *   the new copy no longer lists, so the day's served version (its version plus `served_base` plus its games' state
  *   versions) never falls.
+ * - Schedule month records (`schedule_months`, S194) are never copied (`neverCopied`, `NEVER_COPIED_WHY`): they
+ *   record the target's own refresh checks, so production's would tell the target's refresh that months it never
+ *   checked are fresh.
  *
  * A table a migration production hasn't run touched is skipped whole (owner, 2026-11-13: "I think
  * option b is better"): staging may have reshaped it, and production's rows are in the old shape.
@@ -113,7 +117,8 @@ export function baseballTables(): string[]
  * How each table's rows are compared between the two databases (see the module comment). Every table the manifest
  * labels `none` must have one (`checkCopyRules`), so a table added later can't fall back to comparing two
  * databases' counters. `rebuiltFromGames` assumes the `games` table and a projection per `game_pk`; `stateChangedLater` (S150,
- * `game_states`) is `changedLater` except for a row the target's live feed is writing (see the module comment).
+ * `game_states`) is `changedLater` except for a row the target's live feed is writing (see the module comment);
+ * `neverCopied` (S194, `schedule_months`) reads and writes none of the table's rows.
  */
 export type CopyRule = "changedLater" | "stateChangedLater" | "rebuiltFromGames" | "patchCount" | "neverCopied";
 

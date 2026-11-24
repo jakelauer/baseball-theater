@@ -148,6 +148,28 @@ describe("S194 AC 4 the scheduled refresh", () =>
 		expect(mlb.ranges).toEqual([["2026-01-01", "2026-01-31"], ["2026-02-01", "2026-02-28"]]);
 	});
 
+	it("S194 AC 4 lost claim: a due month another tick claimed between the read and the claim is passed over for the next due one", async () =>
+	{
+		const mlb = new CountingClient();
+		const { ingest } = deps(mlb);
+		const base = ingest.schedules;
+		// The read still lists 2026-01 as due, but its conditional claim is refused, as when another tick won it.
+		ingest.schedules = {
+			getByDate: (date) => base.getByDate(date),
+			getWithServedBase: (date) => base.getWithServedBase(date),
+			listGameCounts: (from, to) => base.listGameCounts(from, to),
+			listScheduleMonthChecks: (from, to) => base.listScheduleMonthChecks(from, to),
+			recordScheduleMonthCheck: (month, at) => base.recordScheduleMonthCheck(month, at),
+			claimScheduleMonth: async (month, at) => month === "2026-01" ? false : base.claimScheduleMonth(month, at),
+			holdScheduleMonth: (month, at) => base.holdScheduleMonth(month, at),
+			upsert: (day) => base.upsert(day),
+		};
+		expect(await refreshDueScheduleMonth(ingest)).toBe("2026-02");
+		expect(mlb.ranges).toEqual([["2026-02-01", "2026-02-28"]]);
+		expect((await record(base, "2026-02"))?.checkedAt).toBe(T0.toISOString());
+		expect(await record(base, "2026-01")).toBeUndefined();
+	});
+
 	it("S194 AC 4 MLB fails: no check is recorded, and the same month isn't asked again inside the lease", async () =>
 	{
 		const mlb = new CountingClient();

@@ -71,7 +71,9 @@ export const SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL = `public, s-maxage=${CACHE_L
  * year or the next is kept 48 hours (ADR-021's cap, which the six-hourly refresh keeps well inside),
  * and a month of an earlier year {@link PAST_YEAR_MONTH_EDGE_TTL_S}, at the edge only (no `max-age`,
  * as ADR-021's standings amendment has it). A version that doesn't match (an old one, or one this
- * isolate can't see yet) is kept only the floor, so a wrong version never holds data long.
+ * isolate can't see yet) gets the versions answer's header: fresh for the floor, then served stale
+ * for `STALE_WHILE_REVALIDATE_S` while it is revalidated, about ten minutes in all, so a wrong
+ * version never holds data long.
  * `today` is MLB's today (`mlbToday`), so at 03:00 UTC on January 1 last year's months still count
  * as the current year.
  */

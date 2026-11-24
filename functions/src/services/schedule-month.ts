@@ -5,8 +5,12 @@
  * window, one read of its month record; a fill adds one MLB range read (week-long requests sent
  * together, #399) and a version-guarded write per day it returns (`storeSchedule`, which reads the
  * stored day first), and answers from what it stored rather than a second count read (#410). Those
- * per-day reads and writes, two database round trips a day, are most of a cold month's time
- * through Hyperdrive.
+ * per-day reads and writes are most of a cold month's time through Hyperdrive: since S150 a day
+ * with games is at least four database round trips (its games' `game_states` read, the stored
+ * day's read, and the served day's read with its games' states, `readScheduleDay`), plus a write
+ * for the states when they changed and one for the day when it changed, and, for today and
+ * yesterday, a game read per suspended game in each window judgement; a state switch that races
+ * another writer adds one more read and write per game.
  *
  * Days inside `scheduleFillWindow` (the current season through December of next year; later
  * months are refused at the route, owner 2026-11-09: "Reject past next year") that BT doesn't

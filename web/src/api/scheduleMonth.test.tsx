@@ -4,7 +4,7 @@
  * that failed) is asked again on the next read, so the calendar doesn't hold a month with no game
  * labels for five minutes. S194 AC 7: the hook asks for a month with its year's version.
  */
-import { CACHE_LIFETIME_FLOOR_MS } from "@bt/domain";
+import { CACHE_LIFETIME_FLOOR_MS, scheduleMonthVersion } from "@bt/domain";
 import {
 	focusManager, onlineManager, QueryClientProvider,
 } from "@tanstack/react-query";
@@ -130,9 +130,10 @@ describe("schedule month freshness (#399)", () =>
 
 /**
  * Serves the versions route with `versions()` (an answer, or a status to fail with, or a thrown
- * network error) and every month with June; returns the month requests' URLs.
+ * network error) and every month with `month()` (June with two games a day unless given); returns
+ * the month requests' URLs.
  */
-function serveVersions(versions: () => Record<string, string> | number | Error): () => URL[]
+function serveVersions(versions: () => Record<string, string> | number | Error, month: () => ScheduleMonthPayload = () => june(2)): () => URL[]
 {
 	const months: URL[] = [];
 	vi.stubGlobal("fetch", vi.fn(async (request: Request) =>
@@ -152,7 +153,7 @@ function serveVersions(versions: () => Record<string, string> | number | Error):
 		if (url.pathname.startsWith("/api/v1/schedule/month/"))
 		{
 			months.push(url);
-			return jsonResponse(june(2));
+			return jsonResponse(month());
 		}
 		return jsonResponse({}, 404);
 	}));
@@ -238,7 +239,9 @@ describe("S194 AC 7 the versioned month (web)", () =>
 		vi.useFakeTimers({
 			toFake: ["Date"],
 		});
-		let version = "abc";
+		// The first version is the hash of what the month answers, so that answer is never asked again.
+		const first = scheduleMonthVersion(june(2));
+		let version = first;
 		const months = serveVersions(() => ({
 			"2026-06": version,
 		}));
@@ -250,16 +253,49 @@ describe("S194 AC 7 the versioned month (web)", () =>
 			focusManager.setFocused(false);
 			focusManager.setFocused(true);
 		});
-		expect(months().map((url) => url.search)).toEqual(["?v=abc"]);
+		expect(months().map((url) => url.search)).toEqual([`?v=${first}`]);
 		vi.setSystemTime(Date.now() + CACHE_LIFETIME_FLOOR_MS + 1000);
 		await act(async () =>
 		{
 			focusManager.setFocused(false);
 			focusManager.setFocused(true);
 		});
-		await vi.waitFor(() => expect(months().map((url) => url.search)).toEqual(["?v=abc", "?v=def"]));
+		await vi.waitFor(() => expect(months().map((url) => url.search)).toEqual([`?v=${first}`, "?v=def"]));
 		// The previous answer for the same month stays meanwhile, never a loading state.
 		expect(hook.result.current.data).toEqual(june(2));
+		focusManager.setFocused(undefined);
+	});
+
+	it("S194 AC 7 mismatched answer: a ?v= answer that doesn't hash to its version is asked again after five minutes", async () =>
+	{
+		vi.useFakeTimers({
+			toFake: ["Date"],
+		});
+		// The versions name the month after a change, but its first ?v= read lagged the write (a query
+		// cache), answering the days from before it.
+		const version = scheduleMonthVersion(june(3));
+		let answer = june(2);
+		const months = serveVersions(() => ({
+			"2026-06": version,
+		}), () => answer);
+		const { hook } = await renderJune();
+		expect(hook.result.current.data).toEqual(june(2));
+		answer = june(3);
+		// Inside five minutes a focus asks nothing again.
+		await act(async () =>
+		{
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+		expect(months().map((url) => url.search)).toEqual([`?v=${version}`]);
+		vi.setSystemTime(Date.now() + 5 * 60 * 1000 + 1000);
+		await act(async () =>
+		{
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+		await vi.waitFor(() => expect(months().map((url) => url.search)).toEqual([`?v=${version}`, `?v=${version}`]));
+		await vi.waitFor(() => expect(hook.result.current.data).toEqual(june(3)));
 		focusManager.setFocused(undefined);
 	});
 

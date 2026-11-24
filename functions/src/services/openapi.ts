@@ -103,7 +103,7 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 				name: "v",
 				in: "query",
 				required: false,
-				description: "The month answer's version, as `GET /api/v1/schedule/month-versions/{year}` gives it. When it matches the answer, the edge keeps that answer 48 hours, or as long as it can for a month of a past year; a version that doesn't match is kept only five minutes. Without it the answer is cached by how long it has gone unchanged.",
+				description: "The month answer's version, as `GET /api/v1/schedule/month-versions/{year}` gives it. When it matches the answer, the edge keeps that answer 48 hours, or as long as it can for a month of a past year; a version that doesn't match is kept about ten minutes at most (five, then five more served stale while it is revalidated). Without it the answer is cached by how long it has gone unchanged.",
 				schema: {
 					type: "string",
 				},

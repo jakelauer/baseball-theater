@@ -312,7 +312,7 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			}
 			// Asked for by version (S194 AC 7): the versions route named this URL, so when the version
 			// matches the answer it names exactly this content and may be kept long, a past year's
-			// longest of all; a version that doesn't match is kept only the floor.
+			// longest of all; a version that doesn't match is kept only the floor (plus the stale window).
 			const version = url.searchParams.get("v");
 			if (version !== null)
 			{

@@ -1093,15 +1093,24 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 		await store(repos, "2026-04-10", games, new Date(T0.getTime() - HOUR));
 		const reader = api(repos);
 		const before = (await versionsOf(reader, 2026)).body.versions["2026-04"];
-		const dayBefore = await repos.schedules.getByDate("2026-04-10");
-		await store(repos, "2026-04-10", games.map((game) => ({
-			...game,
-			status: {
-				...game.status,
-				detailedState: "Warmup",
-			},
-		})), T0);
-		expect((await repos.schedules.getByDate("2026-04-10"))?.lastChangedAt).not.toBe(dayBefore?.lastChangedAt);
+		const storedBefore = await repos.schedules.getByDate("2026-04-10");
+		const servedBefore = await readScheduleDay(repos, "2026-04-10", T0);
+		// Only the scheduled game's state moves (a postponed listing keeps its status on the stored day, S150).
+		await store(repos, "2026-04-10", games.map((game, i) => i === 0
+			? {
+				...game,
+				status: {
+					...game.status,
+					detailedState: "Warmup",
+				},
+			}
+			: game), T0);
+		// Since S150 the state lives in `game_states`: the stored day is untouched, the served day moves.
+		expect((await repos.schedules.getByDate("2026-04-10"))?.version).toBe(storedBefore?.version);
+		const servedAfter = await readScheduleDay(repos, "2026-04-10", T0);
+		expect(servedAfter?.games[0]?.status.detailedState).toBe("Warmup");
+		expect(servedAfter?.lastChangedAt).not.toBe(servedBefore?.lastChangedAt);
+		expect(servedAfter?.version).not.toBe(servedBefore?.version);
 		expect((await versionsOf(reader, 2026)).body.versions["2026-04"]).toBe(before);
 	});
 
