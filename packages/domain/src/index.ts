@@ -19,6 +19,7 @@ export * from "./downloads.js";
 export * from "./fetched-ago.js";
 export * from "./content-hash.js";
 export * from "./game-phase.js";
+export * from "./game-status-marker.js";
 export * from "./pitch-outcome.js";
 export * from "./recap.js";
 export * from "./video-play-links.js";

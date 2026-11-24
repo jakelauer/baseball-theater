@@ -17,6 +17,7 @@ import { formatDate } from "../format/datetime.js";
 import type { SetFooterMode } from "../layout/footerMode.js";
 import { useFooterMode } from "../layout/footerMode.js";
 import type { LayoutVariant } from "../layout/variant.js";
+import { useSavedCopy } from "../pwa/offline.js";
 import { useSettings } from "../settings/store.js";
 
 /**
@@ -86,7 +87,8 @@ export function ScoreboardPage({ variant, setFooter }: { variant: LayoutVariant;
  * One day's scoreboard: the date control, then the day's games as
  * `ScoreboardModule`s — one column on mobile, two on medium and desktop, from the
  * host's `variant` — and the day digest under them (S71), or the loading, empty or
- * error state from `ViewState`. The
+ * error state from `ViewState`. Offline (S74) it draws the day as last stored, and tells the
+ * shell's offline marker its time (`useSavedCopy`). The
  * date control stays through every state so the reader can always move to another day; its
  * calendar's `Today` is the server's default day (S125, shell-scoreboard A8).
  */
@@ -98,12 +100,18 @@ function ScoreboardDay({
 	setFooter?: SetFooterMode; })
 {
 	const {
-		data: day, error, refetch,
+		data: day, error, refetch, dataUpdatedAt,
 	} = useScheduleDay(date);
 	// The digest draws under the games once it answers (or nothing, if it fails), so the footer waits
 	// for both: drawn earlier it would sit under the games and jump when the highlights arrive (S142).
 	// The same query `DayDigest` reads, so asking here adds no request; it only starts it with the day's.
 	const digestPending = useDayDigest(date).isPending;
+	// Offline (S74): the shell's marker names this day's copy, "Scores as of …": a stored copy's own
+	// time, or when this page last got the day.
+	useSavedCopy(day ? {
+		kind: "scores",
+		asOf: day.copyAsOf ?? new Date(dataUpdatedAt).toISOString(),
+	} : null);
 
 	let body;
 	// A failed background refetch keeps the day already shown (S28's one rule: a retired

@@ -6,7 +6,7 @@ import type { Video } from "./VideoCard.js";
 
 /**
  * A video's link to its play (game-shell A6): the inning pill's visible words (`Top 6 →`), the
- * name a screen reader speaks for it (`Open play - Top of 6th inning`), and where it goes.
+ * name a screen reader speaks for it (`Top 6: open play, top of 6th inning`), and where it goes.
  */
 export type PlayLink = {
 	label: string;
@@ -16,10 +16,14 @@ export type PlayLink = {
 
 /**
  * The link to a play from its plain fields (S145; game-shell A6): `Top 6 →`, spoken
- * `Open play - Top of 6th inning` (owner, 2026-11-19), opening the game's Plays room on that play
- * (`?play=<playId>`, game-rooms A6). The one place the arrow, the spoken prefix and the play's
- * address are added (ADR-025): the card and the player get it through `videoPlayLink`, and Search's
- * rows, which have no `AtBat`, call it with their route's fields.
+ * `Top 6: open play, top of 6th inning`, opening the game's Plays room on that play
+ * (`?play=<playId>`, game-rooms A6). The spoken name starts with the visible words, so a reader
+ * who says what they see reaches the pill (WCAG 2.5.3; S172, owner, 2026-11-22: "Start with the
+ * visible words (Recommended)", superseding S145's name, which began "Open play"); the
+ * half-inning after it is `halfInningName` lowercased, as it sits mid-sentence. The one place the
+ * arrow, the spoken name and the play's address are added (ADR-025): the card and both players
+ * get it through `videoPlayLink`, and Search's rows, which have no `AtBat`, call it with their
+ * route's fields.
  */
 export function playInningLink({
 	gamePk, playId, halfInning, inning,
@@ -30,9 +34,10 @@ export function playInningLink({
 		halfInning,
 		inning,
 	};
+	const visible = halfInningLabel(half);
 	return {
-		label: `${halfInningLabel(half)} →`,
-		name: `Open play - ${halfInningName(half)}`,
+		label: `${visible} →`,
+		name: `${visible}: open play, ${halfInningName(half).toLowerCase()}`,
 		to: `/game/${gamePk}/plays?play=${encodeURIComponent(playId)}`,
 	};
 }

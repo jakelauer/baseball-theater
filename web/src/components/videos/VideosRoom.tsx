@@ -217,6 +217,7 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 				fromGamePk={game.gamePk}
 				scoresHidden={scoresHidden}
 				playLink={playing ? videoPlayLink(playing, game) : null}
+				stageGame={game}
 			/>
 			<Text size="xs" fw={700} tt="uppercase">Videos</Text>
 			<TextInput

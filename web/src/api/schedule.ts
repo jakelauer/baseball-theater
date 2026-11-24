@@ -6,6 +6,7 @@ import {
 	queryOptions, useQuery, useQueryClient,
 } from "@tanstack/react-query";
 import type { QueryClient, UseQueryResult } from "@tanstack/react-query";
+import type { StoredCopy } from "./client.js";
 import { fetchSchedule } from "./client.js";
 import { freshnessPolicy, whileVisible } from "./freshness.js";
 import type { components } from "./generated/bt-api.v1.js";
@@ -22,14 +23,15 @@ export function scheduleQueryOptions(date: string)
 {
 	return queryOptions({
 		queryKey: scheduleKey(date),
-		queryFn: (): Promise<ScheduleDayPayload> => fetchSchedule(date),
+		// A copy the worker served from storage carries its time (S74, `StoredCopy`); other answers don't.
+		queryFn: (): Promise<ScheduleDayPayload & StoredCopy> => fetchSchedule(date),
 		staleTime: (query) => freshnessPolicy(query.state.data?.windowMode).staleTime,
 		// Re-ask an in-window day on the live cadence while visible (S20); paused when hidden.
 		refetchInterval: (query) => whileVisible(freshnessPolicy(query.state.data?.windowMode).refetchInterval),
 	});
 }
 
-export function useScheduleDay(date: string): UseQueryResult<ScheduleDayPayload, Error>
+export function useScheduleDay(date: string): UseQueryResult<ScheduleDayPayload & StoredCopy, Error>
 {
 	return useQuery(scheduleQueryOptions(date));
 }
@@ -39,6 +41,23 @@ export function writeScheduleDay(client: QueryClient, day: ScheduleDayPayload): 
 {
 	// The descriptor's key carries the payload type, so a wrong-typed write is a type error.
 	client.setQueryData(scheduleQueryOptions(day.date).queryKey, day);
+}
+
+/**
+ * A game as a day already in the cache lists it, or undefined (S74). Offline, a game never opened
+ * has no game payload, but the scoreboard that led to it does list it: its teams, day and state are
+ * enough for the game page's top bar and room tabs over the empty room (game-rooms A1).
+ */
+export function findScheduledGame(client: QueryClient, gamePk: number): ScheduleDayPayload["games"][number] | undefined
+{
+	for (const [, day] of client.getQueriesData<ScheduleDayPayload>({
+		queryKey: ["schedule"],
+	}))
+	{
+		const game = day?.games.find((g) => g.gamePk === gamePk);
+		if (game) return game;
+	}
+	return undefined;
 }
 
 /** The same writer bound to the mounted client. */

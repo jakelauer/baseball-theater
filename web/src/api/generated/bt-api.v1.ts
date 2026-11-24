@@ -182,7 +182,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The number of games on each day of one month, the teams playing it, and whether it has a regular-season game, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, `teamIds: null` and `regularSeason: null`, distinct from a day with no games (`0`, `[]` and `false`). */
+        /** The number of games on each day of one month, the teams playing it, whether it has a regular-season game and which teams play one, and which teams are in their own regular season that day (worked out from the month's whole year), from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, `teamIds: null`, `regularSeason: null` and `regularSeasonTeamIds: null`, distinct from a day with no games (`0`, `[]`, `false` and `[]`). */
         get: operations["getScheduleMonth"];
         put?: never;
         post?: never;
@@ -216,7 +216,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Highlight search: MLB's free-text search for the words, asked as each search is made, newest first. Each result is a playable clip and its game (teams and date), or no game for a clip MLB ties to none. `total` is MLB's count of every clip it matched; `highlights` is the first page of them, so it may hold fewer. Cached for five minutes. */
+        /** Highlight search: MLB's free-text search for the words, asked as each search is made, newest first; with a `date`, `team` or `tag` filter, MLB's filtered search instead, the words then matched against each clip's description. Each result is a playable clip and its game (teams and date), or no game for a clip MLB ties to none. `total` is MLB's count of every clip it matched; `highlights` is the first page of them, so it may hold fewer. Cached for five minutes. */
         get: operations["searchHighlights"];
         put?: never;
         post?: never;
@@ -755,8 +755,12 @@ export interface components {
             count: number | null;
             /** @description The day, `YYYY-MM-DD`. */
             date: string;
-            /** @description Whether the day has a regular-season game (S167; `dayRegularSeason`), so S125's calendar, through `favoriteTeamsOff` (S159), marks a favorite team's day off only during the regular season. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular season and at least one was stored without a game type (a day stored before S167, until the backfill re-stores it). Per day rather than per game, since the calendar needs only the day's answer and the month answer stays one small, shared, cached response (ADR-021). */
+            /** @description The MLB team IDs in their own regular season that day (S191; `teamsInOwnSeason`): each team whose first regular-season game of the calendar year is on or before the day and whose last is on or after it, worked out from the year's stored days, not only this month's. With it a favorite's off-day mark (`favoriteTeamsOff`) follows that team's own season, so an overseas opener or a tiebreaker day marks no team whose season hasn't started or is already over. `null` when the year's stored days can't tell (a day of the year untyped or not stored where it matters); `favoriteTeamsOff` then keeps S159's per-day rule. Every in-season team is sent, never "a favorite is in season", for the same shared, cached answer (ADR-021). */
+            inSeasonTeamIds: number[] | null;
+            /** @description Whether the day has a regular-season game (S167; `dayRegularSeason`), so S125's calendar, through `favoriteTeamsOff` (S159), marks a favorite team's day off only on a regular-season day. `null` when it can't be told: BT holds no schedule for the day (`count` is `null`), or no game is regular season and at least one was stored without a game type (a day stored before S167, until the backfill re-stores it). Per day rather than per game, since the calendar needs only the day's answer and the month answer stays one small, shared, cached response (ADR-021). */
             regularSeason: boolean | null;
+            /** @description The MLB team IDs of the day's regular-season games (S191; `dayRegularSeasonTeamIds`): away and home of every game whose type is `R`, each once, ascending. `[]` for a stored day with no regular-season game; `null` exactly when `regularSeason` is. */
+            regularSeasonTeamIds: number[] | null;
             /** @description The MLB team IDs playing that day (away and home of every game counted in `count`, each once, ascending; S136), so a client can mark the days a fan's favorites don't play (`favoriteTeamsOff`, S159) without one request per day. `[]` for a stored day with no games; `null` exactly when `count` is. Every team is sent, not "a favorite plays", because favorites are personal and the month answer is one shared, cached response (ADR-021). */
             teamIds: number[] | null;
         };
@@ -1612,8 +1616,14 @@ export interface operations {
     searchHighlights: {
         parameters: {
             query: {
-                /** @description The words to search for, as typed, at most 200 characters (UTF-16 code units, counted after trimming); hyphens are sent to MLB as spaces (`walk-off` searches `walk off`). */
+                /** @description The words to search for, as typed, at most 200 characters (UTF-16 code units, counted after trimming); hyphens are sent to MLB as spaces (`walk-off` searches `walk off`). May be empty when a filter (`date`, `team` or `tag`) is given: a filter alone is a search. */
                 q: string;
+                /** @description Only clips from games on this day, `YYYY-MM-DD` (MLB's `Date` filter). */
+                date?: string;
+                /** @description Only clips from games this club played, by MLB team id (`147` is the Yankees; MLB's `TeamId` filter). */
+                team?: number;
+                /** @description Only clips MLB tags with this kind of play, a lower-case taxonomy slug such as `home-run` (MLB's `ContentTags` filter). */
+                tag?: string;
             };
             header?: never;
             path?: never;
@@ -1630,7 +1640,7 @@ export interface operations {
                     "application/json": components["schemas"]["SearchHighlightsResponse"];
                 };
             };
-            /** @description `q` is missing or holds nothing to search for (`query_required`), or is longer than 200 characters after trimming (`query_too_long`). */
+            /** @description `q` is missing or holds nothing to search for (`query_required`), or is longer than 200 characters after trimming (`query_too_long`), or a filter is malformed (`invalid_filter`). */
             400: {
                 headers: {
                     [name: string]: unknown;

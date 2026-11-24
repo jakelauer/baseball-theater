@@ -4,19 +4,42 @@ import type { VitePWAOptions } from "vite-plugin-pwa";
 export const APP_BACKGROUND = "#10100F";
 
 /**
+ * The `/api/v1/*` GETs the worker keeps the last answer to (S74), as a whole URL (workbox tests a
+ * same-origin route's pattern against `url.href`): every one except `/api/v1/me` and everything
+ * under it (the account, its settings and its export carry personal data, ADR-028), which never
+ * enter Cache Storage. The worker (`sw.ts`) routes this same pattern.
+ */
+export const RUNTIME_CACHED = /^https?:\/\/[^/]+\/api\/v1\/(?!me(?:[/?#]|$))/;
+
+/** Whether the worker keeps the last answer to a GET of `href` (S74): the test reads the same pattern the worker gets. */
+export function isRuntimeCached(href: string): boolean
+{
+	return RUNTIME_CACHED.test(href);
+}
+
+/**
  * The installed app (ADR-023, S73): `vite-plugin-pwa`'s options, kept here so a test can read
  * what `vite.config.ts` builds. The manifest makes it standalone with the flag mark at 192
  * and 512 (`public/icons/`, rendered from `favicon.svg`). The worker registers at scope `/`,
  * so Web Push can attach later without moving it; it precaches the built shell (scripts,
  * styles, the page, icons), and navigations fall back to the page except under `/api/`,
- * whose answers are never precached: BT's data stays fresh and personal data never sits in
- * Cache Storage (ADR-028). It waits rather than taking over (`prompt`), so the app can say
+ * whose answers are never precached. It waits rather than taking over (`prompt`), so the app can say
  * an update is ready (S55) and the reader chooses when to reload.
+ *
+ * Offline reading (S74, ADR-023): the worker is BT's own source, `sw.ts` (`injectManifest`: the
+ * plugin builds it into `/sw.js` and injects the precache list), so law L1's lint reads it and every
+ * cache it keeps comes from `storage/workerCaches.ts`. At runtime it keeps the last answer to each
+ * `/api/v1/*` GET but `/api/v1/me` and below ({@link RUNTIME_CACHED}) in `API_CACHE`, network first,
+ * and answers Periodic Background Sync (`prefetch.ts`). Built as one classic script (`iife`), as
+ * `registerSW` registers it in production.
  */
 export const PWA_OPTIONS: Partial<VitePWAOptions> = {
 	registerType: "prompt",
 	injectRegister: false,
 	scope: "/",
+	strategies: "injectManifest",
+	srcDir: "src/pwa",
+	filename: "sw.ts",
 	manifest: {
 		name: "Baseball Theater",
 		short_name: "Baseball Theater",
@@ -40,9 +63,8 @@ export const PWA_OPTIONS: Partial<VitePWAOptions> = {
 			},
 		],
 	},
-	workbox: {
+	injectManifest: {
 		globPatterns: ["**/*.{js,css,html,svg,png,webmanifest}"],
-		navigateFallback: "/index.html",
-		navigateFallbackDenylist: [/^\/api\//],
+		rollupFormat: "iife",
 	},
 };

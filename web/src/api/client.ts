@@ -1,6 +1,9 @@
-import type { AccountSettings, SeasonPhaseName } from "@bt/domain";
+import type {
+	AccountSettings, SearchFilters, SeasonPhaseName,
+} from "@bt/domain";
 import createClient from "openapi-fetch";
 import { getSessionToken } from "../session/token.js";
+import { STORED_COPY_HEADER, storedCopyTime } from "./freshness.js";
 import type { paths } from "./generated/bt-api.v1.js";
 import { markVersionUnsupported } from "./versionNotice.js";
 
@@ -56,15 +59,38 @@ function unwrap<T>(result: { data?: T;
 	return result.data;
 }
 
+/**
+ * When a copy the service worker served from storage was current (S74): set only on such a copy
+ * (the worker marks it, `STORED_COPY_HEADER`), from its `Date` less its `Age` (`storedCopyTime`), so
+ * the offline marker can date it. A network answer carries none, and is dated by when the page got
+ * it; leaving it off keeps an unchanged poll's answer equal to the last, so nothing re-renders.
+ */
+export interface StoredCopy
+{
+	copyAsOf?: string;
+}
+
+/** `data`, with its {@link StoredCopy} time when `response` is the worker's stored copy. */
+function withStoredCopyTime<T extends object>(data: T, response: Response): T & StoredCopy
+{
+	const copyAsOf = response.headers.has(STORED_COPY_HEADER) ? storedCopyTime(response.headers) : undefined;
+	return copyAsOf === undefined ? data : {
+		...data,
+		copyAsOf,
+	};
+}
+
+/** One day's schedule, with its stored-copy time when the worker answered from storage (S74). */
 export async function fetchSchedule(date: string)
 {
-	return unwrap(await api.GET("/api/v1/schedule", {
+	const result = await api.GET("/api/v1/schedule", {
 		params: {
 			query: {
 				date,
 			},
 		},
-	}));
+	});
+	return withStoredCopyTime(unwrap(result), result.response);
 }
 
 /**
@@ -166,27 +192,38 @@ export async function fetchDigest(date: string)
 	}));
 }
 
-/** Highlight search (S5): MLB's free-text search for `q`, asked through BT. */
-export async function fetchSearchHighlights(q: string)
+/** Highlight search (S5): MLB's free-text search for `q`, asked through BT, narrowed by S72's filters when any is set. */
+export async function fetchSearchHighlights(q: string, filters: SearchFilters = {})
 {
 	return unwrap(await api.GET("/api/v1/search/highlights", {
 		params: {
 			query: {
 				q,
+				...filters.date !== undefined && {
+					date: filters.date,
+				},
+				...filters.teamId !== undefined && {
+					team: filters.teamId,
+				},
+				...filters.tag !== undefined && {
+					tag: filters.tag,
+				},
 			},
 		},
 	}));
 }
 
+/** One game, with its stored-copy time when the worker answered from storage (S74). */
 export async function fetchGame(gamePk: number)
 {
-	return unwrap(await api.GET("/api/v1/games/{gamePk}", {
+	const result = await api.GET("/api/v1/games/{gamePk}", {
 		params: {
 			path: {
 				gamePk,
 			},
 		},
-	}));
+	});
+	return withStoredCopyTime(unwrap(result), result.response);
 }
 
 /**

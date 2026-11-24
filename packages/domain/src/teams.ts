@@ -202,3 +202,12 @@ export const MLB_TEAMS: readonly MlbTeam[] = [
 		fullName: "Washington Nationals",
 	},
 ];
+
+/**
+ * A club's abbreviation ("NYY") by its MLB team id, or `undefined` for an id `MLB_TEAMS` doesn't hold. The one
+ * lookup (ADR-025): each view picks its own fallback (a matchup draws nothing, a filter chip the id).
+ */
+export function teamAbbreviation(teamId: number): string | undefined
+{
+	return MLB_TEAMS.find((team) => team.id === teamId)?.abbreviation;
+}

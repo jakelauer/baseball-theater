@@ -10,7 +10,8 @@
  * Expected differences, not judged (owner, 2026-10-28: "Judge only the story's own
  * parts"): the frames' sample day (Sep 21, NYY @ BOS, LAD @ SD, CHC @ MIL) versus the
  * fixture games, so names, records, scores, times and venue differ, and the live row
- * reads the inning as `inningLabel` writes it (`TOP 3RD`); the right-hand slot (pitchers
+ * reads the inning as `inningShortLabel` writes it (`Top 3`) in its status marker since S170
+ * (game-shell A7; S66's captures predate it); the right-hand slot (pitchers
  * of record, count, win probability) and the scheduled row's probable pitchers are
  * S67's; the "Best of … highlights" digest is not built yet; the start time carries the
  * viewer's zone label (owner, 2026-10-19); the footer's "Fetched … ago" is the real
