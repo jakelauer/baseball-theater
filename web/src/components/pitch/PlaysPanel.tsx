@@ -5,6 +5,7 @@ import {
 import {
 	Accordion, ActionIcon, Badge, Box, Group, Stack, Text, Tooltip, UnstyledButton,
 } from "@mantine/core";
+import { useReducedMotion } from "@mantine/hooks";
 import { IconPlayerPlayFilled } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import {
@@ -189,6 +190,22 @@ export function PlaysPanel({ game }: { game: GamePayload })
 	// clip existed but gave no way to play it (owner, 2026-11-23, #422).
 	const clips = new Map([...videosByAtBat(game.highlights, plays)].map(([index, videos]) => [index, videos[0]!]));
 	const [playing, setPlaying] = useState<Video | null>(null);
+	const reduceMotion = useReducedMotion();
+	// With Video Player set to Stage, the stage plays at the top of the room, which a row far down a
+	// long inning has scrolled out of view: bring it into view, or the button seems to do nothing
+	// (#422). The dialog sits in a portal, outside `host`, so it finds nothing to scroll to.
+	const host = useRef<HTMLDivElement>(null);
+	useEffect(() =>
+	{
+		const stage = playing ? host.current?.querySelector("section") : null;
+		if (!stage) return;
+		const { top } = stage.getBoundingClientRect();
+		if (top >= 0 && top < window.innerHeight) return;
+		stage.scrollIntoView({
+			behavior: reduceMotion ? "auto" : "smooth",
+			block: "start",
+		});
+	}, [playing, reduceMotion]);
 	if (latest === null)
 	{
 		return <Text c="dimmed">No pitch-level play data for this game yet.</Text>;
@@ -228,15 +245,19 @@ export function PlaysPanel({ game }: { game: GamePayload })
 	return (
 		<Stack gap={16}>
 			{/* No waiting first clip (`first`): in Plays the stage shows only once a clip is chosen. */}
-			<PlayerHost
-				video={playing}
-				first={undefined}
-				onClose={() => setPlaying(null)}
-				fromGamePk={game.gamePk}
-				scoresHidden={scoresHidden}
-				playLink={playing ? videoPlayLink(playing, game) : null}
-				stageGame={game}
-			/>
+			<Box ref={host} style={{
+				display: "contents",
+			}}>
+				<PlayerHost
+					video={playing}
+					first={undefined}
+					onClose={() => setPlaying(null)}
+					fromGamePk={game.gamePk}
+					scoresHidden={scoresHidden}
+					playLink={playing ? videoPlayLink(playing, game) : null}
+					stageGame={game}
+				/>
+			</Box>
 			<Linescore linescore={game.linescore} away={away} home={home} hidden={scoresHidden} />
 			<Group align="flex-start" gap={8} wrap="nowrap">
 				<Stack gap={8} style={{
