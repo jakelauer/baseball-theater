@@ -1,8 +1,13 @@
-import { Box } from "@mantine/core";
+import { Box, Stack } from "@mantine/core";
 import { highlightTitle } from "@bt/domain";
 import { useEffect, useRef } from "react";
+import { PlayInningPill } from "./PlayInningPill.js";
 import type { Video } from "./VideoCard.js";
 import { VideoPlayer } from "./VideoPlayer.js";
+import { videoPlayLink } from "./playLink.js";
+
+/** The game whose Videos room holds the stage: what `videoPlayLink` needs to find the clip's play. */
+export type StageGame = Parameters<typeof videoPlayLink>[1];
 
 /**
  * True when an Escape press already belongs to something else: a handler that took it, an
@@ -37,6 +42,15 @@ function escapeTaken(event: KeyboardEvent): boolean
  * is chosen the room's first, waiting. Keyed by clip and by whether it was chosen, so a new
  * choice starts fresh and closing one goes back to waiting even when it was the first.
  *
+ * Above the video, for a clip with a play, sits S145's inning pill (`Top 6 →`) alone on a
+ * row of its own, left-aligned with the video (S172; standings-search-settings A10: the stage
+ * has no top row to hold it; owner, 2026-11-22: "Yes, a row above the video (Recommended)").
+ * The link is built here from the clip the stage shows, so the waiting first clip gets one
+ * too, not only a chosen clip. A clip with no play has no row at all. No game pill: the
+ * stage only plays inside the game it belongs to (A10, Stage player). Choosing the pill
+ * leaves the Videos room for the Plays room, so the stage stops with the room. The inning
+ * carries no score, so Hide Scores leaves the row as it is.
+ *
  * Esc closes a chosen clip (`onClose`), as it does the dialog (#414), from anywhere on the
  * page, the "Search videos" box included (a plain text field that has no use for Esc, except
  * to cancel an IME composition, which `escapeTaken` leaves to the input method). It
@@ -47,18 +61,20 @@ function escapeTaken(event: KeyboardEvent): boolean
  * screen and a second one closes the clip.
  */
 export function PlayerStage({
-	video, autoPlay, scoresHidden = false, onClose,
+	video, autoPlay, scoresHidden = false, game, onClose,
 }: { video: Video;
 	autoPlay: boolean;
 	/** With scores hidden the recap clip is retitled (`highlightTitle`, S75). */
 	scoresHidden?: boolean;
+	/** The room's game, for the clip's inning pill; without it the stage draws no row. */
+	game?: StageGame;
 	/** Closes the chosen clip; Esc calls it while one plays. */
 	onClose?: () => void; })
 {
 	// The latest `onClose`, read at the press: callers pass a fresh arrow each render, and
 	// re-running the effect on it would re-capture `opener` from wherever focus moved since.
 	const close = useRef(onClose);
-	const stage = useRef<HTMLElement>(null);
+	const stage = useRef<HTMLDivElement>(null); // Mantine types Stack's ref as a div even rendered as a section
 	useEffect(() =>
 	{
 		close.current = onClose;
@@ -81,9 +97,18 @@ export function PlayerStage({
 		return () => document.removeEventListener("keydown", onKey);
 	}, [autoPlay, video.id]);
 
+	const link = game ? videoPlayLink(video, game) : null;
 	return (
-		<Box ref={stage} component="section" aria-label="Video player">
+		<Stack ref={stage} component="section" aria-label="Video player" gap={2}>
+			{link ? (
+				<Box data-testid="stage-play-row" style={{
+					display: "flex",
+				}}
+				>
+					<PlayInningPill link={link} testId="stage-play-link" />
+				</Box>
+			) : null}
 			<VideoPlayer key={`${video.id}:${autoPlay}`} video={video} title={highlightTitle(video, scoresHidden)} autoPlay={autoPlay} />
-		</Box>
+		</Stack>
 	);
 }
