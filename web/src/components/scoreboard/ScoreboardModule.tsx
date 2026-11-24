@@ -4,7 +4,7 @@ import {
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import {
-	formatGameTime, gamePhase, inningLabel, probableLine, slotOccupant, teamRecordLabel,
+	formatGameTime, gamePhase, gameStatusMarker, inningShortLabel, probableLine, slotOccupant, teamRecordLabel,
 } from "@bt/domain";
 import type { GamePhase } from "@bt/domain";
 import type { ScheduleDayPayload } from "../../api/schedule.js";
@@ -24,6 +24,15 @@ const SCORED_GRID = "minmax(0, 1fr) repeat(3, 28px)";
 
 /** A scheduled row: each team, then its probable pitcher beside it (shell-scoreboard A16). */
 export const SCHEDULED_GRID = "minmax(0, 1fr) minmax(0, 1fr)";
+
+/**
+ * The least width a delayed start's venue keeps beside the reason, in px (S170): room for "· "
+ * and about eight letters before its ellipsis. With less free beside the reason the venue drops
+ * to a line of its own below (owner, 2026-11-23: "Its own line below (Recommended)"). Set under
+ * the 85px the frames' "Delayed start · Rain" row leaves at 390px, so that row keeps the venue
+ * beside the reason, truncated, as drawn.
+ */
+export const VENUE_MIN_WIDTH = 64;
 
 type Probable = NonNullable<ScoreboardGame["probablePitchers"]>["away"];
 
@@ -50,27 +59,36 @@ const HEAD: CSSProperties = {
 };
 
 /**
- * The top-left status of a module (S31): `FINAL`, the live dot with the inning
- * (`BOT 7`), or the start time in the viewer's zone and the venue. Venue shows on
- * scheduled games only (R8).
+ * The top-left status of a module (S31): `FINAL`, the game status marker (game-shell A7,
+ * S170), or the start time in the viewer's zone and the venue. A live game's marker reads its
+ * inning (`Bot 7`, `LIVE` with none yet), a delayed one keeps its inning (`Delayed · Bot 3`) and
+ * a suspended one names MLB's reason (`Suspended · Rain`); a delayed start takes the start time's
+ * place, before the venue (`Delayed start · Rain · Citi Field`). Venue shows on scheduled games
+ * only (R8). A delayed start's line wraps: its reason takes up to two lines, and the venue stays
+ * beside it while `VENUE_MIN_WIDTH` is free there, truncated, else drops to a line below, so the
+ * row grows (owner, 2026-11-23: "Its own line below (Recommended)"). Other scheduled rows keep
+ * the start time and venue on one line.
  */
 function StatusLine({ game, phase }: { game: ScoreboardGame;
 	phase: GamePhase; })
 {
-	if (phase === "live")
+	const marker = gameStatusMarker(game.status);
+	if (phase === "live" && marker)
 	{
-		return <LiveIndicator label={inningLabel(game.linescore) ?? "LIVE"} />;
+		return <LiveIndicator kind={marker.kind} place="row" reason={marker.reason} inning={inningShortLabel(game.linescore)} />;
 	}
 	if (phase === "final")
 	{
 		return <Text size="xs" fw={700}>FINAL</Text>;
 	}
+	const delayedStart = marker?.kind === "delayedStart";
 	return (
-		<Group gap={6} wrap="nowrap" style={{
+		<Group gap={6} wrap={delayedStart ? "wrap" : "nowrap"} style={{
 			minWidth: 0,
 		}}
 		>
-			{game.startTime ? (
+			{/* The marker keeps a flex item's default (`0 1 auto`) and its own `minWidth: 0`: its text's width while that fits, narrower (wrapped) when not. */}
+			{delayedStart ? <LiveIndicator kind="delayedStart" place="row" reason={marker.reason} /> : game.startTime ? (
 				<Text size="xs" fw={700} c="var(--bt-accent)" style={{
 					whiteSpace: "nowrap",
 				}}
@@ -78,7 +96,11 @@ function StatusLine({ game, phase }: { game: ScoreboardGame;
 					{formatGameTime(game.startTime, viewerTimeZone())}
 				</Text>
 			) : null}
-			{game.venue ? <Text size="xs" truncate>· {game.venue.name}</Text> : null}
+			{game.venue ? <Text size="xs" truncate style={delayedStart ? {
+				flex: `1 1 ${VENUE_MIN_WIDTH}px`,
+				minWidth: VENUE_MIN_WIDTH,
+			} : undefined}
+			>· {game.venue.name}</Text> : null}
 		</Group>
 	);
 }
