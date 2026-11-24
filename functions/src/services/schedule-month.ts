@@ -1,20 +1,24 @@
 /**
  * Games per day for a month (S124) and the teams playing each day (S136), for S125's calendar
  * date picker, from BT's stored schedule days (ADR-002: clients read BT only), counted by
- * `monthGameCounts`. A month BT needn't ask MLB about is one count read plus, inside the fill
- * window, one read of its month record; a fill adds one MLB range read (week-long requests sent
- * together, #399) and a version-guarded write per day it returns (`storeSchedule`, which reads the
- * stored day first), and answers from what it stored rather than a second count read (#410). Those
- * per-day reads and writes are most of a cold month's time through Hyperdrive: since S150 a day
- * with games is at least four database round trips (its games' `game_states` read, the stored
- * day's read, and the served day's read with its games' states, `readScheduleDay`), plus a write
- * for the states when they changed and one for the day when it changed, and, for today and
+ * `monthGameCounts`, and the teams in their own regular season each day (S191), worked out from the
+ * month's whole calendar year. A month BT needn't ask MLB about is one count read of that year plus,
+ * inside the fill window, one read of its month record; a fill adds one MLB range read (week-long
+ * requests sent together, #399) and a version-guarded write per day it returns (`storeSchedule`,
+ * which reads the stored day first), and answers from what it stored rather than a second count read
+ * (#410). Those per-day reads and writes are most of a cold month's time through Hyperdrive: since
+ * S150 a day with games is at least four database round trips (its games' `game_states` read, the
+ * stored day's read, and the served day's read with its games' states, `readScheduleDay`), plus a
+ * write for the states when they changed and one for the day when it changed, and, for today and
  * yesterday, a game read per suspended game in each window judgement; a state switch that races
  * another writer adds one more read and write per game.
  *
  * Days inside `scheduleFillWindow` (the current season through December of next year; later
  * months are refused at the route, owner 2026-11-09: "Reject past next year") that BT doesn't
- * hold yet are filled from MLB with one range read (`fetchScheduleRange`), stored through
+ * hold yet are filled from MLB with one range read (`fetchScheduleRange`) of the shown month's
+ * days, never more (owner, 2026-11-23, asked whether S191 should still fetch the whole year when a
+ * month is first opened: "It should never fetch more than the one month. The year should be fetched
+ * server-side with a cron job"), stored through
  * ingest's version-guarded write (ADR-022) without hydrating any game: game snapshots stay with
  * the scoreboard's own refresh and the backfill (S122), so one month read is one MLB range read
  * (at most five week-long requests), not hundreds. Past seasons are never asked for here; what
@@ -27,6 +31,9 @@
  * (`scheduleMonthCheckStale`: never, or longer ago than the interval plus a margin), not by how
  * recently a day changed (ADR-021's 2026-11-23 amendment: refresh-on-read follows the record, not
  * the ladder, for in-window months), so a new Worker isolate no longer refetches every month.
+ * That refresh is also what stores the rest of the year S191's `inSeasonTeamIds` reads: every month
+ * of the window, this year's and next, so a read finds the year held once the refresh has been
+ * round, and until then a day whose season the stored days can't tell answers `null`.
  */
 import type {
 	ScheduleDay, ScheduleDayCount, ScheduleDayTally, Unversioned,
@@ -50,9 +57,10 @@ export interface ScheduleMonth
 	/** Every day of the month, first to last. */
 	days: ScheduleDayCount[];
 	/**
-	 * When the month's stored data last changed: the latest change among its days, or `now`
-	 * while any day is unknown (`count: null`), so an incomplete month is checked again soon (the
-	 * route caches an incomplete month only for the fill's cooldown, {@link ScheduleMonth.complete}).
+	 * When the month's stored data last changed: the latest change among its calendar year's days
+	 * (whose regular seasons its `inSeasonTeamIds` reads, S191), or `now` while any day of the month
+	 * is unknown (`count: null`), so an incomplete month is checked again soon (the route caches an
+	 * incomplete month only for the fill's cooldown, {@link ScheduleMonth.complete}).
 	 */
 	lastChangedAt: string;
 	/**
@@ -150,7 +158,12 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 {
 	const now = deps.now?.() ?? new Date();
 	const dates = daysOfMonth(month);
-	let stored = await deps.schedules.listGameCounts(dates[0]!, dates.at(-1)!);
+	// One read of the month's whole calendar year (S191): each day's `inSeasonTeamIds` follows every
+	// team's own regular season, whose first or last game can fall in another month
+	// (`teamsInOwnSeason`). One repository query either way, never one per day. Only the month is ever
+	// asked of MLB here; the rest of the year is the scheduled refresh's to store (S194).
+	const year = month.slice(0, 4);
+	let stored = await deps.schedules.listGameCounts(`${year}-01-01`, `${year}-12-31`);
 
 	const range = await rangeToAsk(deps, month, fillableDays(month, now), stored, now);
 	if (range)
@@ -173,6 +186,11 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
 	return {
 		month,
 		days,
+		// The year's latest change, not only the month's: `inSeasonTeamIds` reads the whole year, so a
+		// day stored or corrected in another month can change this answer too. `complete` looks at the
+		// month's days only, so a past-season answer whose `inSeasonTeamIds` is `null` because other
+		// months of its year aren't stored can still be cached up to the cap; a later backfill of them
+		// moves the year's latest change, which drops the answer back to the ladder's floor.
 		lastChangedAt: (complete ? monthLastChangedAt(stored) : undefined) ?? now.toISOString(),
 		complete,
 	};
@@ -194,7 +212,9 @@ export async function getScheduleMonthVersions(deps: Pick<IngestDeps, "schedules
 	for (let m = 1; m <= 12; m++)
 	{
 		const month = `${prefix}-${String(m).padStart(2, "0")}`;
-		const days = monthGameCounts(daysOfMonth(month), stored.filter((day) => day.date.startsWith(`${month}-`)));
+		// The whole year's stored days, as the month route passes them, so each month's `inSeasonTeamIds`
+		// (S191) and so its version match what the route sends for it.
+		const days = monthGameCounts(daysOfMonth(month), stored);
 		if (monthComplete(days)) versions[month] = scheduleMonthVersion(scheduleMonthAnswer(month, days));
 	}
 	return versions;
