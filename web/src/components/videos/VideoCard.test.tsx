@@ -1,6 +1,6 @@
 /**
  * S145 (game-shell A6): a card's meta line by the play-wins rule — the date then the inning pill
- * (`Top 6 →`, spoken "Open play - Top of 6th inning") for a clip with a play, `Kind · date` for one
+ * (`Top 6 →`, spoken "Top 6: open play, top of 6th inning") for a clip with a play, `Kind · date` for one
  * without — the pill opening the play while the rest of the card plays the clip, in grid and list.
  */
 import { readFileSync } from "node:fs";
@@ -104,7 +104,7 @@ describe("VideoCard meta line (S145)", () =>
 		expect(box.textContent).not.toMatch(/Highlight/);
 		expect(meta.getAttribute("style")).toMatch(/color: var\(--bt-muted\)/);
 		const pill = within(box).getByRole("link", {
-			name: "Open play - Top of 6th inning",
+			name: "Top 6: open play, top of 6th inning",
 		});
 		expect(pill.textContent).toBe("Top 6 →");
 		expect(pill.getAttribute("href")).toBe(TOP6.to);
@@ -123,7 +123,7 @@ describe("VideoCard meta line (S145)", () =>
 	{
 		const { box } = renderCard(clip(), layout, BOT3);
 		const pill = within(box).getByRole("link", {
-			name: "Open play - Bottom of 3rd inning",
+			name: "Bot 3: open play, bottom of 3rd inning",
 		});
 		expect(pill.textContent).toBe("Bot 3 →");
 		expect(pill.getAttribute("href")).toBe("/game/823823/plays?play=d%20e%2Ff");
@@ -137,7 +137,7 @@ describe("VideoCard meta line (S145)", () =>
 		}), layout, TOP6);
 		expect(within(box).queryByTestId("video-meta")).toBeNull();
 		expect(within(box).getByRole("link", {
-			name: "Open play - Top of 6th inning",
+			name: "Top 6: open play, top of 6th inning",
 		}).textContent).toBe("Top 6 →");
 	});
 
@@ -156,7 +156,7 @@ describe("VideoCard meta line (S145)", () =>
 		const { box } = renderCard(clip(over), "grid", TOP6);
 		expect(within(box).getByTestId("video-meta").textContent).toBe(SHOWN);
 		expect(within(box).getByRole("link", {
-			name: "Open play - Top of 6th inning",
+			name: "Top 6: open play, top of 6th inning",
 		})).toBeInTheDocument();
 		expect(box.textContent).not.toMatch(/Video ·|Recap|Highlight/);
 	});
@@ -190,7 +190,7 @@ describe("VideoCard meta line (S145)", () =>
 		fireEvent.click(within(box).getByTestId("video-meta"));
 		expect(onPlay).toHaveBeenCalledTimes(2);
 		fireEvent.click(within(box).getByRole("link", {
-			name: "Open play - Top of 6th inning",
+			name: "Top 6: open play, top of 6th inning",
 		}));
 		expect(screen.getByTestId("where").textContent).toBe("/game/823823/plays?play=abc");
 		expect(onPlay).toHaveBeenCalledTimes(2);
@@ -202,7 +202,7 @@ describe("VideoCard meta line (S145)", () =>
 		expect(within(box).getAllByRole("button")).toEqual([card]);
 		expect(card.getAttribute("aria-label")).toBe("Play Aaron Judge's solo home run (52)");
 		const pill = within(box).getByRole("link", {
-			name: "Open play - Top of 6th inning",
+			name: "Top 6: open play, top of 6th inning",
 		});
 		expect(pill.closest("button")).toBeNull();
 		expect(pill.closest(".bt-zoom-host")).toBeNull();
