@@ -74,10 +74,14 @@ export function isSettledGame(status: Pick<GameSnapshot["status"], "codedGameSta
  * whenever that empty answer was fetched. The run's clock decides rather than the stored
  * `fetchedAt` because `storeSchedule` keeps the old row, and its old `fetchedAt`, when a
  * re-fetch is unchanged (ADR-022): judging by `fetchedAt` would re-fetch such a day forever.
+ *
+ * A game in `moved` (S150: a listing served with its own postponed or suspended status because the
+ * game has moved to another day, `listingMovedAway`) counts as settled whatever its status: what is
+ * left of it is the other day's, so a suspended original day isn't asked about forever.
  */
-export function isScheduleDaySettled(day: Pick<ScheduleDay, "date" | "games">, today: string): boolean
+export function isScheduleDaySettled(day: Pick<ScheduleDay, "date" | "games">, today: string, moved: ReadonlySet<number> = new Set()): boolean
 {
-	if (!day.games.every((game) => isSettledGame(game.status))) return false;
+	if (!day.games.every((game) => moved.has(game.gamePk) || isSettledGame(game.status))) return false;
 	return day.games.length > 0 || day.date < today;
 }
 

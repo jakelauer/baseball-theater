@@ -9,7 +9,6 @@ import type { LayoutVariant } from "./layout/variant.js";
 import type { SetFooterMode } from "./layout/footerMode.js";
 import { useFooterMode } from "./layout/footerMode.js";
 import { useAccountDeleted } from "./api/accountDeleted.js";
-import { useScoreboardDefaultDate } from "./api/scoreboardDate.js";
 import { DeletedAccountPage } from "./pages/settings/DeletedAccountPage.js";
 import { useSession } from "./session/session.js";
 import { SignInCallback } from "./session/SignInCallback.js";
@@ -51,23 +50,12 @@ function SignedInOnly({ children, setFooter }: { children: ReactNode;
 
 /**
  * A page's loading treatment (`ViewState`'s) with the shell's footer held back until the page
- * settles (S142; `FooterMode`): a route's chunk arriving, the default day being asked, the
- * sign-in hand-off.
+ * settles (S142; `FooterMode`): a route's chunk arriving, the sign-in hand-off.
  */
 function Loading({ setFooter }: { setFooter: SetFooterMode })
 {
 	useFooterMode(setFooter, "none");
 	return <ViewState kind="loading" />;
-}
-
-/**
- * `/` and `/games` open the day the server names (S111): today in season, the last final
- * in the off-season. The URL then names the day, so it can be shared and stepped from.
- */
-function DefaultDay({ setFooter }: { setFooter: SetFooterMode })
-{
-	const date = useScoreboardDefaultDate();
-	return date ? <Navigate to={`/games/${date}`} replace /> : <Loading setFooter={setFooter} />;
 }
 
 /*
@@ -106,8 +94,10 @@ export function AppRoutes({ variant, setFooter }: { variant: LayoutVariant;
 	return (
 		<Suspense fallback={<Loading setFooter={setFooter} />}>
 			<Routes>
-				<Route path="/" element={<DefaultDay setFooter={setFooter} />} />
-				<Route path="/games" element={<DefaultDay setFooter={setFooter} />} />
+				{/* `/` and `/games` show the server's default day (S111) in place, with no redirect, so the home
+				    page keeps one stable URL; a dated URL is the shareable one (#412). */}
+				<Route path="/" element={<ScoreboardPage variant={variant} setFooter={setFooter} />} />
+				<Route path="/games" element={<ScoreboardPage variant={variant} setFooter={setFooter} />} />
 				<Route path="/games/:date" element={<ScoreboardPage variant={variant} setFooter={setFooter} />} />
 				<Route path="/game/:gamePk" element={<GamePage variant={variant} setFooter={setFooter} />} />
 				<Route path="/game/:gamePk/:tab" element={<GamePage variant={variant} setFooter={setFooter} />} />

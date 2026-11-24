@@ -5,6 +5,7 @@
  * games table, which holds only the games ingest hydrated.
  */
 import { datesBetween } from "./calendar-date.js";
+import type { StoredScheduleDay } from "./game-state.js";
 
 /**
  * One stored schedule day as the month view needs it: its game count, the teams playing it
@@ -160,10 +161,10 @@ export function dayRegularSeasonTeamIds(games: readonly { gameType: unknown;
  *
  * The answer is only as fresh as the other months' stored days: a team's first or last game that
  * MLB moved (a postponement at a season's edge) shows once that day is stored again. The month
- * service's fill asks MLB, inside its fill window, for the year's days it doesn't hold, for any
- * season month still stored with no games once the year holds games, and for the shown month once
- * its lifetime runs out; another month's stored days are otherwise as fresh as its own last fill,
- * and an earlier season's as the backfill left them.
+ * route asks MLB only for the shown month; the rest of the current and next year is stored and kept
+ * fresh by the scheduled refresh (S194), every month about every six hours, and an earlier season's
+ * days are as the backfill left them. Until a month of the year is stored, the dates it leaves
+ * unknown answer `null` here.
  */
 export function teamsInOwnSeason(
 	yearDays: readonly Pick<ScheduleDayTally, "date" | "gameTypes" | "regularSeasonTeamIds">[],
@@ -226,6 +227,36 @@ export function teamsInOwnSeason(
 		}
 		return inSeason.sort((a, b) => a - b);
 	});
+}
+
+/**
+ * A stored schedule day's tally for the month view (ADR-025: the one implementation in code; the
+ * Postgres adapter computes the same in SQL and the repository contract holds the two together).
+ * The memory adapter's `listGameCounts` maps each stored day through it, and the month fill tallies
+ * the days it just stored with it (#410) rather than reading the month again, which a caching
+ * database could answer with its pre-fill result. It reads only what a stored day keeps (S150:
+ * `StoredScheduleDay`, no game statuses), so a fetched `ScheduleDay` passes as well.
+ */
+export function scheduleDayTally(day: Pick<StoredScheduleDay, "date" | "games" | "fetchedAt" | "lastChangedAt">): ScheduleDayTally
+{
+	// One `{ gameType, teamIds }` per game, read exactly as the Postgres adapter reads its query's
+	// list (S191): count, teams (S136), types (S167, `null` for an untyped one) and the teams of the
+	// day's regular-season games (`dayRegularSeasonTeamIds`).
+	const games = day.games.map((game) => ({
+		gameType: game.gameType as unknown,
+		teamIds: [game.teams.away.id, game.teams.home.id] as unknown[],
+	}));
+	const gameTypes = games.map((game) => storedGameType(game.gameType));
+	return {
+		date: day.date,
+		gameCount: games.length,
+		teamIds: distinctTeamIds(games.flatMap((game) => game.teamIds)),
+		gameTypes,
+		regularSeason: dayRegularSeason(gameTypes),
+		regularSeasonTeamIds: dayRegularSeasonTeamIds(games),
+		fetchedAt: day.fetchedAt,
+		lastChangedAt: day.lastChangedAt,
+	};
 }
 
 /**
@@ -326,6 +357,17 @@ export function favoriteTeamsOff(day: MonthDayTeams, favoriteTeamIds: readonly n
 		mark: off.length === counted.length ? "red" : "yellow",
 		off,
 	};
+}
+
+/**
+ * Whether every day of a month is known (#399): none has `count: null`, the mark of a day BT holds
+ * no schedule for (a fill MLB didn't answer, or a past day nothing stored). The month route caches
+ * an incomplete month only for the fill's cooldown and the web keeps it only that long, so both ask
+ * this one question; unlike {@link monthGamesState}, one unknown day beside a day with games counts.
+ */
+export function monthComplete(days: readonly Pick<ScheduleDayCount, "count">[]): boolean
+{
+	return days.every((day) => day.count !== null);
 }
 
 /**

@@ -244,7 +244,7 @@ describe("Hide Scores (S68)", () =>
 		expect(final!.queryByText(/Molina/)).toBeNull();
 		expect(live!.getByText("2-2, 2 out")).toBeInTheDocument();
 		expect(live!.getByText("AB: A. Bregman")).toBeInTheDocument();
-		expect(pregame!.getByText("J. Assad")).toBeInTheDocument();
+		expect(pregame!.getByText("J. Assad (R)")).toBeInTheDocument();
 		expect(pregame!.getByText((_, el) => el?.textContent === "CHC (▒▒-▒▒)" && el.tagName === "P")).toBeInTheDocument();
 		expect(screen.queryByText(/Scores hidden/)).toBeNull();
 	});

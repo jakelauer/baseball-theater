@@ -4,6 +4,8 @@
     {
       "divisionId": null,
       "name": "American League",
+      "nameShort": null,
+      "abbreviation": null,
       "leagueId": 103,
       "teams": [
         {
@@ -155,6 +157,8 @@
     {
       "divisionId": null,
       "name": "National League",
+      "nameShort": null,
+      "abbreviation": null,
       "leagueId": 104,
       "teams": [
         {

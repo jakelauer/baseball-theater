@@ -11,19 +11,57 @@
  * this file by `drizzle-kit` (`drizzle.config.ts`) and committed under `migrations/`.
  */
 import type {
-	AccountSettings, GameProjection, GameSnapshot, ScheduleDay,
+	AccountSettings, GameProjection, GameSnapshot, GameState, StoredScheduleDay,
 } from "@bt/domain";
 import type { ReplayArtifact } from "@bt/ports";
+import { sql } from "drizzle-orm";
 import {
-	boolean, index, integer, jsonb, pgTable, primaryKey, serial, text,
+	boolean, check, index, integer, jsonb, pgTable, primaryKey, serial, text,
 } from "drizzle-orm/pg-core";
 
-/** One schedule day per date (`ScheduleRepository`). */
+/**
+ * One schedule day per date (`ScheduleRepository`). Its games carry no status, linescore or live moment, which
+ * `game_states` holds (S150; days stored before it still have them in the document, and readers ignore them).
+ * `served_base` is outside the document, so it isn't hashed: the served day's version adds it, and a refresh that
+ * drops a game from the day raises it by that game's state version in the same write (S150 AC 6).
+ */
 export const scheduleDays = pgTable("schedule_days", {
 	date: text("date").primaryKey(),
 	version: integer("version").notNull(),
-	document: jsonb("document").$type<ScheduleDay>().notNull(),
+	servedBase: integer("served_base").notNull().default(0),
+	document: jsonb("document").$type<StoredScheduleDay>().notNull(),
 });
+
+/**
+ * One record per schedule month (`ScheduleRepository`'s month checks, S194): when BT last checked the
+ * month against MLB, and when a refresh last claimed it, or the time a failed fill holds it until
+ * (`holdScheduleMonth`), each an ISO instant or null; a claim holds until `claimed_at` plus the lease. The adapter
+ * compares them as `timestamptz` (casting the text), so how a writer formats the instant can't
+ * reorder them.
+ */
+export const scheduleMonths = pgTable("schedule_months", {
+	month: text("month").primaryKey(),
+	checkedAt: text("checked_at"),
+	claimedAt: text("claimed_at"),
+}, (t) => [
+	// A month is `YYYY-MM`, so a caller's typo can't leave a record the refresh never reads.
+	check("schedule_months_month_format", sql`${t.month} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+]);
+
+/**
+ * One game's shared state per game (`GameStateRepository`, S150 AC 3): the source that wrote it (`feed` or
+ * `schedule`, held to those two by a CHECK), the newest feed time it accepted (null until the feed writes), the
+ * official date and first pitch the switch reads, and the `GameState`.
+ */
+export const gameStates = pgTable("game_states", {
+	gamePk: integer("game_pk").primaryKey(),
+	version: integer("version").notNull(),
+	source: text("source").notNull(),
+	feedTime: text("feed_time"),
+	officialDate: text("official_date").notNull(),
+	startTime: text("start_time"),
+	document: jsonb("document").$type<GameState>().notNull(),
+}, (table) => [check("game_states_source_check", sql`${table.source} IN ('feed', 'schedule')`)]);
 
 /** One game snapshot per game (`GameRepository`): its day for `listByDate`, the document for queries into it. */
 export const games = pgTable("games", {

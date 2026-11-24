@@ -99,9 +99,37 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 					pattern: "^\\d{4}-(0[1-9]|1[0-2])$",
 				},
 			},
+			{
+				name: "v",
+				in: "query",
+				required: false,
+				description: "The month answer's version, as `GET /api/v1/schedule/month-versions/{year}` gives it. When it matches the answer, the edge keeps that answer 48 hours, or as long as it can for a month of a past year; a version that doesn't match is kept about ten minutes at most (five, then five more served stale while it is revalidated). Without it the answer is cached by how long it has gone unchanged.",
+				schema: {
+					type: "string",
+				},
+			},
 		],
 		errors: {
 			400: "`month_invalid`: `month` is not `YYYY-MM`, not a real month, or before 1901-04. `month_too_late`: `month` is after December of next year, which MLB can't have published.",
+		},
+	},
+	"GET /api/v1/schedule/month-versions/:year": {
+		operationId: "getScheduleMonthVersions",
+		summary: "The version of each month of one year whose stored answer is complete, from BT's stored schedule and never from MLB: the month route's `v` for that month. A month left out is asked for without a version.",
+		parameters: [
+			{
+				name: "year",
+				in: "path",
+				required: true,
+				description: "The year, as `YYYY`, from 1901 through next year (by MLB's today, in `America/New_York`).",
+				schema: {
+					type: "string",
+					pattern: "^\\d{4}$",
+				},
+			},
+		],
+		errors: {
+			400: "`year_invalid`: `year` is not `YYYY`, or is before 1901 or after next year.",
 		},
 	},
 	"GET /api/v1/games/:gamePk": {

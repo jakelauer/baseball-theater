@@ -59,19 +59,22 @@ function day(away: number, home: number, version: number): ScheduleDayPayload
 	};
 }
 
-/** Serves `payloads` in order to schedule requests (the last one repeats); returns the fetch mock. */
+/**
+ * Serves `payloads` in order to schedule-day requests (the last one repeats); returns a count of
+ * them. The calendar's month request (`/api/v1/schedule/month/…`, S125) is not a day request.
+ */
 function serve(...payloads: ScheduleDayPayload[])
 {
 	let next = 0;
 	const fetch = vi.fn((request: Request) =>
 	{
-		if (!new URL(request.url).pathname.startsWith("/api/v1/schedule")) return Promise.resolve(jsonResponse({}, 404));
+		if (new URL(request.url).pathname !== "/api/v1/schedule") return Promise.resolve(jsonResponse({}, 404));
 		const payload = payloads[Math.min(next, payloads.length - 1)];
 		next += 1;
 		return Promise.resolve(jsonResponse(payload));
 	});
 	vi.stubGlobal("fetch", fetch);
-	return () => fetch.mock.calls.filter(([request]) => new URL(request.url).pathname.startsWith("/api/v1/schedule")).length;
+	return () => fetch.mock.calls.filter(([request]) => new URL(request.url).pathname === "/api/v1/schedule").length;
 }
 
 /** Sets `document.hidden` / `visibilityState` and fires `visibilitychange`, which bubbles to `window` as in a browser (TanStack listens there). */

@@ -2,17 +2,16 @@
 /**
  * S67's design match (rule 22): the scoreboard's game-row slot in the frames it builds —
  * `scoreboard-mobile`, `-medium`, `-desktop` with the default Status occupants (pitchers
- * of record on the final, the count on the live game, the probables on the scheduled
- * one), and `scoreboard-slot-room-menu-mobile` with Room Menu chosen (the dev account's
+ * of record on the final, the count on the live game; since S171 no box on the scheduled
+ * one, whose probables sit in its body, A16), and `scoreboard-slot-room-menu-mobile` with Room Menu chosen (the dev account's
  * settings answered with `gameRowSlot: "roomMenu"`). The day is S66's: SF @ NYM final
  * and 823823 (CHC @ MIA) in progress and before first pitch, from the S65 fixtures.
  *
  * Expected differences, not judged (owner, 2026-10-28: "Judge only the story's own
  * parts"): the frames' sample day, names and lines versus the fixture games; the
- * scheduled slot shows the probables, not win probability (owner, 2026-10-19: Status is
- * pitchers / count / probables; win probability is left out at launch), and the
- * scheduled module body no longer repeats them; probables carry no throwing hand (the
- * scoreboard data has none); the module itself is S66's; the "Best of … highlights" digest is not built yet; the room
+ * scheduled row draws no slot box and its probables, with their throwing hands, in its
+ * body (S171, shell-scoreboard A16, which repealed the frames' pre-game bar with A7);
+ * the module itself is S66's; the "Best of … highlights" digest is not built yet; the room
  * menu frame's signed-in header shows the account icon; the footer's "Fetched … ago"
  * is the real time.
  */

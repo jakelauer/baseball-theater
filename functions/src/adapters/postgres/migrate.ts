@@ -221,11 +221,33 @@ export async function migrateDatabaseAt(connectionString: string, options: Migra
 	}
 }
 
-/** A fresh in-process PGlite with the migrations applied, and the PGlite under it. */
+/**
+ * Names a file holding a migrated PGlite's data directory (`dumpDataDir`) that `migratedPglite` starts from instead of
+ * an empty database. Set only in the functions tests' workers (`src/test/pglite-snapshot.ts`), which build that file
+ * once per run instead of migrating once per test file; nothing else sets it.
+ */
+export const PGLITE_SNAPSHOT_ENV = "BT_PGLITE_SNAPSHOT";
+
+/**
+ * A fresh in-process PGlite with the migrations applied, and the PGlite under it. With `PGLITE_SNAPSHOT_ENV` set it
+ * loads that snapshot (each call its own copy, so every caller still gets an isolated database) and still runs the
+ * migrator, which applies nothing to a current snapshot and anything newer to a stale one, so the result is fully
+ * migrated either way.
+ */
 export async function migratedPglite(): Promise<{ db: PostgresDb;
 	pglite: PGlite; }>
 {
-	const pglite = new PGlite();
+	const snapshot = process.env[PGLITE_SNAPSHOT_ENV];
+	const pglite = snapshot ? new PGlite({
+		loadDataDir: new Blob([readFileSync(snapshot)]),
+	}) : new PGlite();
+	if (snapshot)
+	{
+		await pglite.waitReady.catch((error: unknown) =>
+		{
+			throw new Error(`couldn't load the PGlite snapshot ${snapshot} (delete it and the next test run rebuilds it): ${String(error)}`);
+		});
+	}
 	const db = drizzlePglite(pglite);
 	await migratePglite(db, {
 		migrationsFolder: MIGRATIONS_FOLDER,

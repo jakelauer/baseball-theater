@@ -333,3 +333,60 @@ describe("mapStandings before 1969: one table per league (S155 AC 2)", () =>
 		expect(committed.divisions).toEqual(mapStandings(july, "1950-07-04").divisions);
 	});
 });
+
+describe("mapStandings division names from MLB (S102)", () =>
+{
+	const recording = (name: string): unknown => JSON.parse(readFileSync(fileURLToPath(new URL(`../../../fixtures/${name}`, import.meta.url)), "utf8"));
+	const hydrated = parseStandingsResponse(recording("raw/standings-2026-09-05-division.json"));
+
+	it("S102 AC 3: each division carries MLB's full name, short name and abbreviation from the hydrated group", () =>
+	{
+		const { divisions } = mapStandings(hydrated, "2026-09-05");
+		expect(divisions.map((d) => [d.divisionId, d.name, d.nameShort, d.abbreviation])).toEqual([
+			[201, "American League East", "AL East", "ALE"],
+			[202, "American League Central", "AL Central", "ALC"],
+			[200, "American League West", "AL West", "ALW"],
+			[204, "National League East", "NL East", "NLE"],
+			[205, "National League Central", "NL Central", "NLC"],
+			[203, "National League West", "NL West", "NLW"],
+		]);
+	});
+
+	it("S102 AC 3: regeneration: the committed fixtures/standings-2026-09-05.json is the mapper's output on the hydrated recording", () =>
+	{
+		const committed = recording("standings-2026-09-05.json") as { divisions: unknown };
+		expect(committed.divisions).toEqual(mapStandings(hydrated, "2026-09-05").divisions);
+	});
+
+	it("S102 AC 3: an answer without the hydrate (recorded before S102) keeps the team rows' full name and has no short name or abbreviation", () =>
+	{
+		const division = mapStandingsDivision({
+			league: {
+				id: 103,
+			},
+			division: {
+				id: 201,
+			},
+			teamRecords: [{
+				team: {
+					id: 139,
+					name: "Tampa Bay Rays",
+					division: {
+						id: 201,
+						name: "American League East",
+					},
+				},
+			} as StandingsRecordEntry],
+		});
+		expect([division.name, division.nameShort, division.abbreviation]).toEqual(["American League East", null, null]);
+	});
+
+	it("S102 AC 3: a league table (before 1969) has no short name or abbreviation", () =>
+	{
+		const { divisions } = mapStandings(parseStandingsResponse(recording("raw/standings-1950-07-04.json")), "1950-07-04");
+		expect(divisions.map((d) => [d.name, d.nameShort, d.abbreviation])).toEqual([
+			["American League", null, null],
+			["National League", null, null],
+		]);
+	});
+});

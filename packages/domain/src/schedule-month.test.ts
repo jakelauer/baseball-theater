@@ -2,9 +2,10 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, favoriteTeamsOff, latestScheduleMonth, monthGameCounts, monthGamesState, monthLastChangedAt,
-	scheduleFillWindow, storedGameType, teamsInOwnSeason,
+	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, favoriteTeamsOff, latestScheduleMonth, monthComplete, monthGameCounts, monthGamesState,
+	monthLastChangedAt, scheduleDayTally, scheduleFillWindow, storedGameType, teamsInOwnSeason,
 } from "./schedule-month.js";
+import type { ScheduleGameSummary } from "./types.js";
 
 describe("monthGameCounts (S124, S136 AC 1)", () =>
 {
@@ -395,6 +396,97 @@ describe("favoriteTeamsOff (S159 AC 1)", () =>
 			mark: "red",
 			off: [YANKEES],
 		});
+	});
+});
+
+describe("scheduleDayTally (#410)", () =>
+{
+	/** A game as a stored schedule lists it, only the parts a tally reads. */
+	function game(away: number, home: number, gameType?: unknown): ScheduleGameSummary
+	{
+		return {
+			teams: {
+				away: {
+					id: away,
+				},
+				home: {
+					id: home,
+				},
+			},
+			...(gameType === undefined ? {} : {
+				gameType,
+			}),
+		} as unknown as ScheduleGameSummary;
+	}
+
+	it("tallies a stored day's games, teams once each ascending, game types and regular season, keeping its stamps", () =>
+	{
+		expect(scheduleDayTally({
+			date: "2026-04-01",
+			games: [game(147, 111, "R"), game(121, 147, "S"), game(120, 108)],
+			fetchedAt: "2026-04-01T12:00:00.000Z",
+			lastChangedAt: "2026-03-30T12:00:00.000Z",
+		})).toEqual({
+			date: "2026-04-01",
+			gameCount: 3,
+			teamIds: [108, 111, 120, 121, 147],
+			gameTypes: ["R", "S", null],
+			regularSeason: true,
+			// S191: only the R game's teams.
+			regularSeasonTeamIds: [111, 147],
+			fetchedAt: "2026-04-01T12:00:00.000Z",
+			lastChangedAt: "2026-03-30T12:00:00.000Z",
+		});
+	});
+
+	it("tallies a day with no games as 0, no teams and not regular season", () =>
+	{
+		expect(scheduleDayTally({
+			date: "2026-12-25",
+			games: [],
+			fetchedAt: "a",
+			lastChangedAt: "b",
+		})).toEqual({
+			date: "2026-12-25",
+			gameCount: 0,
+			teamIds: [],
+			gameTypes: [],
+			regularSeason: false,
+			regularSeasonTeamIds: [],
+			fetchedAt: "a",
+			lastChangedAt: "b",
+		});
+	});
+});
+
+describe("monthComplete (#399)", () =>
+{
+	it("every day known, with games or none, is complete", () =>
+	{
+		expect(monthComplete([{
+			count: 0,
+		}, {
+			count: 3,
+		}])).toBe(true);
+	});
+
+	it("one unknown day among known ones is incomplete, even beside a day with games (#399)", () =>
+	{
+		expect(monthComplete([{
+			count: 3,
+		}, {
+			count: null,
+		}, {
+			count: 0,
+		}])).toBe(false);
+	});
+
+	it("a month of unknown days is incomplete; no days at all is vacuously complete", () =>
+	{
+		expect(monthComplete([{
+			count: null,
+		}])).toBe(false);
+		expect(monthComplete([])).toBe(true);
 	});
 });
 

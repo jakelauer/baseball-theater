@@ -8,7 +8,7 @@ import {
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { migratedPglite } from "../adapters/postgres/migrate.js";
 import {
-	PostgresGameProjectionRepository, PostgresGameRepository, PostgresScheduleRepository,
+	PostgresGameProjectionRepository, PostgresGameStateRepository, PostgresGameRepository, PostgresScheduleRepository,
 } from "../adapters/postgres/repos.js";
 import {
 	formatBytes, formatSizeReport, GAME_TABLES, gameTableSizes,
@@ -22,26 +22,29 @@ describe("gameTableSizes (S122 AC 9)", () =>
 		const { db } = await migratedPglite();
 		const empty = await gameTableSizes(db);
 		expect(empty.map((size) => size.table)).toEqual([...GAME_TABLES]);
-		expect(empty.map((size) => size.rows)).toEqual([0, 0, 0]);
+		expect(empty.map((size) => size.rows)).toEqual([0, 0, 0, 0]);
 
 		await ingestScheduleDay({
 			mlb: new FixtureMlbStatsClient(),
 			schedules: new PostgresScheduleRepository(db),
 			games: new PostgresGameRepository(db),
 			projections: new PostgresGameProjectionRepository(db),
+			gameStates: new PostgresGameStateRepository(db),
 			now: () => new Date("2026-11-08T17:00:00.000Z"),
 		}, "2026-09-05");
 		const sizes = await gameTableSizes(db);
 		expect(sizes.find((size) => size.table === "schedule_days")?.rows).toBe(1);
 		expect(sizes.find((size) => size.table === "games")?.rows).toBe(1);
 		expect(sizes.find((size) => size.table === "game_projections")?.rows).toBe(1);
+		// S150: one state row per game the day lists.
+		expect(sizes.find((size) => size.table === "game_states")?.rows).toBeGreaterThan(0);
 		for (const size of sizes) expect(size.bytes).toBeGreaterThan(empty.find((e) => e.table === size.table)!.bytes - 1);
 		expect(sizes.find((size) => size.table === "games")!.bytes).toBeGreaterThan(8192);
 
 		const lines = formatSizeReport(sizes);
-		expect(lines).toHaveLength(4);
-		expect(lines[1]).toMatch(/^games: 1 rows, [\d.]+ kB$/);
-		expect(lines[3]).toMatch(/^total: [\d.]+ kB \(pg_total_relation_size/);
+		expect(lines).toHaveLength(5);
+		expect(lines[2]).toMatch(/^games: 1 rows, [\d.]+ kB$/);
+		expect(lines[4]).toMatch(/^total: [\d.]+ kB \(pg_total_relation_size/);
 	});
 
 	it("formats bytes for people", () =>

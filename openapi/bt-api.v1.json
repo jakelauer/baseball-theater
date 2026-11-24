@@ -821,6 +821,10 @@
 					"fullName": { "type": "string" },
 					"id": { "type": "number" },
 					"losses": { "type": ["number", "null"] },
+					"pitchHand": {
+						"description": "The hand he throws with, MLB's `pitchHand.code` (`\"L\"` / `\"R\"`; S171, the row's `J. Steele (L)`); `null` when MLB sent none. Optional because schedule rows stored before S171 have no such field.",
+						"type": ["string", "null"]
+					},
 					"wins": { "type": ["number", "null"] }
 				},
 				"required": ["era", "fullName", "id", "losses", "wins"],
@@ -1082,6 +1086,20 @@
 				"required": ["month", "days"],
 				"type": "object"
 			},
+			"ScheduleMonthVersionsResponse": {
+				"additionalProperties": false,
+				"description": "The version of each complete month of one year (S194): the content hash of the whole month answer as the month route sends it (`scheduleMonthAnswer`, `scheduleMonthVersion`), which the web passes back as the month route's `?v=` so the edge may keep that exact answer long.",
+				"properties": {
+					"versions": {
+						"additionalProperties": { "type": "string" },
+						"description": "Month (`YYYY-MM`) to its answer's version, for each month of the year whose stored answer is complete (every day known); a month left out is asked for without a version.",
+						"type": "object"
+					},
+					"year": { "description": "The year asked for.", "type": "number" }
+				},
+				"required": ["year", "versions"],
+				"type": "object"
+			},
 			"ScheduleTeam": {
 				"additionalProperties": false,
 				"description": "A team on the scoreboard (S65): the team, and its record when MLB sent one.",
@@ -1233,9 +1251,20 @@
 			"StandingsDivision": {
 				"additionalProperties": false,
 				"properties": {
+					"abbreviation": {
+						"description": "MLB's abbreviation for the division (`ALE`; S102), `null` and optional as `nameShort` is.",
+						"type": ["string", "null"]
+					},
 					"divisionId": { "type": ["number", "null"] },
 					"leagueId": { "type": ["number", "null"] },
-					"name": { "type": ["string", "null"] },
+					"name": {
+						"description": "The table's full name from MLB (`American League East`), or its league's (`American League`) for a league table before 1969.",
+						"type": ["string", "null"]
+					},
+					"nameShort": {
+						"description": "MLB's short name for the division (`AL East`; S102, from `hydrate=division`), what the Standings headings show. `null` on a league table and when MLB sends none. Optional because an answer cached before S102 lacks it; the heading then falls back to `name` until that entry expires.",
+						"type": ["string", "null"]
+					},
 					"teams": { "items": { "$ref": "#/components/schemas/StandingsTeamRecord" }, "type": "array" }
 				},
 				"required": ["divisionId", "name", "leagueId", "teams"],
@@ -1768,6 +1797,43 @@
 				"summary": "Games scheduled on one day."
 			}
 		},
+		"/api/v1/schedule/month-versions/{year}": {
+			"get": {
+				"operationId": "getScheduleMonthVersions",
+				"parameters": [
+					{
+						"description": "The year, as `YYYY`, from 1901 through next year (by MLB's today, in `America/New_York`).",
+						"in": "path",
+						"name": "year",
+						"required": true,
+						"schema": { "pattern": "^\\d{4}$", "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/ScheduleMonthVersionsResponse" }
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`year_invalid`: `year` is not `YYYY`, or is before 1901 or after next year."
+					},
+					"426": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`version_unsupported`: this API version has been retired (ADR-015); the client should reload to update."
+					}
+				},
+				"summary": "The version of each month of one year whose stored answer is complete, from BT's stored schedule and never from MLB: the month route's `v` for that month. A month left out is asked for without a version."
+			}
+		},
 		"/api/v1/schedule/month/{month}": {
 			"get": {
 				"operationId": "getScheduleMonth",
@@ -1778,6 +1844,13 @@
 						"name": "month",
 						"required": true,
 						"schema": { "pattern": "^\\d{4}-(0[1-9]|1[0-2])$", "type": "string" }
+					},
+					{
+						"description": "The month answer's version, as `GET /api/v1/schedule/month-versions/{year}` gives it. When it matches the answer, the edge keeps that answer 48 hours, or as long as it can for a month of a past year; a version that doesn't match is kept about ten minutes at most (five, then five more served stale while it is revalidated). Without it the answer is cached by how long it has gone unchanged.",
+						"in": "query",
+						"name": "v",
+						"required": false,
+						"schema": { "type": "string" }
 					}
 				],
 				"responses": {

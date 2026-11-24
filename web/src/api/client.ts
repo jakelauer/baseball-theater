@@ -73,13 +73,37 @@ export async function fetchSchedule(date: string)
  * (S125); `count`, `teamIds` and `regularSeason` are null for a day BT doesn't know yet, distinct
  * from a day with no games (`0`, `[]` and `false`). `regularSeason` is also null for a known day
  * with no regular-season game and a game stored without a type (stored before S167).
+ *
+ * `version`, from {@link fetchScheduleMonthVersions}, is sent as `?v=` (S194), so the edge may keep
+ * that exact answer long; without one the URL is the plain month, as before S194.
  */
-export async function fetchScheduleMonth(month: string)
+export async function fetchScheduleMonth(month: string, version?: string)
 {
 	return unwrap(await api.GET("/api/v1/schedule/month/{month}", {
 		params: {
 			path: {
 				month,
+			},
+			...version !== undefined && {
+				query: {
+					v: version,
+				},
+			},
+		},
+	}));
+}
+
+/**
+ * The version of each complete month of `year` (S194; `GET /api/v1/schedule/month-versions/{year}`),
+ * keyed by `YYYY-MM`: what `fetchScheduleMonth` sends as `?v=`. A month left out is asked for
+ * without a version.
+ */
+export async function fetchScheduleMonthVersions(year: string)
+{
+	return unwrap(await api.GET("/api/v1/schedule/month-versions/{year}", {
+		params: {
+			path: {
+				year,
 			},
 		},
 	}));

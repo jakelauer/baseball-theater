@@ -4,7 +4,7 @@ import {
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
-	countShorthand, gamePhase, probableLine, roomsForPhase, slotOccupant,
+	countShorthand, gamePhase, roomsForPhase, slotOccupant,
 } from "@bt/domain";
 import type { GameRowSlot as GameRowSlotSetting } from "@bt/domain";
 import { BaseDiamond } from "../game/BaseDiamond.js";
@@ -55,25 +55,6 @@ function Count({ game }: { game: ScoreboardGame })
 	);
 }
 
-/** Before first pitch: each side's probable starter and season line, away first. */
-function Probables({ game }: { game: ScoreboardGame })
-{
-	const sides = [game.probablePitchers?.away, game.probablePitchers?.home];
-	return (
-		<Stack gap={6} data-testid="slot-probables">
-			{sides.map((pitcher, i) => (
-				<Box key={i === 0 ? "away" : "home"} style={{
-					minWidth: 0,
-				}}
-				>
-					<Text fz={12} fw={700} lh={1.3} truncate>{pitcher ? shortPlayerName(pitcher.fullName) : "TBD"}</Text>
-					{pitcher && probableLine(pitcher) ? <Text fz={11} lh={1.3}>{probableLine(pitcher)}</Text> : null}
-				</Box>
-			))}
-		</Stack>
-	);
-}
-
 /**
  * Room menu: a link per room the game offers in its phase (R14a). The scoreboard
  * doesn't know whether MLB has published a recap, so a final lists Recap; without
@@ -94,26 +75,32 @@ function RoomMenu({ game }: { game: ScoreboardGame })
 	);
 }
 
+/** The slot box's width; a scheduled row with no box keeps this much space empty (A16). */
+export const SLOT_WIDTH = 104;
+
 /**
  * The right-hand slot of a scoreboard module (S67; shell-scoreboard `Modular Block`):
  * an outlined box whose occupant `slotOccupant` picks from the user's Game-Row Slot
- * setting and the game's phase. Status (the default) is pitchers of record on a final,
- * the count on a live game and the probables before first pitch; Room Menu links into
- * the game's rooms. Win probability is left out at launch (owner, 2026-10-19).
+ * setting and the game's phase. Status (the default) is pitchers of record on a final
+ * and the count on a live game; before first pitch it is no box at all, and this renders
+ * nothing (S171; A7, A16), since the row's body carries the probables. Room Menu links
+ * into the game's rooms in every phase. Win probability is left out at launch (owner,
+ * 2026-10-19).
  */
 export function GameRowSlot({
 	game, setting, scoresHidden = false,
 }: { game: ScoreboardGame;
 	setting: GameRowSlotSetting;
-	/** Hide Scores (S68): masks the pitchers of record; the count, AB / P and probables stay (A3). */
+	/** Hide Scores (S68): masks the pitchers of record; the count and AB / P stay (A3). */
 	scoresHidden?: boolean; })
 {
 	const occupant = slotOccupant(setting, gamePhase(game.status.codedGameState));
+	if (occupant === null) return null;
 	return (
 		<Box
 			data-testid="game-row-slot"
 			data-occupant={occupant}
-			w={104}
+			w={SLOT_WIDTH}
 			p={10}
 			style={{
 				flexShrink: 0,
@@ -125,7 +112,6 @@ export function GameRowSlot({
 		>
 			{occupant === "pitchersOfRecord" ? <PitchersOfRecord game={game} hidden={scoresHidden} /> : null}
 			{occupant === "count" ? <Count game={game} /> : null}
-			{occupant === "probables" ? <Probables game={game} /> : null}
 			{occupant === "roomMenu" ? <RoomMenu game={game} /> : null}
 		</Box>
 	);

@@ -14,7 +14,7 @@ cd "$(dirname "$0")/.."
 source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "ScheduleDayTally and ScheduleDayCount gain regularSeasonTeamIds: number[] | null, built in both schedule repository adapters by one domain function (dayRegularSeasonTeamIds, through distinctTeamIds), with its unit tests and a contract case each on PGlite and memory for a regular-only day, a mixed spring-and-regular day and an untyped day"
-check 2 "one domain function (teamsInOwnSeason) works out, from a year's stored days, which teams are in their own regular season on each day (null when the year's stored days can't tell); ScheduleDayCount gains inSeasonTeamIds: number[] | null; the month service reads the year's stored days in one repository read per request (test counts reads); inside the fill window the one MLB range request also covers the year's missing days, and after a fill only the filled range is re-read (owner, 2026-11-23: \"Fetch the year (Recommended)\")"
+check 2 "one domain function (teamsInOwnSeason) works out, from a year's stored days, which teams are in their own regular season on each day (null when the year's stored days can't tell); ScheduleDayCount gains inSeasonTeamIds: number[] | null; the month service reads the year's stored days in one repository read per request (test counts reads) and asks MLB for no day outside the shown month, the season it needs coming from the scheduled refresh (S194), and a fill answers without a second read (owner, 2026-11-23: \"It should never fetch more than the one month. The year should be fetched server-side with a cron job\")"
 check 3 "favoriteTeamsOff counts only favorites in day.inSeasonTeamIds, falling back to S159's rule when it is null or missing: table tests for the Seoul opener, the Tokyo openers, the 2018-10-01 tiebreakers, an ordinary mid-season day and a missing field all pass, and S159's own tests still pass"
 check 4 "the OpenAPI spec carries both new fields as required on ScheduleDayCount (pnpm api:spec up to date), pnpm api:breaking exits 0, web/src/api/generated/ is rendered from it, and the month route's tests cover both fields"
 check 5 "ScheduleDayCount's and favoriteTeamsOff's comments say the mark follows each team's own season, and S159's comment no longer describes the old limit as a known gap"
@@ -78,12 +78,15 @@ awk '/^export interface ScheduleDayCount/,/^}/' "$DOMAIN" | grep -qE '^\s*inSeas
 awk '/^export function monthGameCounts\(/,/^}/' "$DOMAIN" | grep -qF 'teamsInOwnSeason(' || bad 2 "monthGameCounts does not call teamsInOwnSeason"
 grep -qF 'monthGameCounts(' functions/src/services/schedule-month.ts || bad 2 "the month service does not build its days through monthGameCounts"
 grep -qE 'getByDate\(' functions/src/services/schedule-month.ts && bad 2 "the month service reads days one by one (getByDate)"
+grep -qE 'SEASON_MONTHS|yearFillable' functions/src/services/schedule-month.ts && bad 2 "the month service still asks MLB for other months of the year"
 for t in "seoul" "first game in the month before" "untyped day" "unstored day" "off-season" "boundary" "untyped beside R"; do
   tagged 2 "$DOMAIN_JSON" "S191 AC 2 $t" "packages/domain/src/schedule-month.test.ts"
 done
 tagged 2 "$SERVICE_JSON" "S191 AC 2 one read" "functions/src/services/schedule-month.test.ts"
-# The owner's 2026-11-23 answer ("Fetch the year (Recommended)"): the year's missing days in the one request.
-for t in "year fill" "fill read" "outside window" "year lifetime"; do
+# The owner's 2026-11-23 answer ("It should never fetch more than the one month. The year should be
+# fetched server-side with a cron job"): a read asks MLB for the shown month only; S194's refresh
+# stores the year, and a day the stored year can't tell answers null.
+for t in "month only" "cron year" "fill read" "outside window" "year lifetime"; do
   tagged 2 "$SERVICE_JSON" "S191 AC 2 $t" "functions/src/services/schedule-month.test.ts"
 done
 
@@ -124,7 +127,7 @@ grep -qE "follow-up story is planned|Ship now, fix later" "$DOMAIN" && bad 5 "$D
 # --- Check 6: Status done, inside the fence ------------------------------------------------------------------
 [ "$(story_snapshot_status S191)" = "done" ] || bad 6 "S191's snapshot does not record Status done"
 story_own_changed_files S191 "$BASE" . >"$TMP/changed.txt"
-grep -vE '^(packages/domain/|functions/src/|functions/vitest\.config\.ts$|openapi/|web/src/api/generated/|web/src/api/generated\.types\.test\.ts$|docs/v3/backlog/|docs/v3/audit/|changelog\.d/|scripts/verify-S191\.sh$)' "$TMP/changed.txt" >"$TMP/fence.txt"
+grep -vE '^(packages/domain/|packages/ports/src/repositories\.ts$|functions/src/|functions/vitest\.config\.ts$|openapi/|web/src/api/generated/|web/src/api/generated\.types\.test\.ts$|web/src/test/calendar\.tsx$|web/src/api/client\.test\.ts$|docs/v3/backlog/|docs/v3/audit/|changelog\.d/|scripts/verify-S191\.sh$)' "$TMP/changed.txt" >"$TMP/fence.txt"
 [ -s "$TMP/fence.txt" ] && bad 6 "the story changes files outside its scope: $(tr '\n' ' ' <"$TMP/fence.txt")"
 grep -E '^(test/|scripts/)' "$TMP/changed.txt" | grep -vE '^scripts/verify-S191\.sh$' >"$TMP/test-dir.txt"
 [ -s "$TMP/test-dir.txt" ] && bad 6 "the story changes files under scripts/ or test/: $(tr '\n' ' ' <"$TMP/test-dir.txt")"

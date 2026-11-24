@@ -272,12 +272,25 @@ describe("ScoreboardPage render count (S66, ADR-026)", () =>
 {
 	it("render count: one schedule update commits the scoreboard a fixed number of times", async () =>
 	{
+		// Count with reduced motion on, so the page arms no animation timer that can land in the
+		// counting window (#394, B394). The date control's closed mobile Drawer (S125) otherwise starts
+		// Mantine's 200 ms scroll-lock timer on mount (`useLockScroll`, from its transition duration);
+		// its same-value state update commits the Drawer once, and on a loaded machine that commit
+		// arrives after `counter.reset()`, counting 2 for a schedule update that committed once. With
+		// reduced motion the duration is 0 and the timer is cleared during mount.
+		const matchMedia = window.matchMedia;
+		vi.stubGlobal("matchMedia", (query: string) => ({
+			...matchMedia(query),
+			matches: query === "(prefers-reduced-motion: reduce)",
+		}));
 		serve();
 		const client = createQueryClient();
 		const counter = createRenderCounter("scoreboard");
 		renderScoreboard("mobile", client, (node) => <counter.Counted>{node}</counter.Counted>);
 		await modules();
-		// Let the day digest's own answer (S71) land before counting.
+		// Let the page's other answers land before counting: the day digest's (S71), and the
+		// calendar's month and default day (S125), which a loaded machine can deliver late.
+		await waitFor(() => expect(client.isFetching()).toBe(0));
 		await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
 		counter.reset();
 		const next = day();

@@ -69,7 +69,7 @@ pnpm mlb:backfill --from 2024-03-20 --to 2024-11-02      # any range, both dates
 - **The off-season is skipped.** Every day from November 15 through February 15 is skipped without a request.
 - **What is stored.** Each day's schedule, and each final game hydrated like the live ingest stores it (live feed,
   videos and recap, play metrics, the GraphQL game content) into the same Postgres tables the app reads
-  (`schedule_days`, `games`, `game_projections`). A game already stored unchanged is not rewritten.
+  (`schedule_days`, `game_states`, `games`, `game_projections`). A game already stored unchanged is not rewritten.
 - **Pacing.** At most 2 requests in flight per host (statsapi.mlb.com, bdfed.stitch.mlbinfra.com and
   data-graph.mlb.com counted separately), at least 1 s between request starts to a host, and 3 s for games more
   than 10 years old (`--gap-ms N` and `--old-gap-ms N` change them). A `429` or `5xx` backs off exponentially for
@@ -105,9 +105,9 @@ pnpm mlb:backfill --from 2024-03-20 --to 2024-11-02      # any range, both dates
   runs, so it can be copied table by table into a Neon branch. Migrate the branch first
   (`BT_DATABASE_URL="$NEON" pnpm db:migrate`), then copy the rows in Postgres's custom format, which
   `pg_restore` reads:
-  `pg_dump -Fc --data-only -t schedule_days -t games -t game_projections "$LOCAL" | pg_restore --data-only --no-owner -d "$NEON"`.
+  `pg_dump -Fc --data-only -t schedule_days -t game_states -t games -t game_projections "$LOCAL" | pg_restore --data-only --no-owner -d "$NEON"`.
   This only adds rows: a row already in the branch (the same date or game) makes that table's restore fail on its
-  primary key, so restore into a branch without those rows, or empty those three tables first. Alternatively,
+  primary key, so restore into a branch without those rows, or empty those four tables first. Alternatively,
   point the backfill at the branch itself (`BT_DATABASE_URL`). Whether it ever goes to production is the owner's
   call.
 
@@ -384,7 +384,7 @@ production's deploy is followed by the `production-logto` job, which registers i
 2026-11-06: "Delightful, bc it makes testing much faster in stage").
 
 - **What it copies:** only the Postgres tables the data classification manifest
-  (`functions/src/services/data-classification.ts`) labels `none`: `schedule_days`, `games`,
+  (`functions/src/services/data-classification.ts`) labels `none`: `schedule_days`, `game_states`, `games`,
   `game_projections` and `replay_artifacts`. It never reads or writes a fan's account, settings,
   sign-in links or entitlements, or the deletion log, so none of them ever reaches staging, not even
   for a moment. A new table is copied only once the manifest labels it `none` and the copy's
@@ -406,7 +406,11 @@ production's deploy is followed by the `production-logto` job, which registers i
   copied: those of every game it writes, and any a stopped copy left behind, are rebuilt with
   staging's code. A game that can't be projected is named in the log. Games and their projections
   are skipped together (when the target has a `game_projections` table). Replay recordings keep
-  whichever has more patches.
+  whichever has more patches. A game's shared state (`game_states`, its score, status and on-field
+  moment) is replaced the same way, except that a row staging's live feed wrote while the game is in
+  its live window stays staging's; staging's own feed time and a day's `served_base` (which keeps a
+  day's served version from falling) are never copied, and a day production replaces raises staging's
+  `served_base` by each game the new copy drops.
 - **Tables staging has reshaped are left alone** (owner, 2026-11-13: "I think option b is better").
   It compares the migrations each database has run. A table that a migration production hasn't run
   touches gets none of production's rows, and the log names the migration. If staging's database

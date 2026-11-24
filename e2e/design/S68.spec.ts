@@ -21,8 +21,8 @@
  * collapsed frames' "Collapsed" label is A2's score and state, and the medium / desktop
  * scores-hidden frames' "Scores hidden in settings" line is gone (A4); the scheduled bar
  * shows its start time (no frame draws a scheduled bar); the inning reads as
- * `inningLabel` writes it (`Top 3rd`); the scheduled slot shows probables, not win
- * probability (S67); the modules and slots are S66's and S67's; the header shows the
+ * `inningLabel` writes it (`Top 3rd`); the scheduled row draws no slot box, its
+ * probables in its body (S171, A16); the modules and slots are S66's and S67's; the header shows the
  * signed-in account; the footer's "Fetched … ago" is the real time.
  */
 import { readFileSync } from "node:fs";

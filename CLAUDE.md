@@ -124,7 +124,7 @@ This composes with the Agent / loop rules above — the grader, `scripts/audit.s
 ```bash
 pnpm install
 pnpm dev          # API :8787 + web :5173
-pnpm verify       # lint + coverage tests + build (single exit code)
+pnpm verify       # lint + coverage tests + build (single exit code); one at a time across worktrees (BT_VERIFY_LOCK=0 skips the lock)
 pnpm test         # vitest without coverage thresholds path used by CI
 pnpm lint
 ```

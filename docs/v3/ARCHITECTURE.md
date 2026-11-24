@@ -656,7 +656,7 @@ Campaign webhooks and/or scheduled refresh → update entitlements
 
 - **No fine-tune.** The owner chose *"No fine-tune (Recommended)"*, the option reading *"Stories use ready-made models given BT's game data. They log outputs and your corrections from day one, so a fine-tune stays possible later."*
 - **Grounding rules.** BT computes each job's facts as a JSON fact pack; the model writes only from it; MLB's editorial recap text is never input (the research's §4).
-- **Verification.** Owner: *"I imagine I could have the recap system write a recap AND evaluate the output with a fact checker agent until it's verified"*. Every text job runs one loop (S176's `writeVerified`): the writer drafts; a rules checker compares every number, name, team, inning and count with the facts; a fact-checker model, from a different provider than the writer where possible, checks the claims rules can't; the errors go back to the writer; at most two revisions; a piece that still fails is not published; every round is logged. Chat uses a lighter version (rules checker only, one revision, otherwise "I don't have that"). Whether a failed piece should show a plain data-built version instead is an open question on S176.
+- **Verification.** Owner: *"I imagine I could have the recap system write a recap AND evaluate the output with a fact checker agent until it's verified"*. Every text job runs one loop (S176's `writeVerified`): the writer drafts; a rules checker compares every number, name, team, inning and count with the facts; a fact-checker model, from a different provider than the writer where possible, checks the claims rules can't; the errors go back to the writer; at most three revisions, then one pass on Claude Fable; a piece that still fails is not published, and the owner is emailed a report; every round is logged. Asked on S176 (2026-11-23) what happens to a piece that fails its checks, the owner answered: *"The number of revisions should be more than 2. I'd say if it fails after 3, it should bump the model up to Fable for a single pass. If that fails, it should email [the owner's address] with a report about what happened."* Chat uses a lighter version (rules checker only, one revision, no escalation or email, otherwise "I don't have that").
 - **Caching of generations.** Once per (job, subject, source version, prompt version, models), stored in Postgres; never regenerated once verified or failed after the revision cap, while a budget-stopped or transport-failed item retries a few times (S176). Chat is not cached and its questions stay in its own personal store (S184).
 - **Cost cap.** *"$100/month"*, the option reading *"More room for chat use; alert at 80%."*: a hard stop at $100 a calendar month (UTC), an email to the owner at 80% and at the stop, and AI features show nothing once stopped. The verification loop roughly doubles the postgame bill (about $35–45 a month at the research's prices), inside the cap.
 - **Logging.** Every output, every round and the owner's corrections are kept as future training and evaluation data.
@@ -666,7 +666,9 @@ Campaign webhooks and/or scheduled refresh → update entitlements
 
 **Decided by S177's quality test:** the provider and model for each job's writer and fact checker. Asked which provider, the owner answered *"I would like a cost comparison as all as an evaluation as to which is likely to be most effective at this category of work"*; the research found Anthropic and OpenAI tied at about $22 a month, Google third at about $33, and no public benchmark covering baseball, so a blind test on 40 of BT's games decides (the research's addendum D). S177 records the owner's choice here.
 
-**Still open:** who may read AI outputs, free or patron (S178); who may chat and how much (S184); whether chat stops before the precompute jobs near the cap (S184); whether a piece that fails its checks shows a plain data-built version (S176).
+**Decided 2026-11-23:** who may read AI outputs. Asked on S178 *"Who may read what the AI writes: everyone, only signed-in fans, or only patrons (and which tier)?"*, the owner chose *"Patrons only"*, naming no tier.
+
+**Still open:** which patron tier may read AI outputs (S178); who may chat and how much (S184); whether chat stops before the precompute jobs near the cap (S184).
 
 ### ADR-008 — UI framework (accepted)
 
@@ -1207,9 +1209,21 @@ Calls between objects retry on errors flagged `retryable`. Every deploy restarts
 - **Applied twice:** the edge `s-maxage` (how often a request reaches the Worker) and the MLB refresh-on-read (whether the Worker asks MLB again).
 - **`stale-while-revalidate`** so viewers never wait on a refresh; **Tiered Cache** so a miss checks other data centers first.
 - **The cap is the staleness guarantee** for late MLB scoring corrections; ingest may also purge a game it knows changed.
-- **Amended 2026-11-13 — standings only:** standings keep the graduated lifetime but not the 48h cap; their cap is 30 days (owner, 2026-11-13: *"Make an exception for standings. They should still use the graduated thing, but make it an exception for the 48h cap. Increase the cap to 30 days."*). The ladder carries on past 48h for them (S139), in the edge's `s-maxage` only, never a long browser `max-age`, which couldn't be purged. Games and schedules keep the 48h cap.
+- **Amended 2026-11-13 — standings only:** standings keep the graduated lifetime but not the 48h cap; their cap is 30 days (owner, 2026-11-13: *"Make an exception for standings. They should still use the graduated thing, but make it an exception for the 48h cap. Increase the cap to 30 days."*). The ladder carries on past 48h for them (S139), in the edge's `s-maxage` only, never a long browser `max-age`, which couldn't be purged. Games and schedules keep the 48h cap unless a reason is stated (the 2026-11-23 amendment below).
+- **Amended 2026-11-23: a hard cap of 30 days; 48h stays the default.** Owner, 2026-11-23, while B399 (#399, the slow month calendar) was being fixed: *"48 hours would be long enough if we have the CRON shorter than that"*, then *"we should increase the ADR-021 cap to 30 days though, but require a reason for it to exceed 48 hours."*
+    - Every lifetime still stops at 48h unless a reason is stated for going longer. The longest any lifetime may be is 30 days.
+    - The owner's example of a reason: a scheduled refresh that runs more often than every 48h.
+    - Past 48h, the cap's staleness guarantee weakens. A cached answer is then only as fresh as the stated reason keeps it.
+    - **Exception to the 30-day cap: a past calendar year's schedule months.** A month answer for a month before MLB's today's year may be kept at the edge as long as the edge allows. Owner, 2026-11-23: *"Oh, also - schedule months from past years should be cached for an entire year. The cron should include the whole schedule (past and future) for the current calendar year (the entire year)."*, then *"in fact, for prior years, I'd make the cache as long as possible, like 100 years"*.
+        - The reason a lifetime past 48h needs is the owner's direction: a finished year's schedule no longer changes.
+        - The lifetime is in `s-maxage` only, never a long browser `max-age`, as the standings amendment says.
+        - Its value is 2,147,483,647 s (2^31−1, about 68 years), not 100 years (3,155,760,000 s). That is the largest value every 32-bit signed parser accepts. RFC 9111 has a cache treat anything larger as 2^31.
+        - Corrections still reach fans, because the long lifetime is given only to a URL that names its own content: the month answer's content hash, which the client learns from a short-lived versions answer. A backfill's correction, or a new field, changes the hash and so the URL. A month asked for without its version keeps the ladder.
+        - The current year's and next year's months keep the 48h cap, kept fresh by a refresh every ~6h.
+        - For those in-window months, refresh-on-read follows the refresh's record of when each month was last checked, not the ladder: a month is asked of MLB on read only when that record is older than the refresh's interval plus a margin.
+        - S194 builds all of this.
 
-**Why:** finished games stop costing MLB calls and Postgres reads within hours, without a fixed "forever" TTL that would hide corrections.
+**Why:** finished games stop costing MLB calls and Postgres reads within hours, without a fixed "forever" TTL that would hide corrections. The one long lifetime is a past year's schedule month at a URL naming its exact content (the 2026-11-23 amendment), so a correction is a new URL.
 
 ### ADR-022 — Idempotent updates (accepted 2026-10-18)
 
@@ -1361,6 +1375,8 @@ Owner, 2026-10-23: *"I need tools to allow a user to delete all of their data, a
 | BT database: settings | favorites, preferences | `deleteFor` | Same |
 | BT database: Patreon link (later) | encrypted refresh token | `deleteFor`, after revoking | Same |
 | Cloud storage: data downloads | the user's export files and their download-request times | `deleteFor` | 14-day R2 lifecycle rule |
+| BT database: game chat (S184) | a fan's questions about a game, BT's answers and their check rounds, and the account's daily question counts (owner, 2026-11-23, asked whether this list should gain a row for BT's store of a fan's chat questions and answers and one for the AI provider that receives each question: *"Yes, add both rows (Recommended)"*, the option reading *"Both rows go in; the provider row's retention is filled from the chosen provider's terms when S177 picks it."*) | `deleteFor` | Backups: the Neon restore window |
+| AI provider: game chat (S184) | each question a fan asks, sent with the game's data (same answer as the row above) | — | From the provider S177 picks: its terms, filled in when S177 chooses it |
 | Logto | account, email | `IdentityAdmin.deleteAccount` | Logto's own logs |
 | Cloudflare Email | the address a download-ready email went to | — | Cloudflare's retention; labeled in the manifest when its adapter lands |
 | Patreon | membership, pledge | BT deletes its copy and revokes access | Patreon's records are Patreon's |
