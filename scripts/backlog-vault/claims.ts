@@ -52,6 +52,8 @@
  *
  *   node scripts/backlog-vault/claims.ts run start --n <N> --c <2|3> | run start --resume
  *   node scripts/backlog-vault/claims.ts run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier]
+ *   node scripts/backlog-vault/claims.ts run event review-score [<ID>] --review backlog|parity --score <0-10> --threshold <0-10> --reason "<text>"
+ *   node scripts/backlog-vault/claims.ts run event review-start --review backlog|parity [--reason "<focus>"] [--base <sha>]
  *   node scripts/backlog-vault/claims.ts run end <run id> [--abandoned]
  *       the run journal, `.run/run.json` (S158 AC 1; see {@link RunJournal}): `start` opens one (exit 1 naming
  *       the run when one is open), `--resume` keeps it and logs `run-resume`; `event` appends one event
@@ -60,6 +62,10 @@
  *       an `interrupted` with no later `run-resume`); `end` moves the journal to `.run/ended/<run id>.json`
  *       (exit 1 when no run, or another, is open), with `"abandoned": true` written into it for `--abandoned`. `claim` appends its own `claim` or `claim-refused`
  *       event when a journal exists and it is not a `--dry-run`. A journal that doesn't parse exits 2.
+ *       `review-score` and `review-start` are the review tracker's (run-backlog step 2, "Reviews inside a run"): the
+ *       tracker's score for one review after a merge (the merged item's ID when there is one; a backlog pull request
+ *       has none), and a review of that type starting in the run, with `base`, the `origin/stage` commit it starts from
+ *       (`git fetch origin stage` first, unless `--base` names it), from which the ceiling counts again; runs.ts reads them back.
  *
  * `claim`, `release` and every journal write run under a lock, the directory `.run/claims.lock` holding the holder's pid, so two
  * claims made at once can't both be admitted against an empty in-flight set. A command that can't take it
@@ -162,7 +168,10 @@ export interface RunJournal
 	abandoned?: boolean;
 }
 
-/** One journal event; `id` for an item's events, `pr` for `pr-open`, `path` for `conflict`, `barrier` on a barrier's `item-start`. */
+/**
+ * One journal event; `id` for an item's events, `pr` for `pr-open`, `path` for `conflict`, `barrier` on a barrier's
+ * `item-start`, and `review` (with `score`, `threshold`, `due` and `reason` on a `review-score`) on the review tracker's events.
+ */
 export interface RunEvent
 {
 	kind: string;
@@ -170,6 +179,17 @@ export interface RunEvent
 	pr?: number;
 	path?: string;
 	barrier?: boolean;
+	review?: TrackedReview;
+	/** The tracker's 0–10 judgment of how much this review is needed now (`review-score`). */
+	score?: number;
+	/** The score at which the tracker judged this review due (`review-score`). */
+	threshold?: number;
+	/** `score >= threshold`, written once here so every reader agrees on it. */
+	due?: boolean;
+	/** The tracker's one-paragraph reason and focus brief, or the focus a `review-start` was given. */
+	reason?: string;
+	/** A `review-start`'s `origin/stage` commit: the ceiling's rule changes count from it (runs.ts reviewBase). */
+	base?: string;
 	at: string;
 }
 
@@ -177,6 +197,15 @@ export interface RunEvent
 export const RUN_ITEM_KINDS = ["item-start", "needs-lead", "park", "resume", "held", "pr-open", "ready", "merged", "conflict", "duplicate", "turn-cap"];
 /** The run events `run event` takes, which name no item. `run-resume`, `claim` and `claim-refused` are written only by `run start --resume` and `claim`. */
 export const RUN_KINDS = ["gate-open", "gate-close", "interrupted"];
+/**
+ * The review tracker's events (run-backlog step 2, "Reviews inside a run"; owner, 2026-11-24: "a super light agent
+ * simply tracks how important each review type is over the lifetime of the run"). The ID is optional: a score
+ * follows a merge, and a backlog pull request that merged names no item.
+ */
+export const RUN_REVIEW_KINDS = ["review-score", "review-start"];
+/** The two reviews the tracker scores; a design intake is not one (it stays due as review-debt.sh says, in a run or not). */
+export const TRACKED_REVIEWS = ["backlog", "parity"] as const;
+export type TrackedReview = typeof TRACKED_REVIEWS[number];
 
 /** A refused journal command: the CLI prints it and exits 1. */
 export class RunError extends Error
@@ -200,20 +229,35 @@ export function runIdFor(at: string): string
 export function makeRunEvent(kind: string, input: { id?: string;
 	pr?: string;
 	path?: string;
-	barrier?: boolean; }, at: string): RunEvent
+	barrier?: boolean;
+	review?: string;
+	score?: string;
+	threshold?: string;
+	reason?: string;
+	base?: string; }, at: string): RunEvent
 {
 	const item = RUN_ITEM_KINDS.includes(kind);
-	if (!item && !RUN_KINDS.includes(kind))
+	const tracker = RUN_REVIEW_KINDS.includes(kind);
+	if (!item && !tracker && !RUN_KINDS.includes(kind))
 	{
-		throw new RunError(`unknown event kind '${kind}' (item: ${RUN_ITEM_KINDS.join(", ")}; run: ${RUN_KINDS.join(", ")})`);
+		throw new RunError(`unknown event kind '${kind}' (item: ${RUN_ITEM_KINDS.join(", ")}; run: ${RUN_KINDS.join(", ")}; review tracker: ${RUN_REVIEW_KINDS.join(", ")})`);
 	}
 	if (item && !input.id)
 	{
 		throw new RunError(`${kind} needs an item ID`);
 	}
-	if (!item && input.id)
+	if (!item && !tracker && input.id)
 	{
 		throw new RunError(`${kind} is a run event and takes no ID`);
+	}
+	// The tracker's flags belong to its events alone, and are checked before the others so the message names them.
+	if (!tracker && [input.review, input.score, input.threshold, input.reason, input.base].some((v) => v !== undefined))
+	{
+		throw new RunError(`${kind} takes no --review, --score, --threshold, --reason or --base (only ${RUN_REVIEW_KINDS.join(" and ")} do)`);
+	}
+	if (tracker)
+	{
+		return trackerEvent(kind, input, at);
 	}
 	if (input.id && !ITEM_ID.test(input.id))
 	{
@@ -251,6 +295,76 @@ export function makeRunEvent(kind: string, input: { id?: string;
 		...(input.barrier ? {
 			barrier: true,
 		} : {}),
+		at,
+	};
+}
+
+/** A `review-score` or `review-start` event (see {@link RUN_REVIEW_KINDS}), or a {@link RunError}. */
+function trackerEvent(kind: string, input: Parameters<typeof makeRunEvent>[1], at: string): RunEvent
+{
+	if (input.id && !ITEM_ID.test(input.id))
+	{
+		throw new RunError(`not an item ID: '${input.id}' (S<N>, B<N>, F<N> or V<N>)`);
+	}
+	if (!(TRACKED_REVIEWS as readonly string[]).includes(input.review ?? ""))
+	{
+		throw new RunError(`${kind} needs --review ${TRACKED_REVIEWS.join("|")}`);
+	}
+	if (input.pr !== undefined || input.path !== undefined || input.barrier)
+	{
+		throw new RunError(`${kind} takes no --pr, --path or --barrier`);
+	}
+	const review = input.review as TrackedReview;
+	if (kind === "review-start")
+	{
+		if (input.score !== undefined || input.threshold !== undefined)
+		{
+			throw new RunError("review-start takes no --score or --threshold (log the tracker's decision as review-score)");
+		}
+		// The CLI fills it from origin/stage; a start with no base would let the ceiling count from nowhere.
+		if (!/^[0-9a-f]{7,40}$/.test(input.base ?? ""))
+		{
+			throw new RunError(`review-start needs its base, a commit sha (got '${input.base ?? ""}')`);
+		}
+		return {
+			kind,
+			...(input.id ? {
+				id: input.id,
+			} : {}),
+			review,
+			...(input.reason ? {
+				reason: input.reason,
+			} : {}),
+			base: input.base!,
+			at,
+		};
+	}
+	if (input.base !== undefined)
+	{
+		throw new RunError("review-score takes no --base (only review-start records one)");
+	}
+	// 0–10 whole numbers, as the tracker's agent definition asks for: a score outside it would be read as anything.
+	const scale = (v: string | undefined) => (/^(?:[0-9]|10)$/.test(v ?? "") ? Number(v) : undefined);
+	const score = scale(input.score);
+	const threshold = scale(input.threshold);
+	if (score === undefined || threshold === undefined)
+	{
+		throw new RunError("review-score needs --score and --threshold, each a whole number from 0 to 10");
+	}
+	if (!input.reason?.trim())
+	{
+		throw new RunError("review-score needs --reason, the tracker's reason and focus brief");
+	}
+	return {
+		kind,
+		...(input.id ? {
+			id: input.id,
+		} : {}),
+		review,
+		score,
+		threshold,
+		due: score >= threshold,
+		reason: input.reason.trim(),
 		at,
 	};
 }
@@ -952,6 +1066,23 @@ function formatReport(claim: Claim, report: ClaimReport): string
 	return lines.join("\n");
 }
 
+/**
+ * `origin/stage` after a fetch, the commit a review starting now reviews (run-backlog step 2): the main checkout's
+ * HEAD may lag behind what has merged. A failed fetch or read is a {@link RunError} naming `--base`.
+ */
+function fetchedStage(root: string): string
+{
+	const git = (...args: string[]) => spawnSync("git", ["-C", root, ...args], {
+		encoding: "utf8",
+	});
+	const sha = git("fetch", "-q", "origin", "stage").status === 0 ? git("rev-parse", "origin/stage").stdout.trim() : "";
+	if (!/^[0-9a-f]{40}$/.test(sha))
+	{
+		throw new RunError("review-start: could not fetch origin/stage; pass --base <sha>");
+	}
+	return sha;
+}
+
 /** `run start`, `run event` and `run end`, under the claims lock; throws {@link RunError} on refused input. */
 function runCommand(root: string, sub: string, rest: string[], values: { n?: string;
 	c?: string;
@@ -959,7 +1090,12 @@ function runCommand(root: string, sub: string, rest: string[], values: { n?: str
 	pr?: string;
 	path?: string;
 	barrier?: boolean;
-	abandoned?: boolean; }): number
+	abandoned?: boolean;
+	review?: string;
+	score?: string;
+	threshold?: string;
+	reason?: string;
+	base?: string; }): number
 {
 	const at = new Date().toISOString();
 	const open = readRunJournal(root);
@@ -1012,6 +1148,11 @@ function runCommand(root: string, sub: string, rest: string[], values: { n?: str
 			pr: values.pr,
 			path: values.path,
 			barrier: values.barrier,
+			review: values.review,
+			score: values.score,
+			threshold: values.threshold,
+			reason: values.reason,
+			base: kind === "review-start" ? values.base ?? fetchedStage(root) : values.base,
 		}, at);
 		if (!open)
 		{
@@ -1055,7 +1196,8 @@ function runCommand(root: string, sub: string, rest: string[], values: { n?: str
 		console.log(`run ${open.id} ended: its journal is .run/ended/${open.id}.json`);
 		return 0;
 	}
-	throw new RunError("usage: claims.ts run start --n <N> --c <C> | run start --resume | run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier] | run end <run id>");
+	throw new RunError("usage: claims.ts run start --n <N> --c <C> | run start --resume | run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier] "
+		+ "| run event review-score [<ID>] --review backlog|parity --score <0-10> --threshold <0-10> --reason <text> | run event review-start --review backlog|parity [--reason <focus>] [--base <sha>] | run end <run id>");
 }
 
 function main(argv: string[]): number
@@ -1108,6 +1250,21 @@ function main(argv: string[]): number
 			},
 			"abandoned": {
 				type: "boolean",
+			},
+			"review": {
+				type: "string",
+			},
+			"score": {
+				type: "string",
+			},
+			"threshold": {
+				type: "string",
+			},
+			"reason": {
+				type: "string",
+			},
+			"base": {
+				type: "string",
 			},
 		},
 	});

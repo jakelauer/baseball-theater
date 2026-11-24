@@ -126,3 +126,67 @@ json_report() {
   printf '{"due":%s,"base":%s,"done":%s,"inFlight":%s,"events":[%s]}\n' \
     "$1" "$(json_string "$2")" "$(json_list "$3")" "$(json_list "$4")" "$joined"
 }
+
+# verify_changed <base> — true when the `verify` or `verify:run` script line in package.json differs between
+# <base> and HEAD: the gate moved. `verify` runs the gate through the one-at-a-time lock
+# (scripts/with-verify-lock.sh) and `verify:run` is the gate itself, so a change to either is the gate changing.
+verify_changed()
+{
+  [ "$(git show "$1:package.json" 2>/dev/null | grep -E '"verify(:run)?":')" != "$(git show HEAD:package.json | grep -E '"verify(:run)?":')" ]
+}
+
+# The rule files whose change forces a review inside a /run-backlog run, whatever the review tracker scored
+# (owner, 2026-11-24, asked whether the tracker should have a hard ceiling for "any ADR or rule change, or ~10
+# items since the last review": "Yes, with a ceiling (Recommended)"): CLAUDE.md, LOOP, the laws, the backlog
+# rules (frame note 00), every skill and every agent definition. ARCHITECTURE.md (an ADR) and `pnpm verify`
+# are the ceiling's other two parts (ceiling_changes); the item count is runs.ts REVIEW_CEILING_ITEMS.
+CEILING_RULE_PATHS=(CLAUDE.md docs/v3/LOOP.md docs/v3/LAWS.md 'docs/v3/backlog/frame/00 *' .claude/skills .claude/agents)
+
+# ceiling_changes <base> — one line per ceiling change since <base> (the commit that logged the review's newest
+# entry): each rule file changed, ARCHITECTURE.md (an ADR accepted or changed) and `pnpm verify` itself. Both debt
+# scripts pass each line to `runs.ts review-state --changed` inside a run.
+ceiling_changes()
+{
+  git diff --name-only "$1" HEAD -- "${CEILING_RULE_PATHS[@]}" docs/v3/ARCHITECTURE.md
+  verify_changed "$1" && echo "package.json (pnpm verify itself)"
+  return 0
+}
+
+# ceiling_changes_since_both <a> <b> — the ceiling changes since both commits (comm needs sorted input).
+ceiling_changes_since_both()
+{
+  comm -12 <(ceiling_changes "$1" | sort -u) <(ceiling_changes "$2" | sort -u)
+}
+
+# in_run_state <backlog|parity> <ledger base> <main checkout> — inside an open /run-backlog run (the main checkout's
+# .run/run.json exists), prints the review tracker's state for that review (runs.ts review-state) and returns 1
+# when it is due, 0 when not; returns 3, printing nothing, outside a run; 2 when the journal can't be read.
+# The ceiling's rule changes count from one baseline (run-backlog step 2): the `origin/stage` commit the review's
+# newest `review-start` recorded (runs.ts review-base), or, before its first start in the run, its newest ledger
+# entry (<ledger base>). A start base that HEAD doesn't contain (this checkout is behind it) means no change since
+# the start. Once the review has logged its verdict after that start, only a change since both the start and that
+# entry counts, so its own pull request's rule edits never force it again, while a rules pull request that merged
+# between its start and its log still does. Reads the caller's $LEDGER.
+in_run_state()
+{
+  local journal="$3/.run/run.json" changed=() line start="" logged=0 from
+  [ -f "$journal" ] || return 3
+  IFS=$'\t' read -r start logged < <(node scripts/backlog-vault/runs.ts review-base --review "$1" --journal "$journal" --audit "$LEDGER" || echo "ERR") || true
+  [ "$start" = "ERR" ] && return 2
+  from="$2"
+  if [ -n "$start" ]; then
+    from="$start"
+  fi
+  if [ -z "$start" ] || git merge-base --is-ancestor "$start" HEAD 2>/dev/null; then
+    while IFS= read -r line; do
+      [ -n "$line" ] && changed+=(--changed "$line")
+    done < <(
+      if [ -n "$start" ] && [ "$logged" = "1" ]; then
+        ceiling_changes_since_both "$from" "$2"
+      else
+        ceiling_changes "$from"
+      fi
+    )
+  fi
+  node scripts/backlog-vault/runs.ts review-state --review "$1" --journal "$journal" ${changed[@]+"${changed[@]}"}
+}

@@ -212,6 +212,22 @@ describe("renderDocIndex", () =>
 		expect(index).toContain("**Bugs `done`** (1): [B71](https://github.com/o/r/issues/71)");
 	});
 
+	it("names a grouped bug's group in its row, so the next run schedules the group as one item", () =>
+	{
+		const index = renderDocIndex({
+			docs: [],
+			frame: [],
+			live: live([{
+				...bug("B418", "todo", 30),
+				group: "videos-room",
+			}, bug("B74", "todo", 31)]),
+			texts: [],
+			ledger: NO_LEDGER,
+		});
+		expect(index).toContain("Bug #418: B418 \\| title (group `videos-room`) | `todo` | — | — |");
+		expect(index).toContain("Bug #74: B74 \\| title | `todo` | — | — |");
+	});
+
 	it("puts a bug before a story of equal priority, lists closed bugs by issue number, and marks an unaccepted bug", () =>
 	{
 		const index = renderDocIndex({

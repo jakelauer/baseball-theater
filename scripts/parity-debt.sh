@@ -28,6 +28,11 @@
 #
 # Reads committed history (HEAD; uncommitted edits are not counted) and, for the `removed` event,
 # the issue cache when there is one (scripts/lib/story-notes.sh cache_removed).
+#
+# Inside an open /run-backlog run (the main checkout's `.run/run.json` exists) none of the above makes the review
+# due by itself: the review tracker's newest parity score and the hard ceiling decide, as scripts/review-debt.sh
+# says (run-backlog step 2, "Reviews inside a run"; owner, 2026-11-24: "Yes, with a ceiling (Recommended)"), and
+# the reasons above are listed as what the tracker weighs. `--json`'s `due` follows the same rule.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -160,11 +165,32 @@ if [ "$done_count" -eq "$((BACKSTOP - 1))" ]; then
 fi
 print_counts() { printf "${counts}\n" "parity" "doc parity review"; }
 
+# Inside an open run the review tracker and its ceiling decide instead (the header): status 1 due, 0 not, 3 no run.
+# `.run/` is the main checkout's, found through git's common dir, as review-debt.sh finds it.
+main_checkout="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+run_state="$(in_run_state parity "$base" "$main_checkout")"
+run_status=$?
+[ "$run_status" -eq 2 ] && { echo "parity: could not read the run journal ${main_checkout}/.run/run.json" >&2; exit 2; }
+
 if [ -n "$json" ]; then
   due=false
-  [ "${#reasons[@]}" -gt 0 ] && due=true
+  if [ "$run_status" -eq 3 ]; then
+    [ "${#reasons[@]}" -gt 0 ] && due=true
+  else
+    [ "$run_status" -eq 1 ] && due=true
+  fi
   json_report "$due" "$base" "$done_since" "$in_flight"
   exit 0
+fi
+
+if [ "$run_status" -ne 3 ]; then
+  echo "$run_state"
+  if [ "${#reasons[@]}" -gt 0 ]; then
+    echo "parity: what the review tracker weighs, since ${base} (none of it makes the review due by itself inside a run):"
+    printf '  - %s\n' "${reasons[@]}"
+  fi
+  print_counts
+  exit "$run_status"
 fi
 
 if [ "${#reasons[@]}" -eq 0 ]; then

@@ -11,6 +11,7 @@
  *   pnpm backlog:search dependents <ID>          the items that depend on it (a removed ID exits 2: the seed finds its dependents)
  *   pnpm backlog:search neighbors <ID> [--window <k>]   the open items within k places of it (default 2)
  *   pnpm backlog:search cites <feature>          stories whose **Source:** names that FEATURES row (or pillar)
+ *   pnpm backlog:search group <name>             the open bugs of that group (fields block `group`), in order
  *   pnpm backlog:search design <surface | amendment path>   stories built to that surface's design, or citing that amendment
  *   pnpm backlog:search path <prefix>            stories whose scope_files or acceptance criteria name a path under it
  *   pnpm backlog:search text <regex> [--open]    stories whose body matches (open ones only with --open)
@@ -76,6 +77,8 @@ export interface BacklogItem
 	note: string;
 	/** Its GitHub issue's number, when it was read from one (github.ts, S164). */
 	issue?: number;
+	/** A bug's group (its fields block's `group`, text-records.ts): the bugs that run as one combined item. */
+	group?: string;
 }
 
 /** Where the queries read the backlog from. */
@@ -195,6 +198,15 @@ export function neighbors(items: BacklogItem[], id: string, window = 2): Backlog
 	const order = openOrder(items);
 	const at = order.findIndex((i) => i.id === id);
 	return at === -1 ? [] : order.filter((_, k) => k !== at && Math.abs(k - at) <= window);
+}
+
+/**
+ * The open bugs of one group (run-backlog step 3, "Bug groups"), in {@link openOrder}: the members a group's
+ * one `bug-worker` fixes together, the first being the item the group is scheduled as.
+ */
+export function group(items: BacklogItem[], name: string): BacklogItem[]
+{
+	return openOrder(items).filter((i) => i.kind === "bug" && i.group === name);
 }
 
 /** The stories whose `**Source:**` line names the FEATURES row or INTENT pillar `name` (source.ts sourceCitations); a mention elsewhere doesn't count. */
@@ -580,11 +592,11 @@ export function queryLine(query: string, ids: string[]): string
 	return `query: ${query} → ${ids.length === 0 ? "none" : ids.join(", ")}`;
 }
 
-/** An item as one line: ID, status, priority, title and note. */
+/** An item as one line: ID, status, priority, title, note, and a bug's group when it has one (run-backlog step 3 schedules a group as one item). */
 function itemLine(i: BacklogItem): string
 {
 	const priority = Number.isFinite(i.priority) ? `p${i.priority}` : "unaccepted";
-	return `${i.id} \`${i.status}\` ${priority} ${i.title} — ${i.issue === undefined ? `docs/v3/backlog/${i.note}` : `#${i.issue}`}`;
+	return `${i.id} \`${i.status}\` ${priority} ${i.title} — ${i.issue === undefined ? `docs/v3/backlog/${i.note}` : `#${i.issue}`}${i.group ? ` (group ${i.group})` : ""}`;
 }
 
 // ---- CLI ----
@@ -930,10 +942,11 @@ export async function main(argv: string[], source: BacklogSource = githubSource(
 		case "dependents": query = `dependents ${id()}`; found = dependents(items, id()); break;
 		case "neighbors": query = `neighbors ${id()} --window ${window}`; found = neighbors(items, id(), window); break;
 		case "cites": found = cites(items, need()); query = `cites ${arg}`; break;
+		case "group": found = group(items, need()); query = `group ${arg}`; break;
 		case "design": found = design(items, need()); query = `design ${arg}`; break;
 		case "path": found = path(items, need()); query = `path ${arg}`; break;
 		case "text": found = text(items, need(), flags.open === true); query = flags.open === true ? `text ${arg} --open` : `text ${arg}`; break;
-		default: throw new SearchUsageError(`unknown query '${name ?? ""}': item, next, deps, dependents, neighbors, cites, design, path, text, issues or seed`);
+		default: throw new SearchUsageError(`unknown query '${name ?? ""}': item, next, deps, dependents, neighbors, cites, group, design, path, text, issues or seed`);
 	}
 	const line = queryLine(query, found.map((i) => i.id));
 	if (json)

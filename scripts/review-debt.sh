@@ -51,6 +51,15 @@
 # Not detectable here, so still the agent's to notice: a scope fence widened, and a turn cap hit
 # logged in no journal (one outside a /run-backlog run).
 #
+# Inside an open /run-backlog run (the main checkout's `.run/run.json` exists) the backlog review is not due by
+# these events or the 6-story count: the review tracker's newest score and the hard ceiling decide
+# (run-backlog step 2, "Reviews inside a run"; owner, 2026-11-24: "rather than scheduling them by event or
+# item count, a super light agent simply tracks how important each review type is over the lifetime of the
+# run"; then "Yes, with a ceiling (Recommended)"). The script then prints that state (scripts/lib/story-notes.sh
+# in_run_state, runs.ts review-state) and lists the events above as what the tracker weighs; it exits 1 only when
+# the tracker or the ceiling says due, or a design intake is due (the tracker scores only the backlog and parity
+# reviews, so an intake stays due as above). `--json`'s `due` follows the same rule; its events are unchanged.
+#
 # Reads committed history (HEAD; uncommitted edits are not counted) and, for the `removed` event,
 # the issue cache when there is one (scripts/lib/story-notes.sh cache_removed). Turn-cap hits are the
 # exception: they are read from the working tree's ledger (AUDIT.md and its fragments, committed or
@@ -182,9 +191,8 @@ while IFS= read -r path; do
   [ -n "$path" ] && reasons+=("new workspace package: $(dirname "$path")") && json_event package-added path "$(dirname "$path")"
 done < <(git diff --name-only --diff-filter=A "$base" HEAD -- 'packages/*/package.json')
 
-# `verify` runs the gate through the one-at-a-time lock (scripts/with-verify-lock.sh); the gate itself is
-# `verify:run`, so a change to either line is the gate changing.
-if [ "$(git show "$base:package.json" 2>/dev/null | grep -E '"verify(:run)?":')" != "$(git show HEAD:package.json | grep -E '"verify(:run)?":')" ]; then
+# scripts/lib/story-notes.sh verify_changed: the `verify` or `verify:run` line moved.
+if verify_changed "$base"; then
   reasons+=("pnpm verify itself changed")
   json_event verify-changed path package.json
 fi
@@ -258,11 +266,30 @@ if [ "$done_count" -eq "$((BACKSTOP - 1))" ]; then
 fi
 print_counts() { printf "${counts}\n" "review" "backlog review"; }
 
+# Inside an open run the review tracker and its ceiling decide instead (the header): status 1 due, 0 not, 3 no run.
+run_state="$(in_run_state backlog "$base" "$main_checkout")"
+run_status=$?
+[ "$run_status" -eq 2 ] && { echo "review: could not read the run journal ${main_checkout}/.run/run.json" >&2; exit 2; }
+
 if [ -n "$json" ]; then
   due=false
-  [ "${#reasons[@]}" -gt 0 ] || [ "${#intake[@]}" -gt 0 ] && due=true
+  if [ "$run_status" -eq 3 ]; then
+    [ "${#reasons[@]}" -gt 0 ] || [ "${#intake[@]}" -gt 0 ] && due=true
+  else
+    [ "$run_status" -eq 1 ] || [ "${#intake[@]}" -gt 0 ] && due=true
+  fi
   json_report "$due" "$base" "$done_since" "$in_flight"
   exit 0
+fi
+
+if [ "$run_status" -ne 3 ] && [ "${#intake[@]}" -eq 0 ]; then
+  echo "$run_state"
+  if [ "${#reasons[@]}" -gt 0 ]; then
+    echo "review: what the review tracker weighs, since ${base} (none of it makes the review due by itself inside a run):"
+    printf '  - %s\n' "${reasons[@]}"
+  fi
+  print_counts
+  exit "$run_status"
 fi
 
 if [ "${#reasons[@]}" -eq 0 ] && [ "${#intake[@]}" -eq 0 ]; then
@@ -274,6 +301,7 @@ if [ "${#intake[@]}" -gt 0 ]; then
   echo "review: a design intake review is due (since ${base}, which logged the last backlog review or its answers):"
   printf '  - %s\n' "${intake[@]}"
   [ "${#reasons[@]}" -gt 0 ] && printf '  - %s\n' "${reasons[@]}"
+  [ "$run_status" -ne 3 ] && echo "$run_state"
 else
   echo "review: a backlog review is due (since ${base}, which logged the last backlog review or its answers):"
   printf '  - %s\n' "${reasons[@]}"
