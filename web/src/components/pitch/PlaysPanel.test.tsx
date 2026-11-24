@@ -397,6 +397,46 @@ describe("opening an at-bat (S64 choreography, kept in S41)", () =>
 		});
 		expect(within(item(first)).getByTestId("zone-ball")).toBeInTheDocument();
 	});
+
+	it("an at-bat opens once its scroll settles, or when it can't scroll, without waiting a second for a scrollend that never comes (#420)", () =>
+	{
+		vi.useFakeTimers();
+		vi.stubGlobal("requestAnimationFrame", (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now()), 16));
+		vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
+		vi.stubGlobal("scrollBy", vi.fn());
+		// The page can't scroll the tapped at-bat any higher (the last rows of a short page),
+		// so the browser fires no `scrollend`.
+		vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => undefined);
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(() => ({
+			top: 300,
+		}) as DOMRect);
+		const { container } = wrap(<PlaysPanel game={game(PLAYS.slice(0, 3))} />);
+		const atBat = PLAYS[2]!;
+		fireEvent.click(control(container, atBat));
+		act(() =>
+		{
+			vi.advanceTimersByTime(150);
+		});
+		expect(within(item(atBat)).getByTestId("catcher-view")).toBeInTheDocument();
+	});
+
+	it("closing an at-bat keeps its contents in the panel until the collapse ends, so the page doesn't jump (#420)", () =>
+	{
+		vi.useFakeTimers();
+		vi.stubGlobal("scrollBy", vi.fn());
+		const { container } = wrap(<PlaysPanel game={game(PLAYS.slice(0, 3))} />);
+		const atBat = PLAYS[0]!;
+		fireEvent.click(control(container, atBat));
+		expect(within(item(atBat)).getByTestId("catcher-view")).toBeInTheDocument();
+		fireEvent.click(control(container, atBat));
+		expect(control(container, atBat)).toHaveAttribute("aria-expanded", "false");
+		expect(within(item(atBat)).getByTestId("catcher-view")).toBeInTheDocument();
+		act(() =>
+		{
+			vi.advanceTimersByTime(1000);
+		});
+		expect(within(item(atBat)).queryByTestId("catcher-view")).toBeNull();
+	});
 });
 
 describe("AtBatViewer", () =>
