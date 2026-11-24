@@ -253,27 +253,73 @@ export function PlaysPanel({ game }: { game: GamePayload })
 /** How long an at-bat takes to open, in ms. */
 const OPEN_MS = 200;
 
-/** Calls `then` once a smooth scroll has finished: on `scrollend`, or after a second without one. Returns a cancel. */
-function afterScroll(then: () => void): () => void
+/**
+ * How many animation frames `item` must sit still, once it has moved, before its scroll
+ * counts as over.
+ */
+const STILL_FRAMES = 3;
+
+/**
+ * How many animation frames `item` may sit still before it has moved at all and its
+ * scroll still counts as over: a smooth scroll the browser runs off the main thread can
+ * take a few frames to start moving the page, and opening before then would open the
+ * play mid-scroll. Only a row that can't scroll (one near the bottom of a short page)
+ * waits all of them.
+ */
+const START_FRAMES = 10;
+
+/**
+ * Calls `then` once the smooth scroll that brings `item` to the top has finished: on
+ * `scrollend`, as soon as `item` reaches the top, once it has moved and then sat still for
+ * `STILL_FRAMES` frames, or, if it never moves, after `START_FRAMES` frames. The browser
+ * fires no `scrollend` when nothing scrolls (a row near the bottom of a short page can't
+ * reach the top) or doesn't support it at all, and waiting out the one-second fallback
+ * then made opening a play feel slow (#420). Still frames count as "over" only after a
+ * move, because a smooth scroll can start late on screen and the play must not open
+ * mid-scroll (owner, 2026-10-29: "The accordion animation is janky because the open one
+ * closes while the scrolling animation is happening"). The rules count frames, not time,
+ * so a faster screen waits less. The fallback stays only in case frames stop (a hidden
+ * tab). Returns a cancel.
+ */
+function afterScroll(item: Element, then: () => void): () => void
 {
 	let done = false;
+	let frame = 0;
+	let last = item.getBoundingClientRect().top;
+	let still = 0;
+	let moved = false;
+	const stop = () =>
+	{
+		done = true;
+		window.clearTimeout(timer);
+		window.cancelAnimationFrame(frame);
+		window.removeEventListener("scrollend", finish);
+	};
 	const finish = () =>
 	{
 		if (done) return;
-		done = true;
-		window.removeEventListener("scrollend", finish);
+		stop();
 		then();
+	};
+	const watch = () =>
+	{
+		const top = item.getBoundingClientRect().top;
+		if (top === last) still++;
+		else
+		{
+			still = 0;
+			moved = true;
+		}
+		last = top;
+		if (Math.abs(top) < 2 || still >= (moved ? STILL_FRAMES : START_FRAMES)) finish();
+		else frame = window.requestAnimationFrame(watch);
 	};
 	window.addEventListener("scrollend", finish, {
 		once: true,
 	});
 	const timer = window.setTimeout(finish, 1000);
-	return () =>
-	{
-		done = true;
-		window.clearTimeout(timer);
-		window.removeEventListener("scrollend", finish);
-	};
+	frame = window.requestAnimationFrame(watch);
+	return stop;
 }
 
 /**
@@ -313,10 +359,20 @@ function PlaysAccordion({
 	// Which at-bat to replay, and a fresh token each time.
 	const [autoplay, setAutoplay] = useState<{ value: string;
 		token: number } | null>(null);
+	// The at-bat collapsing after a tap on its own header: its contents stay mounted until
+	// the collapse ends, so the panel shrinks with them instead of the page jumping (#420).
+	const [closing, setClosing] = useState<string | null>(null);
+	// The one wait that ends a collapse. A new close or a snap clears the old one first, so
+	// a play closed, reopened and closed again keeps its contents through the second collapse.
+	const closeTimer = useRef<number | undefined>(undefined);
 
 	// Waits still pending (a scroll's end, the open animation's fallback), cancelled on unmount.
 	const waits = useRef<(() => void)[]>([]);
-	useEffect(() => () => waits.current.forEach((cancel) => cancel()), []);
+	useEffect(() => () =>
+	{
+		waits.current.forEach((cancel) => cancel());
+		window.clearTimeout(closeTimer.current);
+	}, []);
 	const later = (run: () => void, ms: number) =>
 	{
 		const timer = window.setTimeout(run, ms);
@@ -340,16 +396,26 @@ function PlaysAccordion({
 		if (value === null || !item)
 		{
 			setDuration(OPEN_MS);
+			if (value === null && open !== null)
+			{
+				// Closing: keep the contents through the collapse, then let them go.
+				window.clearTimeout(closeTimer.current);
+				setClosing(open);
+				closeTimer.current = window.setTimeout(() => setClosing(null), OPEN_MS + 100);
+			}
 			setOpen(value);
 			return;
 		}
 		// 1. Close the open at-bat at once, keeping the tapped one where it was on screen
-		//    (the closed one above it would otherwise pull it up).
+		//    (the closed one above it would otherwise pull it up). One still collapsing
+		//    from a close goes at once too, for the same reason.
 		const before = item.getBoundingClientRect().top;
+		window.clearTimeout(closeTimer.current);
 		flushSync(() =>
 		{
 			setDuration(0);
 			setOpen(null);
+			setClosing(null);
 		});
 		window.scrollBy(0, item.getBoundingClientRect().top - before);
 		// 2. Scroll it to the top. 3. Then open it; its pitches replay once it's open.
@@ -371,7 +437,7 @@ function PlaysAccordion({
 			behavior: "smooth",
 			block: "start",
 		});
-		waits.current.push(afterScroll(opened));
+		waits.current.push(afterScroll(item, opened));
 	};
 
 	return (
@@ -383,6 +449,8 @@ function PlaysAccordion({
 					{
 						const value = String(atBat.about.atBatIndex);
 						const video = videoLines.get(atBat.about.atBatIndex);
+						// Open, or still collapsing from a close (#420).
+						const shown = open === value || closing === value;
 						return (
 							<Fragment key={value}>
 								{video ? <Text fz={12} c="var(--bt-primary-light)" data-testid="video-line">Video: {video}</Text> : null}
@@ -395,12 +463,14 @@ function PlaysAccordion({
 									} : undefined}
 								>
 									<Accordion.Control aria-label={atBatLabel(atBat)}>
-										{open === value ? <OpenHeader atBat={atBat} /> : <ClosedRow atBat={atBat} tagged={tagged} end={end} />}
+										{shown ? <OpenHeader atBat={atBat} /> : <ClosedRow atBat={atBat} tagged={tagged} end={end} />}
 									</Accordion.Control>
 									<Accordion.Panel onTransitionEnd={() => replay(value)}>
-										{/* Only the open at-bat is mounted, so a closed one's replay stops with it. */}
-										{open === value ? (
-											<AtBatViewer plays={plays} atBat={atBat} autoplay={autoplay?.value === open ? autoplay.token : 0} scoresHidden={scoresHidden} />
+										{/* Only the open at-bat (and one collapsing) is mounted, so a closed one's replay stops with it.
+										    `autoplay` is keyed on this row, not on the open one, so its token holds while the row
+										    collapses and closing doesn't start the replay again (#420). */}
+										{shown ? (
+											<AtBatViewer plays={plays} atBat={atBat} autoplay={autoplay?.value === value ? autoplay.token : 0} scoresHidden={scoresHidden} />
 										) : null}
 									</Accordion.Panel>
 								</Accordion.Item>
