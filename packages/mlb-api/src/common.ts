@@ -86,6 +86,8 @@ export interface GameStatus {
 	statusCode?: string;
 	abstractGameCode?: string;
 	startTimeTBD?: boolean;
+	/** Why a game ended as it did when MLB says (`"Tied"`, the 2002 All-Star Game). */
+	reason?: string;
 }
 
 export interface Venue extends MlbRef {
@@ -103,6 +105,7 @@ export interface VenueLocation {
 	country?: string;
 	address1?: string;
 	postalCode?: string;
+	phone?: string;
 	elevation?: number;
 	/** Degrees from true north to centre field — used for sun/shade math. */
 	azimuthAngle?: number;
@@ -152,6 +155,12 @@ export interface Person {
 	birthCity?: string;
 	birthStateProvince?: string;
 	birthCountry?: string;
+	/** A retired player's death and last game, which older records carry (#359). */
+	deathDate?: string;
+	deathCity?: string;
+	deathStateProvince?: string;
+	deathCountry?: string;
+	lastPlayedDate?: string;
 	currentAge?: number;
 	height?: string;
 	weight?: number;

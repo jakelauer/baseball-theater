@@ -60,14 +60,14 @@ describe("play metrics (S93)", () =>
 	{
 		const fixtures = new FixtureMlbStatsClient();
 		expect(await fixtures.fetchPlayMetrics(823823)).toEqual(metrics);
-		expect((await fixtures.fetchGame(823823)).playMetrics).toEqual(metrics);
+		expect(((await fixtures.fetchGame(823823)).game).playMetrics).toEqual(metrics);
 	});
 
 	it("optional: no recording, a failing feed or an empty one leaves playMetrics absent and the game served as before", async () =>
 	{
 		const fixtures = new FixtureMlbStatsClient();
 		expect(await fixtures.fetchPlayMetrics(744834)).toBeNull();
-		expect(await fixtures.fetchGame(744834)).not.toHaveProperty("playMetrics");
+		expect((await fixtures.fetchGame(744834)).game).not.toHaveProperty("playMetrics");
 		expect(mapPlayMetrics({})).toBeNull();
 		expect(mapPlayMetrics({
 			allPlayMetrics: [],
@@ -84,7 +84,7 @@ describe("play metrics (S93)", () =>
 				});
 			},
 		});
-		const game = await failing.fetchGame(823823);
+		const game = (await failing.fetchGame(823823)).game;
 		expect(game.gamePk).toBe(823823);
 		expect(game).not.toHaveProperty("playMetrics");
 	});

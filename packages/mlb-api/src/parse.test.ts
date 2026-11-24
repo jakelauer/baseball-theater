@@ -10,6 +10,7 @@ import {
 	parsePlayMetricsResponse,
 	parseScheduleResponse,
 	parseSeasonsResponse,
+	parseStandingsResponse,
 } from "./parse.js";
 
 const rawDir = fileURLToPath(new URL("../../../fixtures/raw/", import.meta.url));
@@ -202,5 +203,38 @@ describe("parseSeasonsResponse (S111)", () =>
 				springStartDate: "Feb 20",
 			}],
 		})).toThrow();
+	});
+});
+
+describe("parseStandingsResponse (S102)", () =>
+{
+	it("S102 AC 2: keeps each record group's hydrated division: id, name, short name and abbreviation", () =>
+	{
+		const parsed = parseStandingsResponse(readRaw("standings-2026-09-05-division.json"));
+		const divisions = (parsed.records ?? []).map((group) => group.division);
+		expect(divisions).toHaveLength(6);
+		expect(divisions.find((d) => d?.id === 201)).toMatchObject({
+			id: 201,
+			name: "American League East",
+			nameShort: "AL East",
+			abbreviation: "ALE",
+		});
+		expect(divisions.every((d) => d?.name && d.nameShort && d.abbreviation)).toBe(true);
+	});
+
+	it("S102 AC 2: an unhydrated group's bare { id, link } division still parses, with no names", () =>
+	{
+		const parsed = parseStandingsResponse({
+			records: [{
+				division: {
+					id: 201,
+					link: "/api/v1/divisions/201",
+				},
+			}],
+		});
+		expect(parsed.records?.[0]?.division).toEqual({
+			id: 201,
+			link: "/api/v1/divisions/201",
+		});
 	});
 });

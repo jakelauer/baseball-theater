@@ -182,7 +182,9 @@ while IFS= read -r path; do
   [ -n "$path" ] && reasons+=("new workspace package: $(dirname "$path")") && json_event package-added path "$(dirname "$path")"
 done < <(git diff --name-only --diff-filter=A "$base" HEAD -- 'packages/*/package.json')
 
-if [ "$(git show "$base:package.json" 2>/dev/null | grep '"verify":')" != "$(git show HEAD:package.json | grep '"verify":')" ]; then
+# `verify` runs the gate through the one-at-a-time lock (scripts/with-verify-lock.sh); the gate itself is
+# `verify:run`, so a change to either line is the gate changing.
+if [ "$(git show "$base:package.json" 2>/dev/null | grep -E '"verify(:run)?":')" != "$(git show HEAD:package.json | grep -E '"verify(:run)?":')" ]; then
   reasons+=("pnpm verify itself changed")
   json_event verify-changed path package.json
 fi
