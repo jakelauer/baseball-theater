@@ -1,5 +1,5 @@
 import {
-	Anchor, Popover, Progress, Text,
+	Anchor, Box, Popover, Text,
 } from "@mantine/core";
 import type { FloatingPosition } from "@mantine/core";
 import { useReducedMotion } from "@mantine/hooks";
@@ -220,32 +220,32 @@ function PointerBody({
 	);
 }
 
-/** A9's 2px countdown line: Primary Light over a hairline track, shrinking to nothing over `POINTER_MS`. */
+/**
+ * A9's 2px countdown line: Primary Light over a hairline track, shrinking to nothing over `POINTER_MS`.
+ * The fill shrinks by `scaleX` from its left edge, not by animating its width (Mantine's `Progress`
+ * does that), so it runs down in subpixel steps instead of jumping a pixel at a time (B413, #413).
+ */
 function Countdown()
 {
-	const [value, setValue] = useState(100);
-	// Start full, then let the bar's own transition run it down: one state change, no ticking timer.
+	const [scale, setScale] = useState(1);
+	// Start full, then let the fill's own transition run it down: one state change, no ticking timer.
 	useEffect(() =>
 	{
-		const frame = requestAnimationFrame(() => setValue(0));
+		const frame = requestAnimationFrame(() => setScale(0));
 		return () => cancelAnimationFrame(frame);
 	}, []);
 	return (
-		<Progress
-			data-testid="pointer-countdown"
-			value={value}
-			size={2}
-			radius={0}
-			color="var(--bt-primary-light)"
-			bg="var(--bt-hairline)"
-			transitionDuration={POINTER_MS}
-			styles={{
-				section: {
-					transitionTimingFunction: "linear",
-				},
+		<Box data-testid="pointer-countdown" aria-hidden h={2} bg="var(--bt-hairline)" mx={14} mb={1} style={{
+			overflow: "hidden",
+		}}
+		>
+			<Box h="100%" bg="var(--bt-primary-light)" style={{
+				transform: `scaleX(${scale})`,
+				transformOrigin: "left",
+				transition: `transform ${POINTER_MS}ms linear`,
+				willChange: "transform",
 			}}
-			mx={14}
-			mb={1}
-		/>
+			/>
+		</Box>
 	);
 }
