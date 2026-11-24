@@ -9,6 +9,7 @@ import {
 	queryOptions, useQuery, useQueryClient,
 } from "@tanstack/react-query";
 import type { QueryClient, UseQueryResult } from "@tanstack/react-query";
+import type { StoredCopy } from "./client.js";
 import { fetchGame } from "./client.js";
 import { freshnessPolicy } from "./freshness.js";
 import type { components } from "./generated/bt-api.v1.js";
@@ -29,13 +30,14 @@ export function gameQueryOptions(gamePk: number, streaming = false)
 {
 	return queryOptions({
 		queryKey: gameKey(gamePk),
-		queryFn: (): Promise<GamePayload> => fetchGame(gamePk),
+		// A copy the worker served from storage carries its time (S74, `StoredCopy`); other answers don't.
+		queryFn: (): Promise<GamePayload & StoredCopy> => fetchGame(gamePk),
 		staleTime: (query) => freshnessPolicy(query.state.data?.windowMode).staleTime,
 		refetchInterval: (query) => streaming ? false : freshnessPolicy(query.state.data?.windowMode).refetchInterval,
 	});
 }
 
-export function useGame(gamePk: number, streaming = false): UseQueryResult<GamePayload, Error>
+export function useGame(gamePk: number, streaming = false): UseQueryResult<GamePayload & StoredCopy, Error>
 {
 	return useQuery(gameQueryOptions(gamePk, streaming));
 }

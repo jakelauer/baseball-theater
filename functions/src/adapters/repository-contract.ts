@@ -255,6 +255,7 @@ export function describeScheduleCountsContract(
 					teamIds: [111, 120, 121, 147],
 					gameTypes: ["R", "R"],
 					regularSeason: true,
+					regularSeasonTeamIds: [111, 120, 121, 147],
 					fetchedAt: days[2]!.fetchedAt,
 					lastChangedAt: days[2]!.lastChangedAt,
 				},
@@ -264,6 +265,7 @@ export function describeScheduleCountsContract(
 					teamIds: [],
 					gameTypes: [],
 					regularSeason: false,
+					regularSeasonTeamIds: [],
 					fetchedAt: days[0]!.fetchedAt,
 					lastChangedAt: days[0]!.lastChangedAt,
 				},
@@ -386,6 +388,33 @@ export function describeScheduleCountsContract(
 			}));
 			await repo.upsert(day);
 			expect((await repo.listGameCounts("2024-07-04", "2024-07-04")).map((d) => [d.gameTypes, d.regularSeason])).toEqual([[[null], null]]);
+		});
+
+		// S191 AC 1: the teams of each day's regular-season games, from the same read. The fixture
+		// day's games are 121 at 120 (the first) and 147 at 111 (the second).
+		const regularTeams = async (types: (string | undefined)[]) =>
+		{
+			const repo = create();
+			await repo.upsert(await typed("2024-07-04", types));
+			return (await repo.listGameCounts("2024-07-04", "2024-07-04")).map((d) => [d.regularSeason, d.regularSeasonTeamIds]);
+		};
+
+		it("(j) S191 AC 1 regular only: a day of only regular-season games lists every team, once each, ascending", async () =>
+		{
+			expect(await regularTeams(["R", "R"])).toEqual([[true, [111, 120, 121, 147]]]);
+		});
+
+		it("(j) S191 AC 1 mixed: a spring-and-regular day lists only the regular-season game's teams", async () =>
+		{
+			expect(await regularTeams(["S", "R"])).toEqual([[true, [111, 147]]]);
+			expect(await regularTeams(["R", "S"])).toEqual([[true, [120, 121]]]);
+		});
+
+		it("(j) S191 AC 1 untyped: an untyped day is null, as regularSeason is; a typed day without an R game is []", async () =>
+		{
+			expect(await regularTeams([undefined, undefined])).toEqual([[null, null]]);
+			expect(await regularTeams(["S", undefined])).toEqual([[null, null]]);
+			expect(await regularTeams(["S", "S"])).toEqual([[false, []]]);
 		});
 	});
 }

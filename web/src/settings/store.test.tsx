@@ -143,6 +143,40 @@ describe("settings store", () =>
 		expect(readStored("bt.settings") ?? "").not.toContain("121");
 	});
 
+	it("S74 R2: a session the server can't be reached for (offline cold start) keeps the stored settings; one it refuses (401) resets them", async () =>
+	{
+		// Last visit's settings, as the store left them in bt.settings.
+		stubAccountApi();
+		await act(() => setHideScores(true));
+		const settings = () => renderHook(() => useSettings(), {
+			wrapper: ({ children }: { children: ReactNode }) => (
+				<QueryClientProvider client={createQueryClient()}>
+					<SessionProvider>
+						<SettingsSync />
+						{children}
+					</SessionProvider>
+				</QueryClientProvider>
+			),
+		});
+		const unreachable = vi.fn(async () =>
+		{
+			throw new TypeError("Failed to fetch");
+		});
+		vi.stubGlobal("fetch", unreachable);
+		setSessionToken(DEV_SIGN_IN_TOKEN);
+		const offline = settings();
+		await waitFor(() => expect(unreachable).toHaveBeenCalled());
+		await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+		expect(offline.result.current.hideScores).toBe(true);
+		offline.unmount();
+
+		vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({
+			error: "unauthorized",
+		}, 401)));
+		const refused = settings();
+		await waitFor(() => expect(refused.result.current).toEqual(DEFAULT_SETTINGS));
+	});
+
 	it("keeps its copy through web/src/storage/ under bt.settings, which clearPersonalData removes", async () =>
 	{
 		stubAccountApi();

@@ -96,8 +96,8 @@ function installed(worker: ServiceWorker | null): Promise<ServiceWorker | null>
 
 /**
  * Update Now when no waiting worker is known yet: a retired API version's 426 (S28). A plain
- * reload would be answered by the old worker from its precached shell (`navigateFallback`,
- * `options.ts`), which gets 426 again and loops. So this asks the registration for the new
+ * reload would be answered by the old worker from its precached shell (its `NavigationRoute`,
+ * `sw.ts`), which gets 426 again and loops. So this asks the registration for the new
  * version (`registration.update()`), waits for it to install, tells it to take over
  * (`SKIP_WAITING`), waits for it to control the page, and only then reloads, onto the new
  * shell. With no worker at all (dev, unsupported browsers) it reloads straight away: the
