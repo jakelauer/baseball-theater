@@ -168,6 +168,20 @@ describe("SessionProvider", () =>
 		});
 	});
 
+	it("S74: sign-out (and so account deletion, which signs out) deletes the offline API cache, as ADR-028's Browser row has it", async () =>
+	{
+		stubMeApi();
+		const remove = vi.fn(async () => true);
+		vi.stubGlobal("caches", {
+			delete: remove,
+		});
+		setSessionToken(DEV_SIGN_IN_TOKEN);
+		const { result } = renderSession();
+		await waitFor(() => expect(result.current.status).toBe("signedIn"));
+		act(() => result.current.signOut());
+		await waitFor(() => expect(remove).toHaveBeenCalledWith("bt-api-v1"));
+	});
+
 	it("S116 AC 3: locally (no Logto) signIn() is still the dev sign-in and signOut() ends no other session", async () =>
 	{
 		stubMeApi();
