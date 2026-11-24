@@ -279,6 +279,18 @@ importers:
       vitest:
         specifier: ^3.0.8
         version: 3.2.7(@types/node@25.9.6)(jsdom@26.1.0)(sugarss@5.0.1(postcss@8.5.26))(terser@5.51.2)(tsx@4.23.12)(yaml@2.9.0)
+      workbox-cacheable-response:
+        specifier: 7.4.1
+        version: 7.4.1
+      workbox-precaching:
+        specifier: 7.4.1
+        version: 7.4.1
+      workbox-routing:
+        specifier: 7.4.1
+        version: 7.4.1
+      workbox-strategies:
+        specifier: 7.4.1
+        version: 7.4.1
 
 packages:
 
