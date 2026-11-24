@@ -806,7 +806,7 @@ describe("readers use the one stored state (S150 AC 6)", () =>
 		expect(asked).toEqual(["2026-09-06"]);
 	});
 
-	it("S150 AC 6 window: a day stored active whose joined games are all final past their trails is served cache and goes stale on the cache ladder", async () =>
+	it("S150 AC 6 window: a day stored active whose joined games are all final past their trails is served cache, and once past and finished is served without asking MLB (S212)", async () =>
 	{
 		const deps = memoryDeps();
 		await storeSchedule(deps, fetchedDay([await summary(LIVE, 2)], IN));
@@ -819,7 +819,8 @@ describe("readers use the one stored state (S150 AC 6)", () =>
 		deps.now = () => AFTER;
 		deps.refresh = new RefreshCoordinator(() => AFTER);
 		const day = await getOrRefreshSchedule(deps, DATE);
-		expect(fetchSchedule).toHaveBeenCalledTimes(1);
+		// S212: the joined day is past and finished, so the cron's writes own its freshness, not the read.
+		expect(fetchSchedule).toHaveBeenCalledTimes(0);
 		expect(day.windowMode).toBe("cache");
 	});
 

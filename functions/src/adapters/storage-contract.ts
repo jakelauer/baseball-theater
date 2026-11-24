@@ -51,6 +51,12 @@ async function game(gamePk: number, version: number, date = "2024-07-04"): Promi
 	};
 }
 
+/** The fixture game re-keyed for another contract (S212's re-check record), at version 1 on `date`. */
+export function contractGame(gamePk: number, date: string): Promise<GameSnapshot>
+{
+	return game(gamePk, 1, date);
+}
+
 /** A settings document stored under `uid`, as the keyed contract sees it. */
 type StoredSettings = { uid: string;
 	settings: AccountSettings };

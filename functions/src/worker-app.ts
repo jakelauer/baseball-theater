@@ -14,6 +14,7 @@ import type { MlbStatsClient } from "@bt/ports";
 import {
 	createDevAccountData, createDevAuth, StaticSecretsProvider,
 } from "./adapters/fixtures/auth.js";
+import { CloudflareEdgeCachePurger, NoopEdgeCachePurger } from "./adapters/cloudflare/edge-cache-purger.js";
 import { createBundledFixtureClient } from "./adapters/fixtures/bundled.js";
 import { LogtoIdentityAdmin, LogtoManagementApi } from "./adapters/logto/admin.js";
 import { LogtoIdentityProvider } from "./adapters/logto/identity.js";
@@ -37,6 +38,7 @@ import type { ApiContext } from "./handlers/api.js";
 import { APP_ORIGIN_SECRET } from "./services/data-downloads.js";
 import { logApiUsage } from "./services/api-usage.js";
 import type { AuthDeps } from "./services/accounts.js";
+import type { EdgePurge } from "./services/edge-purge.js";
 import type { IngestDeps } from "./services/ingest.js";
 import { RefreshCoordinator } from "./services/refresh.js";
 import { SESSION_KEY_SECRET } from "./services/session.js";
@@ -77,6 +79,13 @@ export type WorkerEnv = {
 	 * while production signs in through Logto and previews offer no sign-in at all.
 	 */
 	BT_MOCK_SIGN_IN?: string;
+	/**
+	 * A Cloudflare API token with the Zone → Cache Purge permission, and the zone's ID (S212 AC 4; Worker secrets, the
+	 * owner's step): where both and `BT_APP_ORIGIN` are set, a write of a past, finished day or game purges its edge
+	 * copy by URL (`edgePurgeFor`); otherwise nothing is purged and that is logged once.
+	 */
+	BT_CF_PURGE_TOKEN?: string;
+	BT_CF_ZONE_ID?: string;
 	/** `"1"` lets the cron tick ingest in local dev (ADR-002 cadence; off by default, as `local-server.ts`). */
 	BT_INGEST_TICK?: string;
 	/** The per-game ingest objects (S48; `wrangler.jsonc` `durable_objects`); absent under Node. */
@@ -109,7 +118,27 @@ export function createMlbClient(env: WorkerEnv, store?: MlbOverlaySource): MlbSt
 	return store ? overlayMlbClient(fixtures, store) : fixtures;
 }
 
-/** What tests swap in the composition: the `fetch` the Logto adapters call (a stand-in tenant). */
+/**
+ * The edge purge a Worker writes with (S212 AC 4): Cloudflare's purge-by-URL API where `BT_CF_PURGE_TOKEN`,
+ * `BT_CF_ZONE_ID` and `BT_APP_ORIGIN` are all set, else a no-op purger that logs once that it purged nothing, so every
+ * write still succeeds. `fetcher` is the composition's test `fetch`, when given.
+ */
+export function edgePurgeFor(env: WorkerEnv, fetcher?: WorkerAppOptions["fetch"]): EdgePurge
+{
+	if (env.BT_CF_PURGE_TOKEN && env.BT_CF_ZONE_ID && env.BT_APP_ORIGIN)
+	{
+		return {
+			purger: new CloudflareEdgeCachePurger(env.BT_CF_PURGE_TOKEN, env.BT_CF_ZONE_ID, fetcher),
+			origin: env.BT_APP_ORIGIN,
+		};
+	}
+	return {
+		purger: new NoopEdgeCachePurger(),
+		origin: env.BT_APP_ORIGIN ?? "",
+	};
+}
+
+/** What tests swap in the composition: the `fetch` the Logto adapters (and the edge purge, S212) call (a stand-in tenant). */
 export type WorkerAppOptions = {
 	fetch?: (input: string, init?: RequestInit) => Promise<Response>;
 };
@@ -139,6 +168,7 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		gameStates,
 		// One coordinator per isolate: stale out-of-window reads refresh single-flighted.
 		refresh: new RefreshCoordinator(),
+		edgePurge: edgePurgeFor(env, options.fetch),
 	};
 	const secrets = new StaticSecretsProvider({
 		[SESSION_KEY_SECRET]: env.BT_SESSION_KEY ?? crypto.randomUUID(),

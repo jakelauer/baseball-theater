@@ -25,6 +25,11 @@ export const STALE_WHILE_REVALIDATE_S = CACHE_LIFETIME_FLOOR_MS / 1000;
  * A schedule month asked for without a version (`?v=`) is judged here too; one asked for with its
  * version is not, since a versioned URL names its exact content and so may be kept far longer
  * ({@link versionedMonthCacheControl}, S194).
+ *
+ * S212: past, finished data (`isPastFinishedDay` / `isPastFinishedGame`; for the digest, its day and every one of its
+ * games) is not judged here either: it gets {@link PAST_CACHE_CONTROL}, and a past digest missing a game it couldn't read
+ * gets {@link PARTIAL_PAST_DIGEST_CACHE_CONTROL}. This header now covers only today's and future days, unfinished days
+ * and games, and their digests, as before.
  */
 export function edgeCacheControl(entity: { windowMode?: "active" | "cache";
 	lastChangedAt?: string; }, now: Date, ladder?: readonly CacheLifetimeStep[]): string
@@ -83,3 +88,34 @@ export function versionedMonthCacheControl(month: string, matches: boolean, toda
 	const lifetimeS = month.slice(0, 4) < today.slice(0, 4) ? PAST_YEAR_MONTH_EDGE_TTL_S : CACHE_LIFETIME_CAP_MS / 1000;
 	return `public, s-maxage=${lifetimeS}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`;
 }
+
+/**
+ * How long the edge keeps a past, finished schedule day, game or digest (S212 AC 3): 2592000 seconds, 30 days,
+ * ADR-021's hard cap. Its 2026-11-24 amendment gives the reason it may be that long: the cron re-checks each day of the
+ * current year about every six hours and each recently finished game's full detail for a week, and purges the edge copy
+ * by URL when one really changes (`purgeDayEdge` / `purgeGameEdge`), so the lifetime only bounds a correction nothing
+ * purged (a backfill's, or one while the purge credentials are missing).
+ */
+export const PAST_EDGE_TTL_S = 2592000;
+
+/**
+ * How long the edge may serve a past, finished response stale while it refetches it (S212 AC 3): 86400 seconds, one
+ * day, since the data almost never changes and a refetch is one Postgres read, never an MLB request.
+ */
+export const PAST_STALE_S = 86400;
+
+/**
+ * How long a browser keeps a past, finished response (S212 AC 3): 3600 seconds, one hour. A browser's copy can't be
+ * purged, so it stays short, as ADR-021's standings amendment requires: a purged correction reaches a browser that
+ * already holds the day or game within an hour (accepted).
+ */
+export const PAST_BROWSER_MAX_AGE_S = 3600;
+
+/** The `Cache-Control` of a past, finished schedule day, game or digest (S212 AC 3), from the three constants above. */
+export const PAST_CACHE_CONTROL = `public, max-age=${PAST_BROWSER_MAX_AGE_S}, s-maxage=${PAST_EDGE_TTL_S}, stale-while-revalidate=${PAST_STALE_S}`;
+
+/**
+ * A past, finished day's digest missing a game it couldn't read (S212 AC 3): the floor, with ADR-021's stale window,
+ * never the long lifetime, so the next read after about ten minutes tries that game again rather than waiting on a purge.
+ */
+export const PARTIAL_PAST_DIGEST_CACHE_CONTROL = `public, s-maxage=${CACHE_LIFETIME_FLOOR_MS / 1000}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`;

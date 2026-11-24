@@ -7,7 +7,7 @@
  * the stored one is a no-op (ADR-022 apply-if-newer).
  */
 import type {
-	AccountSettings, GameProjection, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay,
+	AccountSettings, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay,
 } from "@bt/domain";
 import type { ReplayPatchEntry } from "@bt/mlb-api";
 
@@ -94,6 +94,21 @@ export interface GameRepository {
 	getStateFields(gamePks: readonly number[]): Promise<GameStateFields[]>;
 	upsert(game: GameSnapshot): Promise<void>;
 	listByDate(date: string): Promise<GameSnapshot[]>;
+	/**
+	 * The recent-game re-check's one read (S212 AC 5): each stored game whose official date is in `from`..`to`
+	 * (inclusive), with its `windowMode`, its served status (its `game_states` row's, else its snapshot's) and its
+	 * re-check record (`checkedAt`, `claimedAt`, null when never), in gamePk order, without the rest of the document.
+	 */
+	listRecheckCandidates(from: string, to: string): Promise<GameRecheckCandidate[]>;
+	/**
+	 * Claims `gamePk` for a re-check at `at` (an ISO instant) in one conditional write: it succeeds, and returns true,
+	 * only when the game is still due (never re-checked, or last re-checked at least `SCHEDULE_MONTH_REFRESH_INTERVAL_MS`
+	 * before `at`) and has no claim or one at least `GAME_RECHECK_CLAIM_LEASE_MS` older than `at`, so two isolates
+	 * never re-check one game at once.
+	 */
+	claimGameRecheck(gamePk: number, at: string): Promise<boolean>;
+	/** Records that `gamePk` was re-checked against MLB at `checkedAt` (an ISO instant), moving the record forward only. */
+	recordGameRecheck(gamePk: number, checkedAt: string): Promise<void>;
 }
 
 /** The five projected store documents per game; versioned by `header.version`. */

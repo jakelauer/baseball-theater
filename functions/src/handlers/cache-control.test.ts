@@ -19,8 +19,44 @@ import { edgeCacheControl, STALE_WHILE_REVALIDATE_S } from "./cache-control.js";
 const HOUR = 60 * 60 * 1000;
 /** Long after 823823 (2026-09-05) and its schedule day, so both are out of their window. */
 const T0 = new Date("2026-10-30T12:00:00Z");
+/** MLB's today at T0 and for the next 14 hours. */
+const TODAY = "2026-10-30";
 
-/** One API over shared in-memory stores, read at whatever `clock.now` says. */
+/**
+ * `mlb` with 823823's day and the game moved to MLB's today (their first pitch left on 2026-09-05, so they are out of
+ * their window): today's data is not past and finished (S212), so these cases still prove ADR-021's ladder header.
+ */
+function onToday(mlb: MlbStatsClient): MlbStatsClient
+{
+	return Object.assign(Object.create(mlb) as MlbStatsClient, {
+		fetchSchedule: async (date: string) =>
+		{
+			if (date !== TODAY) return mlb.fetchSchedule(date);
+			const day = await mlb.fetchSchedule("2026-09-05");
+			return {
+				...day,
+				date: TODAY,
+				games: day.games.map((game) => ({
+					...game,
+					officialDate: TODAY,
+				})),
+			};
+		},
+		fetchGame: async (gamePk: number) =>
+		{
+			const fetched = await mlb.fetchGame(gamePk);
+			return {
+				...fetched,
+				game: {
+					...fetched.game,
+					officialDate: TODAY,
+				},
+			};
+		},
+	});
+}
+
+/** One API over shared in-memory stores, read at whatever `clock.now` says, its MLB's 823823 played today (`onToday`). */
 function api(mlb: MlbStatsClient = new FixtureMlbStatsClient())
 {
 	const clock = {
@@ -30,7 +66,7 @@ function api(mlb: MlbStatsClient = new FixtureMlbStatsClient())
 	const settings = new InMemorySettingsRepository();
 	const ctx = {
 		ingest: {
-			mlb,
+			mlb: onToday(mlb),
 			...memoryScheduleStores(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
@@ -92,10 +128,10 @@ describe("GET /api/v1/games/:gamePk and /api/v1/schedule Cache-Control (S47)", (
 	{
 		const { clock, get } = api();
 		expect((await get("/api/v1/games/823823")).headers.get("Cache-Control")).toBe(`public, s-maxage=300, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
-		expect((await get("/api/v1/schedule?date=2026-09-05")).headers.get("Cache-Control")).toBe(`public, s-maxage=300, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
+		expect((await get(`/api/v1/schedule?date=${TODAY}`)).headers.get("Cache-Control")).toBe(`public, s-maxage=300, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
 		clock.now = new Date(T0.getTime() + 3 * HOUR);
 		expect((await get("/api/v1/games/823823")).headers.get("Cache-Control")).toBe(`public, s-maxage=36000, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
-		expect((await get("/api/v1/schedule?date=2026-09-05")).headers.get("Cache-Control")).toBe(`public, s-maxage=36000, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
+		expect((await get(`/api/v1/schedule?date=${TODAY}`)).headers.get("Cache-Control")).toBe(`public, s-maxage=36000, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
 	});
 
 	it("in window: a game being played is never cached past the floor at the edge, however long it has gone unchanged", async () =>

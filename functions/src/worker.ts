@@ -4,14 +4,16 @@
  * the web app, served from `web/dist` by the assets binding before the Worker runs
  * (`wrangler.jsonc`). `scheduled` is the per-minute cron trigger: it ensures one
  * `game-ingest:<gamePk>` Durable Object per in-window game (S48; ADR-020), whose alarms
- * own the ADR-002 cadence, and refreshes at most one due schedule month of the fill window
+ * own the ADR-002 cadence, refreshes at most one due schedule month of the fill window
  * (S194, `refreshDueScheduleMonth`), so every month is checked against MLB about every six
- * hours with no second cron expression. Composition lives in `worker-app.ts`.
+ * hours with no second cron expression, and re-checks at most one recently finished game's full
+ * detail (S212, `recheckDueGame`). Composition lives in `worker-app.ts`.
  */
 import { inDatabaseScope } from "./adapters/postgres/connect.js";
 import { ensureGameIngest } from "./game-ingest-object.js";
 import { handleApiRequest } from "./handlers/api.js";
 import { ensureIngestRunning } from "./services/game-ingest.js";
+import { recheckDueGame } from "./services/game-recheck.js";
 import { refreshDueScheduleMonth } from "./services/schedule-refresh.js";
 import { tickAllowed, workerApp } from "./worker-app.js";
 import type { WorkerEnv } from "./worker-app.js";
@@ -34,8 +36,10 @@ export default {
 	 * Each tick, in local dev only with `BT_INGEST_TICK=1` (`tickAllowed`): ensures an ingest
 	 * object (`ensureRunning`) for each in-window game where the `GAME_INGEST` binding exists, and
 	 * refreshes at most one due schedule month (S194, `refreshDueScheduleMonth`), which needs no
-	 * binding but the database. Each runs in its own `waitUntil` and its own database scope, so one
-	 * that rejects (and is logged by the runtime) doesn't stop the other. A preview's
+	 * binding but the database, and re-checks at most one due recently finished game (S212,
+	 * `recheckDueGame`), whose writes purge the edge copy of what they change. Each runs in its own
+	 * `waitUntil` and its own database scope, so one that rejects (and is logged by the runtime)
+	 * doesn't stop the others. A preview's
 	 * `crons: []` (`wrangler.jsonc`) means previews never run either.
 	 */
 	async scheduled(_controller: unknown, env: WorkerEnv, ctx: WorkerContext): Promise<void>
@@ -45,5 +49,6 @@ export default {
 		const namespace = env.GAME_INGEST;
 		if (namespace) ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => ensureIngestRunning(app.ingest, (gamePk) => ensureGameIngest(namespace, gamePk))));
 		ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => refreshDueScheduleMonth(app.ingest)));
+		ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => recheckDueGame(app.ingest)));
 	},
 };

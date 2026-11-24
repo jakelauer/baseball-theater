@@ -11,9 +11,9 @@ import {
 	DOWNLOADS_STORE, MAIL_STORE, personalDataStores,
 } from "../../services/personal-data.js";
 import {
-	describeGameStateContract, describePersonalDataStoreContract, describeServedBaseContract,
+	describeGameRecheckContract, describeGameStateContract, describePersonalDataStoreContract, describeServedBaseContract,
 } from "../repository-contract.js";
-import { describeStorageContract } from "../storage-contract.js";
+import { contractGame, describeStorageContract } from "../storage-contract.js";
 import {
 	InMemoryExportStore,
 	InMemoryGameProjectionRepository,
@@ -38,6 +38,15 @@ describeStorageContract("InMemory", {
 describeGameStateContract("InMemoryGameStateRepository", () => new InMemoryGameStateRepository());
 
 describeServedBaseContract("InMemoryScheduleRepository", memoryScheduleStores);
+
+describeGameRecheckContract("InMemoryGameRepository", () =>
+{
+	const gameStates = new InMemoryGameStateRepository();
+	return {
+		games: new InMemoryGameRepository(gameStates),
+		gameStates,
+	};
+}, contractGame);
 
 type RegistryDeps = {
 	users: InMemoryUserRepository;

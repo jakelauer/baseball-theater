@@ -5,6 +5,9 @@ import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
 	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
+import {
+	countingMlb, memoryDeps, PAST_DATE, storePastDay,
+} from "../test/past-data.js";
 import { getDayDigest } from "./digest.js";
 import { ingestScheduleDay } from "./ingest.js";
 
@@ -120,5 +123,21 @@ describe("getDayDigest freshness (#61)", () =>
 		const { freshness, digest } = await getDayDigest(deps, "2024-07-04");
 		expect(freshness.windowMode).toBe("active");
 		expect(digest.windowMode).toBe("active");
+	});
+});
+
+describe("getDayDigest on past, finished data (S212 AC 2)", () =>
+{
+	it("S212 AC 2 digest zero: a stored past, finished day whose games are all stored makes zero MLB requests", async () =>
+	{
+		const deps = memoryDeps();
+		const gamePks = await storePastDay(deps);
+		const counting = countingMlb();
+		deps.mlb = counting.client;
+		const { digest, edgeLifetime } = await getDayDigest(deps, PAST_DATE);
+		expect(counting.calls).toEqual([]);
+		expect(gamePks.length).toBeGreaterThan(0);
+		expect(digest.date).toBe(PAST_DATE);
+		expect(edgeLifetime).toBe("past");
 	});
 });

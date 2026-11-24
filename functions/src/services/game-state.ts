@@ -36,12 +36,15 @@ export type GameStateWrite = {
 };
 
 /**
- * What the switch did with one game's write: the row as it is then stored (null when the game has none), and whether
- * the write was skipped as a feed copy older than the row's accepted feed time (`storeGame` then stores no snapshot when one is already stored).
+ * What the switch did with one game's write: the row as it is then stored (null when the game has none), whether
+ * the write was skipped as a feed copy older than the row's accepted feed time (`storeGame` then stores no snapshot when
+ * one is already stored), and whether it stored a new state version (S212: what tells the writers a served day or game
+ * changed, so they purge its edge copy; a feed time moved on an unchanged state is not one).
  */
 export type SwitchOutcome = {
 	row: GameStateRow | null;
 	staleFeed: boolean;
+	stateChanged: boolean;
 };
 
 /**
@@ -145,6 +148,7 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 			if (typeof decided === "string") outcomes.set(write.gamePk, {
 				row,
 				staleFeed: decided === "staleFeed",
+				stateChanged: false,
 			});
 			else nexts.push(decided);
 		}
@@ -155,6 +159,7 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 			if (taken.has(next.gamePk)) outcomes.set(next.gamePk, {
 				row: storedAfter(rows.get(next.gamePk) ?? null, next),
 				staleFeed: false,
+				stateChanged: rows.get(next.gamePk)?.state.version !== next.state.version,
 			});
 		}
 		todo = todo.filter((write) => !outcomes.has(write.gamePk));
@@ -164,9 +169,11 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 	if (refused.length > 0)
 	{
 		const stored = new Map((await deps.gameStates.getMany(refused.map((write) => write.gamePk))).map((row) => [row.gamePk, row]));
+		// Another writer stored the row; its own write purged what it changed.
 		for (const write of refused) outcomes.set(write.gamePk, {
 			row: stored.get(write.gamePk) ?? null,
 			staleFeed: false,
+			stateChanged: false,
 		});
 	}
 	return outcomes;

@@ -23,7 +23,9 @@ import {
 import type {
 	GameSnapshot, GameStateRow, ScheduleDay, StoredScheduleDay, UserProfile,
 } from "@bt/domain";
-import { entitlementsForTier } from "@bt/domain";
+import {
+	entitlementsForTier, GAME_RECHECK_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS,
+} from "@bt/domain";
 import type {
 	GameRepository, GameStateRepository, PersonalDataStore, ScheduleRepository, UserRepository,
 } from "@bt/ports";
@@ -690,6 +692,89 @@ export function describeGameStateFieldsContract(label: string, create: () => Gam
 				plays: [],
 			}]);
 			expect(await repo.getStateFields([])).toEqual([]);
+		});
+	});
+}
+
+/** A game store and the game-state store of its database, as the re-check read joins them (S212 AC 5). */
+export type GameRecheckStores = {
+	games: GameRepository;
+	gameStates: GameStateRepository;
+};
+
+/**
+ * Case (n): the recent-game re-check record (S212 AC 5), for any `GameRepository` adapter with the game-state store of
+ * its database: the one read lists each stored game of the dates with its `windowMode`, its served status (its row's,
+ * else its snapshot's) and its record; a claim holds for the lease and refuses a game re-checked under 6 h ago; a
+ * recorded check only moves forward.
+ */
+export function describeGameRecheckContract(label: string, create: () => GameRecheckStores, make: (gamePk: number, date: string) => Promise<GameSnapshot>): void
+{
+	describe(`${label} — game re-check contract`, () =>
+	{
+		const T = "2024-07-10T12:00:00.000Z";
+		const later = (ms: number) => new Date(Date.parse(T) + ms).toISOString();
+
+		it("S212 AC 5 recheck candidates: each stored game of the dates, its windowMode, its served status and its record", async () =>
+		{
+			const { games, gameStates } = create();
+			await games.upsert({
+				...await make(3, "2024-07-04"),
+				windowMode: "cache",
+			});
+			await games.upsert({
+				...await make(1, "2024-07-05"),
+				windowMode: "active",
+			});
+			await games.upsert(await make(2, "2024-07-09"));
+			await gameStates.write([gameStateRow(1, 2, {
+				officialDate: "2024-07-05",
+				state: {
+					...gameStateRow(1, 2).state,
+					status: {
+						abstractGameState: "Live",
+						codedGameState: "U",
+						detailedState: "Suspended: Rain",
+					},
+				},
+			})]);
+			await games.recordGameRecheck(3, T);
+			const listed = await games.listRecheckCandidates("2024-07-04", "2024-07-05");
+			expect(listed).toEqual([{
+				gamePk: 1,
+				officialDate: "2024-07-05",
+				windowMode: "active",
+				status: {
+					codedGameState: "U",
+					detailedState: "Suspended: Rain",
+				},
+				checkedAt: null,
+				claimedAt: null,
+			}, {
+				gamePk: 3,
+				officialDate: "2024-07-04",
+				windowMode: "cache",
+				status: {
+					codedGameState: (await make(3, "2024-07-04")).status.codedGameState,
+					detailedState: (await make(3, "2024-07-04")).status.detailedState,
+				},
+				checkedAt: T,
+				claimedAt: null,
+			}]);
+			expect(await games.listRecheckCandidates("2024-08-01", "2024-08-07")).toEqual([]);
+		});
+
+		it("S212 AC 5 recheck claim: held for the lease, refused under 6 h after a check, and a check only moves forward", async () =>
+		{
+			const { games } = create();
+			expect(await games.claimGameRecheck(7, T)).toBe(true);
+			expect(await games.claimGameRecheck(7, later(GAME_RECHECK_CLAIM_LEASE_MS - 1))).toBe(false);
+			expect(await games.claimGameRecheck(7, later(GAME_RECHECK_CLAIM_LEASE_MS))).toBe(true);
+			await games.recordGameRecheck(7, later(GAME_RECHECK_CLAIM_LEASE_MS));
+			await games.recordGameRecheck(7, T);
+			const after = later(GAME_RECHECK_CLAIM_LEASE_MS);
+			expect(await games.claimGameRecheck(7, new Date(Date.parse(after) + SCHEDULE_MONTH_REFRESH_INTERVAL_MS - 1).toISOString())).toBe(false);
+			expect(await games.claimGameRecheck(7, new Date(Date.parse(after) + SCHEDULE_MONTH_REFRESH_INTERVAL_MS).toISOString())).toBe(true);
 		});
 	});
 }

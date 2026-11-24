@@ -2,6 +2,7 @@ import {
 	describe, expect, it, vi,
 } from "vitest";
 import type { GameSnapshot } from "@bt/domain";
+import { mlbToday } from "@bt/domain";
 import type { MlbStatsClient } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
@@ -27,7 +28,15 @@ function spyClient(): {
 	const fetchGame = vi.fn(async (gamePk: number) =>
 	{
 		await gate;
-		return real.fetchGame(gamePk);
+		const fetched = await real.fetchGame(gamePk);
+		// Played on MLB's today, as `cached` is, so a refreshed game still follows refresh-on-read (S212).
+		return {
+			...fetched,
+			game: {
+				...fetched.game,
+				officialDate: mlbToday(new Date()),
+			},
+		};
 	});
 	let open!: () => void;
 	const gate = new Promise<void>((resolve) =>
@@ -72,11 +81,15 @@ function deps(overrides: Partial<IngestDeps> = {}): IngestDeps
 const STALE = new Date(Date.now() - CACHE_TTL_MS - 1_000).toISOString();
 const FRESH = new Date().toISOString();
 
+/**
+ * A final game played on MLB's today, so it is not past and finished (S212, `isPastFinishedGame`) and its read still
+ * follows the refresh-on-read rule these cases prove.
+ */
 function cached(fetchedAt: string): GameSnapshot
 {
 	return {
 		gamePk: 744834,
-		officialDate: "2024-07-04",
+		officialDate: mlbToday(new Date()),
 		status: {
 			abstractGameState: "Final",
 			detailedState: "Final",

@@ -1,0 +1,190 @@
+/**
+ * S212 AC 5: the cron's re-check of recently finished games, against a counting fake MLB and the memory purger.
+ */
+import type {
+	FetchedGame, GameSnapshot, Unversioned,
+} from "@bt/domain";
+import type { MlbStatsClient } from "@bt/ports";
+import {
+	describe, expect, it, vi,
+} from "vitest";
+import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
+import {
+	countingMlb, finalGame, memoryDeps, NOW, ORIGIN,
+} from "../test/past-data.js";
+import { recheckDueGame } from "./game-recheck.js";
+import { ingestGame } from "./ingest.js";
+
+/** Three days before MLB's today (2026-11-15). */
+const RECENT = "2026-11-12";
+const STORED_AT = "2026-11-13T06:00:00.000Z";
+const URLS = (gamePk: number, date: string) => [`${ORIGIN}/api/v1/games/${gamePk}`, `${ORIGIN}/api/v1/schedule?date=${date}`, `${ORIGIN}/api/v1/digest?date=${date}`];
+
+/** What a fake MLB answers for each gamePk: the game as stored, unless a test changes it. */
+type Answers = Map<number, Unversioned<GameSnapshot> | Error>;
+
+/** A fake MLB answering `fetchGame` from `answers`, counted. */
+function fakeMlb(answers: Answers)
+{
+	const fixture = new FixtureMlbStatsClient();
+	return countingMlb(Object.assign(Object.create(fixture) as MlbStatsClient, {
+		fetchGame: async (gamePk: number): Promise<FetchedGame> =>
+		{
+			const answer = answers.get(gamePk);
+			if (answer instanceof Error) throw answer;
+			if (!answer) throw new Error(`no game ${gamePk}`);
+			return {
+				game: answer,
+			};
+		},
+	}));
+}
+
+/** Stores `game` as ingest leaves a finished game (out of its window), and returns it as MLB would send it again. */
+async function stored(deps: ReturnType<typeof memoryDeps>, game: Unversioned<GameSnapshot>): Promise<Unversioned<GameSnapshot>>
+{
+	await ingestGame(deps, {
+		...game,
+		fetchedAt: STORED_AT,
+		windowMode: "cache",
+	});
+	return game;
+}
+
+/** The fixture game 744834, final, played on `date`. */
+async function game(date = RECENT, gamePk = 744834): Promise<Unversioned<GameSnapshot>>
+{
+	return {
+		...(await finalGame(744834, date)).game,
+		gamePk,
+	};
+}
+
+/** Deps with `answers` as MLB, the purger cleared. */
+function withMlb(deps: ReturnType<typeof memoryDeps>, answers: Answers)
+{
+	const mlb = fakeMlb(answers);
+	deps.mlb = mlb.client;
+	deps.purger.calls.length = 0;
+	return mlb.calls;
+}
+
+describe("recheckDueGame (S212 AC 5)", () =>
+{
+	it("S212 AC 5 picks: a game 3 days back with no re-check is picked; one 8 days back, today's and a postponed game never are", async () =>
+	{
+		const deps = memoryDeps();
+		const answers: Answers = new Map();
+		answers.set(744834, await stored(deps, await game()));
+		answers.set(800008, await stored(deps, await game("2026-11-07", 800008)));
+		answers.set(800000, await stored(deps, await game("2026-11-15", 800000)));
+		answers.set(800001, await stored(deps, {
+			...await game(RECENT, 800001),
+			status: {
+				abstractGameState: "Final",
+				codedGameState: "D",
+				detailedState: "Postponed: Rain",
+			},
+		}));
+		const calls = withMlb(deps, answers);
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect(await recheckDueGame(deps)).toBeNull();
+		expect(calls).toEqual(["fetchGame 744834"]);
+	});
+
+	it("S212 AC 5 new clip: a re-check whose only difference is a new highlight clip stores it and purges its three URLs", async () =>
+	{
+		const deps = memoryDeps();
+		const full = await game();
+		await stored(deps, {
+			...full,
+			highlights: full.highlights.slice(0, -1),
+		});
+		withMlb(deps, new Map([[744834, full]]));
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect((await deps.games.getByPk(744834))?.highlights).toHaveLength(full.highlights.length);
+		expect(deps.purger.purged).toEqual(URLS(744834, RECENT));
+	});
+
+	it("S212 AC 5 change purges: a re-check that changes the game purges its game URL and its day's schedule and digest URLs", async () =>
+	{
+		const deps = memoryDeps();
+		const before = await stored(deps, await game());
+		withMlb(deps, new Map([[744834, {
+			...before,
+			status: {
+				...before.status,
+				detailedState: "Final: scoring change",
+			},
+		}]]));
+		await recheckDueGame(deps);
+		expect(deps.purger.purged).toEqual(URLS(744834, RECENT));
+	});
+
+	it("S212 AC 5 unchanged: a re-check that changes nothing purges nothing and still records the re-check", async () =>
+	{
+		const deps = memoryDeps();
+		const same = await stored(deps, await game());
+		withMlb(deps, new Map([[744834, same]]));
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect(deps.purger.purged).toEqual([]);
+		const [candidate] = await deps.games.listRecheckCandidates(RECENT, RECENT);
+		expect(candidate?.checkedAt).toBe(NOW.toISOString());
+	});
+
+	it("S212 AC 5 six hours: a game re-checked under 6 h ago is not picked", async () =>
+	{
+		const deps = memoryDeps();
+		const same = await stored(deps, await game());
+		await deps.games.recordGameRecheck(744834, new Date(NOW.getTime() - 5 * 3600_000).toISOString());
+		const calls = withMlb(deps, new Map([[744834, same]]));
+		expect(await recheckDueGame(deps)).toBeNull();
+		expect(calls).toEqual([]);
+		// Six hours after that re-check it is due again.
+		deps.now = () => new Date(NOW.getTime() + 3600_000);
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect(calls).toEqual(["fetchGame 744834"]);
+	});
+
+	it("S212 AC 5 none due: with no due game a call sends no MLB request and does one database read", async () =>
+	{
+		const deps = memoryDeps();
+		await stored(deps, await game("2026-11-07"));
+		const calls = withMlb(deps, new Map());
+		const reads: string[] = [];
+		for (const name of ["schedules", "games", "gameStates", "projections"] as const)
+		{
+			const repo = deps[name] as unknown as Record<string, unknown>;
+			deps[name] = new Proxy(repo, {
+				get(target, key, receiver)
+				{
+					const value = Reflect.get(target, key, receiver) as unknown;
+					if (typeof value !== "function") return value;
+					return (...args: unknown[]) =>
+					{
+						reads.push(`${name}.${String(key)}`);
+						return (value as (...a: unknown[]) => unknown).apply(target, args);
+					};
+				},
+			}) as never;
+		}
+		expect(await recheckDueGame(deps)).toBeNull();
+		expect(calls).toEqual([]);
+		expect(reads).toEqual(["games.listRecheckCandidates"]);
+	});
+
+	it("S212 AC 5 MLB fails: an MLB failure records no re-check and stores nothing", async () =>
+	{
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const deps = memoryDeps();
+		await stored(deps, await game());
+		const before = await deps.games.getByPk(744834);
+		withMlb(deps, new Map([[744834, new Error("MLB down")]]));
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect(await deps.games.getByPk(744834)).toEqual(before);
+		const [candidate] = await deps.games.listRecheckCandidates(RECENT, RECENT);
+		expect(candidate?.checkedAt).toBeNull();
+		expect(deps.purger.purged).toEqual([]);
+		warn.mockRestore();
+	});
+});

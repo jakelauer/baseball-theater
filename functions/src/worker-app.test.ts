@@ -26,8 +26,9 @@ import {
 } from "./test/logto-tokens.js";
 import type { WorkerEnv } from "./worker-app.js";
 import {
-	createWorkerApp, devSignInAllowed, logtoAdmin, mockSignInAllowed,
+	createWorkerApp, devSignInAllowed, edgePurgeFor, logtoAdmin, mockSignInAllowed,
 } from "./worker-app.js";
+import { CloudflareEdgeCachePurger, NoopEdgeCachePurger } from "./adapters/cloudflare/edge-cache-purger.js";
 
 async function count(db: PostgresDb, table: string): Promise<number>
 {
@@ -481,5 +482,29 @@ describe("staging's mock sign-in (S143)", () =>
 				},
 			});
 		}
+	});
+});
+
+describe("the edge purge in the Worker composition (S212 AC 4)", () =>
+{
+	const ALL = {
+		BT_CF_PURGE_TOKEN: "token",
+		BT_CF_ZONE_ID: "zone",
+		BT_APP_ORIGIN: "https://stage.baseball.theater",
+	};
+
+	it("S212 AC 4 no-op: with either secret or BT_APP_ORIGIN missing the Worker purges nothing; with all three, by URL through Cloudflare", () =>
+	{
+		for (const missing of ["BT_CF_PURGE_TOKEN", "BT_CF_ZONE_ID", "BT_APP_ORIGIN"] as const)
+		{
+			const env: WorkerEnv = {
+				...ALL,
+			};
+			delete env[missing];
+			expect(edgePurgeFor(env).purger, missing).toBeInstanceOf(NoopEdgeCachePurger);
+		}
+		const edge = edgePurgeFor(ALL);
+		expect(edge.purger).toBeInstanceOf(CloudflareEdgeCachePurger);
+		expect(edge.origin).toBe("https://stage.baseball.theater");
 	});
 });

@@ -136,6 +136,10 @@ export const DATA_CLASSIFICATION = {
 			kind: "none",
 			why: "per schedule month (month), when BT last checked it against MLB (checked_at) and when a refresh last claimed it, or the time a failed fill holds it until (claimed_at; a claim holds until then plus the lease); no user data",
 		},
+		game_rechecks: {
+			kind: "none",
+			why: "per MLB game (game_pk), when the cron last re-checked it against MLB (checked_at) and when a re-check last claimed it (claimed_at; a claim holds until then plus the lease), S212; no user data",
+		},
 		games: {
 			kind: "none",
 			why: "MLB game snapshots; no user data",

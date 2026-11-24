@@ -11,11 +11,12 @@
  * holds aliases the store.
  */
 import type {
-	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateFields, GameStateRow, GameStateSource, PatronTier, Role, ScheduleDayTally, ScheduleMonthCheck,
+	AccountSettings, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, GameStateSource, PatronTier, Role, ScheduleDayTally,
+	ScheduleMonthCheck,
 	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
+	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, GAME_RECHECK_CLAIM_LEASE_MS, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
 } from "@bt/domain";
 import type {
 	DeletionLog,
@@ -36,7 +37,7 @@ import {
 import type { SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
-	accountSettings, deletionLog, entitlements, gameProjections, games, gameStates, identityLinks, replayArtifacts, scheduleDays, scheduleMonths, users,
+	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, replayArtifacts, scheduleDays, scheduleMonths, users,
 } from "./schema.js";
 
 /** Any Drizzle Postgres database: PGlite in tests, node-postgres behind Hyperdrive in the Worker (S51). */
@@ -353,6 +354,79 @@ export class PostgresGameRepository implements GameRepository
 			document: games.document,
 		}).from(games).where(eq(games.officialDate, date)).orderBy(asc(games.gamePk));
 		return rows.map((row) => row.document);
+	}
+
+	/**
+	 * One statement (S212 AC 5): each game of the dates (by the indexed `official_date`), its `windowMode` and its
+	 * served status (the `game_states` row's, else the snapshot's) taken out of the documents, and its `game_rechecks`
+	 * record, so a tick with no due game costs this one read.
+	 */
+	async listRecheckCandidates(from: string, to: string): Promise<GameRecheckCandidate[]>
+	{
+		const rows = await this.db.select({
+			gamePk: games.gamePk,
+			officialDate: games.officialDate,
+			windowMode: sql<GameSnapshot["windowMode"]>`${games.document}->>'windowMode'`,
+			status: sql<GameRecheckCandidate["status"]>`COALESCE(${gameStates.document}->'status', ${games.document}->'status')`,
+			checkedAt: gameRechecks.checkedAt,
+			claimedAt: gameRechecks.claimedAt,
+		}).from(games)
+			.leftJoin(gameStates, eq(gameStates.gamePk, games.gamePk))
+			.leftJoin(gameRechecks, eq(gameRechecks.gamePk, games.gamePk))
+			.where(between(games.officialDate, from, to))
+			.orderBy(asc(games.gamePk));
+		return rows.map((row) => ({
+			gamePk: row.gamePk,
+			officialDate: row.officialDate,
+			windowMode: row.windowMode,
+			status: {
+				codedGameState: row.status.codedGameState,
+				detailedState: row.status.detailedState,
+			},
+			checkedAt: row.checkedAt ?? null,
+			claimedAt: row.claimedAt ?? null,
+		}));
+	}
+
+	/**
+	 * One conditional statement (S212 AC 5), as `claimScheduleMonth`: insert the game claimed, or take an existing
+	 * record's claim only when the game is still due (no `checked_at`, or one at least
+	 * `SCHEDULE_MONTH_REFRESH_INTERVAL_MS` before `at`) and has no claim or one at least `GAME_RECHECK_CLAIM_LEASE_MS`
+	 * older than `at`; a returned row means this caller holds the claim.
+	 */
+	async claimGameRecheck(gamePk: number, at: string): Promise<boolean>
+	{
+		const cutoff = new Date(Date.parse(at) - GAME_RECHECK_CLAIM_LEASE_MS).toISOString();
+		const dueBy = new Date(Date.parse(at) - SCHEDULE_MONTH_REFRESH_INTERVAL_MS).toISOString();
+		const claimed = await this.db.insert(gameRechecks).values({
+			gamePk,
+			claimedAt: at,
+		}).onConflictDoUpdate({
+			target: gameRechecks.gamePk,
+			set: {
+				claimedAt: sql`excluded.claimed_at`,
+			},
+			setWhere: sql`(${gameRechecks.claimedAt} IS NULL OR ${gameRechecks.claimedAt}::timestamptz <= ${cutoff}::timestamptz)
+				AND (${gameRechecks.checkedAt} IS NULL OR ${gameRechecks.checkedAt}::timestamptz <= ${dueBy}::timestamptz)`,
+		}).returning({
+			gamePk: gameRechecks.gamePk,
+		});
+		return claimed.length > 0;
+	}
+
+	/** One statement: insert the game's record, or move its `checked_at` forward only (S212 AC 5). */
+	async recordGameRecheck(gamePk: number, checkedAt: string): Promise<void>
+	{
+		await this.db.insert(gameRechecks).values({
+			gamePk,
+			checkedAt,
+		}).onConflictDoUpdate({
+			target: gameRechecks.gamePk,
+			set: {
+				checkedAt: sql`excluded.checked_at`,
+			},
+			setWhere: sql`${gameRechecks.checkedAt} IS NULL OR excluded.checked_at::timestamptz > ${gameRechecks.checkedAt}::timestamptz`,
+		});
 	}
 }
 

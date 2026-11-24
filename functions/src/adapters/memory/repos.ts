@@ -1,8 +1,9 @@
 import type {
-	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay, UserProfile,
+	AccountSettings, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay,
+	UserProfile,
 } from "@bt/domain";
 import {
-	contentHash, downloadExpired, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
+	contentHash, downloadExpired, GAME_RECHECK_CLAIM_LEASE_MS, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
 } from "@bt/domain";
 import type {
 	DataDownload,
@@ -257,9 +258,18 @@ export function memoryScheduleStores(): { schedules: InMemoryScheduleRepository;
 	};
 }
 
+/**
+ * Game snapshots in memory. Given the game-state store beside it (`gameStates`), its re-check read (S212 AC 5) serves
+ * each game's status from its row, as the Postgres statement joins `game_states`; without one, from the snapshot.
+ */
 export class InMemoryGameRepository implements GameRepository
 {
 	private readonly store = new VersionedMemoryStore<number, GameSnapshot>((g) => g.version);
+	/** Each game's re-check record (S212 AC 5), the Postgres adapter's `game_rechecks` rows. */
+	private readonly rechecks = new Map<number, { checkedAt: string | null;
+		claimedAt: string | null; }>();
+
+	constructor(private readonly gameStates?: InMemoryGameStateRepository) {}
 
 	async getByPk(gamePk: number): Promise<GameSnapshot | null>
 	{
@@ -294,9 +304,55 @@ export class InMemoryGameRepository implements GameRepository
 		return this.store.values().filter((g) => g.officialDate === date);
 	}
 
+	async listRecheckCandidates(from: string, to: string): Promise<GameRecheckCandidate[]>
+	{
+		const games = this.store.values().filter((g) => g.officialDate >= from && g.officialDate <= to).sort((a, b) => a.gamePk - b.gamePk);
+		const rows = new Map((await this.gameStates?.getMany(games.map((g) => g.gamePk)) ?? []).map((row) => [row.gamePk, row]));
+		return games.map((game) =>
+		{
+			const status = rows.get(game.gamePk)?.state.status ?? game.status;
+			return {
+				gamePk: game.gamePk,
+				officialDate: game.officialDate,
+				windowMode: game.windowMode,
+				status: {
+					codedGameState: status.codedGameState,
+					detailedState: status.detailedState,
+				},
+				checkedAt: this.rechecks.get(game.gamePk)?.checkedAt ?? null,
+				claimedAt: this.rechecks.get(game.gamePk)?.claimedAt ?? null,
+			};
+		});
+	}
+
+	/** Takes the claim only when the game is still due and unclaimed (or its claim has lapsed), as the Postgres adapter's conditional write does. */
+	async claimGameRecheck(gamePk: number, at: string): Promise<boolean>
+	{
+		const stored = this.rechecks.get(gamePk);
+		if (stored?.claimedAt && Date.parse(at) - Date.parse(stored.claimedAt) < GAME_RECHECK_CLAIM_LEASE_MS) return false;
+		if (stored?.checkedAt && Date.parse(at) - Date.parse(stored.checkedAt) < SCHEDULE_MONTH_REFRESH_INTERVAL_MS) return false;
+		this.rechecks.set(gamePk, {
+			checkedAt: stored?.checkedAt ?? null,
+			claimedAt: at,
+		});
+		return true;
+	}
+
+	/** Moves `checkedAt` forward only, as the Postgres adapter's guarded update does. */
+	async recordGameRecheck(gamePk: number, checkedAt: string): Promise<void>
+	{
+		const stored = this.rechecks.get(gamePk);
+		if (stored?.checkedAt && !(Date.parse(checkedAt) > Date.parse(stored.checkedAt))) return;
+		this.rechecks.set(gamePk, {
+			checkedAt,
+			claimedAt: stored?.claimedAt ?? null,
+		});
+	}
+
 	clear(): void
 	{
 		this.store.clear();
+		this.rechecks.clear();
 	}
 }
 

@@ -63,6 +63,18 @@ export const gameStates = pgTable("game_states", {
 	document: jsonb("document").$type<GameState>().notNull(),
 }, (table) => [check("game_states_source_check", sql`${table.source} IN ('feed', 'schedule')`)]);
 
+/**
+ * One record per game the cron re-checks (`GameRepository`'s re-check record, S212 AC 5): when BT last re-checked the
+ * game's full detail against MLB, and when a re-check last claimed it, each an ISO instant or null; a claim holds until
+ * `claimed_at` plus the lease. Kept apart from `games` so a snapshot write never touches it, and compared as
+ * `timestamptz` by the adapter, as `schedule_months` is.
+ */
+export const gameRechecks = pgTable("game_rechecks", {
+	gamePk: integer("game_pk").primaryKey(),
+	checkedAt: text("checked_at"),
+	claimedAt: text("claimed_at"),
+});
+
 /** One game snapshot per game (`GameRepository`): its day for `listByDate`, the document for queries into it. */
 export const games = pgTable("games", {
 	gamePk: integer("game_pk").primaryKey(),

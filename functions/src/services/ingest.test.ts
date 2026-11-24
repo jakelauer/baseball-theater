@@ -6,6 +6,7 @@ import {
 	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemoryGameStateRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import type { GameSnapshot, Unversioned } from "@bt/domain";
+import { mlbToday } from "@bt/domain";
 import {
 	getOrRefreshGame, getOrRefreshSchedule, ingestGame, ingestScheduleDay, refreshTodaysWindow, storeSchedule,
 } from "./ingest.js";
@@ -136,12 +137,20 @@ describe("refresh-on-read cache lifetime (S47, ADR-021)", () =>
 		const real = new FixtureMlbStatsClient();
 		let calls = 0;
 		const mlb = new FixtureMlbStatsClient();
+		let clock = new Date("2026-10-30T12:00:00Z");
 		mlb.fetchGame = async (pk: number) =>
 		{
 			calls += 1;
-			return real.fetchGame(pk);
+			const fetched = await real.fetchGame(pk);
+			// Played on MLB's today, so the final game isn't past and finished (S212) and its read climbs the ladder.
+			return {
+				...fetched,
+				game: {
+					...fetched.game,
+					officialDate: mlbToday(clock),
+				},
+			};
 		};
-		let clock = new Date("2026-10-30T12:00:00Z");
 		const deps = {
 			mlb,
 			...memoryScheduleStores(),
@@ -478,7 +487,13 @@ describe("the day read refreshes the schedule, not each game (#419)", () =>
 			fetchedAt: "2026-11-20T12:00:00.000Z",
 			windowMode: "cache",
 		});
-		const day = await getOrRefreshSchedule(deps, "2026-09-05");
+		// A past, finished day is served from the store with no request at all since S212, so the refresh is forced
+		// (`?refresh=1`) to prove what a refresh of it asks.
+		expect((await getOrRefreshSchedule(deps, "2026-09-05")).games).toHaveLength(15);
+		expect(asked).toEqual([]);
+		const day = await getOrRefreshSchedule(deps, "2026-09-05", {
+			force: true,
+		});
 		expect(day.games).toHaveLength(15);
 		expect(asked).toEqual(["schedule 2026-09-05"]);
 	});

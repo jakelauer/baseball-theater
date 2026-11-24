@@ -4,7 +4,7 @@ import type {
 import type { SettingsRepository } from "@bt/ports";
 import {
 	API_VERSIONS, DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
-	isCalendarMonth, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
+	isCalendarMonth, isPastFinishedGame, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
 	mlbDayEndsAt, mlbToday, parseAccountSettings, parseSearchFilters, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
 import type { AccountDataDeps } from "../services/account-deletion.js";
@@ -29,9 +29,9 @@ import { getDefaultScoreboardDate } from "../services/scoreboard-date.js";
 import type { StandingsRead } from "../services/standings.js";
 import { getStandings, standingsNothingYet } from "../services/standings.js";
 import type { IngestDeps } from "../services/ingest.js";
-import { getOrRefreshGame, getOrRefreshSchedule } from "../services/ingest.js";
+import { getOrRefreshGame, getScheduleRead } from "../services/ingest.js";
 import {
-	edgeCacheControl, RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, versionedMonthCacheControl,
+	edgeCacheControl, PARTIAL_PAST_DIGEST_CACHE_CONTROL, PAST_CACHE_CONTROL, RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, versionedMonthCacheControl,
 } from "./cache-control.js";
 import { liveUpgrade } from "./live.js";
 
@@ -100,7 +100,8 @@ function sendError(status: number, body: ApiErrorResponse): Response
  * stand-in entity: the month route (S124) `windowMode: "cache"` and the month's last change, for a
  * complete month asked for without a version (a versioned month URL, S194, is judged by
  * `versionedMonthCacheControl` instead), and the digest route (#61) `digestFreshness`, live while
- * the day or any game is, last changed when the latest of them did.
+ * the day or any game is, last changed when the latest of them did. Past, finished data (S212) never comes here:
+ * the routes send `PAST_CACHE_CONTROL` (or a partial past digest `PARTIAL_PAST_DIGEST_CACHE_CONTROL`) themselves.
  */
 function withCacheControl(response: Response, entity: Parameters<typeof edgeCacheControl>[0], ctx: ApiContext, ladder?: readonly CacheLifetimeStep[]): Response
 {
@@ -267,10 +268,17 @@ export const API_ROUTER: readonly RouteEntry[] = [
 				});
 			}
 			const force = url.searchParams.get("refresh") === "1";
-			const day = await getOrRefreshSchedule(ctx.ingest, date, {
+			const { day, pastFinished } = await getScheduleRead(ctx.ingest, date, {
 				force,
 			});
-			return withCacheControl(sendJson(200, "GET /api/v1/schedule", toScheduleDayResponse(day)), day, ctx);
+			const response = sendJson(200, "GET /api/v1/schedule", toScheduleDayResponse(day));
+			// S212: a past, finished day is kept at the edge for weeks and purged when the cron changes it.
+			if (pastFinished)
+			{
+				response.headers.set("Cache-Control", PAST_CACHE_CONTROL);
+				return response;
+			}
+			return withCacheControl(response, day, ctx);
 		},
 	},
 	{
@@ -362,10 +370,20 @@ export const API_ROUTER: readonly RouteEntry[] = [
 					hint: "YYYY-MM-DD",
 				});
 			}
-			const { freshness, digest } = await getDayDigest(ctx.ingest, date);
-			// The digest is cached by the graduated rule (S71, #61): not while the day or a game is live,
+			const {
+				freshness, digest, edgeLifetime,
+			} = await getDayDigest(ctx.ingest, date);
+			const response = sendJson(200, "GET /api/v1/digest", digest);
+			// S212: a past, finished day whose games are all past, finished and read is kept for weeks (purged on a change);
+			// one missing a game it couldn't read is kept only the floor, so the next read tries that game again.
+			if (edgeLifetime !== "ladder")
+			{
+				response.headers.set("Cache-Control", edgeLifetime === "past" ? PAST_CACHE_CONTROL : PARTIAL_PAST_DIGEST_CACHE_CONTROL);
+				return response;
+			}
+			// Otherwise by the graduated rule (S71, #61): not while the day or a game is live,
 			// then by how long since the latest of them changed.
-			return withCacheControl(sendJson(200, "GET /api/v1/digest", digest), freshness, ctx);
+			return withCacheControl(response, freshness, ctx);
 		},
 	},
 	{
@@ -497,7 +515,14 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			{
 				return notFound();
 			}
-			return withCacheControl(sendJson(200, "GET /api/v1/games/:gamePk", toGameSnapshotResponse(game)), game, ctx);
+			const response = sendJson(200, "GET /api/v1/games/:gamePk", toGameSnapshotResponse(game));
+			// S212: a past, finished game is kept at the edge for weeks and purged when the cron changes it.
+			if (isPastFinishedGame(game, ctx.ingest.now?.() ?? new Date()))
+			{
+				response.headers.set("Cache-Control", PAST_CACHE_CONTROL);
+				return response;
+			}
+			return withCacheControl(response, game, ctx);
 		},
 	},
 	{

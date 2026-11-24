@@ -220,6 +220,9 @@ function counted(base: { schedules: ScheduleRepository;
 			getByPk: (pk) => base.games.getByPk(pk),
 			getStateFields: (pks) => base.games.getStateFields(pks),
 			listByDate: (date) => base.games.listByDate(date),
+			listRecheckCandidates: (from, to) => base.games.listRecheckCandidates(from, to),
+			claimGameRecheck: (pk, at) => base.games.claimGameRecheck(pk, at),
+			recordGameRecheck: (pk, at) => base.games.recordGameRecheck(pk, at),
 			upsert: async (game) =>
 			{
 				writes.push(`game ${game.gamePk}`);

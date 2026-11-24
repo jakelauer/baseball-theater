@@ -2,12 +2,14 @@ import type {
 	CadenceParams, GameSnapshot, GameStateRow, ScheduleDay, StoredScheduleDay, Unversioned,
 } from "@bt/domain";
 import {
-	addDays, cacheLifetimeMs, DEFAULT_CADENCE, gameStateFromGame, gameStateFromSummary, isFinalStatus, isGameInActiveWindow, isScheduleDaySettled, mlbToday,
-	normalizeStatusCode, projectGame, scheduleWindowMode, stampVersion, suspendedSince, toStoredScheduleDay,
+	addDays, cacheLifetimeMs, DEFAULT_CADENCE, gameStateFromGame, gameStateFromSummary, isFinalStatus, isGameInActiveWindow, isPastFinishedDay, isPastFinishedGame,
+	isScheduleDaySettled, mlbToday, normalizeStatusCode, projectGame, scheduleWindowMode, stampVersion, suspendedSince, toStoredScheduleDay,
 } from "@bt/domain";
 import type {
 	GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, ScheduleRepository,
 } from "@bt/ports";
+import type { EdgePurge } from "./edge-purge.js";
+import { purgeDayEdge, purgeGameEdge } from "./edge-purge.js";
 import type { WindowedSummary } from "./game-state.js";
 import {
 	readJoinedScheduleDay, readScheduleDay, readServedGame, scheduleDayWindowMode, servedGame, switchGameState, withSuspendedAt,
@@ -34,6 +36,11 @@ export type IngestDeps = {
 	 * `fetchSeasonCalendar` kept for a day (`cachedSeasonCalendars`); the MLB client itself when absent.
 	 */
 	seasonCalendars?: SeasonCalendarSource;
+	/**
+	 * Where a write of a past, finished day or game drops its edge copy (S212 AC 4): the Worker's purger and origin
+	 * (`edgePurgeFor`); absent (tests, the Node server, the backfill), nothing is purged.
+	 */
+	edgePurge?: EdgePurge;
 };
 
 /** The one MLB read the standings' calendar cache wraps (S139). */
@@ -85,9 +92,13 @@ export function runRefresh<T>(
  * from `suspendedSince` against the stored game, whatever the caller passed. It is set only by the
  * write that changes the status, already a new version, and carried unchanged after, so it never
  * bumps a version on its own; left out when there is none, so a game never suspended hashes as before.
+ *
+ * S212 AC 4: when the write leaves a past, finished game (`isPastFinishedGame` of the served game) that it stored for
+ * the first time, or whose snapshot or state it changed, it purges the game's edge URL and its day's schedule and digest
+ * URLs (`purgeGameEdge`), whichever path wrote it (game ingest, the recent-game re-check, a read's own refresh).
  */
 async function storeGame(
-	deps: Pick<IngestDeps, "games" | "projections" | "gameStates">,
+	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "edgePurge">,
 	fetched: Unversioned<GameSnapshot>,
 	feedTime?: string,
 ): Promise<{ snapshot: GameSnapshot;
@@ -124,6 +135,10 @@ async function storeGame(
 		await deps.games.upsert(snapshot);
 		await deps.projections.upsert(projectGame(snapshot));
 	}
+	if ((snapshot !== stored || outcome?.stateChanged) && isPastFinishedGame(servedGame(snapshot, state), new Date(fetched.fetchedAt)))
+	{
+		await purgeGameEdge(deps.edgePurge, snapshot.gamePk, snapshot.officialDate);
+	}
 	return {
 		snapshot,
 		state,
@@ -140,12 +155,18 @@ async function storeGame(
  * still hands over a postponement; the day is stored without its games' states
  * (`StoredScheduleDay`). A write that drops a game from the day raises the day's `served_base`
  * by that game's state version in the same write (the repository's `upsert`), so the served
- * day's version never falls. Returns the served day (`readScheduleDay`).
+ * day's version never falls. Returns the served day (`readJoinedScheduleDay`).
+ *
+ * S212 AC 4: when the write leaves a past, finished day (`isPastFinishedDay` of the served day) that it stored for the
+ * first time, or whose served version it changed (the stored day's version, or a listed game's state version), it purges
+ * the day's schedule and digest URLs (`purgeDayEdge`), whichever path wrote it (S194's month refresh through
+ * `fillScheduleMonth`, the day-before fetch of `refreshTodaysWindow`, a read's own refresh). A month refresh that
+ * changes nothing purges nothing.
  */
-export async function storeSchedule(deps: Pick<IngestDeps, "schedules" | "games" | "gameStates">, fetched: Unversioned<ScheduleDay>): Promise<ScheduleDay>
+export async function storeSchedule(deps: Pick<IngestDeps, "schedules" | "games" | "gameStates" | "edgePurge">, fetched: Unversioned<ScheduleDay>): Promise<ScheduleDay>
 {
 	const now = new Date(fetched.fetchedAt);
-	await switchGameState(deps, fetched.games.map((game) => ({
+	const outcomes = await switchGameState(deps, fetched.games.map((game) => ({
 		gamePk: game.gamePk,
 		source: "schedule" as const,
 		state: gameStateFromSummary(game),
@@ -154,8 +175,14 @@ export async function storeSchedule(deps: Pick<IngestDeps, "schedules" | "games"
 	})), now);
 	const stored = await deps.schedules.getByDate(fetched.date);
 	const day = stampVersion<StoredScheduleDay>(stored, toStoredScheduleDay(fetched), fetched.fetchedAt);
-	if (!stored || day.version !== stored.version) await deps.schedules.upsert(day);
-	return (await readScheduleDay(deps, fetched.date, now))!;
+	const dayChanged = !stored || day.version !== stored.version;
+	if (dayChanged) await deps.schedules.upsert(day);
+	const joined = (await readJoinedScheduleDay(deps, fetched.date, now))!;
+	if ((dayChanged || [...outcomes.values()].some((outcome) => outcome.stateChanged)) && isPastFinishedDay(joined.served, now, joined.moved))
+	{
+		await purgeDayEdge(deps.edgePurge, fetched.date);
+	}
+	return joined.served;
 }
 
 /**
@@ -286,6 +313,11 @@ export async function ingestScheduleDay(
  * the month view's failed fill doesn't): an unchanged poll writes nothing (ADR-022), so the
  * stored `fetchedAt` stays at the last change, and without the coordinator's
  * time every read past the TTL would pull MLB again.
+ *
+ * S212: it no longer decides a past, finished read. A stored day or game that is past and finished
+ * (`isPastFinishedDay` / `isPastFinishedGame`) is served without asking MLB whatever its stamps say, since the cron's
+ * writes own its freshness (ADR-021's 2026-11-24 amendment). This rule still judges today's and future days, unfinished
+ * days and games, and the month view's fill.
  */
 export function needsRefresh(
 	deps: IngestDeps,
@@ -308,12 +340,67 @@ export function needsRefresh(
 	return isStale(checkedAt, now, lifetime);
 }
 
+/** A day as the day read serves it, and whether it is past and finished (`isPastFinishedDay`, S212). */
+export type ScheduleRead = {
+	day: ScheduleDay;
+	pastFinished: boolean;
+};
+
 /**
- * The day read (`GET /api/v1/schedule`): the served day (S150 AC 6, `readJoinedScheduleDay`), refreshed from MLB first
- * when the stored day is missing or stale (`needsRefresh` on the joined day's `windowMode` and the stored day's own
- * stamps, its schedule data). A game's score is kept current by its writers, not by this refresh, and the refresh
- * fetches no game (#419): one schedule request, whatever the day holds. A game is fetched when it is read itself
- * (`getOrRefreshGame`) or by the cron's window (`tickIngest`).
+ * The day read with its past-and-finished verdict (S212 AC 2–3): {@link getOrRefreshSchedule}'s rule, returning also
+ * whether the served day is past and finished, so the route and the digest pick its cache header from the same rule
+ * (`isPastFinishedDay`, ADR-025) without a second judgment. A stored past, finished day is served with no MLB request
+ * (unless `force`); after a refresh the verdict is read from the stored day just written.
+ */
+export async function getScheduleRead(
+	deps: IngestDeps,
+	date: string,
+	opts?: { force?: boolean },
+): Promise<ScheduleRead>
+{
+	const now = deps.now?.() ?? new Date();
+	const force = opts?.force ?? false;
+	const existing = await readJoinedScheduleDay(deps, date, now);
+	if (existing && !force && isPastFinishedDay(existing.served, now, existing.moved))
+	{
+		return {
+			day: existing.served,
+			pastFinished: true,
+		};
+	}
+	// S150 AC 6: the joined day's window, with the stored day's own stamps (its schedule data); a game's score is kept
+	// current by its writers, not by the day's refresh.
+	if (existing && !needsRefresh(deps, `schedule:${date}`, {
+		fetchedAt: existing.stored.fetchedAt,
+		lastChangedAt: existing.stored.lastChangedAt,
+		windowMode: existing.served.windowMode,
+	}, now, force))
+	{
+		return {
+			day: existing.served,
+			pastFinished: false,
+		};
+	}
+
+	const refreshed = await runRefresh(deps, `schedule:${date}`, () =>
+		refreshScheduleDay(deps, date, now),
+	);
+	const day = refreshed ?? existing?.served ?? await refreshScheduleDay(deps, date, now);
+	const after = await readJoinedScheduleDay(deps, date, now);
+	return {
+		day,
+		pastFinished: after !== null && after.served.version === day.version && isPastFinishedDay(after.served, now, after.moved),
+	};
+}
+
+/**
+ * The day read (`GET /api/v1/schedule`): the served day (S150 AC 6, `readJoinedScheduleDay`). S212: a stored day that
+ * is past and finished (`isPastFinishedDay`) is served as stored with no MLB request, whatever its stamps say, since the
+ * cron's writes own its freshness and purge its edge copy on a change (ADR-021's 2026-11-24 amendment); `force`
+ * (`?refresh=1`) still asks MLB. Any other day is refreshed from MLB first when it is missing or stale (`needsRefresh`
+ * on the joined day's `windowMode` and the stored day's own stamps, its schedule data). A game's score is kept current
+ * by its writers, not by this refresh, and the refresh fetches no game (#419): one schedule request, whatever the day
+ * holds. A game is fetched when it is read itself (`getOrRefreshGame`) or by the cron's window (`tickIngest`).
  */
 export async function getOrRefreshSchedule(
 	deps: IngestDeps,
@@ -321,25 +408,15 @@ export async function getOrRefreshSchedule(
 	opts?: { force?: boolean },
 ): Promise<ScheduleDay>
 {
-	const now = deps.now?.() ?? new Date();
-	const existing = await readJoinedScheduleDay(deps, date, now);
-	// S150 AC 6: the joined day's window, with the stored day's own stamps (its schedule data); a game's score is kept
-	// current by its writers, not by the day's refresh.
-	if (existing && !needsRefresh(deps, `schedule:${date}`, {
-		fetchedAt: existing.stored.fetchedAt,
-		lastChangedAt: existing.stored.lastChangedAt,
-		windowMode: existing.served.windowMode,
-	}, now, opts?.force ?? false)) return existing.served;
-
-	const refreshed = await runRefresh(deps, `schedule:${date}`, () =>
-		refreshScheduleDay(deps, date, now),
-	);
-	return refreshed ?? existing?.served ?? refreshScheduleDay(deps, date, now);
+	return (await getScheduleRead(deps, date, opts)).day;
 }
 
 /**
  * The game read: the stored snapshot, refreshed from MLB first when it is missing or stale, served as `servedGame`
- * (S150 AC 6: its status and linescore from the game's one stored state, the snapshot's version).
+ * (S150 AC 6: its status and linescore from the game's one stored state, the snapshot's version). S212: a stored game
+ * that is past and finished (`isPastFinishedGame` of the served game) is served with no MLB request, whatever its
+ * stamps say; the cron's recent-game re-check (`recheckDueGame`) keeps it fresh and purges its edge copy on a change.
+ * `force` (`?refresh=1`) still asks MLB.
  */
 export async function getOrRefreshGame(
 	deps: IngestDeps,
@@ -348,8 +425,14 @@ export async function getOrRefreshGame(
 ): Promise<GameSnapshot | null>
 {
 	const now = deps.now?.() ?? new Date();
+	const force = opts?.force ?? false;
 	const existing = await deps.games.getByPk(gamePk);
-	if (!needsRefresh(deps, `game:${gamePk}`, existing, now, opts?.force ?? false)) return existing && servedGame(existing, await deps.gameStates.getByPk(gamePk));
+	if (existing && !force)
+	{
+		const served = servedGame(existing, await deps.gameStates.getByPk(gamePk));
+		if (isPastFinishedGame(served, now) || !needsRefresh(deps, `game:${gamePk}`, existing, now, false)) return served;
+	}
+	// Not stored, forced, or stale: asked of MLB (`needsRefresh` is always true for the first two).
 
 	await runRefresh(deps, `game:${gamePk}`, async () =>
 	{

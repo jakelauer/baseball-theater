@@ -1,7 +1,16 @@
 import type { DayDigestResponse, ScheduleDay } from "@bt/domain";
-import { dayDigest, digestFreshness } from "@bt/domain";
+import {
+	dayDigest, digestFreshness, isPastFinishedGame,
+} from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
-import { getOrRefreshGame, getOrRefreshSchedule } from "./ingest.js";
+import { getOrRefreshGame, getScheduleRead } from "./ingest.js";
+
+/**
+ * Which edge lifetime a digest gets (S212 AC 3): `past` when its day is past and finished and so is every one of its
+ * games, each read successfully (`isPastFinishedDay` / `isPastFinishedGame`); `partialPast` when its day is past and
+ * finished but a game couldn't be read; `ladder` otherwise (ADR-021's graduated rule, by `freshness`).
+ */
+export type DigestEdgeLifetime = "past" | "partialPast" | "ladder";
 
 /**
  * "Best of <date>" (S71): reads the day's schedule, then each of its games the way the
@@ -10,14 +19,23 @@ import { getOrRefreshGame, getOrRefreshSchedule } from "./ingest.js";
  * digest; a day with no videos yet has an empty digest. Returns the digest's freshness too
  * (`digestFreshness`: live while the day or any game is, last changed when the latest of them
  * did, #61), so the route caches it by the same graduated rule as the day and its games (ADR-021).
+ *
+ * S212: the day and game reads serve stored past, finished data with no MLB request, so a past, finished day whose
+ * games are all stored costs no MLB request at all; a game never stored is still fetched on its first read (#516).
+ * Also returns which edge lifetime the digest gets ({@link DigestEdgeLifetime}).
  */
 export async function getDayDigest(deps: IngestDeps, date: string): Promise<{ freshness: Pick<ScheduleDay, "windowMode" | "lastChangedAt">;
-	digest: DayDigestResponse; }>
+	digest: DayDigestResponse;
+	edgeLifetime: DigestEdgeLifetime; }>
 {
-	const day = await getOrRefreshSchedule(deps, date);
+	const { day, pastFinished } = await getScheduleRead(deps, date);
 	const read = await Promise.all(day.games.map((game) => getOrRefreshGame(deps, game.gamePk).catch(() => null)));
 	const games = read.filter((game) => game !== null);
 	const freshness = digestFreshness(day, games);
+	const now = deps.now?.() ?? new Date();
+	const edgeLifetime: DigestEdgeLifetime = !pastFinished
+		? "ladder"
+		: games.length < read.length ? "partialPast" : games.every((game) => isPastFinishedGame(game, now)) ? "past" : "ladder";
 	return {
 		freshness,
 		digest: {
@@ -25,5 +43,6 @@ export async function getDayDigest(deps: IngestDeps, date: string): Promise<{ fr
 			items: dayDigest(games),
 			windowMode: freshness.windowMode,
 		},
+		edgeLifetime,
 	};
 }

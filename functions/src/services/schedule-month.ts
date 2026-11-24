@@ -105,6 +105,10 @@ async function rangeToAsk(deps: IngestDeps, month: string, fillable: string[], s
  * nothing changed records one too, since that is the point of the record. Returns the days as
  * stored, or null when MLB couldn't be asked or its answer didn't parse (no check is recorded). A
  * store write that fails is BT's own failure (the database), not MLB's, and rejects.
+ *
+ * S212: since a read no longer refreshes a past, finished day, this fill (run by the scheduled
+ * refresh) is what keeps one fresh; `storeSchedule` purges the edge copy of each past, finished day
+ * whose served version it changes, so a fill that finds nothing changed purges nothing.
  */
 export async function fillScheduleMonth(deps: IngestDeps, month: string, span: [string, string], now: Date): Promise<ScheduleDay[] | null>
 {
