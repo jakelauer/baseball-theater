@@ -4,11 +4,12 @@ import {
 import { IconPlayerPauseFilled, IconPlayerPlayFilled } from "@tabler/icons-react";
 import type { VideoQuality } from "@bt/domain";
 import {
-	clipClock, defaultVideoQuality, fileQuality, videoQualities,
+	clipClock, defaultVideoQuality, fileQuality, rememberedVideoQuality, videoQualities,
 } from "@bt/domain";
 import {
 	useEffect, useRef, useState,
 } from "react";
+import { setVideoQuality, useVideoQuality } from "../../settings/store.js";
 import { loadHls } from "./hls-loader.js";
 import { PlayerActions, QualityPicker } from "./PlayerActions.js";
 import type { Video } from "./VideoCard.js";
@@ -118,9 +119,11 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
  * the reader chose it; the stage's first clip waits for a press.
  *
  * Under the progress row sit the quality picker (`QualityPicker`, the clip's
- * `videoQualities` this browser can play, HLS natively or through hls.js, starting on `playbackUrl`'s) and the palette of
+ * `videoQualities` this browser can play, HLS natively or through hls.js, starting on the quality the reader last
+ * chose, else the nearest one the clip has, else `playbackUrl`'s: `rememberedVideoQuality`, #416) and the palette of
  * actions (`PlayerActions`: copy link, direct link, share; Download waits for S151), both on the quality
- * being played. Switching quality keeps the place in the clip, and plays on only if the
+ * being played. Switching quality records it as the reader's choice (`setVideoQuality`; a fallback
+ * never does), keeps the place in the clip, and plays on only if the
  * reader wants it playing (`wantsPlay`); only the first source autoplays.
  */
 export function VideoPlayer({
@@ -140,7 +143,8 @@ export function VideoPlayer({
 	const [libraryFailed, setLibraryFailed] = useState(false);
 	const qualities = playableQualities(video, path, libraryFailed);
 	const [picked, setPicked] = useState<string | null>(null);
-	const quality = qualities.find((entry) => entry.id === picked) ?? defaultVideoQuality(qualities, video.playbackUrl);
+	const remembered = useVideoQuality();
+	const quality = qualities.find((entry) => entry.id === picked) ?? rememberedVideoQuality(qualities, remembered, video.playbackUrl);
 	// The playlist hls.js plays into the element, when the quality is HLS and the browser can't play it itself.
 	const libraryUrl = quality?.hls && path === "library" ? quality.url : null;
 	// Where to pick up after a quality switch reloads the clip.
@@ -161,6 +165,7 @@ export function VideoPlayer({
 			time: resume.current?.time ?? element.currentTime,
 		};
 		setPicked(next.id);
+		setVideoQuality(next.id);
 		// During the reload the button shows what the reader wants, so a press means the same.
 		setPlaying(wantsPlay.current);
 	};
