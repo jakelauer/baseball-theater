@@ -195,6 +195,14 @@ export function PlaysPanel({ game }: { game: GamePayload })
 	// long inning has scrolled out of view: bring it into view, or the button seems to do nothing
 	// (#422). The dialog sits in a portal, outside `host`, so it finds nothing to scroll to.
 	const host = useRef<HTMLDivElement>(null);
+	// Counts presses, so choosing the clip already playing (the same object, which `setPlaying`
+	// ignores) still brings the stage back into view.
+	const [presses, setPresses] = useState(0);
+	const play = (video: Video) =>
+	{
+		setPlaying(video);
+		setPresses((n) => n + 1);
+	};
 	useEffect(() =>
 	{
 		const stage = playing ? host.current?.querySelector("section") : null;
@@ -205,7 +213,7 @@ export function PlaysPanel({ game }: { game: GamePayload })
 			behavior: reduceMotion ? "auto" : "smooth",
 			block: "start",
 		});
-	}, [playing, reduceMotion]);
+	}, [presses, playing, reduceMotion]);
 	if (latest === null)
 	{
 		return <Text c="dimmed">No pitch-level play data for this game yet.</Text>;
@@ -279,7 +287,7 @@ export function PlaysPanel({ game }: { game: GamePayload })
 							defaultOpen={view === null ? (arrival?.about.atBatIndex ?? null) : null}
 							marked={arrival?.about.atBatIndex ?? null}
 							clips={clips}
-							onPlay={setPlaying}
+							onPlay={play}
 						/>
 					)}
 				</Stack>

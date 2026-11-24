@@ -91,6 +91,8 @@ afterEach(async () =>
 {
 	cleanup();
 	vi.unstubAllGlobals();
+	// A failed test's `getBoundingClientRect` spy mustn't leak into the next.
+	vi.restoreAllMocks();
 	await resetSettings();
 });
 
@@ -279,7 +281,7 @@ describe("a play's video plays from its row in Plays (#422)", () =>
 		const scrolled = vi.fn();
 		Element.prototype.scrollIntoView = scrolled;
 		// The stage sits above the viewport, as it does once a long inning is scrolled down.
-		const rect = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element)
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element)
 		{
 			return DOMRect.fromRect({
 				y: this.getAttribute("aria-label") === "Video player" ? -900 : 0,
@@ -291,7 +293,32 @@ describe("a play's video plays from its row in Plays (#422)", () =>
 			name: "Video player",
 		});
 		await waitFor(() => expect(scrolled.mock.contexts).toContain(stage));
-		rect.mockRestore();
+	});
+
+	it("B422: in Stage mode choosing the same clip again, after scrolling away, brings the stage into view again (#422)", async () =>
+	{
+		await hideScores(false, {
+			videoPlayer: "stage",
+		});
+		const scrolled = vi.fn();
+		Element.prototype.scrollIntoView = scrolled;
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element)
+		{
+			return DOMRect.fromRect({
+				y: this.getAttribute("aria-label") === "Video player" ? -900 : 0,
+				height: 200,
+			});
+		});
+		const play = await conineButton(CONINE.title);
+		fireEvent.click(play);
+		const stage = await screen.findByRole("region", {
+			name: "Video player",
+		});
+		await waitFor(() => expect(scrolled.mock.contexts).toContain(stage));
+		// The reader scrolls back down (the stage is still off-screen) and presses the same button.
+		scrolled.mockClear();
+		fireEvent.click(play);
+		await waitFor(() => expect(scrolled.mock.contexts).toContain(stage));
 	});
 
 	it("B422: in Stage mode a stage already in view isn't scrolled to (#422)", async () =>
