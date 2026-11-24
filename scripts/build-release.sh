@@ -113,7 +113,7 @@ case "$mode" in
 			fi
 			((i < tries)) && sleep "$delay"
 		done
-		echo "Pull request #$arg has $why. Assign it to the next release's open milestone (CLAUDE.md release rule; #47); changing it re-runs this check." >&2
+		echo "Pull request #$arg has $why. Assign it to the next release's open milestone (.claude/skills/release/SKILL.md; #47); changing it re-runs this check." >&2
 		exit 1
 		;;
 	check)

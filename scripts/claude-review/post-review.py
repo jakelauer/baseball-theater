@@ -5,7 +5,7 @@ The reviewer has no shell or GitHub access (it reads untrusted pull request text
 able to approve, resolve threads or run anything). It ends with one JSON object,
 {"summary": str, "findings": [{"path", "line", "body"}]}, and this trusted step posts it as a single
 review with event COMMENT and commit_id = the reviewed head sha, whose body starts
-"Claude review of <sha>:" (CLAUDE.md -> "Claude's review is handled before a pull request merges").
+"Claude review of <sha>:" (docs/v3/LOOP.md §9 -> "Claude's review is handled before a pull request merges").
 
 Every finding should be a thread, which "Require conversation resolution" holds the merge on. A line
 outside the diff makes GitHub refuse the whole inline review (HTTP 422); then every finding whose file

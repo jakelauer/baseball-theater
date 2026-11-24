@@ -54,7 +54,7 @@
     team would call an outcome records its skip instead, as a `skip: <why>` fragment (frontmatter only,
     no body) — default to including an entry. A `done` bug writes its own, `changelog.d/B<N>.md`, the same way. `pnpm backlog:check` fails a story that went `done` after
     S156 with neither (since S164, a story whose snapshot records `done`). `pnpm changelog:build` assembles `CHANGELOG.md` from the history it keeps whole
-    plus the fragments, newest first and grouped by effort, once per release, on the release commit's tree, opened as a docs-only pull request into `stage` (CLAUDE.md,
+    plus the fragments, newest first and grouped by effort, once per release, on the release commit's tree, opened as a docs-only pull request into `stage` (`.claude/skills/release/SKILL.md`,
     the release rule's step 4), not once per story. Format: `changelog.d/README.md`.
 
 17. **The [Current baseline](#current-baseline) moves with the story list.** Any change set that flips a
