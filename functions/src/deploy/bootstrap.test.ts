@@ -385,9 +385,28 @@ describe("S114 AC 5: every bootstrapping step finds what exists before creating 
 				user: "neondb_owner",
 				password: "prod",
 			},
+			caching: {
+				disabled: true,
+			},
 		});
 		await bootstrapDeploy(fresh.deps, "production");
 		expect(fresh.writes()).toHaveLength(1);
+	});
+
+	it("a created staging or production Hyperdrive config has query caching off, so a version-guarded write never reads a cached row (#408)", async () =>
+	{
+		for (const target of ["staging", "production"] as const)
+		{
+			const fresh = standIns();
+			await bootstrapDeploy(fresh.deps, target);
+			const created = fresh.writes().find((write) => write.url.includes("/hyperdrive/configs") && write.method === "POST");
+			expect(created?.body).toMatchObject({
+				name: `bt-${target}`,
+				caching: {
+					disabled: true,
+				},
+			});
+		}
 	});
 
 	it("S114 AC 5: the generated config keeps wrangler.jsonc's bindings, rebases its paths and drops $schema", () =>
