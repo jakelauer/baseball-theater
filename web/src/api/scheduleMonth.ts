@@ -92,7 +92,8 @@ export function scheduleMonthQueryOptions(month: string, version?: string)
  * S124 doesn't answer for; the caller tells that apart from loading with `scheduleMonthAnswerable`.
  *
  * It waits for its year's versions (S194) and asks with the month's version, or without one when the
- * versions leave the month out (incomplete, or not stored yet) or their request fails. When a new
+ * versions leave the month out (incomplete, or not stored yet), their request fails, or it is paused
+ * offline. When a new
  * version arrives the month is asked again under its new key, and the previous answer for the same
  * month stays on screen meanwhile rather than a loading state.
  */
@@ -105,7 +106,10 @@ export function useScheduleMonth(month: string): UseQueryResult<ScheduleMonthPay
 	const version = (versions.data?.versions as ScheduleMonthVersionsPayload["versions"] | undefined)?.[month];
 	return useQuery({
 		...scheduleMonthQueryOptions(month, version),
-		enabled: answerable && (versions.isSuccess || versions.isError),
+		// Asked once the versions have settled, or when they can't for now: a versions request paused
+		// offline (a year never loaded) would otherwise hold the month disabled, and the calendar would
+		// show loading bars forever; asked without `v`, the month pauses too and shows bare numbers.
+		enabled: answerable && (versions.isSuccess || versions.isError || versions.fetchStatus === "paused"),
 		placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === month ? previous : undefined),
 	});
 }

@@ -80,9 +80,9 @@ export interface ScheduleMonthResponse {
 }
 
 /**
- * The version of each complete month of one year (S194): the content hash of the month answer's
- * `days` (`scheduleMonthVersion`), which the web passes back as the month route's `?v=` so the edge
- * may keep that exact answer long.
+ * The version of each complete month of one year (S194): the content hash of the whole month answer
+ * as the month route sends it (`scheduleMonthAnswer`, `scheduleMonthVersion`), which the web passes
+ * back as the month route's `?v=` so the edge may keep that exact answer long.
  */
 export interface ScheduleMonthVersionsResponse {
 	/** The year asked for. */

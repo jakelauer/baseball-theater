@@ -14,7 +14,7 @@ import type {
 	AccountSettings, Entitlements, GameProjection, GameSnapshot, PatronTier, Role, ScheduleDay, ScheduleDayTally, ScheduleMonthCheck, UserProfile,
 } from "@bt/domain";
 import {
-	dayRegularSeason, distinctTeamIds, SCHEDULE_MONTH_CLAIM_LEASE_MS, storedGameType,
+	dayRegularSeason, distinctTeamIds, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
 } from "@bt/domain";
 import type {
 	DeletionLog,
@@ -161,13 +161,16 @@ export class PostgresScheduleRepository implements ScheduleRepository
 
 	/**
 	 * One conditional statement (S194 AC 1): insert the month claimed, or take an existing record's
-	 * claim only when it has none or one at least `SCHEDULE_MONTH_CLAIM_LEASE_MS` older than `at`. A
-	 * returned row means this caller holds the claim; two racing claimants can't both get one, since
-	 * the second's update re-checks the first's committed claim.
+	 * claim only when the month is still due (no `checked_at`, or one at least
+	 * `SCHEDULE_MONTH_REFRESH_INTERVAL_MS` before `at`) and it has no claim or one at least
+	 * `SCHEDULE_MONTH_CLAIM_LEASE_MS` older than `at`. A returned row means this caller holds the
+	 * claim; two racing claimants can't both get one, since the second's update re-checks the first's
+	 * committed claim, and a month another tick checked after this one's read is refused.
 	 */
 	async claimScheduleMonth(month: string, at: string): Promise<boolean>
 	{
 		const cutoff = new Date(Date.parse(at) - SCHEDULE_MONTH_CLAIM_LEASE_MS).toISOString();
+		const dueBy = new Date(Date.parse(at) - SCHEDULE_MONTH_REFRESH_INTERVAL_MS).toISOString();
 		const claimed = await this.db.insert(scheduleMonths).values({
 			month,
 			claimedAt: at,
@@ -176,11 +179,27 @@ export class PostgresScheduleRepository implements ScheduleRepository
 			set: {
 				claimedAt: sql`excluded.claimed_at`,
 			},
-			setWhere: sql`${scheduleMonths.claimedAt} IS NULL OR ${scheduleMonths.claimedAt}::timestamptz <= ${cutoff}::timestamptz`,
+			setWhere: sql`(${scheduleMonths.claimedAt} IS NULL OR ${scheduleMonths.claimedAt}::timestamptz <= ${cutoff}::timestamptz)
+				AND (${scheduleMonths.checkedAt} IS NULL OR ${scheduleMonths.checkedAt}::timestamptz <= ${dueBy}::timestamptz)`,
 		}).returning({
 			month: scheduleMonths.month,
 		});
 		return claimed.length > 0;
+	}
+
+	/** One statement: insert the month held, or move its `claimed_at` forward only (S194 review). */
+	async holdScheduleMonth(month: string, claimedAt: string): Promise<void>
+	{
+		await this.db.insert(scheduleMonths).values({
+			month,
+			claimedAt,
+		}).onConflictDoUpdate({
+			target: scheduleMonths.month,
+			set: {
+				claimedAt: sql`excluded.claimed_at`,
+			},
+			setWhere: sql`${scheduleMonths.claimedAt} IS NULL OR excluded.claimed_at::timestamptz > ${scheduleMonths.claimedAt}::timestamptz`,
+		});
 	}
 }
 

@@ -9,7 +9,9 @@ import { fileURLToPath } from "node:url";
 import type {
 	ScheduleDay, ScheduleGameSummary, Unversioned,
 } from "@bt/domain";
-import { datesBetween, scheduleWindowMode } from "@bt/domain";
+import {
+	contentHash, datesBetween, scheduleMonthAnswer, scheduleMonthVersion, scheduleWindowMode,
+} from "@bt/domain";
 import type {
 	GameProjectionRepository, GameRepository, MlbStatsClient, ScheduleRepository,
 } from "@bt/ports";
@@ -86,12 +88,13 @@ class CountingClient extends FixtureMlbStatsClient
 }
 
 /** `repo`'s month record methods (S194), for a hand-built schedule repository that wraps it. */
-function monthChecks(repo: ScheduleRepository): Pick<ScheduleRepository, "listScheduleMonthChecks" | "recordScheduleMonthCheck" | "claimScheduleMonth">
+function monthChecks(repo: ScheduleRepository): Pick<ScheduleRepository, "listScheduleMonthChecks" | "recordScheduleMonthCheck" | "claimScheduleMonth" | "holdScheduleMonth">
 {
 	return {
 		listScheduleMonthChecks: (from, to) => repo.listScheduleMonthChecks(from, to),
 		recordScheduleMonthCheck: (month, checkedAt) => repo.recordScheduleMonthCheck(month, checkedAt),
 		claimScheduleMonth: (month, at) => repo.claimScheduleMonth(month, at),
+		holdScheduleMonth: (month, at) => repo.holdScheduleMonth(month, at),
 	};
 }
 
@@ -648,8 +651,8 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 	it("S124 AC 3 failed refresh: a fill MLB didn't answer isn't a check, so the month is asked again once the cooldown passes", async () =>
 	{
 		const repos = await makeRepos();
-		// Every day stored and last changed three days ago: once checked now, the ladder would
-		// give the month its 48-hour cap, so a failure counted as a check would hide it for two days.
+		// Every day stored three days ago and never checked: a failure that recorded a check would
+		// make the second read trust the month and skip MLB (S194: reads follow the check record).
 		for (const date of datesBetween("2026-12-01", "2026-12-31")) await store(repos, date, [], new Date(T0.getTime() - 3 * DAY));
 		const mlb = new CountingClient();
 		mlb.fail = true;
@@ -884,6 +887,26 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 	});
 });
 
+describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] as const)("S194 AC 2 partial %s", (_name, makeRepos) =>
+{
+	it("S194 AC 2 partial answer: a whole-month fill whose MLB answer leaves out a day stores the rest and records no check", async () =>
+	{
+		const repos = await makeRepos();
+		const mlb = new CountingClient();
+		const deps: IngestDeps = {
+			...repos,
+			mlb: {
+				...mlb,
+				fetchScheduleRange: async (start: string, end: string) => (await mlb.fetchScheduleRange(start, end)).filter((day) => day.date !== "2026-06-15"),
+			} as unknown as IngestDeps["mlb"],
+			now: () => T0,
+		};
+		const written = await fillScheduleMonth(deps, "2026-06", ["2026-06-01", "2026-06-30"], T0);
+		expect(written).toHaveLength(29);
+		expect(await repos.schedules.listScheduleMonthChecks("2026-06", "2026-06")).toEqual([]);
+	});
+});
+
 describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] as const)("S194 AC 3 the route trusts the refresh %s", (_name, makeRepos) =>
 {
 	/** 2026-12 fully stored three days ago, its newest day changed a minute ago (today's games move it every tick). */
@@ -1013,7 +1036,8 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 	{
 		const repos = await stocked([]);
 		await storeMonth(repos, "2026-07", new Date(T0.getTime() - 10 * DAY));
-		await repos.schedules.recordScheduleMonthCheck("2026-07", "2026-12-31T20:00:00.000Z");
+		// Checked inside the interval and its margin, so this read asks MLB nothing: only the header is tested.
+		await repos.schedules.recordScheduleMonthCheck("2026-07", "2026-12-31T22:00:00.000Z");
 		const reader = api(repos, new CountingClient(), new Date("2027-01-01T03:00:00.000Z"));
 		expect(await headerWith(reader, "2026-07", (await versionsOf(reader, 2026)).body.versions["2026-07"]!)).toBe(CAP_CACHE);
 	});
@@ -1075,6 +1099,54 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 		})), T0);
 		expect((await repos.schedules.getByDate("2026-04-10"))?.lastChangedAt).not.toBe(dayBefore?.lastChangedAt);
 		expect((await versionsOf(reader, 2026)).body.versions["2026-04"]).toBe(before);
+	});
+
+	it("S194 AC 7 whole answer: the version hashes the whole month answer as sent, so the same days under another month differ", async () =>
+	{
+		const days = [{
+			date: "2026-04-01",
+			count: 0,
+			teamIds: [],
+			regularSeason: false,
+		}];
+		expect(scheduleMonthVersion(scheduleMonthAnswer("2026-04", days))).toBe(contentHash({
+			month: "2026-04",
+			days,
+		}));
+		expect(scheduleMonthVersion(scheduleMonthAnswer("2026-04", days))).not.toBe(scheduleMonthVersion(scheduleMonthAnswer("2027-04", days)));
+		// The month route's body is that answer, and its ?v= is that answer's version.
+		const reader = api(await stocked(["2024-07"]));
+		const response = await reader.get("/api/v1/schedule/month/2024-07");
+		const body = await response.json() as Parameters<typeof scheduleMonthVersion>[0];
+		expect((await versionsOf(reader, 2024)).body.versions["2024-07"]).toBe(scheduleMonthVersion(body));
+	});
+
+	it("S194 AC 7 one read: the versions route reads the year with one repository read and asks MLB nothing", async () =>
+	{
+		const repos = await stocked(["2026-04", "2026-05"]);
+		let reads = 0;
+		const schedules: ScheduleRepository = {
+			...monthChecks(repos.schedules),
+			getByDate: (date) =>
+			{
+				reads++;
+				return repos.schedules.getByDate(date);
+			},
+			upsert: (day) => repos.schedules.upsert(day),
+			listGameCounts: (from, to) =>
+			{
+				reads++;
+				return repos.schedules.listGameCounts(from, to);
+			},
+		};
+		const mlb = new CountingClient();
+		const { body } = await versionsOf(api({
+			...repos,
+			schedules,
+		}, mlb), 2026);
+		expect(Object.keys(body.versions)).toEqual(["2026-04", "2026-05"]);
+		expect(reads).toBe(1);
+		expect(mlb.ranges).toEqual([]);
 	});
 
 	it("S194 AC 7 backfill: re-storing a past year's day with a different count changes that month's version", async () =>

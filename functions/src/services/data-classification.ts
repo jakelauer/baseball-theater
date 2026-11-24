@@ -122,7 +122,7 @@ export const DATA_CLASSIFICATION = {
 		},
 		schedule_months: {
 			kind: "none",
-			why: "per schedule month (month), when BT last checked it against MLB (checked_at) and when a refresh last claimed it (claimed_at); no user data",
+			why: "per schedule month (month), when BT last checked it against MLB (checked_at) and when a refresh last claimed it, or the time a failed fill holds it until (claimed_at; a claim holds until then plus the lease); no user data",
 		},
 		games: {
 			kind: "none",

@@ -815,7 +815,7 @@ export interface components {
             /** @description The month, `YYYY-MM`. */
             month: string;
         };
-        /** @description The version of each complete month of one year (S194): the content hash of the month answer's `days` (`scheduleMonthVersion`), which the web passes back as the month route's `?v=` so the edge may keep that exact answer long. */
+        /** @description The version of each complete month of one year (S194): the content hash of the whole month answer as the month route sends it (`scheduleMonthAnswer`, `scheduleMonthVersion`), which the web passes back as the month route's `?v=` so the edge may keep that exact answer long. */
         ScheduleMonthVersionsResponse: {
             /** @description Month (`YYYY-MM`) to its answer's version, for each month of the year whose stored answer is complete (every day known); a month left out is asked for without a version. */
             versions: {

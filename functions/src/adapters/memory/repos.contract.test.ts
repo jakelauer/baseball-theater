@@ -5,6 +5,9 @@
  */
 import { downloadExpiresAt } from "@bt/domain";
 import {
+	describe, expect, it,
+} from "vitest";
+import {
 	DOWNLOADS_STORE, MAIL_STORE, personalDataStores,
 } from "../../services/personal-data.js";
 import { describePersonalDataStoreContract } from "../repository-contract.js";
@@ -73,4 +76,16 @@ describePersonalDataStoreContract(MAIL_STORE, {
 		subject: "Your Baseball Theater data download is ready",
 		text: "Sign in and open Settings.",
 	})),
+});
+
+describe("InMemoryScheduleRepository.clear (S194)", () =>
+{
+	it("drops the month records with the days, so a cleared double starts with no checks or claims", async () =>
+	{
+		const repo = new InMemoryScheduleRepository();
+		await repo.recordScheduleMonthCheck("2026-04", "2026-04-10T12:00:00.000Z");
+		await repo.claimScheduleMonth("2026-05", "2026-04-10T12:00:00.000Z");
+		repo.clear();
+		expect(await repo.listScheduleMonthChecks("2026-01", "2026-12")).toEqual([]);
+	});
 });

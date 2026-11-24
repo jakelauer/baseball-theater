@@ -35,11 +35,19 @@ export interface ScheduleRepository {
 	recordScheduleMonthCheck(month: string, checkedAt: string): Promise<void>;
 	/**
 	 * Claims `month` for a refresh at `at` (an ISO instant), in one conditional write: it succeeds,
-	 * and returns true, only when the month is unclaimed or its claim is at least
+	 * and returns true, only when the month is still due (never checked, or checked at least
+	 * `SCHEDULE_MONTH_REFRESH_INTERVAL_MS` before `at`) and is unclaimed or its claim is at least
 	 * `SCHEDULE_MONTH_CLAIM_LEASE_MS` older than `at`; otherwise it changes nothing and returns false
-	 * (S194 AC 1), so two refreshes racing for a month never both take it.
+	 * (S194 AC 1), so two refreshes racing for a month never both take it, and a month another tick
+	 * checked after this one read the records isn't filled twice.
 	 */
 	claimScheduleMonth(month: string, at: string): Promise<boolean>;
+	/**
+	 * Moves `month`'s claim forward to `claimedAt` (an ISO instant, possibly in the future), never
+	 * back: how a refresh whose fill MLB didn't answer keeps the month from being claimed again for
+	 * `SCHEDULE_MONTH_FAILED_LEASE_MS` (S194 review), since a claim holds until `claimedAt` plus the lease.
+	 */
+	holdScheduleMonth(month: string, claimedAt: string): Promise<void>;
 }
 
 export interface GameRepository {

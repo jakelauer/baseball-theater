@@ -6,6 +6,7 @@
  * amendment). Pure: the record itself is stored through `ScheduleRepository` (`@bt/ports`), and
  * the refresh that reads it lives in `functions/src/services/schedule-refresh.ts`.
  */
+import type { ScheduleMonthResponse } from "./api-routes.js";
 import { contentHash } from "./content-hash.js";
 import type { ScheduleDayCount } from "./schedule-month.js";
 import { scheduleFillWindow } from "./schedule-month.js";
@@ -35,6 +36,14 @@ export const SCHEDULE_MONTH_CHECK_MARGIN_MS = 30 * MINUTE;
 export const SCHEDULE_MONTH_CLAIM_LEASE_MS = 5 * MINUTE;
 
 /**
+ * How long a month whose fill MLB didn't answer is held from the refresh (S194 review): 30 minutes,
+ * not the 5-minute lease, so during an MLB outage each month is asked at most twice an hour rather
+ * than every few minutes. The refresh holds its claim to `at + FAILED_LEASE − LEASE`, which a claim
+ * then refuses until `at + FAILED_LEASE`.
+ */
+export const SCHEDULE_MONTH_FAILED_LEASE_MS = 30 * MINUTE;
+
+/**
  * BT's durable record of one schedule month (S194): when BT last checked it against MLB, and when a
  * refresh last claimed it. Both ISO instants, `null` when never. Kept per month, not per day, because
  * an unchanged check writes no day (ADR-022), so the days' `fetchedAt` can't say a month was checked.
@@ -45,7 +54,10 @@ export interface ScheduleMonthCheck
 	month: string;
 	/** When BT last checked the whole month against MLB (a fill of its whole fillable range that stored every day). */
 	checkedAt: string | null;
-	/** When a refresh last claimed the month; a claim holds for {@link SCHEDULE_MONTH_CLAIM_LEASE_MS}. */
+	/**
+	 * When a refresh last claimed the month, or the time a failed fill holds it until
+	 * (`holdScheduleMonth`); a claim holds until `claimedAt` plus {@link SCHEDULE_MONTH_CLAIM_LEASE_MS}.
+	 */
 	claimedAt: string | null;
 }
 
@@ -128,14 +140,29 @@ export function scheduleMonthsDue(months: readonly string[], checks: readonly Sc
 }
 
 /**
- * The version of a month answer (S194 AC 7): `contentHash` of its `days` exactly as the month route
- * sends them, so any change to what the answer says (a refresh, a backfill re-storing a day, a field
- * a later story adds) gives a new version, and a change the answer doesn't carry (a live game's
- * state) gives none. The month route and the versions route both call it (ADR-025), so a `?v=` the
- * versions route named matches the answer the month route is about to send exactly when their
- * contents are equal.
+ * The month route's answer for `month` (`YYYY-MM`) with its `days`, exactly as the route sends it
+ * (ADR-025): the route's body and the versions route's input are both built here, so the version
+ * below always hashes what a fan receives.
  */
-export function scheduleMonthVersion(days: readonly ScheduleDayCount[]): string
+export function scheduleMonthAnswer(month: string, days: ScheduleDayCount[]): ScheduleMonthResponse
 {
-	return contentHash(days);
+	return {
+		month,
+		days,
+	};
+}
+
+/**
+ * The version of a month answer (S194 AC 7): `contentHash` of the whole answer exactly as the month
+ * route sends it ({@link scheduleMonthAnswer}), so any change to what it says (a refresh, a backfill
+ * re-storing a day, a field a later story adds at any level) gives a new version, and a change the
+ * answer doesn't carry (a live game's state) gives none. The month route and the versions route both
+ * call it (ADR-025), so a `?v=` the versions route named matches the answer the month route is about
+ * to send exactly when their contents are equal. Only the body is hashed, never headers: a
+ * deprecation or sunset header added later can't reach a past year's versioned URL the edge already
+ * holds for its long lifetime, which only a new version (or the cache's own eviction) replaces.
+ */
+export function scheduleMonthVersion(answer: ScheduleMonthResponse): string
+{
+	return contentHash(answer);
 }

@@ -5,7 +5,9 @@
  * labels for five minutes. S194 AC 7: the hook asks for a month with its year's version.
  */
 import { CACHE_LIFETIME_FLOOR_MS } from "@bt/domain";
-import { focusManager, QueryClientProvider } from "@tanstack/react-query";
+import {
+	focusManager, onlineManager, QueryClientProvider,
+} from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import {
 	act, cleanup, renderHook,
@@ -179,6 +181,32 @@ describe("S194 AC 7 the versioned month (web)", () =>
 		cleanup();
 		vi.useRealTimers();
 		vi.unstubAllGlobals();
+		onlineManager.setOnline(true);
+	});
+
+	it("S194 AC 7 offline other year: offline, a month of a year whose versions aren't held is asked without v and pauses, so the calendar shows numbers, not loading bars forever", async () =>
+	{
+		const months = serveVersions(() => ({
+			"2026-06": "abc",
+		}));
+		const client = createQueryClient();
+		const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+		const hook = renderHook(({ month }) => useScheduleMonth(month), {
+			wrapper,
+			initialProps: {
+				month: "2026-06",
+			},
+		});
+		await vi.waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+		act(() => onlineManager.setOnline(false));
+		hook.rerender({
+			month: "2025-06",
+		});
+		// The calendar reads a paused month with no data as bare numbers (`monthPhase`), never as loading.
+		await vi.waitFor(() => expect(hook.result.current.fetchStatus).toBe("paused"));
+		expect(hook.result.current.data).toBeUndefined();
+		expect(client.getQueryState(["schedule-month", "2025-06"])?.fetchStatus).toBe("paused");
+		expect(months()).toHaveLength(1);
 	});
 
 	it("S194 AC 7 key: with no version the month's key stays [\"schedule-month\", month]; with one it adds the version", () =>

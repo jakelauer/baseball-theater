@@ -4,7 +4,7 @@ import type {
 import type { SettingsRepository } from "@bt/ports";
 import {
 	API_VERSIONS, DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
-	isCalendarMonth, latestScheduleMonth, scheduleMonthVersion,
+	isCalendarMonth, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
 	mlbDayEndsAt, mlbToday, parseAccountSettings, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
 import type { AccountDataDeps } from "../services/account-deletion.js";
@@ -298,10 +298,9 @@ export const API_ROUTER: readonly RouteEntry[] = [
 				});
 			}
 			const result = await getScheduleMonth(ctx.ingest, month);
-			const response = sendJson(200, "GET /api/v1/schedule/month/:month", {
-				month: result.month,
-				days: result.days,
-			});
+			// The body and its version come from one answer (`scheduleMonthAnswer`), so `?v=` names exactly what is sent.
+			const answer = scheduleMonthAnswer(result.month, result.days);
+			const response = sendJson(200, "GET /api/v1/schedule/month/:month", answer);
 			// A month with an unknown day (a fill MLB didn't answer, or a past day nothing stored) is kept
 			// at the edge only as long as the fill's cooldown and never served stale after (#399): the
 			// ladder's floor served such answers for up to ten minutes as months with no games, and
@@ -317,7 +316,7 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			const version = url.searchParams.get("v");
 			if (version !== null)
 			{
-				response.headers.set("Cache-Control", versionedMonthCacheControl(month, version === scheduleMonthVersion(result.days), today));
+				response.headers.set("Cache-Control", versionedMonthCacheControl(month, version === scheduleMonthVersion(answer), today));
 				return response;
 			}
 			// Without a version, cached by when the month's data last changed (ADR-021's ladder, up to its

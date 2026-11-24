@@ -28,7 +28,8 @@ import type {
 	ScheduleDay, ScheduleDayCount, ScheduleDayTally, Unversioned,
 } from "@bt/domain";
 import {
-	daysOfMonth, mlbToday, monthComplete, monthGameCounts, monthLastChangedAt, scheduleDayTally, scheduleFillWindow, scheduleMonthCheckStale, scheduleMonthVersion,
+	daysOfMonth, mlbToday, monthComplete, monthGameCounts, monthLastChangedAt, scheduleDayTally, scheduleFillWindow, scheduleMonthAnswer, scheduleMonthCheckStale,
+	scheduleMonthVersion,
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
 import {
@@ -178,8 +179,8 @@ export async function getScheduleMonth(deps: IngestDeps, month: string): Promise
  * The version of each month of `year` whose stored answer is complete (`monthComplete`), keyed by
  * month (`YYYY-MM`), for the versions route (S194 AC 7): one `listGameCounts` read of the whole year
  * and no MLB request, each month's days counted exactly as {@link getScheduleMonth} counts them
- * (`monthGameCounts`) and versioned by `scheduleMonthVersion`, the function the month route calls
- * too (ADR-025). An incomplete month, or one nothing has stored, is left out, so the web asks for
+ * (`monthGameCounts`), built into the answer the month route sends (`scheduleMonthAnswer`) and
+ * versioned by `scheduleMonthVersion`, as the month route does too (ADR-025). An incomplete month, or one nothing has stored, is left out, so the web asks for
  * it without a version.
  */
 export async function getScheduleMonthVersions(deps: Pick<IngestDeps, "schedules">, year: number): Promise<Record<string, string>>
@@ -191,7 +192,7 @@ export async function getScheduleMonthVersions(deps: Pick<IngestDeps, "schedules
 	{
 		const month = `${prefix}-${String(m).padStart(2, "0")}`;
 		const days = monthGameCounts(daysOfMonth(month), stored.filter((day) => day.date.startsWith(`${month}-`)));
-		if (monthComplete(days)) versions[month] = scheduleMonthVersion(days);
+		if (monthComplete(days)) versions[month] = scheduleMonthVersion(scheduleMonthAnswer(month, days));
 	}
 	return versions;
 }

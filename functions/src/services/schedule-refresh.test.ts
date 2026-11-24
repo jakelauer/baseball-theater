@@ -9,7 +9,9 @@ import { fileURLToPath } from "node:url";
 import type {
 	ScheduleDay, ScheduleMonthCheck, Unversioned,
 } from "@bt/domain";
-import { datesBetween, windowMonths } from "@bt/domain";
+import {
+	datesBetween, SCHEDULE_MONTH_FAILED_LEASE_MS, windowMonths,
+} from "@bt/domain";
 import type { ScheduleRepository } from "@bt/ports";
 import {
 	describe, expect, it,
@@ -155,11 +157,30 @@ describe("S194 AC 4 the scheduled refresh", () =>
 		expect((await record(ingest.schedules, "2026-01"))?.checkedAt).toBeNull();
 		clock.now = new Date(T0.getTime() + 4 * MINUTE);
 		expect(await refreshDueScheduleMonth(ingest)).toBe("2026-02");
-		clock.now = new Date(T0.getTime() + 5 * MINUTE);
+		clock.now = new Date(T0.getTime() + SCHEDULE_MONTH_FAILED_LEASE_MS);
 		mlb.fail = false;
 		expect(await refreshDueScheduleMonth(ingest)).toBe("2026-01");
+		// 2026-02 failed at +4 min, so its hold runs to +34 min: 2026-01 (held to +30) comes back first.
 		expect(mlb.ranges.map(([start]) => start)).toEqual(["2026-01-01", "2026-02-01", "2026-01-01"]);
 		expect((await record(ingest.schedules, "2026-01"))?.checkedAt).toBe(clock.now.toISOString());
+	});
+
+	it("S194 AC 4 back-off: a month whose fill MLB failed isn't asked again for SCHEDULE_MONTH_FAILED_LEASE_MS", async () =>
+	{
+		const mlb = new CountingClient();
+		mlb.fail = true;
+		const { ingest, clock } = deps(mlb);
+		// Every other month checked an hour ago, so 2026-01 is the only one due.
+		for (const month of windowMonths("2026-11-09").filter((m) => m !== "2026-01")) await ingest.schedules.recordScheduleMonthCheck(month, ago(HOUR));
+		expect(await refreshDueScheduleMonth(ingest)).toBe("2026-01");
+		for (const minutes of [5, 10, 29])
+		{
+			clock.now = new Date(T0.getTime() + minutes * MINUTE);
+			expect(await refreshDueScheduleMonth(ingest), `+${minutes} min`).toBeNull();
+		}
+		clock.now = new Date(T0.getTime() + SCHEDULE_MONTH_FAILED_LEASE_MS);
+		expect(await refreshDueScheduleMonth(ingest)).toBe("2026-01");
+		expect(mlb.ranges).toHaveLength(2);
 	});
 
 	it("S194 AC 4 store fails: a schedule write that fails rejects", async () =>
@@ -172,6 +193,7 @@ describe("S194 AC 4 the scheduled refresh", () =>
 			listScheduleMonthChecks: (from, to) => base.listScheduleMonthChecks(from, to),
 			recordScheduleMonthCheck: (month, at) => base.recordScheduleMonthCheck(month, at),
 			claimScheduleMonth: (month, at) => base.claimScheduleMonth(month, at),
+			holdScheduleMonth: (month, at) => base.holdScheduleMonth(month, at),
 			upsert: async () =>
 			{
 				throw new Error("database down");
@@ -252,6 +274,7 @@ describe("S194 AC 6 upstream budget", () =>
 			listScheduleMonthChecks: counted((from: string, to: string) => base.listScheduleMonthChecks(from, to)),
 			recordScheduleMonthCheck: counted((month: string, at: string) => base.recordScheduleMonthCheck(month, at)),
 			claimScheduleMonth: counted((month: string, at: string) => base.claimScheduleMonth(month, at)),
+			holdScheduleMonth: counted((month: string, at: string) => base.holdScheduleMonth(month, at)),
 			upsert: counted((day: ScheduleDay) => base.upsert(day)),
 		};
 		expect(await refreshDueScheduleMonth(ingest)).toBeNull();

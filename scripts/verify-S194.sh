@@ -14,13 +14,13 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "AC 1: ScheduleRepository carries a month record (checkedAt, claimedAt) with a conditional claim and a forward-only check, in memory and Postgres (a migration creates schedule_months); the 5-minute lease is one domain constant; contract tests named 'S194 AC 1' pass in repos.contract.test.ts (never recorded, read back, older check, lease); DATA_CLASSIFICATION lists schedule_months and its test passes; COPY_RULES never copies it (baseball-copy.test.ts 'S194 AC 1')"
-check 2 "AC 2: one exported fillScheduleMonth in functions/src/services/schedule-month.ts, called by getScheduleMonth and by the refresh; tests named 'S194 AC 2 windowMode', 'S194 AC 2 gap', 'S194 AC 2 MLB fails' pass"
+check 1 "AC 1: ScheduleRepository carries a month record (checkedAt, claimedAt) with a conditional claim and a forward-only check, in memory and Postgres (a migration creates schedule_months); the 5-minute lease is one domain constant; contract tests named 'S194 AC 1' pass in repos.contract.test.ts (never recorded, read back, older check, lease, still due, month format); the claim re-checks that the month is still due and schedule_months has a CHECK on its month format; DATA_CLASSIFICATION lists schedule_months and its test passes; COPY_RULES never copies it (baseball-copy.test.ts 'S194 AC 1')"
+check 2 "AC 2: one exported fillScheduleMonth in functions/src/services/schedule-month.ts, called by getScheduleMonth and by the refresh; tests named 'S194 AC 2 windowMode', 'S194 AC 2 gap', 'S194 AC 2 MLB fails', 'S194 AC 2 partial answer' pass"
 check 3 "AC 3: the route judges an in-window stored month by its checkedAt against SCHEDULE_MONTH_REFRESH_INTERVAL_MS (6 h) plus a 30-minute margin, not the ladder; tests named 'S194 AC 3 checked 1 h', 'S194 AC 3 checked 7 h', 'S194 AC 3 never checked' pass"
-check 4 "AC 4: functions/src/services/schedule-refresh.ts refreshes at most one due month per call; tests in schedule-refresh.test.ts named 'S194 AC 4 order', 'S194 AC 4 January 1', 'S194 AC 4 recent', 'S194 AC 4 claimed', 'S194 AC 4 MLB fails', 'S194 AC 4 store fails', 'S194 AC 4 six hours' pass"
+check 4 "AC 4: functions/src/services/schedule-refresh.ts refreshes at most one due month per call; tests in schedule-refresh.test.ts named 'S194 AC 4 order', 'S194 AC 4 January 1', 'S194 AC 4 recent', 'S194 AC 4 claimed', 'S194 AC 4 MLB fails', 'S194 AC 4 store fails', 'S194 AC 4 six hours', 'S194 AC 4 back-off' pass; a failed fill holds its month for SCHEDULE_MONTH_FAILED_LEASE_MS (30 minutes)"
 check 5 "AC 5: scheduled() runs the refresh on every allowed tick in its own waitUntil and database scope, without GAME_INGEST; worker.test.ts tests named 'S194 AC 5 refresh rejects', 'S194 AC 5 ingest rejects', 'S194 AC 5 no binding' pass; wrangler.jsonc unchanged"
-check 6 "AC 6: through HttpMlbStatsClient, 'S194 AC 6 one month' (ceil(days/7) requests, sportId=1, spans of at most 7 days) and 'S194 AC 6 none due' (no request, one database read) pass; the refresh's comment states the budget (5 requests, 120 every 6 h, 480 a day, ADR-002)"
-check 7 "AC 7: GET /api/v1/schedule/month-versions/:year in the route table; a version is contentHash of the month answer's days through one function; ?v= gives 48 h for this and next year, s-maxage=2147483647 (PAST_YEAR_MONTH_EDGE_TTL_S) with no max-age for a past year, the floor for a wrong v; functions tests 'S194 AC 7' pass; web tests 'S194 AC 7' pass; DateControl.test.tsx and ScoreboardPage.refresh.test.tsx pass unchanged"
+check 6 "AC 6: through HttpMlbStatsClient, 'S194 AC 6 one month' (ceil(days/7) requests, sportId=1, spans of at most 7 days) and 'S194 AC 6 none due' (no request, one database read) pass; the refresh's comment states the budget (5 requests, 120 every 6 h, 480 a day, ADR-002) and that it holds while fills succeed, with the failure bound"
+check 7 "AC 7: GET /api/v1/schedule/month-versions/:year in the route table; a version is contentHash of the whole month answer as the month route sends it, through one function both routes call ('S194 AC 7 whole answer', 'S194 AC 7 one read'); ?v= gives 48 h for this and next year, s-maxage=2147483647 (PAST_YEAR_MONTH_EDGE_TTL_S) with no max-age for a past year, the floor for a wrong v; functions tests 'S194 AC 7' pass; web tests 'S194 AC 7' pass (offline, another year's month asks without v); DateControl.test.tsx and ScoreboardPage.refresh.test.tsx pass unchanged"
 check 8 "AC 8: without v, a complete month keeps ADR-021's ladder capped at 48 h and an incomplete one keeps the short cache (tests named 'S194 AC 8' pass)"
 check 9 "AC 9: docs/v3/ARCHITECTURE.md's ADR-021 carries the past-year exception with the owner's words 'as long as possible, like 100 years'"
 check 10 "AC 10: openapi/bt-api.v1.json is up to date and has the month-versions path and the month route's v query; pnpm api:breaking exits 0; web/src/api/generated/bt-api.v1.ts has the new path"
@@ -96,7 +96,10 @@ for f in functions/src/adapters/memory/repos.ts functions/src/adapters/postgres/
 done
 grep -lE '^CREATE TABLE "schedule_months"' functions/src/adapters/postgres/migrations/*.sql >/dev/null 2>&1 || bad 1 "no migration creates schedule_months"
 grep -q 'scheduleMonths' functions/src/adapters/postgres/schema.ts || bad 1 "schema.ts has no scheduleMonths table"
-for name in "S194 AC 1 never recorded" "S194 AC 1 read back" "S194 AC 1 older check" "S194 AC 1 lease"; do
+grep -hE 'CONSTRAINT "schedule_months_month_format" CHECK' functions/src/adapters/postgres/migrations/*.sql >/dev/null 2>&1 || bad 1 "no migration puts a month-format CHECK on schedule_months"
+awk '/async claimScheduleMonth/,/^\t}/' functions/src/adapters/postgres/repos.ts | grep -q 'checkedAt' || bad 1 "the Postgres claim doesn't re-check checked_at"
+awk '/async claimScheduleMonth/,/^\t}/' functions/src/adapters/memory/repos.ts | grep -q 'checkedAt' || bad 1 "the memory claim doesn't re-check checkedAt"
+for name in "S194 AC 1 never recorded" "S194 AC 1 read back" "S194 AC 1 older check" "S194 AC 1 lease" "S194 AC 1 still due" "S194 AC 1 month format"; do
 	in_file "$FN" "adapters/postgres/repos.contract.test.ts" "$name\\b" || bad 1 "no passing test named '$name' in functions/src/adapters/postgres/repos.contract.test.ts"
 done
 awk '/postgresTables: \{/,/^\t\},/' functions/src/services/data-classification.ts | grep -q 'schedule_months' || bad 1 "DATA_CLASSIFICATION.postgresTables does not list schedule_months"
@@ -112,7 +115,7 @@ awk '/^export async function getScheduleMonth/,/^}/' "$SM" | grep -q 'fillSchedu
 grep -q 'fillScheduleMonth(' "$SR" 2>/dev/null || bad 2 "$SR does not call fillScheduleMonth"
 others="$(grep -rlF --exclude='*.test.*' 'fetchScheduleRange(' functions/src/services | grep -vx "$SM")"
 [ -z "$others" ] || bad 2 "another service asks MLB for a schedule range: $(tr '\n' ' ' <<<"$others")"
-for name in "S194 AC 2 windowMode" "S194 AC 2 gap" "S194 AC 2 MLB fails"; do
+for name in "S194 AC 2 windowMode" "S194 AC 2 gap" "S194 AC 2 MLB fails" "S194 AC 2 partial answer"; do
 	in_file "$FN" "services/schedule-month.test.ts" "$name\\b" || bad 2 "no passing test named '$name' in schedule-month.test.ts"
 done
 
@@ -127,9 +130,12 @@ done
 # --- Check 4: the scheduled refresh ---
 [ -f "$SR" ] || bad 4 "$SR missing"
 grep -qE '^export async function refreshDueScheduleMonth\(' "$SR" 2>/dev/null || bad 4 "$SR exports no refreshDueScheduleMonth"
-for name in "S194 AC 4 order" "S194 AC 4 January 1" "S194 AC 4 recent" "S194 AC 4 claimed" "S194 AC 4 MLB fails" "S194 AC 4 store fails" "S194 AC 4 six hours"; do
+for name in "S194 AC 4 order" "S194 AC 4 January 1" "S194 AC 4 recent" "S194 AC 4 claimed" "S194 AC 4 MLB fails" "S194 AC 4 store fails" "S194 AC 4 six hours" "S194 AC 4 back-off"; do
 	in_file "$FN" "services/schedule-refresh.test.ts" "$name\\b" || bad 4 "no passing test named '$name' in schedule-refresh.test.ts"
 done
+
+grep -qE '^export const SCHEDULE_MONTH_FAILED_LEASE_MS = 30 \* MINUTE;' packages/domain/src/schedule-refresh.ts 2>/dev/null || bad 4 "no SCHEDULE_MONTH_FAILED_LEASE_MS = 30 * MINUTE in packages/domain/src/schedule-refresh.ts"
+grep -q 'SCHEDULE_MONTH_FAILED_LEASE_MS' "$SR" 2>/dev/null || bad 4 "$SR does not hold a failed month for SCHEDULE_MONTH_FAILED_LEASE_MS"
 
 # --- Check 5: the cron hook ---
 W=functions/src/worker.ts
@@ -146,7 +152,7 @@ for name in "S194 AC 6 one month" "S194 AC 6 none due"; do
 	in_file "$FN" "services/schedule-refresh.test.ts" "$name\\b" || bad 6 "no passing test named '$name' in schedule-refresh.test.ts"
 done
 doc="$(awk '/\/\*\*/{buf=""} {buf=buf"\n"$0} /^export async function refreshDueScheduleMonth/{print buf; exit}' "$SR" 2>/dev/null)"
-for phrase in "5 requests" "120" "480" "ADR-002"; do
+for phrase in "5 requests" "120" "480" "ADR-002" "while fills succeed" "SCHEDULE_MONTH_FAILED_LEASE_MS"; do
 	grep -qF -- "$phrase" <<<"$doc" || bad 6 "refreshDueScheduleMonth's comment does not state '$phrase'"
 done
 
@@ -155,13 +161,14 @@ grep -qF '"GET /api/v1/schedule/month-versions/:year": "ScheduleMonthVersionsRes
 grep -qF 'route: "GET /api/v1/schedule/month-versions/:year"' functions/src/handlers/api.ts || bad 7 "api.ts dispatches no month-versions route"
 grep -qE '^export function scheduleMonthVersion\(' packages/domain/src/schedule-refresh.ts 2>/dev/null || bad 7 "packages/domain/src/schedule-refresh.ts exports no scheduleMonthVersion"
 awk '/^export function scheduleMonthVersion/,/^}/' packages/domain/src/schedule-refresh.ts 2>/dev/null | grep -q 'contentHash(' || bad 7 "scheduleMonthVersion does not use contentHash"
+grep -qE '^export function scheduleMonthVersion\(answer: ' packages/domain/src/schedule-refresh.ts 2>/dev/null || bad 7 "scheduleMonthVersion does not take the whole month answer"
 [ "$(grep -c 'scheduleMonthVersion(' functions/src/handlers/api.ts functions/src/services/schedule-month.ts | awk -F: '{s+=$2} END {print s+0}')" -ge 2 ] || bad 7 "scheduleMonthVersion is not called for both routes"
 grep -qE 'PAST_YEAR_MONTH_EDGE_TTL_S = 2147483647;' functions/src/handlers/cache-control.ts || bad 7 "no PAST_YEAR_MONTH_EDGE_TTL_S = 2147483647 in functions/src/handlers/cache-control.ts"
 passed "$FN" "S194 AC 7\\b" || bad 7 "no passing functions test named 'S194 AC 7'"
-for name in "S194 AC 7 48 h" "S194 AC 7 past year" "S194 AC 7 wrong v" "S194 AC 7 January 1" "S194 AC 7 refresh changes" "S194 AC 7 unchanged" "S194 AC 7 game state" "S194 AC 7 backfill" "S194 AC 7 versions route"; do
+for name in "S194 AC 7 48 h" "S194 AC 7 past year" "S194 AC 7 wrong v" "S194 AC 7 January 1" "S194 AC 7 refresh changes" "S194 AC 7 unchanged" "S194 AC 7 game state" "S194 AC 7 backfill" "S194 AC 7 versions route" "S194 AC 7 whole answer" "S194 AC 7 one read"; do
 	passed "$FN" "$name\\b" || bad 7 "no passing functions test named '$name'"
 done
-for name in "S194 AC 7 with v" "S194 AC 7 after the floor" "S194 AC 7 left out" "S194 AC 7 versions fail" "S194 AC 7 key"; do
+for name in "S194 AC 7 with v" "S194 AC 7 after the floor" "S194 AC 7 left out" "S194 AC 7 versions fail" "S194 AC 7 key" "S194 AC 7 offline other year"; do
 	passed "$WEB" "$name\\b" || bad 7 "no passing web test named '$name'"
 done
 grep -qE '^export async function fetchScheduleMonthVersions\(' web/src/api/client.ts || bad 7 "web/src/api/client.ts exports no fetchScheduleMonthVersions"

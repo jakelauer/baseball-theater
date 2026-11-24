@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import { SCHEDULE_MONTH_CLAIM_LEASE_MS } from "@bt/domain";
+import { SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS } from "@bt/domain";
 import { sql } from "drizzle-orm";
 import {
 	beforeAll, describe, expect, it,
@@ -246,18 +246,58 @@ describe.each([
 	it("S194 AC 1 lease: a claim inside the lease is refused to a second claimant and granted after it, keeping the month's check", async () =>
 	{
 		const repo = await make();
-		await repo.recordScheduleMonthCheck("2026-05", T);
+		// Checked long enough ago to be due again, so only the claim decides.
+		const due = new Date(Date.parse(T) - SCHEDULE_MONTH_REFRESH_INTERVAL_MS).toISOString();
+		await repo.recordScheduleMonthCheck("2026-05", due);
 		expect(await repo.claimScheduleMonth("2026-05", T)).toBe(true);
 		expect(await repo.claimScheduleMonth("2026-05", later(SCHEDULE_MONTH_CLAIM_LEASE_MS - 1))).toBe(false);
 		expect((await repo.listScheduleMonthChecks("2026-05", "2026-05"))[0]?.claimedAt).toBe(T);
 		expect(await repo.claimScheduleMonth("2026-05", later(SCHEDULE_MONTH_CLAIM_LEASE_MS))).toBe(true);
 		expect(await repo.listScheduleMonthChecks("2026-05", "2026-05")).toEqual([{
 			month: "2026-05",
-			checkedAt: T,
+			checkedAt: due,
 			claimedAt: later(SCHEDULE_MONTH_CLAIM_LEASE_MS),
 		}]);
 		// A month never recorded is unclaimed: the first claim creates its record.
 		expect(await repo.claimScheduleMonth("2026-06", T)).toBe(true);
 		expect(await repo.claimScheduleMonth("2026-06", T)).toBe(false);
+	});
+
+	it("S194 AC 1 still due: a month checked after the tick read it is refused the claim, in the same write", async () =>
+	{
+		const repo = await make();
+		// Another tick checked it a minute ago, after this tick's read found it due.
+		await repo.recordScheduleMonthCheck("2026-07", later(-60_000));
+		expect(await repo.claimScheduleMonth("2026-07", T)).toBe(false);
+		expect((await repo.listScheduleMonthChecks("2026-07", "2026-07"))[0]?.claimedAt).toBeNull();
+		// Checked exactly one interval ago: due, so the claim is taken.
+		await repo.recordScheduleMonthCheck("2026-08", later(-SCHEDULE_MONTH_REFRESH_INTERVAL_MS));
+		expect(await repo.claimScheduleMonth("2026-08", T)).toBe(true);
+	});
+
+	it("S194 AC 1 hold: holding a claim moves claimedAt forward only, keeping the month from a claim until then plus the lease", async () =>
+	{
+		const repo = await make();
+		expect(await repo.claimScheduleMonth("2026-09", T)).toBe(true);
+		await repo.holdScheduleMonth("2026-09", later(25 * 60_000));
+		await repo.holdScheduleMonth("2026-09", later(60_000));
+		expect((await repo.listScheduleMonthChecks("2026-09", "2026-09"))[0]?.claimedAt).toBe(later(25 * 60_000));
+		expect(await repo.claimScheduleMonth("2026-09", later(30 * 60_000 - 1))).toBe(false);
+		expect(await repo.claimScheduleMonth("2026-09", later(30 * 60_000))).toBe(true);
+	});
+});
+
+describe("S194 AC 1 Postgres schedule_months", () =>
+{
+	it("S194 AC 1 month format: the table refuses a month that isn't YYYY-MM", async () =>
+	{
+		await emptied();
+		const repo = new PostgresScheduleRepository(db);
+		for (const month of ["2026-13", "2026-00", "2026-1", "26-01", "2026-01-01"])
+		{
+			await expect(repo.recordScheduleMonthCheck(month, "2026-11-09T17:00:00.000Z"), month).rejects.toThrow();
+		}
+		await repo.recordScheduleMonthCheck("2026-12", "2026-11-09T17:00:00.000Z");
+		expect(await repo.listScheduleMonthChecks("2026-01", "2026-12")).toHaveLength(1);
 	});
 });

@@ -1,5 +1,5 @@
 {
-	"id": "7df3458d-4048-4e2c-8278-97991a259196",
+	"id": "dc2715fd-9666-4425-a601-6532fa0e1643",
 	"prevId": "ac98ddcc-7a33-4c81-883b-73a75442b3bf",
 	"version": "7",
 	"dialect": "postgresql",
@@ -390,7 +390,12 @@
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},
 			"policies": {},
-			"checkConstraints": {},
+			"checkConstraints": {
+				"schedule_months_month_format": {
+					"name": "schedule_months_month_format",
+					"value": "\"schedule_months\".\"month\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+				}
+			},
 			"isRLSEnabled": false
 		},
 		"public.users": {

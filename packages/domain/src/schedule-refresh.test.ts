@@ -2,7 +2,8 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	SCHEDULE_MONTH_CHECK_MARGIN_MS, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleMonthCheckStale, scheduleMonthsDue, scheduleMonthVersion,
+	SCHEDULE_MONTH_CHECK_MARGIN_MS, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_FAILED_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleMonthAnswer, scheduleMonthCheckStale,
+	scheduleMonthsDue, scheduleMonthVersion,
 	windowMonths,
 } from "./schedule-refresh.js";
 
@@ -88,7 +89,7 @@ describe("the schedule-month refresh's rules (S194)", () =>
 		], NOW)).toEqual(["2026-06", "2026-07", "2026-02", "2026-01", "2026-05"]);
 	});
 
-	it("scheduleMonthVersion: the content hash of the days, unchanged by key order, changed by any count", () =>
+	it("scheduleMonthVersion: the content hash of the whole answer, unchanged by key order, changed by any count or another month", () =>
 	{
 		const days = [{
 			date: "2026-04-01",
@@ -102,10 +103,12 @@ describe("the schedule-month refresh's rules (S194)", () =>
 			count: 3,
 			date: "2026-04-01",
 		}];
-		expect(scheduleMonthVersion(days)).toBe(scheduleMonthVersion(same));
-		expect(scheduleMonthVersion(days)).not.toBe(scheduleMonthVersion([{
+		expect(scheduleMonthVersion(scheduleMonthAnswer("2026-04", days))).toBe(scheduleMonthVersion(scheduleMonthAnswer("2026-04", same)));
+		expect(scheduleMonthVersion(scheduleMonthAnswer("2026-04", days))).not.toBe(scheduleMonthVersion(scheduleMonthAnswer("2026-04", [{
 			...days[0]!,
 			count: 4,
-		}]));
+		}])));
+		expect(scheduleMonthVersion(scheduleMonthAnswer("2026-04", days))).not.toBe(scheduleMonthVersion(scheduleMonthAnswer("2026-05", days)));
+		expect(SCHEDULE_MONTH_FAILED_LEASE_MS).toBe(30 * MINUTE);
 	});
 });

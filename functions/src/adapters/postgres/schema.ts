@@ -14,8 +14,9 @@ import type {
 	AccountSettings, GameProjection, GameSnapshot, ScheduleDay,
 } from "@bt/domain";
 import type { ReplayArtifact } from "@bt/ports";
+import { sql } from "drizzle-orm";
 import {
-	boolean, index, integer, jsonb, pgTable, primaryKey, serial, text,
+	boolean, check, index, integer, jsonb, pgTable, primaryKey, serial, text,
 } from "drizzle-orm/pg-core";
 
 /** One schedule day per date (`ScheduleRepository`). */
@@ -27,7 +28,8 @@ export const scheduleDays = pgTable("schedule_days", {
 
 /**
  * One record per schedule month (`ScheduleRepository`'s month checks, S194): when BT last checked the
- * month against MLB and when a refresh last claimed it, each an ISO instant or null. The adapter
+ * month against MLB, and when a refresh last claimed it, or the time a failed fill holds it until
+ * (`holdScheduleMonth`), each an ISO instant or null; a claim holds until `claimed_at` plus the lease. The adapter
  * compares them as `timestamptz` (casting the text), so how a writer formats the instant can't
  * reorder them.
  */
@@ -35,7 +37,10 @@ export const scheduleMonths = pgTable("schedule_months", {
 	month: text("month").primaryKey(),
 	checkedAt: text("checked_at"),
 	claimedAt: text("claimed_at"),
-});
+}, (t) => [
+	// A month is `YYYY-MM`, so a caller's typo can't leave a record the refresh never reads.
+	check("schedule_months_month_format", sql`${t.month} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+]);
 
 /** One game snapshot per game (`GameRepository`): its day for `listByDate`, the document for queries into it. */
 export const games = pgTable("games", {
