@@ -19,6 +19,8 @@ This is the truth signal. Exit code **0** means:
 
 Exit code **non-zero** means the change is not done. Do not claim success.
 
+**One at a time.** `pnpm verify` runs `scripts/with-verify-lock.sh pnpm verify:run`: the gate itself is `verify:run`, and the wrapper holds one lock shared by every worktree of the repository (`<git common dir>/bt-verify.lock`), so parallel workers queue for the gate instead of running three or four at once, which timed tests out (owner, 2026-11-23: "yeah, one at a time lock"). A waiting run prints `verify lock: waiting for the pnpm verify in <worktree> (pid <n>)…`, then `verify lock: acquired after <n> s`; a lock whose holder's pid is gone is taken over. The exit code is the gate's. CI (`GITHUB_ACTIONS`) skips the lock, and `BT_VERIFY_LOCK=0` skips it locally. Inside `scripts/audit.sh story` those lines land in the verify log, so a run that seems slow to start may be waiting its turn. Because the wait counts toward its time, run `pnpm verify` and `scripts/audit.sh story` in the background (`run_in_background: true`) rather than under the Bash tool's 10-minute limit.
+
 The output is kept short to save context (owner, 2026-11-04): tests print a dot each, logs only from failing tests, and coverage as totals per package; a failure still prints in full, and a missed floor names the metric. For the per-file coverage table, run `pnpm --filter <package> exec vitest run --coverage`.
 
 ### What this covers

@@ -30,7 +30,7 @@ export function PlayerHost({
 	if (videoPlayer === "stage")
 	{
 		const shown = video ?? first;
-		return shown ? <PlayerStage video={shown} autoPlay={video !== null} scoresHidden={scoresHidden} /> : null;
+		return shown ? <PlayerStage video={shown} autoPlay={video !== null} scoresHidden={scoresHidden} onClose={onClose} /> : null;
 	}
 	return video ? <LazyPlayerDialog video={video} onClose={onClose} game={game} fromGamePk={fromGamePk} scoresHidden={scoresHidden} playLink={playLink} /> : null;
 }

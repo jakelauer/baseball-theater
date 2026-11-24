@@ -17,6 +17,7 @@ import { migratedPglite } from "./adapters/postgres/migrate.js";
 import type { PostgresDb } from "./adapters/postgres/repos.js";
 import { handleApiRequest } from "./handlers/api.js";
 import { getOrRefreshGame, getOrRefreshSchedule } from "./services/ingest.js";
+import { readScheduleDay } from "./services/game-state.js";
 import { loadDevSeed, recordDevSeed } from "./services/dev-seed.js";
 import { recordedClient } from "./test/recorded-mlb.js";
 import { createManagementStandIn } from "./test/logto-management.js";
@@ -115,7 +116,8 @@ describe("the dev composition on a loaded dev seed (S112)", () =>
 			})),
 		};
 		await loadDevSeed(app.ingest, seed);
-		const day = await app.ingest.schedules.getByDate("2026-09-05");
+		// The served day (S150 AC 6), as the day read answers it.
+		const day = await readScheduleDay(app.ingest, "2026-09-05");
 		const game = await app.ingest.games.getByPk(823823);
 		expect(game?.status.codedGameState).toBe("F");
 

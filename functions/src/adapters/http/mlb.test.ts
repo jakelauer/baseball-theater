@@ -10,6 +10,9 @@ import { fileURLToPath } from "node:url";
 import {
 	describe, expect, it,
 } from "vitest";
+import { datesBetween } from "@bt/domain";
+import { parseScheduleResponse } from "@bt/mlb-api";
+import { mapScheduleRange } from "../../mappers/schedule.js";
 import {
 	finalStandingsUrl, HttpMlbStatsClient, springStandingsUrl,
 } from "./mlb.js";
@@ -73,15 +76,99 @@ describe("HttpMlbStatsClient (S2)", () =>
 		expect(asked.pathname).toBe("/api/v1/schedule");
 		expect(asked.searchParams.get("startDate")).toBe("2026-09-04");
 		expect(asked.searchParams.get("endDate")).toBe("2026-09-06");
-		// The same hydrate as one day's request, so a day stored from either reads the same.
+		// Part of one day's hydrate, leaving out only what the mapper never reads (#399; the test
+		// below shows a day maps the same without it), so a day stored from either reads the same.
 		const single = client();
 		await single.mlb.fetchSchedule("2026-09-05");
-		expect(asked.searchParams.get("hydrate")).toBe(new URL(single.urls[0]!).searchParams.get("hydrate"));
+		// Exactly the day's parts minus the four the mapper never reads, so dropping one it reads
+		// (the probables' `person` or `stats`, say) fails here.
+		const parts = (url: string) => new URL(url).searchParams.get("hydrate")!.split(/,(?![^(]*\))/);
+		const unread = ["flags", "liveLookin", "review", "game(content(media(featured,epg),summary))"];
+		expect(parts(urls[0]!)).toEqual(parts(single.urls[0]!).filter((part) => !unread.includes(part)));
 		expect(days.map((day) => day.date)).toEqual(["2026-09-04", "2026-09-05", "2026-09-06"]);
 		// The recording holds only 2026-09-05: the days around it are empty, not copies of it.
 		expect(days[0]!.games).toEqual([]);
 		expect(days[2]!.games).toEqual([]);
 		expect(days[1]!.games).toEqual((await mlb.fetchSchedule("2026-09-05")).games);
+	});
+
+	it("fetchScheduleRange asks a month as week-long requests, none hydrating the content the mapper never reads, and keeps each day's own games (#399)", async () =>
+	{
+		const { mlb, urls } = client();
+		const days = await mlb.fetchScheduleRange("2026-09-01", "2026-09-30");
+		// A whole month in one request with the game-content hydrate was ~20–29 MB from MLB and took
+		// 10–15 s cold, too slow and too big for a Worker's month read (#399).
+		const spans = urls.map((url) => [new URL(url).searchParams.get("startDate"), new URL(url).searchParams.get("endDate")]);
+		expect(spans.sort()).toEqual([
+			["2026-09-01", "2026-09-07"],
+			["2026-09-08", "2026-09-14"],
+			["2026-09-15", "2026-09-21"],
+			["2026-09-22", "2026-09-28"],
+			["2026-09-29", "2026-09-30"],
+		]);
+		for (const url of urls) expect(new URL(url).searchParams.get("hydrate")).not.toMatch(/content|liveLookin|review|flags/);
+		expect(days.map((day) => day.date)).toEqual(datesBetween("2026-09-01", "2026-09-30"));
+		// Every request answers with the 2026-09-05 recording; only the week holding that day keeps its games.
+		expect(days.filter((day) => day.games.length > 0).map((day) => day.date)).toEqual(["2026-09-05"]);
+		expect(days[4]!.games).toEqual((await mlb.fetchSchedule("2026-09-05")).games);
+	});
+
+	it("fetchScheduleRange keeps at most five requests in flight, however long the range (#399)", async () =>
+	{
+		const body = readFileSync(path.join(RAW, "schedule-2026-09-05.json"));
+		let inFlight = 0;
+		let most = 0;
+		let asked = 0;
+		const mlb = new HttpMlbStatsClient({
+			fetchImpl: async () =>
+			{
+				asked++;
+				most = Math.max(most, ++inFlight);
+				await new Promise((resolve) => setTimeout(resolve, 2));
+				inFlight--;
+				return new Response(body);
+			},
+		});
+		const days = await mlb.fetchScheduleRange("2026-04-01", "2026-06-30");
+		// Thirteen weeks, never more than five of them at once (a year would be 53).
+		expect(asked).toBe(13);
+		expect(most).toBeLessThanOrEqual(5);
+		expect(days.map((day) => day.date)).toEqual(datesBetween("2026-04-01", "2026-06-30"));
+	});
+
+	it("fetchScheduleRange rejects when any week's request fails, rather than answering part of the range (#399)", async () =>
+	{
+		const { mlb } = client();
+		const failing = new HttpMlbStatsClient({
+			fetchImpl: async (input) =>
+				new URL(String(input)).searchParams.get("startDate") === "2026-09-15" ? new Response("{}", {
+					status: 500,
+				}) : new Response(readFileSync(path.join(RAW, "schedule-2026-09-05.json"))),
+		});
+		await expect(failing.fetchScheduleRange("2026-09-01", "2026-09-30")).rejects.toThrow(/MLB Stats API 500/);
+		expect(await mlb.fetchScheduleRange("2026-09-01", "2026-09-07")).toHaveLength(7);
+	});
+
+	it("the schedule hydrate leaves out only what mapping a day never reads: the recording without it maps the same (#399)", () =>
+	{
+		const raw = JSON.parse(readFileSync(path.join(RAW, "schedule-2026-09-05.json"), "utf8")) as { dates: { games: Record<string, unknown>[] }[] };
+		const stripped = structuredClone(raw);
+		let removed = 0;
+		for (const date of stripped.dates)
+		{
+			for (const game of date.games)
+			{
+				for (const key of ["content", "flags", "liveLookin", "review"])
+				{
+					if (key in game) removed++;
+					delete game[key];
+				}
+			}
+		}
+		// The recording carries those parts, so the comparison below means something.
+		expect(removed).toBeGreaterThan(0);
+		const map = (payload: unknown) => mapScheduleRange(parseScheduleResponse(payload), "2026-09-05", "2026-09-05", "t");
+		expect(map(stripped)).toEqual(map(raw));
 	});
 
 	it("fetchStandings asks with the date's season, which MLB requires alongside the date", async () =>
@@ -93,6 +180,22 @@ describe("HttpMlbStatsClient (S2)", () =>
 		expect(asked.searchParams.get("season")).toBe("2026");
 		expect(asked.searchParams.get("date")).toBe("2026-09-05");
 		expect(asked.searchParams.get("leagueId")).toBe("103,104");
+	});
+
+	it("S102 AC 1: fetchStandings hydrates each record group's division, the request fixtures/raw/standings-2026-09-05-division.json records", async () =>
+	{
+		const { mlb, urls } = client();
+		await mlb.fetchStandings("2026-09-05");
+		const asked = new URL(urls.at(-1)!);
+		expect(asked.searchParams.get("hydrate")?.split(",")).toEqual(["team", "division"]);
+		// The recording is MLB's answer to that request: every group's division arrives named.
+		const recording = JSON.parse(readFileSync(path.join(RAW, "standings-2026-09-05-division.json"), "utf8")) as {
+			records: { league: { id: number };
+				division: { id: number;
+					nameShort?: string; }; }[];
+		};
+		expect(new Set(recording.records.map((r) => r.league.id))).toEqual(new Set([103, 104]));
+		expect(recording.records.every((r) => typeof r.division.nameShort === "string")).toBe(true);
 	});
 
 	it("fetchFinalStandings and fetchSpringStandings ask their own standings URLs (S128)", async () =>
@@ -110,6 +213,16 @@ describe("HttpMlbStatsClient (S2)", () =>
 		const spring = new URL(urls[1]!);
 		expect(spring.searchParams.get("standingsTypes")).toBe("springTraining");
 		expect(spring.searchParams.get("date")).toBe("2026-03-01");
+	});
+
+	it("S102 AC 1: the final and spring standings hydrate each record group's division too", async () =>
+	{
+		const { mlb, urls } = client();
+		await mlb.fetchFinalStandings(2026);
+		await mlb.fetchSpringStandings(2026, "2026-03-01");
+		const [final, spring] = urls.map((url) => new URL(url));
+		expect(final!.searchParams.get("hydrate")).toBe("team,division");
+		expect(spring!.searchParams.get("hydrate")).toBe("team,division");
 	});
 
 	it("fetchPlayers asks for this season's stats, and asks nothing for no ids", async () =>
@@ -281,5 +394,43 @@ describe("HttpMlbStatsClient.searchHighlights (S5)", () =>
 			}),
 		});
 		await expect(mlb.searchHighlights("walk-off")).rejects.toThrow(/503/);
+	});
+});
+
+describe("HttpMlbStatsClient feed time (S150 AC 2)", () =>
+{
+	/** A client whose live feed is `feed` (the recorded final feed unless given); everything else answers 404. */
+	function feedClient(feed: string = readFileSync(path.join(RAW, "live-823823.json"), "utf8"), now = new Date("2026-09-06T00:00:00.000Z")): HttpMlbStatsClient
+	{
+		return new HttpMlbStatsClient({
+			now: () => now,
+			fetchImpl: async (input) => /\/feed\/live$/.test(new URL(String(input)).pathname) ? new Response(feed) : new Response("{}", {
+				status: 404,
+			}),
+		});
+	}
+
+	it("S150 AC 2 feed time: the fetched game carries the feed's metaData.timeStamp as ISO beside the game, never on it", async () =>
+	{
+		const fetched = await feedClient().fetchGame(823823);
+		expect(fetched.feedTime).toBe("2026-09-05T23:34:35.000Z");
+		expect(fetched.game.gamePk).toBe(823823);
+		expect(fetched.game).not.toHaveProperty("feedTime");
+		expect((await feedClient().fetchGameFeed(823823)).feedTime).toBe("2026-09-05T23:34:35.000Z");
+	});
+
+	it("S150 AC 2 no time: a feed with no timeStamp leaves the feed time out", async () =>
+	{
+		const feed = JSON.parse(readFileSync(path.join(RAW, "live-823823.json"), "utf8")) as { metaData?: Record<string, unknown> };
+		delete feed.metaData?.timeStamp;
+		const fetched = await feedClient(JSON.stringify(feed)).fetchGame(823823);
+		expect(fetched).not.toHaveProperty("feedTime");
+	});
+
+	it("S150 AC 2 future time: a feed time further ahead of BT's clock than the tolerance is left out", async () =>
+	{
+		// The recorded feed says 23:34:35; BT's clock reads 23:00, 34 minutes earlier.
+		const fetched = await feedClient(undefined, new Date("2026-09-05T23:00:00.000Z")).fetchGame(823823);
+		expect(fetched).not.toHaveProperty("feedTime");
 	});
 });
