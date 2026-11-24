@@ -230,7 +230,7 @@ describe("video play links (S97)", () =>
 
 describe("the inning pill in the player and on the game page's cards (S145)", () =>
 {
-	it("S145 AC 1: on the game page a top-of-the-6th clip's card and player pill are named 'Open play - Top of 6th inning' and read Top 6 →", async () =>
+	it("S145 AC 1: on the game page a top-of-the-6th clip's card and player pill are named 'Top 6: open play, top of 6th inning' and read Top 6 →", async () =>
 	{
 		expect(atBatOf(BUSCH.playId!).about).toMatchObject({
 			halfInning: "top",
@@ -241,17 +241,17 @@ describe("the inning pill in the player and on the game page's cards (S145)", ()
 			name: `Play ${BUSCH.title}`,
 		});
 		const pill = within(card.parentElement!).getByRole("link", {
-			name: "Open play - Top of 6th inning",
+			name: "Top 6: open play, top of 6th inning",
 		});
 		expect(pill.textContent).toBe("Top 6 →");
 		fireEvent.click(card);
 		const dialog = await screen.findByRole("dialog");
 		expect((await within(dialog).findByRole("link", {
-			name: "Open play - Top of 6th inning",
+			name: "Top 6: open play, top of 6th inning",
 		})).textContent).toBe("Top 6 →");
 	});
 
-	it("S145 AC 1: the player's pill for a bottom-of-the-3rd play reads Bot 3 → and is named 'Open play - Bottom of 3rd inning'", () =>
+	it("S145 AC 1: the player's pill for a bottom-of-the-3rd play reads Bot 3 → and is named 'Bot 3: open play, bottom of 3rd inning'", () =>
 	{
 		render(
 			<MantineProvider>
@@ -267,7 +267,7 @@ describe("the inning pill in the player and on the game page's cards (S145)", ()
 			</MantineProvider>,
 		);
 		const pill = within(screen.getByRole("dialog")).getByRole("link", {
-			name: "Open play - Bottom of 3rd inning",
+			name: "Bot 3: open play, bottom of 3rd inning",
 		});
 		expect(pill.textContent).toBe("Bot 3 →");
 		expect(pill.getAttribute("href")).toBe("/game/823823/plays?play=p");
@@ -286,7 +286,7 @@ describe("the inning pill in the player and on the game page's cards (S145)", ()
 			inning: 5,
 		});
 		const pill = await within(dialog).findByRole("link", {
-			name: "Open play - Bottom of 5th inning",
+			name: "Bot 5: open play, bottom of 5th inning",
 		});
 		expect(pill.textContent).toBe("Bot 5 →");
 		expect(pill.className).toMatch(/\bbt-play-pill\b/);
