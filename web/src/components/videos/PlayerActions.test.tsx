@@ -16,6 +16,39 @@ import {
 import type { Video } from "./VideoCard.js";
 import { VideoPlayer } from "./VideoPlayer.js";
 
+/** Every hls.js player the tests' stand-in made, newest last, with the error handler it was given. */
+const hlsPlayers = vi.hoisted(() => [] as {
+	loadSource: ReturnType<typeof vi.fn>;
+	attachMedia: ReturnType<typeof vi.fn>;
+	destroy: ReturnType<typeof vi.fn>;
+	onError?: (event: string, data: { fatal: boolean }) => void;
+}[]);
+
+// A stand-in for hls.js (#415): records what the player asks of it, never touches media.
+vi.mock("hls.js/light", () => ({
+	default: class
+	{
+		static Events = {
+			ERROR: "hlsError",
+		};
+
+		loadSource = vi.fn();
+		attachMedia = vi.fn();
+		destroy = vi.fn();
+		onError?: (event: string, data: { fatal: boolean }) => void;
+
+		constructor()
+		{
+			hlsPlayers.push(this);
+		}
+
+		on(event: string, handler: (event: string, data: { fatal: boolean }) => void)
+		{
+			if (event === "hlsError") this.onError = handler;
+		}
+	},
+}));
+
 const BASE = "https://mlb-cuts-diamond.mlb.com/FORGE/2026/2026-09/05/68e1ef46-6669f6b0-5b1ac736-csvm-diamondgcp-asset";
 const HLS = `${BASE}.m3u8`;
 const MP4 = `${BASE}_1280x720_59_4000K.mp4`;
@@ -45,6 +78,7 @@ let paused = true;
 
 beforeEach(() =>
 {
+	hlsPlayers.length = 0;
 	paused = true;
 	vi.spyOn(HTMLMediaElement.prototype, "paused", "get").mockImplementation(() => paused);
 	vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (this: HTMLMediaElement)
@@ -86,6 +120,25 @@ function hlsSupport(supported: boolean)
 	vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockImplementation((type) => (supported && type === "application/vnd.apple.mpegurl" ? "maybe" : ""));
 }
 
+/** Stubs Media Source Extensions playing H.264, as desktop Chrome and Firefox do, so hls.js can play HLS. */
+function mseSupport()
+{
+	vi.stubGlobal("MediaSource", {
+		isTypeSupported: (type: string) => type.startsWith("video/mp4"),
+	});
+}
+
+/** Opens the quality picker and chooses `name`. */
+async function choose(name: string)
+{
+	await userEvent.click(screen.getByRole("button", {
+		name: /^Quality:/,
+	}));
+	await userEvent.click(await screen.findByRole("menuitem", {
+		name,
+	}));
+}
+
 describe("quality picker", () =>
 {
 	it("starts on the standard MP4 and lists the MP4 qualities MLB gives, sharpest first; no HLS where the browser can't play it", async () =>
@@ -111,16 +164,91 @@ describe("quality picker", () =>
 		expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["High · 720p, 16 Mbps", "Standard · 720p, 4 Mbps", "Auto (HLS)"]);
 	});
 
-	// Parked until the owner decides whether desktop Chrome and Firefox play HLS through a player
-	// library (.pending "HLS Auto"); the fix turns this back into a plain `it`.
-	it.fails("lists every quality MLB gives, the HLS stream too, where the browser can't play HLS natively (#415)", async () =>
+	it("lists every quality MLB gives, the HLS stream too, where the browser can't play HLS natively (#415)", async () =>
 	{
 		hlsSupport(false);
+		mseSupport();
 		renderPlayer();
 		await userEvent.click(screen.getByRole("button", {
 			name: /^Quality:/,
 		}));
 		expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["High · 720p, 16 Mbps", "Standard · 720p, 4 Mbps", "Auto (HLS)"]);
+	});
+
+	it("where the browser can't play HLS natively, Auto plays through hls.js, and leaving it destroys the player (#415)", async () =>
+	{
+		hlsSupport(false);
+		mseSupport();
+		const video = renderPlayer();
+		expect(hlsPlayers).toHaveLength(0);
+		await choose("Auto (HLS)");
+		await vi.waitFor(() => expect(hlsPlayers).toHaveLength(1));
+		const [player] = hlsPlayers;
+		expect(player!.loadSource).toHaveBeenCalledWith(HLS);
+		expect(player!.attachMedia).toHaveBeenCalledWith(video);
+		// hls.js attaches its own stream, so the element carries no playlist URL it can't play.
+		expect(video).not.toHaveAttribute("src");
+		await choose("High · 720p, 16 Mbps");
+		expect(video).toHaveAttribute("src", HIGH);
+		expect(player!.destroy).toHaveBeenCalledTimes(1);
+	});
+
+	it("where the browser plays HLS itself, Auto sets the playlist on the element and loads no library (#415)", async () =>
+	{
+		hlsSupport(true);
+		mseSupport();
+		const video = renderPlayer();
+		await choose("Auto (HLS)");
+		expect(video).toHaveAttribute("src", HLS);
+		await Promise.resolve();
+		expect(hlsPlayers).toHaveLength(0);
+	});
+
+	it("a clip starting on HLS plays it through hls.js, and closing the player destroys it (#415)", async () =>
+	{
+		hlsSupport(false);
+		mseSupport();
+		renderPlayer({
+			...VIDEO,
+			playbackUrl: HLS,
+		});
+		await vi.waitFor(() => expect(hlsPlayers).toHaveLength(1));
+		cleanup();
+		expect(hlsPlayers[0]!.destroy).toHaveBeenCalledTimes(1);
+	});
+
+	it("when hls.js fails, the clip goes on from the same moment in the same cut's MP4, and Auto leaves the picker (#415)", async () =>
+	{
+		hlsSupport(false);
+		mseSupport();
+		const video = renderPlayer();
+		await userEvent.click(screen.getByRole("button", {
+			name: "Play",
+		}));
+		video.currentTime = 12;
+		await choose("Auto (HLS)");
+		await vi.waitFor(() => expect(hlsPlayers).toHaveLength(1));
+		const [player] = hlsPlayers;
+		// A non-fatal error is hls.js's to recover from.
+		act(() => player!.onError!("hlsError", {
+			fatal: false,
+		}));
+		expect(video).not.toHaveAttribute("src");
+		act(() => player!.onError!("hlsError", {
+			fatal: true,
+		}));
+		expect(player!.destroy).toHaveBeenCalled();
+		expect(video).toHaveAttribute("src", HIGH);
+		paused = true;
+		const play = vi.mocked(HTMLMediaElement.prototype.play);
+		play.mockClear();
+		fireEvent(video, new Event("loadedmetadata"));
+		expect(video.currentTime).toBe(12);
+		expect(play).toHaveBeenCalledTimes(1);
+		await userEvent.click(screen.getByRole("button", {
+			name: /^Quality:/,
+		}));
+		expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["High · 720p, 16 Mbps", "Standard · 720p, 4 Mbps"]);
 	});
 
 	it("choosing a quality plays that file from the same moment, still playing", async () =>

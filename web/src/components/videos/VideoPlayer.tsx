@@ -32,19 +32,35 @@ function toggleVideo(element: HTMLVideoElement | null): void
 	else element.pause();
 }
 
+/** The MIME type of an HLS playlist, as `canPlayType` names it. */
+const HLS_TYPE = "application/vnd.apple.mpegurl";
+
 /**
- * Whether this browser plays an HLS playlist in a plain `<video>` (Safari, iOS, some Android
- * browsers). Elsewhere an HLS quality would play nothing, so the picker leaves it out.
+ * How this browser can play an HLS quality (#415): `"native"` in a plain `<video>` (Safari, every
+ * iOS browser, Android Chrome), `"library"` through hls.js over Media Source Extensions (desktop
+ * Chrome and Firefox; the same H.264 check `Hls.isSupported` makes, done here so the library
+ * itself loads only when an HLS clip plays), or `null` where neither works, so the picker leaves
+ * HLS out. Native wins where both work, since it needs no download.
  */
-function playsHls(): boolean
+type HlsPath = "native" | "library" | null;
+
+function hlsPath(): HlsPath
 {
-	return typeof document !== "undefined" && document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== "";
+	if (typeof document === "undefined") return null;
+	if (document.createElement("video").canPlayType(HLS_TYPE) !== "") return "native";
+	const sources = globalThis as { ManagedMediaSource?: { isTypeSupported?: (type: string) => boolean };
+		MediaSource?: { isTypeSupported?: (type: string) => boolean }; };
+	const source = sources.ManagedMediaSource ?? sources.MediaSource;
+	return source?.isTypeSupported?.("video/mp4; codecs=\"avc1.42E01E,mp4a.40.2\"") ? "library" : null;
 }
 
-/** The qualities this browser can play: `videoQualities`' list without HLS where it can't play it. */
-function playableQualities(video: Video): VideoQuality[]
+/**
+ * The qualities this browser can play: `videoQualities`' list, without HLS where there is no way
+ * to play it (`path` null, or hls.js already failed on this clip, `libraryFailed`).
+ */
+function playableQualities(video: Video, path: HlsPath, libraryFailed: boolean): VideoQuality[]
 {
-	const hls = playsHls();
+	const hls = path === "native" || (path === "library" && !libraryFailed);
 	return videoQualities(video).filter((quality) => hls || !quality.hls);
 }
 
@@ -101,7 +117,7 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
  * the reader chose it; the stage's first clip waits for a press.
  *
  * Under the progress row sit the quality picker (`QualityPicker`, the clip's
- * `videoQualities` this browser can play, starting on `playbackUrl`'s) and the palette of
+ * `videoQualities` this browser can play, HLS natively or through hls.js, starting on `playbackUrl`'s) and the palette of
  * actions (`PlayerActions`: copy link, direct link, share; Download waits for S151), both on the quality
  * being played. Switching quality keeps the place in the clip, and plays on only if the
  * reader wants it playing (`wantsPlay`); only the first source autoplays.
@@ -118,9 +134,14 @@ export function VideoPlayer({
 	const [elapsed, setElapsed] = useState(0);
 	const [total, setTotal] = useState(0);
 
-	const qualities = playableQualities(video);
+	const path = hlsPath();
+	// Set once hls.js fails on this clip (a fatal error, or its chunk wouldn't load): HLS leaves the picker.
+	const [libraryFailed, setLibraryFailed] = useState(false);
+	const qualities = playableQualities(video, path, libraryFailed);
 	const [picked, setPicked] = useState<string | null>(null);
 	const quality = qualities.find((entry) => entry.id === picked) ?? defaultVideoQuality(qualities, video.playbackUrl);
+	// The playlist hls.js plays into the element, when the quality is HLS and the browser can't play it itself.
+	const libraryUrl = quality?.hls && path === "library" ? quality.url : null;
 	// Where to pick up after a quality switch reloads the clip.
 	const resume = useRef<{ time: number } | null>(null);
 	// Whether the reader wants the clip playing: set by autoplay's intent and by their own
@@ -157,6 +178,52 @@ export function VideoPlayer({
 		return () => document.removeEventListener("keydown", onKey);
 	}, []);
 
+	// hls.js plays `libraryUrl` (#415), loaded only now, so the entry bundle never carries it (the
+	// light build: no subtitles, alternate audio or DRM, which highlight clips don't use). A new
+	// quality or clip, or the player closing, destroys it; by then React has already set the next
+	// MP4's `src`, which hls.js leaves alone since it only clears its own blob URL. If hls.js fails,
+	// the clip goes on from the same moment in the same cut's MP4 (`fileQuality`), and HLS leaves
+	// the picker, so the reader never sits on a broken player.
+	useEffect(() =>
+	{
+		const element = ref.current;
+		if (!libraryUrl || !element) return;
+		let cancelled = false;
+		let player: { destroy(): void } | null = null;
+		const fail = () =>
+		{
+			if (cancelled) return;
+			player?.destroy();
+			player = null;
+			resume.current = {
+				time: resume.current?.time ?? element.currentTime,
+			};
+			const fallback = fileQuality(videoQualities(video), quality);
+			setPicked(fallback && !fallback.hls ? fallback.id : null);
+			setLibraryFailed(true);
+			setPlaying(wantsPlay.current);
+		};
+		import("hls.js/light").then(({ default: Hls }) =>
+		{
+			if (cancelled) return;
+			const hls = new Hls();
+			player = hls;
+			hls.on(Hls.Events.ERROR, (_event, data) =>
+			{
+				if (data.fatal) fail();
+			});
+			hls.loadSource(libraryUrl);
+			hls.attachMedia(element);
+		}, fail);
+		return () =>
+		{
+			cancelled = true;
+			player?.destroy();
+		};
+		// Only a new playlist starts a new player; `video` and `quality` change with it.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [libraryUrl]);
+
 	const Icon = playing ? IconPlayerPauseFilled : IconPlayerPlayFilled;
 	return (
 		<Stack gap={10} data-testid="video-player">
@@ -165,7 +232,8 @@ export function VideoPlayer({
 				ref={ref}
 				// A click on the picture plays or pauses it, so it answers the pointer (`.bt-video`, styles.css).
 				className="bt-video"
-				src={quality?.url ?? video.playbackUrl ?? undefined}
+				// No `src` while hls.js plays the quality: it attaches its own stream (the effect above).
+				src={libraryUrl ? undefined : quality?.url ?? video.playbackUrl ?? undefined}
 				poster={video.imageUrl ?? undefined}
 				// Only the first source autoplays: a quality switch reloads the clip, and a reload
 				// would otherwise autoplay a clip the reader had paused (`wantsPlay` decides instead).
