@@ -111,6 +111,18 @@ describe("quality picker", () =>
 		expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["High · 720p, 16 Mbps", "Standard · 720p, 4 Mbps", "Auto (HLS)"]);
 	});
 
+	// Parked until the owner decides whether desktop Chrome and Firefox play HLS through a player
+	// library (.pending "HLS Auto"); the fix turns this back into a plain `it`.
+	it.fails("lists every quality MLB gives, the HLS stream too, where the browser can't play HLS natively (#415)", async () =>
+	{
+		hlsSupport(false);
+		renderPlayer();
+		await userEvent.click(screen.getByRole("button", {
+			name: /^Quality:/,
+		}));
+		expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["High · 720p, 16 Mbps", "Standard · 720p, 4 Mbps", "Auto (HLS)"]);
+	});
+
 	it("choosing a quality plays that file from the same moment, still playing", async () =>
 	{
 		hlsSupport(false);
