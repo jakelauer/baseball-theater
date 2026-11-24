@@ -168,7 +168,10 @@ const homeRuns = (state: { linescore: GameSnapshot["linescore"] } | null | undef
 
 describe("game state from MLB's two sources (S150 AC 1)", () =>
 {
-	it("S150 AC 1 live pair: 823823's feed and its schedule row at LIVE_FIXTURE_TIMECODE give the same status, linescore, runners and players", () =>
+	// Skipped (owner, 2026-11-24: "Don't remove it, skip the test and file the bug to fix it."): it times out at 20 s on
+	// CI runners and has failed two stage runs, one blocking a staging deploy. #508 makes it cheaper and turns it back on;
+	// until then S150's feed/schedule agreement has no guard here, so #508 must re-enable this exact test.
+	it.skip("S150 AC 1 live pair: 823823's feed and its schedule row at LIVE_FIXTURE_TIMECODE give the same status, linescore, runners and players", () =>
 	{
 		// The row is built from the feed recording (`scheduleMomentsAt`), since no MLB schedule was recorded mid-game: this
 		// checks the row builder, not MLB's schedule.
