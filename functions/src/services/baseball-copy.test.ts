@@ -187,7 +187,7 @@ const fixtures = new FixtureMlbStatsClient();
 /** The recorded game 744834 re-keyed and stamped: a document `projectGame` can project. */
 async function recordedGame(gamePk: number, version: number, lastChangedAt: string, fields: Partial<GameSnapshot> = {}): Promise<GameSnapshot>
 {
-	const fetched = await fixtures.fetchGame(744834);
+	const fetched = (await fixtures.fetchGame(744834)).game;
 	return {
 		...fetched,
 		gamePk,
@@ -268,7 +268,7 @@ describe("copyBaseballData (S117)", () =>
 		const { db: target } = await openDb();
 		await forbid(target, PERSONAL_TABLES, ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]);
 		const copies = await copy(source, target);
-		expect(copies.map((entry) => entry.table)).toEqual(["schedule_days", "games", "game_projections", "replay_artifacts"]);
+		expect(copies.map((entry) => entry.table)).toEqual(["schedule_days", "game_states", "games", "game_projections", "replay_artifacts"]);
 		expect(PERSONAL_TABLES.sort()).toEqual(["account_settings", "deletion_log", "entitlements", "identity_links", "users"]);
 		for (const table of COPIED_TABLES) expect(await dump(target, table)).toEqual(await dump(source, table));
 		for (const table of PERSONAL_TABLES) expect(await dump(target, table)).toEqual([]);
@@ -301,8 +301,9 @@ describe("copyBaseballData (S117)", () =>
 			read: 3,
 			written: 3,
 		});
-		// One row per page under a 1-byte cap: schedule_days 2, games 3, replay_artifacts 1 (projections aren't read).
-		expect(seen.pageReads).toBe(6);
+		// One row per page under a 1-byte cap: schedule_days 2, game_states' one empty page, games 3, replay_artifacts 1
+		// (projections aren't read).
+		expect(seen.pageReads).toBe(7);
 		for (const table of COPIED_TABLES) expect(await dump(target, table)).toEqual(await dump(production_, table));
 	});
 
@@ -320,7 +321,7 @@ describe("copyBaseballData (S117)", () =>
 		const { db: target } = await openDb();
 		const copies = await copy(source, target);
 		await source.execute(sql`RESET ROLE`);
-		expect(copies.map((entry) => entry.read)).toEqual([2, 3, 0, 1]);
+		expect(copies.map((entry) => entry.read)).toEqual([2, 0, 3, 0, 1]);
 		for (const table of COPIED_TABLES) expect(await dump(target, table)).toEqual(await dump(source, table));
 	});
 
@@ -331,8 +332,8 @@ describe("copyBaseballData (S117)", () =>
 		await copy(source, target);
 		const before = await Promise.all(baseballTables().map((table) => dump(target, table)));
 		const again = await copy(source, target);
-		expect(again.map((entry) => entry.written)).toEqual([0, 0, 0, 0]);
-		expect(again.map((entry) => entry.read)).toEqual([2, 3, 0, 1]);
+		expect(again.map((entry) => entry.written)).toEqual([0, 0, 0, 0, 0]);
+		expect(again.map((entry) => entry.read)).toEqual([2, 0, 3, 0, 1]);
 		expect(await Promise.all(baseballTables().map((table) => dump(target, table)))).toEqual(before);
 	});
 
@@ -1189,5 +1190,117 @@ describe("tablesNamedIn", () =>
 	it("finds every baseball table in the committed initial migration", () =>
 	{
 		expect(tablesNamedIn(readFileSync(join(MIGRATIONS_FOLDER, "0000_initial.sql"), "utf8"), TABLES)).toEqual(TABLES);
+	});
+});
+
+describe("copyBaseballData: game states and served days (S150 AC 3)", () =>
+{
+	/** A `game_states` document: the state with its stamp. */
+	function stateDoc(codedGameState: string, version: number, lastChangedAt: string, runs = 1): string
+	{
+		return JSON.stringify({
+			status: {
+				abstractGameState: codedGameState === "I" ? "Live" : "Final",
+				codedGameState,
+				detailedState: codedGameState === "I" ? "In Progress" : "Final",
+			},
+			linescore: {
+				currentInning: 9,
+				inningState: "End",
+				isTopInning: false,
+				outs: 3,
+				balls: 0,
+				strikes: 0,
+				teams: {
+					home: {
+						runs,
+						hits: 5,
+						errors: 0,
+					},
+					away: {
+						runs: 0,
+						hits: 3,
+						errors: 0,
+					},
+				},
+			},
+			live: null,
+			version,
+			lastChangedAt,
+		});
+	}
+
+	it("S150 AC 3 live: a target row its feed wrote while the game is live stays the target's, though production changed later", async () =>
+	{
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
+		await source.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document)
+			VALUES (1, 4, 'schedule', NULL, '2026-11-13', '2026-11-13T00:05:00.000Z', ${stateDoc("F", 4, "2026-11-13T11:00:00.000Z", 9)})`);
+		await target.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document)
+			VALUES (1, 2, 'feed', '2026-11-13T10:00:00.000Z', '2026-11-13', '2026-11-13T00:05:00.000Z', ${stateDoc("I", 2, "2026-11-13T10:00:00.000Z")})`);
+		const copies = await copy(source, target);
+		expect(copies.find((entry) => entry.table === "game_states")).toMatchObject({
+			read: 1,
+			written: 0,
+			kept: {
+				ingesting: 1,
+			},
+		});
+		expect(await all(target, sql`SELECT version, source, document->'status'->>'codedGameState' AS code FROM game_states`)).toEqual([{
+			version: 2,
+			source: "feed",
+			code: "I",
+		}]);
+	});
+
+	it("S150 AC 3 own columns: a later production state is adopted, but never the target's feed time, nor a missing first pitch over a stored one", async () =>
+	{
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
+		await source.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document)
+			VALUES (1, 7, 'feed', '2030-01-01T00:00:00.000Z', '2024-04-01', NULL, ${stateDoc("F", 7, "2024-04-03T00:00:00.000Z", 6)})`);
+		await target.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document)
+			VALUES (1, 3, 'schedule', '2024-04-01T23:59:00.000Z', '2024-04-01', '2024-04-01T23:05:00.000Z', ${stateDoc("F", 3, "2024-04-02T00:00:00.000Z", 2)})`);
+		await copy(source, target);
+		expect(await all(target, sql`SELECT version, feed_time, start_time, document->'linescore'->'teams'->'home'->>'runs' AS runs FROM game_states`)).toEqual([{
+			version: 4,
+			feed_time: "2024-04-01T23:59:00.000Z",
+			start_time: "2024-04-01T23:05:00.000Z",
+			runs: "6",
+		}]);
+		// A game only production has arrives with no feed time of the target's own.
+		await source.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document)
+			VALUES (2, 1, 'feed', '2030-01-01T00:00:00.000Z', '2024-04-01', NULL, ${stateDoc("F", 1, "2024-04-03T00:00:00.000Z")})`);
+		await copy(source, target);
+		expect(await all(target, sql`SELECT feed_time FROM game_states WHERE game_pk = 2`)).toEqual([{
+			feed_time: null,
+		}]);
+	});
+
+	it("S150 AC 3 served base: a production day with a lower served_base and one game fewer raises the target's served_base by the dropped game's state", async () =>
+	{
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
+		const day = (games: number[], version: number, lastChangedAt: string) => stamped({
+			date: "2024-04-01",
+			games: games.map((gamePk) => ({
+				gamePk,
+			})),
+		}, version, lastChangedAt);
+		await source.execute(sql`INSERT INTO schedule_days (date, version, served_base, document) VALUES ('2024-04-01', 2, 1, ${day([1], 2, "2024-04-05T00:00:00.000Z")})`);
+		await target.execute(sql`INSERT INTO schedule_days (date, version, served_base, document) VALUES ('2024-04-01', 6, 4, ${day([1, 2], 6, "2024-04-02T00:00:00.000Z")})`);
+		await target.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document) VALUES
+			(1, 3, 'schedule', NULL, '2024-04-01', NULL, ${stateDoc("F", 3, "2024-04-02T00:00:00.000Z")}),
+			(2, 5, 'schedule', NULL, '2024-04-01', NULL, ${stateDoc("F", 5, "2024-04-02T00:00:00.000Z")})`);
+		const served = async () => (await all(target, sql`SELECT d.version + d.served_base + COALESCE((SELECT sum(s.version) FROM game_states s
+			WHERE s.game_pk IN (SELECT (g->>'gamePk')::integer FROM jsonb_array_elements(d.document->'games') g)), 0) AS v FROM schedule_days d`))[0]!.v;
+		const before = Number(await served());
+		await copy(source, target);
+		expect(await all(target, sql`SELECT version, served_base, jsonb_array_length(document->'games') AS games FROM schedule_days`)).toEqual([{
+			version: 7,
+			served_base: 9,
+			games: 1,
+		}]);
+		expect(Number(await served())).toBeGreaterThan(before);
 	});
 });

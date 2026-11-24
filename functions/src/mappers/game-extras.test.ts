@@ -16,7 +16,7 @@ const client = new FixtureMlbStatsClient();
 /** The percentage points a clip's play swung the game, or null for a clip with no measured play. */
 async function swings(highlights: MediaHighlight[]): Promise<(number | null)[]>
 {
-	const game = await client.fetchGame(823823);
+	const game = (await client.fetchGame(823823)).game;
 	const metrics = await client.fetchPlayMetrics(823823);
 	const atBat = atBatIndexByPitch(game.plays);
 	const byAtBat = new Map<number, AtBatMetrics>(metrics!.atBats.map((m) => [m.atBatIndex, m]));
@@ -31,7 +31,7 @@ describe("impact rank on the server (S98)", () =>
 {
 	it("S98 AC 2: on 823823 the largest win-probability swing is first, and Conine's two-run homer (+19.6%) is above the solo homers that swung less", async () =>
 	{
-		const game = await client.fetchGame(823823);
+		const game = (await client.fetchGame(823823)).game;
 		const s = await swings(game.highlights);
 		const measured = s.filter((v): v is number => v != null);
 		expect(s[0]).toBe(Math.max(...measured));
@@ -56,7 +56,7 @@ describe("impact rank on the server (S98)", () =>
 
 	it("S98 AC 3: with no play metrics the order is today's keyword order", async () =>
 	{
-		const game = await client.fetchGame(823823);
+		const game = (await client.fetchGame(823823)).game;
 		const graph = await client.fetchGameGraphContent(823823);
 		const { playMetrics: _dropped, ...withoutMetrics } = game;
 		const ranked = withGameExtras(withoutMetrics, null, graph).highlights;

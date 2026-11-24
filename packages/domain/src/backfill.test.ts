@@ -377,6 +377,25 @@ describe("isScheduleDaySettled (S122 AC 4)", () =>
 		}, "2026-07-05")).toBe(true);
 	});
 
+	it("S150: a listing whose game has moved to another day counts as settled, whatever status it is served with", () =>
+	{
+		const suspended = {
+			gamePk: 7,
+			status: {
+				abstractGameState: "Live",
+				codedGameState: "U",
+				detailedState: "Suspended",
+			},
+		};
+		const day = {
+			date: "2026-07-04",
+			games: [final, suspended] as never,
+		};
+		expect(isScheduleDaySettled(day, "2026-07-06")).toBe(false);
+		expect(isScheduleDaySettled(day, "2026-07-06", new Set([7]))).toBe(true);
+		expect(isScheduleDaySettled(day, "2026-07-06", new Set([8]))).toBe(false);
+	});
+
 	it("a day with games is settled when every game is, whatever the date", () =>
 	{
 		expect(isScheduleDaySettled({

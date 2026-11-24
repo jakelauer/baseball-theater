@@ -25,9 +25,10 @@ import type {
 import {
 	daysOfMonth, mlbToday, monthComplete, monthGameCounts, monthLastChangedAt, scheduleDayTally, scheduleFillWindow,
 } from "@bt/domain";
+import { scheduleDayWindowMode } from "./game-state.js";
 import type { IngestDeps } from "./ingest.js";
 import {
-	needsRefresh, runRefresh, scheduleDayWindowMode, storeSchedule,
+	needsRefresh, runRefresh, storeSchedule,
 } from "./ingest.js";
 
 /**

@@ -12,7 +12,7 @@ import {
 import { migratedPglite } from "../adapters/postgres/migrate.js";
 import type { PostgresDb } from "../adapters/postgres/repos.js";
 import {
-	PostgresGameProjectionRepository, PostgresGameRepository, PostgresScheduleRepository,
+	PostgresGameProjectionRepository, PostgresGameStateRepository, PostgresGameRepository, PostgresScheduleRepository,
 } from "../adapters/postgres/repos.js";
 import { seedFromFixtures } from "./seed.js";
 
@@ -38,6 +38,7 @@ describe("seedFromFixtures (S51)", () =>
 			schedules: new PostgresScheduleRepository(db),
 			games: new PostgresGameRepository(db),
 			projections: new PostgresGameProjectionRepository(db),
+			gameStates: new PostgresGameStateRepository(db),
 		};
 		const files = nodeFixtureFiles(FIXTURES_ROOT);
 
