@@ -280,7 +280,7 @@ export function workerApp(env: WorkerEnv): WorkerApp
 	return app;
 }
 
-/** Whether a cron tick may ingest: always deployed; in local dev only with `BT_INGEST_TICK=1`. */
+/** Whether a cron tick may ingest or refresh schedule months (S194): always deployed; in local dev only with `BT_INGEST_TICK=1`. */
 export function tickAllowed(env: WorkerEnv): boolean
 {
 	return env.BT_LOCAL !== "1" || env.BT_INGEST_TICK === "1";

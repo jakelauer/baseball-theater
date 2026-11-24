@@ -158,6 +158,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/schedule/month-versions/{year}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The version of each month of one year whose stored answer is complete, from BT's stored schedule and never from MLB: the month route's `v` for that month. A month left out is asked for without a version. */
+        get: operations["getScheduleMonthVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/schedule/month/{month}": {
         parameters: {
             query?: never;
@@ -797,6 +814,15 @@ export interface components {
             days: components["schemas"]["ScheduleDayCount"][];
             /** @description The month, `YYYY-MM`. */
             month: string;
+        };
+        /** @description The version of each complete month of one year (S194): the content hash of the whole month answer as the month route sends it (`scheduleMonthAnswer`, `scheduleMonthVersion`), which the web passes back as the month route's `?v=` so the edge may keep that exact answer long. */
+        ScheduleMonthVersionsResponse: {
+            /** @description Month (`YYYY-MM`) to its answer's version, for each month of the year whose stored answer is complete (every day known); a month left out is asked for without a version. */
+            versions: {
+                [key: string]: string;
+            };
+            /** @description The year asked for. */
+            year: number;
         };
         /** @description A team on the scoreboard (S65): the team, and its record when MLB sent one. */
         ScheduleTeam: {
@@ -1469,9 +1495,53 @@ export interface operations {
             };
         };
     };
-    getScheduleMonth: {
+    getScheduleMonthVersions: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                /** @description The year, as `YYYY`, from 1901 through next year (by MLB's today, in `America/New_York`). */
+                year: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleMonthVersionsResponse"];
+                };
+            };
+            /** @description `year_invalid`: `year` is not `YYYY`, or is before 1901 or after next year. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getScheduleMonth: {
+        parameters: {
+            query?: {
+                /** @description The month answer's version, as `GET /api/v1/schedule/month-versions/{year}` gives it. When it matches the answer, the edge keeps that answer 48 hours, or as long as it can for a month of a past year; a version that doesn't match is kept about ten minutes at most (five, then five more served stale while it is revalidated). Without it the answer is cached by how long it has gone unchanged. */
+                v?: string;
+            };
             header?: never;
             path: {
                 /** @description The month, as `YYYY-MM`, from 1901-04 through December of next year (by MLB's today, in `America/New_York`). */

@@ -1,8 +1,8 @@
 import type {
-	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, StoredScheduleDay, UserProfile,
+	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	contentHash, downloadExpired, scheduleDayTally,
+	contentHash, downloadExpired, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
 } from "@bt/domain";
 import type {
 	DataDownload,
@@ -120,10 +120,64 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 			.map(scheduleDayTally);
 	}
 
+	/** Each month's record (S194), the Postgres adapter's `schedule_months` rows. */
+	private readonly months = new Map<string, ScheduleMonthCheck>();
+
+	async listScheduleMonthChecks(from: string, to: string): Promise<ScheduleMonthCheck[]>
+	{
+		return [...this.months.values()]
+			.filter((check) => check.month >= from && check.month <= to)
+			.sort((a, b) => a.month.localeCompare(b.month))
+			.map(jsonCopy);
+	}
+
+	/** Moves `checkedAt` forward only, as the Postgres adapter's guarded update does. */
+	async recordScheduleMonthCheck(month: string, checkedAt: string): Promise<void>
+	{
+		const stored = this.months.get(month);
+		if (stored?.checkedAt && !(Date.parse(checkedAt) > Date.parse(stored.checkedAt))) return;
+		this.months.set(month, {
+			month,
+			checkedAt,
+			claimedAt: stored?.claimedAt ?? null,
+		});
+	}
+
+	/**
+	 * Takes the claim only when the month is still due (unchecked, or checked at least the refresh
+	 * interval before `at`) and unclaimed or claimed at least the lease before, as the Postgres
+	 * adapter's conditional write does.
+	 */
+	async claimScheduleMonth(month: string, at: string): Promise<boolean>
+	{
+		const stored = this.months.get(month);
+		if (stored?.claimedAt && Date.parse(at) - Date.parse(stored.claimedAt) < SCHEDULE_MONTH_CLAIM_LEASE_MS) return false;
+		if (stored?.checkedAt && Date.parse(at) - Date.parse(stored.checkedAt) < SCHEDULE_MONTH_REFRESH_INTERVAL_MS) return false;
+		this.months.set(month, {
+			month,
+			checkedAt: stored?.checkedAt ?? null,
+			claimedAt: at,
+		});
+		return true;
+	}
+
+	/** Moves the claim forward only, as the Postgres adapter's guarded update does. */
+	async holdScheduleMonth(month: string, claimedAt: string): Promise<void>
+	{
+		const stored = this.months.get(month);
+		if (stored?.claimedAt && !(Date.parse(claimedAt) > Date.parse(stored.claimedAt))) return;
+		this.months.set(month, {
+			month,
+			checkedAt: stored?.checkedAt ?? null,
+			claimedAt,
+		});
+	}
+
 	clear(): void
 	{
 		this.store.clear();
 		this.servedBases.clear();
+		this.months.clear();
 	}
 }
 

@@ -4,7 +4,7 @@ import type {
 import type { SettingsRepository } from "@bt/ports";
 import {
 	API_VERSIONS, DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
-	isCalendarMonth, latestScheduleMonth,
+	isCalendarMonth, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
 	mlbDayEndsAt, mlbToday, parseAccountSettings, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
 import type { AccountDataDeps } from "../services/account-deletion.js";
@@ -22,7 +22,7 @@ import {
 import type { ApiUsageLog } from "../services/api-usage.js";
 import { getDayDigest } from "../services/digest.js";
 import { REFRESH_COOLDOWN_MS } from "../services/refresh.js";
-import { getScheduleMonth } from "../services/schedule-month.js";
+import { getScheduleMonth, getScheduleMonthVersions } from "../services/schedule-month.js";
 import { searchHighlights } from "../services/search.js";
 import { BUNDLED_RELEASE_NOTES, getReleases } from "../services/releases.js";
 import { getDefaultScoreboardDate } from "../services/scoreboard-date.js";
@@ -30,7 +30,9 @@ import type { StandingsRead } from "../services/standings.js";
 import { getStandings, standingsNothingYet } from "../services/standings.js";
 import type { IngestDeps } from "../services/ingest.js";
 import { getOrRefreshGame, getOrRefreshSchedule } from "../services/ingest.js";
-import { edgeCacheControl, RELEASES_CACHE_CONTROL } from "./cache-control.js";
+import {
+	edgeCacheControl, RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, versionedMonthCacheControl,
+} from "./cache-control.js";
 import { liveUpgrade } from "./live.js";
 
 export type ApiContext = {
@@ -95,9 +97,10 @@ function sendError(status: number, body: ApiErrorResponse): Response
 /**
  * Sets a schedule, schedule month, game or day digest response's edge-cache header (S47, ADR-021)
  * from the stored entity's window and last change, judged at ingest's clock. Two routes pass a
- * stand-in entity: the month route (S124) `windowMode: "cache"` and the month's last change, and
- * the digest route (#61) `digestFreshness`, live while the day or any game is, last changed when
- * the latest of them did.
+ * stand-in entity: the month route (S124) `windowMode: "cache"` and the month's last change, for a
+ * complete month asked for without a version (a versioned month URL, S194, is judged by
+ * `versionedMonthCacheControl` instead), and the digest route (#61) `digestFreshness`, live while
+ * the day or any game is, last changed when the latest of them did.
  */
 function withCacheControl(response: Response, entity: Parameters<typeof edgeCacheControl>[0], ctx: ApiContext, ladder?: readonly CacheLifetimeStep[]): Response
 {
@@ -272,7 +275,7 @@ export const API_ROUTER: readonly RouteEntry[] = [
 	},
 	{
 		route: "GET /api/v1/schedule/month/:month",
-		handle: async (_url, params, ctx) =>
+		handle: async (url, params, ctx) =>
 		{
 			// One check of the month (S124 AC 5): its shape, a real month, and none before 1901-04.
 			const month = params.month ?? "";
@@ -285,7 +288,8 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			}
 			// Nor after December of next year, by MLB's today (owner, 2026-11-09: "Reject past next year"):
 			// MLB can't have published it, and answering it would cost an MLB request and stored rows.
-			const latest = latestScheduleMonth(mlbToday(ctx.ingest.now?.() ?? new Date()));
+			const today = mlbToday(ctx.ingest.now?.() ?? new Date());
+			const latest = latestScheduleMonth(today);
 			if (month > latest)
 			{
 				return sendError(400, {
@@ -294,10 +298,9 @@ export const API_ROUTER: readonly RouteEntry[] = [
 				});
 			}
 			const result = await getScheduleMonth(ctx.ingest, month);
-			const response = sendJson(200, "GET /api/v1/schedule/month/:month", {
-				month: result.month,
-				days: result.days,
-			});
+			// The body and its version come from one answer (`scheduleMonthAnswer`), so `?v=` names exactly what is sent.
+			const answer = scheduleMonthAnswer(result.month, result.days);
+			const response = sendJson(200, "GET /api/v1/schedule/month/:month", answer);
 			// A month with an unknown day (a fill MLB didn't answer, or a past day nothing stored) is kept
 			// at the edge only as long as the fill's cooldown and never served stale after (#399): the
 			// ladder's floor served such answers for up to ten minutes as months with no games, and
@@ -307,11 +310,44 @@ export const API_ROUTER: readonly RouteEntry[] = [
 				response.headers.set("Cache-Control", `public, s-maxage=${REFRESH_COOLDOWN_MS / 1000}`);
 				return response;
 			}
-			// Cached by when the month's data last changed (ADR-021), never by whether it is past.
+			// Asked for by version (S194 AC 7): the versions route named this URL, so when the version
+			// matches the answer it names exactly this content and may be kept long, a past year's
+			// longest of all; a version that doesn't match is kept only the floor (plus the stale window).
+			const version = url.searchParams.get("v");
+			if (version !== null)
+			{
+				response.headers.set("Cache-Control", versionedMonthCacheControl(month, version === scheduleMonthVersion(answer), today));
+				return response;
+			}
+			// Without a version, cached by when the month's data last changed (ADR-021's ladder, up to its
+			// 48-hour cap), whatever its year: a correction must reach a URL that names no content within it.
 			return withCacheControl(response, {
 				windowMode: "cache",
 				lastChangedAt: result.lastChangedAt,
 			}, ctx);
+		},
+	},
+	{
+		route: "GET /api/v1/schedule/month-versions/:year",
+		handle: async (_url, params, ctx) =>
+		{
+			// Any year the month route answers a month of (S194 AC 7): 1901 through next year by MLB's today.
+			const text = params.year ?? "";
+			const latestYear = Number(latestScheduleMonth(mlbToday(ctx.ingest.now?.() ?? new Date())).slice(0, 4));
+			const year = Number(text);
+			if (!/^\d{4}$/.test(text) || year < 1901 || year > latestYear)
+			{
+				return noStore(sendError(400, {
+					error: "year_invalid",
+					hint: `YYYY, 1901 through ${latestYear}`,
+				}));
+			}
+			const response = sendJson(200, "GET /api/v1/schedule/month-versions/:year", {
+				year,
+				versions: await getScheduleMonthVersions(ctx.ingest, year),
+			});
+			response.headers.set("Cache-Control", SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL);
+			return response;
 		},
 	},
 	{
