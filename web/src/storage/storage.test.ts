@@ -2,7 +2,7 @@ import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
 import {
-	clearPersonalData, readStored, STORAGE_KEYS, writeStored,
+	API_CACHE, clearPersonalData, readStored, STORAGE_KEYS, writeStored,
 } from "./storage.js";
 
 afterEach(() =>
@@ -97,5 +97,76 @@ describe("browser storage", () =>
 		clearPersonalData();
 		expect(Object.keys(localStorage)).toEqual([]);
 		expect(Object.keys(sessionStorage)).toEqual([]);
+	});
+
+	it("S74 AC 1 cache name: the API runtime cache is declared here, labeled Cache Storage and personal (ADR-028's offline caches), and is no localStorage key", () =>
+	{
+		expect(API_CACHE).toEqual({
+			name: "bt-api-v1",
+			area: "cache",
+			personal: true,
+		});
+		expect(Object.keys(STORAGE_KEYS)).not.toContain(API_CACHE.name);
+	});
+
+	it("S74: clearPersonalData deletes the offline API cache (ADR-028: offline caches go on sign-out and deletion), and leaves the shell's precache", async () =>
+	{
+		const remove = vi.fn(async () => true);
+		vi.stubGlobal("caches", {
+			delete: remove,
+		});
+		clearPersonalData();
+		await vi.waitFor(() => expect(remove).toHaveBeenCalledWith("bt-api-v1"));
+		expect(remove).toHaveBeenCalledTimes(1);
+		vi.unstubAllGlobals();
+	});
+
+	it("S74 R1: clearPersonalData tells the controlling worker to forget personal copies, so an answer still on its way isn't stored after sign-out", () =>
+	{
+		const postMessage = vi.fn();
+		vi.stubGlobal("caches", {
+			delete: vi.fn(async () => true),
+		});
+		Object.defineProperty(navigator, "serviceWorker", {
+			configurable: true,
+			value: {
+				controller: {
+					postMessage,
+				},
+			},
+		});
+		clearPersonalData();
+		expect(postMessage).toHaveBeenCalledWith({
+			type: "CLEAR_PERSONAL",
+		});
+		Object.defineProperty(navigator, "serviceWorker", {
+			configurable: true,
+			value: {
+				controller: null,
+			},
+		});
+		expect(() => clearPersonalData()).not.toThrow();
+		delete (navigator as { serviceWorker?: unknown }).serviceWorker;
+		expect(() => clearPersonalData()).not.toThrow();
+		vi.unstubAllGlobals();
+	});
+
+	it("S74: clearPersonalData still clears the keys where Cache Storage is missing or refuses", async () =>
+	{
+		vi.stubGlobal("caches", {
+			delete: vi.fn(async () =>
+			{
+				throw new Error("blocked");
+			}),
+		});
+		writeStored("bt.session", "token");
+		expect(() => clearPersonalData()).not.toThrow();
+		expect(readStored("bt.session")).toBeNull();
+		vi.unstubAllGlobals();
+		vi.stubGlobal("caches", undefined);
+		writeStored("bt.session", "token");
+		expect(() => clearPersonalData()).not.toThrow();
+		expect(readStored("bt.session")).toBeNull();
+		vi.unstubAllGlobals();
 	});
 });
