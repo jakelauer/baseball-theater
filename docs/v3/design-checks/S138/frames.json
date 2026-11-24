@@ -1,0 +1,26 @@
+{
+	"standings-calendar-closed-mobile.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/scoreboard-calendar-closed-mobile.png",
+		"docs/v3/visual/standings-search-settings/amendments/standings-offseason-mobile.png"
+	],
+	"standings-calendar-closed-medium.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/scoreboard-calendar-closed-medium.png",
+		"docs/v3/visual/standings-search-settings/amendments/standings-offseason-medium.png"
+	],
+	"standings-calendar-closed-desktop.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/scoreboard-calendar-closed-desktop.png",
+		"docs/v3/visual/standings-search-settings/amendments/standings-offseason-desktop.png"
+	],
+	"standings-calendar-open-mobile.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/scoreboard-calendar-open-mobile.png",
+		"docs/v3/visual/standings-search-settings/amendments/standings-offseason-mobile.png"
+	],
+	"standings-calendar-open-medium.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/scoreboard-calendar-open-medium.png",
+		"docs/v3/visual/standings-search-settings/amendments/standings-offseason-medium.png"
+	],
+	"standings-calendar-open-desktop.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/scoreboard-calendar-open-desktop.png",
+		"docs/v3/visual/standings-search-settings/amendments/standings-offseason-desktop.png"
+	]
+}
