@@ -238,7 +238,7 @@ export async function recordEndpoints(
 }
 
 /**
- * One highlight search (S5), recorded verbatim to `<outDir>/search-<words>.json` (`searchFixtureName`),
+ * One highlight search (S5), recorded verbatim to `<outDir>/search-<words>.json`, or a filtered one's name (S72), by `searchFixtureName`,
  * the name `FixtureMlbStatsClient.searchHighlights` reads: the request the HTTP client makes
  * (`searchHighlightsRequest`), so the recording carries every field it asks for, `guid` and
  * `playInfo` among them. The answer is checked first (`parseSearchResponse`): MLB's `errors` or a
@@ -247,7 +247,7 @@ export async function recordEndpoints(
  *
  * A library function only: `pnpm record-fixtures` (`scripts/record-fixtures.ts`) has no search form
  * yet, so `fixtures/search-walk-off.json` was recorded by calling this directly (S5, 2026-11-22), as was
- * `fixtures/search-team-147-tag-home-run.json` (S72, 2026-11-23).
+ * `fixtures/search--team-147--tag-home-run.json` (S72, 2026-11-23).
  */
 export async function recordSearch(query: string, outDir: string, options: Pick<RawRecorderOptions, "fetchImpl"> & { filters?: SearchFilters } = {}): Promise<string>
 {

@@ -1914,7 +1914,7 @@
 						"in": "query",
 						"name": "team",
 						"required": false,
-						"schema": { "minimum": 1, "type": "integer" }
+						"schema": { "maximum": 999999, "minimum": 1, "type": "integer" }
 					},
 					{
 						"description": "Only clips MLB tags with this kind of play, a lower-case taxonomy slug such as `home-run` (MLB's `ContentTags` filter).",

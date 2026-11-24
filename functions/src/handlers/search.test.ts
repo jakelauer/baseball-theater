@@ -11,6 +11,7 @@ import {
 import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { searchHighlightsRequest } from "../adapters/http/mlb.js";
+import { ROUTE_DESCRIPTIONS } from "../services/openapi.js";
 import {
 	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemorySettingsRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
@@ -208,6 +209,19 @@ describe("GET /api/v1/search/highlights filters (S72)", () =>
 			expect(response.headers.get("Cache-Control")).toBe("no-store");
 		}
 		expect((await get("/api/v1/search/highlights?q=")).status).toBe(400);
+	});
+
+	it("the spec bounds team as the route does: 999999 is a search, 1000000 a 400 invalid_filter", async () =>
+	{
+		const team = ROUTE_DESCRIPTIONS["GET /api/v1/search/highlights"].parameters.find((parameter) => parameter.name === "team");
+		expect(team?.schema).toMatchObject({
+			minimum: 1,
+			maximum: 999999,
+		});
+		expect((await get("/api/v1/search/highlights?team=999999")).status).toBe(200);
+		const tooBig = await get("/api/v1/search/highlights?team=1000000");
+		expect(tooBig.status).toBe(400);
+		expect((await tooBig.json() as { error: string }).error).toBe("invalid_filter");
 	});
 
 	it("S72 AC 1: a filtered request asks MLB's filter language, the words as a Description clause", () =>

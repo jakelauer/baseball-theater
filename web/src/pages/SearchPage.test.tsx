@@ -480,6 +480,19 @@ describe("Search's active filter chips (S72)", () =>
 		expect(requests).toEqual([]);
 	});
 
+	it("a new search from a URL with a malformed filter drops it and searches the words alone", async () =>
+	{
+		for (const entry of ["/search?team=NYY", "/search?date=2026-09-14&tag=Bad"])
+		{
+			serveFiltered(byTag);
+			renderSearch(entry);
+			await searchFor("walk-off");
+			await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/search\?q=walk-off$/));
+			await waitFor(() => expect(requests).toEqual(["q=walk-off"]));
+			cleanup();
+		}
+	});
+
 	it("says no highlights match the filters when a filter-only search finds none", async () =>
 	{
 		serveFiltered(() => ({

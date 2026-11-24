@@ -199,9 +199,11 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 				in: "query",
 				required: false,
 				description: "Only clips from games this club played, by MLB team id (`147` is the Yankees; MLB's `TeamId` filter).",
+				// The route's bound (`parseSearchFilters`: one to six digits, no leading zero).
 				schema: {
 					type: "integer",
 					minimum: 1,
+					maximum: 999999,
 				},
 			},
 			{

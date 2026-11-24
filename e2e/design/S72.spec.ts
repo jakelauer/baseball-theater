@@ -4,7 +4,7 @@
  * standings-search-settings `search-medium` and `search-desktop` (desktop at 1200px, owner 2026-10-28)
  * and A2's `search-retitled-mobile` (A2 retitles every pairing "Search Highlights"). The page is
  * `/search?team=147&tag=home-run`, answered by the dev API from MLB's recorded filtered search
- * (`fixtures/search-team-147-tag-home-run.json`: every home run in a Yankees game, newest first), so the
+ * (`fixtures/search--team-147--tag-home-run.json`: every home run in a Yankees game, newest first), so the
  * chips read `NYY` (filled in Primary) and `Home Runs`, each with its ✕.
  *
  * Judge only S72's parts (owner, 2026-10-28: "Judge only the story's own parts"): the "ACTIVE FILTERS"

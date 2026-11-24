@@ -43,17 +43,22 @@ type GameFixture = Omit<Unversioned<GameSnapshot>, "fetchedAt" | "windowMode" | 
  * The fixture name of a recorded highlight search (S5): `search-<words>.json`, the words MLB is sent
  * (`mlbSearchText`), lower-cased, each run of other characters a hyphen, so `walk-off` and
  * `Walk off` both read `search-walk-off.json`. `recordSearch` (`services/recorder.ts`, a library function
- * with no `pnpm record-fixtures` form yet) writes the same name. A filtered search (S72) adds each filter
- * after the words, in the order date, team, tag: `search-team-147-tag-home-run.json` is every Yankees
- * home run, `search-judge-date-2026-09-14.json` Judge's clips that day.
+ * with no `pnpm record-fixtures` form yet) writes the same name. A filtered search (S72) adds one
+ * `--<filter>-<value>` part per filter after the words (none when there are no words), in the order date,
+ * team, tag: `search--team-147--tag-home-run.json` is every Yankees home run,
+ * `search-judge--date-2026-09-14.json` Judge's clips that day. The words never hold `--` and no filter
+ * value can (a `YYYY-MM-DD` date, a team id, an `isSearchTag` slug), so the first `--` ends the words and
+ * the words "team 147 tag home run" (`search-team-147-tag-home-run.json`) never read a filtered recording.
  */
 export function searchFixtureName(query: string, filters: SearchFilters = {}): string
 {
-	const parts = [mlbSearchText(query)];
-	if (filters.date !== undefined) parts.push(`date ${filters.date}`);
-	if (filters.teamId !== undefined) parts.push(`team ${filters.teamId}`);
-	if (filters.tag !== undefined) parts.push(`tag ${filters.tag}`);
-	return `search-${parts.join(" ").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.json`;
+	const slug = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+	const words = slug(mlbSearchText(query));
+	let name = words ? `search-${words}` : "search";
+	if (filters.date !== undefined) name += `--date-${slug(filters.date)}`;
+	if (filters.teamId !== undefined) name += `--team-${filters.teamId}`;
+	if (filters.tag !== undefined) name += `--tag-${slug(filters.tag)}`;
+	return `${name}.json`;
 }
 
 /**
@@ -239,9 +244,11 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 	}
 
 	/**
-	 * A recorded highlight search, `fixtures/search-<words>.json` (S5; MLB's answer verbatim), mapped
-	 * as the HTTP client maps it; no results for words with no recording, so local search answers
-	 * offline. A recording that reads but isn't the search's shape throws, as MLB's would.
+	 * A recorded highlight search (MLB's answer verbatim), mapped as the HTTP client maps it:
+	 * `fixtures/search-<words>.json` for words alone (S5), or with S72's filters the filtered name,
+	 * such as `fixtures/search--team-147--tag-home-run.json` (`searchFixtureName`, one rule for both). No
+	 * results for a search with no recording, so local search answers offline. A recording that reads but
+	 * isn't the search's shape throws, as MLB's would.
 	 */
 	async searchHighlights(query: string, filters?: SearchFilters): Promise<SearchHighlightsPage>
 	{

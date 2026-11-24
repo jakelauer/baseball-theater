@@ -30,7 +30,8 @@ import { LazyPlayerDialog } from "../components/videos/LazyPlayerDialog.js";
  * S72's filters live in the URL too (`?date=`, `?team=`, `?tag=`, read by `parseSearchFilters`, the
  * route's own parser), each drawn as an "Active filters" chip under the box; removing one drops it from
  * the URL, which asks the search again without it, and a new search keeps the filters set. A filter alone
- * is a search (every Yankees home run); a URL with a malformed filter shows what an empty box does.
+ * is a search (every Yankees home run); a URL with a malformed filter shows what an empty box does, and
+ * a new search from it searches the words without that URL's filters.
  *
  * A row plays its clip in S70's floating player over the results, whatever the Video Player setting
  * (there is no stage on Search), with the link to its game when it has one (A2, A6). Loading, no
@@ -49,22 +50,31 @@ export function SearchPage()
 		data, error, refetch,
 	} = useHighlightSearch(q, filters);
 
-	/** The URL for words `words` with the filters set now, less `without` (a removed chip's). */
+	/**
+	 * The URL for words `words` with the filters set now, less `without` (a removed chip's). It writes the
+	 * parsed `filters`, not the URL's raw values, so a malformed filter (which draws no chip and so can't be
+	 * removed) drops on the next search instead of keeping every search empty.
+	 */
 	function navigate(words: string, without?: SearchFilterName)
 	{
 		const next = new URLSearchParams();
 		if (words) next.set("q", words);
+		const values: Record<SearchFilterName, string | undefined> = {
+			date: filters.date,
+			team: filters.teamId === undefined ? undefined : String(filters.teamId),
+			tag: filters.tag,
+		};
 		for (const name of ["date", "team", "tag"] as const)
 		{
-			const value = params.get(name);
-			if (value !== null && name !== without) next.set(name, value);
+			const value = values[name];
+			if (value !== undefined && name !== without) next.set(name, value);
 		}
 		setParams(next);
 	}
 
 	let body = null;
 	// Words the route would refuse (only hyphens or spaces with no filter, or past the limit, as a pasted URL can hold) and
-	// malformed filters show what an empty box does.
+	// malformed filters show what an empty box does (no chip; the next search drops them, `navigate`).
 	if (parsed !== "invalid" && searchableWith(q, filters))
 	{
 		const screen = queryScreen({
