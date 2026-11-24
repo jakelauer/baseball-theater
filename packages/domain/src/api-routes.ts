@@ -79,6 +79,21 @@ export interface ScheduleMonthResponse {
 	days: ScheduleDayCount[];
 }
 
+/**
+ * The version of each complete month of one year (S194): the content hash of the whole month answer
+ * as the month route sends it (`scheduleMonthAnswer`, `scheduleMonthVersion`), which the web passes
+ * back as the month route's `?v=` so the edge may keep that exact answer long.
+ */
+export interface ScheduleMonthVersionsResponse {
+	/** The year asked for. */
+	year: number;
+	/**
+	 * Month (`YYYY-MM`) to its answer's version, for each month of the year whose stored answer is
+	 * complete (every day known); a month left out is asked for without a version.
+	 */
+	versions: Record<string, string>;
+}
+
 /** The day the scoreboard opens on (S111): today in season, the last final in the off-season. */
 export interface ScoreboardDefaultDateResponse {
 	/** The day, `YYYY-MM-DD`. */
@@ -273,6 +288,7 @@ export interface ReleasesResponse {
 export interface ApiResponseTypes {
 	ScheduleDayResponse: ScheduleDayResponse;
 	ScheduleMonthResponse: ScheduleMonthResponse;
+	ScheduleMonthVersionsResponse: ScheduleMonthVersionsResponse;
 	GameSnapshotResponse: GameSnapshotResponse;
 	DayDigestResponse: DayDigestResponse;
 	SearchHighlightsResponse: SearchHighlightsResponse;
@@ -297,6 +313,7 @@ export interface ApiResponseTypes {
 export const ApiRoutes = {
 	"GET /api/v1/schedule": "ScheduleDayResponse",
 	"GET /api/v1/schedule/month/:month": "ScheduleMonthResponse",
+	"GET /api/v1/schedule/month-versions/:year": "ScheduleMonthVersionsResponse",
 	"GET /api/v1/games/:gamePk": "GameSnapshotResponse",
 	"GET /api/v1/digest": "DayDigestResponse",
 	"GET /api/v1/search/highlights": "SearchHighlightsResponse",

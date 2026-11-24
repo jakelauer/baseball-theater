@@ -1,7 +1,9 @@
 /**
  * scripts/review-gate.sh's words (S156 AC 13): a due review starts beside a parallel run's in-flight
  * items, never pausing them, and a blocked one points at the ledger's fragments, not at the frozen
- * AUDIT.md. Runs the real gate in a clean throwaway repository whose debt scripts and ledger CLI are stubs.
+ * AUDIT.md. Its Stop loop guard (B481) lets a forced turn stop once per HEAD + due set in Claude Code
+ * and in Cursor, which runs the same hook but sends `loop_count` instead of `stop_hook_active`.
+ * Runs the real gate in a clean throwaway repository whose debt scripts and ledger CLI are stubs.
  */
 import { spawnSync } from "node:child_process";
 import {
@@ -58,6 +60,12 @@ const prompt = () => spawnSync("bash", [join(repo, "scripts/review-gate.sh"), "p
 	input: "",
 }).stdout;
 
+const stop = (input: object) => spawnSync("bash", [join(repo, "scripts/review-gate.sh"), "stop"], {
+	cwd: repo,
+	encoding: "utf8",
+	input: JSON.stringify(input),
+}).stdout;
+
 beforeEach(() =>
 {
 	repo = mkdtempSync(join(tmpdir(), "review-gate-"));
@@ -86,5 +94,41 @@ describe("review-gate.sh prompt", () =>
 		expect(out).toContain("Blocked, waiting for the owner's answers");
 		expect(out).toContain("a fragment under docs/v3/audit/");
 		expect(out).not.toContain("AUDIT.md");
+	});
+});
+
+describe("review-gate.sh stop loop guard", () =>
+{
+	it("lets Claude Code stop after one forced turn that committed no review", () =>
+	{
+		world(true, "none");
+		expect(stop({
+			stop_hook_active: false,
+		})).toContain("\"decision\":\"block\"");
+		expect(stop({
+			stop_hook_active: true,
+		})).toBe("");
+	});
+
+	it("lets Cursor stop after one forced turn that committed no review (B481)", () =>
+	{
+		world(true, "none");
+		expect(stop({
+			status: "completed",
+			loop_count: 0,
+		})).toContain("\"decision\":\"block\"");
+		expect(stop({
+			status: "completed",
+			loop_count: 1,
+		})).toBe("");
+	});
+
+	it("still blocks a forced Cursor turn the gate has not yet blocked for this HEAD and due set", () =>
+	{
+		world(true, "none");
+		expect(stop({
+			status: "completed",
+			loop_count: 3,
+		})).toContain("\"decision\":\"block\"");
 	});
 });

@@ -1,5 +1,5 @@
 /**
- * Team colors and division names (S61; VISUAL-DESIGN §3 "Team colors").
+ * Team colors and league names (S61, S155; VISUAL-DESIGN §3 "Team colors").
  *
  * MLB's API carries no team colors, so this is a hand-made table of each club's
  * official primary color (owner, 2026-10-19), keyed by the `MLB_TEAMS` ids (`teams.ts`) — never a
@@ -109,26 +109,6 @@ export function contrastSafeTeamColor(teamId: number): string | undefined
 	let step = 0;
 	while (contrastRatio(lighten(raw, step / 20), DARK_GROUND) < TEAM_COLOR_MIN_CONTRAST) step++;
 	return lighten(raw, step / 20);
-}
-
-/**
- * Division names by Stats API division id. The standings recording carries
- * `name: null` for every division (fixtures/standings-2026-09-05.json), so the six
- * names live here; `undefined` for any other id.
- */
-const DIVISION_NAMES: Readonly<Record<number, string>> = {
-	200: "AL West",
-	201: "AL East",
-	202: "AL Central",
-	203: "NL West",
-	204: "NL East",
-	205: "NL Central",
-};
-
-/** A division's short name ("AL East"), or `undefined` for an unknown id. */
-export function divisionName(divisionId: number): string | undefined
-{
-	return DIVISION_NAMES[divisionId];
 }
 
 /**

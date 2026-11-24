@@ -7,13 +7,28 @@
  * the stored one is a no-op (ADR-022 apply-if-newer).
  */
 import type {
-	AccountSettings, GameProjection, GameSnapshot, ScheduleDay, ScheduleDayTally,
+	AccountSettings, GameProjection, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay,
 } from "@bt/domain";
 import type { ReplayPatchEntry } from "@bt/mlb-api";
 
+/**
+ * Stored schedule days (S150 AC 5: `StoredScheduleDay`, no game's status, linescore or live moment, which
+ * `GameStateRepository` holds; a postponed or suspended listing keeps its own status as `listingStatus`). Beside each
+ * day's document is its `served_base` (S150 AC 6), a counter of this database's own, outside the document so it isn't
+ * hashed: the served day's version adds it, so dropping a game from a day never lowers that version. An adapter reads the games' state versions itself, from the same store as
+ * `GameStateRepository`.
+ */
 export interface ScheduleRepository {
-	getByDate(date: string): Promise<ScheduleDay | null>;
-	upsert(day: ScheduleDay): Promise<void>;
+	getByDate(date: string): Promise<StoredScheduleDay | null>;
+	/** The day and its `served_base` in one read, so the served version is never summed from two different moments. */
+	getWithServedBase(date: string): Promise<{ day: StoredScheduleDay;
+		servedBase: number; } | null>;
+	/**
+	 * Writes the day if its version is newer (ADR-022). The same write raises its `served_base` by the state versions,
+	 * as stored at that moment, of the games the stored day lists and `day` doesn't, so a stop can never leave one
+	 * without the other and no state write in between can make the served version fall.
+	 */
+	upsert(day: StoredScheduleDay): Promise<void>;
 	/**
 	 * Every stored day from `from` to `to` (both included, `YYYY-MM-DD`) as its game count, its
 	 * teams' IDs (S136; each once, ascending), its games' types with whether it has a
@@ -21,10 +36,61 @@ export interface ScheduleRepository {
 	 * order, in one read (S124's month view): days nothing stored are left out.
 	 */
 	listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>;
+	/**
+	 * Every recorded schedule month from `from` to `to` (both included, `YYYY-MM`), in month order, in
+	 * one read (S194): when BT last checked each against MLB and when a refresh last claimed it. Months
+	 * never recorded are left out.
+	 */
+	listScheduleMonthChecks(from: string, to: string): Promise<ScheduleMonthCheck[]>;
+	/**
+	 * Records that BT checked `month` against MLB at `checkedAt` (an ISO instant), moving the stored
+	 * `checkedAt` only forward: the later of the stored and the given time stays, so a fill that
+	 * finishes late never moves it back (S194 AC 1).
+	 */
+	recordScheduleMonthCheck(month: string, checkedAt: string): Promise<void>;
+	/**
+	 * Claims `month` for a refresh at `at` (an ISO instant), in one conditional write: it succeeds,
+	 * and returns true, only when the month is still due (never checked, or checked at least
+	 * `SCHEDULE_MONTH_REFRESH_INTERVAL_MS` before `at`) and is unclaimed or its claim is at least
+	 * `SCHEDULE_MONTH_CLAIM_LEASE_MS` older than `at`; otherwise it changes nothing and returns false
+	 * (S194 AC 1), so two refreshes racing for a month never both take it, and a month another tick
+	 * checked after this one read the records isn't filled twice.
+	 */
+	claimScheduleMonth(month: string, at: string): Promise<boolean>;
+	/**
+	 * Moves `month`'s claim forward to `claimedAt` (an ISO instant, possibly in the future), never
+	 * back: how a refresh whose fill MLB didn't answer keeps the month from being claimed again for
+	 * `SCHEDULE_MONTH_FAILED_LEASE_MS` (S194 review), since a claim holds until `claimedAt` plus the lease.
+	 */
+	holdScheduleMonth(month: string, claimedAt: string): Promise<void>;
+}
+
+/**
+ * One `game_states` row per game (S150 AC 3): the one stored copy of a game's status, linescore and live moment.
+ * Only `switchGameState` writes it (the baseball-data copy aside).
+ */
+export interface GameStateRepository {
+	getByPk(gamePk: number): Promise<GameStateRow | null>;
+	/** The rows of `gamePks` that exist, in no particular order. */
+	getMany(gamePks: readonly number[]): Promise<GameStateRow[]>;
+	/**
+	 * Writes `rows` (distinct gamePks) in one write and returns the gamePks it took. A row is taken when its state's
+	 * version is newer than the stored one (replacing the state, the source and the official date), or when its version
+	 * is the same, its state is equal to the stored one (`version` and `lastChangedAt` included) and its feed time is
+	 * newer: then only the accepted feed time and the source move (only a feed write carries a feed time, so the row is
+	 * then the feed's), never the state, so one version never stands for two states (ADR-022). The accepted feed time
+	 * never moves back, and a row with no first pitch never clears a stored one.
+	 */
+	write(rows: readonly GameStateRow[]): Promise<number[]>;
 }
 
 export interface GameRepository {
 	getByPk(gamePk: number): Promise<GameSnapshot | null>;
+	/**
+	 * What `gameStateFromGame` reads of each stored game of `gamePks` (S150 AC 6: a game with no `game_states` row is
+	 * served from its snapshot), in one read and without the rest of the document; games not stored are left out.
+	 */
+	getStateFields(gamePks: readonly number[]): Promise<GameStateFields[]>;
 	upsert(game: GameSnapshot): Promise<void>;
 	listByDate(date: string): Promise<GameSnapshot[]>;
 }
