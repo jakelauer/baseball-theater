@@ -5,7 +5,7 @@
 import type { AccountSettings } from "@bt/domain";
 import { MantineProvider } from "@mantine/core";
 import {
-	act, cleanup, render, screen,
+	act, cleanup, fireEvent, render, screen,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import {
@@ -83,5 +83,38 @@ describe("PlayerHost", () =>
 			</MantineProvider>,
 		);
 		expect(screen.queryByTestId("video-player")).toBeNull();
+	});
+
+	it("stage: Esc closes a chosen clip, as it does the dialog, and does nothing while the stage only waits (#414)", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(async (request: Request) => jsonResponse(await request.json() as AccountSettings)));
+		await act(() => setVideoPlayer("stage"));
+		const onClose = vi.fn();
+		const { rerender } = render(
+			<MantineProvider>
+				<PlayerHost video={null} first={clip("first")} onClose={onClose} />
+			</MantineProvider>,
+		);
+		fireEvent.keyDown(document.body, {
+			key: "Escape",
+			code: "Escape",
+		});
+		expect(onClose).not.toHaveBeenCalled();
+		const card = document.createElement("button");
+		document.body.append(card);
+		card.focus();
+		rerender(
+			<MantineProvider>
+				<PlayerHost video={clip("chosen")} first={clip("first")} onClose={onClose} />
+			</MantineProvider>,
+		);
+		card.blur();
+		fireEvent.keyDown(document.body, {
+			key: "Escape",
+			code: "Escape",
+		});
+		expect(onClose).toHaveBeenCalledTimes(1);
+		expect(document.activeElement).toBe(card);
+		card.remove();
 	});
 });
