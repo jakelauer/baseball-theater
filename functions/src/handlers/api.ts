@@ -4,7 +4,7 @@ import type {
 import type { SettingsRepository } from "@bt/ports";
 import {
 	API_VERSIONS, DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
-	isCalendarMonth, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
+	isCalendarMonth, isPastFinishedGame, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
 	mlbDayEndsAt, mlbToday, parseAccountSettings, parseSearchFilters, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
 import type { AccountDataDeps } from "../services/account-deletion.js";
@@ -20,6 +20,7 @@ import {
 	currentDownload, downloadFile, requestDownload,
 } from "../services/data-downloads.js";
 import type { ApiUsageLog } from "../services/api-usage.js";
+import type { DigestEdgeLifetime } from "../services/digest.js";
 import { getDayDigest } from "../services/digest.js";
 import { REFRESH_COOLDOWN_MS } from "../services/refresh.js";
 import { getScheduleMonth, getScheduleMonthVersions } from "../services/schedule-month.js";
@@ -29,9 +30,9 @@ import { getDefaultScoreboardDate } from "../services/scoreboard-date.js";
 import type { StandingsRead } from "../services/standings.js";
 import { getStandings, standingsNothingYet } from "../services/standings.js";
 import type { IngestDeps } from "../services/ingest.js";
-import { getOrRefreshGame, getOrRefreshSchedule } from "../services/ingest.js";
+import { getOrRefreshGame, getScheduleRead } from "../services/ingest.js";
 import {
-	edgeCacheControl, RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, versionedMonthCacheControl,
+	edgeCacheControl, PARTIAL_PAST_DIGEST_CACHE_CONTROL, PAST_CACHE_CONTROL, RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, versionedMonthCacheControl,
 } from "./cache-control.js";
 import { liveUpgrade } from "./live.js";
 
@@ -100,11 +101,27 @@ function sendError(status: number, body: ApiErrorResponse): Response
  * stand-in entity: the month route (S124) `windowMode: "cache"` and the month's last change, for a
  * complete month asked for without a version (a versioned month URL, S194, is judged by
  * `versionedMonthCacheControl` instead), and the digest route (#61) `digestFreshness`, live while
- * the day or any game is, last changed when the latest of them did.
+ * the day or any game is, last changed when the latest of them did. Past, finished data (S212) never comes here:
+ * {@link withReadCacheControl} sends it `PAST_CACHE_CONTROL` (or a partial past digest's floor, or `no-store` forced).
  */
 function withCacheControl(response: Response, entity: Parameters<typeof edgeCacheControl>[0], ctx: ApiContext, ladder?: readonly CacheLifetimeStep[]): Response
 {
 	response.headers.set("Cache-Control", edgeCacheControl(entity, ctx.ingest.now?.() ?? new Date(), ladder));
+	return response;
+}
+
+/**
+ * Sets the edge-cache header of a schedule day, game or digest read (S212), the one place a route chooses between the
+ * past, finished lifetime and ADR-021's ladder: `ladder` goes to {@link withCacheControl}; `past` gets
+ * `PAST_CACHE_CONTROL`, and `partialPast` (a past digest missing a game it couldn't read)
+ * `PARTIAL_PAST_DIGEST_CACHE_CONTROL`. A forced read (`?refresh=1`) of past data gets `no-store` (S212 review): its
+ * URL is its own cache key, which no purge names, so the long lifetime there would outlast any correction.
+ */
+function withReadCacheControl(response: Response, read: { lifetime: DigestEdgeLifetime;
+	force?: boolean; }, entity: Parameters<typeof edgeCacheControl>[0], ctx: ApiContext): Response
+{
+	if (read.lifetime === "ladder") return withCacheControl(response, entity, ctx);
+	response.headers.set("Cache-Control", read.force ? "no-store" : read.lifetime === "past" ? PAST_CACHE_CONTROL : PARTIAL_PAST_DIGEST_CACHE_CONTROL);
 	return response;
 }
 
@@ -267,10 +284,14 @@ export const API_ROUTER: readonly RouteEntry[] = [
 				});
 			}
 			const force = url.searchParams.get("refresh") === "1";
-			const day = await getOrRefreshSchedule(ctx.ingest, date, {
+			const { day, pastFinished } = await getScheduleRead(ctx.ingest, date, {
 				force,
 			});
-			return withCacheControl(sendJson(200, "GET /api/v1/schedule", toScheduleDayResponse(day)), day, ctx);
+			// S212: a past, finished day is kept at the edge for weeks and purged when the cron changes it.
+			return withReadCacheControl(sendJson(200, "GET /api/v1/schedule", toScheduleDayResponse(day)), {
+				lifetime: pastFinished ? "past" : "ladder",
+				force,
+			}, day, ctx);
 		},
 	},
 	{
@@ -362,10 +383,16 @@ export const API_ROUTER: readonly RouteEntry[] = [
 					hint: "YYYY-MM-DD",
 				});
 			}
-			const { freshness, digest } = await getDayDigest(ctx.ingest, date);
-			// The digest is cached by the graduated rule (S71, #61): not while the day or a game is live,
+			const {
+				freshness, digest, edgeLifetime,
+			} = await getDayDigest(ctx.ingest, date);
+			// S212: a past, finished day whose games are all past, finished and read is kept for weeks (purged on a change);
+			// one missing a game it couldn't read is kept only the floor, so the next read tries that game again.
+			// Otherwise by the graduated rule (S71, #61): not while the day or a game is live,
 			// then by how long since the latest of them changed.
-			return withCacheControl(sendJson(200, "GET /api/v1/digest", digest), freshness, ctx);
+			return withReadCacheControl(sendJson(200, "GET /api/v1/digest", digest), {
+				lifetime: edgeLifetime,
+			}, freshness, ctx);
 		},
 	},
 	{
@@ -497,7 +524,11 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			{
 				return notFound();
 			}
-			return withCacheControl(sendJson(200, "GET /api/v1/games/:gamePk", toGameSnapshotResponse(game)), game, ctx);
+			// S212: a past, finished game is kept at the edge for weeks and purged when the cron changes it.
+			return withReadCacheControl(sendJson(200, "GET /api/v1/games/:gamePk", toGameSnapshotResponse(game)), {
+				lifetime: isPastFinishedGame(game, ctx.ingest.now?.() ?? new Date()) ? "past" : "ladder",
+				force,
+			}, game, ctx);
 		},
 	},
 	{

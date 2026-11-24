@@ -67,7 +67,8 @@ export default defineConfig({
 				// Raised 2026-10-30 by S18 (the live hub, its route and their tests): branches 91.19.
 				// Raised 2026-11-07 by S120: branches 92.28.
 				// Raised 2026-11-23 by S194: branches 93.74.
-				branches: 93,
+				// Raised 2026-11-24 by S212 (past, finished reads, the edge purge, the recent-game re-check): branches 94.13.
+				branches: 94,
 				statements: 98,
 			},
 		},

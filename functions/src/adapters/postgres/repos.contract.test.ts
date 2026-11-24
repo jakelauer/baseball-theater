@@ -16,11 +16,14 @@ import {
 import type { ScheduleRepository } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../fixtures/mlb.js";
 import { memoryScheduleStores } from "../memory/repos.js";
-import { describeGameStateContract, describeServedBaseContract } from "../repository-contract.js";
-import { describeStorageContract } from "../storage-contract.js";
+import {
+	describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract, describeServedBaseContract,
+} from "../repository-contract.js";
+import { contractGame, describeStorageContract } from "../storage-contract.js";
 import type { PostgresDb } from "./repos.js";
 import {
 	PostgresDeletionLog,
+	PostgresOwedEdgePurgeRepository,
 	PostgresGameProjectionRepository,
 	PostgresGameRepository,
 	PostgresGameStateRepository,
@@ -37,7 +40,7 @@ const migrated = migrate(db as Parameters<typeof migrate>[0], {
 });
 
 /** Every table the migrations create, emptied between cases. */
-const TABLES = ["schedule_days", "game_states", "schedule_months", "games", "game_projections", "replay_artifacts", "identity_links", "entitlements", "users", "account_settings", "deletion_log"];
+const TABLES = ["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts", "identity_links", "entitlements", "users", "account_settings", "deletion_log"];
 
 /** Empties every table, after the migrations have run. */
 function emptied(): Promise<unknown>
@@ -110,6 +113,18 @@ describeServedBaseContract("PostgresScheduleRepository", () =>
 		gameStates: gated(new PostgresGameStateRepository(db), ready),
 	};
 });
+
+// The game and game-state stores over one emptied database, as the re-check read joins them (S212 AC 5).
+describeGameRecheckContract("PostgresGameRepository", () =>
+{
+	const ready = emptied();
+	return {
+		games: gated(new PostgresGameRepository(db), ready),
+		gameStates: gated(new PostgresGameStateRepository(db), ready),
+	};
+}, contractGame);
+
+describeOwedEdgePurgeContract("PostgresOwedEdgePurgeRepository", () => gated(new PostgresOwedEdgePurgeRepository(db), emptied()));
 
 describe("Postgres adapter (S50)", () =>
 {

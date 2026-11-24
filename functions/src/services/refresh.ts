@@ -67,6 +67,9 @@ export class RefreshCoordinator
 	/**
 	 * When the last refresh of `key` that counts as a check settled (epoch ms), or undefined if
 	 * none has. Without a `countsAsCheck` predicate every settled refresh counts, thrown or not.
+	 * It lives in one isolate's memory only, so since S212 it no longer decides a past, finished read
+	 * (served from the store whatever this says, `isPastFinishedDay` / `isPastFinishedGame`); it still
+	 * stretches `needsRefresh`'s check time for today's and future days, unfinished data and the month fill.
 	 */
 	lastRefreshedAt(key: string): number | undefined
 	{

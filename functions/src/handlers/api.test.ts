@@ -243,7 +243,8 @@ describe("handleApiRequest", () =>
 			schedules, games, gameStates,
 		}) =>
 		{
-			// The day and its games settled long ago, out of the window; then one game changed an hour ago.
+			// The day and its games out of the window long ago; then one game changed an hour ago. That game is left
+			// suspended (never resumed), so the day isn't past and finished (S212) and keeps the graduated rule this proves.
 			const day = (await schedules.getByDate("2024-07-04"))!;
 			await schedules.upsert({
 				...day,
@@ -260,7 +261,11 @@ describe("handleApiRequest", () =>
 					...row,
 					state: {
 						...row.state,
-						status: {
+						status: index === 0 ? {
+							abstractGameState: "Live",
+							codedGameState: "U",
+							detailedState: "Suspended: Rain",
+						} : {
 							abstractGameState: "Final",
 							codedGameState: "F",
 							detailedState: "Final",

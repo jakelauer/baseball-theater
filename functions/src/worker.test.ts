@@ -10,6 +10,8 @@ import {
 import { FixtureClient } from "./adapters/fixtures/fixture-client.js";
 import { HttpMlbStatsClient } from "./adapters/http/mlb.js";
 import * as gameIngest from "./services/game-ingest.js";
+import * as edgePurge from "./services/edge-purge.js";
+import * as gameRecheck from "./services/game-recheck.js";
 import * as scheduleRefresh from "./services/schedule-refresh.js";
 import { useNodeDatabase } from "./test/node-database.js";
 import { handleApiRequest } from "./handlers/api.js";
@@ -165,7 +167,8 @@ describe("the Worker entry (S45)", () =>
 			GAME_INGEST: namespaceRecording(ensured),
 		}, ctx);
 		const settled = await Promise.allSettled(waits);
-		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "rejected"]);
+		// The third is S212's re-check, which has no due game here, and the fourth its owed-purge retry, which has none.
+		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "fulfilled", "fulfilled", "rejected"]);
 		expect(ensured).toEqual(["game-ingest:1", "game-ingest:2"]);
 		refresh.mockRestore();
 		ingest.mockRestore();
@@ -180,7 +183,8 @@ describe("the Worker entry (S45)", () =>
 			GAME_INGEST: namespaceRecording([]),
 		}, ctx);
 		const settled = await Promise.allSettled(waits);
-		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "rejected"]);
+		// The third is S212's re-check, which has no due game here, and the fourth its owed-purge retry, which has none.
+		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "fulfilled", "fulfilled", "rejected"]);
 		expect(refresh).toHaveBeenCalledTimes(1);
 		const month = await refresh.mock.results[0]!.value as string | null;
 		expect(month).toMatch(/^\d{4}-\d{2}$/);
@@ -210,5 +214,49 @@ describe("the Worker entry (S45)", () =>
 		await Promise.allSettled(waits);
 		refresh.mockRestore();
 		ingest.mockRestore();
+	});
+
+	it("S212 AC 5 recheck rejects: a re-check that rejects leaves the month refresh and the ingest running, each in its own waitUntil", async () =>
+	{
+		const recheck = vi.spyOn(gameRecheck, "recheckDueGame").mockRejectedValue(new Error("database down"));
+		const refresh = vi.spyOn(scheduleRefresh, "refreshDueScheduleMonth").mockResolvedValue("2026-11");
+		const ingest = vi.spyOn(gameIngest, "ensureIngestRunning").mockResolvedValue([]);
+		const { waits, ctx } = collecting();
+		await worker.scheduled(undefined, {
+			GAME_INGEST: namespaceRecording([]),
+		}, ctx);
+		const settled = await Promise.allSettled(waits);
+		expect(settled.map((s) => s.status)).toEqual(["fulfilled", "fulfilled", "rejected", "fulfilled"]);
+		expect(recheck).toHaveBeenCalledTimes(1);
+		expect(refresh).toHaveBeenCalledTimes(1);
+		expect(ingest).toHaveBeenCalledTimes(1);
+		await worker.scheduled(undefined, {
+			BT_LOCAL: "1",
+		}, ctx);
+		// In local dev without BT_INGEST_TICK the tick runs nothing, the re-check included (`tickAllowed`).
+		expect(recheck).toHaveBeenCalledTimes(1);
+		recheck.mockRestore();
+		refresh.mockRestore();
+		ingest.mockRestore();
+	});
+
+	it("S212 review retry rejects: an owed-purge retry that rejects leaves the ingest, the month refresh and the re-check running, in its own waitUntil", async () =>
+	{
+		const retry = vi.spyOn(edgePurge, "retryOwedEdgePurges").mockRejectedValue(new Error("database down"));
+		const recheck = vi.spyOn(gameRecheck, "recheckDueGame").mockResolvedValue(null);
+		const refresh = vi.spyOn(scheduleRefresh, "refreshDueScheduleMonth").mockResolvedValue("2026-11");
+		const ingest = vi.spyOn(gameIngest, "ensureIngestRunning").mockResolvedValue([]);
+		const { waits, ctx } = collecting();
+		await worker.scheduled(undefined, {
+			GAME_INGEST: namespaceRecording([]),
+		}, ctx);
+		const settled = await Promise.allSettled(waits);
+		expect(settled.map((s) => s.status)).toEqual(["fulfilled", "fulfilled", "fulfilled", "rejected"]);
+		expect([retry, recheck, refresh, ingest].map((spy) => spy.mock.calls.length)).toEqual([1, 1, 1, 1]);
+		await worker.scheduled(undefined, {
+			BT_LOCAL: "1",
+		}, ctx);
+		expect(retry).toHaveBeenCalledTimes(1);
+		for (const spy of [retry, recheck, refresh, ingest]) spy.mockRestore();
 	});
 });

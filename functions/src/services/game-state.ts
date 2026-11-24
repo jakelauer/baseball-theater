@@ -9,7 +9,8 @@ import type {
 	CadenceParams, GameSnapshot, GameState, GameStateRow, GameStateSource, ScheduleDay, StoredScheduleDay, Unversioned,
 } from "@bt/domain";
 import {
-	addDays, DEFAULT_CADENCE, gameStateFromGame, gameStateSource, isOtherDaysListing, isSuspendedStatus, joinScheduleDay, listingMovedAway, mlbToday, scheduleWindowMode,
+	addDays, clockWindowMode, DEFAULT_CADENCE, gameStateFromGame, gameStateSource, isOtherDaysListing,
+	isSuspendedStatus, joinScheduleDay, listingMovedAway, mlbToday, scheduleWindowMode,
 	stampVersion, suspendedSince,
 } from "@bt/domain";
 import type {
@@ -36,12 +37,18 @@ export type GameStateWrite = {
 };
 
 /**
- * What the switch did with one game's write: the row as it is then stored (null when the game has none), and whether
- * the write was skipped as a feed copy older than the row's accepted feed time (`storeGame` then stores no snapshot when one is already stored).
+ * What the switch did with one game's write: the row as it is then stored (null when the game has none), whether
+ * the write was skipped as a feed copy older than the row's accepted feed time (`storeGame` then stores no snapshot when
+ * one is already stored), and whether it stored a new state version (S212: what tells the writers a served day or game
+ * changed, so they purge its edge copy; a feed time moved on an unchanged state is not one). `before` is the row as the
+ * switch read it before its write (null when the game had none), so a writer can tell whether what it changed was past
+ * and finished before the write without another read (S212 review).
  */
 export type SwitchOutcome = {
 	row: GameStateRow | null;
+	before: GameStateRow | null;
 	staleFeed: boolean;
+	stateChanged: boolean;
 };
 
 /**
@@ -144,7 +151,9 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 			const decided = decide(row, write, now);
 			if (typeof decided === "string") outcomes.set(write.gamePk, {
 				row,
+				before: row,
 				staleFeed: decided === "staleFeed",
+				stateChanged: false,
 			});
 			else nexts.push(decided);
 		}
@@ -154,7 +163,9 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 		{
 			if (taken.has(next.gamePk)) outcomes.set(next.gamePk, {
 				row: storedAfter(rows.get(next.gamePk) ?? null, next),
+				before: rows.get(next.gamePk) ?? null,
 				staleFeed: false,
+				stateChanged: rows.get(next.gamePk)?.state.version !== next.state.version,
 			});
 		}
 		todo = todo.filter((write) => !outcomes.has(write.gamePk));
@@ -164,9 +175,12 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 	if (refused.length > 0)
 	{
 		const stored = new Map((await deps.gameStates.getMany(refused.map((write) => write.gamePk))).map((row) => [row.gamePk, row]));
+		// Another writer stored the row; its own write purged what it changed.
 		for (const write of refused) outcomes.set(write.gamePk, {
 			row: stored.get(write.gamePk) ?? null,
+			before: stored.get(write.gamePk) ?? null,
 			staleFeed: false,
+			stateChanged: false,
 		});
 	}
 	return outcomes;
@@ -189,19 +203,32 @@ export async function readJoinedScheduleDay(deps: GameStateDeps, date: string, n
 	if (!held) return null;
 	const gamePks = held.day.games.map((game) => game.gamePk);
 	const rows = new Map((await deps.gameStates.getMany(gamePks)).map((row) => [row.gamePk, row]));
-	const missing = gamePks.filter((pk) => !rows.has(pk));
+	return joinStoredScheduleDay(deps, held.day, held.servedBase, rows, now);
+}
+
+/**
+ * {@link readJoinedScheduleDay}'s join of a stored day over the game rows given (`rows`, by gamePk; a game without one
+ * is served from its stored snapshot's fields, read here, or as scheduled). Also how `storeSchedule` judges whether a
+ * day it changed was past and finished before its write (S212 review): the stored day as it read it, over the rows as
+ * the switch read them.
+ */
+export async function joinStoredScheduleDay(deps: Pick<GameStateDeps, "games">, day: StoredScheduleDay, servedBase: number, rows: ReadonlyMap<number, GameStateRow>, now: Date): Promise<{ stored: StoredScheduleDay;
+	served: ScheduleDay;
+	moved: ReadonlySet<number>; }>
+{
+	const missing = day.games.map((game) => game.gamePk).filter((pk) => !rows.has(pk));
 	const fallbacks = new Map<number, Unversioned<GameState>>(missing.length === 0
 		? []
 		: (await deps.games.getStateFields(missing)).map((fields) => [fields.gamePk, gameStateFromGame(fields)]));
-	const served = joinScheduleDay(held.day, held.servedBase, rows, fallbacks, now);
+	const served = joinScheduleDay(day, servedBase, rows, fallbacks, now);
 	// The joined games' window, a suspended game's judged from when BT saw it suspended, as every stored day's is.
 	return {
-		stored: held.day,
+		stored: day,
 		served: {
 			...served,
 			windowMode: await scheduleDayWindowMode(deps, served, now),
 		},
-		moved: new Set(held.day.games.filter((game) => listingMovedAway(game, rows.get(game.gamePk), date)).map((game) => game.gamePk)),
+		moved: new Set(day.games.filter((game) => listingMovedAway(game, rows.get(game.gamePk), day.date)).map((game) => game.gamePk)),
 	};
 }
 
@@ -267,22 +294,29 @@ export async function readScheduleDay(deps: GameStateDeps, date: string, now: Da
 /**
  * The served game (S150 AC 6): the stored snapshot with its status and linescore from its row (the snapshot's own
  * when there is none), keeping the snapshot's `version`, so the HTTP read and the game hub's pushes compare as before,
- * and taking the later `lastChangedAt` of the two, so its cache headers (ADR-021) follow a state change.
+ * and taking the later `lastChangedAt` of the two, so its cache headers (ADR-021) follow a state change. Its
+ * `windowMode` is judged at `now` (`clockWindowMode`, S212, Claude's PR #541 review): a game live ingest stamped
+ * `active` is served `cache` once the clock puts it out of its window, as a served day is, so its body and its header
+ * agree; a game stamped `cache` is served as stamped. The version is unchanged either way (no write, ADR-022).
  */
-export function servedGame(snapshot: GameSnapshot, row: Pick<GameStateRow, "state"> | null): GameSnapshot
+export function servedGame(snapshot: GameSnapshot, row: Pick<GameStateRow, "state"> | null, now: Date): GameSnapshot
 {
-	if (!row) return snapshot;
-	return {
+	const served = row ? {
 		...snapshot,
 		status: row.state.status,
 		linescore: row.state.linescore,
 		lastChangedAt: Date.parse(row.state.lastChangedAt) > Date.parse(snapshot.lastChangedAt) ? row.state.lastChangedAt : snapshot.lastChangedAt,
+	} : snapshot;
+	const windowMode = clockWindowMode(served, now);
+	return windowMode === served.windowMode ? served : {
+		...served,
+		windowMode,
 	};
 }
 
-/** The served game for `gamePk` from the store (`servedGame`), or null when no snapshot is stored. */
-export async function readServedGame(deps: Pick<GameStateDeps, "games" | "gameStates">, gamePk: number): Promise<GameSnapshot | null>
+/** The served game for `gamePk` from the store (`servedGame`, its window judged at `now`), or null when no snapshot is stored. */
+export async function readServedGame(deps: Pick<GameStateDeps, "games" | "gameStates">, gamePk: number, now: Date = new Date()): Promise<GameSnapshot | null>
 {
 	const snapshot = await deps.games.getByPk(gamePk);
-	return snapshot ? servedGame(snapshot, await deps.gameStates.getByPk(gamePk)) : null;
+	return snapshot ? servedGame(snapshot, await deps.gameStates.getByPk(gamePk), now) : null;
 }
