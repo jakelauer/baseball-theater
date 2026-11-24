@@ -146,6 +146,22 @@ export function isDraftAmendment(text: string): boolean
 }
 
 /**
+ * Whether the path exists with exactly this spelling, level by level from the directory listings:
+ * macOS's disk ignores case, so existsSync would accept `FOO-mobile.png` for `foo-mobile.png`,
+ * which then dodges the name checks below (they compare with case) and doesn't exist on Linux.
+ */
+function existsExactly(root: string, parts: string[]): boolean
+{
+	let dir = root;
+	for (const part of parts)
+	{
+		if (!existsSync(dir) || !readdirSync(dir).includes(part)) return false;
+		dir = join(dir, part);
+	}
+	return true;
+}
+
+/**
  * Why a frame under the visual dir can't be a ratified reference, or null when it can. `rel` is its
  * path relative to the visual dir: `<surface>/<name>.png` (ratified with its surface's RATIFIED.md,
  * and superseded by an amendment frame of that name in the same surface) or
@@ -157,7 +173,7 @@ export function frameProblem(visualDir: string, rel: string): string | null
 	const parts = rel.split("/");
 	const name = parts.at(-1)!;
 	if (!name.endsWith(".png")) return "is not a .png frame";
-	if (!existsSync(join(visualDir, rel))) return "does not exist";
+	if (!existsExactly(visualDir, parts)) return "does not exist";
 	const surface = join(visualDir, parts[0]!);
 	if (parts.length === 2)
 	{
@@ -188,7 +204,7 @@ export function frameProblem(visualDir: string, rel: string): string | null
 /**
  * The frames a story's map names for a capture, or null when the map (or its entry) is absent.
  * Throws, naming the capture and path, on an entry that isn't a path or list of paths under
- * docs/v3/visual/, or names a frame frameProblem refuses.
+ * docs/v3/visual/, names the same frame twice, or names a frame frameProblem refuses.
  */
 export function mappedReferences(visualDir: string, checksDir: string, name: string): DesignReference[] | null
 {
@@ -203,10 +219,14 @@ export function mappedReferences(visualDir: string, checksDir: string, name: str
 	{
 		throw new Error(`${file}: ${name} must map to a frame path or a non-empty list of them`);
 	}
+	const seen = new Set<string>();
 	return (paths as string[]).map((path) =>
 	{
 		const rel = path.startsWith(VISUAL_PREFIX) ? normalize(path.slice(VISUAL_PREFIX.length)).split(sep).join("/") : null;
 		if (rel === null || rel.startsWith("..") || rel.startsWith("/")) throw new Error(`${file}: ${name} → ${path} is not under ${VISUAL_PREFIX}`);
+		// One row per pair: a frame listed twice would put the same pair in the ledger twice.
+		if (seen.has(rel)) throw new Error(`${file}: ${name} names ${path} more than once`);
+		seen.add(rel);
 		const problem = frameProblem(visualDir, rel);
 		if (problem) throw new Error(`${file}: ${name} → ${path} ${problem}`);
 		return {
@@ -231,6 +251,30 @@ export function captureReferences(visualDir: string, checksDir: string, name: st
 		throw new Error(`capture ${name} matches ${refs.length} ratified frames under ${visualDir}; need exactly one, or name its frames in ${join(checksDir, FRAMES_MAP)}`);
 	}
 	return refs;
+}
+
+/**
+ * captureReferences for `pnpm design:review`, which lays out every capture rather than stop at the
+ * first bad one: the same references, or no references and the same refusal audit.sh would print,
+ * so the folder never shows a pair the ledger would refuse to record.
+ */
+export function reviewPairing(visualDir: string, checksDir: string, name: string): { references: DesignReference[];
+	error: string | null; }
+{
+	try
+	{
+		return {
+			references: captureReferences(visualDir, checksDir, name),
+			error: null,
+		};
+	}
+	catch (error)
+	{
+		return {
+			references: [],
+			error: (error as Error).message,
+		};
+	}
 }
 
 if (import.meta.main)

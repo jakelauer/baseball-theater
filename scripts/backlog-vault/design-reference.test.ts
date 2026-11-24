@@ -11,7 +11,7 @@ import {
 	afterEach, beforeEach, describe, expect, it,
 } from "vitest";
 import {
-	captureReferences, designReferences, frameProblem, isDraftAmendment, overriddenNames,
+	captureReferences, designReferences, frameProblem, isDraftAmendment, overriddenNames, reviewPairing,
 } from "./design-reference.ts";
 
 let root: string;
@@ -161,6 +161,9 @@ describe("captureReferences (a story's frames.json map)", () =>
 		[["docs/v3/visual/s/gone-mobile.png"], /does not exist/],
 		[["docs/v3/visual/u/a-mobile.png"], /no RATIFIED\.md/],
 		[[], /non-empty list/],
+		[["docs/v3/visual/s/a-mobile.png", "docs/v3/visual/s/./a-mobile.png"], /more than once/],
+		[["docs/v3/visual/s/A-mobile.png"], /does not exist/],
+		[["docs/v3/visual/S/a-mobile.png"], /does not exist/],
 	])("refuses a bad map entry %j", (paths, message) =>
 	{
 		const { visualDir, checksDir } = story({
@@ -182,6 +185,33 @@ describe("captureReferences (a story's frames.json map)", () =>
 		expect(frameProblem(visualDir, "s/amendments/loose-mobile.png")).toMatch(/named by no amendment/);
 		expect(frameProblem(visualDir, "s/page-mobile.png")).toMatch(/superseded/);
 		expect(frameProblem(visualDir, "s/amendments/page-mobile.png")).toBeNull();
+	});
+
+	it("refuses a mixed-case path to a frame a written amendment supersedes, on a case-insensitive disk too", () =>
+	{
+		const { visualDir, checksDir } = story({
+			"x-mobile.png": "docs/v3/visual/s/FOO-mobile.png",
+		});
+		visual({
+			"visual/s/foo-mobile.png": "foo",
+			"visual/s/amendments/A3.md": written("`foo-mobile`"),
+		});
+		expect(() => captureReferences(visualDir, checksDir, "x-mobile.png")).toThrow(/does not exist/);
+	});
+
+	it("gives design:review the same pairing or the same refusal audit.sh gets (reviewPairing)", () =>
+	{
+		const { visualDir, checksDir } = story({
+			"about-mobile.png": "docs/v3/visual/s/amendments/page-mobile.png",
+		});
+		expect(reviewPairing(visualDir, checksDir, "a-mobile.png")).toEqual({
+			references: [],
+			error: expect.stringMatching(/matches 2 ratified frames .*need exactly one/),
+		});
+		expect(reviewPairing(visualDir, checksDir, "about-mobile.png")).toEqual({
+			references: captureReferences(visualDir, checksDir, "about-mobile.png"),
+			error: null,
+		});
 	});
 
 	it("reads a draft the way review-debt.sh does", () =>
