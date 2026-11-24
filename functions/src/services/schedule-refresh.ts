@@ -35,6 +35,11 @@ import { fillScheduleMonth } from "./schedule-month.js";
  * 30 minutes (5,760 a day) for as long as the outage lasts. With the route trusting this record (S194
  * AC 3), fans' reads no longer refetch a whole month every few minutes, as #403 measured. A tick with
  * no due month sends no request and does one database read (`listScheduleMonthChecks`).
+ *
+ * S212: this refresh is now what keeps a past, finished day of its window fresh (a read serves one
+ * from the store with no MLB call), and each day it changes is purged from the edge through
+ * `storeSchedule`, so the six-hourly check gives "both a fresh set of data AND an updated edge cache"
+ * (the owner, 2026-11-24). The recent games' full detail is re-checked beside it (`recheckDueGame`).
  */
 export async function refreshDueScheduleMonth(deps: IngestDeps): Promise<string | null>
 {

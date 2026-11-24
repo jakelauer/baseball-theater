@@ -209,6 +209,7 @@ function counted(base: { schedules: ScheduleRepository;
 			recordScheduleMonthCheck: (month, checkedAt) => base.schedules.recordScheduleMonthCheck(month, checkedAt),
 			claimScheduleMonth: (month, at) => base.schedules.claimScheduleMonth(month, at),
 			holdScheduleMonth: (month, at) => base.schedules.holdScheduleMonth(month, at),
+			listGameListings: (gamePks, from, to) => base.schedules.listGameListings(gamePks, from, to),
 			upsert: async (day) =>
 			{
 				writes.push(`schedule ${day.date}`);
@@ -220,6 +221,10 @@ function counted(base: { schedules: ScheduleRepository;
 			getByPk: (pk) => base.games.getByPk(pk),
 			getStateFields: (pks) => base.games.getStateFields(pks),
 			listByDate: (date) => base.games.listByDate(date),
+			listRecheckCandidates: (from, to) => base.games.listRecheckCandidates(from, to),
+			claimGameRecheck: (pk, at) => base.games.claimGameRecheck(pk, at),
+			recordGameRecheck: (pk, at) => base.games.recordGameRecheck(pk, at),
+			holdGameRecheck: (pk, at) => base.games.holdGameRecheck(pk, at),
 			upsert: async (game) =>
 			{
 				writes.push(`game ${game.gamePk}`);

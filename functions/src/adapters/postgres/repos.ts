@@ -11,11 +11,12 @@
  * holds aliases the store.
  */
 import type {
-	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateFields, GameStateRow, GameStateSource, PatronTier, Role, ScheduleDayTally, ScheduleMonthCheck,
+	AccountSettings, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, GameStateSource, PatronTier, Role, ScheduleDayTally,
+	ScheduleMonthCheck,
 	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
+	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, GAME_RECHECK_CLAIM_LEASE_MS, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
 } from "@bt/domain";
 import type {
 	DeletionLog,
@@ -23,6 +24,8 @@ import type {
 	GameProjectionRepository,
 	GameRepository,
 	GameStateRepository,
+	OwedEdgePurge,
+	OwedEdgePurgeRepository,
 	ReplayArtifact,
 	ReplayArtifactRepository,
 	ScheduleRepository,
@@ -36,7 +39,8 @@ import {
 import type { SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
-	accountSettings, deletionLog, entitlements, gameProjections, games, gameStates, identityLinks, replayArtifacts, scheduleDays, scheduleMonths, users,
+	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, replayArtifacts, scheduleDays, scheduleMonths,
+	users,
 } from "./schema.js";
 
 /** Any Drizzle Postgres database: PGlite in tests, node-postgres behind Hyperdrive in the Worker (S51). */
@@ -234,6 +238,26 @@ export class PostgresScheduleRepository implements ScheduleRepository
 			setWhere: sql`${scheduleMonths.claimedAt} IS NULL OR excluded.claimed_at::timestamptz > ${scheduleMonths.claimedAt}::timestamptz`,
 		});
 	}
+
+	/**
+	 * One statement for every game asked for (S212 review), over the primary key's range, so only the range's days are
+	 * scanned and each document's games are unpacked once (`jsonb_array_elements`), whatever the number of games.
+	 */
+	async listGameListings(gamePks: readonly number[], from: string, to: string): Promise<{ date: string;
+		gamePk: number; }[]>
+	{
+		if (gamePks.length === 0) return [];
+		const result = await this.db.execute(sql`SELECT DISTINCT d.date, (g->>'gamePk')::integer AS game_pk
+			FROM ${scheduleDays} d, jsonb_array_elements(d.document->'games') g
+			WHERE d.date BETWEEN ${from} AND ${to}
+			AND (g->>'gamePk')::integer IN (${sql.join(gamePks.map((gamePk) => sql`${gamePk}::integer`), sql`, `)})
+			ORDER BY d.date, game_pk`) as unknown as { rows: { date: string;
+			game_pk: number | string; }[]; };
+		return result.rows.map((row) => ({
+			date: row.date,
+			gamePk: Number(row.game_pk),
+		}));
+	}
 }
 
 /** A `game_states` row as the port hands it over. */
@@ -354,6 +378,162 @@ export class PostgresGameRepository implements GameRepository
 		}).from(games).where(eq(games.officialDate, date)).orderBy(asc(games.gamePk));
 		return rows.map((row) => row.document);
 	}
+
+	/**
+	 * One statement (S212 AC 5): each game of the dates (by the indexed `official_date`), its `windowMode`, first pitch and
+	 * suspension time (what `clockWindowMode` judges its window by), and its
+	 * served status (the `game_states` row's, else the snapshot's) taken out of the documents, and its `game_rechecks`
+	 * record, so a tick with no due game costs this one read.
+	 */
+	async listRecheckCandidates(from: string, to: string): Promise<GameRecheckCandidate[]>
+	{
+		const rows = await this.db.select({
+			gamePk: games.gamePk,
+			officialDate: games.officialDate,
+			windowMode: sql<GameSnapshot["windowMode"]>`${games.document}->>'windowMode'`,
+			startTime: sql<string | null>`${games.document}->>'startTime'`,
+			suspendedAt: sql<string | null>`${games.document}->>'suspendedAt'`,
+			status: sql<GameRecheckCandidate["status"]>`COALESCE(${gameStates.document}->'status', ${games.document}->'status')`,
+			checkedAt: gameRechecks.checkedAt,
+			claimedAt: gameRechecks.claimedAt,
+		}).from(games)
+			.leftJoin(gameStates, eq(gameStates.gamePk, games.gamePk))
+			.leftJoin(gameRechecks, eq(gameRechecks.gamePk, games.gamePk))
+			.where(between(games.officialDate, from, to))
+			.orderBy(asc(games.gamePk));
+		return rows.map((row) => ({
+			gamePk: row.gamePk,
+			officialDate: row.officialDate,
+			windowMode: row.windowMode,
+			startTime: row.startTime ?? null,
+			suspendedAt: row.suspendedAt ?? null,
+			status: {
+				codedGameState: row.status.codedGameState,
+				detailedState: row.status.detailedState,
+			},
+			checkedAt: row.checkedAt ?? null,
+			claimedAt: row.claimedAt ?? null,
+		}));
+	}
+
+	/**
+	 * One conditional statement (S212 AC 5), as `claimScheduleMonth`: insert the game claimed, or take an existing
+	 * record's claim only when the game is still due (no `checked_at`, or one at least
+	 * `SCHEDULE_MONTH_REFRESH_INTERVAL_MS` before `at`) and has no claim or one at least `GAME_RECHECK_CLAIM_LEASE_MS`
+	 * older than `at`; a returned row means this caller holds the claim.
+	 */
+	async claimGameRecheck(gamePk: number, at: string): Promise<boolean>
+	{
+		const cutoff = new Date(Date.parse(at) - GAME_RECHECK_CLAIM_LEASE_MS).toISOString();
+		const dueBy = new Date(Date.parse(at) - SCHEDULE_MONTH_REFRESH_INTERVAL_MS).toISOString();
+		const claimed = await this.db.insert(gameRechecks).values({
+			gamePk,
+			claimedAt: at,
+		}).onConflictDoUpdate({
+			target: gameRechecks.gamePk,
+			set: {
+				claimedAt: sql`excluded.claimed_at`,
+			},
+			setWhere: sql`(${gameRechecks.claimedAt} IS NULL OR ${gameRechecks.claimedAt}::timestamptz <= ${cutoff}::timestamptz)
+				AND (${gameRechecks.checkedAt} IS NULL OR ${gameRechecks.checkedAt}::timestamptz <= ${dueBy}::timestamptz)`,
+		}).returning({
+			gamePk: gameRechecks.gamePk,
+		});
+		return claimed.length > 0;
+	}
+
+	/** One statement: insert the game's record, or move its `checked_at` forward only (S212 AC 5). */
+	async recordGameRecheck(gamePk: number, checkedAt: string): Promise<void>
+	{
+		await this.db.insert(gameRechecks).values({
+			gamePk,
+			checkedAt,
+		}).onConflictDoUpdate({
+			target: gameRechecks.gamePk,
+			set: {
+				checkedAt: sql`excluded.checked_at`,
+			},
+			setWhere: sql`${gameRechecks.checkedAt} IS NULL OR excluded.checked_at::timestamptz > ${gameRechecks.checkedAt}::timestamptz`,
+		});
+	}
+
+	/** One statement: insert the game held, or move its `claimed_at` forward only (as `holdScheduleMonth`). */
+	async holdGameRecheck(gamePk: number, claimedAt: string): Promise<void>
+	{
+		await this.db.insert(gameRechecks).values({
+			gamePk,
+			claimedAt,
+		}).onConflictDoUpdate({
+			target: gameRechecks.gamePk,
+			set: {
+				claimedAt: sql`excluded.claimed_at`,
+			},
+			setWhere: sql`${gameRechecks.claimedAt} IS NULL OR excluded.claimed_at::timestamptz > ${gameRechecks.claimedAt}::timestamptz`,
+		});
+	}
+}
+
+/**
+ * `owed_edge_purges` (S212): each write is one statement. An owe inserts the URLs or re-owes them (a new version from
+ * the table's sequence, never reused, failures and retry time cleared); a settle or a deferral touches a row only while its version is the listed one, so a
+ * URL owed again after the cron listed it is never dropped by that listing's settle.
+ */
+export class PostgresOwedEdgePurgeRepository implements OwedEdgePurgeRepository
+{
+	constructor(private readonly db: PostgresDb) {}
+
+	async owe(urls: readonly string[], at: string): Promise<void>
+	{
+		const unique = [...new Set(urls)];
+		if (unique.length === 0) return;
+		// A new row takes its version from the column's default, the sequence; a re-owe takes the next one too.
+		await this.db.insert(owedEdgePurges).values(unique.map((url) => ({
+			url,
+			owedAt: at,
+		}))).onConflictDoUpdate({
+			target: owedEdgePurges.url,
+			set: {
+				owedAt: sql`excluded.owed_at`,
+				version: sql`nextval('owed_edge_purges_version_seq')`,
+				failures: 0,
+				retryAt: null,
+			},
+		});
+	}
+
+	async listDue(at: string, limit: number): Promise<OwedEdgePurge[]>
+	{
+		return this.db.select({
+			url: owedEdgePurges.url,
+			owedAt: owedEdgePurges.owedAt,
+			version: owedEdgePurges.version,
+			failures: owedEdgePurges.failures,
+		}).from(owedEdgePurges)
+			.where(sql`${owedEdgePurges.retryAt} IS NULL OR ${owedEdgePurges.retryAt}::timestamptz <= ${at}::timestamptz`)
+			.orderBy(sql`${owedEdgePurges.owedAt}::timestamptz`, asc(owedEdgePurges.url))
+			.limit(limit);
+	}
+
+	async settle(purges: readonly Pick<OwedEdgePurge, "url" | "version">[]): Promise<void>
+	{
+		if (purges.length === 0) return;
+		await this.db.delete(owedEdgePurges).where(listedVersions(purges));
+	}
+
+	async defer(purges: readonly Pick<OwedEdgePurge, "url" | "version">[], retryAt: string): Promise<void>
+	{
+		if (purges.length === 0) return;
+		await this.db.update(owedEdgePurges).set({
+			failures: sql`${owedEdgePurges.failures} + 1`,
+			retryAt,
+		}).where(listedVersions(purges));
+	}
+}
+
+/** The rows of `purges` still at their listed versions: `(url, version) IN (…)`. */
+function listedVersions(purges: readonly Pick<OwedEdgePurge, "url" | "version">[]): SQL
+{
+	return sql`(${owedEdgePurges.url}, ${owedEdgePurges.version}) IN (${sql.join(purges.map((purge) => sql`(${purge.url}, ${purge.version}::bigint)`), sql`, `)})`;
 }
 
 export class PostgresGameProjectionRepository implements GameProjectionRepository

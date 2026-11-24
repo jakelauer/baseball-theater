@@ -16,7 +16,7 @@ import type {
 import type { ReplayArtifact } from "@bt/ports";
 import { sql } from "drizzle-orm";
 import {
-	boolean, check, index, integer, jsonb, pgTable, primaryKey, serial, text,
+	bigint, boolean, check, index, integer, jsonb, pgSequence, pgTable, primaryKey, serial, text,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -62,6 +62,41 @@ export const gameStates = pgTable("game_states", {
 	startTime: text("start_time"),
 	document: jsonb("document").$type<GameState>().notNull(),
 }, (table) => [check("game_states_source_check", sql`${table.source} IN ('feed', 'schedule')`)]);
+
+/**
+ * One record per game the cron re-checks (`GameRepository`'s re-check record, S212 AC 5): when BT last re-checked the
+ * game's full detail against MLB, and when a re-check last claimed it, each an ISO instant or null; a claim holds until
+ * `claimed_at` plus the lease. Kept apart from `games` so a snapshot write never touches it, and compared as
+ * `timestamptz` by the adapter, as `schedule_months` is.
+ */
+export const gameRechecks = pgTable("game_rechecks", {
+	gamePk: integer("game_pk").primaryKey(),
+	checkedAt: text("checked_at"),
+	claimedAt: text("claimed_at"),
+});
+
+/**
+ * Where every owe of an edge purge takes its version (S212 review): one sequence for the table's life, so a version is
+ * never reused, even after its row was settled and the URL owed again (a per-row counter would restart at 1 and let an
+ * older listing's settle drop the new owe).
+ */
+export const owedEdgePurgeVersions = pgSequence("owed_edge_purges_version_seq");
+
+/**
+ * One row per URL whose edge purge failed and is still owed (`OwedEdgePurgeRepository`, S212): when it was last owed and
+ * the version that owe took from {@link owedEdgePurgeVersions} (so settling an older listing never drops a newer owe),
+ * how many retries of it have failed and when it may next be retried (an ISO instant, or null for now). Instants
+ * compared as `timestamptz` by the adapter.
+ */
+export const owedEdgePurges = pgTable("owed_edge_purges", {
+	url: text("url").primaryKey(),
+	owedAt: text("owed_at").notNull(),
+	version: bigint("version", {
+		mode: "number",
+	}).notNull().default(sql`nextval('owed_edge_purges_version_seq')`),
+	failures: integer("failures").notNull().default(0),
+	retryAt: text("retry_at"),
+});
 
 /** One game snapshot per game (`GameRepository`): its day for `listByDate`, the document for queries into it. */
 export const games = pgTable("games", {

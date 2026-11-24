@@ -272,7 +272,10 @@ describe("story records merge in any order (law L13)", () =>
 		// Every record of all three is there: notes done with their lines, fragments parsed by ledger.ts.
 		const completed = readLedger(join(repo, "docs/v3/AUDIT.md")).filter((e) => e.kind === "completed" && ids.includes(e.story ?? "")).map((e) => e.story);
 		expect(completed.sort()).toEqual([...ids].sort());
-		expect(readLedger(join(repo, "docs/v3/AUDIT.md")).filter((e) => e.kind === "run")).toHaveLength(ids.length);
+		// The copy starts with the real repository's own run entries (docs/v3/audit is copied whole), so count only
+		// the three this test adds: a real run recorded the same day once made this fail on a correct tree.
+		const realRuns = readLedger(join(ROOT, "docs/v3/AUDIT.md")).filter((e) => e.kind === "run").length;
+		expect(readLedger(join(repo, "docs/v3/AUDIT.md")).filter((e) => e.kind === "run")).toHaveLength(realRuns + ids.length);
 		for (const id of ids)
 		{
 			const snapshot = readRecords(join(repo, "docs/v3/audit")).filter((r) => r.kind === "snapshot" && r.id === id).at(-1)!;

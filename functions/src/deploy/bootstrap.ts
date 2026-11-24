@@ -74,7 +74,9 @@ export function previewHyperdriveName(pullRequest: number): string
 
 /**
  * Every env's Worker secrets, pushed from GitHub secrets on every deploy (S114 AC 8), so GitHub is
- * their one source and none is set once by hand.
+ * their one source and none is set once by hand. Not yet the edge purge's two (S212):
+ * `BT_CF_PURGE_TOKEN` and `BT_CF_ZONE_ID` are set by hand on each Worker for now (`wrangler secret
+ * put`), since no deploy workflow maps them; without them the Worker purges nothing and logs it.
  */
 export const WORKER_SECRETS = ["BT_SESSION_KEY"] as const;
 

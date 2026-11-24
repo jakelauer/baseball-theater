@@ -57,7 +57,9 @@
  *   versions) never falls.
  * - Schedule month records (`schedule_months`, S194) are never copied (`neverCopied`, `NEVER_COPIED_WHY`): they
  *   record the target's own refresh checks, so production's would tell the target's refresh that months it never
- *   checked are fresh.
+ *   checked are fresh. Game re-check records (`game_rechecks`, S212) are never copied for the same reason: they
+ *   record the target's own cron re-checks of recent games. Nor are owed edge purges (`owed_edge_purges`, S212):
+ *   they name the edge URLs of the database's own deployment.
  *
  * A table a migration production hasn't run touched is skipped whole (owner, 2026-11-13: "I think
  * option b is better"): staging may have reshaped it, and production's rows are in the old shape.
@@ -118,23 +120,28 @@ export function baseballTables(): string[]
  * labels `none` must have one (`checkCopyRules`), so a table added later can't fall back to comparing two
  * databases' counters. `rebuiltFromGames` assumes the `games` table and a projection per `game_pk`; `stateChangedLater` (S150,
  * `game_states`) is `changedLater` except for a row the target's live feed is writing (see the module comment);
- * `neverCopied` (S194, `schedule_months`) reads and writes none of the table's rows.
+ * `neverCopied` (S194, `schedule_months`; S212, `game_rechecks` and `owed_edge_purges`) reads and writes none of the table's rows.
  */
 export type CopyRule = "changedLater" | "stateChangedLater" | "rebuiltFromGames" | "patchCount" | "neverCopied";
 
 /**
  * Why a `neverCopied` table gets none of production's rows. `schedule_months` (S194) records when this
- * database's own refresh last checked each month against MLB: production's checks describe data the
- * target doesn't hold, so copying them would stop the target's refresh from rebuilding the months it
- * hasn't checked itself.
+ * database's own refresh last checked each month against MLB, and `game_rechecks` (S212) when its cron last
+ * re-checked each recent game: production's checks describe data the target doesn't hold, so copying them would
+ * stop the target's refresh from rebuilding what it hasn't checked itself. `owed_edge_purges` (S212) names the URLs
+ * this database's own deployment still owes its edge, which production's rows don't.
  */
-export const NEVER_COPIED_WHY = "never copied: it records the target's own schedule checks, which its refresh rebuilds";
+export const NEVER_COPIED_WHY = "never copied: it records the target's own refresh checks or owed edge purges, never production's";
 
 export const COPY_RULES: Readonly<Record<string, CopyRule>> = {
 	schedule_days: "changedLater",
 	// S150: `changedLater`, except a row the target's live feed wrote while its game is in its live window.
 	game_states: "stateChangedLater",
 	schedule_months: "neverCopied",
+	// S212: the target's own re-checks of recent games, like `schedule_months`.
+	game_rechecks: "neverCopied",
+	// S212: the purges the target's own edge is owed; production's name production's URLs.
+	owed_edge_purges: "neverCopied",
 	games: "changedLater",
 	game_projections: "rebuiltFromGames",
 	replay_artifacts: "patchCount",
