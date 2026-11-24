@@ -285,9 +285,9 @@ export function playoffsTable(regularSeason: StandingsSnapshot): StandingsSnapsh
 /**
  * Whether a standings table has no team at all (S130 AC 2): the first spring morning, before a spring
  * game is final (S139 AC 4), comes back with `divisions: []` or with divisions whose `teams` are
- * empty, and both read as empty here. Standings draws S129's empty-spring text for it. The standings
- * service still has its own copy (`isEmpty`, `functions/src/services/standings.ts`), outside S130's
- * fence; an enhancement moves it onto this one.
+ * empty, and both read as empty here. Standings draws S129's empty-spring text for it, and the
+ * standings service (`functions/src/services/standings.ts`, S175) calls it for its empty-table
+ * fallbacks and its "nothing yet" check, so the page and the server share one rule (ADR-025).
  */
 export function standingsHasNoTeams(table: Pick<StandingsSnapshot, "divisions">): boolean
 {

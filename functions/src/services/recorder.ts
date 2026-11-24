@@ -302,7 +302,8 @@ export async function recordNormalized(
 	});
 	written.push(`schedule-${date}.json`);
 
-	const game = await client.fetchGame(gamePk);
+	// The game alone: its feed time (S150 AC 2) is never written to a fixture.
+	const { game } = await client.fetchGame(gamePk);
 	const {
 		fetchedAt: _f, windowMode: _w, plays, ...rest
 	} = game;

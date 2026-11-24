@@ -9,6 +9,7 @@
  * the live feed hydrate carries no playback URLs.
  */
 import type {
+	FetchedGame,
 	GameGraphContent,
 	GamePlayMetrics,
 	GameSnapshot,
@@ -20,7 +21,9 @@ import type {
 	StandingsSnapshot,
 	Unversioned,
 } from "@bt/domain";
-import { mlbSearchQuery, rankHighlightsByImpact } from "@bt/domain";
+import {
+	datesBetween, feedTimeToIso, mlbSearchQuery, rankHighlightsByImpact,
+} from "@bt/domain";
 import type { GameContentResponse, GameDiffPatchResponse } from "@bt/mlb-api";
 import {
 	parseGameContentResponse,
@@ -37,6 +40,7 @@ import {
 import type {
 	GameEditorial, MlbGameSources, MlbStatsClient,
 } from "@bt/ports";
+import { inPool } from "../in-pool.js";
 import { mapContentHighlights, mapRecap } from "../../mappers/content.js";
 import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
@@ -166,33 +170,36 @@ export function seasonsUrl(season: number, baseUrl = DEFAULT_BASE_URL): string
 }
 
 /**
- * Both leagues' standings as of `date` (S4), with each team hydrated. MLB answers a `date` only
+ * Both leagues' standings as of `date` (S4), with each team and each record group's division hydrated
+ * (S102: `division` names the group, `American League East` / `AL East` / `ALE`, so BT keeps no table of
+ * division names). MLB answers a `date` only
  * together with its `season` — as of 2026-11-07, `date` without `season` gets a 500 for every date (found smoke-testing v3.0.0)
  * — so the season is the date's year. The recorder (S14) records the same URL.
  */
 export function standingsUrl(date: string, baseUrl = DEFAULT_BASE_URL): string
 {
-	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${date.slice(0, 4)}&date=${date}&hydrate=team`;
+	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${date.slice(0, 4)}&date=${date}&hydrate=team,division`;
 }
 
 /**
  * A season's final regular-season table (S128): MLB's standings for the season with no `date`,
  * which after the regular season is how it finished (checked 2026-11-07: 6 records, 30 teams;
- * every date after the regular season answers 0). The recorder (S14) records the same URL.
+ * every date after the regular season answers 0). Divisions hydrated as `standingsUrl`'s are (S102).
+ * The recorder (S14) records the same URL.
  */
 export function finalStandingsUrl(season: number, baseUrl = DEFAULT_BASE_URL): string
 {
-	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${season}&hydrate=team`;
+	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${season}&hydrate=team,division`;
 }
 
 /**
  * A season's spring training standings as of `date` (S128): `standingsTypes=springTraining`,
  * which MLB groups by spring league (Cactus / Grapefruit divisions) under the same division ids.
- * The recorder (S14) records the same URL.
+ * Divisions hydrated as `standingsUrl`'s are (S102). The recorder (S14) records the same URL.
  */
 export function springStandingsUrl(season: number, date: string, baseUrl = DEFAULT_BASE_URL): string
 {
-	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${season}&standingsTypes=springTraining&date=${date}&hydrate=team`;
+	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${season}&standingsTypes=springTraining&date=${date}&hydrate=team,division`;
 }
 
 /** One season's World Series schedule (S111): its last listed game is the season's final. */
@@ -210,8 +217,32 @@ function editorialOf(content: GameContentResponse): GameEditorial
 	};
 }
 
+/** The single-day schedule hydrate, the one the recorder records with (`services/recorder.ts`). */
 const SCHEDULE_HYDRATE =
 	"team,linescore(matchup,runners),flags,liveLookin,review,decisions,person,probablePitcher,stats,game(content(media(featured,epg),summary))";
+
+/**
+ * What a schedule range request hydrates (#399): {@link SCHEDULE_HYDRATE} without the four parts
+ * `mapScheduleGame` never reads (flags, live look-in, review and game content), so a day stored
+ * from a range maps the same as one from a single-day request (the tests pin the exact difference
+ * and strip those parts from the recording to compare). With them a month's answer was 20–29 MB
+ * and 10–15 s cold, and a staging month read came back with no days at all.
+ */
+const SCHEDULE_RANGE_HYDRATE = "team,linescore(matchup,runners),decisions,person,probablePitcher,stats";
+
+/**
+ * The longest span one schedule request asks for (#399). The `stats` hydrate the probables need is
+ * still ~0.5 MB a day, so a month in one request was ~15 MB and ~6 s cold even without content;
+ * a week is ~4 MB and ~1.5–2 s.
+ */
+const SCHEDULE_RANGE_DAYS = 7;
+
+/**
+ * How many of a range's week-long requests are in flight at once (#399): a month's five go out
+ * together, and a longer range (a year is 53) never holds more than five bodies, ~20 MB, at a time
+ * in a Worker's 128 MB.
+ */
+const SCHEDULE_RANGE_CONCURRENCY = 5;
 
 export interface HttpMlbStatsClientOptions {
 	baseUrl?: string;
@@ -240,27 +271,59 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		return mapScheduleResponse(payload, date, this.now().toISOString(), "active");
 	}
 
-	/** One request for the whole range (S124), with the same hydrate as a day, so a stored day reads the same either way. */
+	/**
+	 * The range (S124) as requests of at most {@link SCHEDULE_RANGE_DAYS} days, at most
+	 * {@link SCHEDULE_RANGE_CONCURRENCY} in flight, each parsed and mapped before the next starts in
+	 * its place (#399), with {@link SCHEDULE_RANGE_HYDRATE}, so a stored day reads the same as one
+	 * from the single-day request. Any one failing rejects the whole range, as one request failing did.
+	 */
 	async fetchScheduleRange(startDate: string, endDate: string): Promise<Unversioned<ScheduleDay>[]>
 	{
-		const url = `${this.baseUrl}/api/v1/schedule?sportId=1&startDate=${startDate}&endDate=${endDate}&hydrate=${SCHEDULE_HYDRATE}`;
-		const payload = parseScheduleResponse(await this.getJson(url));
-		return mapScheduleRange(payload, startDate, endDate, this.now().toISOString(), "active");
+		const fetchedAt = this.now().toISOString();
+		const dates = datesBetween(startDate, endDate);
+		const spans: [string, string][] = [];
+		for (let i = 0; i < dates.length; i += SCHEDULE_RANGE_DAYS)
+		{
+			spans.push([dates[i]!, dates[Math.min(i + SCHEDULE_RANGE_DAYS, dates.length) - 1]!]);
+		}
+		const parts = await inPool(spans, SCHEDULE_RANGE_CONCURRENCY, async ([first, last]) =>
+		{
+			const url = `${this.baseUrl}/api/v1/schedule?sportId=1&startDate=${first}&endDate=${last}&hydrate=${SCHEDULE_RANGE_HYDRATE}`;
+			return mapScheduleRange(parseScheduleResponse(await this.getJson(url)), first, last, fetchedAt, "active");
+		});
+		return parts.flat();
 	}
 
-	async fetchGame(gamePk: number): Promise<Unversioned<GameSnapshot>>
+	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
-		const feed = await this.fetchGameFeed(gamePk);
+		const { game: feed, feedTime } = await this.fetchGameFeed(gamePk);
 		const [content, playMetrics, graph] = await Promise.all([this.fetchContent(gamePk), this.fetchPlayMetrics(gamePk), this.fetchGameGraphContent(gamePk)]);
-		return assembleGame(feed, content ? editorialOf(content) : null, playMetrics, graph);
+		return {
+			game: assembleGame(feed, content ? editorialOf(content) : null, playMetrics, graph),
+			...feedTime !== undefined && {
+				feedTime,
+			},
+		};
 	}
 
-	/** The live feed alone (S122): what `fetchGame` adds its extras to. */
-	async fetchGameFeed(gamePk: number): Promise<Unversioned<GameSnapshot>>
+	/**
+	 * The live feed alone (S122): what `fetchGame` adds its extras to. Beside the game, the feed's own time (MLB's
+	 * `metaData.timeStamp`) as an ISO instant (S150 AC 2), left out when the feed has none or it can't be right
+	 * (`feedTimeToIso`).
+	 */
+	async fetchGameFeed(gamePk: number): Promise<FetchedGame>
 	{
 		const feedUrl = `${this.baseUrl}/api/v1.1/game/${gamePk}/feed/live`;
 		const feed = parseLiveFeedResponse(await this.getJson(feedUrl));
-		return mapLiveFeed(feed, this.now().toISOString(), "active");
+		// Read after the response, so the tolerance only has to cover the two clocks' difference.
+		const now = this.now();
+		const feedTime = feedTimeToIso(feed.metaData?.timeStamp, now);
+		return {
+			game: mapLiveFeed(feed, now.toISOString(), "active"),
+			...feedTime !== undefined && {
+				feedTime,
+			},
+		};
 	}
 
 	/** The content endpoint's videos and recap (S122); null when it fails or has neither. */

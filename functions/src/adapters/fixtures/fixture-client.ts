@@ -1,4 +1,5 @@
 import type {
+	FetchedGame,
 	GameGraphContent,
 	GamePlayMetrics,
 	GameSnapshot,
@@ -116,27 +117,32 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 		return Promise.all(datesBetween(startDate, endDate).map((date) => this.fetchSchedule(date)));
 	}
 
-	async fetchGame(gamePk: number): Promise<Unversioned<GameSnapshot>>
+	/** The committed game with its extras; a fixture carries no feed time (S150 AC 2). */
+	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
-		const feed = await this.fetchGameFeed(gamePk);
+		const { game: feed } = await this.fetchGameFeed(gamePk);
 		const editorial = await this.fetchGameEditorial(gamePk);
 		const playMetrics = await this.fetchPlayMetrics(gamePk);
 		const graph = await this.fetchGameGraphContent(gamePk);
-		return assembleGame(feed, editorial, playMetrics, graph);
+		return {
+			game: assembleGame(feed, editorial, playMetrics, graph),
+		};
 	}
 
 	/** The committed game without its videos or recap (S122): what the live feed alone gives. */
-	async fetchGameFeed(gamePk: number): Promise<Unversioned<GameSnapshot>>
+	async fetchGameFeed(gamePk: number): Promise<FetchedGame>
 	{
 		const {
 			highlights: _highlights, recap: _recap, ...data
 		} = await this.readJson<GameFixture>(`game-${gamePk}.json`);
 		return {
-			...data,
-			plays: await this.loadPlays(gamePk),
-			highlights: [],
-			fetchedAt: new Date().toISOString(),
-			windowMode: "cache",
+			game: {
+				...data,
+				plays: await this.loadPlays(gamePk),
+				highlights: [],
+				fetchedAt: new Date().toISOString(),
+				windowMode: "cache",
+			},
 		};
 	}
 

@@ -14,10 +14,7 @@ import {
 } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
-	InMemorySettingsRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemorySettingsRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { toNodeListener } from "../adapters/node/http.js";
 import { signIn } from "../services/accounts.js";
@@ -64,7 +61,7 @@ export async function withAccountServer(run: (h: AccountHarness) => Promise<void
 	const ctx: ApiContext = {
 		ingest: {
 			mlb: new FixtureMlbStatsClient(),
-			schedules: new InMemoryScheduleRepository(),
+			...memoryScheduleStores(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
 		},

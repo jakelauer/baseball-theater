@@ -3,22 +3,34 @@
  * descriptor, one hook, which the scoreboard's date control calls for the shown day's month before
  * the calendar opens and the open calendar calls for the month it shows (S125), so both share one
  * cache entry and the calendar opens already filled (owner, 2026-11-10: "It should already be
- * loaded.").
+ * loaded."). Since S194 the hook first reads its year's month versions (one shared query per year,
+ * `GET /api/v1/schedule/month-versions/:year`) and asks for the month with `?v=<version>`, a URL
+ * whose content never changes, so the edge may keep it for a long time.
  */
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
 import {
-	isCalendarMonth, latestScheduleMonth, mlbToday,
+	CACHE_LIFETIME_FLOOR_MS, isCalendarMonth, latestScheduleMonth, mlbToday, monthComplete, scheduleMonthVersion,
 } from "@bt/domain";
-import { fetchScheduleMonth } from "./client.js";
+import { fetchScheduleMonth, fetchScheduleMonthVersions } from "./client.js";
 import type { components } from "./generated/bt-api.v1.js";
 
 export type ScheduleMonthPayload = components["schemas"]["ScheduleMonthResponse"];
+export type ScheduleMonthVersionsPayload = components["schemas"]["ScheduleMonthVersionsResponse"];
 
-/** The cache key for one month (`YYYY-MM`). Only this module builds it. */
-export function scheduleMonthKey(month: string)
+/**
+ * The cache key for one month (`YYYY-MM`), and its answer's version when it is asked for with one
+ * (S194): without a version it stays `["schedule-month", month]`, as before. Only this module builds it.
+ */
+export function scheduleMonthKey(month: string, version?: string)
 {
-	return ["schedule-month", month] as const;
+	return version === undefined ? ["schedule-month", month] as const : ["schedule-month", month, version] as const;
+}
+
+/** The cache key for one year's month versions (`YYYY`, S194). Only this module builds it. */
+export function scheduleMonthVersionsKey(year: string)
+{
+	return ["schedule-month-versions", year] as const;
 }
 
 /**
@@ -32,14 +44,51 @@ export function scheduleMonthAnswerable(month: string, now: Date = new Date()): 
 	return isCalendarMonth(month) && month <= latestScheduleMonth(mlbToday(now));
 }
 
-export function scheduleMonthQueryOptions(month: string)
+/**
+ * One year's month versions (S194), shared by every month of the year. Kept for
+ * `CACHE_LIFETIME_FLOOR_MS`, as long as the API's edge keeps the answer fresh, so a month the
+ * scheduled refresh changed gets its new version, and so its new URL, usually within about a
+ * quarter of an hour: the edge may serve the old versions for the floor plus its
+ * stale-while-revalidate (about ten minutes), and this query keeps them one more floor.
+ */
+export function scheduleMonthVersionsQueryOptions(year: string, enabled = true)
 {
 	return queryOptions({
-		queryKey: scheduleMonthKey(month),
-		queryFn: (): Promise<ScheduleMonthPayload> => fetchScheduleMonth(month),
-		// A month's counts move only as games are scheduled or postponed; the API caches the answer
-		// on ADR-021's ladder, so five minutes here costs nothing a fan would notice.
-		staleTime: 5 * 60 * 1000,
+		queryKey: scheduleMonthVersionsKey(year),
+		queryFn: (): Promise<ScheduleMonthVersionsPayload> => fetchScheduleMonthVersions(year),
+		staleTime: CACHE_LIFETIME_FLOOR_MS,
+		enabled,
+	});
+}
+
+/**
+ * One month's answer, asked for with `version` as `?v=` when there is one (S194), else as the plain
+ * month URL.
+ */
+export function scheduleMonthQueryOptions(month: string, version?: string)
+{
+	return queryOptions({
+		queryKey: scheduleMonthKey(month, version),
+		queryFn: (): Promise<ScheduleMonthPayload> => fetchScheduleMonth(month, version),
+		// A versioned answer whose content hashes to its version (`scheduleMonthVersion`, the function
+		// the API names it with) never changes, so it never goes stale here: a new version arrives
+		// through the versions query, under a new key. One that doesn't (a read that lagged the write
+		// the version came from, such as Hyperdrive's query cache, which the API keeps only the floor)
+		// is kept like an unversioned month, so it is asked again rather than held until the next
+		// version. An unversioned month's counts move only as games are scheduled or postponed, and
+		// the API caches it by how long it has gone unchanged, so five minutes here costs nothing a fan
+		// would notice. A month with any day BT couldn't say (`monthComplete`; a fill that failed,
+		// which never has a version) is kept one minute, as long as the API's edge keeps it and the
+		// fill's cooldown lasts, so the calendar asks again soon rather than holding a month with no
+		// game labels for five minutes, without asking on every focus (#399).
+		staleTime: (query: { state: { data?: ScheduleMonthPayload } }) =>
+		{
+			const data = query.state.data;
+			if (version !== undefined && data && scheduleMonthVersion(data) === version) return Infinity;
+			// `?.days`: a stand-in answer in a page's tests may carry no days; that is not an unknown month.
+			const days = data?.days;
+			return days && !monthComplete(days) ? 60 * 1000 : 5 * 60 * 1000;
+		},
 		enabled: scheduleMonthAnswerable(month),
 	});
 }
@@ -47,8 +96,26 @@ export function scheduleMonthQueryOptions(month: string)
 /**
  * One month's game counts, teams and regular-season flags. Disabled (idle, no request) for a month
  * S124 doesn't answer for; the caller tells that apart from loading with `scheduleMonthAnswerable`.
+ *
+ * It waits for its year's versions (S194) and asks with the month's version, or without one when the
+ * versions leave the month out (incomplete, or not stored yet), their request fails, or it is paused
+ * offline. When a new
+ * version arrives the month is asked again under its new key, and the previous answer for the same
+ * month stays on screen meanwhile rather than a loading state.
  */
 export function useScheduleMonth(month: string): UseQueryResult<ScheduleMonthPayload, Error>
 {
-	return useQuery(scheduleMonthQueryOptions(month));
+	const answerable = scheduleMonthAnswerable(month);
+	const versions = useQuery(scheduleMonthVersionsQueryOptions(month.slice(0, 4), answerable));
+	// `?.versions`: a page's tests may stub every request with one stand-in answer that has no
+	// `versions`; that is a year with no versions, so the month is asked without one.
+	const version = (versions.data?.versions as ScheduleMonthVersionsPayload["versions"] | undefined)?.[month];
+	return useQuery({
+		...scheduleMonthQueryOptions(month, version),
+		// Asked once the versions have settled, or when they can't for now: a versions request paused
+		// offline (a year never loaded) would otherwise hold the month disabled, and the calendar would
+		// show loading bars forever; asked without `v`, the month pauses too and shows bare numbers.
+		enabled: answerable && (versions.isSuccess || versions.isError || versions.fetchStatus === "paused"),
+		placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === month ? previous : undefined),
+	});
 }
