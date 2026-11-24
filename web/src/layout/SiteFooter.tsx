@@ -50,11 +50,12 @@ function PageLink({ to, children }: { to: string;
  * "© {year} Baseball Theater", the year from `copyrightYear`. Nothing else: no age, no logo, no
  * site address (A14 Nothing else).
  *
- * The list is A14's, less the three pages BT doesn't serve yet: About, Privacy policy and Terms of
- * use are S154's, which adds their links (A14 No dead links). "Your data" (`/settings`) shows for a
- * signed-in fan only; signed out or while the session loads it is left out, so it never offers a
- * link `SignedInOnly` would bounce, and until S154 the "Legal" heading then stands alone (owner,
- * 2026-11-19: "Heading alone").
+ * The list is A14's, all six links: "Baseball Theater" reads About, Changelog, Support & Community,
+ * and "Legal" Privacy policy, Terms of use, then Your data (S154 added About, Privacy policy and
+ * Terms of use once their pages were served, so no link is dead; A14 No dead links). "Your data"
+ * (`/settings`) shows for a signed-in fan only; signed out or while the session loads it is left
+ * out, so it never offers a link `SignedInOnly` would bounce, and "Legal" then holds the two policy
+ * links alone, as `site-footer-signed-out-mobile` draws.
  */
 export function SiteFooter({ live, variant }: { live: boolean;
 	variant: LayoutVariant; })
@@ -83,6 +84,7 @@ export function SiteFooter({ live, variant }: { live: boolean;
 				<Group align="flex-start" gap={wide ? 64 : 48} pt={24}>
 					<Stack gap={10}>
 						<Heading>Baseball Theater</Heading>
+						<PageLink to="/about">About</PageLink>
 						<PageLink to="/changelog">Changelog</PageLink>
 						{/* It leaves BT, so it opens in a new tab, with no external-link icon (A14 Support & Community). */}
 						<Anchor href={SUPPORT_URL} target="_blank" rel="noopener noreferrer" fz={13} c="var(--bt-light)" lh="18px">
@@ -91,6 +93,8 @@ export function SiteFooter({ live, variant }: { live: boolean;
 					</Stack>
 					<Stack gap={10}>
 						<Heading>Legal</Heading>
+						<PageLink to="/privacy">Privacy policy</PageLink>
+						<PageLink to="/terms">Terms of use</PageLink>
 						{session.status === "signedIn" ? <PageLink to="/settings">Your data</PageLink> : null}
 					</Stack>
 				</Group>
