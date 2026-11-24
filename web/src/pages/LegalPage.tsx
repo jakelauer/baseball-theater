@@ -34,7 +34,22 @@ export function LegalPage({ page }: { page: LegalPageName })
 					if (block.kind === "list")
 					{
 						return (
-							<List key={i} fz={14} spacing={6}>
+							// Mantine's item wrapper is an inline-flex box beside an inside bullet, which sizes itself to
+							// the whole item's width and so runs past the column by the bullet's width at 390px. A plain
+							// inline box with the bullet hung outside (in the list's own 20px inset) wraps its words
+							// inside the column, each wrapped line under the first one's words.
+							<List key={i} fz={14} spacing={6} styles={{
+								root: {
+									listStylePosition: "outside",
+									paddingInlineStart: 20,
+								},
+								item: {
+									whiteSpace: "normal",
+								},
+								itemWrapper: {
+									display: "inline",
+								},
+							}}>
 								{block.items.map((item, j) => <List.Item key={j}>{item}</List.Item>)}
 							</List>
 						);
