@@ -11,6 +11,8 @@ import type {
 } from "@bt/domain";
 import { datesBetween } from "@bt/domain";
 import type { MlbStatsClient } from "@bt/ports";
+import type { GameStateDeps } from "../services/game-state.js";
+import { readScheduleDay } from "../services/game-state.js";
 
 /** Where the overlay looks first; null means "not here, ask the client underneath". */
 export interface MlbOverlaySource {
@@ -24,7 +26,14 @@ export function overlayMlbClient(inner: MlbStatsClient, source: MlbOverlaySource
 	return {
 		fetchSchedule: async (date) => await source.schedule(date) ?? inner.fetchSchedule(date),
 		fetchScheduleRange: (startDate, endDate) => overlayScheduleRange(inner, source, startDate, endDate),
-		fetchGame: async (gamePk) => await source.game(gamePk) ?? inner.fetchGame(gamePk),
+		// A game from `source` has no feed time of its own (S150 AC 2: never skipped for its time).
+		fetchGame: async (gamePk) =>
+		{
+			const game = await source.game(gamePk);
+			return game ? {
+				game,
+			} : inner.fetchGame(gamePk);
+		},
 		fetchGameContent: (gamePk) => inner.fetchGameContent(gamePk),
 		fetchPlayMetrics: (gamePk) => inner.fetchPlayMetrics(gamePk),
 		fetchGameGraphContent: (gamePk) => inner.fetchGameGraphContent(gamePk),
@@ -74,15 +83,15 @@ function unversioned<T extends { version: number;
  * The local store as an overlay source: in local dev with the bundled fixtures, a day or game
  * the store already holds (from `pnpm db:seed` or the dev seed file) is its own upstream, so
  * a refresh-on-read stamps it unchanged and writes nothing, and no seeded day is replaced by
- * the fixtures' empty answer for a date they don't have.
+ * the fixtures' empty answer for a date they don't have. A day is the joined day (S150 AC 6:
+ * `readScheduleDay`), each game's status from its one stored state, since the stored day has none.
  */
-export function storeOverlay(repos: { schedules: { getByDate(date: string): Promise<ScheduleDay | null> };
-	games: { getByPk(gamePk: number): Promise<GameSnapshot | null> }; }): MlbOverlaySource
+export function storeOverlay(repos: GameStateDeps): MlbOverlaySource
 {
 	return {
 		schedule: async (date) =>
 		{
-			const day = await repos.schedules.getByDate(date);
+			const day = await readScheduleDay(repos, date);
 			return day ? unversioned(day) : null;
 		},
 		game: async (gamePk) =>

@@ -82,7 +82,7 @@ describe("StandingsPage (S4)", () =>
 		expect(url.searchParams.get("date")).toBe("2026-09-05");
 	});
 
-	it("table: one per division, headed by divisionName, each row swatch, name, abbreviation, W, L, PCT, GB", async () =>
+	it("table (S102 AC 3): one per division, headed by MLB's short name from the payload (nameShort), each row swatch, name, abbreviation, W, L, PCT, GB", async () =>
 	{
 		serve(() => jsonResponse(STANDINGS));
 		renderStandings();
@@ -110,26 +110,31 @@ describe("StandingsPage (S4)", () =>
 		}
 	});
 
-	it("table: a division the recording names but BT doesn't know keeps MLB's name; one with neither reads Division", async () =>
+	it("table (S102 AC 3): a table with no short name (a league table, or an answer from before S102) is headed by its full name; one with neither reads Division", async () =>
 	{
-		const [first, second] = STANDINGS.divisions;
+		const [first, second, third] = STANDINGS.divisions;
 		serve(() => jsonResponse({
 			...STANDINGS,
 			divisions: [{
 				...first!,
 				divisionId: null,
-				name: "Spring League",
+				name: "American League",
+				nameShort: null,
 			}, {
 				...second!,
 				divisionId: 999,
 				name: null,
+				nameShort: null,
+			}, {
+				...third!,
+				nameShort: undefined,
 			}],
 		}));
 		renderStandings();
 		await screen.findAllByTestId("division-table");
 		expect(screen.getAllByRole("heading", {
 			level: 3,
-		}).map((h) => h.textContent)).toEqual(["Spring League", "Division"]);
+		}).map((h) => h.textContent)).toEqual(["American League", "Division", "American League West"]);
 	});
 
 	it("without a date in the URL, the server's today is asked for", async () =>

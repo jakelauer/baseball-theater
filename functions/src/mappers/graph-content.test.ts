@@ -30,7 +30,7 @@ describe("GraphQL game content (S94)", () =>
 
 	it("play refs: keyed by the video's id, so every one joins a video in the content feed", async () =>
 	{
-		const game = await new FixtureMlbStatsClient().fetchGame(823823);
+		const game = (await new FixtureMlbStatsClient().fetchGame(823823)).game;
 		const ids = new Set(game.highlights.map((h) => h.id));
 		for (const ref of graph.videoPlayRefs) expect(ids).toContain(ref.videoId);
 		// Three of the five ABS challenge clips, which the content feed links to no play.
@@ -52,7 +52,7 @@ describe("GraphQL game content (S94)", () =>
 	{
 		const fixtures = new FixtureMlbStatsClient();
 		expect(await fixtures.fetchGameGraphContent(823823)).toEqual(graph);
-		const game = await fixtures.fetchGame(823823);
+		const game = (await fixtures.fetchGame(823823)).game;
 		expect(game.videoPlayRefs).toEqual(graph.videoPlayRefs);
 		expect(game.relatedArticles).toEqual(graph.relatedArticles);
 	});
@@ -61,7 +61,7 @@ describe("GraphQL game content (S94)", () =>
 	{
 		const fixtures = new FixtureMlbStatsClient();
 		expect(await fixtures.fetchGameGraphContent(744834)).toBeNull();
-		const other = await fixtures.fetchGame(744834);
+		const other = (await fixtures.fetchGame(744834)).game;
 		expect(other).not.toHaveProperty("videoPlayRefs");
 		expect(other).not.toHaveProperty("relatedArticles");
 		expect(mapGraphContent({}, 823823)).toBeNull();
@@ -82,7 +82,7 @@ describe("GraphQL game content (S94)", () =>
 				});
 			},
 		});
-		const game = await failing.fetchGame(823823);
+		const game = (await failing.fetchGame(823823)).game;
 		expect(game.gamePk).toBe(823823);
 		expect(game).not.toHaveProperty("videoPlayRefs");
 		expect(game).not.toHaveProperty("relatedArticles");

@@ -19,6 +19,7 @@ import {
 import type { GameIngestNamespace } from "./game-ingest-object.js";
 import type { AlarmStore } from "./services/game-ingest.js";
 import { gameIngestName } from "./services/game-ingest.js";
+import { readServedGame } from "./services/game-state.js";
 import { HUB_LEASE_MS } from "./services/hub-leases.js";
 import { LiveHubState, liveMessage } from "./services/live-hub.js";
 import type { WorkerEnv } from "./worker-app.js";
@@ -66,7 +67,8 @@ export class GameHubObject
 		this.hub = new LiveHubState(async () =>
 		{
 			const gamePk = await state.storage.get<number>(GAME_KEY);
-			return gamePk === undefined ? null : app.ingest.games.getByPk(gamePk);
+			// S150 AC 6: the served game, as the HTTP read serves it, so a viewer's first send and its read compare.
+			return gamePk === undefined ? null : readServedGame(app.ingest, gamePk);
 		});
 		this.lease = env.GAME_INGEST ? ingestLease(env.GAME_INGEST) : null;
 		this.hyperdrive = env.HYPERDRIVE;

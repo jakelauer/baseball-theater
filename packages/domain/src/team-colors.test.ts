@@ -8,7 +8,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	contrastRatio, contrastSafeTeamColor, DARK_GROUND, divisionName, leagueName, teamColor,
+	contrastRatio, contrastSafeTeamColor, DARK_GROUND, leagueName, teamColor,
 } from "./team-colors.js";
 import { MLB_TEAMS } from "./teams.js";
 
@@ -72,25 +72,6 @@ describe("contrastSafeTeamColor (S61)", () =>
 	it("contrast: an id that isn't a club has none", () =>
 	{
 		expect(contrastSafeTeamColor(1)).toBeUndefined();
-	});
-});
-
-describe("divisionName (S61)", () =>
-{
-	it("divisionName: maps the six divisions in the standings recording", () =>
-	{
-		const recording = JSON.parse(readFileSync(new URL("../../../fixtures/standings-2026-09-05.json", import.meta.url), "utf8")) as {
-			divisions: { divisionId: number }[];
-		};
-		const names = recording.divisions.map((d) => divisionName(d.divisionId));
-		expect(names).toHaveLength(6);
-		expect(new Set(names)).toEqual(new Set(["AL East", "AL Central", "AL West", "NL East", "NL Central", "NL West"]));
-		expect(divisionName(201)).toBe("AL East");
-	});
-
-	it("divisionName: an unknown id has none", () =>
-	{
-		expect(divisionName(999)).toBeUndefined();
 	});
 });
 

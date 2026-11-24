@@ -20,7 +20,8 @@
  * The game's three extra sources — content (videos and recap), play metrics and the GraphQL
  * game content — exist only for recent games, so each is asked on its own and given up after
  * {@link GIVE_UP_AFTER_DAYS} consecutive failed days of games (`recordSourceDay`). The live
- * feed is never given up: a game whose feed fails leaves its day incomplete for the next run.
+ * feed is never given up: a game whose feed fails leaves its day incomplete for the next run, and
+ * its reason is logged (#359).
  *
  * A day's games are all fetched first, its source answers counted and saved, and only then
  * are its games written. A stop after the save re-fetches the day's games on resume but can't
@@ -41,11 +42,12 @@ import {
 	sourceGivenUpAt,
 } from "@bt/domain";
 import type {
-	GameEditorial, GameProjectionRepository, GameRepository, MlbGameSources, ScheduleRepository,
+	GameEditorial, GameProjectionRepository, GameRepository, GameStateRepository, MlbGameSources, ScheduleRepository,
 } from "@bt/ports";
 import { assembleGame } from "../mappers/game-extras.js";
+import { readJoinedScheduleDay, scheduleDayWindowMode } from "./game-state.js";
 import {
-	ingestGame, repairProjection, scheduleDayWindowMode, storeSchedule,
+	ingestGame, repairProjection, storeSchedule,
 } from "./ingest.js";
 
 /** The extra sources a game is hydrated from beside its live feed, each given up on its own. */
@@ -75,6 +77,8 @@ export type BackfillDeps = {
 	schedules: ScheduleRepository;
 	games: GameRepository;
 	projections: GameProjectionRepository;
+	/** Each game's one stored state (S150): written through ingest's switch, read into the joined day. */
+	gameStates: GameStateRepository;
 	state: ResumeStore;
 	now?: () => Date;
 	/** Called with each day before its first request, so the pacer can pick that day's gap. */
@@ -123,13 +127,31 @@ async function ask<T>(asked: boolean, call: () => Promise<T | null>): Promise<T 
 }
 
 /**
+ * Why a game's feed or a schedule day failed, in one short line for the progress log (#359): a parser's error
+ * (zod's `issues`) names each distinct field path it rejected, indices collapsed, so a feed with
+ * a hundred bad hits reads as one path; any other error is its message.
+ */
+function failureReason(error: unknown): string
+{
+	const issues = (error as { issues?: { path: (string | number)[];
+		message: string; }[]; } | null)?.issues;
+	if (!Array.isArray(issues)) return error instanceof Error ? error.message : String(error);
+	const distinct = [...new Set(issues.map((issue) => `${issue.path.map((part) => typeof part === "number" ? "*" : part).join(".")}: ${issue.message}`))];
+	return distinct.join("; ");
+}
+
+/**
  * What one game's fetch came to, for the day's tally. A fetched game is not yet written: the
  * day's answers are saved first (see the module comment), then {@link ingestGame} writes it.
  */
 type GameOutcome =
-	| { kind: "unchanged" | "repaired" | "feedFailed" }
+	| { kind: "unchanged" | "repaired" }
+	| { kind: "feedFailed";
+		reason: string; }
 	| { kind: "fetched";
 		game: Unversioned<GameSnapshot>;
+		/** The feed's own time (S150 AC 2), handed to the game-state switch beside the game. */
+		feedTime?: string;
 		answered: Partial<Record<ExtraSource, boolean>>; };
 
 /**
@@ -150,10 +172,11 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 	{
 		feed = await deps.mlb.fetchGameFeed(gamePk);
 	}
-	catch
+	catch (error)
 	{
 		return {
 			kind: "feedFailed",
+			reason: failureReason(error),
 		};
 	}
 	const [editorial, playMetrics, graph] = await Promise.all([
@@ -162,7 +185,7 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 		ask<GameGraphContent>(asking.graphContent, () => deps.mlb.fetchGameGraphContent(gamePk)),
 	]);
 	const game = {
-		...assembleGame(feed, editorial, playMetrics, graph),
+		...assembleGame(feed.game, editorial, playMetrics, graph),
 		fetchedAt,
 		windowMode,
 	};
@@ -173,6 +196,9 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 	return {
 		kind: "fetched",
 		game,
+		...feed.feedTime !== undefined && {
+			feedTime: feed.feedTime,
+		},
 		answered,
 	};
 }
@@ -218,27 +244,36 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 		// MLB is asked again. An untyped settled day (stored before S167) is asked once here; the
 		// version guard lets its new types through, and it counts as complete whatever MLB sent, or
 		// with its stored games when the request fails.
-		let scheduleDay = await deps.schedules.getByDate(day);
+		// The joined day (S150 AC 6): each game's status from its one stored state, since the stored day has none; a
+		// listing whose game moved to another day counts as settled (`moved`).
+		let held = await readJoinedScheduleDay(deps, day, now);
+		let scheduleDay = held?.served ?? null;
+		const settled = () => held !== null && isScheduleDaySettled(held.served, today, held.moved);
 		let askedMlb = false;
-		if (!scheduleDay || !isScheduleDaySettled(scheduleDay, today) || scheduleDayLacksGameType(scheduleDay))
+		// Games MLB's schedule calls final this run. A game whose one stored state says otherwise (written in play,
+		// and the switch then hands it to the feed, S150) is fetched too, so its feed's final mends it.
+		const fetchedFinals = new Set<number>();
+		if (!scheduleDay || !settled() || scheduleDayLacksGameType(scheduleDay))
 		{
 			askedMlb = true;
 			try
 			{
 				const fetched = await deps.mlb.fetchSchedule(day);
+				for (const game of fetched.games) if (isFinalSummary(game)) fetchedFinals.add(game.gamePk);
 				scheduleDay = await storeSchedule(deps, {
 					...fetched,
 					fetchedAt: now.toISOString(),
 					windowMode: await scheduleDayWindowMode(deps, fetched, now),
 				});
+				held = await readJoinedScheduleDay(deps, day, now);
 			}
 			catch (error)
 			{
-				const reason = error instanceof Error ? error.message : String(error);
+				const reason = failureReason(error);
 				// Only a missing or unsettled day waits for the next run. A settled day asked only for its
 				// game types (stored before S167) carries on with what is stored, so its finals and any
 				// projection repair still run (S122 AC 4; S167 AC 4: it never holds the run's other work back).
-				if (!scheduleDay || !isScheduleDaySettled(scheduleDay, today))
+				if (!scheduleDay || !settled())
 				{
 					log(`${day}: the schedule fetch or store failed (${reason}); left for the next run`);
 					result.incomplete.push(day);
@@ -246,18 +281,21 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 				}
 				log(`${day}: the schedule fetch or store failed (${reason}); its stored games keep no game type until a later run`);
 			}
-			if (!isScheduleDaySettled(scheduleDay, today)) complete = false;
 		}
 
 		const asking = Object.fromEntries(EXTRA_SOURCES.map((source) => [source, !isSourceGivenUp(state.sources[source], day)])) as Record<ExtraSource, boolean>;
-		const finals = scheduleDay.games.filter(isFinalSummary);
+		const finals = scheduleDay.games.filter((game) => isFinalSummary(game) || fetchedFinals.has(game.gamePk));
 		const windowMode = scheduleDay.windowMode;
 		const outcomes = await Promise.all(finals.map((game) => fetchGame(deps, game.gamePk, asking, now.toISOString(), windowMode)));
 
 		let repaired = 0;
-		for (const outcome of outcomes)
+		for (const [index, outcome] of outcomes.entries())
 		{
-			if (outcome.kind === "feedFailed") complete = false;
+			if (outcome.kind === "feedFailed")
+			{
+				complete = false;
+				log(`${day}: game ${finals[index]!.gamePk}'s live feed failed (${outcome.reason}); left for the next run`);
+			}
 			if (outcome.kind === "repaired") repaired++;
 			if (outcome.kind === "fetched") askedMlb = true;
 		}
@@ -290,9 +328,15 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 		let stored = 0;
 		for (const outcome of outcomes)
 		{
-			if (outcome.kind === "fetched" && (await ingestGame(deps, outcome.game)).changed) stored++;
+			if (outcome.kind === "fetched" && (await ingestGame(deps, outcome.game, outcome.feedTime)).changed) stored++;
 		}
 		result.gamesStored += stored;
+		// Judged once the day's games are written, since a feed's final can settle a game's state (S150).
+		if (askedMlb)
+		{
+			held = await readJoinedScheduleDay(deps, day, now) ?? held;
+			if (!settled()) complete = false;
+		}
 
 		if (!complete) result.incomplete.push(day);
 		if (!askedMlb && complete && repaired === 0)

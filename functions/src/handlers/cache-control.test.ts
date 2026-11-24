@@ -10,10 +10,7 @@ import {
 import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
-	InMemorySettingsRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemorySettingsRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { RefreshCoordinator } from "../services/refresh.js";
 import { handleApiRequest } from "./api.js";
@@ -34,7 +31,7 @@ function api(mlb: MlbStatsClient = new FixtureMlbStatsClient())
 	const ctx = {
 		ingest: {
 			mlb,
-			schedules: new InMemoryScheduleRepository(),
+			...memoryScheduleStores(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
 			now: () => clock.now,
@@ -130,14 +127,18 @@ describe("GET /api/v1/games/:gamePk and /api/v1/schedule Cache-Control (S47)", (
 			fetchScheduleRange: (from, to) => real.fetchScheduleRange(from, to),
 			fetchGame: async (pk) =>
 			{
-				const game = await real.fetchGame(pk);
-				return changed && game ? {
-					...game,
-					status: {
-						...game.status,
-						detailedState: "Final: scoring change",
+				const { game } = await real.fetchGame(pk);
+				return changed ? {
+					game: {
+						...game,
+						status: {
+							...game.status,
+							detailedState: "Final: scoring change",
+						},
 					},
-				} : game;
+				} : {
+					game,
+				};
 			},
 			fetchGameContent: (pk) => real.fetchGameContent(pk),
 			fetchPlayMetrics: (pk) => real.fetchPlayMetrics(pk),

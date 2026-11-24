@@ -29,7 +29,7 @@ describe("video play links (S95)", () =>
 
 	it("823823: 20 of 40 videos link — the 15 guid clips and all 5 ABS clips; graphics, recap, condensed game and pre-game link to none", async () =>
 	{
-		const game = await new FixtureMlbStatsClient().fetchGame(823823);
+		const game = (await new FixtureMlbStatsClient().fetchGame(823823)).game;
 		expect(game.highlights).toHaveLength(40);
 		const linked = game.highlights.filter((h) => h.playId);
 		expect(linked).toHaveLength(20);
@@ -54,7 +54,7 @@ describe("video play links (S95)", () =>
 
 	it("823823: the five ABS challenges are stored on their at-bats with team and outcome", async () =>
 	{
-		const game = await new FixtureMlbStatsClient().fetchGame(823823);
+		const game = (await new FixtureMlbStatsClient().fetchGame(823823)).game;
 		expect(game.plays.filter((a) => a.challenge).map((a) => [a.about.atBatIndex, a.challenge!.teamId, a.challenge!.overturned])).toEqual([
 			[34, 112, false],
 			[39, 146, true],
