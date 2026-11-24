@@ -9,7 +9,7 @@
  */
 import { spawnSync } from "node:child_process";
 import {
-	chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync,
+	chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -109,9 +109,9 @@ interface FakePr
 /**
  * A fake `gh` on PATH answering `gh api --paginate … --jq '.[]'` with one JSON object a line, unfiltered, as the REST
  * API returns them: the open pull requests (number i + 1, head `prHead`) and each one's files. `fail` makes every call
- * fail, as `gh` does offline or signed out.
+ * fail, as `gh` does offline or signed out; `filesFail` only the per-pull-request `files` calls.
  */
-function fakeGh(prs: FakePr[], fail = false): void
+function fakeGh(prs: FakePr[], fail = false, filesFail = false): void
 {
 	const list = prs.map((pr, i) => JSON.stringify({
 		number: i + 1,
@@ -133,7 +133,7 @@ function fakeGh(prs: FakePr[], fail = false): void
 	})).join("\n"));
 	const script = fail
 		? "#!/bin/sh\nexit 1\n"
-		: `#!/usr/bin/env node\nconst args = process.argv.slice(2).join(" ");\nconst list = ${JSON.stringify(list.join("\n"))};\nconst files = ${JSON.stringify(files)};\nconst m = /pulls\\/(\\d+)\\/files/.exec(args);\nconsole.log(m ? files[Number(m[1]) - 1] ?? "" : list);\n`;
+		: `#!/usr/bin/env node\nconst args = process.argv.slice(2).join(" ");\nconst list = ${JSON.stringify(list.join("\n"))};\nconst files = ${JSON.stringify(files)};\nconst m = /pulls\\/(\\d+)\\/files/.exec(args);\nif (m && ${filesFail}) process.exit(1);\nconsole.log(m ? files[Number(m[1]) - 1] ?? "" : list);\n`;
 	writeFileSync(join(bin, "gh"), script);
 	chmodSync(join(bin, "gh"), 0o755);
 }
@@ -383,6 +383,50 @@ describe("review-gate.sh with the due review already on an open pull request", (
 			files: [SKIP],
 		}]);
 		expect(prompt()).toContain("BACKLOG REVIEW");
+	});
+
+	it("fetches a pull request's head the checkout hasn't fetched before judging what it covers", () =>
+	{
+		world(true, "none", {
+			events: ["count"],
+			since: ["count"],
+		});
+		const remote = mkdtempSync(join(tmpdir(), "review-gate-remote-"));
+		try
+		{
+			spawnSync("git", ["clone", "-q", repo, remote]);
+			const head = spawnSync("git", ["-c", "user.name=T", "-c", "user.email=t@e", "commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "unfetched head"], {
+				cwd: remote,
+				encoding: "utf8",
+			}).stdout.trim();
+			spawnSync("git", ["update-ref", "refs/pull/1/head", head], {
+				cwd: remote,
+			});
+			git("remote", "add", "origin", remote);
+			expect(git("cat-file", "-t", head)).toBe("");
+			prHead = head;
+			fakeGh([{
+				files: [REVIEW],
+			}]);
+			expect(prompt()).toBe("");
+		}
+		finally
+		{
+			rmSync(remote, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	it("never caches an answer with a failed files call, so the next prompt asks gh again", () =>
+	{
+		world(true, "none");
+		fakeGh([{
+			files: [REVIEW],
+		}], false, true);
+		expect(prompt()).toContain("BACKLOG REVIEW");
+		expect(existsSync(join(repo, ".git/bt-review-gate-prs"))).toBe(false);
 	});
 
 	it("falls back to asking for the review when gh can't answer (offline)", () =>

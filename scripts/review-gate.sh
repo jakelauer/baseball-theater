@@ -47,29 +47,45 @@ blocked() {
 
 [ -n "$(git status --porcelain 2>/dev/null)" ] && exit 0
 
-# The review entries open same-repository pull requests add, one `<kind>-<entry> <head sha>` a line
-# (`backlog-review 1a2b…`, `parity-skip …`), read only when a review is due; empty when `gh` can't
-# answer. Cached for 60 seconds, so a prompt and the Stop that ends its turn make one set of calls.
+# The review entries open same-repository pull requests add, one `<kind>-<entry> <head sha> <number>`
+# a line (`backlog-review 1a2b… 17`, `parity-skip …`), read only when a review is due; empty when
+# `gh` can't answer. Cached for 60 seconds (`find -mmin`, which BSD and GNU find both read the same
+# way), so a prompt and the Stop that ends its turn make one set of calls; an answer with any failed
+# `files` call is used but never cached.
 pending=""
 pending_read=""
 pending_entries() {
   [ -n "$pending_read" ] && return 0
   pending_read=1
-  local cache prs n sha
+  local cache prs n sha files failed=""
   cache="$(git rev-parse --git-dir)/bt-review-gate-prs"
-  if [ -f "$cache" ] && [ $(( $(date +%s) - $(stat -f %m "$cache" 2>/dev/null || stat -c %Y "$cache" 2>/dev/null || echo 0) )) -lt 60 ]; then
+  if [ -n "$(find "$cache" -mmin -1 2>/dev/null)" ]; then
     pending="$(cat "$cache")"
     return 0
   fi
   prs="$(gh api --paginate 'repos/{owner}/{repo}/pulls?state=open&per_page=100' --jq '.[]' 2>/dev/null |
     node -e 'for (const l of require("fs").readFileSync(0, "utf8").split("\n").filter(Boolean)) { const p = JSON.parse(l); if (p.head?.repo?.full_name && p.head.repo.full_name === p.base?.repo?.full_name) console.log(p.number, p.head.sha); }' 2>/dev/null)" || return 0
-  pending="$(while read -r n sha; do
+  while read -r n sha; do
     [ -n "$n" ] || continue
-    gh api --paginate "repos/{owner}/{repo}/pulls/${n}/files?per_page=100" --jq '.[]' 2>/dev/null |
-      node -e 'for (const l of require("fs").readFileSync(0, "utf8").split("\n").filter(Boolean)) { const f = JSON.parse(l); if (f.status === "added") console.log(f.filename); }' 2>/dev/null |
-      sed -nE "s#^docs/v3/audit/[^/]+/[^/]+-((backlog|parity)-(review|skip|answers))\\.md\$#\\1 ${sha}#p"
-  done <<<"$prs" | sort -u)"
-  printf '%s' "$pending" >"$cache"
+    if ! files="$(gh api --paginate "repos/{owner}/{repo}/pulls/${n}/files?per_page=100" --jq '.[]' 2>/dev/null |
+      node -e 'for (const l of require("fs").readFileSync(0, "utf8").split("\n").filter(Boolean)) { const f = JSON.parse(l); if (f.status === "added") console.log(f.filename); }' 2>/dev/null)"; then
+      failed=1
+      continue
+    fi
+    pending+="$(sed -nE "s#^docs/v3/audit/[^/]+/[^/]+-((backlog|parity)-(review|skip|answers))\\.md\$#\\1 ${sha} ${n}#p" <<<"$files")"$'\n'
+  done <<<"$prs"
+  pending="$(sort -u <<<"$pending" | sed '/^$/d')"
+  [ -z "$failed" ] && printf '%s' "$pending" >"$cache"
+  return 0
+}
+
+# have_commit <sha> <pull request number>: the pull request's head is in this repository, fetched
+# from origin's `pull/<n>/head` when it isn't (the main checkout often hasn't fetched a review's
+# branch), within 15 seconds (perl's alarm, on macOS and Linux alike).
+have_commit() {
+  git cat-file -e "$1^{commit}" 2>/dev/null && return 0
+  perl -e 'alarm shift; exec @ARGV' 15 git fetch -q origin "pull/$2/head" >/dev/null 2>&1
+  git cat-file -e "$1^{commit}" 2>/dev/null
 }
 
 # json_field <expr>: evaluates a JS expression over the JSON on stdin as `j`, printing its lines.
@@ -77,11 +93,12 @@ json_field() {
   node -e 'const j = JSON.parse(require("fs").readFileSync(0, "utf8")); const v = eval(process.argv[1]); for (const x of [].concat(v)) console.log(x);' "$1"
 }
 
-# covers <debt script> <head sha>: the pending entry's branch base saw everything due now: no
+# covers <debt script> <head sha> <number>: the pending entry's branch base saw everything due now: no
 # event other than the story count or a turn-cap hit since it, and fewer than 6 of the stories
 # done since the last review shipped (their snapshot fragment added) after it.
 covers() {
   local mb since id after=0
+  have_commit "$2" "$3" || return 1
   mb="$(git merge-base HEAD "$2" 2>/dev/null)" || return 1
   since="$("$1" --json --since "$mb" 2>/dev/null)" || return 1
   [ -z "$(json_field 'j.events.map((e) => e.kind).filter((k) => k !== "count" && k !== "turn-cap")' <<<"$since" 2>/dev/null || echo bad)" ] || return 1
@@ -96,17 +113,17 @@ covers() {
 # nothing due now is a story count or a turn-cap hit, which only a review clears. Any `--json`
 # that fails or doesn't parse counts as not handled, so the gate asks.
 handled() {
-  local kind sha now kinds
+  local kind sha n now kinds
   pending_entries
-  while read -r kind sha; do
-    [ "$kind" = "$1-review" ] && covers "$2" "$sha" && return 0
+  while read -r kind sha n; do
+    [ "$kind" = "$1-review" ] && covers "$2" "$sha" "$n" && return 0
   done <<<"$pending"
-  while read -r kind sha; do
+  while read -r kind sha n; do
     case "$kind" in "$1-skip" | "$1-answers") ;; *) continue ;; esac
     now="$("$2" --json 2>/dev/null)" || return 1
     kinds="$(json_field 'j.events.map((e) => e.kind)' <<<"$now" 2>/dev/null)" || return 1
     grep -qxE 'count|turn-cap' <<<"$kinds" && return 1
-    covers "$2" "$sha" && return 0
+    covers "$2" "$sha" "$n" && return 0
   done <<<"$pending"
   return 1
 }
