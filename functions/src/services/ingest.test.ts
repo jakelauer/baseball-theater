@@ -7,7 +7,7 @@ import {
 } from "../adapters/memory/repos.js";
 import type { GameSnapshot, Unversioned } from "@bt/domain";
 import {
-	getOrRefreshGame, ingestGame, ingestScheduleDay, refreshTodaysWindow,
+	getOrRefreshGame, getOrRefreshSchedule, ingestGame, ingestScheduleDay, refreshTodaysWindow, storeSchedule,
 } from "./ingest.js";
 import { RefreshCoordinator } from "./refresh.js";
 
@@ -441,5 +441,45 @@ describe("a suspended game's stored suspension time (#79, #323)", () =>
 		expect(fetched).toEqual([745001]);
 		expect(day.windowMode).toBe("active");
 		expect((await games.getByPk(745001))?.suspendedAt).toBe("2026-07-05T06:00:00.000Z");
+	});
+});
+
+describe("the day read refreshes the schedule, not each game (#419)", () =>
+{
+	it("B419: a stale stored past day of 15 final games is refreshed with one schedule request and no game feeds (#419)", async () =>
+	{
+		const fixture = new FixtureMlbStatsClient();
+		const asked: string[] = [];
+		const mlb = Object.assign(Object.create(fixture) as FixtureMlbStatsClient, {
+			fetchSchedule: async (date: string) =>
+			{
+				asked.push(`schedule ${date}`);
+				return fixture.fetchSchedule(date);
+			},
+			fetchGame: async (gamePk: number) =>
+			{
+				asked.push(`game ${gamePk}`);
+				return fixture.fetchGame(gamePk);
+			},
+		});
+		const { schedules, gameStates } = memoryScheduleStores();
+		const deps = {
+			mlb,
+			schedules,
+			games: new InMemoryGameRepository(),
+			projections: new InMemoryGameProjectionRepository(),
+			gameStates,
+			now: () => new Date("2026-11-24T12:00:00.000Z"),
+			refresh: new RefreshCoordinator(() => new Date("2026-11-24T12:00:00.000Z")),
+		};
+		// Stored as the month fill leaves a day (S124): its schedule only, last checked days ago, so it is stale.
+		await storeSchedule(deps, {
+			...await fixture.fetchSchedule("2026-09-05"),
+			fetchedAt: "2026-11-20T12:00:00.000Z",
+			windowMode: "cache",
+		});
+		const day = await getOrRefreshSchedule(deps, "2026-09-05");
+		expect(day.games).toHaveLength(15);
+		expect(asked).toEqual(["schedule 2026-09-05"]);
 	});
 });
