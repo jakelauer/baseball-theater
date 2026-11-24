@@ -73,6 +73,9 @@ for f in functions/src/adapters/postgres/repos.ts functions/src/adapters/memory/
     bad 1 "$f listGameCounts does not build regularSeasonTeamIds through dayRegularSeasonTeamIds"
 done
 [ "$(awk '/async listGameCounts\(/,/^\t}$/' functions/src/adapters/postgres/repos.ts | grep -c 'this.db.select')" = "1" ] || bad 1 "the Postgres listGameCounts does not read in exactly one query"
+# AC 1: listGameCounts' comment in the ports lists the tally's fields, so it names the new one (ADR-025).
+awk '/^\t\/\*\*$/{c=""} {c=c $0 "\n"} /listGameCounts\(/{print c; exit}' packages/ports/src/repositories.ts | grep -qF 'regularSeasonTeamIds' ||
+  bad 1 "packages/ports/src/repositories.ts's listGameCounts comment does not name regularSeasonTeamIds"
 tagged 1 "$DOMAIN_JSON" "S191 AC 1" "packages/domain/src/schedule-month.test.ts"
 for t in "regular only" "mixed" "untyped"; do
   tagged 1 "$MEMORY_JSON" "S191 AC 1 $t" "functions/src/adapters/memory/repos.contract.test.ts"

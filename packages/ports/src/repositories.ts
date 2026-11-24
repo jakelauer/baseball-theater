@@ -32,8 +32,9 @@ export interface ScheduleRepository {
 	/**
 	 * Every stored day from `from` to `to` (both included, `YYYY-MM-DD`) as its game count, its
 	 * teams' IDs (S136; each once, ascending), its games' types with whether it has a
-	 * regular-season game (S167; one type per game, `null` for an untyped one) and stamps, in date
-	 * order, in one read (S124's month view): days nothing stored are left out.
+	 * regular-season game (S167; one type per game, `null` for an untyped one), the teams of its
+	 * regular-season games (`regularSeasonTeamIds`, S191; `null` exactly when `regularSeason` is) and
+	 * stamps, in date order, in one read (S124's month view): days nothing stored are left out.
 	 */
 	listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>;
 	/**
