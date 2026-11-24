@@ -20,7 +20,9 @@ const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
  * Series (S111), each day's recorded table, `raw/standings-<date>` (S160, which `fetchStandings` maps
  * first), and each season's final and spring standings (S128) — a season's table with no date, which
  * before its first game lists the new season's teams (S139 reads 2027's for the regular season's blank
- * list), included, and each recorded highlight search, `search-<words>` (S5). A recording with a suffix after its date (`-wildcard`, `-spring-regular`) is never served.
+ * list), included, and each recorded highlight search, `search-<words>` (S5) or a filtered one,
+ * `search[-<words>]--<filter>-<value>…` (S72). A recording with a suffix after its date (`-wildcard`,
+ * `-spring-regular`) is never served.
  */
 const SERVED = new RegExp(`^(${[
 	String.raw`schedule-\d{4}-\d{2}-\d{2}`, String.raw`game-\d+`, String.raw`plays-\d+`, String.raw`standings-\d{4}-\d{2}-\d{2}`, "players-.+",

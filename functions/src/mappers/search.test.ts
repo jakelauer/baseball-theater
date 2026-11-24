@@ -272,4 +272,50 @@ describe("recordSearch (S5)", () =>
 			});
 		}
 	});
+
+	it("names a filtered search apart from any words-only one (S72): the words end at the first --", () =>
+	{
+		expect(searchFixtureName("team 147 tag home run")).toBe("search-team-147-tag-home-run.json");
+		expect(searchFixtureName("", {
+			teamId: 147,
+			tag: "home-run",
+		})).toBe("search--team-147--tag-home-run.json");
+		expect(searchFixtureName("judge", {
+			date: "2026-09-14",
+		})).toBe("search-judge--date-2026-09-14.json");
+	});
+
+	it("records a filtered search under its filtered name, asking MLB's STRUCTURED filter language (S72)", async () =>
+	{
+		const dir = await mkdtemp(path.join(tmpdir(), "bt-search-"));
+		try
+		{
+			const text = JSON.stringify(answer([play(-1)]));
+			const asked: string[] = [];
+			const name = await recordSearch("", dir, {
+				filters: {
+					teamId: 147,
+					tag: "home-run",
+				},
+				fetchImpl: async (input) =>
+				{
+					asked.push(String(input));
+					return new Response(text);
+				},
+			});
+			expect(name).toBe("search--team-147--tag-home-run.json");
+			expect(await readFile(path.join(dir, name), "utf8")).toBe(text);
+			const variables = JSON.parse(new URL(asked[0] ?? "").searchParams.get("variables") ?? "{}") as { queryType: string;
+				query: string; };
+			expect(variables.queryType).toBe("STRUCTURED");
+			expect(variables.query).toBe("TeamId = [147] AND ContentTags = [\"home-run\"] Order By Timestamp DESC");
+		}
+		finally
+		{
+			await rm(dir, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
 });

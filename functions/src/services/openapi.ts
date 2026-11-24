@@ -172,21 +172,54 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 	},
 	"GET /api/v1/search/highlights": {
 		operationId: "searchHighlights",
-		summary: "Highlight search: MLB's free-text search for the words, asked as each search is made, newest first. Each result is a playable clip and its game (teams and date), or no game for a clip MLB ties to none. `total` is MLB's count of every clip it matched; `highlights` is the first page of them, so it may hold fewer. Cached for five minutes.",
+		summary: "Highlight search: MLB's free-text search for the words, asked as each search is made, newest first; with a `date`, `team` or `tag` filter, MLB's filtered search instead, the words then matched against each clip's description. Each result is a playable clip and its game (teams and date), or no game for a clip MLB ties to none. `total` is MLB's count of every clip it matched; `highlights` is the first page of them, so it may hold fewer. Cached for five minutes.",
 		parameters: [
 			{
 				name: "q",
 				in: "query",
 				required: true,
-				description: "The words to search for, as typed, at most 200 characters (UTF-16 code units, counted after trimming); hyphens are sent to MLB as spaces (`walk-off` searches `walk off`).",
+				description: "The words to search for, as typed, at most 200 characters (UTF-16 code units, counted after trimming); hyphens are sent to MLB as spaces (`walk-off` searches `walk off`). May be empty when a filter (`date`, `team` or `tag`) is given: a filter alone is a search.",
 				schema: {
 					type: "string",
 					maxLength: 200,
 				},
 			},
+			{
+				name: "date",
+				in: "query",
+				required: false,
+				description: "Only clips from games on this day, `YYYY-MM-DD` (MLB's `Date` filter).",
+				schema: {
+					type: "string",
+					pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+				},
+			},
+			{
+				name: "team",
+				in: "query",
+				required: false,
+				description: "Only clips from games this club played, by MLB team id (`147` is the Yankees; MLB's `TeamId` filter).",
+				// The route's bound (`parseSearchFilters`: one to six digits, no leading zero).
+				schema: {
+					type: "integer",
+					minimum: 1,
+					maximum: 999999,
+				},
+			},
+			{
+				name: "tag",
+				in: "query",
+				required: false,
+				description: "Only clips MLB tags with this kind of play, a lower-case taxonomy slug such as `home-run` (MLB's `ContentTags` filter).",
+				schema: {
+					type: "string",
+					pattern: "^[a-z0-9]+(-[a-z0-9]+)*$",
+					maxLength: 64,
+				},
+			},
 		],
 		errors: {
-			400: "`q` is missing or holds nothing to search for (`query_required`), or is longer than 200 characters after trimming (`query_too_long`).",
+			400: "`q` is missing or holds nothing to search for (`query_required`), or is longer than 200 characters after trimming (`query_too_long`), or a filter is malformed (`invalid_filter`).",
 			502: "MLB could not answer the search.",
 		},
 	},
