@@ -143,6 +143,19 @@ a {
 	transition-duration: var(--bt-zoom-ms);
 }
 
+/*
+ * Every hover movement is a `transform` (never top/left/margin, width/height or background-size)
+ * and its element keeps its own compositor layer, so it moves in subpixel steps (B413, #413; owner,
+ * 2026-11-23: "it uses the transform property because that allows for subpixel rendering"). Without
+ * `will-change` the browser makes the layer only when the transition starts and drops it when it
+ * ends, re-rasterising the card or still at each end: the judder seen on the lift and the zoom.
+ */
+.bt-card,
+.bt-zoom img,
+.bt-pitch-dot circle {
+	will-change: transform;
+}
+
 .bt-card {
 	/* For the hover strip below; the scoreboard card also sets it inline for its stretched link. */
 	position: relative;
