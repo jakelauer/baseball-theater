@@ -2,7 +2,7 @@ import {
 	useEffect, useLayoutEffect, useState, useSyncExternalStore,
 } from "react";
 import { fetchedAgo } from "@bt/domain";
-import { formatTime } from "../format/datetime.js";
+import { formatMomentSince } from "../format/datetime.js";
 import type { Notice } from "../layout/NoticeSlot.js";
 
 /**
@@ -20,11 +20,16 @@ import type { Notice } from "../layout/NoticeSlot.js";
  * since the shell draws the slot and the page holds the data (ADR-024: no context, no store).
  */
 
-/** What the page on screen draws: its kind decides the wording, `fetchedAt` (the payload's, ISO) its time and age. */
+/**
+ * What the page on screen draws: its kind decides the wording, `asOf` (ISO) its time and age. `asOf`
+ * is when this copy was current, never the payload's `fetchedAt` (BT's last change, which an
+ * unchanged poll doesn't move): for a copy the worker served from storage, its `Date` less its `Age`
+ * (`copyAsOf`, `api/client.ts`); otherwise when the page last got it (the query's `dataUpdatedAt`).
+ */
 export interface SavedCopy
 {
 	kind: "scores" | "game";
-	fetchedAt: string;
+	asOf: string;
 }
 
 const CHANGED = "bt:saved-copy-changed";
@@ -56,12 +61,12 @@ function subscribeOnline(onChange: () => void): () => void
 export function useSavedCopy(copy: SavedCopy | null): void
 {
 	const kind = copy?.kind;
-	const fetchedAt = copy?.fetchedAt;
+	const asOf = copy?.asOf;
 	useLayoutEffect(() =>
 	{
-		saved = kind && fetchedAt ? {
+		saved = kind && asOf ? {
 			kind,
-			fetchedAt,
+			asOf,
 		} : null;
 		window.dispatchEvent(new Event(CHANGED));
 		return () =>
@@ -69,19 +74,20 @@ export function useSavedCopy(copy: SavedCopy | null): void
 			saved = null;
 			window.dispatchEvent(new Event(CHANGED));
 		};
-	}, [kind, fetchedAt]);
+	}, [kind, asOf]);
 }
 
 /**
  * The marker's words for `copy` at `now`: "You're offline." then, with a copy, "Scores as of" or
- * "This game as of", its fetch time in the reader's zone (`formatTime`) and its age from
- * `fetchedAgo` (ADR-025: the one implementation; this only formats it).
+ * "This game as of", the copy's time in the reader's zone, with its date when it isn't today
+ * (`formatMomentSince`), and its age from `fetchedAgo` (ADR-025: the one implementation; this only
+ * formats it).
  */
 export function offlineMessage(copy: SavedCopy | null, now: Date): string
 {
 	if (!copy) return "You're offline.";
 	const what = copy.kind === "scores" ? "Scores" : "This game";
-	return `You're offline. ${what} as of ${formatTime(copy.fetchedAt)} — ${fetchedAgo(copy.fetchedAt, now)}.`;
+	return `You're offline. ${what} as of ${formatMomentSince(copy.asOf, now)} — ${fetchedAgo(copy.asOf, now)}.`;
 }
 
 /** How often the marker's age is re-read while it shows, so "18m ago" moves on. */

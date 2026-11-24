@@ -58,7 +58,7 @@ export function usePrefetchOnOpen(): void
 	}, [client, known, today, favoritesKey]);
 }
 
-/** The tag the worker's handler answers (`public/sw-prefetch.js`). */
+/** The tag the worker's handler answers (`sw.ts`). */
 export const PREFETCH_TAG = "bt-prefetch";
 
 /** What `registration.periodicSync` offers where a browser has it (Chromium's installed apps); absent from TypeScript's DOM types. */
@@ -72,7 +72,7 @@ interface PeriodicSyncManager
  * the registration, never a browser sniff. Where `periodicSync` is missing (Firefox, Safari, a tab
  * not installed) it does nothing and answers false; where registering is refused (no permission,
  * low engagement) it answers false too and the app still prefetches on open. The worker's handler
- * then refreshes today's schedule in the background (`public/sw-prefetch.js`).
+ * then refreshes today's schedule in the background (`sw.ts`).
  */
 export async function registerPeriodicSync(registration: ServiceWorkerRegistration): Promise<boolean>
 {

@@ -104,15 +104,16 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 	// query polling on top of the stream's own fallback (S148).
 	const live = useLiveGame(Number(gamePk), useCachedGame(Number(gamePk))?.windowMode === "active");
 	const {
-		data: game, error, refetch,
+		data: game, error, refetch, dataUpdatedAt,
 	} = useGame(Number(gamePk), live.inWindow);
 	// Signed out, the store holds the house defaults, so games open on the default room.
 	const { opensFirst } = useSettings();
 	// Offline (S74): the marker names this game's copy, and draws under the top bar (the shell leaves it out here).
 	const marker = useOfflineNotice();
+	// A stored copy's own time, or when this page last got the game (a fetch, or a pushed update).
 	useSavedCopy(game ? {
 		kind: "game",
-		fetchedAt: game.fetchedAt,
+		asOf: game.copyAsOf ?? new Date(dataUpdatedAt).toISOString(),
 	} : null);
 
 	// A failed refetch keeps the room already shown (S28's one rule: a retired version's 426

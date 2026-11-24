@@ -310,7 +310,7 @@ describe("the Live pitch theater (S64)", () =>
 		expect(screen.queryByTestId("matchup-cards")).toBeNull();
 	});
 
-	it("render count: one cache update of the game commits the Live panel at most twice (baseline)", async () =>
+	it("render count: one cache update of the game commits the Live panel twice (baseline)", async () =>
 	{
 		const client = createQueryClient();
 		const counter = createRenderCounter("live");
@@ -343,8 +343,7 @@ describe("the Live pitch theater (S64)", () =>
 		// notifies its readers on the next tick.
 		await waitFor(() => expect(counter.count()).toBeGreaterThan(0));
 		await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
-		// S64 pinned two commits; since S74's offlineFirst queries it is one. More would be a regression.
-		expect(counter.count()).toBeLessThanOrEqual(2);
+		expect(counter.count()).toBe(2);
 	});
 });
 

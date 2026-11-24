@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "AC 1: a NetworkFirst runtime cache of /api/v1/* GETs whose match excludes /api/v1/me and below (RTL/config 'S74 AC 1' tests), its cache name declared and labeled in web/src/storage/ (test), no lifetime constant (maxAgeSeconds, ExpirationPlugin, expiration, networkTimeoutSeconds) in web/src/pwa/ or web/public/"
+check 1 "AC 1: a NetworkFirst runtime cache of /api/v1/* GETs whose match excludes /api/v1/me and below (RTL/config 'S74 AC 1' tests), built by the worker source web/src/pwa/sw.ts (injectManifest) from a strategy web/src/storage/ owns, its cache name declared and labeled in web/src/storage/ (test), no worker file outside web/src/ (law L1's lint scope), no lifetime constant (maxAgeSeconds, ExpirationPlugin, expiration, networkTimeoutSeconds) in web/src/pwa/, web/src/storage/ or web/public/"
 check 2 "AC 2: offline, the scoreboard (mobile, medium, desktop) and a viewed game (and a live one whose polls fail) show the NoticeBanner in the NoticeSlot with no action, naming the copy's time and age from fetchedAgo, no offline footer line, no Live strip; a never-viewed room shows only 'You're offline.' over empty content; offline and update show together (tests 'S74 AC 2 …')"
 check 3 "AC 3: offline copies render the Hide Scores masks when useScoresHidden says so, on the scoreboard and in a room (tests 'S74 AC 3 …')"
 check 4 "AC 4: on open, signed in prefetches today's schedule and the favorites' games; signed out today's schedule only (tests 'S74 AC 4 …' assert the requests)"
@@ -23,7 +23,7 @@ check 5 "AC 5: Periodic Background Sync registers only where supported (tests 'S
 check 6 "AC 6: files this story adds or edits have no team-logo <img> or /logos/ reference and call no useMediaQuery, hiddenFrom or visibleFrom outside web/src/layout/"
 check 7 "AC 7: the six offline captures from e2e/design/S74.spec.ts under docs/v3/design-checks/S74/ at their pairing widths (390/768/1200)"
 check 8 "AC 8: S74's Status is done: its snapshot fragment records done"
-check 9 "S74 changed no file outside its fence (plus creating scripts/verify-S74.sh and its own records)"
+check 9 "S74 changed no file outside its fence (plus pnpm-lock.yaml, creating scripts/verify-S74.sh and its own records)"
 
 # The commit S74's own changes start from: `git merge-base origin/stage HEAD` when this grader was written.
 BASE=28d432a534a732e00baa219c517b3a142b5f22cb
@@ -31,7 +31,7 @@ BASE=28d432a534a732e00baa219c517b3a142b5f22cb
 TMP="$(mktemp -d /tmp/verify-S74.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 
-WEB_TESTS=(src/pwa/pwa.test.ts src/storage/storage.test.ts src/pwa/offline.test.tsx src/pwa/prefetch.test.tsx)
+WEB_TESTS=(src/pwa/pwa.test.ts src/storage/storage.test.ts src/storage/workerCaches.test.ts src/pwa/offline.test.tsx src/pwa/prefetch.test.tsx)
 present=()
 for t in "${WEB_TESTS[@]}"; do [ -f "web/$t" ] && present+=("$t"); done
 if [ "${#present[@]}" -gt 0 ]; then
@@ -69,13 +69,23 @@ for name in "S74 AC 5 supported" "S74 AC 5 unsupported"; do
 done
 
 # --- Check 1: the runtime cache ---
+# Pre-ship update (rule 7, 2026-11-24): the worker moved to injectManifest so its cache writes go
+# through web/src/storage/ under law L1's lint (owner, 2026-11-24: "Bring it under the law (Recommended)").
 O=web/src/pwa/options.ts
-grep -qF 'runtimeCaching' "$O" || bad 1 "$O declares no runtimeCaching"
-grep -qF '"NetworkFirst"' "$O" || bad 1 "$O's runtime cache is not NetworkFirst"
+SW=web/src/pwa/sw.ts
+WC=web/src/storage/workerCaches.ts
+grep -qF '"injectManifest"' "$O" || bad 1 "$O does not build the worker from source (injectManifest)"
+grep -qF 'filename: "sw.ts"' "$O" || bad 1 "$O does not name web/src/pwa/sw.ts as the worker"
+[ -f "$SW" ] || bad 1 "$SW missing"
+[ -f "$WC" ] || bad 1 "$WC missing"
+grep -qF 'new NetworkFirst(' "$WC" 2>/dev/null || bad 1 "$WC builds no NetworkFirst strategy"
+grep -qF 'API_CACHE' "$WC" 2>/dev/null || bad 1 "$WC does not take its cache name from API_CACHE"
+grep -qF 'registerRoute(RUNTIME_CACHED,' "$SW" 2>/dev/null && grep -qF 'apiStrategy()' "$SW" || bad 1 "$SW does not route RUNTIME_CACHED through the storage-owned apiStrategy"
 grep -qE 'API_CACHE' web/src/storage/storage.ts || bad 1 "web/src/storage/storage.ts declares no API_CACHE entry"
-grep -qE 'API_CACHE' "$O" || bad 1 "$O does not take its cache name from web/src/storage/"
+stray="$(find web/public -name '*.js' 2>/dev/null)"
+[ -z "$stray" ] || bad 1 "a worker script outside web/src/ (law L1's lint scope): $stray"
 # Tests are left out: pwa.test.ts names these words to assert they are absent (pre-ship update, rule 7).
-lifetimes="$(grep -rlE --exclude='*.test.*' 'maxAgeSeconds|ExpirationPlugin|expiration[:"]|networkTimeoutSeconds' web/src/pwa web/public 2>/dev/null)"
+lifetimes="$(grep -rlE --exclude='*.test.*' 'maxAgeSeconds|ExpirationPlugin|expiration[:"]|networkTimeoutSeconds' web/src/pwa web/src/storage web/public 2>/dev/null)"
 [ -z "$lifetimes" ] || bad 1 "a client-side lifetime decides freshness in: $(tr '\n' ' ' <<<"$lifetimes")"
 
 # --- Check 2: the marker ---
@@ -115,7 +125,7 @@ done
 [ "$(story_snapshot_status S74)" = "done" ] || bad 8 "S74's snapshot does not record Status done"
 
 # --- Check 9: fence ---
-fence='^(web/|docs/v3/backlog/|docs/v3/AUDIT\.md$|CHANGELOG\.md$|e2e/design/|docs/v3/design-checks/|docs/v3/audit/[^/]+/[^/]*-S74-[^/]*\.md$|changelog\.d/S74\.md$|scripts/verify-S74\.sh$)'
+fence='^(web/|pnpm-lock\.yaml$|docs/v3/backlog/|docs/v3/AUDIT\.md$|CHANGELOG\.md$|e2e/design/|docs/v3/design-checks/|docs/v3/audit/[^/]+/[^/]*-S74-[^/]*\.md$|changelog\.d/S74\.md$|scripts/verify-S74\.sh$)'
 while IFS= read -r f; do
 	[ -z "$f" ] && continue
 	grep -qE "$fence" <<<"$f" || bad 9 "outside the fence: $f"

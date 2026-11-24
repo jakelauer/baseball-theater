@@ -1,5 +1,4 @@
 import type { VitePWAOptions } from "vite-plugin-pwa";
-import { API_CACHE } from "../storage/storage.js";
 
 /** The app's own ground (S55: the installed status bar takes it; `#10100F`, VISUAL-DESIGN). */
 export const APP_BACKGROUND = "#10100F";
@@ -8,8 +7,7 @@ export const APP_BACKGROUND = "#10100F";
  * The `/api/v1/*` GETs the worker keeps the last answer to (S74), as a whole URL (workbox tests a
  * same-origin route's pattern against `url.href`): every one except `/api/v1/me` and everything
  * under it (the account, its settings and its export carry personal data, ADR-028), which never
- * enter Cache Storage. A literal, because workbox copies the pattern into the generated worker,
- * where nothing from this module exists.
+ * enter Cache Storage. The worker (`sw.ts`) routes this same pattern.
  */
 export const RUNTIME_CACHED = /^https?:\/\/[^/]+\/api\/v1\/(?!me(?:[/?#]|$))/;
 
@@ -25,21 +23,23 @@ export function isRuntimeCached(href: string): boolean
  * and 512 (`public/icons/`, rendered from `favicon.svg`). The worker registers at scope `/`,
  * so Web Push can attach later without moving it; it precaches the built shell (scripts,
  * styles, the page, icons), and navigations fall back to the page except under `/api/`,
- * whose answers are never precached: BT's data stays fresh and personal data never sits in
- * Cache Storage (ADR-028). It waits rather than taking over (`prompt`), so the app can say
+ * whose answers are never precached. It waits rather than taking over (`prompt`), so the app can say
  * an update is ready (S55) and the reader chooses when to reload.
  *
- * Offline reading (S74, ADR-023): at runtime the worker keeps the last answer to each `/api/v1/*`
- * GET but `/api/v1/me` and below ({@link RUNTIME_CACHED}) in `API_CACHE` (`storage/storage.ts`),
- * network first: online, every request goes to BT and its answer replaces the stored one; only a
- * request the network can't answer gets the stored copy. The worker never decides freshness (ADR-014
- * rule 3): no expiry, no timeout, no age limit, and only a 200 is kept, so an error never replaces a
- * readable copy. `sw-prefetch.js` (`public/`) adds the Periodic Background Sync handler (`prefetch.ts`).
+ * Offline reading (S74, ADR-023): the worker is BT's own source, `sw.ts` (`injectManifest`: the
+ * plugin builds it into `/sw.js` and injects the precache list), so law L1's lint reads it and every
+ * cache it keeps comes from `storage/workerCaches.ts`. At runtime it keeps the last answer to each
+ * `/api/v1/*` GET but `/api/v1/me` and below ({@link RUNTIME_CACHED}) in `API_CACHE`, network first,
+ * and answers Periodic Background Sync (`prefetch.ts`). Built as one classic script (`iife`), as
+ * `registerSW` registers it in production.
  */
 export const PWA_OPTIONS: Partial<VitePWAOptions> = {
 	registerType: "prompt",
 	injectRegister: false,
 	scope: "/",
+	strategies: "injectManifest",
+	srcDir: "src/pwa",
+	filename: "sw.ts",
 	manifest: {
 		name: "Baseball Theater",
 		short_name: "Baseball Theater",
@@ -63,23 +63,8 @@ export const PWA_OPTIONS: Partial<VitePWAOptions> = {
 			},
 		],
 	},
-	workbox: {
+	injectManifest: {
 		globPatterns: ["**/*.{js,css,html,svg,png,webmanifest}"],
-		navigateFallback: "/index.html",
-		navigateFallbackDenylist: [/^\/api\//],
-		runtimeCaching: [
-			{
-				urlPattern: RUNTIME_CACHED,
-				method: "GET",
-				handler: "NetworkFirst",
-				options: {
-					cacheName: API_CACHE.name,
-					cacheableResponse: {
-						statuses: [200],
-					},
-				},
-			},
-		],
-		importScripts: ["/sw-prefetch.js"],
+		rollupFormat: "iife",
 	},
 };

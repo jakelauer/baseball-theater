@@ -170,9 +170,8 @@ describe("Periodic Background Sync, where the browser offers it (S74 AC 5)", () 
 		expect(register).toHaveBeenCalledWith(PREFETCH_TAG, {
 			minInterval: BACKGROUND_PREFETCH_MS,
 		});
+		// The worker answers this same tag (`sw.ts`; pwa.test.ts wakes it with PREFETCH_TAG).
 		expect(PREFETCH_TAG).toBe("bt-prefetch");
-		const handler = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../public/sw-prefetch.js"), "utf8");
-		expect(handler).toContain(`const PREFETCH_TAG = "${PREFETCH_TAG}";`);
 	});
 
 	it("S74 AC 5 supported: a refused registration (no permission) answers false and throws nothing", async () =>

@@ -6,6 +6,7 @@ import {
 	queryOptions, useQuery, useQueryClient,
 } from "@tanstack/react-query";
 import type { QueryClient, UseQueryResult } from "@tanstack/react-query";
+import type { StoredCopy } from "./client.js";
 import { fetchSchedule } from "./client.js";
 import { freshnessPolicy, whileVisible } from "./freshness.js";
 import type { components } from "./generated/bt-api.v1.js";
@@ -22,14 +23,15 @@ export function scheduleQueryOptions(date: string)
 {
 	return queryOptions({
 		queryKey: scheduleKey(date),
-		queryFn: (): Promise<ScheduleDayPayload> => fetchSchedule(date),
+		// A copy the worker served from storage carries its time (S74, `StoredCopy`); other answers don't.
+		queryFn: (): Promise<ScheduleDayPayload & StoredCopy> => fetchSchedule(date),
 		staleTime: (query) => freshnessPolicy(query.state.data?.windowMode).staleTime,
 		// Re-ask an in-window day on the live cadence while visible (S20); paused when hidden.
 		refetchInterval: (query) => whileVisible(freshnessPolicy(query.state.data?.windowMode).refetchInterval),
 	});
 }
 
-export function useScheduleDay(date: string): UseQueryResult<ScheduleDayPayload, Error>
+export function useScheduleDay(date: string): UseQueryResult<ScheduleDayPayload & StoredCopy, Error>
 {
 	return useQuery(scheduleQueryOptions(date));
 }

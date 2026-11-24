@@ -15,7 +15,10 @@
  *   online (SF @ NYM): "You're offline." alone over an empty room, the top bar and tabs from the
  *   saved day, no explanation.
  *
- * Every copy was fetched 18 minutes before the capture runs, so each marker's age reads 18m.
+ * Every copy was got 18 minutes before the browser goes offline: the page loads on a clock set 18
+ * minutes back (Playwright's `clock.install`), which jumps forward to now as it goes offline, so each
+ * marker's time is the load's and its age reads 18m (S74 R3: the marker dates the copy by when the
+ * page got it, not by the payload's `fetchedAt`).
  * The dev server runs no service worker, so "as saved" here is the copy the page already holds; the
  * worker's stored copies (a reload offline) answer the same page the same way.
  *
@@ -37,8 +40,10 @@ import {
 
 const SCHEDULE = JSON.parse(readFileSync(new URL("../../fixtures/schedule-2026-09-05.json", import.meta.url), "utf8"));
 const DAY = "/games/2026-09-05";
-/** Every copy's fetch time: 18 minutes before now. */
-const FETCHED_AT = new Date(Date.now() - 18 * 60 * 1000).toISOString();
+/** How long before going offline every copy was got: the page's clock starts this far back. */
+const AGE_MS = 18 * 60 * 1000;
+/** Every payload's own fetch time, the moment the page loads. */
+const FETCHED_AT = new Date(Date.now() - AGE_MS).toISOString();
 
 /** 2026-09-05's schedule and the 823823 game, each stamped `FETCHED_AT`. */
 async function serve(page: Page): Promise<void>
@@ -67,9 +72,12 @@ async function serve(page: Page): Promise<void>
 	});
 }
 
-/** The scoreboard signed in, loaded online, with its highlights. */
+/** The scoreboard signed in, loaded online (on a clock 18 minutes back), with its highlights. */
 async function scoreboard(page: Page): Promise<void>
 {
+	await page.clock.install({
+		time: Date.now() - AGE_MS,
+	});
 	await serve(page);
 	await signInDev(page, DAY);
 	await page.getByTestId("scoreboard-module").first().waitFor();
@@ -79,11 +87,15 @@ async function scoreboard(page: Page): Promise<void>
 	}).waitFor();
 }
 
-/** The browser drops off the network; waits for the marker. */
+/** The browser drops off the network and the clock reaches now, 18 minutes on; waits for the marker. */
 async function goOffline(page: Page, words: string): Promise<void>
 {
 	await page.context().setOffline(true);
+	await page.clock.fastForward(AGE_MS);
 	await page.getByTestId("notice-slot").getByText(words).waitFor();
+	await page.getByTestId("notice-slot").getByText("— 18m ago.", {
+		exact: false,
+	}).waitFor();
 }
 
 const offlineScoreboard = async (page: Page) =>

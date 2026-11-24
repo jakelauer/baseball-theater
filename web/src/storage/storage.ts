@@ -83,19 +83,54 @@ export const STORAGE_KEYS = {
 export type StorageKey = keyof typeof STORAGE_KEYS;
 
 /**
- * The one Cache Storage cache BT's service worker keeps at runtime (S74, ADR-023): the last answer
- * to each `/api/v1/*` GET, so anything already viewed stays readable offline. It is not a
- * `localStorage` key, so it is not in {@link STORAGE_KEYS} and {@link clearPersonalData} never
- * tries to remove it. Labeled not personal (ADR-028's `none`): `/api/v1/me` and everything under
- * it (the account, its settings, its export) never enter it (`isRuntimeCached`, `pwa/options.ts`),
- * so it holds only what every visitor is served alike (schedules, games, standings). The worker
- * stores the newest copy it was given and never decides freshness (ADR-014 rule 3).
+ * The Cache Storage cache BT's service worker keeps at runtime (S74, ADR-023): the last answer to
+ * each `/api/v1/*` GET but `/api/v1/me` and below (`RUNTIME_CACHED`, `pwa/options.ts`), so anything
+ * already viewed stays readable offline. The worker writes it only through `workerCaches.ts`, which
+ * keys every entry by its URL alone, so no request header (the session's `Authorization`) is ever
+ * stored. It is not a `localStorage` key, so it is not in {@link STORAGE_KEYS}. Labeled personal:
+ * ADR-028's Browser row lists offline caches among what sign-out and deletion remove, and its URLs
+ * can carry what a reader searched for (`/api/v1/search/highlights?q=`), so {@link clearPersonalData}
+ * deletes it. The worker stores the newest copy it was given and never decides freshness (ADR-014 rule 3).
  */
 export const API_CACHE = {
 	name: "bt-api-v1",
 	area: "cache",
+	personal: true,
+} as const;
+
+/**
+ * The worker's precache of the built app (S73; installed through `workerCaches.ts`): scripts,
+ * styles, the page and icons, the same for every visitor, so not personal and kept on sign-out.
+ * Listed so every cache BT's worker keeps is labeled here. `name` is a prefix: Workbox names the
+ * cache itself, `workbox-precache-v2-<scope>`.
+ */
+export const SHELL_CACHE = {
+	name: "workbox-precache",
+	area: "cache",
 	personal: false,
 } as const;
+
+/**
+ * The message sign-out sends the controlling service worker (S74): it then forgets its personal
+ * copies itself (`forgetPersonalCopies`, `workerCaches.ts`), including any answer still on its way
+ * when the page deleted the cache, which would otherwise land in a re-created cache after sign-out.
+ */
+export const CLEAR_PERSONAL_MESSAGE = {
+	type: "CLEAR_PERSONAL",
+} as const;
+
+/** Every Cache Storage cache BT keeps, each labeled; {@link clearPersonalData} deletes the personal ones. */
+const CACHES = [API_CACHE, SHELL_CACHE] as const;
+
+/** Deletes every cache labeled personal. Cache Storage can be missing (no worker support, jsdom) or refuse; either is "nothing to delete". */
+async function deletePersonalCaches(): Promise<void>
+{
+	if (typeof caches === "undefined") return;
+	for (const cache of CACHES)
+	{
+		if (cache.personal) await caches.delete(cache.name);
+	}
+}
 
 /** The browser store `key` lives in. Reading the global can itself throw (blocked site data), so callers guard it. */
 function areaOf(key: StorageKey): Storage
@@ -130,11 +165,27 @@ export function writeStored(key: StorageKey, value: string | null): void
 	}
 }
 
-/** Removes every key labeled personal, in both areas (sign-out and account deletion). Non-personal keys stay. */
+/**
+ * Removes every key labeled personal, in both areas, starts deleting every cache labeled personal,
+ * and tells the controlling worker to do the same (`CLEAR_PERSONAL_MESSAGE`), so an answer it was
+ * still fetching isn't stored after (sign-out and account deletion, which signs out). Non-personal
+ * keys and caches stay.
+ * The keys are gone when it returns; the caches go a moment later (Cache Storage is async), and a
+ * refused delete is dropped, as a failed key write is.
+ */
 export function clearPersonalData(): void
 {
 	for (const [key, { personal }] of Object.entries(STORAGE_KEYS))
 	{
 		if (personal) writeStored(key as StorageKey, null);
+	}
+	deletePersonalCaches().catch(() => undefined);
+	try
+	{
+		navigator.serviceWorker?.controller?.postMessage(CLEAR_PERSONAL_MESSAGE);
+	}
+	catch
+	{
+		// No worker reachable: the page's own delete above is all there is.
 	}
 }

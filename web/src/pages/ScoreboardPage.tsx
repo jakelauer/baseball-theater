@@ -100,16 +100,17 @@ function ScoreboardDay({
 	setFooter?: SetFooterMode; })
 {
 	const {
-		data: day, error, refetch,
+		data: day, error, refetch, dataUpdatedAt,
 	} = useScheduleDay(date);
 	// The digest draws under the games once it answers (or nothing, if it fails), so the footer waits
 	// for both: drawn earlier it would sit under the games and jump when the highlights arrive (S142).
 	// The same query `DayDigest` reads, so asking here adds no request; it only starts it with the day's.
 	const digestPending = useDayDigest(date).isPending;
-	// Offline (S74): the shell's marker names this day's copy, "Scores as of …".
+	// Offline (S74): the shell's marker names this day's copy, "Scores as of …": a stored copy's own
+	// time, or when this page last got the day.
 	useSavedCopy(day ? {
 		kind: "scores",
-		fetchedAt: day.fetchedAt,
+		asOf: day.copyAsOf ?? new Date(dataUpdatedAt).toISOString(),
 	} : null);
 
 	let body;
