@@ -96,8 +96,12 @@ describe("the schedule-month refresh's rules (S194)", () =>
 			count: 3,
 			teamIds: [1, 2],
 			regularSeason: true,
+			regularSeasonTeamIds: [1, 2],
+			inSeasonTeamIds: [1, 2],
 		}];
 		const same = [{
+			inSeasonTeamIds: [1, 2],
+			regularSeasonTeamIds: [1, 2],
 			regularSeason: true,
 			teamIds: [1, 2],
 			count: 3,

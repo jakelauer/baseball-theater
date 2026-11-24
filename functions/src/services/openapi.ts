@@ -87,7 +87,7 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 	},
 	"GET /api/v1/schedule/month/:month": {
 		operationId: "getScheduleMonth",
-		summary: "The number of games on each day of one month, the teams playing it, and whether it has a regular-season game, from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, `teamIds: null` and `regularSeason: null`, distinct from a day with no games (`0`, `[]` and `false`).",
+		summary: "The number of games on each day of one month, the teams playing it, whether it has a regular-season game and which teams play one, and which teams are in their own regular season that day (worked out from the month's whole year), from BT's stored schedule. A day of the current season or later (through December of next year) that BT doesn't hold yet is asked of MLB first; a day still unknown has `count: null`, `teamIds: null`, `regularSeason: null` and `regularSeasonTeamIds: null`, distinct from a day with no games (`0`, `[]`, `false` and `[]`).",
 		parameters: [
 			{
 				name: "month",
