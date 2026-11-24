@@ -1111,6 +1111,8 @@ The full path is: TS route table → JSON Schema → OpenAPI → generated TS cl
 
 **Still open:** environments (preview / staging / prod); IaC (wrangler config only vs Terraform); Neon and Durable Object region (default: us-east, near MLB and most users).
 
+**Note 2026-11-24 (issue #532; owner, asked whether to turn on Cloudflare Smart Placement: "Yes, both environments (Recommended)"):** the staging and production Workers deploy with **Smart Placement** (`"placement": { "mode": "smart" }` in `wrangler.jsonc`'s `env.staging` and `env.production`). Without it a request ran in the data center that received it, and staging, run from Seattle against Neon in us-east-2, paid about 70 ms per Postgres round trip, so a cold 15-game digest spent most of its ~9 s waiting on the database. Smart Placement moves only the Worker's **fetch handler** near the back end it calls; Cloudflare may take up to 15 minutes after a deploy to analyse it. It does not move the cron's scheduled handler or the Durable Objects (each object lives where it was first created), and static assets are still served from the location nearest the fan. The setting sits on each env, not top-level, since Wrangler lets an env inherit a top-level `placement`: local `wrangler dev` and pull-request previews keep the default, as a preview's short-lived Worker sees too little traffic for the analysis to settle. `functions/src/deploy/bootstrap.test.ts` pins it.
+
 ### ADR-018 — Storage: all BT data in Postgres (accepted 2026-10-18)
 
 **Supersedes** [ADR-006](#adr-006--data-stores-accepted-narrowed) (Firestore).

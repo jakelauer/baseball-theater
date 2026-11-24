@@ -533,6 +533,29 @@ describe("S114 AC 8: Worker secrets from GitHub on every deploy", () =>
 	});
 });
 
+describe("issue #532: the deployed Workers run near their database", () =>
+{
+	it("staging and production deploy with Smart Placement; previews and local dev keep the default (#532)", () =>
+	{
+		// Each Postgres round trip from a Worker far from Neon (us-east-2) cost ~70 ms; Smart Placement
+		// moves the fetch handler next to it. Checked in the config each deploy generates, which is
+		// what `wrangler deploy` reads.
+		for (const env of ["staging", "production"] as const)
+		{
+			const config = deployConfig(WRANGLER, env, {
+				hyperdriveId: "hd-1",
+			}, (path) => path);
+			expect(config.env![env]!.placement).toEqual({
+				mode: "smart",
+			});
+		}
+		// Wrangler lets an env inherit a top-level `placement`, so none sits there: local dev and
+		// previews stay where the request lands.
+		expect(WRANGLER.placement).toBeUndefined();
+		expect(WRANGLER.env!.preview!.placement).toBeUndefined();
+	});
+});
+
 describe("S114 AC 9: the staging branch never holds a fan's data", () =>
 {
 	it("S114 AC 9: staging is created schema-only from production's branch, never as a plain branch", async () =>

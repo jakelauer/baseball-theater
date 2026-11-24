@@ -100,6 +100,10 @@
 		"staging": {
 			"name": "baseball-theater-staging",
 			"workers_dev": false,
+			// Smart Placement (issue #532): run the fetch handler near Neon (us-east-2), not where the
+			// request landed, as each Postgres round trip from far away cost ~70 ms. Crons and Durable
+			// Objects are not moved. Per env, never top-level, so local dev and previews keep the default.
+			"placement": { "mode": "smart" },
 			"routes": [{ "pattern": "stage.baseball.theater", "custom_domain": true }],
 			"durable_objects": {
 				"bindings": [
@@ -134,6 +138,8 @@
 		"production": {
 			"name": "baseball-theater-production",
 			"workers_dev": false,
+			// Smart Placement, as staging (issue #532).
+			"placement": { "mode": "smart" },
 			"routes": [{ "pattern": "next.baseball.theater", "custom_domain": true }],
 			"durable_objects": {
 				"bindings": [
