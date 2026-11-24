@@ -24,12 +24,18 @@ export const YANKEES = 147;
 export const METS = 121;
 export const RAYS = 139;
 
-/** One day of a month answer; `teamIds` and `regularSeason` default from `count` as S124/S167 send them. */
+/**
+ * One day of a month answer; `teamIds`, `regularSeason` and `regularSeasonTeamIds` default from
+ * `count` as S124/S167/S191 send them, and `inSeasonTeamIds` defaults to `null` (the stored year
+ * can't tell, so `favoriteTeamsOff` keeps S159's per-day rule, S191 AC 3).
+ */
 export interface DayFill
 {
 	count: number | null;
 	teamIds?: number[] | null;
 	regularSeason?: boolean | null;
+	regularSeasonTeamIds?: number[] | null;
+	inSeasonTeamIds?: number[] | null;
 }
 
 /** A month answer whose days `fill` describes (by date). */
@@ -40,11 +46,15 @@ export function monthPayload(month: string, fill: (date: string) => DayFill): Sc
 		days: daysOfMonth(month).map((date) =>
 		{
 			const day = fill(date);
+			const teamIds = day.teamIds === undefined ? (day.count === null ? null : day.count > 0 ? [YANKEES, METS] : []) : day.teamIds;
+			const regularSeason = day.regularSeason === undefined ? (day.count === null ? null : day.count > 0) : day.regularSeason;
 			return {
 				date,
 				count: day.count,
-				teamIds: day.teamIds === undefined ? (day.count === null ? null : day.count > 0 ? [YANKEES, METS] : []) : day.teamIds,
-				regularSeason: day.regularSeason === undefined ? (day.count === null ? null : day.count > 0) : day.regularSeason,
+				teamIds,
+				regularSeason,
+				regularSeasonTeamIds: day.regularSeasonTeamIds !== undefined ? day.regularSeasonTeamIds : regularSeason === null ? null : regularSeason ? [...(teamIds ?? [])] : [],
+				inSeasonTeamIds: day.inSeasonTeamIds ?? null,
 			};
 		}),
 	};
