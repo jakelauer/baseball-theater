@@ -1,8 +1,8 @@
 import type {
+	FetchedGame,
 	GameGraphContent,
 	GamePlayMetrics,
 	GameRecap,
-	GameSnapshot,
 	MediaHighlight,
 	PlayerProfile,
 	ScheduleDay,
@@ -28,7 +28,11 @@ export interface MlbStatsClient {
 	 * "no games" from "not answered".
 	 */
 	fetchScheduleRange(startDate: string, endDate: string): Promise<Unversioned<ScheduleDay>[]>;
-	fetchGame(gamePk: number): Promise<Unversioned<GameSnapshot>>;
+	/**
+	 * The game, with the feed's own time beside it (S150 AC 2, `FetchedGame`): ingest hands that time to the game-state
+	 * switch and stores the game without it.
+	 */
+	fetchGame(gamePk: number): Promise<FetchedGame>;
 	/** Highlights + editorial for one game; the only payload with playback URLs. */
 	fetchGameContent(gamePk: number): Promise<MediaHighlight[]>;
 	/**
@@ -94,7 +98,7 @@ export type GameEditorial = {
  */
 export interface MlbGameSources extends Pick<MlbStatsClient, "fetchSchedule" | "fetchPlayMetrics" | "fetchGameGraphContent"> {
 	/** The live feed alone, mapped, with no highlights or extras; throws when it can't be had. */
-	fetchGameFeed(gamePk: number): Promise<Unversioned<GameSnapshot>>;
+	fetchGameFeed(gamePk: number): Promise<FetchedGame>;
 	/** The content endpoint's videos and recap; null when it fails or has neither, never a throw. */
 	fetchGameEditorial(gamePk: number): Promise<GameEditorial | null>;
 }

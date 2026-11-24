@@ -2,7 +2,7 @@ import type {
 	SeasonPhaseName, StandingsPhaseAnswer, StandingsPhasesPlan, StandingsPick, StandingsResponse, StandingsSnapshot,
 } from "@bt/domain";
 import {
-	blankRegularSeasonTable, mlbToday, playoffsTable, previousStandingsPhase, SEASON_PHASES, standingsChampion, standingsPhase, standingsPhases,
+	blankRegularSeasonTable, mlbToday, playoffsTable, previousStandingsPhase, SEASON_PHASES, standingsChampion, standingsHasNoTeams, standingsPhase, standingsPhases,
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
 import { standingsCalendars } from "./scoreboard-date.js";
@@ -24,12 +24,6 @@ async function fetchPick(mlb: IngestDeps["mlb"], pick: StandingsPick): Promise<S
 		season: pick.season,
 		date: pick.date,
 	};
-}
-
-/** True when MLB answered a table with no team in it (no game of the phase is final yet). */
-function isEmpty(table: StandingsSnapshot): boolean
-{
-	return table.divisions.every((division) => division.teams.length === 0);
 }
 
 /** Asks MLB for each distinct pick once per standings request, so S128's table and a phase that share one share the request. */
@@ -60,11 +54,11 @@ async function regularSeasonTable(plan: StandingsPhasesPlan, day: string, fetchO
 {
 	const { pick } = plan.regularSeason;
 	const table = pick ? await fetchOnce(pick) : null;
-	if (table && (!plan.newSeasonTeams || !isEmpty(table))) return table;
+	if (table && (!plan.newSeasonTeams || !standingsHasNoTeams(table))) return table;
 	// Before the first game: `standingsPhases` sets `newSeasonTeams` on every day whose regular season has no pick (a
 	// spring day) and on opening day, so it is set here.
 	const springTable = plan.spring?.pick ? await fetchOnce(plan.spring.pick) : null;
-	const source = springTable && !isEmpty(springTable) ? springTable : await fetchOnce(plan.newSeasonTeams!);
+	const source = springTable && !standingsHasNoTeams(springTable) ? springTable : await fetchOnce(plan.newSeasonTeams!);
 	return blankRegularSeasonTable(source, plan.season, day);
 }
 
@@ -113,7 +107,7 @@ export async function getStandings(deps: StandingsDeps, day?: string, include: r
 	{
 		const pick = standingsPhase(date, seasons);
 		const table = await fetchOnce(pick);
-		if (!isEmpty(table)) return table;
+		if (!standingsHasNoTeams(table)) return table;
 		const previous = previousStandingsPhase(pick, seasons);
 		return previous ? await fetchOnce(previous) : table;
 	};
@@ -162,5 +156,5 @@ export function standingsNothingYet(answer: StandingsResponse, day: string): boo
 {
 	const firstSpringMorning = answer.phases.spring?.startDate === day;
 	const tables = [answer, answer.phases.spring?.table, answer.phases.regularSeason?.table];
-	return tables.some((table) => table !== undefined && isEmpty(table) && !(firstSpringMorning && table.phase === "spring"));
+	return tables.some((table) => table !== undefined && standingsHasNoTeams(table) && !(firstSpringMorning && table.phase === "spring"));
 }

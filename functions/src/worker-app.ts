@@ -26,7 +26,7 @@ import type { HyperdriveBinding } from "./adapters/postgres/connect.js";
 import type { PostgresDb } from "./adapters/postgres/repos.js";
 import {
 	PostgresDeletionLog,
-	PostgresGameProjectionRepository,
+	PostgresGameProjectionRepository, PostgresGameStateRepository,
 	PostgresGameRepository,
 	PostgresScheduleRepository,
 	PostgresSettingsRepository,
@@ -123,9 +123,11 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 {
 	const schedules = new PostgresScheduleRepository(db);
 	const games = new PostgresGameRepository(db);
+	const gameStates = new PostgresGameStateRepository(db);
 	const mlb = createMlbClient(env, storeOverlay({
 		schedules,
 		games,
+		gameStates,
 	}));
 	const ingest: IngestDeps = {
 		mlb,
@@ -134,6 +136,7 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		schedules,
 		games,
 		projections: new PostgresGameProjectionRepository(db),
+		gameStates,
 		// One coordinator per isolate: stale out-of-window reads refresh single-flighted.
 		refresh: new RefreshCoordinator(),
 	};
@@ -277,7 +280,7 @@ export function workerApp(env: WorkerEnv): WorkerApp
 	return app;
 }
 
-/** Whether a cron tick may ingest: always deployed; in local dev only with `BT_INGEST_TICK=1`. */
+/** Whether a cron tick may ingest or refresh schedule months (S194): always deployed; in local dev only with `BT_INGEST_TICK=1`. */
 export function tickAllowed(env: WorkerEnv): boolean
 {
 	return env.BT_LOCAL !== "1" || env.BT_INGEST_TICK === "1";

@@ -1,12 +1,15 @@
 import type {
-	AccountSettings, Entitlements, GameProjection, GameSnapshot, ScheduleDay, ScheduleDayTally, UserProfile,
+	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay, UserProfile,
 } from "@bt/domain";
-import { downloadExpired, scheduleDayTally } from "@bt/domain";
+import {
+	contentHash, downloadExpired, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
+} from "@bt/domain";
 import type {
 	DataDownload,
 	ExportStore,
 	GameProjectionRepository,
 	GameRepository,
+	GameStateRepository,
 	ReplayArtifact,
 	ReplayArtifactRepository,
 	DeletionLog,
@@ -68,18 +71,45 @@ class VersionedMemoryStore<K, T>
 	}
 }
 
+/**
+ * Schedule days in memory. It reads the games' state versions for `served_base` (S150 AC 6) from `gameStates`, the
+ * game-state store beside it, as the Postgres statement reads `game_states`: required, so no double ever raises it by 0
+ * for a game whose row it can't see.
+ */
 export class InMemoryScheduleRepository implements ScheduleRepository
 {
-	private readonly store = new VersionedMemoryStore<string, ScheduleDay>((d) => d.version);
+	private readonly store = new VersionedMemoryStore<string, StoredScheduleDay>((d) => d.version);
+	private readonly servedBases = new Map<string, number>();
 
-	async getByDate(date: string): Promise<ScheduleDay | null>
+	constructor(private readonly gameStates: InMemoryGameStateRepository) {}
+
+	async getByDate(date: string): Promise<StoredScheduleDay | null>
 	{
 		return this.store.get(date);
 	}
 
-	async upsert(day: ScheduleDay): Promise<void>
+	async getWithServedBase(date: string): Promise<{ day: StoredScheduleDay;
+		servedBase: number; } | null>
 	{
+		const day = this.store.get(date);
+		return day ? {
+			day,
+			servedBase: this.servedBases.get(date) ?? 0,
+		} : null;
+	}
+
+	/**
+	 * The version-guarded write, and with it the `served_base` raise: the stored state versions of the games the stored
+	 * day lists and `day` doesn't, read in the same synchronous step, as the Postgres statement reads them.
+	 */
+	async upsert(day: StoredScheduleDay): Promise<void>
+	{
+		const before = this.store.get(day.date);
+		if (before !== null && day.version <= before.version) return;
+		const listed = new Set(day.games.map((game) => game.gamePk));
+		const raise = (before?.games ?? []).filter((game) => !listed.has(game.gamePk)).reduce((sum, game) => sum + this.gameStates.versionOf(game.gamePk), 0);
 		this.store.put(day.date, day);
+		this.servedBases.set(day.date, (this.servedBases.get(day.date) ?? 0) + raise);
 	}
 
 	async listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>
@@ -90,10 +120,141 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 			.map(scheduleDayTally);
 	}
 
+	/** Each month's record (S194), the Postgres adapter's `schedule_months` rows. */
+	private readonly months = new Map<string, ScheduleMonthCheck>();
+
+	async listScheduleMonthChecks(from: string, to: string): Promise<ScheduleMonthCheck[]>
+	{
+		return [...this.months.values()]
+			.filter((check) => check.month >= from && check.month <= to)
+			.sort((a, b) => a.month.localeCompare(b.month))
+			.map(jsonCopy);
+	}
+
+	/** Moves `checkedAt` forward only, as the Postgres adapter's guarded update does. */
+	async recordScheduleMonthCheck(month: string, checkedAt: string): Promise<void>
+	{
+		const stored = this.months.get(month);
+		if (stored?.checkedAt && !(Date.parse(checkedAt) > Date.parse(stored.checkedAt))) return;
+		this.months.set(month, {
+			month,
+			checkedAt,
+			claimedAt: stored?.claimedAt ?? null,
+		});
+	}
+
+	/**
+	 * Takes the claim only when the month is still due (unchecked, or checked at least the refresh
+	 * interval before `at`) and unclaimed or claimed at least the lease before, as the Postgres
+	 * adapter's conditional write does.
+	 */
+	async claimScheduleMonth(month: string, at: string): Promise<boolean>
+	{
+		const stored = this.months.get(month);
+		if (stored?.claimedAt && Date.parse(at) - Date.parse(stored.claimedAt) < SCHEDULE_MONTH_CLAIM_LEASE_MS) return false;
+		if (stored?.checkedAt && Date.parse(at) - Date.parse(stored.checkedAt) < SCHEDULE_MONTH_REFRESH_INTERVAL_MS) return false;
+		this.months.set(month, {
+			month,
+			checkedAt: stored?.checkedAt ?? null,
+			claimedAt: at,
+		});
+		return true;
+	}
+
+	/** Moves the claim forward only, as the Postgres adapter's guarded update does. */
+	async holdScheduleMonth(month: string, claimedAt: string): Promise<void>
+	{
+		const stored = this.months.get(month);
+		if (stored?.claimedAt && !(Date.parse(claimedAt) > Date.parse(stored.claimedAt))) return;
+		this.months.set(month, {
+			month,
+			checkedAt: stored?.checkedAt ?? null,
+			claimedAt,
+		});
+	}
+
 	clear(): void
 	{
 		this.store.clear();
+		this.servedBases.clear();
+		this.months.clear();
 	}
+}
+
+/**
+ * `game_states` in memory (S150 AC 3), under the same write rule as the Postgres adapter. A state is "the same" as the
+ * stored one only when the whole of it is, `version` and `lastChangedAt` included, as jsonb `=` compares the document
+ * (`contentHash` of each, independent of key order like jsonb).
+ */
+export class InMemoryGameStateRepository implements GameStateRepository
+{
+	private readonly rows = new Map<number, GameStateRow>();
+
+	async getByPk(gamePk: number): Promise<GameStateRow | null>
+	{
+		const row = this.rows.get(gamePk);
+		return row ? jsonCopy(row) : null;
+	}
+
+	async getMany(gamePks: readonly number[]): Promise<GameStateRow[]>
+	{
+		return gamePks.flatMap((gamePk) => this.rows.has(gamePk) ? [jsonCopy(this.rows.get(gamePk)!)] : []);
+	}
+
+	/** The stored state version of `gamePk`, 0 when it has no row (what `served_base` adds for it). */
+	versionOf(gamePk: number): number
+	{
+		return this.rows.get(gamePk)?.state.version ?? 0;
+	}
+
+	async write(rows: readonly GameStateRow[]): Promise<number[]>
+	{
+		const taken: number[] = [];
+		for (const row of rows)
+		{
+			const stored = this.rows.get(row.gamePk);
+			const feedTime = [stored?.feedTime ?? null, row.feedTime].filter((t): t is string => t !== null).sort().at(-1) ?? null;
+			const startTime = row.startTime ?? stored?.startTime ?? null;
+			if (!stored || row.state.version > stored.state.version)
+			{
+				this.rows.set(row.gamePk, jsonCopy({
+					...row,
+					feedTime,
+					startTime,
+				}));
+			}
+			else if (row.state.version === stored.state.version && contentHash(row.state) === contentHash(stored.state)
+				&& row.feedTime !== null && row.feedTime > (stored.feedTime ?? ""))
+			{
+				// The same state polled later: only the accepted feed time and the source move.
+				this.rows.set(row.gamePk, {
+					...stored,
+					source: row.source,
+					feedTime,
+					startTime,
+				});
+			}
+			else continue;
+			taken.push(row.gamePk);
+		}
+		return taken;
+	}
+
+	clear(): void
+	{
+		this.rows.clear();
+	}
+}
+
+/** A memory schedule store and the game-state store it reads `served_base` raises from (S150), linked as one database. */
+export function memoryScheduleStores(): { schedules: InMemoryScheduleRepository;
+	gameStates: InMemoryGameStateRepository; }
+{
+	const gameStates = new InMemoryGameStateRepository();
+	return {
+		schedules: new InMemoryScheduleRepository(gameStates),
+		gameStates,
+	};
 }
 
 export class InMemoryGameRepository implements GameRepository
@@ -108,6 +269,24 @@ export class InMemoryGameRepository implements GameRepository
 	async upsert(game: GameSnapshot): Promise<void>
 	{
 		this.store.put(game.gamePk, game);
+	}
+
+	async getStateFields(gamePks: readonly number[]): Promise<GameStateFields[]>
+	{
+		return gamePks.flatMap((gamePk) =>
+		{
+			const game = this.store.get(gamePk);
+			const last = game?.plays.at(-1);
+			return game ? [{
+				gamePk,
+				status: game.status,
+				linescore: game.linescore,
+				live: game.live,
+				plays: last ? [{
+					matchup: last.matchup,
+				}] : [],
+			}] : [];
+		});
 	}
 
 	async listByDate(date: string): Promise<GameSnapshot[]>

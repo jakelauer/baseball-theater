@@ -113,7 +113,8 @@ export async function recordDevSeed(
 	{
 		try
 		{
-			return await mlb.fetchGame(gamePk);
+			// The game alone: its feed time (S150 AC 2) is never written to the seed file.
+			return (await mlb.fetchGame(gamePk)).game;
 		}
 		catch
 		{
