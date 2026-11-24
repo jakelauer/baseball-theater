@@ -15,7 +15,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
 import {
-	describe, expect, it, vi,
+	afterEach, describe, expect, it, vi,
 } from "vitest";
 import { MIGRATIONS_FOLDER, migratedPglite } from "../adapters/postgres/migrate.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
@@ -24,10 +24,37 @@ import { PostgresGameProjectionRepository, upsertGame } from "../adapters/postgr
 import { isProjectionCurrent } from "./ingest.js";
 import type { CopyDeps } from "./baseball-copy.js";
 import {
-	baseballTables, checkCopyRules, copyBaseballData, CopyRefused, tablesNamedIn,
+	baseballTables, checkCopyRules, copyBaseballData, COPY_RULES, CopyRefused, NEVER_COPIED_WHY, tablesNamedIn,
 } from "./baseball-copy.js";
 import { DATA_CLASSIFICATION } from "./data-classification.js";
 import { FIRST_WHEN, migrationsWith } from "../test/migrations-folder.js";
+
+/**
+ * Every database a test here opened, closed once it ends. This file opens one or two per test, ~60 in all, each holding
+ * 100–200 MB; left open, they took a worker past 8 GB once each was loaded from the migrated-database snapshot (whose
+ * copies weigh more), and CI's functions shard ran out of memory (#398).
+ */
+const opened: PGlite[] = [];
+
+/** Records `pglite` to be closed after the current test, and returns it. */
+function opening(pglite: PGlite): PGlite
+{
+	opened.push(pglite);
+	return pglite;
+}
+
+/** A fresh migrated database (`migratedPglite`) that is closed after the current test. */
+async function openDb(): ReturnType<typeof migratedPglite>
+{
+	const made = await migratedPglite();
+	opened.push(made.pglite);
+	return made;
+}
+
+afterEach(async () =>
+{
+	await Promise.all(opened.splice(0).map((pglite) => pglite.close()));
+});
 
 const PERSONAL_TABLES = Object.entries(DATA_CLASSIFICATION.postgresTables).filter(([, label]) => label.kind !== "none").map(([table]) => table);
 
@@ -61,7 +88,7 @@ function stamped(fields: Record<string, unknown>, version: number, lastChangedAt
  */
 async function production(migrated?: PostgresDb): Promise<PostgresDb>
 {
-	const db = migrated ?? (await migratedPglite()).db;
+	const db = migrated ?? (await openDb()).db;
 	await db.execute(sql`INSERT INTO schedule_days (date, version, document) VALUES
 		('2024-04-01', 3, ${stamped({
 			date: "2024-04-01",
@@ -160,7 +187,7 @@ const fixtures = new FixtureMlbStatsClient();
 /** The recorded game 744834 re-keyed and stamped: a document `projectGame` can project. */
 async function recordedGame(gamePk: number, version: number, lastChangedAt: string, fields: Partial<GameSnapshot> = {}): Promise<GameSnapshot>
 {
-	const fetched = await fixtures.fetchGame(744834);
+	const fetched = (await fixtures.fetchGame(744834)).game;
 	return {
 		...fetched,
 		gamePk,
@@ -189,7 +216,7 @@ const NOW = new Date("2026-11-13T12:00:00.000Z");
 /** A fresh PGlite migrated from `folder`. */
 async function migratedFrom(folder: string): Promise<PostgresDb>
 {
-	const db = drizzlePglite(new PGlite()) as unknown as PostgresDb;
+	const db = drizzlePglite(opening(new PGlite())) as unknown as PostgresDb;
 	await migratePglite(db as Parameters<typeof migratePglite>[0], {
 		migrationsFolder: folder,
 	});
@@ -238,19 +265,42 @@ describe("copyBaseballData (S117)", () =>
 	it("AC 1 personal: copies every baseball row and never writes a personal table or the deletion log", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await forbid(target, PERSONAL_TABLES, ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]);
 		const copies = await copy(source, target);
-		expect(copies.map((entry) => entry.table)).toEqual(["schedule_days", "games", "game_projections", "replay_artifacts"]);
+		expect(copies.map((entry) => entry.table)).toEqual(["schedule_days", "game_states", "schedule_months", "games", "game_projections", "replay_artifacts"]);
 		expect(PERSONAL_TABLES.sort()).toEqual(["account_settings", "deletion_log", "entitlements", "identity_links", "users"]);
 		for (const table of COPIED_TABLES) expect(await dump(target, table)).toEqual(await dump(source, table));
 		for (const table of PERSONAL_TABLES) expect(await dump(target, table)).toEqual([]);
 	});
 
+	it("S194 AC 1: never copies schedule_months, neither reading production's checks nor touching the target's own", async () =>
+	{
+		const source = await production();
+		await source.execute(sql`INSERT INTO schedule_months (month, checked_at, claimed_at) VALUES ('2026-04', '2026-11-09T17:00:00.000Z', NULL)`);
+		const { db: target } = await openDb();
+		await target.execute(sql`INSERT INTO schedule_months (month, checked_at, claimed_at) VALUES ('2026-05', '2026-11-01T00:00:00.000Z', NULL)`);
+		await forbid(target, ["schedule_months"], ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]);
+		const watched = watchTarget(source);
+		const copies = await copy(watched.db, target);
+		expect(copies.find((entry) => entry.table === "schedule_months")).toMatchObject({
+			read: 0,
+			written: 0,
+			skipped: NEVER_COPIED_WHY,
+		});
+		expect(watched.statements.some((text) => text.includes("schedule_months"))).toBe(false);
+		expect(await dump(target, "schedule_months")).toEqual([{
+			month: "2026-05",
+			checked_at: "2026-11-01T00:00:00.000Z",
+			claimed_at: null,
+		}]);
+		expect(COPY_RULES.schedule_months).toBe("neverCopied");
+	});
+
 	it("AC 1 personal: pages through a table larger than one batch", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		const [games] = await copy(source, target, {
 			batchRows: 1,
 		}).then((copies) => copies.filter((entry) => entry.table === "games"));
@@ -265,7 +315,7 @@ describe("copyBaseballData (S117)", () =>
 	{
 		const production_ = await production();
 		const { db: source, seen } = watchSource(production_);
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		const [games] = await copy(source, target, {
 			batchRows: 100,
 			batchBytes: 1,
@@ -274,8 +324,9 @@ describe("copyBaseballData (S117)", () =>
 			read: 3,
 			written: 3,
 		});
-		// One row per page under a 1-byte cap: schedule_days 2, games 3, replay_artifacts 1 (projections aren't read).
-		expect(seen.pageReads).toBe(6);
+		// One row per page under a 1-byte cap: schedule_days 2, game_states' one empty page, games 3, replay_artifacts 1
+		// (projections and schedule_months, never copied, aren't read).
+		expect(seen.pageReads).toBe(7);
 		for (const table of COPIED_TABLES) expect(await dump(target, table)).toEqual(await dump(production_, table));
 	});
 
@@ -290,29 +341,30 @@ describe("copyBaseballData (S117)", () =>
 		await source.execute(sql`GRANT SELECT ON drizzle.__drizzle_migrations TO copier`);
 		await source.execute(sql`SET ROLE copier`);
 		await expect(source.execute(sql`SELECT * FROM users`)).rejects.toThrow();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		const copies = await copy(source, target);
 		await source.execute(sql`RESET ROLE`);
-		expect(copies.map((entry) => entry.read)).toEqual([2, 3, 0, 1]);
+		// schedule_months (S194) is never copied, so it is never read.
+		expect(copies.map((entry) => entry.read)).toEqual([2, 0, 0, 3, 0, 1]);
 		for (const table of COPIED_TABLES) expect(await dump(target, table)).toEqual(await dump(source, table));
 	});
 
 	it("AC 2 twice: a second copy writes nothing and changes nothing", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await copy(source, target);
 		const before = await Promise.all(baseballTables().map((table) => dump(target, table)));
 		const again = await copy(source, target);
-		expect(again.map((entry) => entry.written)).toEqual([0, 0, 0, 0]);
-		expect(again.map((entry) => entry.read)).toEqual([2, 3, 0, 1]);
+		expect(again.map((entry) => entry.written)).toEqual([0, 0, 0, 0, 0, 0]);
+		expect(again.map((entry) => entry.read)).toEqual([2, 0, 0, 3, 0, 1]);
 		expect(await Promise.all(baseballTables().map((table) => dump(target, table)))).toEqual(before);
 	});
 
 	it("AC 2 newer: a target row changed later survives whatever its version; one changed earlier gets production's content one version past its own", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`INSERT INTO games (game_pk, official_date, version, document) VALUES
 			(1, '2024-04-01', 1, ${stamped({
 				gamePk: 1,
@@ -356,8 +408,8 @@ describe("copyBaseballData (S117)", () =>
 
 	it("v40 against v1 (Claude's review of PR #21): production's final game replaces staging's stale mid-game one at v41, with its projection rebuilt", async () =>
 	{
-		const { db: source } = await migratedPglite();
-		const { db: target } = await migratedPglite();
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
 		const final = await recordedGame(777, 1, "2026-07-02T03:00:00.000Z");
 		const midGame = await recordedGame(777, 40, "2026-07-01T20:00:00.000Z", {
 			windowMode: "active",
@@ -392,8 +444,8 @@ describe("copyBaseballData (S117)", () =>
 
 	it("v40 against v1, reversed: staging's game changed later at v1 is kept against production's v5 changed earlier", async () =>
 	{
-		const { db: source } = await migratedPglite();
-		const { db: target } = await migratedPglite();
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
 		await upsertGame(source, await recordedGame(777, 5, "2026-07-01T20:00:00.000Z", {
 			officialDate: "production",
 		}));
@@ -415,7 +467,7 @@ describe("copyBaseballData (S117)", () =>
 	it("schedule days are compared by when they changed too, both ways", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`INSERT INTO schedule_days (date, version, document) VALUES
 			('2024-04-01', 30, ${stamped({
 				date: "2024-04-01",
@@ -445,7 +497,7 @@ describe("copyBaseballData (S117)", () =>
 		const game = await recordedGame(888, 7, "2026-07-02T03:00:00.000Z");
 		await upsertGame(source, game);
 		await source.execute(sql`INSERT INTO game_projections (game_pk, version, document) VALUES (888, 7, '{"marker":"production-only"}')`);
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await copy(source, target);
 		expect(await all(target, sql`SELECT version FROM games WHERE game_pk = 888`)).toEqual([{
 			version: 7,
@@ -459,8 +511,8 @@ describe("copyBaseballData (S117)", () =>
 
 	it("the same content under different counters writes nothing (target v1, production v40)", async () =>
 	{
-		const { db: source } = await migratedPglite();
-		const { db: target } = await migratedPglite();
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
 		const game = await recordedGame(777, 1, "2026-07-01T20:00:00.000Z");
 		await upsertGame(target, game);
 		await upsertGame(source, {
@@ -483,8 +535,8 @@ describe("copyBaseballData (S117)", () =>
 
 	it("a game staging's ingest may still be writing (in its active window, changed within the trail) is left to it", async () =>
 	{
-		const { db: source } = await migratedPglite();
-		const { db: target } = await migratedPglite();
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
 		await upsertGame(target, await recordedGame(777, 40, "2026-11-13T11:00:00.000Z", {
 			windowMode: "active",
 		}));
@@ -506,7 +558,7 @@ describe("copyBaseballData (S117)", () =>
 	it("a target row with no readable change time is kept, and counted", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`INSERT INTO games (game_pk, official_date, version, document) VALUES (1, '2024-04-01', 1, '{"gamePk":1,"note":"no time"}')`);
 		const copies = await copy(source, target);
 		expect(copies.find((entry) => entry.table === "games")).toMatchObject({
@@ -522,8 +574,8 @@ describe("copyBaseballData (S117)", () =>
 
 	it("a row staging writes between the copy's read and its write keeps staging's write, and its projection is made from that write", async () =>
 	{
-		const { db: source } = await migratedPglite();
-		const { db: target } = await migratedPglite();
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
 		await upsertGame(target, await recordedGame(777, 40, "2026-07-01T20:00:00.000Z"));
 		await upsertGame(source, await recordedGame(777, 1, "2026-07-02T03:00:00.000Z", {
 			officialDate: "production",
@@ -557,7 +609,7 @@ describe("copyBaseballData (S117)", () =>
 	{
 		const source = await production();
 		await upsertGame(source, await recordedGame(888, 7, "2026-07-02T03:00:00.000Z"));
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		const lines: string[] = [];
 		const copies = await copy(source, target, {
 			log: (line) => lines.push(line),
@@ -574,10 +626,10 @@ describe("copyBaseballData (S117)", () =>
 
 	it("rebuilt projections are written under the byte cap too", async () =>
 	{
-		const { db: source } = await migratedPglite();
+		const { db: source } = await openDb();
 		await upsertGame(source, await recordedGame(801, 2, "2026-07-02T03:00:00.000Z"));
 		await upsertGame(source, await recordedGame(802, 3, "2026-07-02T03:00:00.000Z"));
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		const copies = await copy(source, target, {
 			batchBytes: 1,
 		});
@@ -598,7 +650,7 @@ describe("copyBaseballData (S117)", () =>
 	{
 		const source = await production();
 		await source.execute(sql`INSERT INTO replay_artifacts (game_pk, version, document) VALUES (2, 5, '{"version":5}'), (3, 3, '{"version":3}')`);
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`INSERT INTO replay_artifacts (game_pk, version, document) VALUES (2, 3, '{"version":3}'), (3, 5, '{"version":5}')`);
 		await copy(source, target);
 		expect(await all(target, sql`SELECT game_pk, version FROM replay_artifacts ORDER BY game_pk`)).toEqual([
@@ -627,7 +679,7 @@ describe("copyBaseballData (S117)", () =>
 	{
 		const source = await production();
 		await source.execute(sql`ALTER TABLE schedule_days DROP COLUMN document`);
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`ALTER TABLE schedule_days ALTER COLUMN document DROP NOT NULL`);
 		const copies = await copy(source, target);
 		expect(copies.find((entry) => entry.table === "schedule_days")?.skipped).toBe("no document column on both sides, so when its rows last changed can't be read");
@@ -706,7 +758,7 @@ describe("copyBaseballData (S117)", () =>
 	{
 		const source = await production();
 		await source.execute(sql`DROP TABLE replay_artifacts`);
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`DROP TABLE game_projections`);
 		const copies = await copy(source, target);
 		expect(copies.find((entry) => entry.table === "replay_artifacts")?.skipped).toBe("production has no such table");
@@ -719,7 +771,7 @@ describe("copyBaseballData (S117)", () =>
 	it("AC 3 ahead: a target-only column that is required with a default gets its default", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`ALTER TABLE games ADD COLUMN staging_flag text NOT NULL DEFAULT 'd'`);
 		await copy(source, target);
 		expect(await all(target, sql`SELECT game_pk, staging_flag FROM games ORDER BY game_pk`)).toEqual([1, 2, 3].map((gamePk) => ({
@@ -731,7 +783,7 @@ describe("copyBaseballData (S117)", () =>
 	it("AC 3 ahead: a target-only column that is required with no default skips that table with the reason, and the others are still copied", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`ALTER TABLE games ADD COLUMN required_note text NOT NULL`);
 		const lines: string[] = [];
 		const copies = await copy(source, target, {
@@ -753,7 +805,7 @@ describe("copyBaseballData (S117)", () =>
 		const source = await production();
 		await source.execute(sql`ALTER TABLE games ADD COLUMN derived integer`);
 		await source.execute(sql`UPDATE games SET derived = 77`);
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`ALTER TABLE games ADD COLUMN derived integer GENERATED ALWAYS AS (version * 2) STORED`);
 		const copies = await copy(source, target);
 		expect(copies.find((entry) => entry.table === "games")).toMatchObject({
@@ -779,7 +831,7 @@ describe("copyBaseballData (S117)", () =>
 	it("AC 3 ahead: an unmigrated target is migrated, from the folder the copy compares against, before anything is copied", async () =>
 	{
 		const source = await production();
-		const target = drizzlePglite(new PGlite()) as unknown as PostgresDb;
+		const target = drizzlePglite(opening(new PGlite())) as unknown as PostgresDb;
 		const folders: string[] = [];
 		await copy(source, target, {
 			migrateTarget: async (folder) =>
@@ -799,7 +851,7 @@ describe("copyBaseballData (S117)", () =>
 		const before = await Promise.all(tables.map((table) => dump(source, table)));
 		const migrations = await all(source, sql`SELECT hash FROM drizzle.__drizzle_migrations ORDER BY id`);
 		await forbid(source, tables, ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]);
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await copy(source, target);
 		expect(await Promise.all(tables.map((table) => dump(source, table)))).toEqual(before);
 		expect(await all(source, sql`SELECT hash FROM drizzle.__drizzle_migrations ORDER BY id`)).toEqual(migrations);
@@ -809,7 +861,7 @@ describe("copyBaseballData (S117)", () =>
 	{
 		const production_ = await production();
 		const { db: source, seen } = watchSource(production_);
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await copy(source, target);
 		expect(seen.readOnlyAfter.length).toBeGreaterThan(0);
 		expect(new Set(seen.readOnlyAfter)).toEqual(new Set(["on"]));
@@ -821,17 +873,17 @@ describe("copyBaseballData (S117)", () =>
 	it("refuses a table without one shared primary key or a version column, rather than write unguarded", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await source.execute(sql`ALTER TABLE replay_artifacts DROP COLUMN version`);
 		await expect(copy(source, target)).rejects.toThrow(/replay_artifacts: no version column/);
-		const { db: noKey } = await migratedPglite();
+		const { db: noKey } = await openDb();
 		await noKey.execute(sql`ALTER TABLE schedule_days DROP CONSTRAINT schedule_days_pkey`);
 		await expect(copy(await production(), noKey)).rejects.toThrow(/schedule_days: the copy needs one primary-key column/);
 	});
 	it("a copy stopped between a game and its projection is finished by the next copy", async () =>
 	{
-		const { db: source } = await migratedPglite();
-		const { db: target } = await migratedPglite();
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
 		const midGame = await recordedGame(777, 40, "2026-07-01T20:00:00.000Z");
 		await upsertGame(target, midGame);
 		await target.execute(sql`INSERT INTO game_projections (game_pk, version, document) VALUES (777, 40, ${JSON.stringify(projectGame(midGame))})`);
@@ -860,8 +912,8 @@ describe("copyBaseballData (S117)", () =>
 
 	it("a projection staging's ingest writes just before the copy's keeps ingest's, and counts as left newer", async () =>
 	{
-		const { db: source } = await migratedPglite();
-		const { db: target } = await migratedPglite();
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
 		await upsertGame(target, await recordedGame(777, 40, "2026-07-01T20:00:00.000Z"));
 		await upsertGame(source, await recordedGame(777, 1, "2026-07-02T03:00:00.000Z", {
 			officialDate: "production",
@@ -889,8 +941,8 @@ describe("copyBaseballData (S117)", () =>
 
 	it("a game staging's ingest adds between the copy's read and its write keeps staging's row, and its projection is made from that row", async () =>
 	{
-		const { db: source } = await migratedPglite();
-		const { db: target } = await migratedPglite();
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
 		await upsertGame(source, await recordedGame(777, 5, "2026-07-01T20:00:00.000Z", {
 			officialDate: "production",
 		}));
@@ -920,8 +972,8 @@ describe("copyBaseballData (S117)", () =>
 
 	it("a row gone from the target between the copy's two reads counts as raced, not new", async () =>
 	{
-		const { db: source } = await migratedPglite();
-		const { db: plain } = await migratedPglite();
+		const { db: source } = await openDb();
+		const { db: plain } = await openDb();
 		await upsertGame(plain, await recordedGame(777, 40, "2026-07-01T20:00:00.000Z"));
 		await upsertGame(source, await recordedGame(777, 1, "2026-07-02T03:00:00.000Z"));
 		const { db: target } = watchTarget(plain, async (text) =>
@@ -939,10 +991,10 @@ describe("copyBaseballData (S117)", () =>
 
 	it("rebuilt projections are written one statement per byte-capped run", async () =>
 	{
-		const { db: source } = await migratedPglite();
+		const { db: source } = await openDb();
 		await upsertGame(source, await recordedGame(801, 2, "2026-07-02T03:00:00.000Z"));
 		await upsertGame(source, await recordedGame(802, 3, "2026-07-02T03:00:00.000Z"));
-		const { db: plain } = await migratedPglite();
+		const { db: plain } = await openDb();
 		const { db: target, statements } = watchTarget(plain);
 		await copy(source, target, {
 			batchRows: 100,
@@ -957,7 +1009,7 @@ describe("copyBaseballData (S117)", () =>
 		const source = await production();
 		const fullReads = async (batchBytes: number) =>
 		{
-			const { db: plain } = await migratedPglite();
+			const { db: plain } = await openDb();
 			for (const gamePk of [1, 2]) await upsertGame(plain, await recordedGame(gamePk, 4, "2024-04-01T00:00:00.000Z"));
 			const { db: target, statements } = watchTarget(plain);
 			const copies = await copy(source, target, {
@@ -973,7 +1025,7 @@ describe("copyBaseballData (S117)", () =>
 	it("games are skipped whenever their projections can't be rebuilt into a game_projections the target has", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`ALTER TABLE game_projections ADD COLUMN staging_required text NOT NULL`);
 		const copies = await copy(source, target);
 		expect(copies.find((entry) => entry.table === "game_projections")?.skipped).toBe("the target's column staging_required is required (NOT NULL, no default) and a rebuilt projection has no value for it");
@@ -991,7 +1043,7 @@ describe("copyBaseballData (S117)", () =>
 		try
 		{
 			const migrateTarget = vi.fn(noMigration);
-			await expect(copy(await production(), (await migratedPglite()).db, {
+			await expect(copy(await production(), (await openDb()).db, {
 				migrateTarget,
 			})).rejects.toThrow(/new_mlb_table: no copy rule/);
 			expect(migrateTarget).not.toHaveBeenCalled();
@@ -1057,7 +1109,7 @@ describe("copyBaseballData: tables a migration production hasn't run touched (ow
 	it("refuses, writing nothing, when the target has run a migration this checkout doesn't have", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('from-elsewhere', 99999999999999)`);
 		await forbid(target, baseballTables(), ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]);
 		const failure = copy(source, target);
@@ -1068,7 +1120,7 @@ describe("copyBaseballData: tables a migration production hasn't run touched (ow
 	it("refuses a target record whose time matches a committed migration but whose hash doesn't", async () =>
 	{
 		const source = await production();
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		await target.execute(sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('edited-elsewhere', ${FIRST_WHEN})`);
 		await forbid(target, baseballTables(), ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]);
 		await expect(copy(source, target)).rejects.toThrow(new RegExp(`the target has run migration created_at ${FIRST_WHEN} \\(hash edited-elsewhere\\)`));
@@ -1078,7 +1130,7 @@ describe("copyBaseballData: tables a migration production hasn't run touched (ow
 	{
 		const source = await production();
 		await source.execute(sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('production-ahead', 99999999999999)`);
-		const { db: target } = await migratedPglite();
+		const { db: target } = await openDb();
 		const copies = await copy(source, target);
 		for (const entry of copies)
 		{
@@ -1162,5 +1214,117 @@ describe("tablesNamedIn", () =>
 	it("finds every baseball table in the committed initial migration", () =>
 	{
 		expect(tablesNamedIn(readFileSync(join(MIGRATIONS_FOLDER, "0000_initial.sql"), "utf8"), TABLES)).toEqual(TABLES);
+	});
+});
+
+describe("copyBaseballData: game states and served days (S150 AC 3)", () =>
+{
+	/** A `game_states` document: the state with its stamp. */
+	function stateDoc(codedGameState: string, version: number, lastChangedAt: string, runs = 1): string
+	{
+		return JSON.stringify({
+			status: {
+				abstractGameState: codedGameState === "I" ? "Live" : "Final",
+				codedGameState,
+				detailedState: codedGameState === "I" ? "In Progress" : "Final",
+			},
+			linescore: {
+				currentInning: 9,
+				inningState: "End",
+				isTopInning: false,
+				outs: 3,
+				balls: 0,
+				strikes: 0,
+				teams: {
+					home: {
+						runs,
+						hits: 5,
+						errors: 0,
+					},
+					away: {
+						runs: 0,
+						hits: 3,
+						errors: 0,
+					},
+				},
+			},
+			live: null,
+			version,
+			lastChangedAt,
+		});
+	}
+
+	it("S150 AC 3 live: a target row its feed wrote while the game is live stays the target's, though production changed later", async () =>
+	{
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
+		await source.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document)
+			VALUES (1, 4, 'schedule', NULL, '2026-11-13', '2026-11-13T00:05:00.000Z', ${stateDoc("F", 4, "2026-11-13T11:00:00.000Z", 9)})`);
+		await target.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document)
+			VALUES (1, 2, 'feed', '2026-11-13T10:00:00.000Z', '2026-11-13', '2026-11-13T00:05:00.000Z', ${stateDoc("I", 2, "2026-11-13T10:00:00.000Z")})`);
+		const copies = await copy(source, target);
+		expect(copies.find((entry) => entry.table === "game_states")).toMatchObject({
+			read: 1,
+			written: 0,
+			kept: {
+				ingesting: 1,
+			},
+		});
+		expect(await all(target, sql`SELECT version, source, document->'status'->>'codedGameState' AS code FROM game_states`)).toEqual([{
+			version: 2,
+			source: "feed",
+			code: "I",
+		}]);
+	});
+
+	it("S150 AC 3 own columns: a later production state is adopted, but never the target's feed time, nor a missing first pitch over a stored one", async () =>
+	{
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
+		await source.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document)
+			VALUES (1, 7, 'feed', '2030-01-01T00:00:00.000Z', '2024-04-01', NULL, ${stateDoc("F", 7, "2024-04-03T00:00:00.000Z", 6)})`);
+		await target.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document)
+			VALUES (1, 3, 'schedule', '2024-04-01T23:59:00.000Z', '2024-04-01', '2024-04-01T23:05:00.000Z', ${stateDoc("F", 3, "2024-04-02T00:00:00.000Z", 2)})`);
+		await copy(source, target);
+		expect(await all(target, sql`SELECT version, feed_time, start_time, document->'linescore'->'teams'->'home'->>'runs' AS runs FROM game_states`)).toEqual([{
+			version: 4,
+			feed_time: "2024-04-01T23:59:00.000Z",
+			start_time: "2024-04-01T23:05:00.000Z",
+			runs: "6",
+		}]);
+		// A game only production has arrives with no feed time of the target's own.
+		await source.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document)
+			VALUES (2, 1, 'feed', '2030-01-01T00:00:00.000Z', '2024-04-01', NULL, ${stateDoc("F", 1, "2024-04-03T00:00:00.000Z")})`);
+		await copy(source, target);
+		expect(await all(target, sql`SELECT feed_time FROM game_states WHERE game_pk = 2`)).toEqual([{
+			feed_time: null,
+		}]);
+	});
+
+	it("S150 AC 3 served base: a production day with a lower served_base and one game fewer raises the target's served_base by the dropped game's state", async () =>
+	{
+		const { db: source } = await openDb();
+		const { db: target } = await openDb();
+		const day = (games: number[], version: number, lastChangedAt: string) => stamped({
+			date: "2024-04-01",
+			games: games.map((gamePk) => ({
+				gamePk,
+			})),
+		}, version, lastChangedAt);
+		await source.execute(sql`INSERT INTO schedule_days (date, version, served_base, document) VALUES ('2024-04-01', 2, 1, ${day([1], 2, "2024-04-05T00:00:00.000Z")})`);
+		await target.execute(sql`INSERT INTO schedule_days (date, version, served_base, document) VALUES ('2024-04-01', 6, 4, ${day([1, 2], 6, "2024-04-02T00:00:00.000Z")})`);
+		await target.execute(sql`INSERT INTO game_states (game_pk, version, source, feed_time, official_date, start_time, document) VALUES
+			(1, 3, 'schedule', NULL, '2024-04-01', NULL, ${stateDoc("F", 3, "2024-04-02T00:00:00.000Z")}),
+			(2, 5, 'schedule', NULL, '2024-04-01', NULL, ${stateDoc("F", 5, "2024-04-02T00:00:00.000Z")})`);
+		const served = async () => (await all(target, sql`SELECT d.version + d.served_base + COALESCE((SELECT sum(s.version) FROM game_states s
+			WHERE s.game_pk IN (SELECT (g->>'gamePk')::integer FROM jsonb_array_elements(d.document->'games') g)), 0) AS v FROM schedule_days d`))[0]!.v;
+		const before = Number(await served());
+		await copy(source, target);
+		expect(await all(target, sql`SELECT version, served_base, jsonb_array_length(document->'games') AS games FROM schedule_days`)).toEqual([{
+			version: 7,
+			served_base: 9,
+			games: 1,
+		}]);
+		expect(Number(await served())).toBeGreaterThan(before);
 	});
 });

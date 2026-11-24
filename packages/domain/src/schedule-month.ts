@@ -4,6 +4,7 @@
  * game on the day (scheduled, postponed, final, in or out of the live window), never from the
  * games table, which holds only the games ingest hydrated.
  */
+import type { StoredScheduleDay } from "./game-state.js";
 
 /**
  * One stored schedule day as the month view needs it: its game count, the teams playing it
@@ -104,6 +105,29 @@ export function storedGameType(type: unknown): string | null
 }
 
 /**
+ * A stored schedule day's tally for the month view (ADR-025: the one implementation in code; the
+ * Postgres adapter computes the same in SQL and the repository contract holds the two together).
+ * The memory adapter's `listGameCounts` maps each stored day through it, and the month fill tallies
+ * the days it just stored with it (#410) rather than reading the month again, which a caching
+ * database could answer with its pre-fill result. It reads only what a stored day keeps (S150:
+ * `StoredScheduleDay`, no game statuses), so a fetched `ScheduleDay` passes as well.
+ */
+export function scheduleDayTally(day: Pick<StoredScheduleDay, "date" | "games" | "fetchedAt" | "lastChangedAt">): ScheduleDayTally
+{
+	// One entry per game, `null` for an untyped one, as the Postgres adapter reads it (S167).
+	const gameTypes = day.games.map((game) => storedGameType(game.gameType));
+	return {
+		date: day.date,
+		gameCount: day.games.length,
+		teamIds: distinctTeamIds(day.games.flatMap((game) => [game.teams.away.id, game.teams.home.id])),
+		gameTypes,
+		regularSeason: dayRegularSeason(gameTypes),
+		fetchedAt: day.fetchedAt,
+		lastChangedAt: day.lastChangedAt,
+	};
+}
+
+/**
  * One count per date of `dates`, in order, from the stored days' tallies (ADR-025: the one
  * implementation of a day's game count and teams for the month view): a date with no stored day
  * is `null` for all three, so `teamIds` is `null` exactly when `count` is; `regularSeason` is also
@@ -187,6 +211,17 @@ export function favoriteTeamsOff(day: MonthDayTeams, favoriteTeamIds: readonly n
 		mark: off.length === counted.length ? "red" : "yellow",
 		off,
 	};
+}
+
+/**
+ * Whether every day of a month is known (#399): none has `count: null`, the mark of a day BT holds
+ * no schedule for (a fill MLB didn't answer, or a past day nothing stored). The month route caches
+ * an incomplete month only for the fill's cooldown and the web keeps it only that long, so both ask
+ * this one question; unlike {@link monthGamesState}, one unknown day beside a day with games counts.
+ */
+export function monthComplete(days: readonly Pick<ScheduleDayCount, "count">[]): boolean
+{
+	return days.every((day) => day.count !== null);
 }
 
 /**
