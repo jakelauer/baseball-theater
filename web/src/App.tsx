@@ -3,6 +3,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { createQueryClient } from "./api/queryClient.js";
 import { useAfterUpdate } from "./pwa/afterUpdate.js";
+import { useOfflineNotice } from "./pwa/offline.js";
+import { usePrefetchOnOpen } from "./pwa/prefetch.js";
 import { useUpdateNotice } from "./pwa/updates.js";
 import { AppShellLayout } from "./layout/AppShellLayout.js";
 import { AppRoutes } from "./routes.js";
@@ -89,12 +91,24 @@ const theme = createTheme({
 /** One client for the app's lifetime — recreating it on render would empty the cache. */
 const queryClient = createQueryClient();
 
+/**
+ * Asks for today's schedule and the favorites' games when the app opens and wakes (S74,
+ * `usePrefetchOnOpen`). A component of its own, since it reads the session and the query client,
+ * which exist only inside their providers.
+ */
+function PrefetchOnOpen()
+{
+	usePrefetchOnOpen();
+	return null;
+}
+
 export function App()
 {
 	// The one "reload to update" notice: a retired API version (S28) and a waiting new version
-	// (S73) both raise it through `useUpdateNotice`, which floats it at the bottom (A6); the
-	// offline marker joins it under the header in S74.
+	// (S73) both raise it through `useUpdateNotice`, which floats it at the bottom (A6).
 	const notice = useUpdateNotice();
+	// The offline marker (S74), under the header (or the game top bar), beside the floating notice.
+	const marker = useOfflineNotice();
 	// After an update, the pointer at the menu (S135, A9), never while A6's box is up.
 	const pointer = useAfterUpdate(Boolean(notice?.update));
 	return (
@@ -102,8 +116,9 @@ export function App()
 			<QueryClientProvider client={queryClient}>
 				<SessionProvider>
 					<SettingsSync />
+					<PrefetchOnOpen />
 					<BrowserRouter>
-						<AppShellLayout notice={notice} pointer={pointer}>
+						<AppShellLayout notice={notice} marker={marker} pointer={pointer}>
 							{(variant, setFooter) => <AppRoutes variant={variant} setFooter={setFooter} />}
 						</AppShellLayout>
 					</BrowserRouter>

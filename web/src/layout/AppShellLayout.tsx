@@ -28,7 +28,11 @@ import { useLayoutVariant } from "./variant.js";
  *
  * The notice slot sits directly under the header (S31 `shell-notice-*`); the reload notice
  * floats fixed at the bottom of the screen instead (shell-scoreboard A6), which `NoticeSlot`
- * decides. The notice's owner (update prompt, offline marker) passes it in.
+ * decides. The notices' owners pass them in: `notice`, the reload notice (`useUpdateNotice`), and
+ * `marker`, the offline marker (S74, `useOfflineNotice`), so both can show at once (A6's
+ * Interpretation: the marker stays under the header, only the reload notice floats). On a game
+ * route the marker belongs under the game top bar (game-rooms A1), which the game page draws, so
+ * the page draws the marker there and the shell leaves it out.
  *
  * After an update (S135, shell-scoreboard A9) `pointer` is the after-update pointer while it shows
  * (`useAfterUpdate`, which already keeps it away whenever A6's box is up). The shell aims it by its
@@ -47,10 +51,11 @@ import { useLayoutVariant } from "./variant.js";
  * leftover height is left empty below it (A14 Short page; owner, 2026-11-19: "A13").
  */
 export function AppShellLayout({
-	children, notice = null, pointer = null,
+	children, notice = null, marker = null, pointer = null,
 }: {
 	children: (variant: LayoutVariant, setFooter: SetFooterMode) => ReactNode;
 	notice?: Notice | null;
+	marker?: Notice | null;
 	pointer?: AfterUpdate | null;
 })
 {
@@ -132,6 +137,7 @@ export function AppShellLayout({
 			}}>
 				{gameRoute ? null : <AppHeader burger={!desktop} wordmark={!desktop} drawerOpened={opened} onBurger={onBurger} pointer={desktop ? null : pointer} />}
 				<NoticeSlot notice={notice} />
+				{gameRoute ? null : <NoticeSlot notice={marker} />}
 				<Box component="main" px="md" pb="md" pt={gameRoute ? 0 : "md"}>
 					{children(variant, setFooter)}
 				</Box>

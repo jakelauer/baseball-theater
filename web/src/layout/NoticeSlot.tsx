@@ -66,9 +66,12 @@ export function NoticeBanner({ notice }: { notice: Notice })
  * is 0 in a browser tab), as wide as the screen's gutters allow on mobile and at most 420px
  * otherwise. Its z-index (150) is above the page, Plays' sticky inning sidebar included, and
  * below Mantine's modals and drawers (200), so the video player's scrim covers it. Any other
- * notice sits in the slot directly under the header.
+ * notice sits in the slot directly under the header. `flush` is a slot drawn inside the page's own
+ * content, already inset by `<main>`'s padding (S74: the offline marker under the game top bar,
+ * game-rooms A1), so it adds no side inset of its own.
  */
-export function NoticeSlot({ notice }: { notice: Notice | null })
+export function NoticeSlot({ notice, flush = false }: { notice: Notice | null;
+	flush?: boolean; })
 {
 	if (!notice) return null;
 	if (notice.update)
@@ -87,7 +90,7 @@ export function NoticeSlot({ notice }: { notice: Notice | null })
 	}
 	return (
 		<div data-testid="notice-slot" style={{
-			padding: "12px 16px 0",
+			padding: flush ? "12px 0 0" : "12px 16px 0",
 		}}>
 			<NoticeBanner notice={notice} />
 		</div>
