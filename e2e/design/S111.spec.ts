@@ -21,7 +21,7 @@ test("scoreboard-mobile", async ({ page }, testInfo) =>
 		date: "2026-09-05",
 	});
 	await page.goto("/");
-	await page.waitForURL("**/games/2026-09-05");
+	// `/` shows the default day in place, with no redirect to its dated URL (#412).
 	// The day's first game card marks a loaded page (the "Fetched … ago · baseball.theater" footer
 	// that marked it before is gone, S148).
 	await page.getByTestId("scoreboard-module").first().waitFor();
