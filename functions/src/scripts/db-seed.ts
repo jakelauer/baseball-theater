@@ -15,7 +15,7 @@ import {
 } from "../adapters/postgres/local.js";
 import { migratePostgres } from "../adapters/postgres/migrate.js";
 import {
-	PostgresGameProjectionRepository, PostgresGameRepository, PostgresScheduleRepository,
+	PostgresGameProjectionRepository, PostgresGameStateRepository, PostgresGameRepository, PostgresScheduleRepository,
 } from "../adapters/postgres/repos.js";
 import {
 	DEFAULT_SEED_PATH, loadDevSeed, readDevSeed,
@@ -42,6 +42,7 @@ try
 		schedules: new PostgresScheduleRepository(db),
 		games: new PostgresGameRepository(db),
 		projections: new PostgresGameProjectionRepository(db),
+		gameStates: new PostgresGameStateRepository(db),
 	};
 	const days = await seedFromFixtures(deps, nodeFixtureFiles(FIXTURES_ROOT));
 	console.log(`[db:seed] ${host}: migrated; seeded ${days.join(", ")}`);

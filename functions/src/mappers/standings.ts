@@ -83,6 +83,8 @@ function byRank(a: number | null, b: number | null): number
  * MLB sends each as one group, fixtures/raw/standings-1950-07-04.json): it is named for its league
  * (`leagueName`), never from a row's hydrated division, which is the team's current one, and its
  * teams keep the order they stood in, MLB's `leagueRank`. Its games-back is already the league's.
+ * A division's names (S102) are MLB's own, from the group's hydrated division: `name` in full,
+ * `nameShort` (`AL East`) for headings and `abbreviation`; BT keeps no table of them.
  */
 export function mapStandingsDivision(group: StandingsRecordGroup): StandingsDivision
 {
@@ -98,17 +100,22 @@ export function mapStandingsDivision(group: StandingsRecordGroup): StandingsDivi
 		return {
 			divisionId: null,
 			name: leagueId === null ? null : leagueName(leagueId) ?? null,
+			nameShort: null,
+			abbreviation: null,
 			leagueId,
 			teams: ranked.map((row) => row.team),
 		};
 	}
 	const teams = rows.map(mapStandingsTeam);
 	teams.sort((a, b) => byRank(a.divisionRank, b.divisionRank));
-	// The group's own division ref is unnamed; the readable name is on each row.
+	// The group's division is named when the request hydrates `division` (S102); an answer without it
+	// (a recording made before S102) still names it in full on each hydrated team row.
 	const named = rows.find((row) => row.team?.division?.name);
 	return {
 		divisionId: group.division.id ?? null,
-		name: named?.team?.division?.name ?? null,
+		name: group.division.name ?? named?.team?.division?.name ?? null,
+		nameShort: group.division.nameShort ?? null,
+		abbreviation: group.division.abbreviation ?? null,
 		leagueId,
 		teams,
 	};

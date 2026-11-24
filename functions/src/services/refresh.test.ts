@@ -5,9 +5,7 @@ import type { GameSnapshot } from "@bt/domain";
 import type { MlbStatsClient } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { getOrRefreshGame, type IngestDeps } from "./ingest.js";
 import {
@@ -64,7 +62,7 @@ function deps(overrides: Partial<IngestDeps> = {}): IngestDeps
 {
 	return {
 		mlb: new FixtureMlbStatsClient(),
-		schedules: new InMemoryScheduleRepository(),
+		...memoryScheduleStores(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
 		...overrides,

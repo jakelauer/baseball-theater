@@ -22,11 +22,12 @@ export const NAV = [
 
 /**
  * The section a path belongs to, by prefix: a game (`/game/:pk`) is opened from
- * the scoreboard, so it lights Scoreboard (S31 `nav-rail` `Active`).
+ * the scoreboard, so it lights Scoreboard (S31 `nav-rail` `Active`). The home page `/` (also the
+ * PWA's `start_url`) shows the scoreboard in place with no redirect (#412), so it lights Scoreboard too.
  */
 export function activeSection(pathname: string): string | null
 {
-	if (pathname.startsWith("/game/")) return "/games";
+	if (pathname === "/" || pathname.startsWith("/game/")) return "/games";
 	return NAV.find((item) => pathname.startsWith(item.to))?.to ?? null;
 }
 
