@@ -218,7 +218,7 @@ export function StandingsPage({ variant = "desktop", setFooter }: { variant?: La
 	return (
 		<Stack gap="md">
 			{/* Keyed by the day, so a change of day (a pick, an arrow, Back) closes the calendar (S125). */}
-			<DateControl key={viewing} date={viewing} variant={variant} today={today} dayPath={standingsDayPath} onToday={goToday} />
+			<DateControl key={viewing} date={viewing} variant={variant} today={today} dayPath={standingsDayPath} onToday={goToday} here={`/standings${params.size > 0 ? `?${params.toString()}` : ""}`} />
 			<Stack gap="xl">
 				<Title order={1}>
 					Standings

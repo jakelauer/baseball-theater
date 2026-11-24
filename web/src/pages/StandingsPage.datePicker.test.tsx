@@ -193,6 +193,47 @@ describe("Standings' date control: where it goes (S138 AC 2)", () =>
 		expect(screen.queryByTestId("calendar-panel")).not.toBeInTheDocument();
 	});
 
+	it("S138 AC 2: picking or typing the day already shown still goes to /standings?date=<day>, dropping ?view=", async () =>
+	{
+		today("2026-09-20");
+		serve();
+		const user = userEvent.setup();
+		renderAt("/standings?date=2026-09-05&view=regularSeason");
+		await screen.findAllByTestId("division-table");
+		expect(address()).toBe("/standings?date=2026-09-05&view=regularSeason");
+		await openCalendar(user);
+		await user.click(screen.getByTestId("day-2026-09-05"));
+		expect(address()).toBe("/standings?date=2026-09-05");
+		cleanup();
+		renderAt("/standings?date=2026-09-05&view=regularSeason");
+		await screen.findAllByTestId("division-table");
+		await openCalendar(user);
+		await user.clear(field());
+		await user.type(field(), "Sep 5, 2026{Enter}");
+		expect(address()).toBe("/standings?date=2026-09-05");
+	});
+
+	it("S138 AC 2: from ?date=garbage, picking or typing today (the day the control reads) goes to /standings?date=<today>", async () =>
+	{
+		today("2026-09-20");
+		serve((date) => (date === "garbage"
+			? jsonResponse({
+				error: "date_invalid",
+			}, 400)
+			: regularOn(date)));
+		const user = userEvent.setup();
+		renderAt("/standings?date=garbage");
+		await openCalendar(user);
+		await user.click(screen.getByTestId("day-2026-09-20"));
+		expect(address()).toBe("/standings?date=2026-09-20");
+		cleanup();
+		renderAt("/standings?date=garbage");
+		await openCalendar(user);
+		await user.clear(field());
+		await user.type(field(), "Sep 20, 2026{Enter}");
+		expect(address()).toBe("/standings?date=2026-09-20");
+	});
+
 	it("S138 AC 2: a typed date goes to its day; an invalid one and one before 1901-04-18 show A8's states and stay put", async () =>
 	{
 		today("2026-09-20");

@@ -101,6 +101,12 @@ export interface CalendarPanelProps
 	 * `Today` picks `today` through `onPick`, as on the scoreboard.
 	 */
 	onToday?: () => void;
+	/**
+	 * Whether Enter on a typed day has nowhere new to go (S138): the page's address is already that
+	 * day's. Without it, the day shown (the scoreboard). A blur still commits only a day other than the
+	 * one shown, so leaving an untouched field never navigates.
+	 */
+	isHere?: (date: string) => boolean;
 	/** The sheet's ✕. */
 	onClose: () => void;
 	/** Whether the calendar is open; false while the sheet slides away, so its blur commits nothing. */
@@ -115,7 +121,7 @@ export interface CalendarPanelProps
  * tap-and-hold on touch); and the `Today` footer with S136's off-season line.
  */
 export function CalendarPanel({
-	date, today, favoriteTeamIds, container, onPick, onToday, onClose, open,
+	date, today, favoriteTeamIds, container, onPick, onToday, isHere = (day: string) => day === date, onClose, open,
 }: CalendarPanelProps)
 {
 	const [shown, setShown] = useState(date.slice(0, 7));
@@ -168,8 +174,11 @@ export function CalendarPanel({
 	if (shownYear > latestYear) years.push(shownYear);
 	const days = new Map((phase === "games" || phase === "none" ? data!.days : []).map((day) => [day.date, day]));
 
-	/** Read the field's text: go to its day, or show why not. A day already shown does nothing. */
-	function commit(text: string): void
+	/**
+	 * Read the field's text: go to its day, or show why not. On Enter a day the page is already at
+	 * (`isHere`) does nothing; on blur the day already shown does nothing.
+	 */
+	function commit(text: string, enter: boolean): void
 	{
 		const typed = parseTypedDate(text);
 		if ("error" in typed)
@@ -178,7 +187,7 @@ export function CalendarPanel({
 			return;
 		}
 		setError(null);
-		if (typed.date !== date) onPick(typed.date);
+		if (enter ? !isHere(typed.date) : typed.date !== date) onPick(typed.date);
 	}
 
 	function showMonth(month: string): void
@@ -336,7 +345,7 @@ export function CalendarPanel({
 					error={error}
 					onKeyDown={(event: KeyboardEvent<HTMLInputElement>) =>
 					{
-						if (event.key === "Enter") commit(event.currentTarget.value);
+						if (event.key === "Enter") commit(event.currentTarget.value, true);
 					}}
 					onFocus={() =>
 					{
@@ -348,7 +357,7 @@ export function CalendarPanel({
 					// away), which goes to no date the fan didn't enter.
 					onBlur={(event) =>
 					{
-						if (open && !closing.current) commit(event.currentTarget.value);
+						if (open && !closing.current) commit(event.currentTarget.value, false);
 					}}
 				/>
 			</Box>
