@@ -162,6 +162,7 @@ describe("S194 AC 4 the scheduled refresh", () =>
 			recordScheduleMonthCheck: (month, at) => base.recordScheduleMonthCheck(month, at),
 			claimScheduleMonth: async (month, at) => month === "2026-01" ? false : base.claimScheduleMonth(month, at),
 			holdScheduleMonth: (month, at) => base.holdScheduleMonth(month, at),
+			listGameListings: (gamePks, from, to) => base.listGameListings(gamePks, from, to),
 			upsert: (day) => base.upsert(day),
 		};
 		expect(await refreshDueScheduleMonth(ingest)).toBe("2026-02");
@@ -217,6 +218,7 @@ describe("S194 AC 4 the scheduled refresh", () =>
 			recordScheduleMonthCheck: (month, at) => base.recordScheduleMonthCheck(month, at),
 			claimScheduleMonth: (month, at) => base.claimScheduleMonth(month, at),
 			holdScheduleMonth: (month, at) => base.holdScheduleMonth(month, at),
+			listGameListings: (gamePks, from, to) => base.listGameListings(gamePks, from, to),
 			upsert: async () =>
 			{
 				throw new Error("database down");
@@ -299,6 +301,7 @@ describe("S194 AC 6 upstream budget", () =>
 			recordScheduleMonthCheck: counted((month: string, at: string) => base.recordScheduleMonthCheck(month, at)),
 			claimScheduleMonth: counted((month: string, at: string) => base.claimScheduleMonth(month, at)),
 			holdScheduleMonth: counted((month: string, at: string) => base.holdScheduleMonth(month, at)),
+			listGameListings: counted((gamePks: readonly number[], from: string, to: string) => base.listGameListings(gamePks, from, to)),
 			upsert: counted((day: ScheduleDay) => base.upsert(day)),
 		};
 		expect(await refreshDueScheduleMonth(ingest)).toBeNull();

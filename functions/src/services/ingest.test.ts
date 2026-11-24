@@ -3,7 +3,7 @@ import {
 } from "vitest";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemoryGameStateRepository, memoryScheduleStores,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import type { GameSnapshot, Unversioned } from "@bt/domain";
 import { mlbToday } from "@bt/domain";
@@ -314,9 +314,9 @@ describe("a suspended game's stored suspension time (#79, #323)", () =>
 	{
 		const base = (await new FixtureMlbStatsClient().fetchGame(745001)).game;
 		const deps = {
+			...memoryScheduleStores(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
-			gameStates: new InMemoryGameStateRepository(),
 		};
 		const poll = (status: typeof IN_PROGRESS, fetchedAt: string, windowMode: "active" | "cache" = "active") => ingestGame(deps, {
 			...base,

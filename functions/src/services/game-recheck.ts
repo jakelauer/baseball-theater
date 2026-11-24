@@ -7,7 +7,7 @@
  * edge copy (through `ingestGame`'s store, `purgeGameEdge`).
  */
 import {
-	GAME_RECHECK_CLAIM_LEASE_MS, gamesDueForRecheck, recentRecheckDates,
+	GAME_RECHECK_CLAIM_LEASE_MS, GAME_RECHECK_FAILED_HOLD_MS, gamesDueForRecheck, recentRecheckDates,
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
 import { ingestGame } from "./ingest.js";
@@ -21,15 +21,17 @@ import { ingestGame } from "./ingest.js";
  * game it can (`claimGameRecheck`, one conditional write that re-checks the game is still due, so two isolates never
  * re-check one game at once), fetches its full detail through `fetchGame` (the live feed, its content and highlight
  * clips, play metrics and graph content) and stores it through `ingestGame`, which purges the game's URL and its day's
- * schedule and digest URLs only when the stored game changed. Then it records the re-check, changed or not. An MLB
- * failure records no re-check and stores nothing (the claim holds the game for `GAME_RECHECK_CLAIM_LEASE_MS`); a store
- * failure is BT's own and rejects.
+ * schedule and digest URLs (and of any other day listing it) only when the stored game changed; a purge that fails is
+ * owed and retried by the cron (`retryOwedEdgePurges`), so the re-check is recorded either way. Then it records the
+ * re-check, changed or not. An MLB failure records no re-check and stores nothing, and holds the game for
+ * `GAME_RECHECK_FAILED_HOLD_MS` (6 h, `holdGameRecheck`, as S194 holds a month whose fill failed), so a feed that fails
+ * for good is asked as often as a working one, not after every 5-minute lease; a store failure is BT's own and rejects.
  *
  * Upstream budget (ADR-002): one game per tick, `fetchGame`'s 4 MLB requests at most, so at most 5,760 requests a day
- * by the tick count (1,440 ticks). In practice each recent game is re-checked once per 6 h, for 7 days: at most 7 days
- * × about 17 games × 4 checks × 4 requests ≈ 1,900 requests a day in mid-season, and none in the off-season. A
- * correction MLB makes to a game more than 7 days after it was played is never picked up (the owner's choice). A tick
- * with no due game sends no request and does one database read (`listRecheckCandidates`).
+ * by the tick count (1,440 ticks). In practice each recent game is tried once per 6 h, for 7 days, whether MLB answers
+ * or fails: at most 7 days × about 17 games × 4 tries × 4 requests ≈ 1,900 requests a day in mid-season, and none in
+ * the off-season. A correction MLB makes to a game more than 7 days after it was played is never picked up (the owner's
+ * choice). A tick with no due game sends no request and does one database read (`listRecheckCandidates`).
  */
 export async function recheckDueGame(deps: IngestDeps): Promise<number | null>
 {
@@ -47,7 +49,8 @@ export async function recheckDueGame(deps: IngestDeps): Promise<number | null>
 		}
 		catch (error)
 		{
-			console.warn(`recheckDueGame: game ${game.gamePk} not re-checked; MLB failed`, error);
+			console.warn(`recheckDueGame: game ${game.gamePk} not re-checked; MLB failed, held for the refresh interval`, error);
+			await deps.games.holdGameRecheck(game.gamePk, new Date(now.getTime() + GAME_RECHECK_FAILED_HOLD_MS - GAME_RECHECK_CLAIM_LEASE_MS).toISOString());
 			return game.gamePk;
 		}
 		await ingestGame(deps, {

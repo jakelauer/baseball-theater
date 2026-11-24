@@ -27,9 +27,11 @@ export const STALE_WHILE_REVALIDATE_S = CACHE_LIFETIME_FLOOR_MS / 1000;
  * ({@link versionedMonthCacheControl}, S194).
  *
  * S212: past, finished data (`isPastFinishedDay` / `isPastFinishedGame`; for the digest, its day and every one of its
- * games) is not judged here either: it gets {@link PAST_CACHE_CONTROL}, and a past digest missing a game it couldn't read
- * gets {@link PARTIAL_PAST_DIGEST_CACHE_CONTROL}. This header now covers only today's and future days, unfinished days
- * and games, and their digests, as before.
+ * games) is not judged here either: it gets {@link PAST_CACHE_CONTROL}, a past digest missing a game it couldn't read
+ * {@link PARTIAL_PAST_DIGEST_CACHE_CONTROL}, and a forced read of either `no-store` (`withReadCacheControl` in
+ * `api.ts`). Of the schedule day, game and digest routes this header now covers only today's and future days,
+ * unfinished days and games, and their digests, as before; the unversioned month route and the standings (with their
+ * own ladder) still use it as before.
  */
 export function edgeCacheControl(entity: { windowMode?: "active" | "cache";
 	lastChangedAt?: string; }, now: Date, ladder?: readonly CacheLifetimeStep[]): string
@@ -93,8 +95,9 @@ export function versionedMonthCacheControl(month: string, matches: boolean, toda
  * How long the edge keeps a past, finished schedule day, game or digest (S212 AC 3): 2592000 seconds, 30 days,
  * ADR-021's hard cap. Its 2026-11-24 amendment gives the reason it may be that long: the cron re-checks each day of the
  * current year about every six hours and each recently finished game's full detail for a week, and purges the edge copy
- * by URL when one really changes (`purgeDayEdge` / `purgeGameEdge`), so the lifetime only bounds a correction nothing
- * purged (a backfill's, or one while the purge credentials are missing).
+ * by URL when one really changes (`purgeDayEdge` / `purgeGameEdge`; a failed purge is owed and retried by the cron), so
+ * the lifetime only bounds a correction nothing purged (one written by the backfill or the baseball-data copy,
+ * `baseball-copy.ts`, neither of which purges, or one while the purge credentials are missing).
  */
 export const PAST_EDGE_TTL_S = 2592000;
 

@@ -58,6 +58,11 @@ describe("CloudflareEdgeCachePurger (S212 AC 4)", () =>
 		await expect(new CloudflareEdgeCachePurger("tok", "zone1", fakeFetch(403, false).fetcher).purge(["https://x/a"])).rejects.toThrow(/403/);
 		await expect(new CloudflareEdgeCachePurger("tok", "zone1", fakeFetch(200, false).fetcher).purge(["https://x/a"])).rejects.toThrow();
 	});
+
+	it("S212 review 500 success: an HTTP 500 rejects even when its body says success", async () =>
+	{
+		await expect(new CloudflareEdgeCachePurger("tok", "zone1", fakeFetch(500, true).fetcher).purge(["https://x/a"])).rejects.toThrow(/500/);
+	});
 });
 
 describe("NoopEdgeCachePurger (S212 AC 4)", () =>

@@ -3,16 +3,16 @@ import type {
 } from "@bt/domain";
 import {
 	addDays, cacheLifetimeMs, DEFAULT_CADENCE, gameStateFromGame, gameStateFromSummary, isFinalStatus, isGameInActiveWindow, isPastFinishedDay, isPastFinishedGame,
-	isScheduleDaySettled, mlbToday, normalizeStatusCode, projectGame, scheduleWindowMode, stampVersion, suspendedSince, toStoredScheduleDay,
+	isScheduleDaySettled, isSettledGame, mlbToday, normalizeStatusCode, projectGame, scheduleWindowMode, stampVersion, suspendedSince, toStoredScheduleDay,
 } from "@bt/domain";
 import type {
 	GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, ScheduleRepository,
 } from "@bt/ports";
 import type { EdgePurge } from "./edge-purge.js";
 import { purgeDayEdge, purgeGameEdge } from "./edge-purge.js";
-import type { WindowedSummary } from "./game-state.js";
+import type { SwitchOutcome, WindowedSummary } from "./game-state.js";
 import {
-	readJoinedScheduleDay, readScheduleDay, readServedGame, scheduleDayWindowMode, servedGame, switchGameState, withSuspendedAt,
+	joinStoredScheduleDay, readJoinedScheduleDay, readScheduleDay, readServedGame, scheduleDayWindowMode, servedGame, switchGameState, withSuspendedAt,
 } from "./game-state.js";
 import type { RefreshCoordinator } from "./refresh.js";
 import { CACHE_TTL_MS, isStale } from "./refresh.js";
@@ -37,8 +37,9 @@ export type IngestDeps = {
 	 */
 	seasonCalendars?: SeasonCalendarSource;
 	/**
-	 * Where a write of a past, finished day or game drops its edge copy (S212 AC 4): the Worker's purger and origin
-	 * (`edgePurgeFor`); absent (tests, the Node server, the backfill), nothing is purged.
+	 * Where a write of a past, finished day or game drops its edge copy (S212 AC 4): the purger, origin and owed-purge
+	 * store the Worker and the Node server compose (`edgePurgeFor`; without credentials a no-op that logs once); absent
+	 * (most tests, the backfill, the baseball-data copy), nothing is purged.
 	 */
 	edgePurge?: EdgePurge;
 };
@@ -93,12 +94,14 @@ export function runRefresh<T>(
  * write that changes the status, already a new version, and carried unchanged after, so it never
  * bumps a version on its own; left out when there is none, so a game never suspended hashes as before.
  *
- * S212 AC 4: when the write leaves a past, finished game (`isPastFinishedGame` of the served game) that it stored for
- * the first time, or whose snapshot or state it changed, it purges the game's edge URL and its day's schedule and digest
- * URLs (`purgeGameEdge`), whichever path wrote it (game ingest, the recent-game re-check, a read's own refresh).
+ * S212 AC 4: when the write stores a game for the first time, or changes its snapshot or state, and the served game
+ * (`servedGame`) is past and finished (`isPastFinishedGame`) after the write, or was before it (S212 review: a final
+ * game MLB turns suspended leaves the edge holding the final one), it purges the game's edge URL and the schedule and
+ * digest URLs of every day that shows it (`purgeGameEdge`), whichever path wrote it (game ingest, the recent-game
+ * re-check, a read's own refresh). A game stored for the first time was not past and finished before.
  */
 async function storeGame(
-	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "edgePurge">,
+	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge">,
 	fetched: Unversioned<GameSnapshot>,
 	feedTime?: string,
 ): Promise<{ snapshot: GameSnapshot;
@@ -135,9 +138,11 @@ async function storeGame(
 		await deps.games.upsert(snapshot);
 		await deps.projections.upsert(projectGame(snapshot));
 	}
-	if ((snapshot !== stored || outcome?.stateChanged) && isPastFinishedGame(servedGame(snapshot, state), new Date(fetched.fetchedAt)))
+	const at = new Date(fetched.fetchedAt);
+	if ((snapshot !== stored || outcome?.stateChanged)
+		&& (isPastFinishedGame(servedGame(snapshot, state), at) || (stored !== null && isPastFinishedGame(servedGame(stored, outcome?.before ?? null), at))))
 	{
-		await purgeGameEdge(deps.edgePurge, snapshot.gamePk, snapshot.officialDate);
+		await purgeGameEdge(deps, [snapshot], at);
 	}
 	return {
 		snapshot,
@@ -157,11 +162,16 @@ async function storeGame(
  * by that game's state version in the same write (the repository's `upsert`), so the served
  * day's version never falls. Returns the served day (`readJoinedScheduleDay`).
  *
- * S212 AC 4: when the write leaves a past, finished day (`isPastFinishedDay` of the served day) that it stored for the
- * first time, or whose served version it changed (the stored day's version, or a listed game's state version), it purges
- * the day's schedule and digest URLs (`purgeDayEdge`), whichever path wrote it (S194's month refresh through
- * `fillScheduleMonth`, the day-before fetch of `refreshTodaysWindow`, a read's own refresh). A month refresh that
- * changes nothing purges nothing.
+ * S212 AC 4: when the write stores a day for the first time, or changes its served version (the stored day's version,
+ * or a listed game's state version), and the day is past and finished (`isPastFinishedDay`) after the write or was
+ * before it (S212 review: a day that stops being settled leaves the edge holding the settled one), it purges the day's
+ * schedule and digest URLs (`purgeDayEdge`), whichever path wrote it (S194's month refresh through
+ * `fillScheduleMonth`, the day-before fetch of `refreshTodaysWindow`, a read's own refresh). Each game whose state it
+ * changed and whose served game is or was past and finished (its stored snapshot over the new or the old row) has its
+ * own URL and every day showing it purged too (`purgeGameEdge`, S212 review): its game route serves that state. All in
+ * one purge request. The before-verdict is judged only when something changed, from the stored day as read and the
+ * rows as the switch read them (`joinStoredScheduleDay`), so a month refresh that changes nothing reads no more than
+ * before and purges nothing; a day stored for the first time was not past and finished before.
  */
 export async function storeSchedule(deps: Pick<IngestDeps, "schedules" | "games" | "gameStates" | "edgePurge">, fetched: Unversioned<ScheduleDay>): Promise<ScheduleDay>
 {
@@ -178,11 +188,59 @@ export async function storeSchedule(deps: Pick<IngestDeps, "schedules" | "games"
 	const dayChanged = !stored || day.version !== stored.version;
 	if (dayChanged) await deps.schedules.upsert(day);
 	const joined = (await readJoinedScheduleDay(deps, fetched.date, now))!;
-	if ((dayChanged || [...outcomes.values()].some((outcome) => outcome.stateChanged)) && isPastFinishedDay(joined.served, now, joined.moved))
-	{
-		await purgeDayEdge(deps.edgePurge, fetched.date);
-	}
+	const changedGames = [...outcomes.entries()].filter(([, outcome]) => outcome.stateChanged);
+	if (!deps.edgePurge || (!dayChanged && changedGames.length === 0)) return joined.served;
+	const purgeDay = isPastFinishedDay(joined.served, now, joined.moved) || (stored !== null && await wasPastFinishedDay(deps, stored, outcomes, now));
+	const games = await pastFinishedChangedGames(deps, changedGames, now);
+	if (games.length > 0) await purgeGameEdge(deps, games, now, purgeDay ? [fetched.date] : []);
+	else if (purgeDay) await purgeDayEdge(deps, fetched.date, now);
 	return joined.served;
+}
+
+/**
+ * Whether `stored` was past and finished before a `storeSchedule` write changed it (S212 review): the stored day as the
+ * write read it, joined over each listed game's row as the switch read it (`SwitchOutcome.before`), a game the write
+ * didn't list read as it stands (the write didn't touch it). Served base 0: the verdict reads no version.
+ */
+async function wasPastFinishedDay(deps: Pick<IngestDeps, "games" | "gameStates">, stored: StoredScheduleDay, outcomes: ReadonlyMap<number, SwitchOutcome>, now: Date): Promise<boolean>
+{
+	if (stored.date >= mlbToday(now)) return false;
+	// A listed game that wasn't settled and hadn't moved away left the day unsettled: no join (and no read) needed.
+	for (const game of stored.games)
+	{
+		const before = outcomes.get(game.gamePk)?.before;
+		if (before && before.officialDate === stored.date && !isSettledGame(before.state.status)) return false;
+	}
+	const rows = new Map<number, GameStateRow>();
+	for (const [gamePk, outcome] of outcomes) if (outcome.before) rows.set(gamePk, outcome.before);
+	const untouched = stored.games.map((game) => game.gamePk).filter((gamePk) => !outcomes.has(gamePk));
+	if (untouched.length > 0) for (const row of await deps.gameStates.getMany(untouched)) rows.set(row.gamePk, row);
+	const before = await joinStoredScheduleDay(deps, stored, 0, rows, now);
+	return isPastFinishedDay(before.served, now, before.moved);
+}
+
+/**
+ * The games a `storeSchedule` write changed the state of whose served game (their stored snapshot over the new or the
+ * old row) is or was past and finished (S212 review): their game route serves that state, so their URLs are purged. A
+ * game with no stored snapshot has no game response at the edge to purge.
+ */
+async function pastFinishedChangedGames(deps: Pick<IngestDeps, "games">, changed: readonly [number, SwitchOutcome][], now: Date): Promise<GameSnapshot[]>
+{
+	const games: GameSnapshot[] = [];
+	const today = mlbToday(now);
+	for (const [gamePk, outcome] of changed)
+	{
+		// Only a settled game of a date before MLB's today can be past and finished, so a game still live (today's, or
+		// yesterday's after ET midnight) costs no snapshot read. Its served status is its row's; a game with no earlier row
+		// was served its snapshot's, so that one is read.
+		if (!((outcome.row?.officialDate ?? today) < today || (outcome.before?.officialDate ?? today) < today)) continue;
+		const settled = (row: GameStateRow | null) => row !== null && isSettledGame(row.state.status);
+		if (outcome.before !== null && !settled(outcome.before) && !settled(outcome.row)) continue;
+		const snapshot = await deps.games.getByPk(gamePk);
+		if (!snapshot) continue;
+		if (isPastFinishedGame(servedGame(snapshot, outcome.row), now) || isPastFinishedGame(servedGame(snapshot, outcome.before), now)) games.push(snapshot);
+	}
+	return games;
 }
 
 /**
@@ -199,7 +257,7 @@ export async function storeSchedule(deps: Pick<IngestDeps, "schedules" | "games"
  * first (`storeGame`), a poll never leaves a row behind its own snapshot.
  */
 export async function ingestGame(
-	deps: Pick<IngestDeps, "games" | "projections" | "gameStates">,
+	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge">,
 	fetched: Unversioned<GameSnapshot>,
 	feedTime?: string,
 ): Promise<{ snapshot: GameSnapshot;

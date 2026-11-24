@@ -9,6 +9,7 @@ import {
 import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { InMemorySettingsRepository } from "../adapters/memory/repos.js";
+import { getDayDigest } from "../services/digest.js";
 import type { IngestDeps } from "../services/ingest.js";
 import { ingestGame, storeSchedule } from "../services/ingest.js";
 import {
@@ -90,7 +91,7 @@ describe("past, finished responses' edge lifetime (S212 AC 3)", () =>
 		expect(header).toBe(ladder(body));
 		expect(header).not.toBe(PAST_CACHE_CONTROL);
 		expect(header).toMatch(/^public, s-maxage=\d+, stale-while-revalidate=300$/);
-		expect((await get("/api/v1/digest?date=2026-11-15")).header).not.toBe(PAST_CACHE_CONTROL);
+		expect((await get("/api/v1/digest?date=2026-11-15")).header).toBe(edgeCacheControl((await getDayDigest(deps, "2026-11-15")).freshness, NOW));
 	});
 
 	it("S212 AC 3 future: a future day keeps the ladder header", async () =>
@@ -170,5 +171,32 @@ describe("past, finished responses' edge lifetime (S212 AC 3)", () =>
 			windowMode: "cache",
 		});
 		expect((await api(deps)(`/api/v1/digest?date=${PAST_DATE}`)).header).toBe(`public, s-maxage=300, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`);
+	});
+
+	it("S212 review forced: a ?refresh=1 read of a past, finished day or game gets no-store, since no purge names its URL", async () =>
+	{
+		// MLB answers the day and game final, so the forced reads are of past, finished data too.
+		const fixture = new FixtureMlbStatsClient();
+		const deps = memoryDeps(Object.assign(Object.create(fixture) as MlbStatsClient, {
+			fetchSchedule: async () => finalDay(),
+			fetchGame: async (gamePk: number) => finalGame(gamePk),
+		}));
+		await storePastDay(deps);
+		const get = api(deps);
+		// The unforced URLs keep the long lifetime.
+		expect((await get(`/api/v1/schedule?date=${PAST_DATE}`)).header).toBe(PAST_CACHE_CONTROL);
+		expect((await get("/api/v1/games/744834")).header).toBe(PAST_CACHE_CONTROL);
+		expect((await get(`/api/v1/schedule?date=${PAST_DATE}&refresh=1`)).header).toBe("no-store");
+		expect((await get("/api/v1/games/744834?refresh=1")).header).toBe("no-store");
+	});
+
+	it("S212 review first read: a past day BT doesn't hold yet, asked of MLB and found finished, gets the long lifetime at once", async () =>
+	{
+		const fixture = new FixtureMlbStatsClient();
+		const mlb = Object.assign(Object.create(fixture) as MlbStatsClient, {
+			fetchSchedule: async () => finalDay(),
+		});
+		const deps = memoryDeps(mlb);
+		expect((await api(deps)(`/api/v1/schedule?date=${PAST_DATE}`)).header).toBe(PAST_CACHE_CONTROL);
 	});
 });

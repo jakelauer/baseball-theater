@@ -8,7 +8,8 @@ import { getOrRefreshGame, getScheduleRead } from "./ingest.js";
 /**
  * Which edge lifetime a digest gets (S212 AC 3): `past` when its day is past and finished and so is every one of its
  * games, each read successfully (`isPastFinishedDay` / `isPastFinishedGame`); `partialPast` when its day is past and
- * finished but a game couldn't be read; `ladder` otherwise (ADR-021's graduated rule, by `freshness`).
+ * finished but a game couldn't be read; `ladder` otherwise (ADR-021's graduated rule, by `freshness`). The schedule
+ * and game routes pick their header with the same values (`past` or `ladder`, through `withReadCacheControl`).
  */
 export type DigestEdgeLifetime = "past" | "partialPast" | "ladder";
 

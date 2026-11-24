@@ -11,12 +11,13 @@ import {
 	DOWNLOADS_STORE, MAIL_STORE, personalDataStores,
 } from "../../services/personal-data.js";
 import {
-	describeGameRecheckContract, describeGameStateContract, describePersonalDataStoreContract, describeServedBaseContract,
+	describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract, describePersonalDataStoreContract, describeServedBaseContract,
 } from "../repository-contract.js";
 import { contractGame, describeStorageContract } from "../storage-contract.js";
 import {
 	InMemoryExportStore,
 	InMemoryGameProjectionRepository,
+	InMemoryOwedEdgePurgeRepository,
 	InMemoryGameRepository,
 	InMemoryGameStateRepository,
 	InMemoryMailer,
@@ -47,6 +48,8 @@ describeGameRecheckContract("InMemoryGameRepository", () =>
 		gameStates,
 	};
 }, contractGame);
+
+describeOwedEdgePurgeContract("InMemoryOwedEdgePurgeRepository", () => new InMemoryOwedEdgePurgeRepository());
 
 type RegistryDeps = {
 	users: InMemoryUserRepository;

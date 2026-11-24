@@ -39,10 +39,13 @@ export type GameStateWrite = {
  * What the switch did with one game's write: the row as it is then stored (null when the game has none), whether
  * the write was skipped as a feed copy older than the row's accepted feed time (`storeGame` then stores no snapshot when
  * one is already stored), and whether it stored a new state version (S212: what tells the writers a served day or game
- * changed, so they purge its edge copy; a feed time moved on an unchanged state is not one).
+ * changed, so they purge its edge copy; a feed time moved on an unchanged state is not one). `before` is the row as the
+ * switch read it before its write (null when the game had none), so a writer can tell whether what it changed was past
+ * and finished before the write without another read (S212 review).
  */
 export type SwitchOutcome = {
 	row: GameStateRow | null;
+	before: GameStateRow | null;
 	staleFeed: boolean;
 	stateChanged: boolean;
 };
@@ -147,6 +150,7 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 			const decided = decide(row, write, now);
 			if (typeof decided === "string") outcomes.set(write.gamePk, {
 				row,
+				before: row,
 				staleFeed: decided === "staleFeed",
 				stateChanged: false,
 			});
@@ -158,6 +162,7 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 		{
 			if (taken.has(next.gamePk)) outcomes.set(next.gamePk, {
 				row: storedAfter(rows.get(next.gamePk) ?? null, next),
+				before: rows.get(next.gamePk) ?? null,
 				staleFeed: false,
 				stateChanged: rows.get(next.gamePk)?.state.version !== next.state.version,
 			});
@@ -172,6 +177,7 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 		// Another writer stored the row; its own write purged what it changed.
 		for (const write of refused) outcomes.set(write.gamePk, {
 			row: stored.get(write.gamePk) ?? null,
+			before: stored.get(write.gamePk) ?? null,
 			staleFeed: false,
 			stateChanged: false,
 		});
@@ -196,19 +202,32 @@ export async function readJoinedScheduleDay(deps: GameStateDeps, date: string, n
 	if (!held) return null;
 	const gamePks = held.day.games.map((game) => game.gamePk);
 	const rows = new Map((await deps.gameStates.getMany(gamePks)).map((row) => [row.gamePk, row]));
-	const missing = gamePks.filter((pk) => !rows.has(pk));
+	return joinStoredScheduleDay(deps, held.day, held.servedBase, rows, now);
+}
+
+/**
+ * {@link readJoinedScheduleDay}'s join of a stored day over the game rows given (`rows`, by gamePk; a game without one
+ * is served from its stored snapshot's fields, read here, or as scheduled). Also how `storeSchedule` judges whether a
+ * day it changed was past and finished before its write (S212 review): the stored day as it read it, over the rows as
+ * the switch read them.
+ */
+export async function joinStoredScheduleDay(deps: Pick<GameStateDeps, "games">, day: StoredScheduleDay, servedBase: number, rows: ReadonlyMap<number, GameStateRow>, now: Date): Promise<{ stored: StoredScheduleDay;
+	served: ScheduleDay;
+	moved: ReadonlySet<number>; }>
+{
+	const missing = day.games.map((game) => game.gamePk).filter((pk) => !rows.has(pk));
 	const fallbacks = new Map<number, Unversioned<GameState>>(missing.length === 0
 		? []
 		: (await deps.games.getStateFields(missing)).map((fields) => [fields.gamePk, gameStateFromGame(fields)]));
-	const served = joinScheduleDay(held.day, held.servedBase, rows, fallbacks, now);
+	const served = joinScheduleDay(day, servedBase, rows, fallbacks, now);
 	// The joined games' window, a suspended game's judged from when BT saw it suspended, as every stored day's is.
 	return {
-		stored: held.day,
+		stored: day,
 		served: {
 			...served,
 			windowMode: await scheduleDayWindowMode(deps, served, now),
 		},
-		moved: new Set(held.day.games.filter((game) => listingMovedAway(game, rows.get(game.gamePk), date)).map((game) => game.gamePk)),
+		moved: new Set(day.games.filter((game) => listingMovedAway(game, rows.get(game.gamePk), day.date)).map((game) => game.gamePk)),
 	};
 }
 

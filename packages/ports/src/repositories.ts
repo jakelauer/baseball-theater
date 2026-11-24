@@ -64,6 +64,14 @@ export interface ScheduleRepository {
 	 * `SCHEDULE_MONTH_FAILED_LEASE_MS` (S194 review), since a claim holds until `claimedAt` plus the lease.
 	 */
 	holdScheduleMonth(month: string, claimedAt: string): Promise<void>;
+	/**
+	 * Every listing of one of `gamePks` by a stored day in `from`..`to` (inclusive), as `{ date, gamePk }`, in date then
+	 * gamePk order, in one read (S212): a game postponed or suspended on one day and played on another is listed by both,
+	 * and each day's digest shows its clips, so a change to the game purges every one of those days' edge URLs. The
+	 * caller bounds the range (the games' seasons), so the read never scans every stored day.
+	 */
+	listGameListings(gamePks: readonly number[], from: string, to: string): Promise<{ date: string;
+		gamePk: number; }[]>;
 }
 
 /**
@@ -109,6 +117,12 @@ export interface GameRepository {
 	claimGameRecheck(gamePk: number, at: string): Promise<boolean>;
 	/** Records that `gamePk` was re-checked against MLB at `checkedAt` (an ISO instant), moving the record forward only. */
 	recordGameRecheck(gamePk: number, checkedAt: string): Promise<void>;
+	/**
+	 * Moves `gamePk`'s re-check claim forward to `claimedAt` (an ISO instant, possibly in the future), never back: how a
+	 * re-check MLB didn't answer keeps the game from being claimed again for `GAME_RECHECK_FAILED_HOLD_MS`, since a claim
+	 * holds until `claimedAt` plus the lease (as `holdScheduleMonth`, S194).
+	 */
+	holdGameRecheck(gamePk: number, claimedAt: string): Promise<void>;
 }
 
 /** The five projected store documents per game; versioned by `header.version`. */

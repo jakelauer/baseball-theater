@@ -46,6 +46,14 @@ export const RECENT_GAME_RECHECK_DAYS = 7;
  */
 export const GAME_RECHECK_CLAIM_LEASE_MS = 5 * 60 * 1000;
 
+/**
+ * How long a game whose re-check MLB didn't answer is held from the re-check (S212 review): S194's refresh interval,
+ * 6 h, the same as after a re-check that worked, so a game whose feed fails for good is asked at most four times a day
+ * rather than after every 5-minute lease (about 288 times), and never crowds out the other recent games. The re-check
+ * holds its claim to `at + FAILED_HOLD − LEASE` (`holdGameRecheck`), which a claim then refuses until `at + FAILED_HOLD`.
+ */
+export const GAME_RECHECK_FAILED_HOLD_MS = SCHEDULE_MONTH_REFRESH_INTERVAL_MS;
+
 /** One stored game as the recent-game re-check judges it (S212 AC 5): its served state's fields and its re-check record. */
 export interface GameRecheckCandidate
 {

@@ -9,6 +9,7 @@ import {
 	describe, expect, it, vi,
 } from "vitest";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
+import { InMemoryOwedEdgePurgeRepository } from "../adapters/memory/repos.js";
 import {
 	countingMlb, finalGame, memoryDeps, NOW, ORIGIN,
 } from "../test/past-data.js";
@@ -185,6 +186,55 @@ describe("recheckDueGame (S212 AC 5)", () =>
 		const [candidate] = await deps.games.listRecheckCandidates(RECENT, RECENT);
 		expect(candidate?.checkedAt).toBeNull();
 		expect(deps.purger.purged).toEqual([]);
+		warn.mockRestore();
+	});
+
+	it("S212 review MLB fails held: a game MLB failed to answer is not asked again for 6 h, while other due games still are", async () =>
+	{
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const deps = memoryDeps();
+		await stored(deps, await game());
+		const calls = withMlb(deps, new Map([[744834, new Error("MLB down")]]));
+		expect(await recheckDueGame(deps)).toBe(744834);
+		// Past the 5-minute claim lease: still held.
+		deps.now = () => new Date(NOW.getTime() + 10 * 60_000);
+		expect(await recheckDueGame(deps)).toBeNull();
+		deps.now = () => new Date(NOW.getTime() + 6 * 3600_000 - 1);
+		expect(await recheckDueGame(deps)).toBeNull();
+		expect(calls).toEqual(["fetchGame 744834"]);
+		deps.now = () => new Date(NOW.getTime() + 6 * 3600_000);
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect(calls).toEqual(["fetchGame 744834", "fetchGame 744834"]);
+		warn.mockRestore();
+	});
+
+	it("S212 review purge fails: a re-check whose purge fails owes its URLs for the cron to retry and still records the re-check", async () =>
+	{
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const deps = memoryDeps();
+		const before = await stored(deps, await game());
+		withMlb(deps, new Map([[744834, {
+			...before,
+			status: {
+				...before.status,
+				detailedState: "Final: scoring change",
+			},
+		}]]));
+		const owed = new InMemoryOwedEdgePurgeRepository();
+		deps.edgePurge = {
+			origin: ORIGIN,
+			owed,
+			purger: {
+				purge: async () =>
+				{
+					throw new Error("HTTP 500");
+				},
+			},
+		};
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect((await owed.listDue(NOW.toISOString(), 10)).map((purge) => purge.url).sort()).toEqual(URLS(744834, RECENT).sort());
+		const [candidate] = await deps.games.listRecheckCandidates(RECENT, RECENT);
+		expect(candidate?.checkedAt).toBe(NOW.toISOString());
 		warn.mockRestore();
 	});
 });

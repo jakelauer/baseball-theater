@@ -5,6 +5,7 @@ import type { GameRecheckCandidate } from "./past-finished.js";
 import {
 	gamesDueForRecheck, isPastFinishedDay, isPastFinishedGame, RECENT_GAME_RECHECK_DAYS, recentRecheckDates,
 } from "./past-finished.js";
+import { SCHEDULE_MONTH_REFRESH_INTERVAL_MS } from "./schedule-refresh.js";
 import type { ScheduleDay } from "./types.js";
 
 const FINAL = {
@@ -150,5 +151,29 @@ describe("gamesDueForRecheck (S212 AC 5)", () =>
 			}),
 		], NOON, LEASE);
 		expect(due.map((game) => game.gamePk)).toEqual([3, 4, 6, 5]);
+	});
+
+	it("S212 review bounds: the date exactly 7 back and yesterday are picked, 8 back and today aren't; a claim or check exactly its span old is due, a millisecond younger isn't", () =>
+	{
+		const at = (ms: number) => new Date(NOON.getTime() - ms).toISOString();
+		const due = gamesDueForRecheck([
+			candidate(1, "2026-06-28"),
+			candidate(2, "2026-07-04"),
+			candidate(3, "2026-06-27"),
+			candidate(4, "2026-07-05"),
+			candidate(5, "2026-07-01", {
+				claimedAt: at(LEASE),
+			}),
+			candidate(6, "2026-07-01", {
+				claimedAt: at(LEASE - 1),
+			}),
+			candidate(7, "2026-07-01", {
+				checkedAt: at(SCHEDULE_MONTH_REFRESH_INTERVAL_MS),
+			}),
+			candidate(8, "2026-07-01", {
+				checkedAt: at(SCHEDULE_MONTH_REFRESH_INTERVAL_MS - 1),
+			}),
+		], NOON, LEASE);
+		expect(due.map((game) => game.gamePk)).toEqual([1, 2, 5, 7]);
 	});
 });

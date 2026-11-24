@@ -10,7 +10,7 @@
  * (`src/scripts/`) and has no place in the Worker.
  */
 import { cachedSeasonCalendars, defaultCalendarStore } from "./adapters/cached-season-calendars.js";
-import type { MlbStatsClient } from "@bt/ports";
+import type { MlbStatsClient, OwedEdgePurgeRepository } from "@bt/ports";
 import {
 	createDevAccountData, createDevAuth, StaticSecretsProvider,
 } from "./adapters/fixtures/auth.js";
@@ -30,6 +30,7 @@ import {
 	PostgresGameProjectionRepository, PostgresGameStateRepository,
 	PostgresGameRepository,
 	PostgresScheduleRepository,
+	PostgresOwedEdgePurgeRepository,
 	PostgresSettingsRepository,
 	PostgresUserRepository,
 } from "./adapters/postgres/repos.js";
@@ -120,16 +121,21 @@ export function createMlbClient(env: WorkerEnv, store?: MlbOverlaySource): MlbSt
 
 /**
  * The edge purge a Worker writes with (S212 AC 4): Cloudflare's purge-by-URL API where `BT_CF_PURGE_TOKEN`,
- * `BT_CF_ZONE_ID` and `BT_APP_ORIGIN` are all set, else a no-op purger that logs once that it purged nothing, so every
- * write still succeeds. `fetcher` is the composition's test `fetch`, when given.
+ * `BT_CF_ZONE_ID` and `BT_APP_ORIGIN` are all set, its failed purges owed to `owed` for the cron to retry (S212
+ * review), else a no-op purger that logs once that it purged nothing, so every write still succeeds; the no-op never
+ * fails, so it is given no owed store and the cron's retry reads nothing. `fetcher` is the composition's test `fetch`,
+ * when given.
  */
-export function edgePurgeFor(env: WorkerEnv, fetcher?: WorkerAppOptions["fetch"]): EdgePurge
+export function edgePurgeFor(env: WorkerEnv, fetcher?: WorkerAppOptions["fetch"], owed?: OwedEdgePurgeRepository): EdgePurge
 {
 	if (env.BT_CF_PURGE_TOKEN && env.BT_CF_ZONE_ID && env.BT_APP_ORIGIN)
 	{
 		return {
 			purger: new CloudflareEdgeCachePurger(env.BT_CF_PURGE_TOKEN, env.BT_CF_ZONE_ID, fetcher),
 			origin: env.BT_APP_ORIGIN,
+			...owed && {
+				owed,
+			},
 		};
 	}
 	return {
@@ -168,7 +174,7 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		gameStates,
 		// One coordinator per isolate: stale out-of-window reads refresh single-flighted.
 		refresh: new RefreshCoordinator(),
-		edgePurge: edgePurgeFor(env, options.fetch),
+		edgePurge: edgePurgeFor(env, options.fetch, new PostgresOwedEdgePurgeRepository(db)),
 	};
 	const secrets = new StaticSecretsProvider({
 		[SESSION_KEY_SECRET]: env.BT_SESSION_KEY ?? crypto.randomUUID(),

@@ -17,6 +17,8 @@ import type {
 	DeletionLogEntry,
 	MailMessage,
 	Mailer,
+	OwedEdgePurge,
+	OwedEdgePurgeRepository,
 	ScheduleRepository,
 	SettingsRepository,
 	UserDataExport,
@@ -119,6 +121,19 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 			.filter((day) => day.date >= from && day.date <= to)
 			.sort((a, b) => a.date.localeCompare(b.date))
 			.map(scheduleDayTally);
+	}
+
+	async listGameListings(gamePks: readonly number[], from: string, to: string): Promise<{ date: string;
+		gamePk: number; }[]>
+	{
+		const wanted = new Set(gamePks);
+		return this.store.values()
+			.filter((day) => day.date >= from && day.date <= to)
+			.flatMap((day) => [...new Set(day.games.map((game) => game.gamePk).filter((gamePk) => wanted.has(gamePk)))].map((gamePk) => ({
+				date: day.date,
+				gamePk,
+			})))
+			.sort((a, b) => a.date.localeCompare(b.date) || a.gamePk - b.gamePk);
 	}
 
 	/** Each month's record (S194), the Postgres adapter's `schedule_months` rows. */
@@ -349,10 +364,74 @@ export class InMemoryGameRepository implements GameRepository
 		});
 	}
 
+	/** Moves the claim forward only, as the Postgres adapter's guarded update does. */
+	async holdGameRecheck(gamePk: number, claimedAt: string): Promise<void>
+	{
+		const stored = this.rechecks.get(gamePk);
+		if (stored?.claimedAt && !(Date.parse(claimedAt) > Date.parse(stored.claimedAt))) return;
+		this.rechecks.set(gamePk, {
+			checkedAt: stored?.checkedAt ?? null,
+			claimedAt,
+		});
+	}
+
 	clear(): void
 	{
 		this.store.clear();
 		this.rechecks.clear();
+	}
+}
+
+/** The purges BT still owes the edge, in memory (S212), under the Postgres adapter's rules (`owed_edge_purges`). */
+export class InMemoryOwedEdgePurgeRepository implements OwedEdgePurgeRepository
+{
+	private readonly rows = new Map<string, OwedEdgePurge & { retryAt: string | null }>();
+	/** The last version handed out: one counter for the store's life, as the Postgres adapter's sequence. */
+	private lastVersion = 0;
+
+	async owe(urls: readonly string[], at: string): Promise<void>
+	{
+		for (const url of new Set(urls))
+		{
+			this.rows.set(url, {
+				url,
+				owedAt: at,
+				version: ++this.lastVersion,
+				failures: 0,
+				retryAt: null,
+			});
+		}
+	}
+
+	async listDue(at: string, limit: number): Promise<OwedEdgePurge[]>
+	{
+		return [...this.rows.values()]
+			.filter((row) => row.retryAt === null || Date.parse(row.retryAt) <= Date.parse(at))
+			.sort((a, b) => Date.parse(a.owedAt) - Date.parse(b.owedAt) || a.url.localeCompare(b.url))
+			.slice(0, limit)
+			.map(({ retryAt: _retryAt, ...owed }) => jsonCopy(owed));
+	}
+
+	async settle(purges: readonly Pick<OwedEdgePurge, "url" | "version">[]): Promise<void>
+	{
+		for (const purge of purges)
+		{
+			if (this.rows.get(purge.url)?.version === purge.version) this.rows.delete(purge.url);
+		}
+	}
+
+	async defer(purges: readonly Pick<OwedEdgePurge, "url" | "version">[], retryAt: string): Promise<void>
+	{
+		for (const purge of purges)
+		{
+			const row = this.rows.get(purge.url);
+			if (row?.version !== purge.version) continue;
+			this.rows.set(purge.url, {
+				...row,
+				failures: row.failures + 1,
+				retryAt,
+			});
+		}
 	}
 }
 

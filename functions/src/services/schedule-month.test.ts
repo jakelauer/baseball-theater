@@ -88,9 +88,10 @@ class CountingClient extends FixtureMlbStatsClient
 }
 
 /** `repo`'s month record methods (S194), for a hand-built schedule repository that wraps it. */
-function monthChecks(repo: ScheduleRepository): Pick<ScheduleRepository, "listScheduleMonthChecks" | "recordScheduleMonthCheck" | "claimScheduleMonth" | "holdScheduleMonth">
+function monthChecks(repo: ScheduleRepository): Pick<ScheduleRepository, "listScheduleMonthChecks" | "recordScheduleMonthCheck" | "claimScheduleMonth" | "holdScheduleMonth" | "listGameListings">
 {
 	return {
+		listGameListings: (gamePks, from, to) => repo.listGameListings(gamePks, from, to),
 		listScheduleMonthChecks: (from, to) => repo.listScheduleMonthChecks(from, to),
 		recordScheduleMonthCheck: (month, checkedAt) => repo.recordScheduleMonthCheck(month, checkedAt),
 		claimScheduleMonth: (month, at) => repo.claimScheduleMonth(month, at),

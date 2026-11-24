@@ -13,6 +13,7 @@ import { inDatabaseScope } from "./adapters/postgres/connect.js";
 import { ensureGameIngest } from "./game-ingest-object.js";
 import { handleApiRequest } from "./handlers/api.js";
 import { ensureIngestRunning } from "./services/game-ingest.js";
+import { retryOwedEdgePurges } from "./services/edge-purge.js";
 import { recheckDueGame } from "./services/game-recheck.js";
 import { refreshDueScheduleMonth } from "./services/schedule-refresh.js";
 import { tickAllowed, workerApp } from "./worker-app.js";
@@ -37,7 +38,8 @@ export default {
 	 * object (`ensureRunning`) for each in-window game where the `GAME_INGEST` binding exists, and
 	 * refreshes at most one due schedule month (S194, `refreshDueScheduleMonth`), which needs no
 	 * binding but the database, and re-checks at most one due recently finished game (S212,
-	 * `recheckDueGame`), whose writes purge the edge copy of what they change. Each runs in its own
+	 * `recheckDueGame`), whose writes purge the edge copy of what they change, and retries the purges a failure left owed
+	 * (S212 review, `retryOwedEdgePurges`; one database read a tick, and only with purge credentials). Each runs in its own
 	 * `waitUntil` and its own database scope, so one that rejects (and is logged by the runtime)
 	 * doesn't stop the others. A preview's
 	 * `crons: []` (`wrangler.jsonc`) means previews never run either.
@@ -50,5 +52,6 @@ export default {
 		if (namespace) ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => ensureIngestRunning(app.ingest, (gamePk) => ensureGameIngest(namespace, gamePk))));
 		ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => refreshDueScheduleMonth(app.ingest)));
 		ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => recheckDueGame(app.ingest)));
+		ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => retryOwedEdgePurges(app.ingest)));
 	},
 };

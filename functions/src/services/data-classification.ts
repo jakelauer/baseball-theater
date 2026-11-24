@@ -53,6 +53,10 @@ export const DATA_CLASSIFICATION = {
 			kind: "none",
 			why: "MLB game snapshots; no user data",
 		},
+		InMemoryOwedEdgePurgeRepository: {
+			kind: "none",
+			why: "BT URLs whose Cloudflare edge purge failed and is still owed (S212); no user data",
+		},
 		InMemoryGameProjectionRepository: {
 			kind: "none",
 			why: "projections of MLB games; no user data",
@@ -93,6 +97,10 @@ export const DATA_CLASSIFICATION = {
 		PostgresGameRepository: {
 			kind: "none",
 			why: "MLB game snapshots; no user data",
+		},
+		PostgresOwedEdgePurgeRepository: {
+			kind: "none",
+			why: "BT URLs whose Cloudflare edge purge failed and is still owed (S212); no user data",
 		},
 		PostgresGameProjectionRepository: {
 			kind: "none",
@@ -139,6 +147,10 @@ export const DATA_CLASSIFICATION = {
 		game_rechecks: {
 			kind: "none",
 			why: "per MLB game (game_pk), when the cron last re-checked it against MLB (checked_at) and when a re-check last claimed it (claimed_at; a claim holds until then plus the lease), S212; no user data",
+		},
+		owed_edge_purges: {
+			kind: "none",
+			why: "per BT URL (url) whose Cloudflare edge purge failed, when it was owed (owed_at), its owe count (version), failed retries (failures) and next retry (retry_at), S212; no user data",
 		},
 		games: {
 			kind: "none",

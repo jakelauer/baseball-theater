@@ -27,7 +27,7 @@ import {
 	entitlementsForTier, GAME_RECHECK_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS,
 } from "@bt/domain";
 import type {
-	GameRepository, GameStateRepository, PersonalDataStore, ScheduleRepository, UserRepository,
+	GameRepository, GameStateRepository, OwedEdgePurge, OwedEdgePurgeRepository, PersonalDataStore, ScheduleRepository, UserRepository,
 } from "@bt/ports";
 
 /** The reads and writes every keyed repository shares. */
@@ -640,6 +640,34 @@ export function describeServedBaseContract(label: string, create: () => ServedBa
 			await schedules.upsert(day(2, []));
 			expect((await schedules.getWithServedBase("2024-07-04"))?.servedBase).toBe(4);
 		});
+
+		it("S212 review listing dates: every listing of the games asked for by a stored day of the range, in date then gamePk order", async () =>
+		{
+			const { schedules } = create();
+			const on = (date: string, gamePks: number[]) => ({
+				...day(1, gamePks),
+				date,
+			});
+			await schedules.upsert(on("2024-07-06", [7, 8]));
+			await schedules.upsert(on("2024-07-04", [7]));
+			await schedules.upsert(on("2024-07-05", [8]));
+			await schedules.upsert(on("2025-04-01", [7]));
+			expect(await schedules.listGameListings([8, 7], "2024-01-01", "2024-12-31")).toEqual([{
+				date: "2024-07-04",
+				gamePk: 7,
+			}, {
+				date: "2024-07-05",
+				gamePk: 8,
+			}, {
+				date: "2024-07-06",
+				gamePk: 7,
+			}, {
+				date: "2024-07-06",
+				gamePk: 8,
+			}]);
+			expect(await schedules.listGameListings([9], "2024-01-01", "2024-12-31")).toEqual([]);
+			expect(await schedules.listGameListings([], "2024-01-01", "2024-12-31")).toEqual([]);
+		});
 	});
 }
 
@@ -775,6 +803,96 @@ export function describeGameRecheckContract(label: string, create: () => GameRec
 			const after = later(GAME_RECHECK_CLAIM_LEASE_MS);
 			expect(await games.claimGameRecheck(7, new Date(Date.parse(after) + SCHEDULE_MONTH_REFRESH_INTERVAL_MS - 1).toISOString())).toBe(false);
 			expect(await games.claimGameRecheck(7, new Date(Date.parse(after) + SCHEDULE_MONTH_REFRESH_INTERVAL_MS).toISOString())).toBe(true);
+		});
+
+		it("S212 review recheck hold: a hold moves the claim forward only, and a claim is refused until the hold plus the lease", async () =>
+		{
+			const { games } = create();
+			expect(await games.claimGameRecheck(8, T)).toBe(true);
+			const until = later(SCHEDULE_MONTH_REFRESH_INTERVAL_MS - GAME_RECHECK_CLAIM_LEASE_MS);
+			await games.holdGameRecheck(8, until);
+			await games.holdGameRecheck(8, T);
+			expect(await games.claimGameRecheck(8, later(SCHEDULE_MONTH_REFRESH_INTERVAL_MS - 1))).toBe(false);
+			expect(await games.claimGameRecheck(8, later(SCHEDULE_MONTH_REFRESH_INTERVAL_MS))).toBe(true);
+			// A game never claimed is held too.
+			await games.holdGameRecheck(9, until);
+			expect(await games.claimGameRecheck(9, later(SCHEDULE_MONTH_REFRESH_INTERVAL_MS - 1))).toBe(false);
+		});
+	});
+}
+
+/**
+ * Case (o): the purges BT still owes the edge (S212 review), for any `OwedEdgePurgeRepository` adapter: listed oldest
+ * owed first up to the limit and only once their retry time has come; a settle or a deferral touches a row only while it
+ * is at its listed version, so a URL owed again after the listing stays owed.
+ */
+export function describeOwedEdgePurgeContract(label: string, create: () => OwedEdgePurgeRepository): void
+{
+	describe(`${label} — owed edge purge contract`, () =>
+	{
+		const T = "2024-07-10T12:00:00.000Z";
+		const later = (ms: number) => new Date(Date.parse(T) + ms).toISOString();
+
+		const urlsAndFailures = (purges: readonly OwedEdgePurge[]) => purges.map((purge) => [purge.url, purge.owedAt, purge.failures]);
+
+		it("S212 review owed list: oldest owed first, up to the limit, each owe with a version of its own", async () =>
+		{
+			const owed = create();
+			await owed.owe(["https://a/2", "https://a/1"], later(1000));
+			await owed.owe(["https://a/0"], T);
+			const first = (await owed.listDue(later(5000), 10)).find((purge) => purge.url === "https://a/1")!;
+			await owed.owe(["https://a/1"], later(2000));
+			const due = await owed.listDue(later(5000), 2);
+			expect(urlsAndFailures(due)).toEqual([["https://a/0", T, 0], ["https://a/2", later(1000), 0]]);
+			const all = await owed.listDue(later(5000), 10);
+			expect(urlsAndFailures(all)).toEqual([["https://a/0", T, 0], ["https://a/2", later(1000), 0], ["https://a/1", later(2000), 0]]);
+			expect(new Set(all.map((purge) => purge.version)).size).toBe(3);
+			expect(all[2]!.version).not.toBe(first.version);
+		});
+
+		it("S212 review owed settle: settling a listing drops only the rows still at their listed version", async () =>
+		{
+			const owed = create();
+			await owed.owe(["https://a/x", "https://a/y"], T);
+			const listed = await owed.listDue(T, 10);
+			// A write fails to purge x again after the listing.
+			await owed.owe(["https://a/x"], later(1000));
+			await owed.settle(listed);
+			expect(urlsAndFailures(await owed.listDue(later(1000), 10))).toEqual([["https://a/x", later(1000), 0]]);
+		});
+
+		it("S212 review owed race: two ticks list the same owe, one settles, a write owes the URL again, the other's settle leaves it owed", async () =>
+		{
+			const owed = create();
+			await owed.owe(["https://a/x"], T);
+			const tickA = await owed.listDue(T, 10);
+			const tickB = await owed.listDue(T, 10);
+			await owed.settle(tickA);
+			await owed.owe(["https://a/x"], later(1000));
+			await owed.settle(tickB);
+			await owed.defer(tickB, later(60_000));
+			expect(urlsAndFailures(await owed.listDue(later(1000), 10))).toEqual([["https://a/x", later(1000), 0]]);
+		});
+
+		it("S212 review owed defer: a deferred row counts the failure and is not listed before its retry time; a re-owe clears both", async () =>
+		{
+			const owed = create();
+			await owed.owe(["https://a/x"], T);
+			const listed = await owed.listDue(T, 10);
+			await owed.defer(listed, later(60_000));
+			expect(await owed.listDue(later(59_999), 10)).toEqual([]);
+			expect(await owed.listDue(later(60_000), 10)).toEqual([{
+				...listed[0]!,
+				failures: 1,
+			}]);
+			// A deferral of another version changes nothing.
+			await owed.defer([{
+				url: "https://a/x",
+				version: listed[0]!.version + 1000,
+			}], later(120_000));
+			expect((await owed.listDue(later(60_000), 10))[0]?.failures).toBe(1);
+			await owed.owe(["https://a/x"], later(1000));
+			expect(urlsAndFailures(await owed.listDue(later(1000), 10))).toEqual([["https://a/x", later(1000), 0]]);
 		});
 	});
 }

@@ -20,6 +20,7 @@ import {
 	currentDownload, downloadFile, requestDownload,
 } from "../services/data-downloads.js";
 import type { ApiUsageLog } from "../services/api-usage.js";
+import type { DigestEdgeLifetime } from "../services/digest.js";
 import { getDayDigest } from "../services/digest.js";
 import { REFRESH_COOLDOWN_MS } from "../services/refresh.js";
 import { getScheduleMonth, getScheduleMonthVersions } from "../services/schedule-month.js";
@@ -101,11 +102,26 @@ function sendError(status: number, body: ApiErrorResponse): Response
  * complete month asked for without a version (a versioned month URL, S194, is judged by
  * `versionedMonthCacheControl` instead), and the digest route (#61) `digestFreshness`, live while
  * the day or any game is, last changed when the latest of them did. Past, finished data (S212) never comes here:
- * the routes send `PAST_CACHE_CONTROL` (or a partial past digest `PARTIAL_PAST_DIGEST_CACHE_CONTROL`) themselves.
+ * {@link withReadCacheControl} sends it `PAST_CACHE_CONTROL` (or a partial past digest's floor, or `no-store` forced).
  */
 function withCacheControl(response: Response, entity: Parameters<typeof edgeCacheControl>[0], ctx: ApiContext, ladder?: readonly CacheLifetimeStep[]): Response
 {
 	response.headers.set("Cache-Control", edgeCacheControl(entity, ctx.ingest.now?.() ?? new Date(), ladder));
+	return response;
+}
+
+/**
+ * Sets the edge-cache header of a schedule day, game or digest read (S212), the one place a route chooses between the
+ * past, finished lifetime and ADR-021's ladder: `ladder` goes to {@link withCacheControl}; `past` gets
+ * `PAST_CACHE_CONTROL`, and `partialPast` (a past digest missing a game it couldn't read)
+ * `PARTIAL_PAST_DIGEST_CACHE_CONTROL`. A forced read (`?refresh=1`) of past data gets `no-store` (S212 review): its
+ * URL is its own cache key, which no purge names, so the long lifetime there would outlast any correction.
+ */
+function withReadCacheControl(response: Response, read: { lifetime: DigestEdgeLifetime;
+	force?: boolean; }, entity: Parameters<typeof edgeCacheControl>[0], ctx: ApiContext): Response
+{
+	if (read.lifetime === "ladder") return withCacheControl(response, entity, ctx);
+	response.headers.set("Cache-Control", read.force ? "no-store" : read.lifetime === "past" ? PAST_CACHE_CONTROL : PARTIAL_PAST_DIGEST_CACHE_CONTROL);
 	return response;
 }
 
@@ -271,14 +287,11 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			const { day, pastFinished } = await getScheduleRead(ctx.ingest, date, {
 				force,
 			});
-			const response = sendJson(200, "GET /api/v1/schedule", toScheduleDayResponse(day));
 			// S212: a past, finished day is kept at the edge for weeks and purged when the cron changes it.
-			if (pastFinished)
-			{
-				response.headers.set("Cache-Control", PAST_CACHE_CONTROL);
-				return response;
-			}
-			return withCacheControl(response, day, ctx);
+			return withReadCacheControl(sendJson(200, "GET /api/v1/schedule", toScheduleDayResponse(day)), {
+				lifetime: pastFinished ? "past" : "ladder",
+				force,
+			}, day, ctx);
 		},
 	},
 	{
@@ -373,17 +386,13 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			const {
 				freshness, digest, edgeLifetime,
 			} = await getDayDigest(ctx.ingest, date);
-			const response = sendJson(200, "GET /api/v1/digest", digest);
 			// S212: a past, finished day whose games are all past, finished and read is kept for weeks (purged on a change);
 			// one missing a game it couldn't read is kept only the floor, so the next read tries that game again.
-			if (edgeLifetime !== "ladder")
-			{
-				response.headers.set("Cache-Control", edgeLifetime === "past" ? PAST_CACHE_CONTROL : PARTIAL_PAST_DIGEST_CACHE_CONTROL);
-				return response;
-			}
 			// Otherwise by the graduated rule (S71, #61): not while the day or a game is live,
 			// then by how long since the latest of them changed.
-			return withCacheControl(response, freshness, ctx);
+			return withReadCacheControl(sendJson(200, "GET /api/v1/digest", digest), {
+				lifetime: edgeLifetime,
+			}, freshness, ctx);
 		},
 	},
 	{
@@ -515,14 +524,11 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			{
 				return notFound();
 			}
-			const response = sendJson(200, "GET /api/v1/games/:gamePk", toGameSnapshotResponse(game));
 			// S212: a past, finished game is kept at the edge for weeks and purged when the cron changes it.
-			if (isPastFinishedGame(game, ctx.ingest.now?.() ?? new Date()))
-			{
-				response.headers.set("Cache-Control", PAST_CACHE_CONTROL);
-				return response;
-			}
-			return withCacheControl(response, game, ctx);
+			return withReadCacheControl(sendJson(200, "GET /api/v1/games/:gamePk", toGameSnapshotResponse(game)), {
+				lifetime: isPastFinishedGame(game, ctx.ingest.now?.() ?? new Date()) ? "past" : "ladder",
+				force,
+			}, game, ctx);
 		},
 	},
 	{
