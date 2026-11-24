@@ -47,6 +47,17 @@ describe("browser storage", () =>
 		writeStored("bt.installTipDismissed", null);
 	});
 
+	it("#416: the chosen video quality says nothing about the person and survives sign-out, in this browser for every visitor", () =>
+	{
+		expect(STORAGE_KEYS["bt.videoQuality"]).toEqual({
+			personal: false,
+			area: "shared",
+		});
+		writeStored("bt.videoQuality", "highBit");
+		clearPersonalData();
+		expect(readStored("bt.videoQuality")).toBe("highBit");
+	});
+
 	it("S135 AC 3: the recorded release is its own key, not the snooze key, says nothing about the person and survives sign-out", () =>
 	{
 		expect(STORAGE_KEYS["bt.lastRelease"]).toEqual({
