@@ -229,7 +229,9 @@ export type Found<T> = { value: T;
 /**
  * The id of the Hyperdrive config named `name`, created on `connectionString` only when no config
  * has that name. An existing config is left as it is: it already points at its branch, whose
- * connection string doesn't change between deploys.
+ * connection string doesn't change between deploys. A created config has query caching off (#408):
+ * BT reads a row and then makes a version-guarded write from it (ADR-022), and a read Hyperdrive
+ * cached for up to 60 s would stamp a stale version, so a live score could freeze.
  */
 export async function findOrCreateHyperdrive(api: CloudflareApi, name: string, connectionString: string): Promise<Found<string>>
 {
@@ -243,6 +245,9 @@ export async function findOrCreateHyperdrive(api: CloudflareApi, name: string, c
 		body: JSON.stringify({
 			name,
 			origin: hyperdriveOrigin(connectionString),
+			caching: {
+				disabled: true,
+			},
 		}),
 	});
 	return {
