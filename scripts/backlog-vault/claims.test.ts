@@ -337,6 +337,7 @@ describe("CLI in a temp root", () =>
 			pr?: number;
 			path?: string;
 			barrier?: boolean;
+			due?: boolean;
 			at: string }[] };
 	const started = () => expect(cli(["run", "start", "--n", "5", "--c", "2"]).status).toBe(0);
 
@@ -447,6 +448,82 @@ describe("CLI in a temp root", () =>
 		started();
 		expect(cli(["run", "event", "gate-open", "S1"]).status).toBe(1);
 		expect(journal().events).toEqual([]);
+	});
+
+	describe("the review tracker's events (run-backlog step 2, \"Reviews inside a run\")", () =>
+	{
+		const score = (...extra: string[]) => ["run", "event", "review-score", ...extra];
+
+		it("review-score records the score, threshold, due (score ≥ threshold) and reason, with or without the merged item's ID", () =>
+		{
+			started();
+			expect(cli(score("S3", "--review", "backlog", "--score", "7", "--threshold", "6", "--reason", "  S3 rewrote the claims format S4 builds on.  ")).status).toBe(0);
+			expect(cli(score("--review", "parity", "--score", "2", "--threshold", "6", "--reason", "a backlog pull request; no Source line moved")).status).toBe(0);
+			const [a, b] = journal().events;
+			expect(a).toMatchObject({
+				kind: "review-score",
+				id: "S3",
+				review: "backlog",
+				score: 7,
+				threshold: 6,
+				due: true,
+				reason: "S3 rewrote the claims format S4 builds on.",
+			});
+			expect(b).toMatchObject({
+				kind: "review-score",
+				review: "parity",
+				score: 2,
+				due: false,
+			});
+			expect(b!.id).toBeUndefined();
+		});
+
+		it("a score equal to its threshold is due; 0 and 10 are on the scale", () =>
+		{
+			started();
+			expect(cli(score("--review", "backlog", "--score", "5", "--threshold", "5", "--reason", "r")).status).toBe(0);
+			expect(cli(score("--review", "backlog", "--score", "0", "--threshold", "10", "--reason", "r")).status).toBe(0);
+			expect(journal().events.map((e) => e.due)).toEqual([true, false]);
+		});
+
+		it.each([
+			["no --review", ["--score", "5", "--threshold", "5", "--reason", "r"]],
+			["an unknown review", ["--review", "intake", "--score", "5", "--threshold", "5", "--reason", "r"]],
+			["a score off the scale", ["--review", "backlog", "--score", "11", "--threshold", "5", "--reason", "r"]],
+			["a fractional score", ["--review", "backlog", "--score", "5.5", "--threshold", "5", "--reason", "r"]],
+			["a negative threshold", ["--review", "backlog", "--score", "5", "--threshold", "-1", "--reason", "r"]],
+			["no threshold", ["--review", "backlog", "--score", "5", "--reason", "r"]],
+			["a blank reason", ["--review", "backlog", "--score", "5", "--threshold", "5", "--reason", "  "]],
+			["no reason", ["--review", "backlog", "--score", "5", "--threshold", "5"]],
+			["a bad ID", ["s3", "--review", "backlog", "--score", "5", "--threshold", "5", "--reason", "r"]],
+			["--pr", ["--review", "backlog", "--score", "5", "--threshold", "5", "--reason", "r", "--pr", "4"]],
+		])("review-score refuses %s, writing nothing", (_, extra) =>
+		{
+			started();
+			expect(cli(score(...extra)).status).toBe(1);
+			expect(journal().events).toEqual([]);
+		});
+
+		it("review-start records the review and its focus; it takes no score", () =>
+		{
+			started();
+			expect(cli(["run", "event", "review-start", "--review", "parity", "--reason", "the run's end"]).status).toBe(0);
+			expect(cli(["run", "event", "review-start", "--review", "backlog", "--score", "3"]).status).toBe(1);
+			expect(cli(["run", "event", "review-start"]).status).toBe(1);
+			expect(journal().events).toEqual([expect.objectContaining({
+				kind: "review-start",
+				review: "parity",
+				reason: "the run's end",
+			})]);
+		});
+
+		it("the tracker's flags are refused on every other kind", () =>
+		{
+			started();
+			expect(cli(["run", "event", "merged", "S3", "--review", "backlog"]).status).toBe(1);
+			expect(cli(["run", "event", "gate-open", "--reason", "x"]).status).toBe(1);
+			expect(journal().events).toEqual([]);
+		});
 	});
 
 	it("claim appends claim to the journal", () =>

@@ -716,6 +716,10 @@ export function itemFromIssue(issue: CachedIssue, trusted: string[], records: Te
 		scopeFiles: fields?.scope_files ?? [],
 		note: `issue #${issue.number}`,
 		issue: issue.number,
+		// Only bugs are grouped (run-backlog step 3, "Bug groups"); a story's `group` is not read.
+		...(!story && fields?.group ? {
+			group: fields.group,
+		} : {}),
 	};
 }
 

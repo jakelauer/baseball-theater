@@ -20,7 +20,7 @@ import type {
 	BacklogItem, DebtReport, GhRunner, SeedDeps,
 } from "./search.ts";
 import {
-	auditLedgerPath, changedRows, citedIssues, cites, dependents, deps, design, isFrontendAdr, issueLine, issuesWindowStart, item, itemsFromNotes, listIssues, main,
+	auditLedgerPath, changedRows, citedIssues, cites, dependents, deps, design, group, isFrontendAdr, issueLine, issuesWindowStart, item, itemsFromNotes, listIssues, main,
 	neighbors, next, nextTodo, path, SearchUsageError, seedBacklog, seedInFlight, seedIntake, seedParity, text,
 } from "./search.ts";
 import { featureNames, pillarNames } from "./source.ts";
@@ -161,6 +161,29 @@ describe("the queries (S163 AC 1)", () =>
 			priority: 1,
 		}]);
 		expect(ids(next(items, 3))).toEqual(["B74", "S9", "S101"]);
+	});
+
+	it("group lists a group's open bugs in order, never a story or a closed bug (run-backlog's bug groups)", () =>
+	{
+		const items = backlog([], [{
+			id: 427,
+			priority: 30,
+		}, {
+			id: 418,
+			priority: 29,
+		}, {
+			id: 432,
+			priority: 31,
+			status: "done",
+		}, {
+			id: 500,
+			priority: 1,
+		}]).map((i) => (["B418", "B427", "B432"].includes(i.id) ? {
+			...i,
+			group: "videos-room",
+		} : i));
+		expect(ids(group(items, "videos-room"))).toEqual(["B418", "B427"]);
+		expect(group(items, "top-bar")).toEqual([]);
 	});
 
 	it("deps and dependents follow depends_on both ways", () =>

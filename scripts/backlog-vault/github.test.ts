@@ -1164,6 +1164,34 @@ describe("trusted IDs, accepted bugs and broken items (AC 1)", () =>
 		expect(item.body).toBe(`steps\n\n${fields(3)}`);
 	});
 
+	it("a bug's recorded `group` is read onto the item; a story's is not (only bugs are grouped)", () =>
+	{
+		const bug = issue({
+			number: 88,
+			title: "Video stalls",
+			labels: [{
+				name: "bug",
+			}],
+			body: "steps",
+		});
+		const grouped = "### Backlog fields\n\n```yaml\npriority: 3\ngroup: \"videos-room\"\n```\n";
+		expect(itemFromIssue(bug, trusted, [record("create", "B88", grouped, {
+			issue: 88,
+		})])!.group).toBe("videos-room");
+		expect(itemFromIssue(bug, trusted, [record("create", "B88", fields(3), {
+			issue: 88,
+		})])!.group).toBeUndefined();
+		const story = itemFromIssue(issue({
+			number: 41,
+			title: "S9: x",
+			labels: [{
+				name: "story",
+			}],
+			body: `**Gap:** x\n\n${grouped}`,
+		}), trusted)!;
+		expect(story.group).toBeUndefined();
+	});
+
 	it("a broken item is skipped and reported, and two issues carrying one ID are both skipped; the rest are listed", () =>
 	{
 		const story = (number: number, title: string, body: string) => issue({

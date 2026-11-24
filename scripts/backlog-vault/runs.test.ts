@@ -17,7 +17,7 @@ import type { RunEvent, RunJournal } from "./claims.ts";
 import type { LedgerEntry } from "./ledger.ts";
 import type { RunRecord } from "./runs.ts";
 import {
-	concurrencyFromRuns, renderRunEntry, summarizeRun, unlistedTurnCaps,
+	concurrencyFromRuns, formatReviewState, renderRunEntry, REVIEW_CEILING_ITEMS, reviewState, summarizeRun, unlistedTurnCaps,
 } from "./runs.ts";
 
 const T0 = Date.parse("2026-11-21T00:00:00.000Z");
@@ -353,6 +353,80 @@ describe("what counts, and what is clean", () =>
 		const s = sum(countedRun([item("claim-refused", "S3", 6)]));
 		expect(s.duplicates).toBe(0);
 		expect(s.clean).toBe(true);
+	});
+});
+
+describe("reviewState: the review tracker and its ceiling inside a run (run-backlog step 2)", () =>
+{
+	const score = (m: number, review: "backlog" | "parity", value: number, threshold: number, id?: string) => ev("review-score", m, {
+		review,
+		score: value,
+		threshold,
+		due: value >= threshold,
+		reason: `focus at ${m}`,
+		...(id ? {
+			id,
+		} : {}),
+	});
+	const merges = (n: number, from: number, prefix = "S") => Array.from({
+		length: n,
+	}, (_, k) => item("merged", `${prefix}${100 + k}`, from + k));
+
+	it("not due with nothing scored, nothing merged and nothing changed", () =>
+	{
+		const s = reviewState(journal([]), "backlog", []);
+		expect(s.due).toBe(false);
+		expect(s.latest).toBeUndefined();
+		expect(s.ceiling).toEqual([]);
+	});
+
+	it("the newest score for that review decides: due once it crosses its threshold, not due once a later score falls back", () =>
+	{
+		expect(reviewState(journal([score(1, "backlog", 8, 7, "S1")]), "backlog", []).due).toBe(true);
+		expect(reviewState(journal([score(1, "backlog", 8, 7), score(2, "backlog", 3, 7)]), "backlog", []).due).toBe(false);
+		// The other review's score is not this one's.
+		expect(reviewState(journal([score(1, "parity", 9, 5)]), "backlog", []).due).toBe(false);
+		expect(reviewState(journal([score(1, "parity", 9, 5)]), "parity", []).latest?.score).toBe(9);
+	});
+
+	it("a review-start clears the scores and merges before it, for that review only", () =>
+	{
+		const events = [score(1, "backlog", 9, 5), score(1, "parity", 9, 5), ...merges(REVIEW_CEILING_ITEMS, 2), ev("review-start", 20, {
+			review: "backlog",
+		})];
+		const backlog = reviewState(journal(events), "backlog", []);
+		expect(backlog.due).toBe(false);
+		expect(backlog.merged).toEqual([]);
+		const parity = reviewState(journal(events), "parity", []);
+		expect(parity.due).toBe(true);
+		expect(parity.ceiling[0]).toContain(`${REVIEW_CEILING_ITEMS} items merged`);
+	});
+
+	it(`the ceiling forces the review at ${REVIEW_CEILING_ITEMS} merged items whatever the score, one short is not due; bugs never count`, () =>
+	{
+		expect(reviewState(journal([...merges(REVIEW_CEILING_ITEMS - 1, 1), score(30, "backlog", 0, 9)]), "backlog", []).due).toBe(false);
+		expect(reviewState(journal([...merges(REVIEW_CEILING_ITEMS, 1), score(30, "backlog", 0, 9)]), "backlog", []).due).toBe(true);
+		expect(reviewState(journal([...merges(REVIEW_CEILING_ITEMS - 1, 1), ...merges(5, 20, "B")]), "backlog", []).due).toBe(false);
+		// One item merged twice (a follow-up) is one item.
+		expect(reviewState(journal([...merges(REVIEW_CEILING_ITEMS - 1, 1), item("merged", "S100", 30)]), "backlog", []).merged).toHaveLength(REVIEW_CEILING_ITEMS - 1);
+	});
+
+	it("any rule, ADR or gate change the caller passes forces it, whatever the score", () =>
+	{
+		const s = reviewState(journal([score(1, "backlog", 1, 9)]), "backlog", ["CLAUDE.md"]);
+		expect(s.due).toBe(true);
+		expect(s.ceiling).toEqual(["CLAUDE.md changed"]);
+	});
+
+	it("formatReviewState says due or not, the newest score with its reason, and the ceiling's state", () =>
+	{
+		const text = formatReviewState("R1", reviewState(journal([item("merged", "S5", 1), score(2, "backlog", 4, 7, "S5")]), "backlog", ["docs/v3/LOOP.md"]));
+		expect(text).toContain("inside run R1, the backlog review is due");
+		expect(text).toContain("newest score is 4/10 against its threshold 7, after S5");
+		expect(text).toContain("focus at 2");
+		expect(text).toContain(`1 of ${REVIEW_CEILING_ITEMS} items merged since it last ran in this run (S5)`);
+		expect(text).toContain("ceiling reached: docs/v3/LOOP.md changed");
+		expect(formatReviewState("R1", reviewState(journal([]), "parity", []))).toContain("doc parity review is not due");
 	});
 });
 

@@ -1081,7 +1081,7 @@ describe("review-debt.sh: a turn cap hit makes a backlog review due until a revi
 		expect(debt().status).toBe(0);
 	});
 
-	it("turn cap: a hit in the main checkout's run.json is due from a linked worktree", () =>
+	it("turn cap: a hit in the main checkout's run.json is read from a linked worktree (inside that run, the tracker weighs it)", () =>
 	{
 		reviewed();
 		const wt = `${repo}-wt`;
@@ -1100,7 +1100,9 @@ describe("review-debt.sh: a turn cap hit makes a backlog review due until a revi
 				encoding: "utf8",
 				env,
 			});
-			expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+			// The open run is found through git's common dir too, so the review tracker decides (owner, 2026-11-24).
+			expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+			expect(r.stdout).toContain("inside run R20261121T090000Z");
 			expect(r.stdout).toContain("turn cap hit: S9");
 		}
 		finally
@@ -1112,12 +1114,13 @@ describe("review-debt.sh: a turn cap hit makes a backlog review due until a revi
 		}
 	});
 
-	it("turn cap: a live run.json hit is due", () =>
+	it("turn cap: a live run.json hit is listed for the review tracker, not due by itself inside that run (owner, 2026-11-24)", () =>
 	{
 		reviewed();
 		journal(".run/run.json", [turnCap("S9", A)]);
 		const r = debt();
-		expect(r.status).toBe(1);
+		expect(r.status, r.stdout).toBe(0);
+		expect(r.stdout).toContain("what the review tracker weighs");
 		expect(r.stdout).toContain("turn cap hit: S9");
 	});
 
@@ -1169,10 +1172,11 @@ describe("review-debt.sh: a turn cap hit makes a backlog review due until a revi
 		expect(debt().status).toBe(0);
 	});
 
-	it("turn cap: --json prints the event, due", () =>
+	it("turn cap: --json prints the event, due (outside a run: an ended journal's hit)", () =>
 	{
 		reviewed();
-		journal(".run/run.json", [turnCap("S9", A)]);
+		// An ended journal, not a live one: inside an open run the review tracker decides instead (owner, 2026-11-24).
+		journal(".run/ended/R20261121T090000Z.json", [turnCap("S9", A)]);
 		const report = JSON.parse(debt("review-debt.sh", ["--json"]).stdout) as { due: boolean;
 			events: unknown[] };
 		expect(report.due).toBe(true);
@@ -1181,5 +1185,139 @@ describe("review-debt.sh: a turn cap hit makes a backlog review due until a revi
 			id: "S9",
 			hits: [A],
 		});
+	});
+});
+
+describe("review-debt.sh and parity-debt.sh inside an open /run-backlog run: the review tracker and its ceiling decide (owner, 2026-11-24)", () =>
+{
+	const journal = (events: Record<string, unknown>[]) => write(".run/run.json", JSON.stringify({
+		id: "R20261124T090000Z",
+		n: 10,
+		c: 2,
+		startedAt: "2026-11-24T09:00:00.000Z",
+		events,
+	}));
+	const at = (m: number) => new Date(Date.parse("2026-11-24T09:00:00.000Z") + m * 60_000).toISOString();
+	const score = (m: number, review: string, value: number, threshold: number) => ({
+		kind: "review-score",
+		review,
+		score: value,
+		threshold,
+		due: value >= threshold,
+		reason: `focus ${review} ${value}`,
+		at: at(m),
+	});
+	const jsonDue = (script: string) => (JSON.parse(debt(script, ["--json"]).stdout) as { due: boolean }).due;
+
+	it("with nothing scored and nothing changed, neither review is due, and both say they are inside the run", () =>
+	{
+		reviewed({
+			".gitignore": "node_modules\n.run/\n",
+		});
+		journal([]);
+		for (const script of ["review-debt.sh", "parity-debt.sh"])
+		{
+			const r = debt(script);
+			expect(r.status, r.stdout).toBe(0);
+			expect(r.stdout).toContain("inside run R20261124T090000Z");
+			expect(r.stdout).toContain("has scored nothing");
+		}
+	});
+
+	it("a drift event that would make the backlog review due outside a run is only weighed inside one", () =>
+	{
+		reviewed({
+			".gitignore": "node_modules\n.run/\n",
+		});
+		write("packages/new/package.json", "{}\n");
+		commit("a new workspace package");
+		expect(debt().status).toBe(1);
+		journal([]);
+		const r = debt();
+		expect(r.status, r.stdout).toBe(0);
+		expect(r.stdout).toContain("what the review tracker weighs");
+		expect(r.stdout).toContain("new workspace package: packages/new");
+		expect(jsonDue("review-debt.sh")).toBe(false);
+	});
+
+	it("the tracker's newest score over its threshold makes that review due, and only that one; a later review-start clears it", () =>
+	{
+		reviewed({
+			".gitignore": "node_modules\n.run/\n",
+		});
+		journal([score(1, "parity", 8, 6)]);
+		const parity = debt("parity-debt.sh");
+		expect(parity.status, parity.stdout).toBe(1);
+		expect(parity.stdout).toContain("newest score is 8/10 against its threshold 6");
+		expect(parity.stdout).toContain("focus parity 8");
+		expect(jsonDue("parity-debt.sh")).toBe(true);
+		expect(debt().status).toBe(0);
+		expect(jsonDue("review-debt.sh")).toBe(false);
+		journal([score(1, "parity", 8, 6), {
+			kind: "review-start",
+			review: "parity",
+			at: at(2),
+		}]);
+		expect(debt("parity-debt.sh").status).toBe(0);
+	});
+
+	it("the ceiling: a rule change since the review last logged forces both, whatever the score", () =>
+	{
+		reviewed({
+			".gitignore": "node_modules\n.run/\n",
+			".claude/agents/x.md": "one\n",
+		});
+		write(".claude/agents/x.md", "two\n");
+		commit("an agent definition changed");
+		journal([score(1, "backlog", 0, 9), score(1, "parity", 0, 9)]);
+		for (const script of ["review-debt.sh", "parity-debt.sh"])
+		{
+			const r = debt(script);
+			expect(r.status, r.stdout).toBe(1);
+			expect(r.stdout).toContain("ceiling reached: .claude/agents/x.md changed");
+		}
+	});
+
+	it("the ceiling: pnpm verify itself changing forces it", () =>
+	{
+		reviewed({
+			".gitignore": "node_modules\n.run/\n",
+		});
+		write("package.json", "{\"type\":\"module\",\"scripts\":{\"verify\":\"y\"}}\n");
+		commit("the gate moved");
+		journal([]);
+		const r = debt("parity-debt.sh");
+		expect(r.status, r.stdout).toBe(1);
+		expect(r.stdout).toContain("ceiling reached: package.json (pnpm verify itself) changed");
+	});
+
+	it("the ceiling: ten items merged since the run started force it; bugs don't count", () =>
+	{
+		reviewed({
+			".gitignore": "node_modules\n.run/\n",
+		});
+		const merged = (prefix: string, n: number) => Array.from({
+			length: n,
+		}, (_, k) => ({
+			kind: "merged",
+			id: `${prefix}${k + 1}`,
+			at: at(k + 1),
+		}));
+		journal([...merged("S", 9), ...merged("B", 4)]);
+		expect(debt().status).toBe(0);
+		journal(merged("S", 10));
+		const r = debt();
+		expect(r.status, r.stdout).toBe(1);
+		expect(r.stdout).toContain("10 items merged since the backlog review last ran in this run");
+	});
+
+	it("a journal that doesn't parse stops the script (exit 2), never a silent not-due", () =>
+	{
+		reviewed({
+			".gitignore": "node_modules\n.run/\n",
+		});
+		write(".run/run.json", "{ not json");
+		expect(debt().status).toBe(2);
+		expect(debt("parity-debt.sh").status).toBe(2);
 	});
 });

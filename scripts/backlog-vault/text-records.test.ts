@@ -220,4 +220,22 @@ describe("text records (AC 2)", () =>
 		expect(goalLine(crlf)).toBe("/goal S15 (S15). x");
 		expect(parseFields(crlf, "S15").priority).toBe(4);
 	});
+
+	it("a bug's `group` (run-backlog's bug groups) round-trips as a slug; absent, there is no key; anything else is refused", () =>
+	{
+		const grouped = renderFields({
+			priority: 3,
+			group: "videos-room",
+		});
+		expect(grouped).toContain("group: \"videos-room\"");
+		expect(parseFields(grouped, "B418").group).toBe("videos-room");
+		expect("group" in parseFields(renderFields({
+			priority: 3,
+		}), "B1")).toBe(false);
+		expect(parseFields("### Backlog fields\n\n```yaml\npriority: 3\ngroup: null\n```\n", "B1").group).toBeUndefined();
+		for (const bad of ["Videos Room", "videos_room", "-x", "7", "[a]"])
+		{
+			expect(() => parseFields(`### Backlog fields\n\n\`\`\`yaml\npriority: 3\ngroup: ${bad}\n\`\`\`\n`, "B9"), bad).toThrow(/B9: fields block `group` is not a lowercase slug/);
+		}
+	});
 });

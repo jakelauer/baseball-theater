@@ -257,7 +257,8 @@ function workLines(live: LiveBacklog): string[]
 		status: i.status,
 		cells: i.kind === "story"
 			? `${link(i)} ${cell(i.title)} | \`${i.status}\` | ${i.dependsOn.join(", ") || "—"} | ${i.design.join(", ") || "—"}`
-			: `${link(i)} Bug #${i.issue}: ${cell(i.title)} | \`${i.status}\` | — | —`,
+			// A grouped bug names its group, so the next run schedules the group as one item (run-backlog step 3).
+			: `${link(i)} Bug #${i.issue}: ${cell(i.title)}${i.group ? ` (group \`${i.group}\`)` : ""} | \`${i.status}\` | — | —`,
 	})).sort(compareOpen);
 	const out = [
 		"| Priority | Story or bug | Status | Depends on | Design |",

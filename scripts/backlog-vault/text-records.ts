@@ -270,7 +270,17 @@ export interface BacklogFields
 	source: string | null;
 	turn_cap: number | null;
 	scope_files: string[];
+	/**
+	 * A bug group's name (a lowercase slug such as `videos-room`): open bugs sharing a surface and files that
+	 * the owner approved fixing together as one combined item, one `bug-worker` and one pull request
+	 * (run-backlog step 3, "Bug groups"; owner, 2026-11-24: "Yes, five groups (Recommended)"). Absent when
+	 * the item is in no group, so a block written before groups existed parses unchanged. Read for bugs only.
+	 */
+	group?: string;
 }
+
+/** A group name: a lowercase slug, so it reads the same in a fields block, INDEX and a branch's brief. */
+export const GROUP_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const FIELDS_HEADING = "### Backlog fields";
 
@@ -372,6 +382,11 @@ export function parseFields(body: string, where: string): BacklogFields
 	{
 		throw new FieldsError(`${where}: fields block has no numeric priority`);
 	}
+	// A misspelt group would quietly split a group in two, so anything but a slug is refused.
+	if (f.group !== undefined && f.group !== null && (typeof f.group !== "string" || !GROUP_NAME.test(f.group)))
+	{
+		throw new FieldsError(`${where}: fields block \`group\` is not a lowercase slug (e.g. videos-room)`);
+	}
 	return {
 		priority: f.priority,
 		depends_on: list(f.depends_on, "depends_on", where),
@@ -380,6 +395,9 @@ export function parseFields(body: string, where: string): BacklogFields
 		source: typeof f.source === "string" ? f.source : null,
 		turn_cap: typeof f.turn_cap === "number" ? f.turn_cap : null,
 		scope_files: list(f.scope_files, "scope_files", where),
+		...(typeof f.group === "string" ? {
+			group: f.group,
+		} : {}),
 	};
 }
 

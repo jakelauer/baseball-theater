@@ -31,6 +31,10 @@
  *   node scripts/backlog-vault/runs.ts turn-caps [--audit <ledger>] [--run-dir <main checkout>/.run]
  *       one line per item with a turn-cap hit no backlog review lists: `<ID>\t<turn-cap event JSON>`
  *   node scripts/backlog-vault/runs.ts debt-hits --debt-json <file>     the hits a review's seed held, as its row's text
+ *   node scripts/backlog-vault/runs.ts review-state --review backlog|parity --journal <run.json> [--changed <what>…]
+ *       inside a run, whether that review is due by the review tracker's newest score or the hard ceiling
+ *       ({@link reviewState}); `--changed` names each rule, ADR or gate change since the review last logged
+ *       (the debt scripts pass `ceiling_changes`, scripts/lib/story-notes.sh). Prints the state; exit 1 when due, 0 when not
  */
 
 import {
@@ -40,7 +44,10 @@ import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { isRunDirectly } from "./run-directly.ts";
 import { parseArgs } from "node:util";
-import type { RunEvent, RunJournal } from "./claims.ts";
+import type {
+	RunEvent, RunJournal, TrackedReview,
+} from "./claims.ts";
+import { TRACKED_REVIEWS } from "./claims.ts";
 import type { LedgerEntry, TurnCapHit } from "./ledger.ts";
 import { formatHits, readLedger } from "./ledger.ts";
 
@@ -53,6 +60,15 @@ export const MAX_DRAIN_MS = 3 * 60 * 60 * 1000;
  * compared with the bar in the unit the bar was read back in (1 finding over 3 pull requests is 0.333 on both sides).
  */
 export const roundFindings = (x: number) => Math.round(x * 1000) / 1000;
+
+/**
+ * The hard ceiling's item count (owner, 2026-11-24, asked whether the review tracker should also have a hard
+ * ceiling that forces a review regardless of its judgment, "any ADR or rule change, or ~10 items since the last
+ * review": "Yes, with a ceiling (Recommended)"): this many items merged in a run since a review type last ran
+ * in it forces that review, whatever the tracker scored. The one place the number is stated; the run-backlog
+ * skill and the debt scripts quote it from here.
+ */
+export const REVIEW_CEILING_ITEMS = 10;
 
 /** What one item did in a run, every duration active time in milliseconds. */
 export interface ItemTimes
@@ -255,7 +271,7 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 				break;
 			default:
 				// claim, claim-refused (the admission check working: never a duplicate), needs-lead,
-				// interrupted and run-resume move no figure here.
+				// interrupted, run-resume and the review tracker's review-score and review-start move no figure here.
 				break;
 		}
 		peak = Math.max(peak, [...open].filter((i) => !barrier.has(i)).length);
@@ -384,6 +400,73 @@ export function renderRunEntry(s: RunSummary, meta: { date: string;
 	return `${lines.join("\n")}\n`;
 }
 
+/** What {@link reviewState} found for one review inside a run. */
+export interface ReviewState
+{
+	review: TrackedReview;
+	due: boolean;
+	/** The tracker's newest `review-score` for this review since it last started in the run, if any. */
+	latest?: RunEvent;
+	/** Items (not bugs) merged since this review last started in the run, or since the run started. */
+	merged: string[];
+	/** Why the ceiling forces the review: the item count reached, and each rule, ADR or gate change passed in. */
+	ceiling: string[];
+}
+
+/**
+ * Whether a review is due inside a `/run-backlog` run (run-backlog step 2, "Reviews inside a run"), where the
+ * review tracker's judgment replaces the 6-story count (owner, 2026-11-24: "rather than scheduling them by event
+ * or item count, a super light agent simply tracks how important each review type is over the lifetime of the
+ * run. Then if it exceeds its own judged threshold for the importance of a given review, it inserts it into the
+ * plan"). Due when the newest `review-score` for it since its last `review-start` crossed its threshold, or the
+ * ceiling holds: {@link REVIEW_CEILING_ITEMS} items merged since that start (or the run's), or any entry in
+ * `changed` (a rule, ADR or `pnpm verify` change since the review last logged, which the caller reads from git).
+ * A bug's merge is not counted: finishing a bug never counts toward review debt (CLAUDE.md, owner, 2026-11-18).
+ */
+export function reviewState(journal: RunJournal, review: TrackedReview, changed: string[]): ReviewState
+{
+	const events = journal.events;
+	let from = 0;
+	events.forEach((e, i) =>
+	{
+		if (e.kind === "review-start" && e.review === review)
+		{
+			from = i + 1;
+		}
+	});
+	const since = events.slice(from);
+	const latest = [...since].reverse().find((e) => e.kind === "review-score" && e.review === review);
+	const merged = [...new Set(since.filter((e) => e.kind === "merged" && e.id && !e.id.startsWith("B")).map((e) => e.id!))];
+	const ceiling = [
+		...(merged.length >= REVIEW_CEILING_ITEMS ? [`${merged.length} items merged since the ${review} review last ran in this run (the ceiling is ${REVIEW_CEILING_ITEMS})`] : []),
+		...changed.map((c) => `${c} changed`),
+	];
+	return {
+		review,
+		due: ceiling.length > 0 || latest?.due === true,
+		...(latest ? {
+			latest,
+		} : {}),
+		merged,
+		ceiling,
+	};
+}
+
+/** {@link reviewState} as the debt scripts print it, one line each. */
+export function formatReviewState(journalId: string, s: ReviewState): string
+{
+	const name = s.review === "backlog" ? "backlog review" : "doc parity review";
+	const score = s.latest
+		? `the review tracker's newest score is ${s.latest.score}/10 against its threshold ${s.latest.threshold}${s.latest.id ? `, after ${s.latest.id}` : ""} (${s.latest.at}): ${s.latest.due ? "due" : "not due"}. Its reason and focus: ${s.latest.reason}`
+		: "the review tracker has scored nothing since it last ran (or since the run started)";
+	return [
+		`${s.review === "backlog" ? "review" : "parity"}: inside run ${journalId}, the ${name} is ${s.due ? "due" : "not due"} by the review tracker and its ceiling (run-backlog step 2, "Reviews inside a run"), not by the 6-story count.`,
+		`  - ${score}`,
+		`  - ceiling: ${s.merged.length} of ${REVIEW_CEILING_ITEMS} items merged since it last ran in this run${s.merged.length > 0 ? ` (${s.merged.join(", ")})` : ""}`,
+		...s.ceiling.map((c) => `  - ceiling reached: ${c}`),
+	].join("\n");
+}
+
 /** The key one turn-cap hit is matched by, wherever it is read: the item and the event's time. */
 const hitKey = (h: TurnCapHit) => `${h.id}@${h.at}`;
 
@@ -498,6 +581,13 @@ function main(argv: string[]): number
 			"rerecord": {
 				type: "boolean",
 			},
+			"review": {
+				type: "string",
+			},
+			"changed": {
+				type: "string",
+				multiple: true,
+			},
 		},
 	});
 	const audit = values.audit ?? process.env["BT_AUDIT_LEDGER"] ?? "docs/v3/AUDIT.md";
@@ -607,15 +697,26 @@ function main(argv: string[]): number
 		case "debt-hits":
 			console.log(formatHits(debtHits(JSON.parse(readFileSync(values["debt-json"] ?? "", "utf8")))));
 			return 0;
+		case "review-state":
+		{
+			if (!(TRACKED_REVIEWS as readonly string[]).includes(values.review ?? ""))
+			{
+				throw new Error(`review-state needs --review ${TRACKED_REVIEWS.join("|")}`);
+			}
+			const journal = readJournal();
+			const state = reviewState(journal, values.review as TrackedReview, values.changed ?? []);
+			console.log(formatReviewState(journal.id, state));
+			return state.due ? 1 : 0;
+		}
 		default:
-			console.error("usage: runs.ts concurrency|id|prs|check-end|fragment|turn-caps|debt-hits … (see the file's header)");
+			console.error("usage: runs.ts concurrency|id|prs|check-end|fragment|turn-caps|debt-hits|review-state … (see the file's header)");
 			return 2;
 	}
 }
 
 if (isRunDirectly(import.meta.url))
 {
-	// Exit 1 is a refusal (check-end); anything else that fails (a fragment that doesn't parse, a missing file) is 2.
+	// Exit 1 is a refusal (check-end) or a review due (review-state); anything else that fails (a fragment that doesn't parse, a missing file) is 2.
 	try
 	{
 		process.exitCode = main(process.argv.slice(2));
