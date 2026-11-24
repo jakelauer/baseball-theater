@@ -193,7 +193,7 @@ describe("video play links (S97)", () =>
 		expect(document.querySelectorAll("[data-marked]")).toHaveLength(0);
 	});
 
-	it("S97 AC 5: 'Video: <clip title>' above every at-bat with a clip, one per at-bat, with or without ?play=", async () =>
+	it("S97 AC 5, as B422 changed it: a play button named for the clip on every at-bat with a clip, one per at-bat, with or without ?play=", async () =>
 	{
 		const byAtBat = new Map<number, string>();
 		for (const h of linked)
@@ -211,20 +211,49 @@ describe("video play links (S97)", () =>
 			fireEvent.click(within(nav).getByRole("button", {
 				name: String(inning),
 			}));
-			const lines = screen.queryAllByTestId("video-line");
+			const buttons = screen.queryAllByTestId("play-video");
 			// In game order, as the room lists its at-bats.
 			const want = [...byAtBat].filter(([index]) => PLAYS.find((a) => a.about.atBatIndex === index)!.about.inning === inning).sort(([a], [b]) => a - b);
-			expect(lines.map((l) => l.textContent), `inning ${inning}`).toEqual(want.map(([, title]) => `Video: ${title}`));
+			expect(buttons.map((b) => b.getAttribute("aria-label")), `inning ${inning}`).toEqual(want.map(([, title]) => title));
 			for (const [index] of want)
 			{
-				// The line sits right above its at-bat.
-				expect(lines.find((l) => l.nextElementSibling?.id === `at-bat-${index}`)).toBeTruthy();
+				// The button sits in its own at-bat's row.
+				expect(buttons.find((b) => b.closest(`[id="at-bat-${index}"]`))).toBeTruthy();
 			}
-			total += lines.length;
+			total += buttons.length;
 		}
+		expect(screen.queryByText(/^Video:/)).toBeNull();
 		expect(total).toBe(byAtBat.size);
 		expect(total).toBeGreaterThan(0);
 		expect(total).toBeLessThanOrEqual(20);
+	});
+});
+
+describe("a play's video plays from its row in Plays (#422)", () =>
+{
+	it("B422: the play button on a play's row, outside its toggle, opens the clip in the player without expanding the play (#422)", async () =>
+	{
+		await open("/game/823823/plays", "inning-sidebar");
+		fireEvent.click(within(screen.getByRole("navigation", {
+			name: "Inning sidebar",
+		})).getByRole("button", {
+			name: String(conineAtBat.about.inning),
+		}));
+		const item = document.getElementById(`at-bat-${conineAtBat.about.atBatIndex}`)!;
+		const toggle = within(item).getAllByRole("button")[0]!;
+		const play = within(item).getByRole("button", {
+			name: CONINE.title,
+		});
+		// In the row, not inside the accordion's own button (a button can't hold another).
+		expect(toggle.contains(play)).toBe(false);
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+		// The tooltip says the clip's title, since the title often says why there's a video.
+		fireEvent.mouseEnter(play);
+		expect((await screen.findByRole("tooltip")).textContent).toBe(CONINE.title);
+		fireEvent.click(play);
+		const dialog = await screen.findByRole("dialog");
+		expect(within(dialog).getAllByText(CONINE.title).length).toBeGreaterThan(0);
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
 	});
 });
 
