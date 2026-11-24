@@ -85,6 +85,20 @@ describe("GameTopBar's status marker (S170)", () =>
 		}
 	}
 
+	it("S170 wrap (owner, 2026-11-23): on a phone the teams and marker side narrows and the date keeps its width, so a long reason wraps under the teams", () =>
+	{
+		const bar = renderBar("PI", "mobile");
+		const line = within(bar).getByTestId("status-line");
+		expect(within(line).getByText("Delayed start · Inclement Weather")).toBeInTheDocument();
+		const side = bar.firstElementChild as HTMLElement;
+		const date = bar.lastElementChild as HTMLElement;
+		expect(side.style.flex).toBe("1 1 0%");
+		expect(side.style.minWidth).toMatch(/^0(px)?$/);
+		expect((line.parentElement as HTMLElement).style.minWidth).toMatch(/^0(px)?$/);
+		expect(date).toHaveTextContent("2026");
+		expect(date.style.flexShrink).toBe("0");
+	});
+
 	for (const code of ["P", "PW", "S", "F"])
 	{
 		it(`S170 AC 3 none: ${code} shows no marker at any pairing`, () =>

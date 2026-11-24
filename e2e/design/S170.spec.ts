@@ -14,6 +14,12 @@
  * Reduced motion is emulated, so the live dot holds still (it blinks otherwise, and two captures
  * would differ). Games are served from the cache (no live socket), so no footer strip shows.
  *
+ * The `long reason …` tests capture nothing: they check, at phone widths, the owner's rule for a
+ * reason longer than A7's "Rain" (2026-11-23: "It should wrap up to two lines and the space that
+ * takes should expand to accompany it"; the venue "Its own line below (Recommended)"), over MLB's
+ * recorded `TI` "Suspended: Inclement Weather" and `PI` "Delayed Start: Inclement Weather". CI runs
+ * no design spec, so they are a manual check (`pnpm e2e:design design/S170.spec.ts --project mobile`).
+ *
  * Expected differences, not judged (owner, 2026-10-28: "Judge only the story's own parts"): the
  * video grid of the desktop delayed-start frame (a copy of a final game's Videos room, which A7
  * says it doesn't ratify), and anything outside the top bar and the scoreboard rows, which covers
@@ -22,7 +28,7 @@
  * Sep 5, 2026) versus the frames' sample games (NYY @ BOS, Sep 21, 2026).
  */
 import { readFileSync } from "node:fs";
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import {
 	capture, hideDevControls, stubApi,
@@ -152,5 +158,150 @@ for (const pairing of ["mobile", "desktop"] as const)
 		await page.getByTestId("scoreboard-module").nth(3).waitFor();
 		await settle(page);
 		await capture(page, testInfo, frame);
+	});
+}
+
+/** Where a long reason must stay, measured in the page: each value is a pixel overrun, 0 when it fits. */
+interface Fit
+{
+	text: string;
+	lines: number;
+	pastCard: number;
+	pastHeads: number;
+	pastLine: number;
+}
+
+/**
+ * How a row's or the top bar's status marker sits: its label's text and line count, and how far it
+ * runs past the card link, under the R \u00b7 H \u00b7 E heads (a scored row) and past its own box.
+ */
+async function fit(page: Page, scope: string): Promise<Fit>
+{
+	return page.locator(scope).evaluate((root) =>
+	{
+		const marker = root.querySelector<HTMLElement>("[data-testid=status-marker]")!;
+		const label = marker.lastElementChild as HTMLElement;
+		const box = label.getBoundingClientRect();
+		const link = root.querySelector(".bt-card-link") ?? root;
+		const head = [...link.querySelectorAll("span")].find((s) => s.textContent === "R");
+		const over = (a: number, b: number) => Math.max(0, Math.round(a - b));
+		return {
+			text: label.textContent ?? "",
+			lines: Math.round(box.height / parseFloat(getComputedStyle(label).lineHeight)),
+			pastCard: over(box.right, link.getBoundingClientRect().right),
+			pastHeads: head ? over(box.right, head.getBoundingClientRect().left) : 0,
+			pastLine: over(label.scrollWidth, label.clientWidth),
+		};
+	});
+}
+
+for (const width of [390, 375, 360])
+{
+	test(`long reason on a scoreboard row at ${width}px wraps to two lines inside its row`, async ({ page }, testInfo) =>
+	{
+		test.skip(testInfo.project.name !== "mobile", "a phone check");
+		await page.setViewportSize({
+			width,
+			height: 844,
+		});
+		const pick = (gamePk: number) => SCHEDULE.games.find((g: { gamePk: number }) => g.gamePk === gamePk);
+		const games = [
+			{
+				...pick(823577),
+				status: status("TI"),
+				decisions: null,
+			},
+			{
+				...pick(824389),
+				status: status("PI"),
+				linescore: null,
+				decisions: null,
+				live: null,
+			},
+		];
+		await page.route(/\/api\/v1\/schedule\?/, (route) => route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({
+				...SCHEDULE,
+				games,
+				...served,
+			}),
+		}));
+		await page.goto("/games/2026-09-05");
+		await page.getByTestId("scoreboard-module").nth(1).waitFor();
+		await settle(page);
+		const suspended = await fit(page, "[data-testid=scoreboard-module] >> nth=0");
+		const delayed = await fit(page, "[data-testid=scoreboard-module] >> nth=1");
+		expect(suspended).toMatchObject({
+			text: "Suspended \u00b7 Inclement Weather",
+			pastCard: 0,
+			pastHeads: 0,
+			pastLine: 0,
+		});
+		expect(delayed).toMatchObject({
+			text: "Delayed start \u00b7 Inclement Weather",
+			pastCard: 0,
+			pastLine: 0,
+		});
+		for (const marker of [suspended, delayed]) expect(marker.lines).toBeLessThanOrEqual(2);
+		// The venue isn't squeezed out: it keeps its whole line below the wrapped reason, inside the card.
+		const venue = await page.getByTestId("scoreboard-module").nth(1).evaluate((root) =>
+		{
+			const marker = root.querySelector("[data-testid=status-marker]")!.getBoundingClientRect();
+			const name = [...root.querySelectorAll("p")].find((p) => p.textContent?.startsWith("\u00b7 "))!.getBoundingClientRect();
+			return {
+				width: Math.round(name.width),
+				below: name.top >= marker.bottom - 1,
+				inside: name.right <= root.querySelector(".bt-card-link")!.getBoundingClientRect().right + 0.5,
+			};
+		});
+		expect(venue.width).toBeGreaterThan(0);
+		expect(venue.below).toBe(true);
+		expect(venue.inside).toBe(true);
+	});
+}
+
+for (const width of [390, 375, 360, 320])
+{
+	test(`long reason in the game top bar at ${width}px wraps under the teams and keeps the date`, async ({ page }, testInfo) =>
+	{
+		test.skip(testInfo.project.name !== "mobile", "a phone check");
+		await page.setViewportSize({
+			width,
+			height: 844,
+		});
+		await stubApi(page, "/api/v1/games/823823", 200, {
+			...LIVE,
+			...served,
+			status: status("PI"),
+			linescore: null,
+			plays: [],
+			live: null,
+		});
+		await page.goto("/game/823823/videos");
+		await page.getByTestId("game-topbar").getByTestId("status-marker").waitFor();
+		await settle(page);
+		const bar = await page.getByTestId("game-topbar").evaluate((header) =>
+		{
+			const line = header.querySelector("[data-testid=status-line]")!.getBoundingClientRect();
+			const date = header.lastElementChild as HTMLElement;
+			return {
+				overflow: Math.max(0, header.scrollWidth - header.clientWidth),
+				intoDate: Math.max(0, Math.round(line.right - date.getBoundingClientRect().left)),
+				dateClipped: date.scrollWidth > date.clientWidth,
+			};
+		});
+		expect(bar).toEqual({
+			overflow: 0,
+			intoDate: 0,
+			dateClipped: false,
+		});
+		const marker = await fit(page, "[data-testid=game-topbar]");
+		expect(marker).toMatchObject({
+			text: "Delayed start \u00b7 Inclement Weather",
+			pastLine: 0,
+		});
+		expect(marker.lines).toBeLessThanOrEqual(2);
 	});
 }

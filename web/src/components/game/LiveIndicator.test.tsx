@@ -150,6 +150,30 @@ describe("the game status marker (S170; game-shell A7)", () =>
 		}
 	});
 
+	for (const place of ["row", "topbar"] as const)
+	{
+		it(`S170 wrap (owner, 2026-11-23): on the ${place} a long reason wraps up to two lines, and the marker narrows to its place`, () =>
+		{
+			preferReducedMotion(false);
+			renderIndicator({
+				kind: "suspended",
+				place,
+				reason: "Inclement Weather",
+			});
+			const marker = screen.getByTestId("status-marker");
+			const label = screen.getByText("Suspended · Inclement Weather");
+			// The marker may narrow below its text's width, so the words wrap inside its place
+			// instead of running past it; its dot keeps its size.
+			expect(marker.style.minWidth).toMatch(/^0(px)?$/);
+			expect(screen.getByTestId("status-marker-dot").style.flexShrink).toBe("0");
+			// Mantine's two-line clamp: wrap, then end the second line with an ellipsis.
+			expect(label).toHaveAttribute("data-line-clamp", "true");
+			expect(label.style.getPropertyValue("--text-line-clamp")).toBe("2");
+			expect(label.style.whiteSpace).not.toBe("nowrap");
+			expect(label.style.minWidth).toMatch(/^0(px)?$/);
+		});
+	}
+
 	for (const reduce of [false, true])
 	{
 		it(`S170 AC 5: only live blinks${reduce ? ", and not under reduced motion" : ""}; the other three never do`, async () =>

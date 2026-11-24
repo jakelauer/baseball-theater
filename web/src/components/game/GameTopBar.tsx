@@ -30,7 +30,10 @@ interface GameTopBarProps
  * team names, since its longer label met the date there (owner, 2026-11-22: "Marker on its
  * own line"), while `LIVE` stays beside them ("Keep LIVE beside the teams (Recommended)");
  * at medium and desktop every marker sits beside the teams (A7: "the top bar at medium is
- * the desktop one").
+ * the desktop one"). The date keeps its width and the teams' side narrows, so on a narrow phone
+ * a reason longer than the frames' "Rain" wraps under the teams, up to two lines, and the bar
+ * grows (owner, 2026-11-23: "It should wrap up to two lines and the space that takes should
+ * expand to accompany it").
  */
 export function GameTopBar({
 	away, home, officialDate, status, variant,
@@ -41,11 +44,18 @@ export function GameTopBar({
 	const ownLine = marker !== null && marker.kind !== "live" && variant === "mobile";
 	return (
 		<Group component="header" aria-label="Game top bar" data-testid="game-topbar" justify="space-between" wrap="nowrap" py="xs">
-			<Group gap="xs" wrap="nowrap">
+			<Group gap="xs" wrap="nowrap" style={{
+				flex: 1,
+				minWidth: 0,
+			}}
+			>
 				<ActionIcon component={Link} to={`/games/${officialDate}`} aria-label="Back to scoreboard" variant="subtle" color="gray">
 					<IconChevronLeft size={20} />
 				</ActionIcon>
-				<Box>
+				<Box style={{
+					minWidth: 0,
+				}}
+				>
 					<Group gap="xs" wrap="nowrap">
 						<Text fw={700}>
 							{away} @ {home}
@@ -55,7 +65,10 @@ export function GameTopBar({
 					{ownLine ? <Box data-testid="status-line">{indicator}</Box> : null}
 				</Box>
 			</Group>
-			<Text size="sm">{formatDate(officialDate)}</Text>
+			<Text size="sm" style={{
+				flexShrink: 0,
+			}}
+			>{formatDate(officialDate)}</Text>
 		</Group>
 	);
 }

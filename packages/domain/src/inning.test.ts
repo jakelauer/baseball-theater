@@ -95,6 +95,9 @@ describe("inningShortLabel and inningLabel share one half resolver (S170)", () =
 		[at(2, null, false), "Bot 2", "Bot 2nd"],
 		[at(4, null, true), "Top 4", "Top 4th"],
 		[at(11, null, null), "Top 11", "Top 11th"],
+		// An empty inningState names no half, so isTopInning decides, as with none at all.
+		[at(7, "", false), "Bot 7", "Bot 7th"],
+		[at(7, "", true), "Top 7", "Top 7th"],
 		[at(null, "Top", true), null, null],
 	];
 	for (const [linescore, short, long] of cases)

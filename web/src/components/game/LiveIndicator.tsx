@@ -38,7 +38,13 @@ function markerLabel(kind: GameStatusMarkerKind, place: MarkerPlace, reason: str
  * read); `delayed` and `delayedStart` a steady `Accent` dot and `suspended` a steady `Accent`
  * ring, since nothing is happening (A7 Motion). No CSS case change: every label is written as
  * it shows, so `LIVE` is literal capitals and the rest stay sentence case. The dot is
- * decoration; the words are the marker. The page's connection marker, the footer's red "Live
+ * decoration; the words are the marker. A reason longer than the frames' "Rain" ("Suspended ·
+ * Inclement Weather") wraps at its spaces up to two lines, then ends in an ellipsis, and its
+ * place grows to fit (owner, 2026-11-23: "It should wrap up to two lines and the space that takes
+ * should expand to accompany it"): the marker may narrow below its text's width, so the words
+ * wrap inside a scoreboard row's status cell or the top bar's status line instead of running
+ * under the R · H · E heads or past the card; the dot keeps its size and stays centred on the
+ * words, as drawn for one line. A label that fits stays on one line. The page's connection marker, the footer's red "Live
  * Data · Active" saying pushes are arriving, is `LiveMarker` (`web/src/layout/`, S148), a
  * different component that A7 leaves unchanged.
  */
@@ -57,7 +63,10 @@ export function LiveIndicator({
 	const live = kind === "live";
 	const color = live ? "var(--bt-accent-2)" : "var(--bt-accent)";
 	return (
-		<Group gap={6} wrap="nowrap" data-testid="status-marker" data-kind={kind}>
+		<Group gap={6} wrap="nowrap" data-testid="status-marker" data-kind={kind} style={{
+			minWidth: 0,
+		}}
+		>
 			<Box
 				w={8}
 				h={8}
@@ -72,8 +81,8 @@ export function LiveIndicator({
 				}}
 				aria-hidden
 			/>
-			<Text size="xs" fw={700} c={color} style={{
-				whiteSpace: "nowrap",
+			<Text size="xs" fw={700} c={color} lineClamp={2} style={{
+				minWidth: 0,
 			}}
 			>
 				{markerLabel(kind, place, reason, inning)}

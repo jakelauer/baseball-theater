@@ -2,7 +2,8 @@
  * S170 AC 4: the scoreboard row's status marker (game-shell A7) per kind. Over the recorded
  * 2026-09-05 day: Giants @ Mets (final in the recording, put back in the bottom of the 3rd) is
  * set to each in-game status, and Braves @ Phillies to a delayed start, each status a recorded
- * row of MLB's status list, `fixtures/raw/gamestatus.json` (`I`, `IR`, `T`, `TR`, `PR`).
+ * row of MLB's status list, `fixtures/raw/gamestatus.json` (`I`, `IR`, `T`, `TR`, `PR`, and `PI`'s
+ * long reason).
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -17,7 +18,7 @@ import {
 } from "vitest";
 import type { ScheduleDayPayload } from "../../api/schedule.js";
 import { resetSettings } from "../../settings/store.js";
-import { ScoreboardModule } from "./ScoreboardModule.js";
+import { ScoreboardModule, VENUE_MIN_WIDTH } from "./ScoreboardModule.js";
 import type { ScoreboardGame } from "./ScoreboardModule.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
@@ -155,6 +156,29 @@ describe("ScoreboardModule's status marker (S170)", () =>
 		expect(within(card).getAllByTestId("row-probable")).toHaveLength(2);
 		expect(within(card).queryAllByTestId("runs")).toHaveLength(0);
 		expect(within(card).queryByTestId("game-row-slot")).toBeNull();
+	});
+
+	it("S170 venue (owner, 2026-11-23): a delayed start's line wraps, so the venue stays beside the reason while it has room, else drops below", () =>
+	{
+		const card = renderRow(preGame("PI"));
+		const marker = within(card).getByTestId("status-marker");
+		const line = marker.parentElement!;
+		const venue = within(card).getByText("· Citizens Bank Park");
+		expect(marker).toHaveTextContent(/^Delayed start · Inclement Weather$/);
+		expect(line.style.getPropertyValue("--group-wrap")).toBe("wrap");
+		// The marker shrinks (a flex item's default, with its own min-width 0) so its reason wraps.
+		expect(marker.style.flex).toBe("");
+		expect(marker.style.minWidth).toMatch(/^0(px)?$/);
+		expect(venue.style.flex).toBe(`1 1 ${VENUE_MIN_WIDTH}px`);
+		expect(venue.style.minWidth).toBe(`${VENUE_MIN_WIDTH}px`);
+	});
+
+	it("S170 venue: a plain scheduled row's start time and venue keep one unwrapped line", () =>
+	{
+		const card = renderRow(preGame("P"));
+		const venue = within(card).getByText("· Citizens Bank Park");
+		expect(venue.parentElement!.style.getPropertyValue("--group-wrap")).toBe("nowrap");
+		expect(venue.style.flex).toBe("");
 	});
 
 	it("S170 AC 4 delayed start: PO, with no reason, reads Delayed start · venue", () =>

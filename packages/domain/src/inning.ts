@@ -29,12 +29,13 @@ type InningLinescore = Pick<LinescoreSummary, "currentInning" | "inningState" | 
 
 /**
  * The half a linescore is in, as every inning label spells it (`Top` / `Bot` / `Mid` / `End`):
- * MLB's `inningState` names it; without one it knows, `isTopInning` decides. The one resolver
- * behind `inningLabel` and `inningShortLabel` (S170, ADR-025), so the two forms can't drift.
+ * MLB's `inningState` names it; without one it knows (none, an empty string, or a new word),
+ * `isTopInning` decides. The one resolver behind `inningLabel` and `inningShortLabel` (S170,
+ * ADR-025), so the two forms can't drift.
  */
 function inningHalf(linescore: InningLinescore): string
 {
-	return (linescore.inningState && HALF[linescore.inningState]) ?? (linescore.isTopInning === false ? "Bot" : "Top");
+	return (linescore.inningState ? HALF[linescore.inningState] : undefined) ?? (linescore.isTopInning === false ? "Bot" : "Top");
 }
 
 /**
