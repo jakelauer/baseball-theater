@@ -13,14 +13,19 @@
  * Case (i) is the same deletion for any registered `PersonalDataStore` (S6),
  * so each new store (settings now, S50's Postgres stores) runs one shared case.
  * Case (j) is the schedule repository's month read (S124, `listGameCounts`).
+ * Case (k) is the game-state repository's write rule (S150), and case (l) the schedule repository's `served_base`
+ * raise, read from the game-state store of the same database (S150). Case (m) is the game repository's state-field
+ * read (S150).
  */
 import {
 	beforeEach, describe, expect, it,
 } from "vitest";
-import type { ScheduleDay, UserProfile } from "@bt/domain";
+import type {
+	GameSnapshot, GameStateRow, ScheduleDay, StoredScheduleDay, UserProfile,
+} from "@bt/domain";
 import { entitlementsForTier } from "@bt/domain";
 import type {
-	PersonalDataStore, ScheduleRepository, UserRepository,
+	GameRepository, GameStateRepository, PersonalDataStore, ScheduleRepository, UserRepository,
 } from "@bt/ports";
 
 /** The reads and writes every keyed repository shares. */
@@ -381,6 +386,281 @@ export function describeScheduleCountsContract(
 			}));
 			await repo.upsert(day);
 			expect((await repo.listGameCounts("2024-07-04", "2024-07-04")).map((d) => [d.gameTypes, d.regularSeason])).toEqual([[[null], null]]);
+		});
+	});
+}
+
+/** A `game_states` row for the contract: final at `version`, its score naming the version so content differs. */
+function gameStateRow(gamePk: number, version: number, fields: Partial<GameStateRow> = {}): GameStateRow
+{
+	return {
+		gamePk,
+		source: "schedule",
+		feedTime: null,
+		officialDate: "2024-07-04",
+		startTime: "2024-07-04T23:05:00.000Z",
+		state: {
+			status: {
+				abstractGameState: "Final",
+				codedGameState: "F",
+				detailedState: "Final",
+			},
+			linescore: null,
+			live: null,
+			version,
+			lastChangedAt: `2024-07-05T00:00:0${version}.000Z`,
+		},
+		...fields,
+	};
+}
+
+/**
+ * Case (k): the game-state repository (S150 AC 3), for any `GameStateRepository` adapter: a batch is written in one
+ * call, which returns the gamePks it took. A row is taken when its version is newer, or the same with an equal state
+ * (all of it, `version` and `lastChangedAt` included) and a newer feed time, which moves only the feed time and the
+ * source; the accepted feed time never moves back, and a write without a first pitch keeps the stored one.
+ */
+export function describeGameStateContract(label: string, create: () => GameStateRepository): void
+{
+	describe(`${label} — game state repository contract`, () =>
+	{
+		let repo: GameStateRepository;
+
+		beforeEach(() =>
+		{
+			repo = create();
+		});
+
+		it("(k) game state: reads null for a missing game, and a written row deep-equals what was written", async () =>
+		{
+			expect(await repo.getByPk(1)).toBeNull();
+			const row = gameStateRow(1, 1);
+			expect(await repo.write([row])).toEqual([1]);
+			const read = await repo.getByPk(1);
+			expect(read).toEqual(row);
+			expect(read).not.toBe(row);
+			expect(await repo.getMany([1, 2])).toEqual([row]);
+			expect(await repo.getMany([])).toEqual([]);
+			expect(await repo.write([])).toEqual([]);
+		});
+
+		it("(k) game state: a batch is written in one call, which returns the gamePks it took", async () =>
+		{
+			await repo.write([gameStateRow(2, 2)]);
+			const taken = await repo.write([gameStateRow(3, 1), gameStateRow(2, 1), gameStateRow(1, 1)]);
+			expect([...taken].sort((a, b) => a - b)).toEqual([1, 3]);
+			expect((await repo.getMany([1, 2, 3])).map((row) => [row.gamePk, row.state.version]).sort((a, b) => a[0]! - b[0]!)).toEqual([[1, 1], [2, 2], [3, 1]]);
+		});
+
+		it("(k) game state: a newer version replaces the row; the same or an older one is refused", async () =>
+		{
+			await repo.write([gameStateRow(1, 2)]);
+			expect(await repo.write([gameStateRow(1, 1)])).toEqual([]);
+			expect(await repo.write([gameStateRow(1, 2, {
+				officialDate: "2024-07-05",
+			})])).toEqual([]);
+			expect((await repo.getByPk(1))?.officialDate).toBe("2024-07-04");
+			expect(await repo.write([gameStateRow(1, 3)])).toEqual([1]);
+			expect((await repo.getByPk(1))?.state.version).toBe(3);
+		});
+
+		it("(k) game state: the same version with a newer feed time moves the time and marks the row feed; the time never moves back", async () =>
+		{
+			await repo.write([gameStateRow(1, 2, {
+				source: "feed",
+				feedTime: "2024-07-04T23:00:00.000Z",
+			})]);
+			expect(await repo.write([gameStateRow(1, 2, {
+				source: "feed",
+				feedTime: "2024-07-04T22:00:00.000Z",
+			})])).toEqual([]);
+			await repo.write([gameStateRow(1, 2, {
+				source: "schedule",
+			})]);
+			expect((await repo.getByPk(1))?.feedTime).toBe("2024-07-04T23:00:00.000Z");
+			expect(await repo.write([gameStateRow(1, 2, {
+				source: "feed",
+				feedTime: "2024-07-04T23:30:00.000Z",
+			})])).toEqual([1]);
+			expect((await repo.getByPk(1))).toMatchObject({
+				source: "feed",
+				feedTime: "2024-07-04T23:30:00.000Z",
+			});
+			// A newer schedule state keeps the accepted feed time.
+			await repo.write([gameStateRow(1, 3)]);
+			expect((await repo.getByPk(1))).toMatchObject({
+				source: "schedule",
+				feedTime: "2024-07-04T23:30:00.000Z",
+			});
+		});
+
+		it("(k) game state: one version never holds two states: a same-version write with another state is refused, whatever its feed time (ADR-022)", async () =>
+		{
+			const first = gameStateRow(1, 6, {
+				source: "feed",
+				feedTime: "2024-07-04T23:00:00.000Z",
+			});
+			await repo.write([first]);
+			// Another writer's v6, a run different, with a later feed time.
+			const other = gameStateRow(1, 6, {
+				source: "feed",
+				feedTime: "2024-07-04T23:00:15.000Z",
+			});
+			other.state.linescore = {
+				teams: {
+					home: {
+						runs: 9,
+					},
+				},
+			} as NonNullable<GameStateRow["state"]["linescore"]>;
+			expect(await repo.write([other])).toEqual([]);
+			expect((await repo.getByPk(1))?.state).toEqual(first.state);
+			expect((await repo.getByPk(1))?.feedTime).toBe("2024-07-04T23:00:00.000Z");
+			// The same content but another change time is another state too.
+			expect(await repo.write([gameStateRow(1, 6, {
+				source: "feed",
+				feedTime: "2024-07-04T23:00:30.000Z",
+				state: {
+					...first.state,
+					lastChangedAt: "2024-07-05T01:00:00.000Z",
+				},
+			})])).toEqual([]);
+			expect((await repo.getByPk(1))?.state).toEqual(first.state);
+			// The very same state with a later feed time moves only the time; the state stays as it was.
+			expect(await repo.write([gameStateRow(1, 6, {
+				source: "feed",
+				feedTime: "2024-07-04T23:00:45.000Z",
+				officialDate: "2024-07-05",
+			})])).toEqual([1]);
+			expect(await repo.getByPk(1)).toEqual({
+				...first,
+				feedTime: "2024-07-04T23:00:45.000Z",
+			});
+		});
+
+		it("(k) game state: a write without a first pitch never clears a stored one", async () =>
+		{
+			await repo.write([gameStateRow(1, 1)]);
+			await repo.write([gameStateRow(1, 2, {
+				startTime: null,
+			})]);
+			expect((await repo.getByPk(1))?.startTime).toBe("2024-07-04T23:05:00.000Z");
+			await repo.write([gameStateRow(1, 3, {
+				startTime: "2024-07-05T17:05:00.000Z",
+			})]);
+			expect((await repo.getByPk(1))?.startTime).toBe("2024-07-05T17:05:00.000Z");
+		});
+	});
+}
+
+/** A schedule store and the game-state store it reads, over one database. */
+export type ServedBaseStores = {
+	schedules: ScheduleRepository;
+	gameStates: GameStateRepository;
+};
+
+/**
+ * Case (l): a schedule day's `served_base` (S150 AC 6), for any `ScheduleRepository` adapter with the game-state store
+ * of its database: a write that drops games raises it by their stored state versions, read by the adapter itself in
+ * the same write; a write the version guard refuses raises nothing; a new day starts at 0.
+ */
+export function describeServedBaseContract(label: string, create: () => ServedBaseStores): void
+{
+	describe(`${label} — served base contract`, () =>
+	{
+		/** A stored day at `version` listing `gamePks` (only what the raise reads of its games). */
+		const day = (version: number, gamePks: number[]) => ({
+			date: "2024-07-04",
+			games: gamePks.map((gamePk) => ({
+				gamePk,
+			})),
+			fetchedAt: "2024-07-05T00:00:00.000Z",
+			windowMode: "cache",
+			version,
+			lastChangedAt: `2024-07-05T00:00:0${version}.000Z`,
+		}) as unknown as StoredScheduleDay;
+
+		it("(l) served base: a write that drops games raises it by their state versions; a refused write raises nothing", async () =>
+		{
+			const { schedules, gameStates } = create();
+			await gameStates.write([gameStateRow(1, 5), gameStateRow(2, 2)]);
+			const base = async () => (await schedules.getWithServedBase("2024-07-04"))?.servedBase;
+			await schedules.upsert(day(1, [1, 2]));
+			expect(await base()).toBe(0);
+			// Game 1 (state v5) dropped.
+			await schedules.upsert(day(2, [2]));
+			expect(await base()).toBe(5);
+			// The same version again, dropping game 2: refused, nothing raised.
+			await schedules.upsert(day(2, []));
+			expect(await base()).toBe(5);
+			expect((await schedules.getByDate("2024-07-04"))?.games.map((game) => game.gamePk)).toEqual([2]);
+			// Game 2 (state v2) dropped.
+			await schedules.upsert(day(3, []));
+			expect(await base()).toBe(7);
+		});
+
+		it("(l) served base: the raise reads each dropped game's state version as stored when the day is written", async () =>
+		{
+			const { schedules, gameStates } = create();
+			await gameStates.write([gameStateRow(1, 1)]);
+			await schedules.upsert(day(1, [1, 3]));
+			// The game's state moves on between a refresh's reads and its write; game 3 has no row.
+			await gameStates.write([gameStateRow(1, 4)]);
+			await schedules.upsert(day(2, []));
+			expect((await schedules.getWithServedBase("2024-07-04"))?.servedBase).toBe(4);
+		});
+	});
+}
+
+/**
+ * Case (m): a game repository's state fields (S150 AC 6, `getStateFields`), for any `GameRepository` adapter: what
+ * `gameStateFromGame` reads of each stored game asked for (status, linescore, live moment, last at-bat's matchup), and
+ * nothing for a game not stored.
+ */
+export function describeGameStateFieldsContract(label: string, create: () => GameRepository, make: (gamePk: number) => Promise<GameSnapshot>): void
+{
+	describe(`${label} — game state fields contract`, () =>
+	{
+		it("(m) state fields: each stored game asked for, its status, linescore, live moment and last at-bat's matchup; nothing for one not stored", async () =>
+		{
+			const repo = create();
+			const live = {
+				...await make(11),
+				live: {
+					runners: {
+						first: 1,
+						second: null,
+						third: null,
+					},
+					batterId: 2,
+					pitcherId: 3,
+				},
+			} as GameSnapshot;
+			const bare = {
+				...await make(12),
+				linescore: null,
+				live: null,
+				plays: [],
+			} as GameSnapshot;
+			await repo.upsert(live);
+			await repo.upsert(bare);
+			const fields = [...await repo.getStateFields([12, 11, 99])].sort((a, b) => a.gamePk - b.gamePk);
+			expect(fields).toEqual([{
+				gamePk: 11,
+				status: live.status,
+				linescore: live.linescore,
+				live: live.live,
+				plays: [{
+					matchup: live.plays.at(-1)!.matchup,
+				}],
+			}, {
+				gamePk: 12,
+				status: bare.status,
+				linescore: null,
+				live: null,
+				plays: [],
+			}]);
+			expect(await repo.getStateFields([])).toEqual([]);
 		});
 	});
 }

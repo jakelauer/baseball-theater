@@ -11,7 +11,7 @@ import type {
 } from "@bt/domain";
 import { datesBetween, scheduleWindowMode } from "@bt/domain";
 import type {
-	GameProjectionRepository, GameRepository, MlbStatsClient, ScheduleRepository,
+	GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, ScheduleRepository,
 } from "@bt/ports";
 import {
 	describe, expect, it,
@@ -20,17 +20,15 @@ import { createDevAccountData, createDevAuth } from "../adapters/fixtures/auth.j
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { HttpMlbStatsClient } from "../adapters/http/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
-	InMemorySettingsRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemorySettingsRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { migratedPglite } from "../adapters/postgres/migrate.js";
 import {
-	PostgresGameProjectionRepository, PostgresGameRepository, PostgresScheduleRepository,
+	PostgresGameProjectionRepository, PostgresGameStateRepository, PostgresGameRepository, PostgresScheduleRepository,
 } from "../adapters/postgres/repos.js";
 import { STALE_WHILE_REVALIDATE_S } from "../handlers/cache-control.js";
 import { handleApiRequest } from "../handlers/api.js";
+import { readScheduleDay } from "./game-state.js";
 import { recordedClient } from "../test/recorded-mlb.js";
 import type { IngestDeps } from "./ingest.js";
 import { storeSchedule } from "./ingest.js";
@@ -49,6 +47,7 @@ type Repos = {
 	schedules: ScheduleRepository;
 	games: GameRepository;
 	projections: GameProjectionRepository;
+	gameStates: GameStateRepository;
 };
 
 /** An MLB client that counts what it is asked, answering a range with `gamesOn`'s games (none by default). */
@@ -88,7 +87,7 @@ class CountingClient extends FixtureMlbStatsClient
 function memoryRepos(): Repos
 {
 	return {
-		schedules: new InMemoryScheduleRepository(),
+		...memoryScheduleStores(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
 	};
@@ -101,6 +100,7 @@ async function pgliteRepos(): Promise<Repos>
 		schedules: new PostgresScheduleRepository(db),
 		games: new PostgresGameRepository(db),
 		projections: new PostgresGameProjectionRepository(db),
+		gameStates: new PostgresGameStateRepository(db),
 	};
 }
 
@@ -296,6 +296,7 @@ describe("S124 AC 1 one query", () =>
 				calls.day++;
 				return repos.schedules.getByDate(date);
 			},
+			getWithServedBase: (date) => repos.schedules.getWithServedBase(date),
 			upsert: (day) => repos.schedules.upsert(day),
 			listGameCounts: (from, to) =>
 			{
@@ -331,7 +332,8 @@ describe("S124 AC 2", () =>
 		expect((await repos.schedules.getByDate("2026-12-12"))?.version).toBe(1);
 		// Each filled day's window is judged at the fill (`scheduleWindowMode`), day by day.
 		const twelfth = await repos.schedules.getByDate("2026-12-12");
-		expect(twelfth?.windowMode).toBe(scheduleWindowMode(twelfth!.games, T0));
+		// Judged from the day's games with their states (S150: the stored day has none of its own).
+		expect(twelfth?.windowMode).toBe(scheduleWindowMode((await readScheduleDay(repos, "2026-12-12", T0))!.games, T0));
 		expect((await repos.schedules.getByDate("2026-12-13"))?.windowMode).toBe("cache");
 	});
 
@@ -377,6 +379,7 @@ describe("S124 AC 2", () =>
 		let writes = 0;
 		const schedules: ScheduleRepository = {
 			getByDate: (date) => repos.schedules.getByDate(date),
+			getWithServedBase: (date) => repos.schedules.getWithServedBase(date),
 			upsert: async (day) =>
 			{
 				if (++writes === 3) throw new Error("database down");
@@ -516,6 +519,7 @@ describe.each([["memory", async () => memoryRepos()], ["PGlite", pgliteRepos]] a
 		let reads = 0;
 		const schedules: ScheduleRepository = {
 			getByDate: (date) => repos.schedules.getByDate(date),
+			getWithServedBase: (date) => repos.schedules.getWithServedBase(date),
 			upsert: (day) => repos.schedules.upsert(day),
 			listGameCounts: (from, to) =>
 			{
@@ -755,7 +759,7 @@ describe("the month fill and suspended games (#79, #323)", () =>
 	async function storeGame(repos: Repos, gamePk: number, status: typeof SUSPENDED, changedAt: string, suspendedAt?: string)
 	{
 		await repos.games.upsert({
-			...await new FixtureMlbStatsClient().fetchGame(gamePk),
+			...(await new FixtureMlbStatsClient().fetchGame(gamePk)).game,
 			status,
 			windowMode: "active",
 			version: 1,

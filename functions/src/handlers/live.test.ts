@@ -72,7 +72,7 @@ describe("GET /api/v1/games/:gamePk/live for a suspended game (#79, #323)", () =
 	{
 		const app = createWorkerApp({}, (await migratedPglite()).db);
 		await app.ingest.games.upsert({
-			...await new FixtureMlbStatsClient().fetchGame(745001),
+			...(await new FixtureMlbStatsClient().fetchGame(745001)).game,
 			officialDate: "2026-07-04",
 			startTime: "2026-07-04T23:05:00Z",
 			status: {

@@ -7,27 +7,34 @@ import { downloadExpiresAt } from "@bt/domain";
 import {
 	DOWNLOADS_STORE, MAIL_STORE, personalDataStores,
 } from "../../services/personal-data.js";
-import { describePersonalDataStoreContract } from "../repository-contract.js";
+import {
+	describeGameStateContract, describePersonalDataStoreContract, describeServedBaseContract,
+} from "../repository-contract.js";
 import { describeStorageContract } from "../storage-contract.js";
 import {
 	InMemoryExportStore,
 	InMemoryGameProjectionRepository,
 	InMemoryGameRepository,
+	InMemoryGameStateRepository,
 	InMemoryMailer,
 	InMemoryReplayArtifactRepository,
-	InMemoryScheduleRepository,
 	InMemorySettingsRepository,
 	InMemoryUserRepository,
+	memoryScheduleStores,
 } from "./repos.js";
 
 describeStorageContract("InMemory", {
-	schedules: () => new InMemoryScheduleRepository(),
+	schedules: () => memoryScheduleStores().schedules,
 	games: () => new InMemoryGameRepository(),
 	projections: () => new InMemoryGameProjectionRepository(),
 	replays: () => new InMemoryReplayArtifactRepository(),
 	users: () => new InMemoryUserRepository(),
 	settings: () => new InMemorySettingsRepository(),
 });
+
+describeGameStateContract("InMemoryGameStateRepository", () => new InMemoryGameStateRepository());
+
+describeServedBaseContract("InMemoryScheduleRepository", memoryScheduleStores);
 
 type RegistryDeps = {
 	users: InMemoryUserRepository;

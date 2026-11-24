@@ -17,6 +17,7 @@ import {
 import type { DurableStore } from "./hub-leases.js";
 import { HubLeases } from "./hub-leases.js";
 import type { IngestDeps } from "./ingest.js";
+import { servedGame } from "./game-state.js";
 import { ingestGame, refreshTodaysWindow } from "./ingest.js";
 
 /** Durable Object storage with its alarm (`state.storage`). */
@@ -95,19 +96,23 @@ export class GameIngest
 			await this.storage.setAlarm(now.getTime() + this.params.intervalMs);
 			return;
 		}
-		const suspendedAt = isSuspendedStatus(fetched.status.codedGameState)
-			? suspendedSince(await this.deps.games.getByPk(gamePk), fetched.status.codedGameState, now.toISOString())
+		const { game, feedTime } = fetched;
+		const suspendedAt = isSuspendedStatus(game.status.codedGameState)
+			? suspendedSince(await this.deps.games.getByPk(gamePk), game.status.codedGameState, now.toISOString())
 			: undefined;
 		const inWindow = isGameInActiveWindow({
-			...fetched,
+			...game,
 			suspendedAt,
 		}, now, this.params);
-		const { snapshot, changed } = await ingestGame(this.deps, {
-			...fetched,
+		const {
+			snapshot, state, changed,
+		} = await ingestGame(this.deps, {
+			...game,
 			fetchedAt: now.toISOString(),
 			windowMode: inWindow ? "active" : "cache",
-		});
-		if (changed || !inWindow) await this.publishToHubs(snapshot, now);
+		}, feedTime);
+		// S150 AC 6: the served game (status and linescore from its one stored state), as the HTTP read and the hub's first send serve it.
+		if (changed || !inWindow) await this.publishToHubs(servedGame(snapshot, state), now);
 		if (inWindow)
 		{
 			await this.storage.setAlarm(now.getTime() + this.params.intervalMs);
