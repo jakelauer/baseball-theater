@@ -7,7 +7,7 @@
  * the stored one is a no-op (ADR-022 apply-if-newer).
  */
 import type {
-	AccountSettings, GameProjection, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, StoredScheduleDay,
+	AccountSettings, GameProjection, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay,
 } from "@bt/domain";
 import type { ReplayPatchEntry } from "@bt/mlb-api";
 
@@ -36,6 +36,33 @@ export interface ScheduleRepository {
 	 * order, in one read (S124's month view): days nothing stored are left out.
 	 */
 	listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>;
+	/**
+	 * Every recorded schedule month from `from` to `to` (both included, `YYYY-MM`), in month order, in
+	 * one read (S194): when BT last checked each against MLB and when a refresh last claimed it. Months
+	 * never recorded are left out.
+	 */
+	listScheduleMonthChecks(from: string, to: string): Promise<ScheduleMonthCheck[]>;
+	/**
+	 * Records that BT checked `month` against MLB at `checkedAt` (an ISO instant), moving the stored
+	 * `checkedAt` only forward: the later of the stored and the given time stays, so a fill that
+	 * finishes late never moves it back (S194 AC 1).
+	 */
+	recordScheduleMonthCheck(month: string, checkedAt: string): Promise<void>;
+	/**
+	 * Claims `month` for a refresh at `at` (an ISO instant), in one conditional write: it succeeds,
+	 * and returns true, only when the month is still due (never checked, or checked at least
+	 * `SCHEDULE_MONTH_REFRESH_INTERVAL_MS` before `at`) and is unclaimed or its claim is at least
+	 * `SCHEDULE_MONTH_CLAIM_LEASE_MS` older than `at`; otherwise it changes nothing and returns false
+	 * (S194 AC 1), so two refreshes racing for a month never both take it, and a month another tick
+	 * checked after this one read the records isn't filled twice.
+	 */
+	claimScheduleMonth(month: string, at: string): Promise<boolean>;
+	/**
+	 * Moves `month`'s claim forward to `claimedAt` (an ISO instant, possibly in the future), never
+	 * back: how a refresh whose fill MLB didn't answer keeps the month from being claimed again for
+	 * `SCHEDULE_MONTH_FAILED_LEASE_MS` (S194 review), since a claim holds until `claimedAt` plus the lease.
+	 */
+	holdScheduleMonth(month: string, claimedAt: string): Promise<void>;
 }
 
 /**

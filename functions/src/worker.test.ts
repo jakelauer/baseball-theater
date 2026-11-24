@@ -10,6 +10,7 @@ import {
 import { FixtureClient } from "./adapters/fixtures/fixture-client.js";
 import { HttpMlbStatsClient } from "./adapters/http/mlb.js";
 import * as gameIngest from "./services/game-ingest.js";
+import * as scheduleRefresh from "./services/schedule-refresh.js";
 import { useNodeDatabase } from "./test/node-database.js";
 import { handleApiRequest } from "./handlers/api.js";
 import worker from "./worker.js";
@@ -82,6 +83,8 @@ describe("the Worker entry (S45)", () =>
 	it("scheduled ensures a game-ingest object for each in-window game when allowed and bound, and nothing in local dev without the gate", async () =>
 	{
 		const ensure = vi.spyOn(gameIngest, "ensureIngestRunning");
+		// The schedule refresh (S194) runs beside it on every allowed tick; its own tests are below.
+		const refresh = vi.spyOn(scheduleRefresh, "refreshDueScheduleMonth").mockResolvedValue(null);
 		const fetches: string[] = [];
 		const namespace = {
 			idFromName: (name: string) => name,
@@ -109,8 +112,103 @@ describe("the Worker entry (S45)", () =>
 			GAME_INGEST: namespace,
 		}, ctx);
 		expect(ensure).toHaveBeenCalledTimes(1);
-		const ensured = await waits[0] as number[];
+		const ensured = await ensure.mock.results[0]!.value as number[];
 		expect(fetches).toEqual(ensured.map((pk) => `game-ingest:${pk} https://game-ingest/ensure?gamePk=${pk}`));
+		// Allowed twice (with and without the binding), refused once in local dev.
+		expect(refresh).toHaveBeenCalledTimes(2);
+		await Promise.allSettled(waits);
 		ensure.mockRestore();
+		refresh.mockRestore();
+	});
+
+	/** A context whose `waitUntil` keeps every promise for the test to settle. */
+	function collecting()
+	{
+		const waits: Promise<unknown>[] = [];
+		return {
+			waits,
+			ctx: {
+				waitUntil: (p: Promise<unknown>) => void waits.push(p),
+			},
+		};
+	}
+
+	/** A game-ingest namespace whose objects record each ensure. */
+	function namespaceRecording(ensured: string[])
+	{
+		return {
+			idFromName: (name: string) => name,
+			get: (id: never) => ({
+				fetch: async () =>
+				{
+					ensured.push(String(id));
+					return Response.json({
+						armed: true,
+					});
+				},
+			}),
+		};
+	}
+
+	it("S194 AC 5 refresh rejects: a refresh that rejects leaves ensureIngestRunning's objects ensured", async () =>
+	{
+		const refresh = vi.spyOn(scheduleRefresh, "refreshDueScheduleMonth").mockRejectedValue(new Error("database down"));
+		const ingest = vi.spyOn(gameIngest, "ensureIngestRunning").mockImplementation(async (_deps, ensure) =>
+		{
+			await ensure(1);
+			await ensure(2);
+			return [1, 2];
+		});
+		const ensured: string[] = [];
+		const { waits, ctx } = collecting();
+		await worker.scheduled(undefined, {
+			GAME_INGEST: namespaceRecording(ensured),
+		}, ctx);
+		const settled = await Promise.allSettled(waits);
+		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "rejected"]);
+		expect(ensured).toEqual(["game-ingest:1", "game-ingest:2"]);
+		refresh.mockRestore();
+		ingest.mockRestore();
+	});
+
+	it("S194 AC 5 ingest rejects: an ingest that rejects still refreshes a due month", async () =>
+	{
+		const ingest = vi.spyOn(gameIngest, "ensureIngestRunning").mockRejectedValue(new Error("MLB down"));
+		const refresh = vi.spyOn(scheduleRefresh, "refreshDueScheduleMonth");
+		const { waits, ctx } = collecting();
+		await worker.scheduled(undefined, {
+			GAME_INGEST: namespaceRecording([]),
+		}, ctx);
+		const settled = await Promise.allSettled(waits);
+		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "rejected"]);
+		expect(refresh).toHaveBeenCalledTimes(1);
+		const month = await refresh.mock.results[0]!.value as string | null;
+		expect(month).toMatch(/^\d{4}-\d{2}$/);
+		const [check] = await workerApp({}).ingest.schedules.listScheduleMonthChecks(month!, month!);
+		expect(check?.claimedAt).not.toBeNull();
+		refresh.mockRestore();
+		ingest.mockRestore();
+	});
+
+	it("S194 AC 5 no binding: with no GAME_INGEST binding the refresh still runs, and in local dev only with BT_INGEST_TICK=1", async () =>
+	{
+		const refresh = vi.spyOn(scheduleRefresh, "refreshDueScheduleMonth").mockResolvedValue(null);
+		const ingest = vi.spyOn(gameIngest, "ensureIngestRunning");
+		const { waits, ctx } = collecting();
+		await worker.scheduled(undefined, {}, ctx);
+		expect(refresh).toHaveBeenCalledTimes(1);
+		expect(ingest).not.toHaveBeenCalled();
+		await worker.scheduled(undefined, {
+			BT_LOCAL: "1",
+		}, ctx);
+		expect(refresh).toHaveBeenCalledTimes(1);
+		await worker.scheduled(undefined, {
+			BT_LOCAL: "1",
+			BT_INGEST_TICK: "1",
+		}, ctx);
+		expect(refresh).toHaveBeenCalledTimes(2);
+		await Promise.allSettled(waits);
+		refresh.mockRestore();
+		ingest.mockRestore();
 	});
 });

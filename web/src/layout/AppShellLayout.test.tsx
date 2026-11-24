@@ -70,6 +70,15 @@ function renderShell(path: string, width: number)
 	);
 }
 
+/** Opens the mobile/medium drawer through the header's burger and returns it. */
+async function openDrawer()
+{
+	await userEvent.click(within(screen.getByRole("banner")).getByRole("button", {
+		name: "Open navigation",
+	}));
+	return screen.findByRole("dialog");
+}
+
 beforeEach(() =>
 {
 	setSessionToken(null);
@@ -97,14 +106,6 @@ describe("layout variant", () =>
 
 describe("drawer change log link (S134 AC 3)", () =>
 {
-	async function openDrawer()
-	{
-		await userEvent.click(within(screen.getByRole("banner")).getByRole("button", {
-			name: "Open navigation",
-		}));
-		return screen.findByRole("dialog");
-	}
-
 	for (const variant of ["mobile", "medium"] as const)
 	{
 		it(`S134 AC 3: ${variant}, signed out: the drawer's 'Changelog' link sits right above the version line, plain on /standings, and choosing it opens /changelog and closes the drawer`, async () =>
@@ -164,6 +165,16 @@ describe("mobile and medium header + drawer", () =>
 			expect(screen.getByLabelText("path")).toHaveTextContent(/^\/standings$/);
 			await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 		});
+
+		it(`${variant}: on the home page / the drawer marks Scoreboard current, filled Primary (#412: / shows the scoreboard in place)`, async () =>
+		{
+			renderShell("/", WIDTHS[variant]);
+			const drawer = await openDrawer();
+			const current = within(drawer).getAllByRole("link").filter((a) => a.getAttribute("aria-current") === "page");
+			expect(current).toHaveLength(1);
+			expect(current[0]).toHaveTextContent("Scoreboard");
+			expect(current[0]?.style.background).toBe("var(--bt-primary)");
+		});
 	}
 
 	it("mobile: the drawer's wordmark goes home and closes the drawer (owner, 2026-11-12: \"clicking the logo should go to the home page\")", async () =>
@@ -204,6 +215,9 @@ describe("desktop rail", () =>
 	});
 
 	const cases: [string, string][] = [
+		// `/` and `/games` render the scoreboard in place (#412), so they light Scoreboard too.
+		["/", "Scoreboard"],
+		["/games", "Scoreboard"],
 		["/games/2024-07-04", "Scoreboard"],
 		["/game/745001/live", "Scoreboard"],
 		["/standings", "Standings"],

@@ -132,6 +132,10 @@ export const DATA_CLASSIFICATION = {
 			kind: "none",
 			why: "each MLB game's status, linescore and on-field moment (S150); no user data",
 		},
+		schedule_months: {
+			kind: "none",
+			why: "per schedule month (month), when BT last checked it against MLB (checked_at) and when a refresh last claimed it, or the time a failed fill holds it until (claimed_at; a claim holds until then plus the lease); no user data",
+		},
 		games: {
 			kind: "none",
 			why: "MLB game snapshots; no user data",
