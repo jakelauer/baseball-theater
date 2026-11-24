@@ -47,6 +47,10 @@ describe("overlayMlbClient (S112)", () =>
 			fetchSpringStandings: answer("fetchSpringStandings", null),
 			fetchSeasonCalendar: answer("fetchSeasonCalendar", null),
 			fetchPlayers: answer("fetchPlayers", []),
+			searchHighlights: answer("searchHighlights", {
+				total: 0,
+				highlights: [],
+			}),
 			fetchGameTimestamps: answer("fetchGameTimestamps", []),
 			fetchGameDiffPatch: answer("fetchGameDiffPatch", null),
 		} as unknown as MlbStatsClient;
@@ -62,6 +66,9 @@ describe("overlayMlbClient (S112)", () =>
 		await mlb.fetchSpringStandings(2026, "2026-03-01");
 		await mlb.fetchSeasonCalendar(2026);
 		await mlb.fetchPlayers([1]);
+		await mlb.searchHighlights("x", {
+			teamId: 147,
+		});
 		await mlb.fetchGameTimestamps(1);
 		await mlb.fetchGameDiffPatch(1, "a", "b");
 		expect(calls).toEqual([
@@ -73,6 +80,9 @@ describe("overlayMlbClient (S112)", () =>
 			["fetchSpringStandings", 2026, "2026-03-01"],
 			["fetchSeasonCalendar", 2026],
 			["fetchPlayers", [1]],
+			["searchHighlights", "x", {
+				teamId: 147,
+			}],
 			["fetchGameTimestamps", 1],
 			["fetchGameDiffPatch", 1, "a", "b"],
 		]);

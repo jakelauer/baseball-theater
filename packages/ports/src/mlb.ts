@@ -6,6 +6,7 @@ import type {
 	MediaHighlight,
 	PlayerProfile,
 	ScheduleDay,
+	SearchFilters,
 	SearchHighlightsPage,
 	SeasonCalendar,
 	StandingsSnapshot,
@@ -65,10 +66,11 @@ export interface MlbStatsClient {
 	/**
 	 * MLB's free-text highlight search for `query` (S5; ADR-029: asked per search, server-side, as
 	 * the prior site asked it), the first page, newest first. `query` is what the fan typed; the
-	 * adapter sends it as `mlbSearchText` words. Rejects when MLB can't answer, so the route can
-	 * say so rather than show "no results".
+	 * adapter sends it as `mlbSearchText` words. `filters` (S72) narrow it by MLB's own date, team and
+	 * content-tag filters, asked as `mlbSearchQuery` forms them (words may then be empty). Rejects when
+	 * MLB can't answer, so the route can say so rather than show "no results".
 	 */
-	searchHighlights(query: string): Promise<SearchHighlightsPage>;
+	searchHighlights(query: string, filters?: SearchFilters): Promise<SearchHighlightsPage>;
 	/**
    * `GET /api/v1.1/game/{gamePk}/feed/live/timestamps` — every recorded
    * timecode for a game, oldest first. Used by the post-game replay walk (S22).

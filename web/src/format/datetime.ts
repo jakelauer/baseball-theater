@@ -1,7 +1,8 @@
 /**
  * How the app writes a moment the server sends (ISO 8601), in the reader's own
  * time zone. Formatting only — every date BT shows is computed server-side or in
- * `packages/domain` (ADR-025); nothing here adds or compares times. Shared by
+ * `packages/domain` (ADR-025); nothing here adds times, and the one comparison is
+ * {@link formatMomentSince}'s "is it the reader's today", a choice of what to write. Shared by
  * every screen that shows a date (S79 first; the game top bar and the scoreboard's
  * date control since S66, which merged the game top bar's own formatter into it).
  */
@@ -83,6 +84,34 @@ export function formatMonthDay(value: string): string
 export function formatTime(iso: string): string
 {
 	return TIME.format(new Date(iso));
+}
+
+/** The reader's calendar day of a moment, as a comparable string ("11/24/2026"), in their zone. */
+const READER_DAY = new Intl.DateTimeFormat("en-US", {
+	year: "numeric",
+	month: "2-digit",
+	day: "2-digit",
+});
+
+const MONTH_DAY_TIME = new Intl.DateTimeFormat("en-US", {
+	month: "short",
+	day: "numeric",
+	hour: "numeric",
+	minute: "2-digit",
+});
+
+/**
+ * A moment as the offline marker writes it (S74, shell-scoreboard A1, game-rooms A1): "7:42 PM"
+ * when it falls on the reader's today (`now`, in their zone), as the ratified frames draw a
+ * same-day copy, and "Oct 3, 7:42 PM" when it doesn't (owner, 2026-11-24, asked whether a copy
+ * more than a day old should name its date: "Add the date when not today (Recommended)", the
+ * option reading "A copy from another day shows its date before the time; a same-day copy reads
+ * exactly as drawn").
+ */
+export function formatMomentSince(iso: string, now: Date): string
+{
+	const at = new Date(iso);
+	return READER_DAY.format(at) === READER_DAY.format(now) ? TIME.format(at) : MONTH_DAY_TIME.format(at);
 }
 
 /**

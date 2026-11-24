@@ -6,7 +6,7 @@
  * branches cut from one base conflicted there (owner, 2026-11-20: "The goal is to enable agents
  * to work in tandem on backlog items in a way that they don't conflict"). A `done` story now
  * writes its own file instead, and nothing per story edits CHANGELOG.md: the release rule's
- * step 4 runs the build once per release (CLAUDE.md), and drafts the release's notes from its
+ * step 4 runs the build once per release (.claude/skills/release/SKILL.md), and drafts the release's notes from its
  * milestone's fragments.
  *
  * A fragment is Markdown with frontmatter:

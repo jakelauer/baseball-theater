@@ -60,6 +60,8 @@ function june(count: number | null): ScheduleMonthPayload
 			count,
 			teamIds: count === null ? null : [],
 			regularSeason: count === null ? null : false,
+			regularSeasonTeamIds: count === null ? null : [],
+			inSeasonTeamIds: null,
 		})),
 	};
 }

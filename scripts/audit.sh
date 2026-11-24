@@ -65,6 +65,7 @@
 # while the review ran, whose notes it may not edit (S156 AC 13).
 # --design-match <verdict|-> (rule 22, S81) pairs each capture in
 # docs/v3/design-checks/<ID>/ with the ratified frame (or written amendment) under docs/v3/visual/ that governs it,
+# or with each ratified frame its entry in that folder's frames.json names (owner, 2026-11-24: "Change the tool (Recommended)"),
 # recording both SHA-256s and the owner's verdict, quoted. A story whose note has a
 # `design:` list cannot be recorded as completed without it (backlog rule 22).
 # `design <ID>` records such a verdict on its own, without running the grader (S84).
@@ -184,14 +185,17 @@ read_arg() { # read_arg <value> — "-" means stdin
 # shellcheck source=lib/reverify.sh
 source "$(dirname "$0")/lib/reverify.sh"
 
-# design_match_rows <ID> — one table row per capture in CHECKS_DIR/<ID>/, paired with the
-# ratified reference that governs its name under VISUAL_DIR; exits 2 if any pairing fails. The
-# reference comes from scripts/backlog-vault/design-reference.ts, the same code `pnpm design:review`
-# (e2e/design-review.ts) uses, so the pair is the one the owner judged: an amendment frame wins
-# over the original, and a written amendment that overrides the frame wins over both, in which
-# case the row names the amendment file and its hash, never the frame it supersedes.
+# design_match_rows <ID> — one table row per (capture, reference) pair in CHECKS_DIR/<ID>/, each
+# capture paired with the ratified reference that governs its name under VISUAL_DIR; exits 2 if
+# any pairing fails. The reference comes from scripts/backlog-vault/design-reference.ts, the same
+# code `pnpm design:review` (e2e/design-review.ts) uses, so the pair is the one the owner judged: an
+# amendment frame wins over the original, and a written amendment that overrides the frame wins over
+# both, in which case the row names the amendment file and its hash, never the frame it supersedes.
+# A capture named in CHECKS_DIR/<ID>/frames.json is paired with every ratified frame its entry lists
+# instead, one row each (owner, 2026-11-24: "Change the tool (Recommended)"); an unmapped name must
+# resolve to exactly one reference.
 design_match_rows() {
-  local id="$1" captures cap name refs count fsum csum
+  local id="$1" captures cap name refs ref fsum csum
   captures="$(ls "${CHECKS_DIR}/${id}"/*.png 2>/dev/null || true)"
   if [ -z "$captures" ]; then
     echo "audit: no captures in ${CHECKS_DIR}/${id}/ (run pnpm design:capture ${id})" >&2
@@ -199,15 +203,12 @@ design_match_rows() {
   fi
   for cap in $captures; do
     name="$(basename "$cap")"
-    refs="$(node scripts/backlog-vault/design-reference.ts "$VISUAL_DIR" "$name")" || exit 2
-    count="$(printf '%s' "$refs" | grep -c . || true)"
-    if [ "$count" != "1" ]; then
-      echo "audit: capture ${name} matches ${count} ratified frames under ${VISUAL_DIR}; need exactly one" >&2
-      exit 2
-    fi
-    fsum="$(shasum -a 256 "$refs" | cut -d' ' -f1)"
+    refs="$(node scripts/backlog-vault/design-reference.ts "$VISUAL_DIR" "$name" "${CHECKS_DIR}/${id}")" || exit 2
     csum="$(shasum -a 256 "$cap" | cut -d' ' -f1)"
-    printf '| `%s` | `%s` | `%s` | `%s` |\n' "$refs" "$fsum" "$cap" "$csum"
+    while IFS= read -r ref; do
+      fsum="$(shasum -a 256 "$ref" | cut -d' ' -f1)"
+      printf '| `%s` | `%s` | `%s` | `%s` |\n' "$ref" "$fsum" "$cap" "$csum"
+    done <<<"$refs"
   done
 }
 
@@ -724,7 +725,7 @@ if [ "$MODE" = "run" ]; then
   esac
   PRS="$("${RUNS[@]}" prs --journal "$JOURNAL")" || { echo "audit: could not read run ${RUN_ID}'s pull requests" >&2; exit 2; }
   # The Claude-review findings on each pull request the run opened: inline comments on its reviews whose
-  # body starts "Claude review of" (CLAUDE.md, "Claude's review is handled before a pull request merges").
+  # body starts "Claude review of" (docs/v3/LOOP.md §9, "Claude's review is handled before a pull request merges").
   # A failed read exits 2: counted as 0, it would lower the bar for every later run (runs.ts).
   FINDINGS_FILE="$(mktemp)"
   {

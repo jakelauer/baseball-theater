@@ -228,6 +228,18 @@ describe("the after-update pointer in the shell (S135 AC 3)", () =>
 		expect(releaseRequests(fetchMock)).toEqual([]);
 	});
 
+	it("the countdown line shrinks by transform (scaleX), not by animating its width, so it runs down smoothly (#413)", () =>
+	{
+		updatedLoad();
+		renderShell();
+		const fill = screen.getByTestId("pointer-countdown").firstElementChild as HTMLElement;
+		expect(fill.style.transition).toBe(`transform ${POINTER_MS}ms linear`);
+		expect(fill.style.transformOrigin).toBe("left");
+		expect(fill.style.width).toBe("");
+		act(() => vi.advanceTimersByTime(20));
+		expect(fill.style.transform).toBe("scaleX(0)");
+	});
+
 	for (const variant of ["mobile", "medium"] as const)
 	{
 		it(`S135 AC 3: drawer (${variant}): aimed at the menu button, and opening the drawer ends it and highlights the drawer's link until it closes`, async () =>
