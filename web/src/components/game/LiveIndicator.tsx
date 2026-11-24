@@ -2,33 +2,90 @@ import {
 	Box, Group, Text,
 } from "@mantine/core";
 import { useReducedMotion } from "@mantine/hooks";
+import type { GameStatusMarkerKind } from "@bt/domain";
+
+/** Where the marker is drawn (game-shell A7's `Place`): the game top bar, or a scoreboard game row. */
+export type MarkerPlace = "topbar" | "row";
+
+const WORD: Record<Exclude<GameStatusMarkerKind, "live">, string> = {
+	delayed: "Delayed",
+	delayedStart: "Delayed start",
+	suspended: "Suspended",
+};
 
 /**
- * The game's in-progress marker (S32 `game-topbar`; S31 live row): an Accent 2 dot that
- * blinks, and a label — `LIVE` in the game top bar, the inning on the scoreboard's
- * live row (`BOT 7`, S66), always in capitals. It says the game is being played; the
- * page's connection marker, the footer's red "Live Data · Active" saying pushes are
- * arriving, is `LiveMarker` (`web/src/layout/`, S148), a different component. Under `prefers-reduced-motion` the dot holds still (VISUAL-DESIGN §7) — an
- * accessibility preference, not a viewport read.
+ * The marker's words, as A7 writes them, joined by a middle dot (U+00B7). In the top bar `LIVE`,
+ * literal capitals, and the others in sentence case with MLB's reason ("Delayed · Rain"; owner,
+ * 2026-11-22: "Sentence case for all three (Recommended)"). On a row a live game reads its inning
+ * ("Bot 7", or `LIVE` with none yet), a delayed one keeps its inning ("Delayed · Bot 3", plain
+ * "Delayed" with none), and a delayed start or a suspension names the reason, as in the top bar.
  */
-export function LiveIndicator({ label = "LIVE" }: { label?: string })
+function markerLabel(kind: GameStatusMarkerKind, place: MarkerPlace, reason: string | undefined, inning: string | null | undefined): string
+{
+	if (kind === "live") return place === "row" ? inning ?? "LIVE" : "LIVE";
+	const detail = kind === "delayed" && place === "row" ? inning : reason;
+	return detail ? `${WORD[kind]} · ${detail}` : WORD[kind];
+}
+
+/**
+ * The game status marker (game-shell A7, S157; S170): the one dot and label that say a game's
+ * state, in the game top bar (`place="topbar"`) and at the top-left of a scoreboard row
+ * (`place="row"`). Kept under its old name with a `kind` prop rather than renamed, so the
+ * live indicator it always was (S60, S66) is now its `live` kind; the kind comes from
+ * `gameStatusMarker` (`packages/domain`), which callers ask, and this only draws it.
+ * `live` is the `Accent 2` dot, blinking (`bt-blink`), held still under
+ * `prefers-reduced-motion` (VISUAL-DESIGN §7, an accessibility preference, not a viewport
+ * read); `delayed` and `delayedStart` a steady `Accent` dot and `suspended` a steady `Accent`
+ * ring, since nothing is happening (A7 Motion). No CSS case change: every label is written as
+ * it shows, so `LIVE` is literal capitals and the rest stay sentence case. The dot is
+ * decoration; the words are the marker. A reason longer than the frames' "Rain" ("Suspended ·
+ * Inclement Weather") wraps at its spaces up to two lines, then ends in an ellipsis, and its
+ * place grows to fit (owner, 2026-11-23: "It should wrap up to two lines and the space that takes
+ * should expand to accompany it"): the marker may narrow below its text's width, so the words
+ * wrap inside a scoreboard row's status cell or the top bar's status line instead of running
+ * under the R · H · E heads or past the card; the dot keeps its size and stays centred on the
+ * words, as drawn for one line. A label that fits stays on one line. The page's connection marker, the footer's red "Live
+ * Data · Active" saying pushes are arriving, is `LiveMarker` (`web/src/layout/`, S148), a
+ * different component that A7 leaves unchanged.
+ */
+export function LiveIndicator({
+	kind = "live", place = "topbar", reason, inning,
+}: {
+	kind?: GameStatusMarkerKind;
+	place?: MarkerPlace;
+	/** MLB's reason (`Rain`), shown by the stopped kinds; never by `live`. */
+	reason?: string;
+	/** The row's short inning (`inningShortLabel`), read by `live` and `delayed` on a row. */
+	inning?: string | null;
+})
 {
 	const reduceMotion = useReducedMotion();
+	const live = kind === "live";
+	const color = live ? "var(--bt-accent-2)" : "var(--bt-accent)";
 	return (
-		<Group gap={4} wrap="nowrap" data-testid="live-indicator">
+		<Group gap={6} wrap="nowrap" data-testid="status-marker" data-kind={kind} style={{
+			minWidth: 0,
+		}}
+		>
 			<Box
 				w={8}
 				h={8}
-				bg="var(--bt-accent-2)"
-				data-testid="live-dot"
+				data-testid="status-marker-dot"
 				style={{
+					flexShrink: 0,
 					borderRadius: "50%",
-					animation: reduceMotion ? "none" : "bt-blink 1.2s ease-in-out infinite",
+					boxSizing: "border-box",
+					background: kind === "suspended" ? "transparent" : color,
+					border: kind === "suspended" ? `2px solid ${color}` : undefined,
+					animation: live && !reduceMotion ? "bt-blink 1.2s ease-in-out infinite" : "none",
 				}}
 				aria-hidden
 			/>
-			<Text size="xs" fw={700} c="accent2" tt="uppercase">
-				{label}
+			<Text size="xs" fw={700} c={color} lineClamp={2} style={{
+				minWidth: 0,
+			}}
+			>
+				{markerLabel(kind, place, reason, inning)}
 			</Text>
 		</Group>
 	);
