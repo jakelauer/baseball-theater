@@ -12,6 +12,7 @@ import type { HubSocket } from "./adapters/cloudflare/websocket.js";
 import {
 	GameHubObject, gameHubName, hubPublisher,
 } from "./game-hub-object.js";
+import { switchGameState } from "./services/game-state.js";
 import { ingestScheduleDay } from "./services/ingest.js";
 import { FakeDurableStorage } from "./services/fake-durable-storage.js";
 import { useNodeDatabase } from "./test/node-database.js";
@@ -204,6 +205,40 @@ describe("GameHubObject", () =>
 		const alone = new GameHubObject(bare, {});
 		await connect(alone, "gamePk=999");
 		await alone.webSocketClose(bare.sockets[0]!);
+	});
+
+	it("S150 AC 6 first send: a freshly started hub sends the served game, its score from the game's one stored state", async () =>
+	{
+		const app = workerApp({}).ingest;
+		const snapshot = (await app.games.getByPk(745001))!;
+		const row = (await app.gameStates.getByPk(745001))!;
+		const home = (snapshot.linescore?.teams.home.runs ?? 0) + 4;
+		// The fixture lists the game in progress, so it is the feed's: a feed state that moves the row and not the snapshot.
+		await switchGameState(app, [{
+			gamePk: 745001,
+			source: "feed",
+			state: {
+				status: row.state.status,
+				linescore: {
+					...snapshot.linescore!,
+					teams: {
+						...snapshot.linescore!.teams,
+						home: {
+							...snapshot.linescore!.teams.home,
+							runs: home,
+						},
+					},
+				},
+				live: null,
+			},
+			officialDate: row.officialDate,
+			startTime: row.startTime,
+		}], new Date());
+		const first = hubState();
+		await connect(new GameHubObject(first, {}), "gamePk=745001");
+		const sent = JSON.parse(first.sockets[0]!.sent[0]!) as GameSnapshot;
+		expect(sent.version).toBe(snapshot.version);
+		expect(sent.linescore?.teams.home.runs).toBe(home);
 	});
 });
 

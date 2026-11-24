@@ -7,6 +7,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import { FixtureMlbStatsClient } from "./fixtures/mlb.js";
+import { InMemoryGameRepository, memoryScheduleStores } from "./memory/repos.js";
 import { overlayMlbClient, storeOverlay } from "./overlay-mlb.js";
 
 describe("overlayMlbClient (S112)", () =>
@@ -24,7 +25,7 @@ describe("overlayMlbClient (S112)", () =>
 		});
 		expect((await mlb.fetchSchedule("2026-01-01")).date).toBe("2026-01-01");
 		expect((await mlb.fetchSchedule("2024-07-04")).games).toEqual(fromInner.games);
-		expect((await mlb.fetchGame(823823)).gamePk).toBe(823823);
+		expect(((await mlb.fetchGame(823823)).game).gamePk).toBe(823823);
 	});
 
 	it("passes every other call through unchanged", async () =>
@@ -79,20 +80,19 @@ describe("overlayMlbClient (S112)", () =>
 
 	it("storeOverlay hands back a stored day or game without its version, and null for what isn't stored", async () =>
 	{
+		const { schedules, gameStates } = memoryScheduleStores();
+		await schedules.upsert({
+			date: "2026-09-05",
+			games: [],
+			fetchedAt: "2026-09-05T00:00:00.000Z",
+			windowMode: "cache",
+			version: 3,
+			lastChangedAt: "2026-09-05T00:00:00.000Z",
+		});
 		const source = storeOverlay({
-			schedules: {
-				getByDate: async (date) => date === "2026-09-05" ? {
-					date,
-					games: [],
-					fetchedAt: "2026-09-05T00:00:00.000Z",
-					windowMode: "cache",
-					version: 3,
-					lastChangedAt: "2026-09-05T00:00:00.000Z",
-				} : null,
-			},
-			games: {
-				getByPk: async () => null,
-			},
+			schedules,
+			games: new InMemoryGameRepository(),
+			gameStates,
 		});
 		const day = await source.schedule("2026-09-05");
 		expect(day).not.toHaveProperty("version");

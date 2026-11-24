@@ -46,6 +46,14 @@
  *   Games are skipped whenever the target's `game_projections` can't take their projections.
  * - Replay artifacts compare `version`, which for them is the number of retained patches and so
  *   means the same in both databases; it isn't restamped.
+ * - A game's shared state (`game_states`, S150 AC 3) compares `lastChangedAt` the same way, except that a target row
+ *   its live feed wrote (`source` `feed`) that the switch still gives the feed (`gameStateSource` on the row's status,
+ *   first pitch, official date and last change) is the target's own, as `ingesting`. The target's accepted feed time
+ *   (`feed_time`) is never copied, and a row without a first pitch never clears the target's.
+ * - A schedule day's `served_base` (S150 AC 6) is the target's own counter and is never copied. When the copy
+ *   replaces a day, the same statement raises the target's `served_base` by the target's state versions of the games
+ *   the new copy no longer lists, so the day's served version (its version plus `served_base` plus its games' state
+ *   versions) never falls.
  *
  * A table a migration production hasn't run touched is skipped whole (owner, 2026-11-13: "I think
  * option b is better"): staging may have reshaped it, and production's rows are in the old shape.
@@ -67,7 +75,7 @@
  */
 import type { GameSnapshot, VersionStamp } from "@bt/domain";
 import {
-	adoptAcrossStores, compareAcrossStores, projectGame,
+	adoptAcrossStores, compareAcrossStores, gameStateSource, projectGame,
 } from "@bt/domain";
 import { sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
@@ -76,6 +84,7 @@ import {
 	MIGRATIONS_FOLDER, appliedMigrations, committedMigrations,
 } from "../adapters/postgres/migrate.js";
 import type { PostgresDb } from "../adapters/postgres/repos.js";
+import { servedBaseRaise } from "../adapters/postgres/repos.js";
 import { DATA_CLASSIFICATION } from "./data-classification.js";
 
 /** At most this many rows are read and written per statement (the page's row cap). */
@@ -103,12 +112,15 @@ export function baseballTables(): string[]
 /**
  * How each table's rows are compared between the two databases (see the module comment). Every table the manifest
  * labels `none` must have one (`checkCopyRules`), so a table added later can't fall back to comparing two
- * databases' counters. `rebuiltFromGames` assumes the `games` table and a projection per `game_pk`.
+ * databases' counters. `rebuiltFromGames` assumes the `games` table and a projection per `game_pk`; `stateChangedLater` (S150,
+ * `game_states`) is `changedLater` except for a row the target's live feed is writing (see the module comment).
  */
-export type CopyRule = "changedLater" | "rebuiltFromGames" | "patchCount";
+export type CopyRule = "changedLater" | "stateChangedLater" | "rebuiltFromGames" | "patchCount";
 
 export const COPY_RULES: Readonly<Record<string, CopyRule>> = {
 	schedule_days: "changedLater",
+	// S150: `changedLater`, except a row the target's live feed wrote while its game is in its live window.
+	game_states: "stateChangedLater",
 	games: "changedLater",
 	game_projections: "rebuiltFromGames",
 	replay_artifacts: "patchCount",
@@ -127,6 +139,15 @@ export function checkCopyRules(tables: readonly string[]): void
 		if (rule === "rebuiltFromGames" && !tables.slice(0, index).includes("games")) throw new Error(`${table}: must come after games, whose copied rows it is rebuilt from`);
 	}
 }
+
+/**
+ * Columns that are the target's own (S150): never read from production nor written by the copy, whatever both sides
+ * have. A day's `served_base` counts this database's dropped games; a state's `feed_time` is this database's feed.
+ */
+const TARGET_OWN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+	schedule_days: ["served_base"],
+	game_states: ["feed_time"],
+};
 
 /** The copy refused to run, having written no row: `runCopy` reports it and exits 2. */
 export class CopyRefused extends Error
@@ -306,6 +327,8 @@ type Shape = {
 	common: string[];
 	key: { name: string;
 		type: string; };
+	/** The target's columns of {@link TARGET_OWN_COLUMNS} it has: left out of `common`, some written by rule. */
+	targetOwn: string[];
 };
 
 /** Works out what of `table` can be copied: its shape, or the entry saying why it is skipped. Throws when a write couldn't be guarded. */
@@ -316,7 +339,8 @@ async function shapeOf(deps: CopyDeps, table: string, rule: CopyRule): Promise<{
 	const targetInfo = await rows<Column>(deps.target, columnsQuery(table));
 	const targetColumns = targetInfo.map((column) => column.name);
 	const generated = targetInfo.filter((column) => column.generated && sourceColumns.includes(column.name)).map((column) => column.name);
-	const common = sourceColumns.filter((column) => targetColumns.includes(column) && !generated.includes(column));
+	const own = TARGET_OWN_COLUMNS[table] ?? [];
+	const common = sourceColumns.filter((column) => targetColumns.includes(column) && !generated.includes(column) && !own.includes(column));
 	const result: TableCopy = {
 		table,
 		read: 0,
@@ -343,12 +367,17 @@ async function shapeOf(deps: CopyDeps, table: string, rule: CopyRule): Promise<{
 	if (!common.includes("version")) throw new Error(`${table}: no version column on both sides (not generated by the target), so a write can't be version-guarded (ADR-022)`);
 	const required = targetInfo.find((column) => column.required && !sourceColumns.includes(column.name));
 	if (required) return skip(`the target's column ${required.name} is required (NOT NULL, no default) and production has no values for it`);
-	if (rule === "changedLater" && !common.includes("document")) return skip("no document column on both sides, so when its rows last changed can't be read");
+	if ((rule === "changedLater" || rule === "stateChangedLater") && !common.includes("document")) return skip("no document column on both sides, so when its rows last changed can't be read");
+	if (rule === "stateChangedLater" && !["source", "official_date", "start_time"].every((column) => targetColumns.includes(column)))
+	{
+		return skip("the target has no source, official_date and start_time to tell a game its live feed is writing");
+	}
 	return {
 		result,
 		shape: {
 			common,
 			key,
+			targetOwn: own.filter((column) => targetColumns.includes(column)),
 		},
 	};
 }
@@ -395,11 +424,18 @@ async function* sourcePages(deps: CopyDeps, table: string, shape: Shape, batchRo
  * target's row (`onConflict: "nothing"`) or updates it only when the incoming `version` is greater (`"newer"`, the
  * ingest guard; the caller makes sure both versions are counted in the same database). Returns the keys written.
  */
-async function writeRows(target: PostgresDb, table: string, columns: string[], keyName: string, batch: string, onConflict: "nothing" | "newer"): Promise<string[]>
+async function writeRows(target: PostgresDb, table: string, columns: string[], keyName: string, batch: string, onConflict: "nothing" | "newer", targetOwn: readonly string[] = []): Promise<string[]>
 {
 	const qualified = sql.identifier(table);
 	const keyColumn = sql.identifier(keyName);
-	const assignments = sql.join(columns.filter((column) => column !== keyName).map((column) => sql`${sql.identifier(column)} = excluded.${sql.identifier(column)}`), sql`, `);
+	const assignments = sql.join([
+		...columns.filter((column) => column !== keyName).map((column) => sql`${sql.identifier(column)} = ${ownAssignment(table, column) ?? sql`excluded.${sql.identifier(column)}`}`),
+		...targetOwn.flatMap((column) =>
+		{
+			const assignment = ownAssignment(table, column);
+			return assignment ? [sql`${sql.identifier(column)} = ${assignment}`] : [];
+		}),
+	], sql`, `);
 	const conflict = onConflict === "nothing"
 		? sql`ON CONFLICT (${keyColumn}) DO NOTHING`
 		: sql`ON CONFLICT (${keyColumn}) DO UPDATE SET ${assignments} WHERE excluded.version > ${qualified}.version`;
@@ -408,6 +444,18 @@ async function writeRows(target: PostgresDb, table: string, columns: string[], k
 		${conflict}
 		RETURNING ${keyColumn}::text AS k`);
 	return written.map((row) => row.k);
+}
+
+/**
+ * The rule-written value of a column on an update (S150), or undefined for a plain copy: a state's first pitch is
+ * never cleared by a row without one, and a replaced day's `served_base` rises by the target's state versions of the
+ * games the incoming day no longer lists, in the same statement as the day.
+ */
+function ownAssignment(table: string, column: string): SQL | undefined
+{
+	if (table === "game_states" && column === "start_time") return sql`COALESCE(excluded.start_time, game_states.start_time)`;
+	if (table === "schedule_days" && column === "served_base") return sql`schedule_days.served_base + ${servedBaseRaise()}`;
+	return undefined;
 }
 
 /** Splits `items` into runs whose sizes add up to at most `cap`, each holding at least one item. */
@@ -499,7 +547,7 @@ type Run = {
  * `compareAcrossStores` (and, for a row production changed later, `adoptAcrossStores` on the full documents, read
  * under the byte cap), then writes new rows and adopted ones. Returns the page's keys.
  */
-async function copyChangedLaterPage(deps: CopyDeps, table: string, shape: Shape, batch: string, run: Run, result: TableCopy): Promise<string[]>
+async function copyChangedLaterPage(deps: CopyDeps, table: string, rule: CopyRule, shape: Shape, batch: string, run: Run, result: TableCopy): Promise<string[]>
 {
 	const qualified = sql.identifier(table);
 	const keyColumn = sql.identifier(shape.key.name);
@@ -507,12 +555,21 @@ async function copyChangedLaterPage(deps: CopyDeps, table: string, shape: Shape,
 	const page = JSON.parse(batch) as Record<string, unknown>[];
 	const keyOf = (row: Record<string, unknown>) => String(row[shape.key.name]);
 	const keysIn = (keys: unknown[]) => sql`${keyColumn} IN (SELECT CAST(value #>> '{}' AS ${keyType}) FROM json_array_elements(CAST(${JSON.stringify(keys)} AS json)))`;
+	const feeding = rule === "stateChangedLater"
+		? sql`, source = 'feed' AS fed, official_date, start_time, document->'status' AS status`
+		: sql`, false AS fed, NULL AS official_date, NULL AS start_time, NULL::jsonb AS status`;
 	const stamps = new Map((await rows<{ k: string;
 		version: number;
 		changed: string | null;
 		mode: string | null;
-		size: number; }>(deps.target, sql`SELECT ${keyColumn}::text AS k, version, document->>'lastChangedAt' AS changed, document->>'windowMode' AS mode,
-			octet_length(document::text) AS size FROM ${qualified} WHERE ${keysIn(page.map((row) => row[shape.key.name]))}`)).map((stamp) => [stamp.k, stamp]));
+		size: number;
+		fed: boolean;
+		official_date: string | null;
+		start_time: string | null;
+		status: { abstractGameState: string;
+			codedGameState: string;
+			detailedState: string; } | null; }>(deps.target, sql`SELECT ${keyColumn}::text AS k, version, document->>'lastChangedAt' AS changed, document->>'windowMode' AS mode,
+			octet_length(document::text) AS size ${feeding} FROM ${qualified} WHERE ${keysIn(page.map((row) => row[shape.key.name]))}`)).map((stamp) => [stamp.k, stamp]));
 	const keep = (reason: KeptReason) =>
 	{
 		result.kept[reason] = (result.kept[reason] ?? 0) + 1;
@@ -523,6 +580,24 @@ async function copyChangedLaterPage(deps: CopyDeps, table: string, shape: Shape,
 	for (const row of page)
 	{
 		const stamp = stamps.get(keyOf(row));
+		// S150: a state the target's live feed is writing is the target's own: the switch's own rule (`gameStateSource`)
+		// on the target's row, so a final the feed wrote late keeps its trail here too.
+		const targetRow = stamp?.fed && stamp.status ? {
+			source: "feed" as const,
+			state: {
+				status: stamp.status,
+				...stamp.changed !== null && {
+					lastChangedAt: stamp.changed,
+				},
+			},
+			officialDate: stamp.official_date ?? "",
+			startTime: stamp.start_time,
+		} : null;
+		if (targetRow && gameStateSource(targetRow, targetRow, run.now) === "feed")
+		{
+			keep("ingesting");
+			continue;
+		}
 		const incoming = row.document as Partial<VersionStamp> | null;
 		const outcome = compareAcrossStores(stamp
 			? {
@@ -579,7 +654,7 @@ async function copyChangedLaterPage(deps: CopyDeps, table: string, shape: Shape,
 	for (const [chosen, onConflict] of [[fresh, "nothing"], [adopted, "newer"]] as const)
 	{
 		if (chosen.length === 0) continue;
-		const written = new Set(await writeRows(deps.target, table, shape.common, shape.key.name, JSON.stringify(chosen), onConflict));
+		const written = new Set(await writeRows(deps.target, table, shape.common, shape.key.name, JSON.stringify(chosen), onConflict, shape.targetOwn));
 		for (const row of chosen)
 		{
 			if (written.has(keyOf(row))) result.written++;
@@ -601,7 +676,7 @@ async function copyTable(deps: CopyDeps, table: string, rule: CopyRule, shape: S
 			result.written += (await writeRows(deps.target, table, shape.common, shape.key.name, page.batch, "newer")).length;
 			continue;
 		}
-		const keys = await copyChangedLaterPage(deps, table, shape, page.batch, run, result);
+		const keys = await copyChangedLaterPage(deps, table, rule, shape, page.batch, run, result);
 		if (table === "games" && run.rebuild) await rebuildProjections(deps, keys, run, run.rebuild);
 	}
 	return result;

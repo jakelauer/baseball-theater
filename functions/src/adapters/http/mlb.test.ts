@@ -396,3 +396,41 @@ describe("HttpMlbStatsClient.searchHighlights (S5)", () =>
 		await expect(mlb.searchHighlights("walk-off")).rejects.toThrow(/503/);
 	});
 });
+
+describe("HttpMlbStatsClient feed time (S150 AC 2)", () =>
+{
+	/** A client whose live feed is `feed` (the recorded final feed unless given); everything else answers 404. */
+	function feedClient(feed: string = readFileSync(path.join(RAW, "live-823823.json"), "utf8"), now = new Date("2026-09-06T00:00:00.000Z")): HttpMlbStatsClient
+	{
+		return new HttpMlbStatsClient({
+			now: () => now,
+			fetchImpl: async (input) => /\/feed\/live$/.test(new URL(String(input)).pathname) ? new Response(feed) : new Response("{}", {
+				status: 404,
+			}),
+		});
+	}
+
+	it("S150 AC 2 feed time: the fetched game carries the feed's metaData.timeStamp as ISO beside the game, never on it", async () =>
+	{
+		const fetched = await feedClient().fetchGame(823823);
+		expect(fetched.feedTime).toBe("2026-09-05T23:34:35.000Z");
+		expect(fetched.game.gamePk).toBe(823823);
+		expect(fetched.game).not.toHaveProperty("feedTime");
+		expect((await feedClient().fetchGameFeed(823823)).feedTime).toBe("2026-09-05T23:34:35.000Z");
+	});
+
+	it("S150 AC 2 no time: a feed with no timeStamp leaves the feed time out", async () =>
+	{
+		const feed = JSON.parse(readFileSync(path.join(RAW, "live-823823.json"), "utf8")) as { metaData?: Record<string, unknown> };
+		delete feed.metaData?.timeStamp;
+		const fetched = await feedClient(JSON.stringify(feed)).fetchGame(823823);
+		expect(fetched).not.toHaveProperty("feedTime");
+	});
+
+	it("S150 AC 2 future time: a feed time further ahead of BT's clock than the tolerance is left out", async () =>
+	{
+		// The recorded feed says 23:34:35; BT's clock reads 23:00, 34 minutes earlier.
+		const fetched = await feedClient(undefined, new Date("2026-09-05T23:00:00.000Z")).fetchGame(823823);
+		expect(fetched).not.toHaveProperty("feedTime");
+	});
+});

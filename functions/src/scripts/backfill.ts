@@ -14,7 +14,7 @@ import { openPostgres } from "../adapters/postgres/connect.js";
 import { localConnectionString } from "../adapters/postgres/local.js";
 import { migratePostgres } from "../adapters/postgres/migrate.js";
 import {
-	PostgresGameProjectionRepository, PostgresGameRepository, PostgresScheduleRepository,
+	PostgresGameProjectionRepository, PostgresGameStateRepository, PostgresGameRepository, PostgresScheduleRepository,
 } from "../adapters/postgres/repos.js";
 import { runBackfill } from "../services/backfill.js";
 import { formatSizeReport, gameTableSizes } from "../services/backfill-report.js";
@@ -83,6 +83,7 @@ try
 		schedules: new PostgresScheduleRepository(db),
 		games: new PostgresGameRepository(db),
 		projections: new PostgresGameProjectionRepository(db),
+		gameStates: new PostgresGameStateRepository(db),
 		state: fileResumeStore(DEFAULT_STATE_DIR, check.target),
 		pace: (day) => polite.setDay(day),
 		log: say,

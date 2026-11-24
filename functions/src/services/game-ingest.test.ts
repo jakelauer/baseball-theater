@@ -13,9 +13,7 @@ import {
 } from "vitest";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import {
-	InMemoryGameProjectionRepository,
-	InMemoryGameRepository,
-	InMemoryScheduleRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { FakeDurableStorage } from "./fake-durable-storage.js";
 import {
@@ -27,11 +25,13 @@ import { refreshTodaysWindow } from "./ingest.js";
 const T0 = new Date("2026-10-30T12:00:00Z");
 
 /** Ingest deps over the fixtures, with `fetchGame` counted and optionally rewritten. */
-function setup(rewrite: (game: Awaited<ReturnType<FixtureMlbStatsClient["fetchGame"]>>) => typeof game = (game) => game)
+function setup(rewrite: (game: Awaited<ReturnType<FixtureMlbStatsClient["fetchGame"]>>["game"]) => typeof game = (game) => game)
 {
 	const real = new FixtureMlbStatsClient();
 	const mlb = new FixtureMlbStatsClient();
-	const fetchGame = vi.fn(async (pk: number) => rewrite(await real.fetchGame(pk)));
+	const fetchGame = vi.fn(async (pk: number) => ({
+		game: rewrite((await real.fetchGame(pk)).game),
+	}));
 	mlb.fetchGame = fetchGame;
 	const order: string[] = [];
 	const games = new InMemoryGameRepository();
@@ -43,7 +43,7 @@ function setup(rewrite: (game: Awaited<ReturnType<FixtureMlbStatsClient["fetchGa
 	};
 	const deps: IngestDeps = {
 		mlb,
-		schedules: new InMemoryScheduleRepository(),
+		...memoryScheduleStores(),
 		games,
 		projections: new InMemoryGameProjectionRepository(),
 	};
@@ -394,7 +394,7 @@ describe("a suspended game's ingest (#79, #323)", () =>
 	/** Stores 745001 as `status`, last changed at `changedAt`, in `windowMode`, with `suspendedAt` when given. */
 	async function storeAs(deps: IngestDeps, status: typeof IN_PROGRESS, changedAt: string, windowMode: "active" | "cache", suspendedAt?: string)
 	{
-		const game = await new FixtureMlbStatsClient().fetchGame(745001);
+		const game = (await new FixtureMlbStatsClient().fetchGame(745001)).game;
 		await deps.games.upsert(stampVersion<GameSnapshot>(null, {
 			...game,
 			officialDate: "2026-07-04",
