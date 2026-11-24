@@ -315,6 +315,8 @@ a {
 	.bt-zoom img,
 	.bt-pitch-dot circle {
 		transform: none !important;
+		/* Nothing moves here, so no element keeps a layer for it (B413). */
+		will-change: auto;
 	}
 }
 

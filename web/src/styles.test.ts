@@ -168,6 +168,14 @@ describe("hover feedback", () =>
 		}
 	});
 
+	it("reduced motion drops those layers (will-change: auto), since nothing moves there (#413)", () =>
+	{
+		const layered = allRules().filter(({ rule, media }) => media === "" && decl(rule, "will-change") === "transform").flatMap(({ rule }) => rule.selectors);
+		const reset = new Set(reducedRules.filter((rule) => decl(rule, "will-change") === "auto").flatMap((rule) => rule.selectors));
+		expect(layered.length).toBeGreaterThanOrEqual(3);
+		for (const selector of layered) expect(reset.has(selector), selector).toBe(true);
+	});
+
 	it("no transition animates position or size (top/left/margin/width/height/background-size…): movement is transform only (#413)", () =>
 	{
 		const layout = /^(top|left|right|bottom|inset|margin|padding|width|height|min-|max-|background-size|background-position|all$)/;
