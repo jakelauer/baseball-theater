@@ -47,6 +47,8 @@ scripts/audit.sh story S14 --reverify # today's grader at S14's shipping commit
 scripts/audit.sh design S79 --design-match -  # an owner's design verdict on its own
 ```
 
+A design match pairs each capture with the same-named ratified frame, unless the story's `docs/v3/design-checks/<ID>/frames.json` names the ratified frame(s) it is judged against (`{ "about-mobile.png": ["docs/v3/visual/…/changelog-mobile.png"] }`; owner, 2026-11-24, asked how S154 should record a design match for captures with no ratified frame of their own: "Change the tool (Recommended)").
+
 **Two tiers (S84).** A story's grader is a **commit-time proof**: it proves that story at its own commit and is never expected to hold for the whole system later. What must hold on every commit is a **law**, listed in `docs/v3/LAWS.md` and enforced by `pnpm verify`.
 
 The ledger is the only durable record of *what was actually checked*: which of the story's checks ran, whether they passed, and the commit the story shipped in. It is also what the review cadence counts off — "6 stories since the last review" reads from it, through `ledger.ts`.

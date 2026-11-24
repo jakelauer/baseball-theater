@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Lays out a story's design-match pairs for the owner (rule 22; owner, 2026-10-30): each
-// capture in docs/v3/design-checks/<ID>/ beside the ratified frame of the same name, one
+// capture in docs/v3/design-checks/<ID>/ beside the ratified frame of the same name (or the
+// frames its frames.json entry names), one
 // PNG per frame, in the git-ignored .designreview/<ID>/. Delete the folder once the owner
 // has given the verdict.
 //
@@ -10,19 +11,24 @@
 // Which reference governs each capture (an amendment frame over the original, a written
 // amendment over any frame it overrides, whose text then goes on the reference side) is decided
 // by scripts/backlog-vault/design-reference.ts, the same code `scripts/audit.sh --design-match`
-// uses, so the ledger records exactly the pair shown here. The pairs are drawn by Playwright's Chromium (already installed for `pnpm design:capture`),
-// so no image library is needed.
+// uses, so the ledger records exactly the pair shown here. A capture the story's
+// docs/v3/design-checks/<ID>/frames.json names is shown beside every frame its entry lists instead
+// (owner, 2026-11-24: "Change the tool (Recommended)"); a bad entry stops the run, as it stops audit.sh.
+// The pairs are drawn by Playwright's Chromium (already installed for `pnpm design:capture`), so no
+// image library is needed.
 import {
 	existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
-import { ratifiedFrames, writtenAmendment } from "../scripts/backlog-vault/design-reference.ts";
+import {
+	mappedReferences, ratifiedFrames, writtenAmendment,
+} from "../scripts/backlog-vault/design-reference.ts";
 
 const [id, flag] = process.argv.slice(2);
 if (!id || !/^[SV]\d+$/i.test(id))
 {
-	console.error("usage: pnpm design:review <story ID> [--done]");
+	console.error("usage: pnpm design:review <story ID> [--done]  (docs/v3/design-checks/<ID>/frames.json may name a capture's ratified frames)");
 	process.exit(2);
 }
 const story = id.toUpperCase();
@@ -64,11 +70,14 @@ const page = await browser.newPage();
 const captures = readdirSync(checks).filter((f) => f.endsWith(".png")).sort();
 for (const name of captures)
 {
-	const amendment = writtenAmendment("docs/v3/visual", name);
-	const frame = amendment ? null : ratifiedFrames("docs/v3/visual", name)[0] ?? null;
-	const reference = amendment
-		? `<figure class="written"><figcaption>Ratified written amendment (no frame; it supersedes any older frame named ${name})<small>${amendment.path}</small></figcaption><pre>${escapeHtml(amendment.text)}</pre></figure>`
-		: panel("Ratified frame", frame);
+	const mapped = mappedReferences("docs/v3/visual", checks, name);
+	const amendment = mapped ? null : writtenAmendment("docs/v3/visual", name);
+	const frame = mapped || amendment ? null : ratifiedFrames("docs/v3/visual", name)[0] ?? null;
+	const reference = mapped
+		? mapped.map((ref) => panel("Ratified frame (named in frames.json)", ref.path)).join("")
+		: amendment
+			? `<figure class="written"><figcaption>Ratified written amendment (no frame; it supersedes any older frame named ${name})<small>${amendment.path}</small></figcaption><pre>${escapeHtml(amendment.text)}</pre></figure>`
+			: panel("Ratified frame", frame);
 	await page.setContent(`<!doctype html><style>
 		body { margin: 0; background: #282828; color: #fff2d3; font: 20px Helvetica, Arial, sans-serif; }
 		main { display: inline-flex; gap: 24px; padding: 16px 24px 24px; align-items: flex-start; }
@@ -81,6 +90,6 @@ for (const name of captures)
 	await page.locator("main").screenshot({
 		path: join(out, name),
 	});
-	console.log(`${join(out, name)}${amendment ? `  (written amendment ${amendment.path})` : frame ? "" : "  (no ratified frame found)"}`);
+	console.log(`${join(out, name)}${mapped ? `  (frames.json: ${mapped.map((ref) => ref.path).join(", ")})` : amendment ? `  (written amendment ${amendment.path})` : frame ? "" : "  (no ratified frame found)"}`);
 }
 await browser.close();
