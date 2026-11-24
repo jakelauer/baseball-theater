@@ -113,10 +113,12 @@ describe("getDayDigest freshness (#61)", () =>
 		const deps = await storedDay();
 		const day = (await deps.schedules.getByDate("2024-07-04"))!;
 		const game = (await deps.games.getByPk(day.games[0]!.gamePk))!;
+		// In its window by the clock as well as by its stamp (S212: a stored `active` is judged by the clock): first pitch an hour ago.
 		await deps.games.upsert({
 			...game,
 			version: game.version + 1,
 			windowMode: "active",
+			startTime: new Date(NOW.getTime() - 3600_000).toISOString(),
 			fetchedAt: NOW.toISOString(),
 		});
 

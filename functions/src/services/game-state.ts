@@ -9,7 +9,8 @@ import type {
 	CadenceParams, GameSnapshot, GameState, GameStateRow, GameStateSource, ScheduleDay, StoredScheduleDay, Unversioned,
 } from "@bt/domain";
 import {
-	addDays, DEFAULT_CADENCE, gameStateFromGame, gameStateSource, isOtherDaysListing, isSuspendedStatus, joinScheduleDay, listingMovedAway, mlbToday, scheduleWindowMode,
+	addDays, clockWindowMode, DEFAULT_CADENCE, gameStateFromGame, gameStateSource, isOtherDaysListing,
+	isSuspendedStatus, joinScheduleDay, listingMovedAway, mlbToday, scheduleWindowMode,
 	stampVersion, suspendedSince,
 } from "@bt/domain";
 import type {
@@ -293,22 +294,29 @@ export async function readScheduleDay(deps: GameStateDeps, date: string, now: Da
 /**
  * The served game (S150 AC 6): the stored snapshot with its status and linescore from its row (the snapshot's own
  * when there is none), keeping the snapshot's `version`, so the HTTP read and the game hub's pushes compare as before,
- * and taking the later `lastChangedAt` of the two, so its cache headers (ADR-021) follow a state change.
+ * and taking the later `lastChangedAt` of the two, so its cache headers (ADR-021) follow a state change. Its
+ * `windowMode` is judged at `now` (`clockWindowMode`, S212, Claude's PR #541 review): a game live ingest stamped
+ * `active` is served `cache` once the clock puts it out of its window, as a served day is, so its body and its header
+ * agree; a game stamped `cache` is served as stamped. The version is unchanged either way (no write, ADR-022).
  */
-export function servedGame(snapshot: GameSnapshot, row: Pick<GameStateRow, "state"> | null): GameSnapshot
+export function servedGame(snapshot: GameSnapshot, row: Pick<GameStateRow, "state"> | null, now: Date): GameSnapshot
 {
-	if (!row) return snapshot;
-	return {
+	const served = row ? {
 		...snapshot,
 		status: row.state.status,
 		linescore: row.state.linescore,
 		lastChangedAt: Date.parse(row.state.lastChangedAt) > Date.parse(snapshot.lastChangedAt) ? row.state.lastChangedAt : snapshot.lastChangedAt,
+	} : snapshot;
+	const windowMode = clockWindowMode(served, now);
+	return windowMode === served.windowMode ? served : {
+		...served,
+		windowMode,
 	};
 }
 
-/** The served game for `gamePk` from the store (`servedGame`), or null when no snapshot is stored. */
-export async function readServedGame(deps: Pick<GameStateDeps, "games" | "gameStates">, gamePk: number): Promise<GameSnapshot | null>
+/** The served game for `gamePk` from the store (`servedGame`, its window judged at `now`), or null when no snapshot is stored. */
+export async function readServedGame(deps: Pick<GameStateDeps, "games" | "gameStates">, gamePk: number, now: Date = new Date()): Promise<GameSnapshot | null>
 {
 	const snapshot = await deps.games.getByPk(gamePk);
-	return snapshot ? servedGame(snapshot, await deps.gameStates.getByPk(gamePk)) : null;
+	return snapshot ? servedGame(snapshot, await deps.gameStates.getByPk(gamePk), now) : null;
 }

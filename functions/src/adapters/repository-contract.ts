@@ -743,7 +743,7 @@ export function describeGameRecheckContract(label: string, create: () => GameRec
 		const T = "2024-07-10T12:00:00.000Z";
 		const later = (ms: number) => new Date(Date.parse(T) + ms).toISOString();
 
-		it("S212 AC 5 recheck candidates: each stored game of the dates, its windowMode, its served status and its record", async () =>
+		it("S212 AC 5 recheck candidates: each stored game of the dates, its windowMode, first pitch and suspension, its served status and its record", async () =>
 		{
 			const { games, gameStates } = create();
 			await games.upsert({
@@ -772,6 +772,8 @@ export function describeGameRecheckContract(label: string, create: () => GameRec
 				gamePk: 1,
 				officialDate: "2024-07-05",
 				windowMode: "active",
+				startTime: (await make(1, "2024-07-05")).startTime ?? null,
+				suspendedAt: null,
 				status: {
 					codedGameState: "U",
 					detailedState: "Suspended: Rain",
@@ -782,6 +784,8 @@ export function describeGameRecheckContract(label: string, create: () => GameRec
 				gamePk: 3,
 				officialDate: "2024-07-04",
 				windowMode: "cache",
+				startTime: (await make(3, "2024-07-04")).startTime ?? null,
+				suspendedAt: null,
 				status: {
 					codedGameState: (await make(3, "2024-07-04")).status.codedGameState,
 					detailedState: (await make(3, "2024-07-04")).status.detailedState,

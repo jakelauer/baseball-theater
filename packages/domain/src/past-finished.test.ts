@@ -3,7 +3,7 @@ import {
 } from "vitest";
 import type { GameRecheckCandidate } from "./past-finished.js";
 import {
-	gamesDueForRecheck, isPastFinishedDay, isPastFinishedGame, RECENT_GAME_RECHECK_DAYS, recentRecheckDates,
+	clockWindowMode, gamesDueForRecheck, isPastFinishedDay, isPastFinishedGame, RECENT_GAME_RECHECK_DAYS, recentRecheckDates,
 } from "./past-finished.js";
 import { SCHEDULE_MONTH_REFRESH_INTERVAL_MS } from "./schedule-refresh.js";
 import type { ScheduleDay } from "./types.js";
@@ -88,7 +88,11 @@ describe("isPastFinishedGame (S212 AC 1)", () =>
 	{
 		expect(isPastFinishedGame(game("2026-07-04", FINAL), NOON)).toBe(true);
 		expect(isPastFinishedGame(game("2026-07-05", FINAL), NOON)).toBe(false);
-		expect(isPastFinishedGame(game("2026-07-04", FINAL, "active"), NOON)).toBe(false);
+		// Stored `active` and still in its window by the clock (first pitch late enough that NOON is in its trail).
+		expect(isPastFinishedGame({
+			...game("2026-07-04", FINAL, "active"),
+			startTime: "2026-07-05T10:00:00Z",
+		}, NOON)).toBe(false);
 		expect(isPastFinishedGame(game("2026-07-04", SUSPENDED), NOON)).toBe(false);
 		expect(isPastFinishedGame(game("2026-07-04", {
 			abstractGameState: "Final",
@@ -96,6 +100,50 @@ describe("isPastFinishedGame (S212 AC 1)", () =>
 			detailedState: "Postponed: Rain",
 		}), NOON)).toBe(true);
 		expect(isPastFinishedGame(game("2026-07-04", FINAL), new Date("2026-07-05T03:00:00Z"))).toBe(false);
+	});
+
+	it("S212 AC 1 live-ingested: a final game live ingest left stamped active is past once the clock puts it out of its window", () =>
+	{
+		// First pitch 23:00 UTC on its day: the window runs to 4 h after it plus the 3 h trail, 06:00 UTC the next day.
+		const watched = {
+			...game("2026-07-04", FINAL, "active"),
+			startTime: "2026-07-04T23:00:00Z",
+		};
+		expect(clockWindowMode(watched, new Date("2026-07-05T06:00:00Z"))).toBe("active");
+		expect(isPastFinishedGame(watched, new Date("2026-07-05T06:00:00Z"))).toBe(false);
+		expect(clockWindowMode(watched, new Date("2026-07-05T06:00:01Z"))).toBe("cache");
+		expect(isPastFinishedGame(watched, NOON)).toBe(true);
+		// Without a first pitch, 17:00 UTC of its official date stands in.
+		expect(isPastFinishedGame(game("2026-07-04", FINAL, "active"), NOON)).toBe(true);
+		// A game stamped `cache` stays `cache`, even inside its window.
+		expect(clockWindowMode({
+			...game("2026-07-04", FINAL),
+			startTime: "2026-07-05T10:00:00Z",
+		}, NOON)).toBe("cache");
+		// A suspended game is judged from when BT saw it suspended; a live one is always in its window.
+		expect(clockWindowMode({
+			...game("2026-07-04", SUSPENDED, "active"),
+			suspendedAt: "2026-07-05T14:00:00Z",
+		}, NOON)).toBe("active");
+		expect(clockWindowMode(game("2026-07-04", {
+			abstractGameState: "Live",
+			codedGameState: "I",
+			detailedState: "In Progress",
+		}, "active"), NOON)).toBe("active");
+	});
+
+	it("S212 review live-ingested recheck: the re-check picks a final game stamped active once it is out of its window", () =>
+	{
+		expect(gamesDueForRecheck([{
+			gamePk: 1,
+			officialDate: "2026-07-03",
+			windowMode: "active",
+			startTime: "2026-07-03T23:00:00Z",
+			suspendedAt: null,
+			status: FINAL,
+			checkedAt: null,
+			claimedAt: null,
+		}], NOON, 5 * 60 * 1000).map((candidate) => candidate.gamePk)).toEqual([1]);
 	});
 });
 
@@ -106,6 +154,8 @@ describe("gamesDueForRecheck (S212 AC 5)", () =>
 		gamePk,
 		officialDate,
 		windowMode: "cache",
+		startTime: null,
+		suspendedAt: null,
 		status: FINAL,
 		checkedAt: null,
 		claimedAt: null,

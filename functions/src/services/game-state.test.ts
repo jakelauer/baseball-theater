@@ -863,14 +863,14 @@ describe("readers use the one stored state (S150 AC 6)", () =>
 			version: 9,
 			lastChangedAt: "2026-09-05T23:00:00.000Z",
 		};
-		expect(servedGame(snapshot, null)).toBe(snapshot);
+		expect(servedGame(snapshot, null, IN)).toBe(snapshot);
 		const served = servedGame(snapshot, {
 			state: {
 				...gameStateFromSummary(await summary(FINAL, 5)),
 				version: 2,
 				lastChangedAt: "2026-09-06T03:00:00.000Z",
 			},
-		});
+		}, IN);
 		expect(served.version).toBe(9);
 		expect(served.status).toEqual(FINAL);
 		expect(homeRuns(served)).toBe(5);
@@ -914,7 +914,7 @@ describe("readers use the one stored state (S150 AC 6)", () =>
 		};
 		const { snapshot, state } = await poll(3, new Date(IN.getTime() + 15_000));
 		expect(firstSend).not.toBeNull();
-		const published = servedGame(snapshot, state);
+		const published = servedGame(snapshot, state, new Date(IN.getTime() + 15_000));
 		expect(homeRuns(published)).toBe(3);
 		// The publish is newer than what the viewer got, so the hub (and the client, ADR-022) takes it.
 		expect(await hub.accept(published)).toBe(true);

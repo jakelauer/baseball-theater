@@ -112,7 +112,7 @@ export class GameIngest
 			windowMode: inWindow ? "active" : "cache",
 		}, feedTime);
 		// S150 AC 6: the served game (status and linescore from its one stored state), as the HTTP read and the hub's first send serve it.
-		if (changed || !inWindow) await this.publishToHubs(servedGame(snapshot, state), now);
+		if (changed || !inWindow) await this.publishToHubs(servedGame(snapshot, state, now), now);
 		if (inWindow)
 		{
 			await this.storage.setAlarm(now.getTime() + this.params.intervalMs);

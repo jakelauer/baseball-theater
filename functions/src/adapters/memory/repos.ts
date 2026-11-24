@@ -330,6 +330,8 @@ export class InMemoryGameRepository implements GameRepository
 				gamePk: game.gamePk,
 				officialDate: game.officialDate,
 				windowMode: game.windowMode,
+				startTime: game.startTime ?? null,
+				suspendedAt: game.suspendedAt ?? null,
 				status: {
 					codedGameState: status.codedGameState,
 					detailedState: status.detailedState,

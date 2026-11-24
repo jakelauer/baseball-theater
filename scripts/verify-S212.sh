@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "AC 1: packages/domain/src/past-finished.ts exports isPastFinishedDay (mlbToday, windowMode cache, isScheduleDaySettled with the moved set) and isPastFinishedGame (isSettledGame, windowMode cache, officialDate before mlbToday); tests named 'S212 AC 1' pass (yesterday final, today final, suspended not moved, suspended moved away, stored active, 03:00 UTC, game)"
+check 1 "AC 1: packages/domain/src/past-finished.ts exports isPastFinishedDay (mlbToday, windowMode cache, isScheduleDaySettled with the moved set) and isPastFinishedGame (isSettledGame, windowMode cache as of now, officialDate before mlbToday); tests named 'S212 AC 1' pass (yesterday final, today final, suspended not moved, suspended moved away, stored active, 03:00 UTC, game, live-ingested)"
 check 2 "AC 2: the day, game and digest reads serve stored past, finished data with zero MLB requests on a fresh RefreshCoordinator; unstored, today, future, unfinished and ?refresh=1 still ask MLB (tests named 'S212 AC 2' pass in ingest.past.test.ts and digest.test.ts)"
 check 3 "AC 3: cache-control.ts has PAST_EDGE_TTL_S = 2592000, PAST_STALE_S = 86400, PAST_BROWSER_MAX_AGE_S = 3600 and PAST_CACHE_CONTROL from them; the three routes send it for past, finished data, a partial past digest the floor, everything else today's header (tests named 'S212 AC 3' pass)"
 check 4 "AC 4: an EdgeCachePurger port in packages/ports/src; a Cloudflare adapter (purge_cache, files, BT_CF_PURGE_TOKEN, BT_CF_ZONE_ID, PURGE_URLS_PER_REQUEST = 30; '101 urls' in 4 requests) and a memory double; a no-op without credentials or BT_APP_ORIGIN; storeSchedule and storeGame purge the schedule, digest and game URLs of a changed or new past, finished day or game (tests named 'S212 AC 4' pass)"
@@ -87,7 +87,7 @@ for token in 'mlbToday(' 'isSettledGame(' '"cache"' 'officialDate'; do
 	grep -qF -- "$token" <<<"$game_fn" || bad 1 "isPastFinishedGame does not use $token"
 done
 grep -qF 'past-finished.js' packages/domain/src/index.ts || bad 1 "packages/domain/src/index.ts does not export past-finished.js"
-for name in "S212 AC 1 yesterday final" "S212 AC 1 today final" "S212 AC 1 suspended not moved" "S212 AC 1 suspended moved away" "S212 AC 1 stored active" "S212 AC 1 03:00 UTC" "S212 AC 1 game"; do
+for name in "S212 AC 1 yesterday final" "S212 AC 1 today final" "S212 AC 1 suspended not moved" "S212 AC 1 suspended moved away" "S212 AC 1 stored active" "S212 AC 1 03:00 UTC" "S212 AC 1 game" "S212 AC 1 live-ingested"; do
 	in_file "$DOM" "src/past-finished.test.ts" "$name\\b" || bad 1 "no passing test named '$name' in packages/domain/src/past-finished.test.ts"
 done
 # The read paths, the headers, the purge and the re-check call these two (and no other "past" rule).

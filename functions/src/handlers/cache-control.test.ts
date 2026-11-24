@@ -141,13 +141,15 @@ describe("GET /api/v1/games/:gamePk and /api/v1/schedule Cache-Control (S47)", (
 		} = api();
 		await get("/api/v1/games/823823");
 		const stored = (await games.getByPk(823823))!;
-		// The same game as ingest stores it while it is in its live window (ADR-002).
+		clock.now = new Date(T0.getTime() + 30 * HOUR);
+		// The same game as ingest stores it while it is in its live window (ADR-002), and in it by the clock too (S212: a
+		// stored `active` is judged by the clock): first pitch an hour before the read.
 		await games.upsert({
 			...stored,
 			windowMode: "active",
+			startTime: new Date(clock.now.getTime() - HOUR).toISOString(),
 			version: stored.version + 1,
 		});
-		clock.now = new Date(T0.getTime() + 30 * HOUR);
 		const header = (await get("/api/v1/games/823823")).headers.get("Cache-Control") ?? "";
 		const maxAge = /s-maxage=(\d+)/.exec(header);
 		expect(maxAge === null || Number(maxAge[1]) <= 300).toBe(true);

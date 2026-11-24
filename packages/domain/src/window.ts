@@ -159,7 +159,8 @@ const HOUR_MS = 60 * 60 * 1000;
  * the official date — a floor, not the normal path.
  */
 export function isGameInActiveWindow(
-	game: Pick<ScheduleGameSummary, "officialDate" | "status"> & {
+	game: Pick<ScheduleGameSummary, "officialDate"> & {
+		status: Pick<ScheduleGameSummary["status"], "codedGameState"> & Partial<ScheduleGameSummary["status"]>;
 		startTime?: string | null;
 		gameDate?: string | null;
 		gameDateTime?: string | null;

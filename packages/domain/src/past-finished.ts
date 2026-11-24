@@ -9,7 +9,9 @@ import { isScheduleDaySettled, isSettledGame } from "./backfill.js";
 import { SCHEDULE_MONTH_REFRESH_INTERVAL_MS } from "./schedule-refresh.js";
 import { mlbToday } from "./scoreboard-date.js";
 import type { GameSnapshot, ScheduleDay } from "./types.js";
-import { isFinalStatus, normalizeStatusCode } from "./window.js";
+import {
+	isFinalStatus, isGameInActiveWindow, normalizeStatusCode,
+} from "./window.js";
 
 /**
  * Whether a served schedule day is past and finished (S212 AC 1): its date is before MLB's today (`mlbToday` of
@@ -24,13 +26,42 @@ export function isPastFinishedDay(day: Pick<ScheduleDay, "date" | "games" | "win
 	return day.date < today && day.windowMode === "cache" && isScheduleDaySettled(day, today, moved);
 }
 
+/** What {@link clockWindowMode} and {@link isPastFinishedGame} read of a game. */
+export type WindowedGame = Pick<GameSnapshot, "windowMode" | "officialDate"> & {
+	status: Pick<GameSnapshot["status"], "codedGameState" | "detailedState">;
+	startTime?: string | null;
+	suspendedAt?: string | null;
+};
+
+/**
+ * A game's window as of `now` (S212, Claude's PR #541 review): a game stored `active` is `cache` once the clock puts it
+ * out of its live window (`isGameInActiveWindow`, by its served status, its first pitch `startTime`, or 17:00 UTC of
+ * its official date without one, and a suspended game's `suspendedAt`), as a served day's window is judged on every
+ * read (`scheduleDayWindowMode`). Live ingest stamps every in-window poll `active`, its last post-final poll included,
+ * and nothing rewrites the stamp after, so without this a game watched live would read as in its window forever. No end
+ * time is taken from `lastChangedAt`: a later correction or clip moves it, and would put a long-finished game back in
+ * its window. A game stored `cache` stays `cache`, so nothing outside the window changes its header (ADR-021).
+ */
+export function clockWindowMode(game: WindowedGame, now: Date): GameSnapshot["windowMode"]
+{
+	if (game.windowMode !== "active") return game.windowMode;
+	return isGameInActiveWindow({
+		officialDate: game.officialDate,
+		status: game.status,
+		startTime: game.startTime ?? null,
+		suspendedAt: game.suspendedAt ?? null,
+	}, now) ? "active" : "cache";
+}
+
 /**
  * Whether a served game is past and finished (S212 AC 1): its served state is settled (`isSettledGame`: final,
- * postponed or cancelled), its `windowMode` is `cache`, and its official date is before MLB's today (`mlbToday`).
+ * postponed or cancelled), its `windowMode` as of `now` is `cache` ({@link clockWindowMode}, so a game stored `active`
+ * by live ingest counts once the clock puts it out of its window), and its official date is before MLB's today
+ * (`mlbToday`).
  */
-export function isPastFinishedGame(game: Pick<GameSnapshot, "windowMode" | "officialDate"> & { status: Pick<GameSnapshot["status"], "codedGameState" | "detailedState"> }, now: Date): boolean
+export function isPastFinishedGame(game: WindowedGame, now: Date): boolean
 {
-	return isSettledGame(game.status) && game.windowMode === "cache" && game.officialDate < mlbToday(now);
+	return isSettledGame(game.status) && clockWindowMode(game, now) === "cache" && game.officialDate < mlbToday(now);
 }
 
 /**
@@ -60,6 +91,9 @@ export interface GameRecheckCandidate
 	gamePk: number;
 	officialDate: string;
 	windowMode: GameSnapshot["windowMode"];
+	/** The first pitch and when BT saw it suspended, ISO instants or null (what {@link clockWindowMode} judges by). */
+	startTime: string | null;
+	suspendedAt: string | null;
 	/** The served status (the game's state row's, else its snapshot's). */
 	status: Pick<GameSnapshot["status"], "codedGameState" | "detailedState">;
 	/** When the cron last re-checked the game against MLB, an ISO instant, or null when never. */

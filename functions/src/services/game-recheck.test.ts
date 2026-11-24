@@ -237,4 +237,18 @@ describe("recheckDueGame (S212 AC 5)", () =>
 		expect(candidate?.checkedAt).toBe(NOW.toISOString());
 		warn.mockRestore();
 	});
+
+	it("S212 review live-ingested: a recent final game live ingest left stamped active is re-checked once it is out of its window", async () =>
+	{
+		const deps = memoryDeps();
+		const same = await game();
+		await ingestGame(deps, {
+			...same,
+			fetchedAt: STORED_AT,
+			windowMode: "active",
+		});
+		const calls = withMlb(deps, new Map([[744834, same]]));
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect(calls).toEqual(["fetchGame 744834"]);
+	});
 });

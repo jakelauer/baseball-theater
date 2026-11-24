@@ -380,7 +380,8 @@ export class PostgresGameRepository implements GameRepository
 	}
 
 	/**
-	 * One statement (S212 AC 5): each game of the dates (by the indexed `official_date`), its `windowMode` and its
+	 * One statement (S212 AC 5): each game of the dates (by the indexed `official_date`), its `windowMode`, first pitch and
+	 * suspension time (what `clockWindowMode` judges its window by), and its
 	 * served status (the `game_states` row's, else the snapshot's) taken out of the documents, and its `game_rechecks`
 	 * record, so a tick with no due game costs this one read.
 	 */
@@ -390,6 +391,8 @@ export class PostgresGameRepository implements GameRepository
 			gamePk: games.gamePk,
 			officialDate: games.officialDate,
 			windowMode: sql<GameSnapshot["windowMode"]>`${games.document}->>'windowMode'`,
+			startTime: sql<string | null>`${games.document}->>'startTime'`,
+			suspendedAt: sql<string | null>`${games.document}->>'suspendedAt'`,
 			status: sql<GameRecheckCandidate["status"]>`COALESCE(${gameStates.document}->'status', ${games.document}->'status')`,
 			checkedAt: gameRechecks.checkedAt,
 			claimedAt: gameRechecks.claimedAt,
@@ -402,6 +405,8 @@ export class PostgresGameRepository implements GameRepository
 			gamePk: row.gamePk,
 			officialDate: row.officialDate,
 			windowMode: row.windowMode,
+			startTime: row.startTime ?? null,
+			suspendedAt: row.suspendedAt ?? null,
 			status: {
 				codedGameState: row.status.codedGameState,
 				detailedState: row.status.detailedState,

@@ -138,9 +138,11 @@ describe("past, finished responses' edge lifetime (S212 AC 3)", () =>
 		const deps = memoryDeps();
 		await storePastDay(deps);
 		const stored = (await deps.games.getByPk(744834))!;
+		// Still in its window by the clock too (S212 review: a stored `active` is judged by the clock): first pitch an hour ago.
 		await deps.games.upsert({
 			...stored,
 			windowMode: "active",
+			startTime: new Date(NOW.getTime() - 3600_000).toISOString(),
 			version: stored.version + 1,
 		});
 		const { header, body } = await api(deps)(`/api/v1/digest?date=${PAST_DATE}`);
@@ -198,5 +200,53 @@ describe("past, finished responses' edge lifetime (S212 AC 3)", () =>
 		});
 		const deps = memoryDeps(mlb);
 		expect((await api(deps)(`/api/v1/schedule?date=${PAST_DATE}`)).header).toBe(PAST_CACHE_CONTROL);
+	});
+
+	it("S212 review live-ingested: a past game live ingest left stamped active is served past and finished, its body cache, and so is its digest", async () =>
+	{
+		const deps = memoryDeps();
+		const gamePks = await storePastDay(deps);
+		// As live ingest leaves a game it watched: its last in-window poll stamped `active`, never rewritten.
+		for (const gamePk of gamePks)
+		{
+			const stored = (await deps.games.getByPk(gamePk))!;
+			await deps.games.upsert({
+				...stored,
+				windowMode: "active",
+				version: stored.version + 1,
+			});
+		}
+		const get = api(deps);
+		const game = await get(`/api/v1/games/${gamePks[0]!}`);
+		expect(game.header).toBe(PAST_CACHE_CONTROL);
+		expect(game.body.windowMode).toBe("cache");
+		expect((await get(`/api/v1/digest?date=${PAST_DATE}`)).header).toBe(PAST_CACHE_CONTROL);
+		expect((await get(`/api/v1/schedule?date=${PAST_DATE}`)).header).toBe(PAST_CACHE_CONTROL);
+	});
+
+	it("S212 review late change: a past game whose state changed today (a correction) is still past and finished", async () =>
+	{
+		const deps = memoryDeps();
+		const [gamePk] = await storePastDay(deps);
+		const stored = (await deps.games.getByPk(gamePk!))!;
+		await deps.games.upsert({
+			...stored,
+			windowMode: "active",
+			version: stored.version + 1,
+		});
+		const row = (await deps.gameStates.getByPk(gamePk!))!;
+		await deps.gameStates.write([{
+			...row,
+			state: {
+				...row.state,
+				status: {
+					...row.state.status,
+					detailedState: "Final: scoring change",
+				},
+				version: row.state.version + 1,
+				lastChangedAt: NOW.toISOString(),
+			},
+		}]);
+		expect((await api(deps)(`/api/v1/games/${gamePk!}`)).header).toBe(PAST_CACHE_CONTROL);
 	});
 });

@@ -140,7 +140,7 @@ async function storeGame(
 	}
 	const at = new Date(fetched.fetchedAt);
 	if ((snapshot !== stored || outcome?.stateChanged)
-		&& (isPastFinishedGame(servedGame(snapshot, state), at) || (stored !== null && isPastFinishedGame(servedGame(stored, outcome?.before ?? null), at))))
+		&& (isPastFinishedGame(servedGame(snapshot, state, at), at) || (stored !== null && isPastFinishedGame(servedGame(stored, outcome?.before ?? null, at), at))))
 	{
 		await purgeGameEdge(deps, [snapshot], at);
 	}
@@ -238,7 +238,7 @@ async function pastFinishedChangedGames(deps: Pick<IngestDeps, "games">, changed
 		if (outcome.before !== null && !settled(outcome.before) && !settled(outcome.row)) continue;
 		const snapshot = await deps.games.getByPk(gamePk);
 		if (!snapshot) continue;
-		if (isPastFinishedGame(servedGame(snapshot, outcome.row), now) || isPastFinishedGame(servedGame(snapshot, outcome.before), now)) games.push(snapshot);
+		if (isPastFinishedGame(servedGame(snapshot, outcome.row, now), now) || isPastFinishedGame(servedGame(snapshot, outcome.before, now), now)) games.push(snapshot);
 	}
 	return games;
 }
@@ -487,7 +487,7 @@ export async function getOrRefreshGame(
 	const existing = await deps.games.getByPk(gamePk);
 	if (existing && !force)
 	{
-		const served = servedGame(existing, await deps.gameStates.getByPk(gamePk));
+		const served = servedGame(existing, await deps.gameStates.getByPk(gamePk), now);
 		if (isPastFinishedGame(served, now) || !needsRefresh(deps, `game:${gamePk}`, existing, now, false)) return served;
 	}
 	// Not stored, forced, or stale: asked of MLB (`needsRefresh` is always true for the first two).
@@ -509,7 +509,7 @@ export async function getOrRefreshGame(
 		}
 	});
 	// S150 AC 6: the served game, its status and linescore from the game's one stored state.
-	return readServedGame(deps, gamePk);
+	return readServedGame(deps, gamePk, now);
 }
 
 /**
