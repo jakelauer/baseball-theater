@@ -109,6 +109,40 @@ export function defaultVideoQuality(qualities: readonly VideoQuality[], playback
 	return qualities.find((quality) => quality.url === playbackUrl) ?? qualities[0];
 }
 
+/**
+ * The ladder a remembered quality falls down (#416), best first within each cut. It differs from
+ * `QUALITY_ORDER` (the picker's listing) in one place: the adaptive stream, "Auto", sits above
+ * its cut's files, since it adapts up to the sharpest of them. So a remembered Auto a clip can't
+ * play falls to the sharpest MP4 of its cut, which is also where B415's hls.js failure lands
+ * (`fileQuality`), and the two paths agree.
+ */
+const FALLBACK_LADDER = ["hlsCloud", "HTTP_CLOUD_WIRED_60", "HTTP_CLOUD_WIRED", "highBit", "mp4Avc", "portrait_hlsCloud", "portrait_mp4Avc"];
+
+/**
+ * The quality a clip starts in once the reader has chosen one (#416; owner, 2026-11-23: "it should
+ * record the preference but fall back to whatever's there without recording that as the
+ * preference"): `preferredId` when the clip has it, else the nearest quality below it on
+ * {@link FALLBACK_LADDER}, else the nearest above, looking first within the preference's own cut
+ * (portrait or landscape), then across both. With no preference, or one the ladder doesn't know
+ * (`default`, a name MLB added), it is `defaultVideoQuality`'s pick. Callers never store what this
+ * returns: only the reader's own choice is the preference.
+ */
+export function rememberedVideoQuality(qualities: readonly VideoQuality[], preferredId: string | null, playbackUrl: string | null): VideoQuality | undefined
+{
+	const exact = qualities.find((quality) => quality.id === preferredId);
+	if (exact) return exact;
+	const at = preferredId === null ? -1 : FALLBACK_LADDER.indexOf(preferredId);
+	if (at === -1) return defaultVideoQuality(qualities, playbackUrl);
+	const portrait = preferredId!.startsWith("portrait_");
+	const ranked = qualities.filter((quality) => FALLBACK_LADDER.includes(quality.id));
+	const sameCut = ranked.filter((quality) => isPortrait(quality) === portrait);
+	const pool = sameCut.length > 0 ? sameCut : ranked;
+	const rank = (quality: VideoQuality) => FALLBACK_LADDER.indexOf(quality.id);
+	const below = pool.filter((quality) => rank(quality) > at).sort((a, b) => rank(a) - rank(b))[0];
+	const above = pool.filter((quality) => rank(quality) < at).sort((a, b) => rank(b) - rank(a))[0];
+	return below ?? above ?? defaultVideoQuality(qualities, playbackUrl);
+}
+
 /** True for a cut MLB made for a phone held upright (`portrait_mp4Avc`, `portrait_hlsCloud`). */
 function isPortrait(quality: VideoQuality): boolean
 {
