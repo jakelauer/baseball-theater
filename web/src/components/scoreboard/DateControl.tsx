@@ -34,12 +34,15 @@ export interface DateControlProps
 
 /**
  * The scoreboard's date control (S31; S66; S125): ‹ [calendar glyph `SEP 21, 2026` ▾] › on a
- * hairline bar under the header, edge to edge. Previous and next are links to the day before and
- * after (`addDays`), so the day lives in the URL and back / forward work. The middle is A8's
- * `date-selector` button, Raised current while open, which opens `CalendarPanel`: a bottom sheet
- * on mobile sliding up in 200ms (in place, no slide, when the device asks for reduced motion) and a
- * dropdown under the button on medium and desktop. Neither adds to the URL or the history; a click
- * outside or Esc closes it without changing the day.
+ * hairline bar under the header, edge to edge. The arrows sit centered beside the button with a
+ * fixed gap at every width, never spread to the bar's ends (B425, #425; owner, 2026-11-23: "should
+ * be moved to be next to the calendar with some buffer space to avoid accidentally hitting the
+ * calendar"). Previous and next are links to the day before and after (`addDays`), so the day
+ * lives in the URL and back / forward work. The middle is A8's `date-selector` button, Raised
+ * current while open, which opens `CalendarPanel`: a bottom sheet on mobile sliding up in 200ms
+ * (in place, no slide, when the device asks for reduced motion) and a dropdown under the button on
+ * medium and desktop. Neither adds to the URL or the history; a click outside or Esc closes it
+ * without changing the day.
  *
  * The open state is this component's own, and the scoreboard gives it a `key` of the day, so any
  * change of day (a pick, an arrow, the browser's Back) remounts it closed (A8, "Back"). It asks for
@@ -109,7 +112,8 @@ export function DateControl({
 			component="nav"
 			aria-label="Date"
 			data-testid="date-control"
-			justify="space-between"
+			justify="center"
+			gap="lg"
 			wrap="nowrap"
 			px="md"
 			py={8}
