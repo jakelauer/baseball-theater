@@ -207,6 +207,23 @@ describe("the shell's site footer (S142)", () =>
 		await footer();
 	});
 
+	for (const [page, heading] of [["about", "About"], ["privacy", "Privacy policy"], ["terms", "Terms of use"]] as const)
+	{
+		it(`S154 AC 1 ${page}: /${page} renders its page's heading, with the site footer after <main>`, async () =>
+		{
+			renderApp(`/${page}`);
+			expect(await screen.findByRole("heading", {
+				level: 1,
+				name: heading,
+			})).toBeInTheDocument();
+			expect(screen.getByRole("main")).toContainElement(screen.getByRole("heading", {
+				level: 1,
+			}));
+			await footer();
+			expect(screen.getByLabelText("path")).toHaveTextContent(new RegExp(`^/${page}$`));
+		});
+	}
+
 	it("S142 AC 1 loading: no footer while a page loads, so it never jumps; it appears under the page once it settles", async () =>
 	{
 		let answer: (response: Response) => void = () => undefined;
@@ -359,5 +376,21 @@ describe("the shell's site footer (S142)", () =>
 			name: /settings/i,
 		})).toBeInTheDocument();
 		expect(screen.getByLabelText("path")).toHaveTextContent(/^\/settings$/);
+	});
+
+	it("S154 AC 4: About, Privacy policy and Terms of use each open their own page", async () =>
+	{
+		renderApp("/standings");
+		for (const [name, path, heading] of [["About", "/about", "About"], ["Privacy policy", "/privacy", "Privacy policy"], ["Terms of use", "/terms", "Terms of use"]] as const)
+		{
+			await userEvent.click(within(await footer()).getByRole("link", {
+				name,
+			}));
+			expect(await screen.findByRole("heading", {
+				level: 1,
+				name: heading,
+			})).toBeInTheDocument();
+			expect(screen.getByLabelText("path")).toHaveTextContent(new RegExp(`^${path}$`));
+		}
 	});
 });
