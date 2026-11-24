@@ -61,6 +61,7 @@ function setup(): string
 		recursive: true,
 	});
 	writeFileSync(join(repo, "docs/v3/AUDIT.md"), `# Ledger\n\n${MARKER}\n`);
+	endReviews(repo);
 	writeFileSync(join(repo, ".gitignore"), "node_modules\n.run/\n");
 	git(repo, "add", "-A");
 	git(repo, "commit", "-q", "-m", "base");
@@ -87,9 +88,37 @@ function setup(): string
 type Ev = { kind: string;
 	id?: string;
 	pr?: number;
+	review?: string;
+	base?: string;
 	at: string };
 
-function journal(root: string, id = RUN, extra: Ev[] = [], path = ".run/run.json"): void
+/** Both end-of-run reviews started after the journal's last story merge (11:30), as run-backlog step 6 asks. */
+const END_STARTS: Ev[] = ["backlog", "parity"].map((review) => ({
+	kind: "review-start",
+	review,
+	base: "abc1234",
+	at: "2026-11-21T11:45:00.000Z",
+}));
+
+/** A review fragment in the tree: a verdict (`review`) or a `skip`, stamped `stamp`. */
+function reviewEntry(root: string, review: "backlog" | "parity", stamp: string, kind: "review" | "skip" = "review"): void
+{
+	const name = review === "backlog" ? "backlog review" : "doc parity review";
+	mkdirSync(join(root, "docs/v3/audit/2026-11-21"), {
+		recursive: true,
+	});
+	writeFileSync(join(root, `docs/v3/audit/2026-11-21/${stamp}-${review}-${kind}.md`), `## 2026-11-21 — ${name} ${kind === "review" ? "(`continue`)" : "skipped"}\n\n| | |\n|---|---|\n`);
+}
+
+/** Both end-of-run reviews' verdicts, stamped after END_STARTS. */
+function endReviews(root: string): void
+{
+	reviewEntry(root, "backlog", "20261121T120000Z");
+	reviewEntry(root, "parity", "20261121T120000Z");
+}
+
+/** The default journal ends with its end-of-run reviews started; `ends = false` leaves them out. */
+function journal(root: string, id = RUN, extra: Ev[] = [], path = ".run/run.json", ends = true): void
 {
 	mkdirSync(join(root, ".run"), {
 		recursive: true,
@@ -128,7 +157,7 @@ function journal(root: string, id = RUN, extra: Ev[] = [], path = ".run/run.json
 			kind: "merged",
 			id: "S9",
 			at: "2026-11-21T11:30:00.000Z",
-		}, ...extra],
+		}, ...extra, ...(ends ? END_STARTS : [])],
 	}));
 }
 
@@ -158,7 +187,7 @@ describe("audit.sh run (S158 AC 4)", () =>
 		expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
 		expect(existsSync(join(repo, ".run/run.json"))).toBe(false);
 		const ended = JSON.parse(readFileSync(join(repo, `.run/ended/${RUN}.json`), "utf8")) as { events: unknown[] };
-		expect(ended.events).toHaveLength(6);
+		expect(ended.events).toHaveLength(6 + END_STARTS.length);
 		const [entry] = runEntries(repo);
 		expect(entry).toMatchObject({
 			run: RUN,
@@ -223,6 +252,74 @@ describe("audit.sh run (S158 AC 4)", () =>
 
 describe("audit.sh run refuses what it can't record truly", () =>
 {
+	it("refuses, writing nothing, until both end-of-run reviews started after the last story merged and logged a verdict (run-backlog step 6)", () =>
+	{
+		const bin = setup();
+		journal(repo, RUN, [], ".run/run.json", false);
+		let r = audit(bin, repo, ["run"]);
+		expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+		expect(r.stderr).toContain("end-of-run backlog review has not started since S9 merged");
+		expect(r.stderr).toContain("end-of-run doc parity review has not started");
+		expect(existsSync(join(repo, ".run/run.json"))).toBe(true);
+		expect(runEntries(repo)).toEqual([]);
+		// Started before the last story merged: still refused.
+		journal(repo, RUN, [{
+			kind: "merged",
+			id: "S10",
+			at: "2026-11-21T11:50:00.000Z",
+		}]);
+		r = audit(bin, repo, ["run"]);
+		expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+		expect(r.stderr).toContain("has not started since S10 merged");
+		expect(runEntries(repo)).toEqual([]);
+	});
+
+	it("a skip entry is no verdict: refused", () =>
+	{
+		const bin = setup();
+		rmSync(join(repo, "docs/v3/audit"), {
+			recursive: true,
+			force: true,
+		});
+		reviewEntry(repo, "backlog", "20261121T120000Z", "skip");
+		reviewEntry(repo, "parity", "20261121T120000Z");
+		journal(repo);
+		const r = audit(bin, repo, ["run"]);
+		expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+		expect(r.stderr).toContain("end-of-run backlog review started");
+		expect(r.stderr).not.toContain("doc parity review");
+		expect(runEntries(repo)).toEqual([]);
+	});
+
+	it("a run whose merges were all bugs, or one recorded --abandoned, ends without the end-of-run reviews", () =>
+	{
+		const bin = setup();
+		rmSync(join(repo, "docs/v3/audit"), {
+			recursive: true,
+			force: true,
+		});
+		journal(repo, RUN, [], ".run/run.json", false);
+		expect(audit(bin, repo, ["run", "--abandoned"]).status).toBe(0);
+		const BUGS = "R20261122T090000Z";
+		writeFileSync(join(repo, ".run/run.json"), JSON.stringify({
+			id: BUGS,
+			n: 2,
+			c: 2,
+			startedAt: "2026-11-22T09:00:00.000Z",
+			events: [{
+				kind: "item-start",
+				id: "B5",
+				at: "2026-11-22T09:01:00.000Z",
+			}, {
+				kind: "merged",
+				id: "B5",
+				at: "2026-11-22T10:00:00.000Z",
+			}],
+		}));
+		const r = audit(bin, repo, ["run"]);
+		expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+	});
+
 	const OLD = "R20261120T090000Z";
 	const fragments = () => runEntries(repo).map((e) => e.run);
 

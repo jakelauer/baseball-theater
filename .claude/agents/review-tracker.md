@@ -28,7 +28,7 @@ For each review, separately:
 2. **Threshold** 0-10: the score at which you judge it worth running now, mid-run, rather than at the run's end (both always run then). Keep it steady across the run (start near 7) and say why when you move it.
 3. **Reason and focus**, one paragraph: what raised or lowered the score, and, if it is due, exactly what the review should look at (items, files, docs, the question to answer). A due review reads only that focus plus the next 3 items, so name it precisely.
 
-The hard ceiling is not yours to judge: the debt scripts force a review on any ADR or rule change, or on `REVIEW_CEILING_ITEMS` (`scripts/backlog-vault/runs.ts`) items merged since that review last ran, whatever you score. Don't count toward it.
+The hard ceiling is not yours to judge: the debt scripts force a review on any ADR or rule change, or on `REVIEW_CEILING_ITEMS` (`scripts/backlog-vault/runs.ts`) stories merged since that review last ran, whatever you score. Don't count toward it.
 
 Reply with exactly this, and nothing else (the coordinator copies each line into `claims.ts run event review-score`):
 

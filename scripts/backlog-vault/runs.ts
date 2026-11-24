@@ -23,7 +23,9 @@
  *       [--abandoned] [--rerecord]   exit 1, saying why, when `audit.sh run` can't record the run truly:
  *       (a) an ended run has no entry in this tree (its entry is missing from the bar and from `concurrency`;
  *       not checked for --abandoned, whose entry never counts; for --rerecord, only runs that started earlier);
- *       (b) this run already has an entry; (c) an item is still in flight (not checked for --abandoned).
+ *       (b) this run already has an entry; (c) an item is still in flight (not checked for --abandoned); (d) a story
+ *       merged in the run and its end-of-run backlog and parity reviews haven't both started after the last one and
+ *       logged a verdict ({@link endReviewProblems}; not checked for --abandoned or --rerecord).
  *       A journal marked `"abandoned": true` (claims.ts `run end --abandoned`) counts as --abandoned here and
  *       in `fragment`. Any command that fails other than by refusing exits 2.
  *   node scripts/backlog-vault/runs.ts fragment --journal <run.json> --findings <json> --date <d> --stamp <s>
@@ -35,6 +37,9 @@
  *       inside a run, whether that review is due by the review tracker's newest score or the hard ceiling
  *       ({@link reviewState}); `--changed` names each rule, ADR or gate change since the review last logged
  *       (the debt scripts pass `ceiling_changes`, scripts/lib/story-notes.sh). Prints the state; exit 1 when due, 0 when not
+ *   node scripts/backlog-vault/runs.ts review-base --review backlog|parity --journal <run.json> [--audit <ledger>]
+ *       `<base>\t<logged>` for the review's newest `review-start` that recorded a base ({@link reviewBase}), or nothing
+ *       before its first start in the run (the debt scripts then count rule changes from its newest ledger entry)
  */
 
 import {
@@ -64,11 +69,85 @@ export const roundFindings = (x: number) => Math.round(x * 1000) / 1000;
 /**
  * The hard ceiling's item count (owner, 2026-11-24, asked whether the review tracker should also have a hard
  * ceiling that forces a review regardless of its judgment, "any ADR or rule change, or ~10 items since the last
- * review": "Yes, with a ceiling (Recommended)"): this many items merged in a run since a review type last ran
+ * review": "Yes, with a ceiling (Recommended)"): this many stories merged in a run since a review type last ran
  * in it forces that review, whatever the tracker scored. The one place the number is stated; the run-backlog
  * skill and the debt scripts quote it from here.
  */
 export const REVIEW_CEILING_ITEMS = 10;
+
+/**
+ * Whether a merged item counts toward the ceiling and the end-of-run reviews: a story only. Bugs never need a
+ * backlog review (owner, 2026-11-18), and asked whether to keep them out of the ceiling the owner chose "Keep bugs
+ * out (Recommended)" (2026-11-24: "Matches your rule that bugs never need backlog reviews; the tracker can still ask
+ * for one if a bug changes something reviews care about"); fix items (`F<N>`) are tooling, which the rule-change
+ * part of the ceiling covers.
+ */
+const isStory = (id: string | undefined) => /^S\d+$/.test(id ?? "");
+
+/** A journal time as a ledger fragment's stamp (`2026-11-24T09:00:00.000Z` → `20261124T090000Z`), so the two compare as strings. */
+export const stampOf = (at: string) => at.replace(/\.\d+Z$/, "Z").replace(/[-:]/g, "");
+
+/** A ledger fragment's stamp from its path (`audit/<date>/<stamp>-…`); undefined for an AUDIT.md entry, which predates every run. */
+const fragmentStamp = (e: LedgerEntry) => /(?:^|\/)(\d{8}T\d{6}Z)-/.exec(e.file ?? "")?.[1];
+
+/** The review's newest `review-start` in the journal, if any. */
+function lastStart(events: RunEvent[], review: TrackedReview): RunEvent | undefined
+{
+	return [...events].reverse().find((e) => e.kind === "review-start" && e.review === review);
+}
+
+/** Whether the ledger holds a verdict entry of that review (not a skip or answers) stamped after `at`. */
+function loggedAfter(ledger: LedgerEntry[], review: TrackedReview, at: string): boolean
+{
+	return ledger.some((e) => e.kind === "review" && e.review === review && (fragmentStamp(e) ?? "") > stampOf(at));
+}
+
+/**
+ * Where the ceiling's rule changes count from for one review inside a run (run-backlog step 2, "Reviews inside a
+ * run"): the `origin/stage` commit its newest `review-start` recorded, and whether that review has since logged
+ * its verdict. Undefined before its first start in the run (or for a start written before starts carried a base):
+ * the debt scripts then count from the review's newest ledger entry. Once it has logged, the scripts count only
+ * what changed both since the start and since that entry, so the review's own rule edits never force it again.
+ */
+export function reviewBase(journal: RunJournal, review: TrackedReview, ledger: LedgerEntry[]): { base: string;
+	logged: boolean } | undefined
+{
+	const start = lastStart(journal.events, review);
+	return start?.base ? {
+		base: start.base,
+		logged: loggedAfter(ledger, review, start.at),
+	} : undefined;
+}
+
+/**
+ * Why a run can't end yet (run-backlog step 6; owner, 2026-11-24: "Then in addition to any mid-run reviews, we always
+ * run the reviews at the end too"): once a story has merged in it, each of the backlog and parity reviews needs a
+ * `review-start` after the last story's merge and a verdict entry (a review, never a skip or answers) stamped after
+ * that start. Empty when no story merged. `audit.sh run --abandoned` and `--rerecord` don't ask (runs.ts check-end).
+ */
+export function endReviewProblems(journal: RunJournal, ledger: LedgerEntry[]): string[]
+{
+	const last = [...journal.events].reverse().find((e) => e.kind === "merged" && isStory(e.id));
+	if (!last)
+	{
+		return [];
+	}
+	const problems: string[] = [];
+	for (const review of TRACKED_REVIEWS)
+	{
+		const name = review === "backlog" ? "backlog review" : "doc parity review";
+		const start = [...journal.events].reverse().find((e) => e.kind === "review-start" && e.review === review && e.at > last.at);
+		if (!start)
+		{
+			problems.push(`the end-of-run ${name} has not started since ${last.id} merged (${last.at}): run it and log run event review-start --review ${review} (run-backlog step 6), or record the run with --abandoned`);
+		}
+		else if (!loggedAfter(ledger, review, start.at))
+		{
+			problems.push(`the end-of-run ${name} started (${start.at}) but its verdict entry is not in this tree (a skip or answers entry doesn't count): merge its pull request first`);
+		}
+	}
+	return problems;
+}
 
 /** What one item did in a run, every duration active time in milliseconds. */
 export interface ItemTimes
@@ -407,7 +486,7 @@ export interface ReviewState
 	due: boolean;
 	/** The tracker's newest `review-score` for this review since it last started in the run, if any. */
 	latest?: RunEvent;
-	/** Items (not bugs) merged since this review last started in the run, or since the run started. */
+	/** Stories merged since this review last started in the run, or since the run started. */
 	merged: string[];
 	/** Why the ceiling forces the review: the item count reached, and each rule, ADR or gate change passed in. */
 	ceiling: string[];
@@ -419,9 +498,9 @@ export interface ReviewState
  * or item count, a super light agent simply tracks how important each review type is over the lifetime of the
  * run. Then if it exceeds its own judged threshold for the importance of a given review, it inserts it into the
  * plan"). Due when the newest `review-score` for it since its last `review-start` crossed its threshold, or the
- * ceiling holds: {@link REVIEW_CEILING_ITEMS} items merged since that start (or the run's), or any entry in
- * `changed` (a rule, ADR or `pnpm verify` change since the review last logged, which the caller reads from git).
- * A bug's merge is not counted: finishing a bug never counts toward review debt (CLAUDE.md, owner, 2026-11-18).
+ * ceiling holds: {@link REVIEW_CEILING_ITEMS} stories merged since that start (or the run's), or any entry in
+ * `changed` (a rule, ADR or `pnpm verify` change since that start, {@link reviewBase}, which the caller reads from git).
+ * Only a story's merge counts (see isStory).
  */
 export function reviewState(journal: RunJournal, review: TrackedReview, changed: string[]): ReviewState
 {
@@ -436,9 +515,9 @@ export function reviewState(journal: RunJournal, review: TrackedReview, changed:
 	});
 	const since = events.slice(from);
 	const latest = [...since].reverse().find((e) => e.kind === "review-score" && e.review === review);
-	const merged = [...new Set(since.filter((e) => e.kind === "merged" && e.id && !e.id.startsWith("B")).map((e) => e.id!))];
+	const merged = [...new Set(since.filter((e) => e.kind === "merged" && isStory(e.id)).map((e) => e.id!))];
 	const ceiling = [
-		...(merged.length >= REVIEW_CEILING_ITEMS ? [`${merged.length} items merged since the ${review} review last ran in this run (the ceiling is ${REVIEW_CEILING_ITEMS})`] : []),
+		...(merged.length >= REVIEW_CEILING_ITEMS ? [`${merged.length} stories merged since the ${review} review last ran in this run (the ceiling is ${REVIEW_CEILING_ITEMS})`] : []),
 		...changed.map((c) => `${c} changed`),
 	];
 	return {
@@ -462,7 +541,7 @@ export function formatReviewState(journalId: string, s: ReviewState): string
 	return [
 		`${s.review === "backlog" ? "review" : "parity"}: inside run ${journalId}, the ${name} is ${s.due ? "due" : "not due"} by the review tracker and its ceiling (run-backlog step 2, "Reviews inside a run"), not by the 6-story count.`,
 		`  - ${score}`,
-		`  - ceiling: ${s.merged.length} of ${REVIEW_CEILING_ITEMS} items merged since it last ran in this run${s.merged.length > 0 ? ` (${s.merged.join(", ")})` : ""}`,
+		`  - ceiling: ${s.merged.length} of ${REVIEW_CEILING_ITEMS} stories merged since it last ran in this run${s.merged.length > 0 ? ` (${s.merged.join(", ")})` : ""}`,
 		...s.ceiling.map((c) => `  - ceiling reached: ${c}`),
 	].join("\n");
 }
@@ -653,6 +732,11 @@ function main(argv: string[]): number
 			{
 				problems.push(`still in flight: ${inFlight.join(", ")} (log each one's merged, park or held first, or record the run with --abandoned)`);
 			}
+			// A re-recorded run was checked when it first ended (or predates the end-of-run reviews).
+			if (!abandoned && !values.rerecord)
+			{
+				problems.push(...endReviewProblems(journal, readLedger(audit)));
+			}
 			problems.forEach((p) => console.error(`runs.ts check-end: ${p}`));
 			return problems.length > 0 ? 1 : 0;
 		}
@@ -697,6 +781,19 @@ function main(argv: string[]): number
 		case "debt-hits":
 			console.log(formatHits(debtHits(JSON.parse(readFileSync(values["debt-json"] ?? "", "utf8")))));
 			return 0;
+		case "review-base":
+		{
+			if (!(TRACKED_REVIEWS as readonly string[]).includes(values.review ?? ""))
+			{
+				throw new Error(`review-base needs --review ${TRACKED_REVIEWS.join("|")}`);
+			}
+			const b = reviewBase(readJournal(), values.review as TrackedReview, readLedger(audit));
+			if (b)
+			{
+				console.log(`${b.base}\t${b.logged ? 1 : 0}`);
+			}
+			return 0;
+		}
 		case "review-state":
 		{
 			if (!(TRACKED_REVIEWS as readonly string[]).includes(values.review ?? ""))
@@ -709,7 +806,7 @@ function main(argv: string[]): number
 			return state.due ? 1 : 0;
 		}
 		default:
-			console.error("usage: runs.ts concurrency|id|prs|check-end|fragment|turn-caps|debt-hits|review-state … (see the file's header)");
+			console.error("usage: runs.ts concurrency|id|prs|check-end|fragment|turn-caps|debt-hits|review-state|review-base … (see the file's header)");
 			return 2;
 	}
 }

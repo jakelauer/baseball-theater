@@ -17,7 +17,7 @@ import type { RunEvent, RunJournal } from "./claims.ts";
 import type { LedgerEntry } from "./ledger.ts";
 import type { RunRecord } from "./runs.ts";
 import {
-	concurrencyFromRuns, formatReviewState, renderRunEntry, REVIEW_CEILING_ITEMS, reviewState, summarizeRun, unlistedTurnCaps,
+	concurrencyFromRuns, endReviewProblems, formatReviewState, renderRunEntry, REVIEW_CEILING_ITEMS, reviewBase, reviewState, summarizeRun, unlistedTurnCaps,
 } from "./runs.ts";
 
 const T0 = Date.parse("2026-11-21T00:00:00.000Z");
@@ -399,7 +399,7 @@ describe("reviewState: the review tracker and its ceiling inside a run (run-back
 		expect(backlog.merged).toEqual([]);
 		const parity = reviewState(journal(events), "parity", []);
 		expect(parity.due).toBe(true);
-		expect(parity.ceiling[0]).toContain(`${REVIEW_CEILING_ITEMS} items merged`);
+		expect(parity.ceiling[0]).toContain(`${REVIEW_CEILING_ITEMS} stories merged`);
 	});
 
 	it(`the ceiling forces the review at ${REVIEW_CEILING_ITEMS} merged items whatever the score, one short is not due; bugs never count`, () =>
@@ -407,6 +407,8 @@ describe("reviewState: the review tracker and its ceiling inside a run (run-back
 		expect(reviewState(journal([...merges(REVIEW_CEILING_ITEMS - 1, 1), score(30, "backlog", 0, 9)]), "backlog", []).due).toBe(false);
 		expect(reviewState(journal([...merges(REVIEW_CEILING_ITEMS, 1), score(30, "backlog", 0, 9)]), "backlog", []).due).toBe(true);
 		expect(reviewState(journal([...merges(REVIEW_CEILING_ITEMS - 1, 1), ...merges(5, 20, "B")]), "backlog", []).due).toBe(false);
+		// Only stories count (owner, 2026-11-24: "Keep bugs out (Recommended)"); a fix item is tooling, which the rule ceiling covers.
+		expect(reviewState(journal([...merges(REVIEW_CEILING_ITEMS - 1, 1), ...merges(3, 20, "F")]), "backlog", []).due).toBe(false);
 		// One item merged twice (a follow-up) is one item.
 		expect(reviewState(journal([...merges(REVIEW_CEILING_ITEMS - 1, 1), item("merged", "S100", 30)]), "backlog", []).merged).toHaveLength(REVIEW_CEILING_ITEMS - 1);
 	});
@@ -424,9 +426,65 @@ describe("reviewState: the review tracker and its ceiling inside a run (run-back
 		expect(text).toContain("inside run R1, the backlog review is due");
 		expect(text).toContain("newest score is 4/10 against its threshold 7, after S5");
 		expect(text).toContain("focus at 2");
-		expect(text).toContain(`1 of ${REVIEW_CEILING_ITEMS} items merged since it last ran in this run (S5)`);
+		expect(text).toContain(`1 of ${REVIEW_CEILING_ITEMS} stories merged since it last ran in this run (S5)`);
 		expect(text).toContain("ceiling reached: docs/v3/LOOP.md changed");
 		expect(formatReviewState("R1", reviewState(journal([]), "parity", []))).toContain("doc parity review is not due");
+	});
+});
+
+describe("reviewBase and endReviewProblems: the ceiling's baseline and the end-of-run reviews", () =>
+{
+	const entry = (review: "backlog" | "parity", stamp: string, kind: LedgerEntry["kind"] = "review"): LedgerEntry => ({
+		file: `audit/2026-11-21/${stamp}-${review}-${kind === "review" ? "review" : "skip"}.md`,
+		date: "2026-11-21",
+		kind,
+		review,
+	} as LedgerEntry);
+	const start = (m: number, review: "backlog" | "parity", base?: string) => ev("review-start", m, {
+		review,
+		...(base ? {
+			base,
+		} : {}),
+	});
+	// Minute 60 is 01:00Z: stamps 20261121T010000Z.
+	const merged = (id: string, m: number) => item("merged", id, m);
+
+	it("reviewBase: nothing before the first start (or a start with no base); else the newest start's base, logged once a verdict is stamped after it", () =>
+	{
+		expect(reviewBase(journal([]), "backlog", [])).toBeUndefined();
+		expect(reviewBase(journal([start(10, "backlog")]), "backlog", [])).toBeUndefined();
+		const j = journal([start(10, "backlog", "aaa1111"), start(60, "backlog", "bbb2222"), start(70, "parity", "ccc3333")]);
+		expect(reviewBase(j, "backlog", [])).toEqual({
+			base: "bbb2222",
+			logged: false,
+		});
+		// A verdict stamped before the start, a skip after it, or the other review's verdict: not logged.
+		expect(reviewBase(j, "backlog", [entry("backlog", "20261121T005900Z"), entry("backlog", "20261121T020000Z", "skip"), entry("parity", "20261121T020000Z")])!.logged).toBe(false);
+		expect(reviewBase(j, "backlog", [entry("backlog", "20261121T020000Z")])!.logged).toBe(true);
+	});
+
+	it("endReviewProblems: nothing to ask when no story merged (bugs only), else both reviews must start after the last story merge and log a verdict", () =>
+	{
+		expect(endReviewProblems(journal([merged("B5", 10)]), [])).toEqual([]);
+		const j = journal([merged("S5", 10), merged("B6", 50), start(20, "backlog", "aaa1111"), start(20, "parity", "aaa1111")]);
+		expect(endReviewProblems(j, [entry("backlog", "20261121T003000Z"), entry("parity", "20261121T003000Z")])).toEqual([]);
+	});
+
+	it("endReviewProblems: a review started before the last story merged doesn't count", () =>
+	{
+		const j = journal([start(5, "backlog", "aaa1111"), start(20, "parity", "aaa1111"), merged("S5", 10)]);
+		const problems = endReviewProblems(j, [entry("backlog", "20261121T003000Z"), entry("parity", "20261121T003000Z")]);
+		expect(problems).toHaveLength(1);
+		expect(problems[0]).toContain("end-of-run backlog review has not started since S5 merged");
+	});
+
+	it("endReviewProblems: a skip entry, or a verdict stamped before the start, is no verdict", () =>
+	{
+		const j = journal([merged("S5", 10), start(20, "backlog", "aaa1111"), start(20, "parity", "aaa1111")]);
+		const problems = endReviewProblems(j, [entry("backlog", "20261121T003000Z", "skip"), entry("parity", "20261121T001500Z")]);
+		expect(problems).toHaveLength(2);
+		expect(problems.join("\n")).toContain("backlog review started");
+		expect(problems.join("\n")).toContain("doc parity review started");
 	});
 });
 

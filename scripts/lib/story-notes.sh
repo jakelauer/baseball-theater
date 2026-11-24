@@ -152,15 +152,41 @@ ceiling_changes()
   return 0
 }
 
-# in_run_state <backlog|parity> <base> <main checkout> — inside an open /run-backlog run (the main checkout's
+# ceiling_changes_since_both <a> <b> — the ceiling changes since both commits (comm needs sorted input).
+ceiling_changes_since_both()
+{
+  comm -12 <(ceiling_changes "$1" | sort -u) <(ceiling_changes "$2" | sort -u)
+}
+
+# in_run_state <backlog|parity> <ledger base> <main checkout> — inside an open /run-backlog run (the main checkout's
 # .run/run.json exists), prints the review tracker's state for that review (runs.ts review-state) and returns 1
 # when it is due, 0 when not; returns 3, printing nothing, outside a run; 2 when the journal can't be read.
+# The ceiling's rule changes count from one baseline (run-backlog step 2): the `origin/stage` commit the review's
+# newest `review-start` recorded (runs.ts review-base), or, before its first start in the run, its newest ledger
+# entry (<ledger base>). A start base that HEAD doesn't contain (this checkout is behind it) means no change since
+# the start. Once the review has logged its verdict after that start, only a change since both the start and that
+# entry counts, so its own pull request's rule edits never force it again, while a rules pull request that merged
+# between its start and its log still does. Reads the caller's $LEDGER.
 in_run_state()
 {
-  local journal="$3/.run/run.json" changed=() line
+  local journal="$3/.run/run.json" changed=() line start="" logged=0 from
   [ -f "$journal" ] || return 3
-  while IFS= read -r line; do
-    [ -n "$line" ] && changed+=(--changed "$line")
-  done < <(ceiling_changes "$2")
+  IFS=$'\t' read -r start logged < <(node scripts/backlog-vault/runs.ts review-base --review "$1" --journal "$journal" --audit "$LEDGER" || echo "ERR") || true
+  [ "$start" = "ERR" ] && return 2
+  from="$2"
+  if [ -n "$start" ]; then
+    from="$start"
+  fi
+  if [ -z "$start" ] || git merge-base --is-ancestor "$start" HEAD 2>/dev/null; then
+    while IFS= read -r line; do
+      [ -n "$line" ] && changed+=(--changed "$line")
+    done < <(
+      if [ -n "$start" ] && [ "$logged" = "1" ]; then
+        ceiling_changes_since_both "$from" "$2"
+      else
+        ceiling_changes "$from"
+      fi
+    )
+  fi
   node scripts/backlog-vault/runs.ts review-state --review "$1" --journal "$journal" ${changed[@]+"${changed[@]}"}
 }

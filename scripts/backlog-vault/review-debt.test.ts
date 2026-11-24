@@ -1291,7 +1291,7 @@ describe("review-debt.sh and parity-debt.sh inside an open /run-backlog run: the
 		expect(r.stdout).toContain("ceiling reached: package.json (pnpm verify itself) changed");
 	});
 
-	it("the ceiling: ten items merged since the run started force it; bugs don't count", () =>
+	it("the ceiling: ten stories merged since the run started force it; bugs don't count", () =>
 	{
 		reviewed({
 			".gitignore": "node_modules\n.run/\n",
@@ -1308,7 +1308,63 @@ describe("review-debt.sh and parity-debt.sh inside an open /run-backlog run: the
 		journal(merged("S", 10));
 		const r = debt();
 		expect(r.status, r.stdout).toBe(1);
-		expect(r.stdout).toContain("10 items merged since the backlog review last ran in this run");
+		expect(r.stdout).toContain("10 stories merged since the backlog review last ran in this run");
+	});
+
+	it("the baseline: rule changes count from the review's start base; a rules pull request merged between its start and its log still forces it, its own rule edits don't", () =>
+	{
+		reviewed({
+			".gitignore": "node_modules\n.run/\n",
+			"CLAUDE.md": "one\n",
+			"docs/v3/LOOP.md": "one\n",
+		});
+		const start = git("rev-parse", "HEAD");
+		journal([{
+			kind: "review-start",
+			review: "backlog",
+			base: start,
+			at: at(1),
+		}]);
+		expect(debt().status).toBe(0);
+		// A rules pull request merges while the review runs.
+		write("CLAUDE.md", "two\n");
+		commit("a rules pull request");
+		let r = debt();
+		expect(r.status, r.stdout).toBe(1);
+		expect(r.stdout).toContain("ceiling reached: CLAUDE.md changed");
+		// The review's own pull request, branched from its start: an edit to LOOP.md and its verdict entry, stamped
+		// after its start, merged after the rules pull request.
+		git("checkout", "-q", "-b", "review", start);
+		write("docs/v3/LOOP.md", "two\n");
+		write("docs/v3/audit/2026-11-24/20261124T100000Z-backlog-review.md", "## 2026-11-24 — backlog review (`continue`)\n\n| | |\n|---|---|\n");
+		commit("the review's own pull request");
+		git("checkout", "-q", "main");
+		git("merge", "-q", "--no-ff", "-m", "merge the review", "review");
+		r = debt();
+		expect(r.status, r.stdout).toBe(1);
+		expect(r.stdout).toContain("ceiling reached: CLAUDE.md changed");
+		expect(r.stdout).not.toContain("LOOP.md");
+	});
+
+	it("the baseline: before the review's first start, its own entry; a start base this checkout doesn't contain is no change", () =>
+	{
+		reviewed({
+			".gitignore": "node_modules\n.run/\n",
+			"CLAUDE.md": "one\n",
+		});
+		write("CLAUDE.md", "two\n");
+		commit("a rules change after the last review");
+		journal([]);
+		expect(debt().status).toBe(1);
+		journal([{
+			kind: "review-start",
+			review: "backlog",
+			base: "0123456789abcdef0123456789abcdef01234567",
+			at: at(1),
+		}]);
+		const r = debt();
+		expect(r.status, r.stdout).toBe(0);
+		expect(r.stdout).not.toContain("ceiling reached");
 	});
 
 	it("a journal that doesn't parse stops the script (exit 2), never a silent not-due", () =>

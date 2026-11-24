@@ -200,7 +200,6 @@ export function neighbors(items: BacklogItem[], id: string, window = 2): Backlog
 	return at === -1 ? [] : order.filter((_, k) => k !== at && Math.abs(k - at) <= window);
 }
 
-/** The stories whose `**Source:**` line names the FEATURES row or INTENT pillar `name` (source.ts sourceCitations); a mention elsewhere doesn't count. */
 /**
  * The open bugs of one group (run-backlog step 3, "Bug groups"), in {@link openOrder}: the members a group's
  * one `bug-worker` fixes together, the first being the item the group is scheduled as.
@@ -210,6 +209,7 @@ export function group(items: BacklogItem[], name: string): BacklogItem[]
 	return openOrder(items).filter((i) => i.kind === "bug" && i.group === name);
 }
 
+/** The stories whose `**Source:**` line names the FEATURES row or INTENT pillar `name` (source.ts sourceCitations); a mention elsewhere doesn't count. */
 export function cites(items: BacklogItem[], name: string): BacklogItem[]
 {
 	return items.filter((i) => i.kind === "story" && sourceCitations(i.source).includes(name));

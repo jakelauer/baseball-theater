@@ -507,13 +507,18 @@ describe("CLI in a temp root", () =>
 		it("review-start records the review and its focus; it takes no score", () =>
 		{
 			started();
-			expect(cli(["run", "event", "review-start", "--review", "parity", "--reason", "the run's end"]).status).toBe(0);
+			expect(cli(["run", "event", "review-start", "--review", "parity", "--reason", "the run's end", "--base", "abc1234"]).status).toBe(0);
+			// No --base and no origin to fetch (the temp root is no repository): refused, never a start with no base.
+			expect(cli(["run", "event", "review-start", "--review", "parity"]).status).toBe(1);
+			expect(cli(["run", "event", "review-start", "--review", "parity", "--base", "not-a-sha"]).status).toBe(1);
+			expect(cli(["run", "event", "review-score", "--review", "parity", "--score", "1", "--threshold", "5", "--reason", "r", "--base", "abc1234"]).status).toBe(1);
 			expect(cli(["run", "event", "review-start", "--review", "backlog", "--score", "3"]).status).toBe(1);
 			expect(cli(["run", "event", "review-start"]).status).toBe(1);
 			expect(journal().events).toEqual([expect.objectContaining({
 				kind: "review-start",
 				review: "parity",
 				reason: "the run's end",
+				base: "abc1234",
 			})]);
 		});
 
