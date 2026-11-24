@@ -23,10 +23,13 @@
 # on the state file alone, never on either flag.
 # A due review already recorded on an open pull request counts as handled (same owner words):
 # the review ran and its entry waits to merge, so asking again only re-runs it. Its entry is an
-# added `docs/v3/audit/<date>/<stamp>-<kind>-review.md` (or `-skip.md` / `-answers.md`, which
-# clear a drift event but never a due-by-count or turn-cap backlog review, nor a due-by-count
-# parity review: a skip never resets the count). Read through `gh` (REST); when it can't answer
-# (offline, signed out), the gate behaves as before and asks for the review.
+# added `docs/v3/audit/<date>/<stamp>-<kind>-review.md` (or `-skip.md` / `-answers.md`) on a pull
+# request from this repository (never a fork's), and it covers only what was due at its branch's
+# base: an event since that base (`<debt script> --json --since <merge-base>`), or 6 more stories
+# done since it, is due again, so an old parked review's pull request never silences a new one.
+# A skip or answers entry never clears a due-by-count or turn-cap review (a skip never resets
+# the count). Read through `gh` (REST), at most once a minute (cached under the git dir); when
+# `gh` or a debt script's `--json` can't answer, the gate behaves as before and asks.
 
 set -uo pipefail
 mode="${1:-stop}"
@@ -44,28 +47,68 @@ blocked() {
 
 [ -n "$(git status --porcelain 2>/dev/null)" ] && exit 0
 
-# The review entries open pull requests add, one `<kind>-<entry>` a line (`backlog-review`,
-# `parity-skip`, …), read once and only when a review is due; empty when `gh` can't answer.
+# The review entries open same-repository pull requests add, one `<kind>-<entry> <head sha>` a line
+# (`backlog-review 1a2b…`, `parity-skip …`), read only when a review is due; empty when `gh` can't
+# answer. Cached for 60 seconds, so a prompt and the Stop that ends its turn make one set of calls.
 pending=""
 pending_read=""
 pending_entries() {
   [ -n "$pending_read" ] && return 0
   pending_read=1
-  local prs n
-  prs="$(gh api 'repos/{owner}/{repo}/pulls?state=open&per_page=100' --jq '.[].number' 2>/dev/null)" || return 0
-  pending="$(for n in $prs; do
-    gh api "repos/{owner}/{repo}/pulls/${n}/files?per_page=100" --jq '.[] | select(.status == "added") | .filename' 2>/dev/null
-  done | sed -nE 's#^docs/v3/audit/[^/]+/[^/]+-((backlog|parity)-(review|skip|answers))\.md$#\1#p' | sort -u)"
+  local cache prs n sha
+  cache="$(git rev-parse --git-dir)/bt-review-gate-prs"
+  if [ -f "$cache" ] && [ $(( $(date +%s) - $(stat -f %m "$cache" 2>/dev/null || stat -c %Y "$cache" 2>/dev/null || echo 0) )) -lt 60 ]; then
+    pending="$(cat "$cache")"
+    return 0
+  fi
+  prs="$(gh api --paginate 'repos/{owner}/{repo}/pulls?state=open&per_page=100' --jq '.[]' 2>/dev/null |
+    node -e 'for (const l of require("fs").readFileSync(0, "utf8").split("\n").filter(Boolean)) { const p = JSON.parse(l); if (p.head?.repo?.full_name && p.head.repo.full_name === p.base?.repo?.full_name) console.log(p.number, p.head.sha); }' 2>/dev/null)" || return 0
+  pending="$(while read -r n sha; do
+    [ -n "$n" ] || continue
+    gh api --paginate "repos/{owner}/{repo}/pulls/${n}/files?per_page=100" --jq '.[]' 2>/dev/null |
+      node -e 'for (const l of require("fs").readFileSync(0, "utf8").split("\n").filter(Boolean)) { const f = JSON.parse(l); if (f.status === "added") console.log(f.filename); }' 2>/dev/null |
+      sed -nE "s#^docs/v3/audit/[^/]+/[^/]+-((backlog|parity)-(review|skip|answers))\\.md\$#\\1 ${sha}#p"
+  done <<<"$prs" | sort -u)"
+  printf '%s' "$pending" >"$cache"
+}
+
+# json_field <expr>: evaluates a JS expression over the JSON on stdin as `j`, printing its lines.
+json_field() {
+  node -e 'const j = JSON.parse(require("fs").readFileSync(0, "utf8")); const v = eval(process.argv[1]); for (const x of [].concat(v)) console.log(x);' "$1"
+}
+
+# covers <debt script> <head sha>: the pending entry's branch base saw everything due now: no
+# event other than the story count or a turn-cap hit since it, and fewer than 6 of the stories
+# done since the last review shipped (their snapshot fragment added) after it.
+covers() {
+  local mb since id after=0
+  mb="$(git merge-base HEAD "$2" 2>/dev/null)" || return 1
+  since="$("$1" --json --since "$mb" 2>/dev/null)" || return 1
+  [ -z "$(json_field 'j.events.map((e) => e.kind).filter((k) => k !== "count" && k !== "turn-cap")' <<<"$since" 2>/dev/null || echo bad)" ] || return 1
+  for id in $(json_field 'j.done' <<<"$since" 2>/dev/null); do
+    git diff --name-only --diff-filter=A "$mb" HEAD -- docs/v3/audit | grep -qE -- "-${id}-snapshot\.md$" && after=$((after + 1))
+  done
+  [ "$after" -lt 6 ]
 }
 
 # handled <backlog|parity> <its debt script>: the due review is already recorded on an open pull
-# request. A pending review always is; a pending skip or answers entry only when nothing due is
-# a story count or a turn-cap hit, which only a review clears.
+# request whose base covers it. A pending review is; a pending skip or answers entry only when
+# nothing due now is a story count or a turn-cap hit, which only a review clears. Any `--json`
+# that fails or doesn't parse counts as not handled, so the gate asks.
 handled() {
+  local kind sha now kinds
   pending_entries
-  grep -qx "$1-review" <<<"$pending" && return 0
-  grep -qxE "$1-(skip|answers)" <<<"$pending" || return 1
-  ! "$2" --json 2>/dev/null | grep -qE '"kind":"(count|turn-cap)"'
+  while read -r kind sha; do
+    [ "$kind" = "$1-review" ] && covers "$2" "$sha" && return 0
+  done <<<"$pending"
+  while read -r kind sha; do
+    case "$kind" in "$1-skip" | "$1-answers") ;; *) continue ;; esac
+    now="$("$2" --json 2>/dev/null)" || return 1
+    kinds="$(json_field 'j.events.map((e) => e.kind)' <<<"$now" 2>/dev/null)" || return 1
+    grep -qxE 'count|turn-cap' <<<"$kinds" && return 1
+    covers "$2" "$sha" && return 0
+  done <<<"$pending"
+  return 1
 }
 
 todo=()

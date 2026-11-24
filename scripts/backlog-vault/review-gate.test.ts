@@ -32,30 +32,60 @@ function write(path: string, text: string, exec = false): void
 	if (exec) chmodSync(join(repo, path), 0o755);
 }
 
-/**
- * A clean repository holding the gate, debt scripts that say `review` and `parity` debts, and a ledger CLI answering `blocked`.
- * `events` are the due backlog review's `--json` event kinds (a drift event by default; `count` is a due-by-count review).
- */
-function world(reviewDue: boolean, blocked: string, events: string[] = ["inserted"]): void
+/** What the stub debt scripts answer: `events` (the `--json` event kinds now), `since` (those `--json --since <sha>` reports), `done`, and `jsonFails`. */
+interface Debt
 {
-	copyFileSync(GATE, join(mkdirOf("scripts/review-gate.sh"), "review-gate.sh"));
-	const json = JSON.stringify({
+	events?: string[];
+	since?: string[];
+	done?: string[];
+	jsonFails?: boolean;
+}
+
+/** A stub debt script: due with its text when `due`, else clear; `--json` (and `--since`) answer as `debt` says. */
+function debtScript(due: boolean, label: string, debt: Debt): string
+{
+	if (!due) return "#!/bin/sh\nexit 0\n";
+	const json = (kinds: string[]) => JSON.stringify({
 		due: true,
-		events: events.map((kind) => ({
+		done: debt.done ?? [],
+		events: kinds.map((kind) => ({
 			kind,
 		})),
 	});
-	write("scripts/review-debt.sh", reviewDue
-		? `#!/bin/sh\nif [ "$1" = "--json" ]; then echo '${json}'; exit 0; fi\necho 'A backlog review is due: 6 stories done.'\nexit 1\n`
-		: "#!/bin/sh\nexit 0\n", true);
-	write("scripts/parity-debt.sh", "#!/bin/sh\nexit 0\n", true);
+	const jsonBranch = debt.jsonFails
+		? "if [ \"$1\" = \"--json\" ]; then exit 2; fi\n"
+		: `if [ "$1" = "--json" ] && [ "$2" = "--since" ]; then echo '${json(debt.since ?? [])}'; exit 0; fi\nif [ "$1" = "--json" ]; then echo '${json(debt.events ?? ["inserted"])}'; exit 0; fi\n`;
+	return `#!/bin/sh\n${jsonBranch}echo '${label}'\nexit 1\n`;
+}
+
+let prHead = "";
+
+const git = (...args: string[]) => spawnSync("git", ["-c", "user.name=T", "-c", "user.email=t@e", "-c", "core.hooksPath=/dev/null", ...args], {
+	cwd: repo,
+	encoding: "utf8",
+}).stdout.trim();
+
+/**
+ * A clean repository holding the gate, stub debt scripts and a ledger CLI answering `blocked`. `prHead` is a commit on
+ * the base, as an open pull request's head; `later` stories' snapshot fragments are committed after it, so they shipped
+ * after that pull request's base.
+ */
+function world(reviewDue: boolean, blocked: string, debt: Debt = {}, parity?: Debt, later: string[] = []): void
+{
+	copyFileSync(GATE, join(mkdirOf("scripts/review-gate.sh"), "review-gate.sh"));
+	write("scripts/review-debt.sh", debtScript(reviewDue, "A backlog review is due: 6 stories done.", debt), true);
+	write("scripts/parity-debt.sh", debtScript(parity !== undefined, "A doc parity review is due.", parity ?? {}), true);
 	write("scripts/backlog-vault/cli.ts", `const kind = process.argv.at(-1); console.log(kind === ${JSON.stringify(blocked)} ? "blocked" : "clear");\n`);
 	write("docs/v3/AUDIT.md", "# Ledger\n");
-	for (const args of [["init", "-q"], ["add", "-A"], ["-c", "user.name=T", "-c", "user.email=t@e", "-c", "core.hooksPath=/dev/null", "commit", "-qm", "base"]])
+	git("init", "-q");
+	git("add", "-A");
+	git("commit", "-qm", "base");
+	prHead = git("commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "pull request head");
+	if (later.length > 0)
 	{
-		spawnSync("git", args, {
-			cwd: repo,
-		});
+		for (const id of later) write(`docs/v3/audit/2026-11-24/20261124T000000Z-${id}-snapshot.md`, "snapshot\n");
+		git("add", "-A");
+		git("commit", "-qm", "later stories");
 	}
 }
 
@@ -68,15 +98,43 @@ function mkdirOf(path: string): string
 	return dir;
 }
 
-/**
- * A fake `gh` on PATH: the open pull requests list answers `1`, and pull request 1's added files are `files`;
- * `fail` makes every call fail, as `gh` does offline or signed out.
- */
-function fakeGh(files: string[], fail = false): void
+/** One open pull request the fake `gh` lists: its files (added unless `status` says otherwise) and whether it comes from a fork. */
+interface FakePr
 {
-	writeFileSync(join(bin, "gh"), fail
+	files: string[];
+	status?: string;
+	fork?: boolean;
+}
+
+/**
+ * A fake `gh` on PATH answering `gh api --paginate … --jq '.[]'` with one JSON object a line, unfiltered, as the REST
+ * API returns them: the open pull requests (number i + 1, head `prHead`) and each one's files. `fail` makes every call
+ * fail, as `gh` does offline or signed out.
+ */
+function fakeGh(prs: FakePr[], fail = false): void
+{
+	const list = prs.map((pr, i) => JSON.stringify({
+		number: i + 1,
+		head: {
+			sha: prHead,
+			repo: {
+				full_name: pr.fork ? "someone/fork" : "owner/repo",
+			},
+		},
+		base: {
+			repo: {
+				full_name: "owner/repo",
+			},
+		},
+	}));
+	const files = prs.map((pr) => pr.files.map((filename) => JSON.stringify({
+		filename,
+		status: pr.status ?? "added",
+	})).join("\n"));
+	const script = fail
 		? "#!/bin/sh\nexit 1\n"
-		: `#!/bin/sh\ncase "$*" in\n  */files*) printf '%s\\n' ${files.map((f) => `'${f}'`).join(" ")} ;;\n  *) echo 1 ;;\nesac\n`);
+		: `#!/usr/bin/env node\nconst args = process.argv.slice(2).join(" ");\nconst list = ${JSON.stringify(list.join("\n"))};\nconst files = ${JSON.stringify(files)};\nconst m = /pulls\\/(\\d+)\\/files/.exec(args);\nconsole.log(m ? files[Number(m[1]) - 1] ?? "" : list);\n`;
+	writeFileSync(join(bin, "gh"), script);
 	chmodSync(join(bin, "gh"), 0o755);
 }
 
@@ -188,10 +246,19 @@ describe("review-gate.sh stop loop guard", () =>
 
 describe("review-gate.sh with the due review already on an open pull request", () =>
 {
+	const REVIEW = "docs/v3/audit/2026-11-24/20261124T040541Z-backlog-review.md";
+	const SKIP = "docs/v3/audit/2026-11-24/20261124T045520Z-backlog-skip.md";
+	const PARITY_REVIEW = "docs/v3/audit/2026-11-24/20261124T004216Z-parity-review.md";
+
 	it("treats a backlog review recorded on an open pull request as handled", () =>
 	{
-		world(true, "none", ["count"]);
-		fakeGh(["docs/v3/audit/2026-11-24/20261124T040541Z-backlog-review.md"]);
+		world(true, "none", {
+			events: ["count"],
+			since: ["count"],
+		});
+		fakeGh([{
+			files: [REVIEW],
+		}]);
 		expect(prompt()).toBe("");
 		expect(stop({
 			stop_hook_active: false,
@@ -200,22 +267,121 @@ describe("review-gate.sh with the due review already on an open pull request", (
 
 	it("treats a skip on an open pull request as handling a drift event", () =>
 	{
-		world(true, "none", ["inserted"]);
-		fakeGh(["docs/v3/audit/2026-11-24/20261124T045520Z-backlog-skip.md"]);
+		world(true, "none", {
+			events: ["inserted"],
+		});
+		fakeGh([{
+			files: [SKIP],
+		}]);
 		expect(prompt()).toBe("");
 	});
 
 	it("still asks for the review when only a skip is pending but the review is due by story count, which a skip never clears", () =>
 	{
-		world(true, "none", ["count"]);
-		fakeGh(["docs/v3/audit/2026-11-24/20261124T045520Z-backlog-skip.md"]);
+		world(true, "none", {
+			events: ["count"],
+		});
+		fakeGh([{
+			files: [SKIP],
+		}]);
+		expect(prompt()).toContain("BACKLOG REVIEW");
+	});
+
+	it("still asks when only a skip is pending but a turn-cap hit is due, which only a review clears", () =>
+	{
+		world(true, "none", {
+			events: ["turn-cap"],
+		});
+		fakeGh([{
+			files: [SKIP],
+		}]);
 		expect(prompt()).toContain("BACKLOG REVIEW");
 	});
 
 	it("ignores another kind's entry: a pending parity review leaves a due backlog review due", () =>
 	{
 		world(true, "none");
-		fakeGh(["docs/v3/audit/2026-11-24/20261124T004216Z-parity-review.md"]);
+		fakeGh([{
+			files: [PARITY_REVIEW],
+		}]);
+		expect(prompt()).toContain("BACKLOG REVIEW");
+	});
+
+	it("handles a due parity review only through a parity entry: a pending backlog review leaves it due", () =>
+	{
+		world(false, "none", {}, {
+			events: ["doc-changed"],
+		});
+		fakeGh([{
+			files: [REVIEW],
+		}]);
+		expect(prompt()).toContain("DOC PARITY REVIEW");
+		fakeGh([{
+			files: [PARITY_REVIEW],
+		}]);
+		rmSync(join(repo, ".git/bt-review-gate-prs"), {
+			force: true,
+		});
+		expect(prompt()).toBe("");
+	});
+
+	it("doesn't count an old pull request's review against an event due since its base", () =>
+	{
+		world(true, "none", {
+			events: ["inserted"],
+			since: ["inserted"],
+		});
+		fakeGh([{
+			files: [REVIEW],
+		}]);
+		expect(prompt()).toContain("BACKLOG REVIEW");
+	});
+
+	it("doesn't count an old pull request's review once 6 more stories shipped after its base", () =>
+	{
+		const later = ["S1", "S2", "S3", "S4", "S5", "S6"];
+		world(true, "none", {
+			events: ["count"],
+			since: ["count"],
+			done: later,
+		}, undefined, later);
+		fakeGh([{
+			files: [REVIEW],
+		}]);
+		expect(prompt()).toContain("BACKLOG REVIEW");
+	});
+
+	it("doesn't count a fork's pull request", () =>
+	{
+		world(true, "none", {
+			events: ["count"],
+			since: ["count"],
+		});
+		fakeGh([{
+			files: [REVIEW],
+			fork: true,
+		}]);
+		expect(prompt()).toContain("BACKLOG REVIEW");
+	});
+
+	it("doesn't count an entry the pull request only changes, not adds", () =>
+	{
+		world(true, "none");
+		fakeGh([{
+			files: [REVIEW],
+			status: "modified",
+		}]);
+		expect(prompt()).toContain("BACKLOG REVIEW");
+	});
+
+	it("asks for the review when the debt script's --json fails", () =>
+	{
+		world(true, "none", {
+			jsonFails: true,
+		});
+		fakeGh([{
+			files: [SKIP],
+		}]);
 		expect(prompt()).toContain("BACKLOG REVIEW");
 	});
 

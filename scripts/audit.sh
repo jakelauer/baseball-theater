@@ -724,7 +724,7 @@ if [ "$MODE" = "run" ]; then
   esac
   PRS="$("${RUNS[@]}" prs --journal "$JOURNAL")" || { echo "audit: could not read run ${RUN_ID}'s pull requests" >&2; exit 2; }
   # The Claude-review findings on each pull request the run opened: inline comments on its reviews whose
-  # body starts "Claude review of" (CLAUDE.md, "Claude's review is handled before a pull request merges").
+  # body starts "Claude review of" (docs/v3/LOOP.md §9, "Claude's review is handled before a pull request merges").
   # A failed read exits 2: counted as 0, it would lower the bar for every later run (runs.ts).
   FINDINGS_FILE="$(mktemp)"
   {
