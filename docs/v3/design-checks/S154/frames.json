@@ -1,0 +1,29 @@
+{
+	"about-site-footer-mobile.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/changelog-mobile.png"
+	],
+	"about-site-footer-desktop.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/changelog-desktop.png"
+	],
+	"about-site-footer-signed-out-mobile.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/changelog-mobile.png"
+	],
+	"privacy-site-footer-mobile.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/changelog-mobile.png"
+	],
+	"privacy-site-footer-desktop.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/changelog-desktop.png"
+	],
+	"privacy-site-footer-signed-out-mobile.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/changelog-mobile.png"
+	],
+	"terms-site-footer-mobile.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/changelog-mobile.png"
+	],
+	"terms-site-footer-desktop.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/changelog-desktop.png"
+	],
+	"terms-site-footer-signed-out-mobile.png": [
+		"docs/v3/visual/shell-scoreboard/amendments/changelog-mobile.png"
+	]
+}
