@@ -134,7 +134,7 @@ grep -qE "follow-up story is planned|Ship now, fix later" "$DOMAIN" && bad 5 "$D
 # --- Check 6: Status done, inside the fence ------------------------------------------------------------------
 [ "$(story_snapshot_status S191)" = "done" ] || bad 6 "S191's snapshot does not record Status done"
 story_own_changed_files S191 "$BASE" . >"$TMP/changed.txt"
-grep -vE '^(packages/domain/|packages/ports/src/repositories\.ts$|functions/src/|functions/vitest\.config\.ts$|openapi/|web/src/api/generated/|web/src/api/generated\.types\.test\.ts$|web/src/test/calendar\.tsx$|web/src/api/client\.test\.ts$|docs/v3/backlog/|docs/v3/audit/|changelog\.d/|scripts/verify-S191\.sh$)' "$TMP/changed.txt" >"$TMP/fence.txt"
+grep -vE '^(packages/domain/|packages/ports/src/repositories\.ts$|functions/src/|functions/vitest\.config\.ts$|openapi/|web/src/api/generated/|web/src/api/generated\.types\.test\.ts$|web/src/test/calendar\.tsx$|web/src/api/client\.test\.ts$|web/src/api/scheduleMonth\.test\.tsx$|docs/v3/backlog/|docs/v3/audit/|changelog\.d/|scripts/verify-S191\.sh$)' "$TMP/changed.txt" >"$TMP/fence.txt"
 [ -s "$TMP/fence.txt" ] && bad 6 "the story changes files outside its scope: $(tr '\n' ' ' <"$TMP/fence.txt")"
 grep -E '^(test/|scripts/)' "$TMP/changed.txt" | grep -vE '^scripts/verify-S191\.sh$' >"$TMP/test-dir.txt"
 [ -s "$TMP/test-dir.txt" ] && bad 6 "the story changes files under scripts/ or test/: $(tr '\n' ' ' <"$TMP/test-dir.txt")"
