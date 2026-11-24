@@ -1,5 +1,5 @@
 {
-	"id": "dc2715fd-9666-4425-a601-6532fa0e1643",
+	"id": "fbfe814e-d35a-4716-8988-bb0be2ce90ed",
 	"prevId": "ac98ddcc-7a33-4c81-883b-73a75442b3bf",
 	"version": "7",
 	"dialect": "postgresql",
@@ -180,6 +180,66 @@
 			"checkConstraints": {},
 			"isRLSEnabled": false
 		},
+		"public.game_states": {
+			"name": "game_states",
+			"schema": "",
+			"columns": {
+				"game_pk": {
+					"name": "game_pk",
+					"type": "integer",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"source": {
+					"name": "source",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"feed_time": {
+					"name": "feed_time",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"official_date": {
+					"name": "official_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"start_time": {
+					"name": "start_time",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"document": {
+					"name": "document",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"game_states_source_check": {
+					"name": "game_states_source_check",
+					"value": "\"game_states\".\"source\" IN ('feed', 'schedule')"
+				}
+			},
+			"isRLSEnabled": false
+		},
 		"public.games": {
 			"name": "games",
 			"schema": "",
@@ -347,6 +407,13 @@
 					"primaryKey": false,
 					"notNull": true
 				},
+				"served_base": {
+					"name": "served_base",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
 				"document": {
 					"name": "document",
 					"type": "jsonb",
@@ -360,42 +427,6 @@
 			"uniqueConstraints": {},
 			"policies": {},
 			"checkConstraints": {},
-			"isRLSEnabled": false
-		},
-		"public.schedule_months": {
-			"name": "schedule_months",
-			"schema": "",
-			"columns": {
-				"month": {
-					"name": "month",
-					"type": "text",
-					"primaryKey": true,
-					"notNull": true
-				},
-				"checked_at": {
-					"name": "checked_at",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"claimed_at": {
-					"name": "claimed_at",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": false
-				}
-			},
-			"indexes": {},
-			"foreignKeys": {},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {
-				"schedule_months_month_format": {
-					"name": "schedule_months_month_format",
-					"value": "\"schedule_months\".\"month\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
-				}
-			},
 			"isRLSEnabled": false
 		},
 		"public.users": {

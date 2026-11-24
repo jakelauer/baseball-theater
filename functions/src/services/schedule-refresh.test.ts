@@ -19,7 +19,7 @@ import {
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { HttpMlbStatsClient } from "../adapters/http/mlb.js";
 import {
-	InMemoryGameProjectionRepository, InMemoryGameRepository, InMemoryScheduleRepository,
+	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import type { IngestDeps } from "./ingest.js";
 import { refreshDueScheduleMonth } from "./schedule-refresh.js";
@@ -59,7 +59,7 @@ function deps(mlb: IngestDeps["mlb"] = new CountingClient(), start: Date = T0)
 	};
 	const ingest: IngestDeps = {
 		mlb,
-		schedules: new InMemoryScheduleRepository(),
+		...memoryScheduleStores(),
 		games: new InMemoryGameRepository(),
 		projections: new InMemoryGameProjectionRepository(),
 		now: () => clock.now,
@@ -189,6 +189,7 @@ describe("S194 AC 4 the scheduled refresh", () =>
 		const base = ingest.schedules;
 		ingest.schedules = {
 			getByDate: (date) => base.getByDate(date),
+			getWithServedBase: (date) => base.getWithServedBase(date),
 			listGameCounts: (from, to) => base.listGameCounts(from, to),
 			listScheduleMonthChecks: (from, to) => base.listScheduleMonthChecks(from, to),
 			recordScheduleMonthCheck: (month, at) => base.recordScheduleMonthCheck(month, at),
@@ -270,6 +271,7 @@ describe("S194 AC 6 upstream budget", () =>
 		};
 		ingest.schedules = {
 			getByDate: counted((date: string) => base.getByDate(date)),
+			getWithServedBase: counted((date: string) => base.getWithServedBase(date)),
 			listGameCounts: counted((from: string, to: string) => base.listGameCounts(from, to)),
 			listScheduleMonthChecks: counted((from: string, to: string) => base.listScheduleMonthChecks(from, to)),
 			recordScheduleMonthCheck: counted((month: string, at: string) => base.recordScheduleMonthCheck(month, at)),

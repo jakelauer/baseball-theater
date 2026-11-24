@@ -16,7 +16,7 @@ import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { migratedPglite } from "../adapters/postgres/migrate.js";
 import type { PostgresDb } from "../adapters/postgres/repos.js";
 import {
-	PostgresGameProjectionRepository, PostgresGameRepository, PostgresScheduleRepository,
+	PostgresGameProjectionRepository, PostgresGameStateRepository, PostgresGameRepository, PostgresScheduleRepository,
 } from "../adapters/postgres/repos.js";
 import { recordedClient } from "../test/recorded-mlb.js";
 import type { DevSeed } from "./dev-seed.js";
@@ -134,6 +134,7 @@ describe("loading the seed on dev start (S112 AC 2)", () =>
 			schedules: new PostgresScheduleRepository(db),
 			games: new PostgresGameRepository(db),
 			projections: new PostgresGameProjectionRepository(db),
+			gameStates: new PostgresGameStateRepository(db),
 		};
 		const seed = await recordedSeed();
 		expect(await loadDevSeed(deps, seed)).toBe(3);

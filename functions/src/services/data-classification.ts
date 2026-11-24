@@ -57,6 +57,10 @@ export const DATA_CLASSIFICATION = {
 			kind: "none",
 			why: "projections of MLB games; no user data",
 		},
+		InMemoryGameStateRepository: {
+			kind: "none",
+			why: "each MLB game's status, linescore and on-field moment (S150); no user data",
+		},
 		InMemoryReplayArtifactRepository: {
 			kind: "none",
 			why: "MLB live-feed replay patches; no user data",
@@ -94,6 +98,10 @@ export const DATA_CLASSIFICATION = {
 			kind: "none",
 			why: "projections of MLB games; no user data",
 		},
+		PostgresGameStateRepository: {
+			kind: "none",
+			why: "each MLB game's status, linescore and on-field moment (S150); no user data",
+		},
 		PostgresReplayArtifactRepository: {
 			kind: "none",
 			why: "MLB live-feed replay patches; no user data",
@@ -119,6 +127,10 @@ export const DATA_CLASSIFICATION = {
 		schedule_days: {
 			kind: "none",
 			why: "MLB schedules; no user data",
+		},
+		game_states: {
+			kind: "none",
+			why: "each MLB game's status, linescore and on-field moment (S150); no user data",
 		},
 		schedule_months: {
 			kind: "none",

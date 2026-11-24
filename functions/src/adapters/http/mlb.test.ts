@@ -182,6 +182,22 @@ describe("HttpMlbStatsClient (S2)", () =>
 		expect(asked.searchParams.get("leagueId")).toBe("103,104");
 	});
 
+	it("S102 AC 1: fetchStandings hydrates each record group's division, the request fixtures/raw/standings-2026-09-05-division.json records", async () =>
+	{
+		const { mlb, urls } = client();
+		await mlb.fetchStandings("2026-09-05");
+		const asked = new URL(urls.at(-1)!);
+		expect(asked.searchParams.get("hydrate")?.split(",")).toEqual(["team", "division"]);
+		// The recording is MLB's answer to that request: every group's division arrives named.
+		const recording = JSON.parse(readFileSync(path.join(RAW, "standings-2026-09-05-division.json"), "utf8")) as {
+			records: { league: { id: number };
+				division: { id: number;
+					nameShort?: string; }; }[];
+		};
+		expect(new Set(recording.records.map((r) => r.league.id))).toEqual(new Set([103, 104]));
+		expect(recording.records.every((r) => typeof r.division.nameShort === "string")).toBe(true);
+	});
+
 	it("fetchFinalStandings and fetchSpringStandings ask their own standings URLs (S128)", async () =>
 	{
 		const { mlb, urls } = client();
@@ -197,6 +213,16 @@ describe("HttpMlbStatsClient (S2)", () =>
 		const spring = new URL(urls[1]!);
 		expect(spring.searchParams.get("standingsTypes")).toBe("springTraining");
 		expect(spring.searchParams.get("date")).toBe("2026-03-01");
+	});
+
+	it("S102 AC 1: the final and spring standings hydrate each record group's division too", async () =>
+	{
+		const { mlb, urls } = client();
+		await mlb.fetchFinalStandings(2026);
+		await mlb.fetchSpringStandings(2026, "2026-03-01");
+		const [final, spring] = urls.map((url) => new URL(url));
+		expect(final!.searchParams.get("hydrate")).toBe("team,division");
+		expect(spring!.searchParams.get("hydrate")).toBe("team,division");
 	});
 
 	it("fetchPlayers asks for this season's stats, and asks nothing for no ids", async () =>
@@ -368,5 +394,43 @@ describe("HttpMlbStatsClient.searchHighlights (S5)", () =>
 			}),
 		});
 		await expect(mlb.searchHighlights("walk-off")).rejects.toThrow(/503/);
+	});
+});
+
+describe("HttpMlbStatsClient feed time (S150 AC 2)", () =>
+{
+	/** A client whose live feed is `feed` (the recorded final feed unless given); everything else answers 404. */
+	function feedClient(feed: string = readFileSync(path.join(RAW, "live-823823.json"), "utf8"), now = new Date("2026-09-06T00:00:00.000Z")): HttpMlbStatsClient
+	{
+		return new HttpMlbStatsClient({
+			now: () => now,
+			fetchImpl: async (input) => /\/feed\/live$/.test(new URL(String(input)).pathname) ? new Response(feed) : new Response("{}", {
+				status: 404,
+			}),
+		});
+	}
+
+	it("S150 AC 2 feed time: the fetched game carries the feed's metaData.timeStamp as ISO beside the game, never on it", async () =>
+	{
+		const fetched = await feedClient().fetchGame(823823);
+		expect(fetched.feedTime).toBe("2026-09-05T23:34:35.000Z");
+		expect(fetched.game.gamePk).toBe(823823);
+		expect(fetched.game).not.toHaveProperty("feedTime");
+		expect((await feedClient().fetchGameFeed(823823)).feedTime).toBe("2026-09-05T23:34:35.000Z");
+	});
+
+	it("S150 AC 2 no time: a feed with no timeStamp leaves the feed time out", async () =>
+	{
+		const feed = JSON.parse(readFileSync(path.join(RAW, "live-823823.json"), "utf8")) as { metaData?: Record<string, unknown> };
+		delete feed.metaData?.timeStamp;
+		const fetched = await feedClient(JSON.stringify(feed)).fetchGame(823823);
+		expect(fetched).not.toHaveProperty("feedTime");
+	});
+
+	it("S150 AC 2 future time: a feed time further ahead of BT's clock than the tolerance is left out", async () =>
+	{
+		// The recorded feed says 23:34:35; BT's clock reads 23:00, 34 minutes earlier.
+		const fetched = await feedClient(undefined, new Date("2026-09-05T23:00:00.000Z")).fetchGame(823823);
+		expect(fetched).not.toHaveProperty("feedTime");
 	});
 });

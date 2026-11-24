@@ -31,10 +31,9 @@ import {
 	daysOfMonth, mlbToday, monthComplete, monthGameCounts, monthLastChangedAt, scheduleDayTally, scheduleFillWindow, scheduleMonthAnswer, scheduleMonthCheckStale,
 	scheduleMonthVersion,
 } from "@bt/domain";
+import { scheduleDayWindowMode } from "./game-state.js";
 import type { IngestDeps } from "./ingest.js";
-import {
-	runRefresh, scheduleDayWindowMode, storeSchedule,
-} from "./ingest.js";
+import { runRefresh, storeSchedule } from "./ingest.js";
 
 /**
  * A month's counts and teams per day, and when its data last changed, which sets its cache

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Run due reviews on their own (owner, 2026-10-22: "all the different types of reviews
 # automatically run whenever they are required and not blocked"). Registered as a
-# Claude Code hook in .claude/settings.json; also runnable by hand.
+# Claude Code hook in .claude/settings.json (Cursor runs it too); also runnable by hand.
 #
-#   scripts/review-gate.sh prompt   # UserPromptSubmit: tell Claude, before it acts, what is due
-#   scripts/review-gate.sh stop     # Stop: keep Claude going until every due review has run
+#   scripts/review-gate.sh prompt   # UserPromptSubmit: tell the agent, before it acts, what is due
+#   scripts/review-gate.sh stop     # Stop: keep the agent going until every due review has run
 #
 # Due-ness comes from scripts/review-debt.sh (backlog review / design intake) and
 # scripts/parity-debt.sh (doc parity), which read committed history only.
@@ -16,7 +16,9 @@
 # instructions say to start the review beside the in-flight items, never to pause them (S156;
 # .claude/skills/run-backlog/SKILL.md step 2).
 # Loop guard: Stop blocks once per HEAD + due set; if a forced turn ends without
-# committing a review, Claude is allowed to stop rather than spin.
+# committing a review, the agent is allowed to stop rather than spin. Cursor runs this same
+# hook but marks a forced turn with `loop_count` above 0 instead of Claude Code's
+# `stop_hook_active: true`, and sets no loop limit on Claude Code hooks, so both count (B481).
 
 set -uo pipefail
 mode="${1:-stop}"
@@ -76,7 +78,7 @@ fi
 
 stamp="$(git rev-parse HEAD) $(printf '%s' "$body" | shasum | cut -c1-12)"
 state="$(git rev-parse --git-dir)/bt-review-gate"
-if grep -q '"stop_hook_active": *true' <<<"$input" && [ "$(cat "$state" 2>/dev/null)" = "$stamp" ]; then
+if grep -Eq '"stop_hook_active": *true|"loop_count": *[1-9]' <<<"$input" && [ "$(cat "$state" 2>/dev/null)" = "$stamp" ]; then
   exit 0
 fi
 echo "$stamp" >"$state"

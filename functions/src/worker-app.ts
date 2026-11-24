@@ -26,7 +26,7 @@ import type { HyperdriveBinding } from "./adapters/postgres/connect.js";
 import type { PostgresDb } from "./adapters/postgres/repos.js";
 import {
 	PostgresDeletionLog,
-	PostgresGameProjectionRepository,
+	PostgresGameProjectionRepository, PostgresGameStateRepository,
 	PostgresGameRepository,
 	PostgresScheduleRepository,
 	PostgresSettingsRepository,
@@ -123,9 +123,11 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 {
 	const schedules = new PostgresScheduleRepository(db);
 	const games = new PostgresGameRepository(db);
+	const gameStates = new PostgresGameStateRepository(db);
 	const mlb = createMlbClient(env, storeOverlay({
 		schedules,
 		games,
+		gameStates,
 	}));
 	const ingest: IngestDeps = {
 		mlb,
@@ -134,6 +136,7 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		schedules,
 		games,
 		projections: new PostgresGameProjectionRepository(db),
+		gameStates,
 		// One coordinator per isolate: stale out-of-window reads refresh single-flighted.
 		refresh: new RefreshCoordinator(),
 	};

@@ -10,27 +10,34 @@ import {
 import {
 	DOWNLOADS_STORE, MAIL_STORE, personalDataStores,
 } from "../../services/personal-data.js";
-import { describePersonalDataStoreContract } from "../repository-contract.js";
+import {
+	describeGameStateContract, describePersonalDataStoreContract, describeServedBaseContract,
+} from "../repository-contract.js";
 import { describeStorageContract } from "../storage-contract.js";
 import {
 	InMemoryExportStore,
 	InMemoryGameProjectionRepository,
 	InMemoryGameRepository,
+	InMemoryGameStateRepository,
 	InMemoryMailer,
 	InMemoryReplayArtifactRepository,
-	InMemoryScheduleRepository,
 	InMemorySettingsRepository,
 	InMemoryUserRepository,
+	memoryScheduleStores,
 } from "./repos.js";
 
 describeStorageContract("InMemory", {
-	schedules: () => new InMemoryScheduleRepository(),
+	schedules: () => memoryScheduleStores().schedules,
 	games: () => new InMemoryGameRepository(),
 	projections: () => new InMemoryGameProjectionRepository(),
 	replays: () => new InMemoryReplayArtifactRepository(),
 	users: () => new InMemoryUserRepository(),
 	settings: () => new InMemorySettingsRepository(),
 });
+
+describeGameStateContract("InMemoryGameStateRepository", () => new InMemoryGameStateRepository());
+
+describeServedBaseContract("InMemoryScheduleRepository", memoryScheduleStores);
 
 type RegistryDeps = {
 	users: InMemoryUserRepository;
@@ -82,7 +89,7 @@ describe("InMemoryScheduleRepository.clear (S194)", () =>
 {
 	it("drops the month records with the days, so a cleared double starts with no checks or claims", async () =>
 	{
-		const repo = new InMemoryScheduleRepository();
+		const repo = memoryScheduleStores().schedules;
 		await repo.recordScheduleMonthCheck("2026-04", "2026-04-10T12:00:00.000Z");
 		await repo.claimScheduleMonth("2026-05", "2026-04-10T12:00:00.000Z");
 		repo.clear();

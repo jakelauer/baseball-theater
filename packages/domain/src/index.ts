@@ -45,3 +45,4 @@ export * from "./settings.js";
 export * from "./win-probability.js";
 export * from "./sign-in.js";
 export * from "./backfill.js";
+export * from "./game-state.js";

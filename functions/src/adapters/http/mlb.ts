@@ -9,6 +9,7 @@
  * the live feed hydrate carries no playback URLs.
  */
 import type {
+	FetchedGame,
 	GameGraphContent,
 	GamePlayMetrics,
 	GameSnapshot,
@@ -20,7 +21,7 @@ import type {
 	Unversioned,
 } from "@bt/domain";
 import {
-	datesBetween, mlbSearchText, rankHighlightsByImpact,
+	datesBetween, feedTimeToIso, mlbSearchText, rankHighlightsByImpact,
 } from "@bt/domain";
 import type { GameContentResponse, GameDiffPatchResponse } from "@bt/mlb-api";
 import {
@@ -166,33 +167,36 @@ export function seasonsUrl(season: number, baseUrl = DEFAULT_BASE_URL): string
 }
 
 /**
- * Both leagues' standings as of `date` (S4), with each team hydrated. MLB answers a `date` only
+ * Both leagues' standings as of `date` (S4), with each team and each record group's division hydrated
+ * (S102: `division` names the group, `American League East` / `AL East` / `ALE`, so BT keeps no table of
+ * division names). MLB answers a `date` only
  * together with its `season` — as of 2026-11-07, `date` without `season` gets a 500 for every date (found smoke-testing v3.0.0)
  * — so the season is the date's year. The recorder (S14) records the same URL.
  */
 export function standingsUrl(date: string, baseUrl = DEFAULT_BASE_URL): string
 {
-	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${date.slice(0, 4)}&date=${date}&hydrate=team`;
+	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${date.slice(0, 4)}&date=${date}&hydrate=team,division`;
 }
 
 /**
  * A season's final regular-season table (S128): MLB's standings for the season with no `date`,
  * which after the regular season is how it finished (checked 2026-11-07: 6 records, 30 teams;
- * every date after the regular season answers 0). The recorder (S14) records the same URL.
+ * every date after the regular season answers 0). Divisions hydrated as `standingsUrl`'s are (S102).
+ * The recorder (S14) records the same URL.
  */
 export function finalStandingsUrl(season: number, baseUrl = DEFAULT_BASE_URL): string
 {
-	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${season}&hydrate=team`;
+	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${season}&hydrate=team,division`;
 }
 
 /**
  * A season's spring training standings as of `date` (S128): `standingsTypes=springTraining`,
  * which MLB groups by spring league (Cactus / Grapefruit divisions) under the same division ids.
- * The recorder (S14) records the same URL.
+ * Divisions hydrated as `standingsUrl`'s are (S102). The recorder (S14) records the same URL.
  */
 export function springStandingsUrl(season: number, date: string, baseUrl = DEFAULT_BASE_URL): string
 {
-	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${season}&standingsTypes=springTraining&date=${date}&hydrate=team`;
+	return `${baseUrl}/api/v1/standings?leagueId=103,104&season=${season}&standingsTypes=springTraining&date=${date}&hydrate=team,division`;
 }
 
 /** One season's World Series schedule (S111): its last listed game is the season's final. */
@@ -287,19 +291,36 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		return parts.flat();
 	}
 
-	async fetchGame(gamePk: number): Promise<Unversioned<GameSnapshot>>
+	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
-		const feed = await this.fetchGameFeed(gamePk);
+		const { game: feed, feedTime } = await this.fetchGameFeed(gamePk);
 		const [content, playMetrics, graph] = await Promise.all([this.fetchContent(gamePk), this.fetchPlayMetrics(gamePk), this.fetchGameGraphContent(gamePk)]);
-		return assembleGame(feed, content ? editorialOf(content) : null, playMetrics, graph);
+		return {
+			game: assembleGame(feed, content ? editorialOf(content) : null, playMetrics, graph),
+			...feedTime !== undefined && {
+				feedTime,
+			},
+		};
 	}
 
-	/** The live feed alone (S122): what `fetchGame` adds its extras to. */
-	async fetchGameFeed(gamePk: number): Promise<Unversioned<GameSnapshot>>
+	/**
+	 * The live feed alone (S122): what `fetchGame` adds its extras to. Beside the game, the feed's own time (MLB's
+	 * `metaData.timeStamp`) as an ISO instant (S150 AC 2), left out when the feed has none or it can't be right
+	 * (`feedTimeToIso`).
+	 */
+	async fetchGameFeed(gamePk: number): Promise<FetchedGame>
 	{
 		const feedUrl = `${this.baseUrl}/api/v1.1/game/${gamePk}/feed/live`;
 		const feed = parseLiveFeedResponse(await this.getJson(feedUrl));
-		return mapLiveFeed(feed, this.now().toISOString(), "active");
+		// Read after the response, so the tolerance only has to cover the two clocks' difference.
+		const now = this.now();
+		const feedTime = feedTimeToIso(feed.metaData?.timeStamp, now);
+		return {
+			game: mapLiveFeed(feed, now.toISOString(), "active"),
+			...feedTime !== undefined && {
+				feedTime,
+			},
+		};
 	}
 
 	/** The content endpoint's videos and recap (S122); null when it fails or has neither. */
