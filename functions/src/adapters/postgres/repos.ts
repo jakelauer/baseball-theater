@@ -11,11 +11,11 @@
  * holds aliases the store.
  */
 import type {
-	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateFields, GameStateRow, GameStateSource, PatronTier, Role, ScheduleDayTally, StoredScheduleDay,
-	UserProfile,
+	AccountSettings, Entitlements, GameProjection, GameSnapshot, GameStateFields, GameStateRow, GameStateSource, PatronTier, Role, ScheduleDayTally, ScheduleMonthCheck,
+	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	dayRegularSeason, distinctTeamIds, storedGameType,
+	dayRegularSeason, distinctTeamIds, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
 } from "@bt/domain";
 import type {
 	DeletionLog,
@@ -36,7 +36,7 @@ import {
 import type { SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
-	accountSettings, deletionLog, entitlements, gameProjections, games, gameStates, identityLinks, replayArtifacts, scheduleDays, users,
+	accountSettings, deletionLog, entitlements, gameProjections, games, gameStates, identityLinks, replayArtifacts, scheduleDays, scheduleMonths, users,
 } from "./schema.js";
 
 /** Any Drizzle Postgres database: PGlite in tests, node-postgres behind Hyperdrive in the Worker (S51). */
@@ -160,6 +160,77 @@ export class PostgresScheduleRepository implements ScheduleRepository
 				gameTypes,
 				regularSeason: dayRegularSeason(gameTypes),
 			};
+		});
+	}
+
+	/** One read of the months' records (S194), in month order. */
+	async listScheduleMonthChecks(from: string, to: string): Promise<ScheduleMonthCheck[]>
+	{
+		return this.db.select({
+			month: scheduleMonths.month,
+			checkedAt: scheduleMonths.checkedAt,
+			claimedAt: scheduleMonths.claimedAt,
+		}).from(scheduleMonths).where(between(scheduleMonths.month, from, to)).orderBy(asc(scheduleMonths.month));
+	}
+
+	/**
+	 * One statement: insert the month's record, or move its `checked_at` forward only, so the database
+	 * keeps the later of two racing checks whatever order they land in (S194 AC 1).
+	 */
+	async recordScheduleMonthCheck(month: string, checkedAt: string): Promise<void>
+	{
+		await this.db.insert(scheduleMonths).values({
+			month,
+			checkedAt,
+		}).onConflictDoUpdate({
+			target: scheduleMonths.month,
+			set: {
+				checkedAt: sql`excluded.checked_at`,
+			},
+			setWhere: sql`${scheduleMonths.checkedAt} IS NULL OR excluded.checked_at::timestamptz > ${scheduleMonths.checkedAt}::timestamptz`,
+		});
+	}
+
+	/**
+	 * One conditional statement (S194 AC 1): insert the month claimed, or take an existing record's
+	 * claim only when the month is still due (no `checked_at`, or one at least
+	 * `SCHEDULE_MONTH_REFRESH_INTERVAL_MS` before `at`) and it has no claim or one at least
+	 * `SCHEDULE_MONTH_CLAIM_LEASE_MS` older than `at`. A returned row means this caller holds the
+	 * claim; two racing claimants can't both get one, since the second's update re-checks the first's
+	 * committed claim, and a month another tick checked after this one's read is refused.
+	 */
+	async claimScheduleMonth(month: string, at: string): Promise<boolean>
+	{
+		const cutoff = new Date(Date.parse(at) - SCHEDULE_MONTH_CLAIM_LEASE_MS).toISOString();
+		const dueBy = new Date(Date.parse(at) - SCHEDULE_MONTH_REFRESH_INTERVAL_MS).toISOString();
+		const claimed = await this.db.insert(scheduleMonths).values({
+			month,
+			claimedAt: at,
+		}).onConflictDoUpdate({
+			target: scheduleMonths.month,
+			set: {
+				claimedAt: sql`excluded.claimed_at`,
+			},
+			setWhere: sql`(${scheduleMonths.claimedAt} IS NULL OR ${scheduleMonths.claimedAt}::timestamptz <= ${cutoff}::timestamptz)
+				AND (${scheduleMonths.checkedAt} IS NULL OR ${scheduleMonths.checkedAt}::timestamptz <= ${dueBy}::timestamptz)`,
+		}).returning({
+			month: scheduleMonths.month,
+		});
+		return claimed.length > 0;
+	}
+
+	/** One statement: insert the month held, or move its `claimed_at` forward only (S194 review). */
+	async holdScheduleMonth(month: string, claimedAt: string): Promise<void>
+	{
+		await this.db.insert(scheduleMonths).values({
+			month,
+			claimedAt,
+		}).onConflictDoUpdate({
+			target: scheduleMonths.month,
+			set: {
+				claimedAt: sql`excluded.claimed_at`,
+			},
+			setWhere: sql`${scheduleMonths.claimedAt} IS NULL OR excluded.claimed_at::timestamptz > ${scheduleMonths.claimedAt}::timestamptz`,
 		});
 	}
 }

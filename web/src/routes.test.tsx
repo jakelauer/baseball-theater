@@ -4,6 +4,9 @@
  * Renders the real shell and routes with the session read from a stubbed API;
  * at the default (mobile) pairing the nav lives in the drawer, so the tests open it.
  */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { MantineProvider } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -96,18 +99,54 @@ describe("Settings gating", () =>
 	});
 });
 
-describe("default day (S111)", () =>
+describe("default day (S111, #412)", () =>
 {
-	it.each(["/", "/games"])("default day: %s opens the day the server names", async (path) =>
+	/** Answers the default day with 2026-10-28 and records the day each schedule request asks for. */
+	function serveDefaultDay(): string[]
 	{
 		const me = stubMeApi();
-		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/scoreboard/default-date"
-			? Promise.resolve(jsonResponse({
-				date: "2026-10-28",
-			}))
-			: me(request)));
+		const scheduleDates: string[] = [];
+		vi.stubGlobal("fetch", vi.fn((request: Request) =>
+		{
+			const url = new URL(request.url);
+			if (url.pathname === "/api/v1/schedule") scheduleDates.push(url.searchParams.get("date")!);
+			return url.pathname === "/api/v1/scoreboard/default-date"
+				? Promise.resolve(jsonResponse({
+					date: "2026-10-28",
+				}))
+				: me(request);
+		}));
+		return scheduleDates;
+	}
+
+	// The home page shows today but keeps its own URL, so search engines index one stable
+	// address rather than a dated one that changes every day (#412).
+	it.each(["/", "/games"])("%s shows the day the server names with no redirect (#412)", async (path) =>
+	{
+		const scheduleDates = serveDefaultDay();
 		renderApp(path);
-		await waitFor(() => expect(screen.getByLabelText("path")).toHaveTextContent(/^\/games\/2026-10-28$/));
+		await waitFor(() => expect(scheduleDates).toContain("2026-10-28"));
+		expect(screen.getByLabelText("path")).toHaveTextContent(new RegExp(`^${path}$`));
+	});
+
+	it("a dated URL, today's included, shows that date (#412)", async () =>
+	{
+		const scheduleDates = serveDefaultDay();
+		renderApp("/games/2026-10-28");
+		await waitFor(() => expect(scheduleDates).toContain("2026-10-28"));
+		expect(screen.getByLabelText("path")).toHaveTextContent(/^\/games\/2026-10-28$/);
+	});
+});
+
+describe("home page title (#412)", () =>
+{
+	// The title is the page's static HTML, the same every day: "Baseball Theater — " and what the site is.
+	it("is \"Baseball Theater — <what the site is>\", with a matching description meta (#412)", () =>
+	{
+		const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "index.html"), "utf8");
+		const doc = new DOMParser().parseFromString(html, "text/html");
+		expect(doc.title).toMatch(/^Baseball Theater — \S/);
+		expect(doc.querySelector("meta[name=description]")?.getAttribute("content")).toBeTruthy();
 	});
 });
 

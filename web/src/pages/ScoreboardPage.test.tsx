@@ -135,13 +135,13 @@ describe("ScoreboardModule (S66)", () =>
 		})).toHaveAttribute("href", "/game/823577");
 	});
 
-	it("live: the blinking LiveIndicator labeled with inningLabel, R·H·E and records", async () =>
+	it("live: the blinking LiveIndicator labeled with inningShortLabel, R·H·E and records", async () =>
 	{
 		serve();
 		renderScoreboard();
 		const m = within(byPhase(await modules(), "live"));
-		expect(m.getByTestId("live-dot")).toBeInTheDocument();
-		expect(m.getByText("Top 3rd")).toBeInTheDocument();
+		expect(m.getByTestId("status-marker-dot")).toBeInTheDocument();
+		expect(m.getByText("Top 3")).toBeInTheDocument();
 		expect(m.getByText("CHC (81-62)")).toBeInTheDocument();
 		expect(m.getAllByTestId("runs").map((c) => c.textContent)).toEqual(["1", "0"]);
 		expect(m.getAllByTestId("hits").map((c) => c.textContent)).toEqual(["5", "0"]);

@@ -1,6 +1,6 @@
 /**
- * The inning as a fan reads it (S3): `Top 6th`, `Bot 7th`, `Mid 3rd`, `End 9th`. One
- * label for the Live status and the scoreboard's live row (ADR-025); views render it.
+ * The inning as a fan reads it (S3): `Top 6th`, `Bot 7th`, `Mid 3rd`, `End 9th` for the Live
+ * status, and `Bot 7` for the scoreboard row's status marker (S170); views render them (ADR-025).
  * The short forms are the ratified frames' (`Bot 7th · 1 Out`, game-rooms Live).
  */
 import type { AtBat } from "./plays.js";
@@ -25,15 +25,38 @@ export function ordinal(n: number): string
 	return `${n}${suffix}`;
 }
 
+type InningLinescore = Pick<LinescoreSummary, "currentInning" | "inningState" | "isTopInning">;
+
+/**
+ * The half a linescore is in, as every inning label spells it (`Top` / `Bot` / `Mid` / `End`):
+ * MLB's `inningState` names it; without one it knows (none, an empty string, or a new word),
+ * `isTopInning` decides. The one resolver behind `inningLabel` and `inningShortLabel` (S170,
+ * ADR-025), so the two forms can't drift.
+ */
+function inningHalf(linescore: InningLinescore): string
+{
+	return (linescore.inningState ? HALF[linescore.inningState] : undefined) ?? (linescore.isTopInning === false ? "Bot" : "Top");
+}
+
 /**
  * The inning label, or `null` before the game has an inning. MLB's `inningState`
  * names the half (Top / Bottom / Middle / End); without it, `isTopInning` decides.
  */
-export function inningLabel(linescore: Pick<LinescoreSummary, "currentInning" | "inningState" | "isTopInning"> | null): string | null
+export function inningLabel(linescore: InningLinescore | null): string | null
 {
 	if (!linescore?.currentInning) return null;
-	const half = (linescore.inningState && HALF[linescore.inningState]) ?? (linescore.isTopInning === false ? "Bot" : "Top");
-	return `${half} ${ordinal(linescore.currentInning)}`;
+	return `${inningHalf(linescore)} ${ordinal(linescore.currentInning)}`;
+}
+
+/**
+ * The inning as a scoreboard row's status marker writes it, `Bot 7`, `Top 3`, `Mid 3`, `End 9`:
+ * the half and the number, no ordinal, as game-shell A7's frames draw it (S170; owner, 2026-11-22:
+ * ""Bot 7", as drawn (Recommended)"). `null` before the game has an inning.
+ */
+export function inningShortLabel(linescore: InningLinescore | null): string | null
+{
+	if (!linescore?.currentInning) return null;
+	return `${inningHalf(linescore)} ${linescore.currentInning}`;
 }
 
 /** A half-inning as plain fields: an at-bat's `about`, or a Search result's route, which has no `AtBat`. */
