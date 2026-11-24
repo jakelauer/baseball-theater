@@ -79,7 +79,8 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 				away={game.teams.away.abbreviation}
 				home={game.teams.home.abbreviation}
 				officialDate={game.officialDate}
-				live={phase === "live"}
+				status={game.status}
+				variant={variant}
 			/>
 
 			{/* Only the open room is mounted: a hidden room (Plays opens an at-bat, Live replays pitches) costs nothing. */}
