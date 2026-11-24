@@ -287,13 +287,9 @@ describe("the month grid (S125 AC 2)", () =>
 		});
 		await screen.findAllByText("10 gm");
 		act(() => onlineManager.setOnline(false));
-		// Since S74 a request still goes out offline (`networkMode: "offlineFirst"`), so the worker can answer
-		// it from its stored copy; with no copy and no network it fails, as here.
-		vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))));
 		await user.click(screen.getByRole("button", {
 			name: "Previous month",
 		}));
-		await waitFor(() => expect(screen.queryAllByTestId("count-loading")).toHaveLength(0));
 		expect(await screen.findByTestId("day-2026-08-31")).toBeInTheDocument();
 		expect(screen.queryAllByTestId("count-loading")).toHaveLength(0);
 		expect(screen.queryAllByText(/gm$/)).toHaveLength(0);

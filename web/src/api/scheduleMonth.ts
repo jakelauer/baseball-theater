@@ -58,6 +58,10 @@ export function scheduleMonthVersionsQueryOptions(year: string, enabled = true)
 		queryFn: (): Promise<ScheduleMonthVersionsPayload> => fetchScheduleMonthVersions(year),
 		staleTime: CACHE_LIFETIME_FLOOR_MS,
 		enabled,
+		// The calendar's months pause offline (S194), unlike the app's other reads, which still go out
+		// offline so the service worker can answer them from its stored copy (`createQueryClient`, S74):
+		// a paused month shows bare day numbers, and the month is asked once the browser is back online.
+		networkMode: "online",
 	});
 }
 
@@ -90,6 +94,8 @@ export function scheduleMonthQueryOptions(month: string, version?: string)
 			return days && !monthComplete(days) ? 60 * 1000 : 5 * 60 * 1000;
 		},
 		enabled: scheduleMonthAnswerable(month),
+		// Paused offline like its year's versions (S194; see `scheduleMonthVersionsQueryOptions`).
+		networkMode: "online",
 	});
 }
 

@@ -16,7 +16,8 @@ export function createQueryClient(): QueryClient
 				refetchOnWindowFocus: true,
 				// Offline reading (S74, ADR-023): a request is still sent while the browser says it is
 				// offline, so the service worker can answer it from its stored copy; TanStack's default
-				// ("online") would hold it paused and never reach the worker.
+				// ("online") would hold it paused and never reach the worker. The calendar's months opt back
+				// into "online" (S194, `scheduleMonthQueryOptions`): offline they pause and show bare numbers.
 				networkMode: "offlineFirst",
 			},
 		},
