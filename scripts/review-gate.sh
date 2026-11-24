@@ -15,14 +15,22 @@
 # checkout stays clean while items build in their own worktrees, so the gate fires then too: its
 # instructions say to start the review beside the in-flight items, never to pause them (S156;
 # .claude/skills/run-backlog/SKILL.md step 2).
-# Loop guard: Stop blocks once per HEAD + due set; if a forced turn ends without
-# committing a review, the agent is allowed to stop rather than spin. Cursor runs this same
+# Loop guard: Stop blocks once per HEAD + due set, whether or not the turn was forced, so a
+# turn that ends without committing a review neither spins nor gets the same message again at
+# every later turn's end (owner, 2026-11-24: "Do all 6 token savers"). Cursor runs this same
 # hook but marks a forced turn with `loop_count` above 0 instead of Claude Code's
-# `stop_hook_active: true`, and sets no loop limit on Claude Code hooks, so both count (B481).
+# `stop_hook_active: true`, and sets no loop limit on Claude Code hooks (B481), so the guard keys
+# on the state file alone, never on either flag.
+# A due review already recorded on an open pull request counts as handled (same owner words):
+# the review ran and its entry waits to merge, so asking again only re-runs it. Its entry is an
+# added `docs/v3/audit/<date>/<stamp>-<kind>-review.md` (or `-skip.md` / `-answers.md`, which
+# clear a drift event but never a due-by-count or turn-cap backlog review, nor a due-by-count
+# parity review: a skip never resets the count). Read through `gh` (REST); when it can't answer
+# (offline, signed out), the gate behaves as before and asks for the review.
 
 set -uo pipefail
 mode="${1:-stop}"
-input="$([ -t 0 ] || cat)"
+[ -t 0 ] || cat >/dev/null # the hook payload; the guard needs none of it
 cd "$(dirname "$0")/.." || exit 0
 
 LEDGER="docs/v3/AUDIT.md"
@@ -36,11 +44,35 @@ blocked() {
 
 [ -n "$(git status --porcelain 2>/dev/null)" ] && exit 0
 
+# The review entries open pull requests add, one `<kind>-<entry>` a line (`backlog-review`,
+# `parity-skip`, …), read once and only when a review is due; empty when `gh` can't answer.
+pending=""
+pending_read=""
+pending_entries() {
+  [ -n "$pending_read" ] && return 0
+  pending_read=1
+  local prs n
+  prs="$(gh api 'repos/{owner}/{repo}/pulls?state=open&per_page=100' --jq '.[].number' 2>/dev/null)" || return 0
+  pending="$(for n in $prs; do
+    gh api "repos/{owner}/{repo}/pulls/${n}/files?per_page=100" --jq '.[] | select(.status == "added") | .filename' 2>/dev/null
+  done | sed -nE 's#^docs/v3/audit/[^/]+/[^/]+-((backlog|parity)-(review|skip|answers))\.md$#\1#p' | sort -u)"
+}
+
+# handled <backlog|parity> <its debt script>: the due review is already recorded on an open pull
+# request. A pending review always is; a pending skip or answers entry only when nothing due is
+# a story count or a turn-cap hit, which only a review clears.
+handled() {
+  pending_entries
+  grep -qx "$1-review" <<<"$pending" && return 0
+  grep -qxE "$1-(skip|answers)" <<<"$pending" || return 1
+  ! "$2" --json 2>/dev/null | grep -qE '"kind":"(count|turn-cap)"'
+}
+
 todo=()
 waiting=()
 if blocked backlog; then
   waiting+=("backlog review")
-elif ! out="$(scripts/review-debt.sh 2>&1)"; then
+elif ! out="$(scripts/review-debt.sh 2>&1)" && ! handled backlog scripts/review-debt.sh; then
   if grep -q "design intake" <<<"$out"; then
     todo+=("DESIGN INTAKE REVIEW: two independent design-intake-reviewer Agent subagents (each loads .claude/skills/design-intake-review/SKILL.md), which report without editing; then one design-intake-merger subagent, given both reports, merges and applies them and logs with scripts/audit.sh review. Don't read the skill into this context yourself."$'\n'"$out")
   else
@@ -49,7 +81,7 @@ elif ! out="$(scripts/review-debt.sh 2>&1)"; then
 fi
 if blocked parity; then
   waiting+=("doc parity review")
-elif ! out="$(scripts/parity-debt.sh 2>&1)"; then
+elif ! out="$(scripts/parity-debt.sh 2>&1)" && ! handled parity scripts/parity-debt.sh; then
   todo+=("DOC PARITY REVIEW: one fresh-context doc-parity-reviewer Agent subagent (it loads .claude/skills/doc-parity-review/SKILL.md), given this output, runs it, logs with scripts/audit.sh parity and commits. Don't read the skill into this context yourself."$'\n'"$out")
 fi
 
@@ -78,8 +110,6 @@ fi
 
 stamp="$(git rev-parse HEAD) $(printf '%s' "$body" | shasum | cut -c1-12)"
 state="$(git rev-parse --git-dir)/bt-review-gate"
-if grep -Eq '"stop_hook_active": *true|"loop_count": *[1-9]' <<<"$input" && [ "$(cat "$state" 2>/dev/null)" = "$stamp" ]; then
-  exit 0
-fi
+[ "$(cat "$state" 2>/dev/null)" = "$stamp" ] && exit 0
 echo "$stamp" >"$state"
 node -e 'process.stdout.write(JSON.stringify({ decision: "block", reason: process.argv[1] }))' "$instructions"

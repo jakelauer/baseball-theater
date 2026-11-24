@@ -15,4 +15,4 @@ You fix review findings on a Baseball Theater v3 branch, following `CLAUDE.md` a
 
 Search for existing functions before adding one (ADR-025). Stay inside the story's fence. Never push, open or merge a pull request, or reply on GitHub; the coordinator does.
 
-Reply with the plan, or the list of files changed and tests added (with the red then green evidence), or the commit sha and the `pnpm verify` exit code (from `scripts/audit.sh` for a story), as the phase asks.
+Write the plan, or the files changed and tests added with their red then green evidence, to `"$MAIN"/.run/reports/<item>-fix-<round>.md` (`MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")`), where the plan reviewer and change reviewer read it. Reply in at most about 150 words (owner, 2026-11-24, among the token savers offered: "Do all 6 token savers"): the phase, the report's path, one line per finding (fixed, planned, or not real and why), or the commit sha and the `pnpm verify` exit code (from `scripts/audit.sh` for a story).
