@@ -3,8 +3,10 @@ import {
 	defaultPlaysInning, halfInningLabel, inningHalves, linescoreCells, ordinal, scoreAfterLabel, scoringPlays, atBatOfPlay, highlightTitle, videosByAtBat,
 } from "@bt/domain";
 import {
-	Accordion, Badge, Box, Group, Stack, Text, UnstyledButton,
+	Accordion, ActionIcon, Badge, Box, Group, Stack, Text, Tooltip, UnstyledButton,
 } from "@mantine/core";
+import { useReducedMotion } from "@mantine/hooks";
+import { IconPlayerPlayFilled } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import {
 	Fragment, useEffect, useRef, useState,
@@ -16,6 +18,9 @@ import { useScoresHidden } from "../../settings/useScoresHidden.js";
 import { HiddenValue } from "../HiddenValue.js";
 import { shortPlayerName } from "../game/format.js";
 import { Linescore } from "../game/Linescore.js";
+import { PlayerHost } from "../videos/PlayerHost.js";
+import type { Video } from "../videos/VideoCard.js";
+import { videoPlayLink } from "../videos/playLink.js";
 import { AtBatViewer } from "./AtBatViewer.js";
 
 /**
@@ -163,7 +168,8 @@ function InningSidebar({
  * at. By default, it should show the most recent inning that has any actual information
  * to show"). Every at-bat starts closed (owner, 2026-11-12: "the plays view shouldn't expand
  * any plays by default"), except the one a video's play link arrives on (S97). An open
- * at-bat is Live's cards, zone and pitch sequence (`AtBatViewer`).
+ * at-bat is Live's cards, zone and pitch sequence (`AtBatViewer`). An at-bat with a clip has a
+ * play button on its row that plays the clip in `PlayerHost` without opening the at-bat (#422).
  * With Hide Scores on (S75; game-rooms A4 `plays-hidden-nonotice-mobile`,
  * `plays-scoring-hidden-nonotice-mobile`) the linescore masks every inning and R·H·E, the
  * Runs view masks the score after each play, and an in-play pitch reads "IN PLAY"; the
@@ -179,9 +185,35 @@ export function PlaysPanel({ game }: { game: GamePayload })
 	// at-bat open and marked. An unknown `?play=` opens the room as usual.
 	const [params] = useSearchParams();
 	const arrival = atBatOfPlay(plays, params.get("play"));
-	// `Video: <clip title>` above every at-bat with a clip, however the room was reached (A6):
-	// one line per at-bat, the first clip in the game's order.
-	const videoLines = new Map([...videosByAtBat(game.highlights, plays)].map(([index, videos]) => [index, highlightTitle(videos[0]!, scoresHidden)]));
+	// A play button on every at-bat with a clip, however the room was reached: one per at-bat,
+	// the first clip in the game's order. It replaced A6's `Video: <clip title>` line, which said a
+	// clip existed but gave no way to play it (owner, 2026-11-23, #422).
+	const clips = new Map([...videosByAtBat(game.highlights, plays)].map(([index, videos]) => [index, videos[0]!]));
+	const [playing, setPlaying] = useState<Video | null>(null);
+	const reduceMotion = useReducedMotion();
+	// With Video Player set to Stage, the stage plays at the top of the room, which a row far down a
+	// long inning has scrolled out of view: bring it into view, or the button seems to do nothing
+	// (#422). The dialog sits in a portal, outside `host`, so it finds nothing to scroll to.
+	const host = useRef<HTMLDivElement>(null);
+	// Counts presses, so choosing the clip already playing (the same object, which `setPlaying`
+	// ignores) still brings the stage back into view.
+	const [presses, setPresses] = useState(0);
+	const play = (video: Video) =>
+	{
+		setPlaying(video);
+		setPresses((n) => n + 1);
+	};
+	useEffect(() =>
+	{
+		const stage = playing ? host.current?.querySelector("section") : null;
+		if (!stage) return;
+		const { top } = stage.getBoundingClientRect();
+		if (top >= 0 && top < window.innerHeight) return;
+		stage.scrollIntoView({
+			behavior: reduceMotion ? "auto" : "smooth",
+			block: "start",
+		});
+	}, [presses, playing, reduceMotion]);
 	if (latest === null)
 	{
 		return <Text c="dimmed">No pitch-level play data for this game yet.</Text>;
@@ -220,6 +252,20 @@ export function PlaysPanel({ game }: { game: GamePayload })
 
 	return (
 		<Stack gap={16}>
+			{/* No waiting first clip (`first`): in Plays the stage shows only once a clip is chosen. */}
+			<Box ref={host} style={{
+				display: "contents",
+			}}>
+				<PlayerHost
+					video={playing}
+					first={undefined}
+					onClose={() => setPlaying(null)}
+					fromGamePk={game.gamePk}
+					scoresHidden={scoresHidden}
+					playLink={playing ? videoPlayLink(playing, game) : null}
+					stageGame={game}
+				/>
+			</Box>
 			<Linescore linescore={game.linescore} away={away} home={home} hidden={scoresHidden} />
 			<Group align="flex-start" gap={8} wrap="nowrap">
 				<Stack gap={8} style={{
@@ -240,7 +286,8 @@ export function PlaysPanel({ game }: { game: GamePayload })
 							scoresHidden={scoresHidden}
 							defaultOpen={view === null ? (arrival?.about.atBatIndex ?? null) : null}
 							marked={arrival?.about.atBatIndex ?? null}
-							videoLines={videoLines}
+							clips={clips}
+							onPlay={play}
 						/>
 					)}
 				</Stack>
@@ -333,7 +380,7 @@ function afterScroll(item: Element, then: () => void): () => void
  * succession, starting after the top of screen animation is completed").
  */
 function PlaysAccordion({
-	plays, sections, tagged, end, defaultOpen, scoresHidden, marked = null, videoLines = new Map<number, string>(),
+	plays, sections, tagged, end, defaultOpen, scoresHidden, marked = null, clips = new Map<number, Video>(), onPlay,
 }: { plays: readonly AtBat[];
 	sections: Section[];
 	tagged: boolean;
@@ -342,8 +389,10 @@ function PlaysAccordion({
 	scoresHidden: boolean;
 	/** The at-bat a video's play link opened (S97): a bar down its left edge, scrolled into view. */
 	marked?: number | null;
-	/** Each at-bat's `Video: <clip title>` line, by `atBatIndex` (S97; game-rooms A6). */
-	videoLines?: ReadonlyMap<number, string>; })
+	/** Each at-bat's clip, by `atBatIndex`, played from the play button on its row (#422). */
+	clips?: ReadonlyMap<number, Video>;
+	/** Plays a clip, called from a row's play button. */
+	onPlay?: (video: Video) => void; })
 {
 	useEffect(() =>
 	{
@@ -448,12 +497,12 @@ function PlaysAccordion({
 					{section.plays.map((atBat) =>
 					{
 						const value = String(atBat.about.atBatIndex);
-						const video = videoLines.get(atBat.about.atBatIndex);
+						const clip = clips.get(atBat.about.atBatIndex);
+						const title = clip ? highlightTitle(clip, scoresHidden) : null;
 						// Open, or still collapsing from a close (#420).
 						const shown = open === value || closing === value;
 						return (
 							<Fragment key={value}>
-								{video ? <Text fz={12} c="var(--bt-primary-light)" data-testid="video-line">Video: {video}</Text> : null}
 								<Accordion.Item
 									id={`at-bat-${value}`}
 									value={value}
@@ -462,9 +511,31 @@ function PlaysAccordion({
 										borderLeft: "3px solid var(--bt-primary-light)",
 									} : undefined}
 								>
-									<Accordion.Control aria-label={atBatLabel(atBat)}>
-										{shown ? <OpenHeader atBat={atBat} /> : <ClosedRow atBat={atBat} tagged={tagged} end={end} />}
-									</Accordion.Control>
+									{/* The play button sits beside the toggle, not in it: `Accordion.Control` is a button, which
+									    can't hold another, and playing the clip mustn't open the play (#422). */}
+									<Group gap={0} wrap="nowrap" align="flex-start">
+										<Accordion.Control aria-label={atBatLabel(atBat)} style={{
+											flex: 1,
+											minWidth: 0,
+										}}>
+											{shown ? <OpenHeader atBat={atBat} /> : <ClosedRow atBat={atBat} tagged={tagged} end={end} />}
+										</Accordion.Control>
+										{clip && title ? (
+											<Tooltip label={title} multiline maw={280}>
+												<ActionIcon
+													data-testid="play-video"
+													aria-label={title}
+													variant="subtle"
+													color="var(--bt-primary-light)"
+													size="lg"
+													m={8}
+													onClick={() => onPlay?.(clip)}
+												>
+													<IconPlayerPlayFilled size={18} />
+												</ActionIcon>
+											</Tooltip>
+										) : null}
+									</Group>
 									<Accordion.Panel onTransitionEnd={() => replay(value)}>
 										{/* Only the open at-bat (and one collapsing) is mounted, so a closed one's replay stops with it.
 										    `autoplay` is keyed on this row, not on the open one, so its token holds while the row

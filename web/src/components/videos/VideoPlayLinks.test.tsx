@@ -6,8 +6,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AtBat } from "@bt/domain";
-import { DEFAULT_SETTINGS } from "@bt/domain";
+import type { AccountSettings, AtBat } from "@bt/domain";
+import { DEFAULT_SETTINGS, highlightTitle } from "@bt/domain";
 import { MantineProvider } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -55,20 +55,21 @@ function Where()
 	return <div data-testid="where">{location.pathname + location.search}</div>;
 }
 
-async function hideScores(on: boolean): Promise<void>
+async function hideScores(on: boolean, more: Partial<AccountSettings> = {}): Promise<void>
 {
 	vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({
 		...DEFAULT_SETTINGS,
 		hideScores: on,
+		...more,
 		version: 1,
 	}))));
 	await hydrateSettings("test-user");
 }
 
 /** Renders the game page at `path` and resolves once `ready` (a test id, or the Plays room's inning sidebar) shows. */
-async function open(path: string, ready: string): Promise<void>
+async function open(path: string, ready: string, game: GamePayload = GAME): Promise<void>
 {
-	vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(GAME))));
+	vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(game))));
 	render(
 		<MantineProvider>
 			<QueryClientProvider client={createQueryClient()}>
@@ -90,6 +91,8 @@ afterEach(async () =>
 {
 	cleanup();
 	vi.unstubAllGlobals();
+	// A failed test's `getBoundingClientRect` spy mustn't leak into the next.
+	vi.restoreAllMocks();
 	await resetSettings();
 });
 
@@ -193,7 +196,7 @@ describe("video play links (S97)", () =>
 		expect(document.querySelectorAll("[data-marked]")).toHaveLength(0);
 	});
 
-	it("S97 AC 5: 'Video: <clip title>' above every at-bat with a clip, one per at-bat, with or without ?play=", async () =>
+	it("S97 AC 5, as B422 changed it: a play button named for the clip on every at-bat with a clip, one per at-bat, with or without ?play=", async () =>
 	{
 		const byAtBat = new Map<number, string>();
 		for (const h of linked)
@@ -211,20 +214,144 @@ describe("video play links (S97)", () =>
 			fireEvent.click(within(nav).getByRole("button", {
 				name: String(inning),
 			}));
-			const lines = screen.queryAllByTestId("video-line");
+			const buttons = screen.queryAllByTestId("play-video");
 			// In game order, as the room lists its at-bats.
 			const want = [...byAtBat].filter(([index]) => PLAYS.find((a) => a.about.atBatIndex === index)!.about.inning === inning).sort(([a], [b]) => a - b);
-			expect(lines.map((l) => l.textContent), `inning ${inning}`).toEqual(want.map(([, title]) => `Video: ${title}`));
+			expect(buttons.map((b) => b.getAttribute("aria-label")), `inning ${inning}`).toEqual(want.map(([, title]) => title));
 			for (const [index] of want)
 			{
-				// The line sits right above its at-bat.
-				expect(lines.find((l) => l.nextElementSibling?.id === `at-bat-${index}`)).toBeTruthy();
+				// The button sits in its own at-bat's row.
+				expect(buttons.find((b) => b.closest(`[id="at-bat-${index}"]`))).toBeTruthy();
 			}
-			total += lines.length;
+			total += buttons.length;
 		}
+		expect(screen.queryByText(/^Video:/)).toBeNull();
 		expect(total).toBe(byAtBat.size);
 		expect(total).toBeGreaterThan(0);
 		expect(total).toBeLessThanOrEqual(20);
+	});
+});
+
+describe("a play's video plays from its row in Plays (#422)", () =>
+{
+	it("B422: the play button on a play's row, outside its toggle, opens the clip in the player without expanding the play (#422)", async () =>
+	{
+		await open("/game/823823/plays", "inning-sidebar");
+		fireEvent.click(within(screen.getByRole("navigation", {
+			name: "Inning sidebar",
+		})).getByRole("button", {
+			name: String(conineAtBat.about.inning),
+		}));
+		const item = document.getElementById(`at-bat-${conineAtBat.about.atBatIndex}`)!;
+		const toggle = within(item).getAllByRole("button")[0]!;
+		const play = within(item).getByRole("button", {
+			name: CONINE.title,
+		});
+		// In the row, not inside the accordion's own button (a button can't hold another).
+		expect(toggle.contains(play)).toBe(false);
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+		// The tooltip says the clip's title, since the title often says why there's a video.
+		fireEvent.mouseEnter(play);
+		expect((await screen.findByRole("tooltip")).textContent).toBe(CONINE.title);
+		fireEvent.click(play);
+		const dialog = await screen.findByRole("dialog");
+		expect(within(dialog).getAllByText(CONINE.title).length).toBeGreaterThan(0);
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+	});
+
+	/** Opens Plays on Conine's inning and returns his row's play button. */
+	async function conineButton(name: string, game: GamePayload = GAME): Promise<HTMLElement>
+	{
+		await open("/game/823823/plays", "inning-sidebar", game);
+		fireEvent.click(within(screen.getByRole("navigation", {
+			name: "Inning sidebar",
+		})).getByRole("button", {
+			name: String(conineAtBat.about.inning),
+		}));
+		return within(document.getElementById(`at-bat-${conineAtBat.about.atBatIndex}`)!).getByRole("button", {
+			name,
+		});
+	}
+
+	it("B422: in Stage mode a clip chosen far down the list brings the stage at the top of Plays into view (#422)", async () =>
+	{
+		await hideScores(false, {
+			videoPlayer: "stage",
+		});
+		const scrolled = vi.fn();
+		Element.prototype.scrollIntoView = scrolled;
+		// The stage sits above the viewport, as it does once a long inning is scrolled down.
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element)
+		{
+			return DOMRect.fromRect({
+				y: this.getAttribute("aria-label") === "Video player" ? -900 : 0,
+				height: 200,
+			});
+		});
+		fireEvent.click(await conineButton(CONINE.title));
+		const stage = await screen.findByRole("region", {
+			name: "Video player",
+		});
+		await waitFor(() => expect(scrolled.mock.contexts).toContain(stage));
+	});
+
+	it("B422: in Stage mode choosing the same clip again, after scrolling away, brings the stage into view again (#422)", async () =>
+	{
+		await hideScores(false, {
+			videoPlayer: "stage",
+		});
+		const scrolled = vi.fn();
+		Element.prototype.scrollIntoView = scrolled;
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element)
+		{
+			return DOMRect.fromRect({
+				y: this.getAttribute("aria-label") === "Video player" ? -900 : 0,
+				height: 200,
+			});
+		});
+		const play = await conineButton(CONINE.title);
+		fireEvent.click(play);
+		const stage = await screen.findByRole("region", {
+			name: "Video player",
+		});
+		await waitFor(() => expect(scrolled.mock.contexts).toContain(stage));
+		// The reader scrolls back down (the stage is still off-screen) and presses the same button.
+		scrolled.mockClear();
+		fireEvent.click(play);
+		await waitFor(() => expect(scrolled.mock.contexts).toContain(stage));
+	});
+
+	it("B422: in Stage mode a stage already in view isn't scrolled to (#422)", async () =>
+	{
+		await hideScores(false, {
+			videoPlayer: "stage",
+		});
+		const scrolled = vi.fn();
+		Element.prototype.scrollIntoView = scrolled;
+		fireEvent.click(await conineButton(CONINE.title));
+		const stage = await screen.findByRole("region", {
+			name: "Video player",
+		});
+		expect(scrolled.mock.contexts).not.toContain(stage);
+	});
+
+	it("B422: with Hide Scores on, the button's name and tooltip use the masked title (#422)", async () =>
+	{
+		// The game's recap, given Conine's play and listed first, is that at-bat's clip.
+		const recap = GAME.highlights.find((h) => h.tags?.includes("game-recap"))!;
+		const masked = highlightTitle(recap, true);
+		expect(masked).not.toBe(recap.title);
+		await hideScores(true);
+		const play = await conineButton(masked, {
+			...GAME,
+			highlights: [{
+				...recap,
+				playId: CONINE.playId,
+			}, ...GAME.highlights.filter((h) => h !== recap)],
+		});
+		fireEvent.mouseEnter(play);
+		expect((await screen.findByRole("tooltip")).textContent).toBe(masked);
+		expect(screen.queryByText(recap.title)).toBeNull();
 	});
 });
 
