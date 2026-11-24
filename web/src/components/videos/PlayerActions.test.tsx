@@ -14,39 +14,64 @@ import {
 	afterEach, beforeEach, describe, expect, it, vi,
 } from "vitest";
 import type { Video } from "./VideoCard.js";
+import { loadHls } from "./hls-loader.js";
 import { VideoPlayer } from "./VideoPlayer.js";
 
-/** Every hls.js player the tests' stand-in made, newest last, with the error handler it was given. */
-const hlsPlayers = vi.hoisted(() => [] as {
-	loadSource: ReturnType<typeof vi.fn>;
-	attachMedia: ReturnType<typeof vi.fn>;
-	destroy: ReturnType<typeof vi.fn>;
-	onError?: (event: string, data: { fatal: boolean }) => void;
-}[]);
+/** Every hls.js player the tests' stand-in made, newest last, and the stand-in itself. */
+const hls = vi.hoisted(() =>
+{
+	const players: {
+		loadSource: ReturnType<typeof vi.fn>;
+		attachMedia: ReturnType<typeof vi.fn>;
+		destroy: ReturnType<typeof vi.fn>;
+		onError?: (event: string, data: { fatal: boolean }) => void;
+	}[] = [];
 
-// A stand-in for hls.js (#415): records what the player asks of it, never touches media.
-vi.mock("hls.js/light", () => ({
-	default: class
+	/**
+	 * A stand-in for hls.js (#415): records what the player asks of it. Like the real one,
+	 * destroying it detaches its stream, which resets the element's `currentTime`.
+	 */
+	class FakeHls
 	{
 		static Events = {
 			ERROR: "hlsError",
 		};
 
+		media: HTMLMediaElement | null = null;
 		loadSource = vi.fn();
-		attachMedia = vi.fn();
-		destroy = vi.fn();
+		attachMedia = vi.fn((media: HTMLMediaElement) =>
+		{
+			this.media = media;
+		});
+
+		destroy = vi.fn(() =>
+		{
+			if (this.media) this.media.currentTime = 0;
+			this.media = null;
+		});
+
 		onError?: (event: string, data: { fatal: boolean }) => void;
 
 		constructor()
 		{
-			hlsPlayers.push(this);
+			players.push(this);
 		}
 
 		on(event: string, handler: (event: string, data: { fatal: boolean }) => void)
 		{
 			if (event === "hlsError") this.onError = handler;
 		}
-	},
+	}
+	return {
+		players,
+		FakeHls,
+	};
+});
+const hlsPlayers = hls.players;
+
+// `loadHls` resolves with the stand-in; a test can hold or refuse the load instead.
+vi.mock("./hls-loader.js", () => ({
+	loadHls: vi.fn(),
 }));
 
 const BASE = "https://mlb-cuts-diamond.mlb.com/FORGE/2026/2026-09/05/68e1ef46-6669f6b0-5b1ac736-csvm-diamondgcp-asset";
@@ -79,6 +104,9 @@ let paused = true;
 beforeEach(() =>
 {
 	hlsPlayers.length = 0;
+	vi.mocked(loadHls).mockImplementation(() => Promise.resolve({
+		default: hls.FakeHls,
+	} as unknown as Awaited<ReturnType<typeof loadHls>>));
 	paused = true;
 	vi.spyOn(HTMLMediaElement.prototype, "paused", "get").mockImplementation(() => paused);
 	vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (this: HTMLMediaElement)
@@ -249,6 +277,119 @@ describe("quality picker", () =>
 			name: /^Quality:/,
 		}));
 		expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["High · 720p, 16 Mbps", "Standard · 720p, 4 Mbps"]);
+	});
+
+	it("a fatal hls.js error mid-clip goes on in the MP4 from where it was, though destroying hls.js resets the time (#415)", async () =>
+	{
+		hlsSupport(false);
+		mseSupport();
+		const video = renderPlayer({
+			...VIDEO,
+			playbackUrl: HLS,
+		});
+		await vi.waitFor(() => expect(hlsPlayers).toHaveLength(1));
+		fireEvent(video, new Event("loadedmetadata"));
+		video.currentTime = 30;
+		act(() => hlsPlayers[0]!.onError!("hlsError", {
+			fatal: true,
+		}));
+		expect(video).toHaveAttribute("src", HIGH);
+		fireEvent(video, new Event("loadedmetadata"));
+		expect(video.currentTime).toBe(30);
+	});
+
+	it("leaving Auto before hls.js has loaded never attaches it (#415)", async () =>
+	{
+		hlsSupport(false);
+		mseSupport();
+		let release = () => {};
+		vi.mocked(loadHls).mockImplementation(() => new Promise((resolve) =>
+		{
+			release = () => resolve({
+				default: hls.FakeHls,
+			} as unknown as Awaited<ReturnType<typeof loadHls>>);
+		}));
+		const video = renderPlayer();
+		await choose("Auto (HLS)");
+		await choose("High · 720p, 16 Mbps");
+		await act(async () =>
+		{
+			release();
+			await Promise.resolve();
+		});
+		expect(hlsPlayers).toHaveLength(0);
+		expect(video).toHaveAttribute("src", HIGH);
+	});
+
+	it("when hls.js won't load, the clip plays the MP4 and Auto leaves the picker (#415)", async () =>
+	{
+		hlsSupport(false);
+		mseSupport();
+		vi.mocked(loadHls).mockImplementation(() => Promise.reject(new Error("chunk failed")));
+		const video = renderPlayer();
+		await choose("Auto (HLS)");
+		await vi.waitFor(() => expect(video).toHaveAttribute("src", HIGH));
+		await userEvent.click(screen.getByRole("button", {
+			name: /^Quality:/,
+		}));
+		expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["High · 720p, 16 Mbps", "Standard · 720p, 4 Mbps"]);
+	});
+
+	it("a paused portrait stream with no portrait MP4 falls back to the sharpest MP4 without autoplaying it (#415)", async () =>
+	{
+		hlsSupport(false);
+		mseSupport();
+		const PORTRAIT_HLS = "https://darkroom-clips.mlb.com/portrait.m3u8";
+		// MLB's landscape MP4s plus a portrait stream, and no portrait_mp4Avc.
+		const video = renderPlayer({
+			...VIDEO,
+			playbackUrl: PORTRAIT_HLS,
+			renditions: [{
+				name: "mp4Avc",
+				url: MP4,
+			}, {
+				name: "highBit",
+				url: HIGH,
+			}, {
+				name: "portrait_hlsCloud",
+				url: PORTRAIT_HLS,
+			}],
+		}, true);
+		await vi.waitFor(() => expect(hlsPlayers).toHaveLength(1));
+		fireEvent(video, new Event("play"));
+		fireEvent(video, new Event("pause"));
+		act(() => hlsPlayers[0]!.onError!("hlsError", {
+			fatal: true,
+		}));
+		expect(video).toHaveAttribute("src", HIGH);
+		expect(video.autoplay).toBe(false);
+	});
+
+	it("a stream-only clip hls.js fails on shows Play and waits for no reload (#415)", async () =>
+	{
+		hlsSupport(false);
+		mseSupport();
+		const video = renderPlayer({
+			...VIDEO,
+			playbackUrl: HLS,
+			renditions: [{
+				name: "hlsCloud",
+				url: HLS,
+			}],
+		}, true);
+		await vi.waitFor(() => expect(hlsPlayers).toHaveLength(1));
+		fireEvent(video, new Event("play"));
+		video.currentTime = 9;
+		act(() => hlsPlayers[0]!.onError!("hlsError", {
+			fatal: true,
+		}));
+		expect(screen.getByRole("button", {
+			name: "Play",
+		})).toBeInTheDocument();
+		// No resume is pending, so a later load doesn't seek.
+		video.currentTime = 3;
+		fireEvent(video, new Event("loadedmetadata"));
+		expect(video.currentTime).toBe(3);
 	});
 
 	it("choosing a quality plays that file from the same moment, still playing", async () =>

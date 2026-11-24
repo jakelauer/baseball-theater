@@ -9,6 +9,7 @@ import {
 import {
 	useEffect, useRef, useState,
 } from "react";
+import { loadHls } from "./hls-loader.js";
 import { PlayerActions, QualityPicker } from "./PlayerActions.js";
 import type { Video } from "./VideoCard.js";
 
@@ -178,12 +179,12 @@ export function VideoPlayer({
 		return () => document.removeEventListener("keydown", onKey);
 	}, []);
 
-	// hls.js plays `libraryUrl` (#415), loaded only now, so the entry bundle never carries it (the
-	// light build: no subtitles, alternate audio or DRM, which highlight clips don't use). A new
-	// quality or clip, or the player closing, destroys it; by then React has already set the next
-	// MP4's `src`, which hls.js leaves alone since it only clears its own blob URL. If hls.js fails,
-	// the clip goes on from the same moment in the same cut's MP4 (`fileQuality`), and HLS leaves
-	// the picker, so the reader never sits on a broken player.
+	// hls.js plays `libraryUrl` (#415), loaded only now (`loadHls`), so the entry bundle never
+	// carries it. A new quality or clip, or the player closing, destroys it; by then React has
+	// already set the next MP4's `src`, which hls.js leaves alone since it only clears its own blob
+	// URL. If hls.js fails (a fatal error, or its chunk won't load), HLS leaves the picker and the
+	// clip goes on from the same moment in the same cut's MP4 (`fileQuality`), else the clip's
+	// sharpest MP4. A clip MLB gives no MP4 for has nothing to fall back to: it stays paused.
 	useEffect(() =>
 	{
 		const element = ref.current;
@@ -193,17 +194,29 @@ export function VideoPlayer({
 		const fail = () =>
 		{
 			if (cancelled) return;
+			// Read the place first: destroying hls.js detaches its stream, which resets `currentTime`.
+			const time = resume.current?.time ?? element.currentTime;
 			player?.destroy();
 			player = null;
-			resume.current = {
-				time: resume.current?.time ?? element.currentTime,
-			};
-			const fallback = fileQuality(videoQualities(video), quality);
-			setPicked(fallback && !fallback.hls ? fallback.id : null);
 			setLibraryFailed(true);
-			setPlaying(wantsPlay.current);
+			const files = videoQualities(video).filter((entry) => !entry.hls);
+			const sameCut = fileQuality(videoQualities(video), quality);
+			const fallback = sameCut && !sameCut.hls ? sameCut : defaultVideoQuality(files, video.playbackUrl);
+			if (!fallback)
+			{
+				// Nothing plays here: no reload will come to resume, and the button shows Play.
+				resume.current = null;
+				wantsPlay.current = false;
+				setPlaying(false);
+				return;
+			}
+			resume.current = {
+				time,
+			};
+			// Never back to null: that would re-arm the first source's autoplay against a pause.
+			setPicked(fallback.id);
 		};
-		import("hls.js/light").then(({ default: Hls }) =>
+		loadHls().then(({ default: Hls }) =>
 		{
 			if (cancelled) return;
 			const hls = new Hls();
