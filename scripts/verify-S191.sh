@@ -62,8 +62,15 @@ for t in ScheduleDayTally ScheduleDayCount; do
 done
 grep -qE '^export function dayRegularSeasonTeamIds\(' "$DOMAIN" || bad 1 "$DOMAIN has no exported dayRegularSeasonTeamIds"
 awk '/^export function dayRegularSeasonTeamIds\(/,/^}/' "$DOMAIN" | grep -qF 'distinctTeamIds(' || bad 1 "dayRegularSeasonTeamIds does not go through distinctTeamIds"
+# The memory adapter may tally through scheduleDayTally (stage's #410 refactor), as long as that
+# domain function builds the field through dayRegularSeasonTeamIds.
+TALLY_OK=0
+awk '/^export function scheduleDayTally\(/,/^}/' "$DOMAIN" | grep -qF 'dayRegularSeasonTeamIds(' && TALLY_OK=1
 for f in functions/src/adapters/postgres/repos.ts functions/src/adapters/memory/repos.ts; do
-  awk '/async listGameCounts\(/,/^\t}$/' "$f" | grep -qF 'dayRegularSeasonTeamIds(' || bad 1 "$f listGameCounts does not build regularSeasonTeamIds through dayRegularSeasonTeamIds"
+  BODY="$(awk '/async listGameCounts\(/,/^\t}$/' "$f")"
+  grep -qF 'dayRegularSeasonTeamIds(' <<<"$BODY" ||
+    { [ "$f" = functions/src/adapters/memory/repos.ts ] && [ "$TALLY_OK" = 1 ] && grep -qF 'scheduleDayTally' <<<"$BODY"; } ||
+    bad 1 "$f listGameCounts does not build regularSeasonTeamIds through dayRegularSeasonTeamIds"
 done
 [ "$(awk '/async listGameCounts\(/,/^\t}$/' functions/src/adapters/postgres/repos.ts | grep -c 'this.db.select')" = "1" ] || bad 1 "the Postgres listGameCounts does not read in exactly one query"
 tagged 1 "$DOMAIN_JSON" "S191 AC 1" "packages/domain/src/schedule-month.test.ts"
