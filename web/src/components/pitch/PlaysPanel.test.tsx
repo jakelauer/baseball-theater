@@ -413,11 +413,97 @@ describe("opening an at-bat (S64 choreography, kept in S41)", () =>
 		const { container } = wrap(<PlaysPanel game={game(PLAYS.slice(0, 3))} />);
 		const atBat = PLAYS[2]!;
 		fireEvent.click(control(container, atBat));
+		// Nothing moves, so it waits out the frames a late-starting scroll gets (ten), not a second.
 		act(() =>
 		{
-			vi.advanceTimersByTime(150);
+			vi.advanceTimersByTime(100);
+		});
+		expect(within(item(atBat)).queryByTestId("catcher-view")).toBeNull();
+		act(() =>
+		{
+			vi.advanceTimersByTime(100);
 		});
 		expect(within(item(atBat)).getByTestId("catcher-view")).toBeInTheDocument();
+	});
+
+	it("an at-bat waits for a smooth scroll that starts late, then opens once it stops (#420)", () =>
+	{
+		vi.useFakeTimers();
+		vi.stubGlobal("requestAnimationFrame", (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now()), 16));
+		vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
+		vi.stubGlobal("scrollBy", vi.fn());
+		vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => undefined);
+		// The scroll sits still on screen for its first frames, then moves partway and stops
+		// short of the top (the last rows of a short page).
+		let moved = false;
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(() => ({
+			top: moved ? 200 : 300,
+		}) as DOMRect);
+		const { container } = wrap(<PlaysPanel game={game(PLAYS.slice(0, 3))} />);
+		const atBat = PLAYS[2]!;
+		fireEvent.click(control(container, atBat));
+		act(() =>
+		{
+			vi.advanceTimersByTime(90);
+		});
+		expect(within(item(atBat)).queryByTestId("catcher-view")).toBeNull();
+		moved = true;
+		act(() =>
+		{
+			vi.advanceTimersByTime(100);
+		});
+		expect(within(item(atBat)).getByTestId("catcher-view")).toBeInTheDocument();
+	});
+
+	it("closing an at-bat doesn't start its replay again while it collapses (#420)", () =>
+	{
+		vi.useFakeTimers();
+		let now = 0;
+		// One frame every 16 ms of timer time, each a tenth of a second of the replay.
+		vi.stubGlobal("requestAnimationFrame", (tick: FrameRequestCallback) => setTimeout(() =>
+		{
+			now += 100;
+			tick(now);
+		}, 16));
+		vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
+		vi.spyOn(performance, "now").mockImplementation(() => now);
+		vi.stubGlobal("scrollBy", vi.fn());
+		const { container } = wrap(<PlaysPanel game={game(PLAYS.slice(0, 3))} />);
+		const atBat = PLAYS[0]!;
+		const lastPitch = atBat.pitches.filter((p) => p.pitchData).at(-1)!;
+		// `hidden`: a collapsing panel is aria-hidden, but its contents are still there.
+		const ringed = () => within(item(atBat)).getByRole("button", {
+			name: `Pitch ${lastPitch.pitchNumber}`,
+			hidden: true,
+		}).querySelector('circle[r="10"]') !== null;
+		// Counted, not matched: the test runner can't print a stray SVG ball in a failure.
+		const balls = () => within(item(atBat)).queryAllByTestId("zone-ball").length;
+		// Already at the top, it opens at once; its replay starts and plays out in full.
+		fireEvent.click(control(container, atBat));
+		act(() =>
+		{
+			vi.advanceTimersByTime(600);
+		});
+		expect(within(item(atBat)).getByTestId("zone-ball")).toBeInTheDocument();
+		for (let step = 0; step < 60; step++)
+		{
+			act(() =>
+			{
+				vi.advanceTimersByTime(16);
+			});
+		}
+		expect(ringed()).toBe(true);
+		// Closing keeps the finished at-bat as it was through the collapse: no replay.
+		fireEvent.click(control(container, atBat));
+		expect(within(item(atBat)).getByTestId("catcher-view")).toBeInTheDocument();
+		expect(balls()).toBe(0);
+		expect(ringed()).toBe(true);
+		act(() =>
+		{
+			vi.advanceTimersByTime(100);
+		});
+		expect(balls()).toBe(0);
+		expect(ringed()).toBe(true);
 	});
 
 	it("closing an at-bat keeps its contents in the panel until the collapse ends, so the page doesn't jump (#420)", () =>
@@ -434,6 +520,39 @@ describe("opening an at-bat (S64 choreography, kept in S41)", () =>
 		act(() =>
 		{
 			vi.advanceTimersByTime(1000);
+		});
+		expect(within(item(atBat)).queryByTestId("catcher-view")).toBeNull();
+	});
+
+	it("closing again after a quick reopen keeps the contents through the whole second collapse (#420)", () =>
+	{
+		vi.useFakeTimers();
+		vi.stubGlobal("scrollBy", vi.fn());
+		const { container } = wrap(<PlaysPanel game={game(PLAYS.slice(0, 3))} />);
+		const atBat = PLAYS[0]!;
+		const button = control(container, atBat);
+		// Open (at the top, so at once), close, reopen 100 ms in, close again 100 ms later.
+		fireEvent.click(button);
+		fireEvent.click(button);
+		act(() =>
+		{
+			vi.advanceTimersByTime(100);
+		});
+		fireEvent.click(button);
+		act(() =>
+		{
+			vi.advanceTimersByTime(100);
+		});
+		fireEvent.click(button);
+		// The first close's wait would have ended here; the second collapse is still running.
+		act(() =>
+		{
+			vi.advanceTimersByTime(150);
+		});
+		expect(within(item(atBat)).getByTestId("catcher-view")).toBeInTheDocument();
+		act(() =>
+		{
+			vi.advanceTimersByTime(200);
 		});
 		expect(within(item(atBat)).queryByTestId("catcher-view")).toBeNull();
 	});
