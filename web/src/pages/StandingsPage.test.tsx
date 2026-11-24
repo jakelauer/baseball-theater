@@ -45,13 +45,18 @@ function renderStandings(path = "/standings?date=2026-09-05")
 
 /**
  * Stubs `fetch` with `standings` for every request but the date control's month (S138), which gets a
- * busy month without reaching `standings`, so its calls are the page's standings requests alone.
+ * busy month, and its year's month versions (S194), which get none, both without reaching
+ * `standings`, so its calls are the page's standings requests alone.
  */
 function stubFetch(standings: (request: Request) => Promise<Response>)
 {
 	vi.stubGlobal("fetch", (request: Request) =>
 	{
-		const month = /^\/api\/v1\/schedule\/month\/(.+)$/.exec(new URL(request.url).pathname)?.[1];
+		const path = new URL(request.url).pathname;
+		if (path.startsWith("/api/v1/schedule/month-versions/")) return Promise.resolve(jsonResponse({
+			versions: {},
+		}));
+		const month = /^\/api\/v1\/schedule\/month\/(.+)$/.exec(path)?.[1];
 		return month ? Promise.resolve(jsonResponse(busyMonth(month))) : standings(request);
 	});
 }
