@@ -9,6 +9,10 @@
  * is labeled personal there, so sign-out's `clearPersonalData()` removes it
  * (ADR-028). It only spares a reload from flashing the defaults; the account
  * stays the source of truth.
+ *
+ * One value here is not an account setting: the video quality last chosen (#416), kept in this
+ * browser under its own non-personal key, `bt.videoQuality`, so it works signed in or out and
+ * survives sign-out. It is left out of `bt.settings` and of `resetSettings`.
  */
 import type {
 	AccountSettings, GameRowSlot, OpensFirst, VideoPlayerMode,
@@ -19,12 +23,19 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { fetchSettings, saveSettings } from "../api/client.js";
 import { readStored, writeStored } from "../storage/storage.js";
 
-type SettingsState = { settings: AccountSettings };
+type SettingsState = { settings: AccountSettings;
+	/** MLB's name for the quality last chosen in the player (`highBit`), or null before any choice (#416). */
+	videoQuality: string | null; };
 
 const settingsStore = create<SettingsState>()(persist(() => ({
 	settings: DEFAULT_SETTINGS,
+	videoQuality: readStored("bt.videoQuality"),
 }), {
 	name: "bt.settings",
+	// Only the account's settings go in `bt.settings`; the video quality has its own key.
+	partialize: (state) => ({
+		settings: state.settings,
+	}),
 	storage: createJSONStorage(() => ({
 		getItem: () => readStored("bt.settings"),
 		setItem: (_name, value) => writeStored("bt.settings", value),
@@ -129,6 +140,24 @@ export function setVideoPlayer(mode: VideoPlayerMode): Promise<void>
 {
 	return save({
 		videoPlayer: mode,
+	});
+}
+
+/** The video quality last chosen in the player, or null before any choice (#416); the player passes it to `rememberedVideoQuality`. */
+export function useVideoQuality(): string | null
+{
+	return settingsStore((state) => state.videoQuality);
+}
+
+/**
+ * Records the reader's choice of video quality (#416), in this browser only (`bt.videoQuality`).
+ * Called when they pick one in the player, never for a fallback; null forgets it.
+ */
+export function setVideoQuality(id: string | null): void
+{
+	writeStored("bt.videoQuality", id);
+	settingsStore.setState({
+		videoQuality: id,
 	});
 }
 

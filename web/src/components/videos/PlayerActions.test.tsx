@@ -13,6 +13,7 @@ import { MemoryRouter } from "react-router-dom";
 import {
 	afterEach, beforeEach, describe, expect, it, vi,
 } from "vitest";
+import { setVideoQuality } from "../../settings/store.js";
 import type { Video } from "./VideoCard.js";
 import { loadHls } from "./hls-loader.js";
 import { VideoPlayer } from "./VideoPlayer.js";
@@ -103,6 +104,8 @@ let paused = true;
 
 beforeEach(() =>
 {
+	// No remembered quality (#416): each test starts on the clip's own default unless it chooses one.
+	setVideoQuality(null);
 	hlsPlayers.length = 0;
 	vi.mocked(loadHls).mockImplementation(() => Promise.resolve({
 		default: hls.FakeHls,
@@ -611,6 +614,43 @@ describe("quality picker", () =>
 			name: /^Quality:/,
 		})).toBeNull();
 		expect(screen.getByTestId("player-actions")).toBeInTheDocument();
+	});
+
+	it("a chosen quality is remembered for the next clip; one without it plays the nearest lower quality, and the choice stays (#416)", async () =>
+	{
+		hlsSupport(false);
+		renderPlayer();
+		await choose("High · 720p, 16 Mbps");
+		cleanup();
+		// The next clip starts on the remembered High.
+		expect(renderPlayer()).toHaveAttribute("src", HIGH);
+		cleanup();
+		// A clip MLB gave no High plays the next quality down, Standard.
+		expect(renderPlayer({
+			...VIDEO,
+			id: "no-high",
+			renditions: VIDEO.renditions!.filter((rendition) => rendition.name !== "highBit"),
+		})).toHaveAttribute("src", MP4);
+		cleanup();
+		// That fallback was not recorded: a clip with High starts on High again.
+		expect(renderPlayer()).toHaveAttribute("src", HIGH);
+		expect(localStorage.getItem("bt.videoQuality")).toBe("highBit");
+	});
+
+	it("a remembered Auto plays through hls.js where the browser needs it, and falls to the sharpest MP4 where it can't play HLS at all (#416)", async () =>
+	{
+		hlsSupport(false);
+		mseSupport();
+		renderPlayer();
+		await choose("Auto (HLS)");
+		cleanup();
+		renderPlayer();
+		await act(async () => undefined);
+		expect(hlsPlayers.at(-1)?.loadSource).toHaveBeenCalledWith(HLS);
+		cleanup();
+		vi.unstubAllGlobals();
+		expect(renderPlayer()).toHaveAttribute("src", HIGH);
+		expect(localStorage.getItem("bt.videoQuality")).toBe("hlsCloud");
 	});
 });
 

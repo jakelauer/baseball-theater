@@ -26,7 +26,8 @@ import { jsonResponse } from "../test/jsonResponse.js";
 import { DEV_ACCOUNT } from "../test/meApi.js";
 import { SettingsSync } from "./SettingsSync.js";
 import {
-	hydrateSettings, resetSettings, setCollapseNonFavorites, setFavoriteTeams, setGameRowSlot, setHideScores, setOpensFirst, setVideoPlayer, useSettings,
+	hydrateSettings, resetSettings, setCollapseNonFavorites, setFavoriteTeams, setGameRowSlot, setHideScores, setOpensFirst, setVideoPlayer, setVideoQuality,
+	useSettings, useVideoQuality,
 } from "./store.js";
 
 /** Stubs the API: `/me` for the dev session, and settings as one stored document with apply-if-newer. */
@@ -190,6 +191,28 @@ describe("settings store", () =>
 		});
 		clearPersonalData();
 		expect(readStored("bt.settings")).toBeNull();
+	});
+
+	it("#416: the chosen video quality is this browser's, under its own key: never in bt.settings or saved to the account, and kept on sign-out", async () =>
+	{
+		const { puts } = stubAccountApi();
+		act(() => setVideoQuality("highBit"));
+		const { result } = renderHook(() => useVideoQuality());
+		expect(result.current).toBe("highBit");
+		expect(readStored("bt.videoQuality")).toBe("highBit");
+		await act(() => setFavoriteTeams([147]));
+		expect(readStored("bt.settings")).not.toContain("highBit");
+		expect(JSON.stringify(puts)).not.toContain("highBit");
+		act(() =>
+		{
+			resetSettings();
+			clearPersonalData();
+		});
+		expect(result.current).toBe("highBit");
+		expect(readStored("bt.videoQuality")).toBe("highBit");
+		act(() => setVideoQuality(null));
+		expect(result.current).toBeNull();
+		expect(readStored("bt.videoQuality")).toBeNull();
 	});
 
 	it("hydrateSettings replaces the store with the account's copy", async () =>

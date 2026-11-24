@@ -17,11 +17,11 @@
  * must not overwrite the first's). Logto's browser SDK would otherwise keep its tokens and sign-in
  * session under keys of its own; the `AuthClient` (S116) hands it a storage adapter over this
  * module instead, so every key it writes is listed here, labeled personal, and gone after sign-out
- * and account deletion. Three keys say nothing about the person (ADR-028's `none`): when the
+ * and account deletion. Four keys say nothing about the person (ADR-028's `none`): when the
  * update notice's Snooze runs out (S73, shell-scoreboard A6), the release this browser last
- * loaded (S135, A9's after-update pointer) and that the Settings install tip was dismissed (S73,
- * standings-search-settings A8). They belong to this browser, survive sign-out, and
- * never sync to the account.
+ * loaded (S135, A9's after-update pointer), that the Settings install tip was dismissed (S73,
+ * standings-search-settings A8) and the video quality last chosen (#416). They belong to this
+ * browser, survive sign-out, and never sync to the account.
  */
 export const STORAGE_KEYS = {
 	/** The S59 session bearer token; shared, so every tab is signed in. */
@@ -74,6 +74,14 @@ export const STORAGE_KEYS = {
 	},
 	/** Set once the Settings install tip is dismissed (S73, standings-search-settings A8): it stays gone in this browser. */
 	"bt.installTipDismissed": {
+		personal: false,
+		area: "shared",
+	},
+	/**
+	 * The video quality the reader last chose in the player (#416), by MLB's playback name (`highBit`), so the next clip starts
+	 * there (`rememberedVideoQuality`). Written only by a choice in the picker, never by a fallback. The settings store keeps it.
+	 */
+	"bt.videoQuality": {
 		personal: false,
 		area: "shared",
 	},
