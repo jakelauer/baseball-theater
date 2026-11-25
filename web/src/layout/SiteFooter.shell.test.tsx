@@ -237,7 +237,7 @@ describe("the shell's site footer (S142)", () =>
 		renderApp("/changelog");
 		expect(await screen.findByRole("heading", {
 			level: 1,
-			name: "Change log",
+			name: "Changelog",
 		})).toBeInTheDocument();
 		expect(screen.queryByRole("contentinfo")).toBeNull();
 		await act(async () => answer(jsonResponse({
@@ -366,7 +366,7 @@ describe("the shell's site footer (S142)", () =>
 		}));
 		expect(await screen.findByRole("heading", {
 			level: 1,
-			name: "Change log",
+			name: "Changelog",
 		})).toBeInTheDocument();
 		expect(screen.getByLabelText("path")).toHaveTextContent(/^\/changelog$/);
 		await userEvent.click(within(await footer()).getByRole("link", {

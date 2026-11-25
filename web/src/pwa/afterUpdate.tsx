@@ -40,6 +40,12 @@ const CHANGED = "bt:after-update-changed";
 let announced: string | null = null;
 /** Set once the pointer has gone (its time, a click, the drawer, A6's box): it never comes back on this load. */
 let ended = false;
+/**
+ * When its 10 seconds end (epoch ms), set the first time the shell shows it. Module state, not the
+ * hook's, so a pointer handed over to the game page's notice (or back) keeps the time it has left
+ * rather than starting again (A17, "Moving between pages").
+ */
+let endsAt: number | null = null;
 
 function changed(): void
 {
@@ -59,6 +65,7 @@ export function startAfterUpdate(release: string | null): void
 {
 	announced = checkAfterUpdate(release);
 	ended = false;
+	endsAt = null;
 	changed();
 }
 
@@ -73,15 +80,29 @@ export function exposeDevUpdatedTrigger(): void
 	{
 		announced = release;
 		ended = false;
+		endsAt = null;
 		changed();
 	};
 }
 
-/** The pointer while it shows: the release it names, and how the shell ends it (the drawer opening). */
+/**
+ * The after-update moment while it shows: the release it names, how the shell ends it (the drawer
+ * opening, the game page's notice opening the change log), and how much of its 10 seconds is left
+ * (all of them before they have started), read when asked rather than when this was made, so whichever
+ * of A9's pointer or A17's notice draws it, even after a hand-over, runs its countdown line from the
+ * time left.
+ */
 export interface AfterUpdate
 {
 	release: string;
 	end: () => void;
+	timeLeft: () => number;
+}
+
+/** What's left of the 10 seconds (`POINTER_MS` before they start). */
+function timeLeft(): number
+{
+	return endsAt === null ? POINTER_MS : Math.min(POINTER_MS, Math.max(0, endsAt - Date.now()));
 }
 
 /**
@@ -90,7 +111,10 @@ export interface AfterUpdate
  * 2026-11-10: "we'd just show the update notice and no post-update notice"), and a pointer the box
  * meets ends for this load, so neither Snooze nor the end of its 10 seconds brings it back. Its 10
  * seconds run from the load (the shell's first render with it armed, at startup) and never pause
- * (owner, 2026-11-16: "don't pause on hover").
+ * (owner, 2026-11-16: "don't pause on hover"). One moment whichever draws it: the shell shows it as
+ * A9's pointer or, on a game page at mobile and medium, as A17's notice (S193), and moving between
+ * those pages hands the rest of the same 10 seconds over (`timeLeft`), the release recorded once at
+ * startup either way (`checkAfterUpdate`).
  */
 export function useAfterUpdate(updateUp: boolean): AfterUpdate | null
 {
@@ -110,13 +134,15 @@ export function useAfterUpdate(updateUp: boolean): AfterUpdate | null
 			endPointer();
 			return;
 		}
-		const timer = setTimeout(endPointer, POINTER_MS);
+		endsAt ??= Date.now() + POINTER_MS;
+		const timer = setTimeout(endPointer, Math.max(0, endsAt - Date.now()));
 		return () => clearTimeout(timer);
 	}, [armed, updateUp]);
 	if (!armed || updateUp || announced === null) return null;
 	return {
 		release: announced,
 		end: endPointer,
+		timeLeft,
 	};
 }
 
@@ -125,6 +151,7 @@ export function resetAfterUpdate(): void
 {
 	announced = null;
 	ended = false;
+	endsAt = null;
 }
 
 /**
@@ -185,21 +212,38 @@ export function AfterUpdatePointer({
 					borderColor: "var(--bt-hairline)",
 				}}
 			>
-				{pointer ? <PointerBody release={pointer.release} onChangelog={onChangelog} reduceMotion={reduceMotion} /> : null}
+				{pointer ? <PointerBody release={pointer.release} timeLeft={pointer.timeLeft} link={onChangelog ? "none" : "page"} reduceMotion={reduceMotion} /> : null}
 			</Popover.Dropdown>
 		</Popover>
 	);
 }
 
-/** The popover's words and its countdown line (A9 `after-update-pointer`). */
-function PointerBody({
-	release, onChangelog, reduceMotion,
+/**
+ * The popover's words and its countdown line (A9 `after-update-pointer`), shared by A9's pointer and
+ * A17's game-page notice (`UpdatedNotice`). `link` is what "Open the changelog" is: `page`, a link to
+ * the change log page (A9's `Link=Yes`); `inline`, the same words drawn as a link but part of the notice's
+ * one button, so it does what a tap on the rest of the notice does, opening the change log over the game
+ * page (A17: "Its link … opens the modal, not the `/changelog` page"); `none`, no link and "… on this
+ * page." (A9's `Link=No`, on the change log page).
+ */
+export function PointerBody({
+	release, timeLeft, link, reduceMotion,
 }: {
 	release: string;
-	onChangelog: boolean;
+	timeLeft: () => number;
+	link: "page" | "inline" | "none";
 	reduceMotion: boolean;
 })
 {
+	const linkProps = {
+		fz: 13,
+		fw: 600,
+		c: "var(--bt-primary-light)",
+		underline: "never",
+		lh: 1.3,
+		mt: 4,
+		display: "inline-block",
+	} as const;
 	return (
 		<>
 			<div style={{
@@ -207,15 +251,13 @@ function PointerBody({
 			}}>
 				<Text fz={14} fw={600} c="var(--bt-light)">Update complete</Text>
 				<Text fz={13} lh={1.3} c="var(--bt-muted)" mt={4}>
-					{onChangelog ? `You're on ${release}. What changed is on this page.` : `You're on ${release}. What changed is in the changelog.`}
+					{link === "none" ? `You're on ${release}. What changed is on this page.` : `You're on ${release}. What changed is in the changelog.`}
 				</Text>
-				{onChangelog ? null : (
-					<Anchor component={Link} to={CHANGELOG_PATH} fz={13} fw={600} c="var(--bt-primary-light)" underline="never" lh={1.3} mt={4} display="inline-block">
-						Open the changelog
-					</Anchor>
-				)}
+				{link === "page" ? <Anchor component={Link} to={CHANGELOG_PATH} {...linkProps}>Open the changelog</Anchor> : null}
+				{/* Inside the notice's one button (`UpdatedNotice`), so a link here would nest one control in another. */}
+				{link === "inline" ? <Text component="span" fz={13} fw={600} c="var(--bt-primary-light)" lh={1.3} mt={4} display="inline-block">Open the changelog</Text> : null}
 			</div>
-			{reduceMotion ? null : <Countdown />}
+			{reduceMotion ? null : <Countdown timeLeft={timeLeft} />}
 		</>
 	);
 }
@@ -224,10 +266,14 @@ function PointerBody({
  * A9's 2px countdown line: Primary Light over a hairline track, shrinking to nothing over `POINTER_MS`.
  * The fill shrinks by `scaleX` from its left edge, not by animating its width (Mantine's `Progress`
  * does that), so it runs down in subpixel steps instead of jumping a pixel at a time (B413, #413).
+ * Drawn after a hand-over (A17, "Moving between pages"), it starts at the share of the 10 seconds
+ * left (`timeLeft`, read once as it is drawn) and runs down over what's left; before the time has
+ * started it is full.
  */
-function Countdown()
+function Countdown({ timeLeft }: { timeLeft: () => number })
 {
-	const [scale, setScale] = useState(1);
+	const [left] = useState(timeLeft);
+	const [scale, setScale] = useState(left / POINTER_MS);
 	// Start full, then let the fill's own transition run it down: one state change, no ticking timer.
 	useEffect(() =>
 	{
@@ -242,7 +288,7 @@ function Countdown()
 			<Box h="100%" bg="var(--bt-primary-light)" style={{
 				transform: `scaleX(${scale})`,
 				transformOrigin: "left",
-				transition: `transform ${POINTER_MS}ms linear`,
+				transition: `transform ${left}ms linear`,
 				willChange: "transform",
 			}}
 			/>

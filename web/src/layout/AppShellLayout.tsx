@@ -1,9 +1,12 @@
 import { Box, Drawer } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { useState } from "react";
+import {
+	Component, Suspense, lazy, useState,
+} from "react";
 import { useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { AfterUpdate } from "../pwa/afterUpdate.js";
+import { UpdatedNotice } from "../pwa/UpdatedNotice.js";
 import { AppHeader } from "./AppHeader.js";
 import { NavRail } from "./NavRail.js";
 import type { Notice } from "./NoticeSlot.js";
@@ -13,6 +16,49 @@ import { RAIL_WIDTH } from "./nav.js";
 import { SiteFooter } from "./SiteFooter.js";
 import type { LayoutVariant } from "./variant.js";
 import { useLayoutVariant } from "./variant.js";
+
+/**
+ * The change log modal and the page it holds, loaded the first time the game page's notice opens it, so
+ * neither is in the entry chunk (S193; S110). A fresh `lazy` each time, since one whose load failed keeps
+ * the failure: after a failed load the shell takes a new one, so the next opening tries again.
+ */
+function loadChangelogModal()
+{
+	return lazy(() => import("../pwa/ChangelogModal.js").then((m) => ({
+		default: m.ChangelogModal,
+	})));
+}
+
+/**
+ * Catches a failed load of the change log modal (a dropped connection right after an update, Claude's
+ * review of PR #566): without it `lazy` rethrows during render and, with no boundary above, React
+ * unmounts the whole app. It draws nothing and tells the shell, which closes the modal and readies a
+ * retry, so the game page stays as it was.
+ */
+class ChangelogLoadBoundary extends Component<{ onFail: () => void;
+	children: ReactNode; }, { failed: boolean }>
+{
+	override state = {
+		failed: false,
+	};
+
+	static getDerivedStateFromError(): { failed: boolean }
+	{
+		return {
+			failed: true,
+		};
+	}
+
+	override componentDidCatch(): void
+	{
+		this.props.onFail();
+	}
+
+	override render(): ReactNode
+	{
+		return this.state.failed ? null : this.props.children;
+	}
+}
 
 /**
  * The one layout host (ADR-014 rule 8; S60). It is the only reader of the
@@ -39,8 +85,13 @@ import { useLayoutVariant } from "./variant.js";
  * own `variant`, never a second viewport read: at the rail's change log link on desktop, at the
  * burger on mobile and medium. Opening the drawer while it shows ends it, and the drawer's change
  * log link stays highlighted until the drawer closes (A9's `updated-pointer-menu-open-*` frames).
- * Game routes draw no app header, so on mobile and medium the pointer has nothing to aim at there
- * and only its time runs.
+ * Game routes draw no app header, so on mobile and medium the pointer has nothing to aim at there;
+ * the shell draws A17's notice in its place (S193, `UpdatedNotice`), which a tap turns into the change
+ * log over the game page (`ChangelogModal`). Both are the same `pointer`, so moving between a game page
+ * and another page hands the rest of its 10 seconds over either way (A17, "Moving between pages"), as
+ * does turning a tablet to the desktop layout, where the rail's pointer takes over. Whether the modal is
+ * open is the shell's state, not the notice's, so it stays open when the notice ends (A6's box coming
+ * up, A17's "the modal, once the fan has opened it, stays open").
  *
  * The site footer (S142; shell-scoreboard A14) is the shell's, drawn after `<main>` so it is the
  * page's `contentinfo` and spans the content column edge to edge, never the rail, and never in
@@ -67,6 +118,22 @@ export function AppShellLayout({
 	const [opened, { open, close }] = useDisclosure();
 	const [drawerHighlight, setDrawerHighlight] = useState(false);
 	const [footer, setFooter] = useState<FooterMode>("plain");
+	const [changelogOpen, setChangelogOpen] = useState(false);
+	// Mounted from its first opening on, so its close transition still runs after it closes.
+	const [changelogUsed, setChangelogUsed] = useState(false);
+	const [ChangelogModal, setChangelogModal] = useState(loadChangelogModal);
+	// A failed load: closed, unmounted, and a new `lazy` ready for the next opening.
+	const changelogFailed = () =>
+	{
+		setChangelogOpen(false);
+		setChangelogUsed(false);
+		setChangelogModal(() => loadChangelogModal());
+	};
+	const openChangelog = () =>
+	{
+		setChangelogUsed(true);
+		setChangelogOpen(true);
+	};
 	// However the drawer closes (the burger, a link, the overlay, Escape), its link's highlight goes with it.
 	const closeDrawer = () =>
 	{
@@ -145,6 +212,14 @@ export function AppShellLayout({
 					{children(variant, setFooter)}
 				</Box>
 				{footer === "none" ? null : <SiteFooter live={footer === "live"} variant={variant} />}
+				{gameRoute && !desktop ? <UpdatedNotice pointer={pointer} variant={variant} onOpen={openChangelog} /> : null}
+				{changelogUsed ? (
+					<ChangelogLoadBoundary onFail={changelogFailed}>
+						<Suspense fallback={null}>
+							<ChangelogModal opened={changelogOpen} onClose={() => setChangelogOpen(false)} variant={variant} />
+						</Suspense>
+					</ChangelogLoadBoundary>
+				) : null}
 			</Box>
 		</Box>
 	);

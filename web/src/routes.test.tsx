@@ -165,7 +165,7 @@ describe("change log route (S134)", () =>
 		// The page is its own chunk (S110), so its heading arrives once it loads.
 		expect(await screen.findByRole("heading", {
 			level: 1,
-			name: "Change log",
+			name: "Changelog",
 		})).toBeInTheDocument();
 		expect(await screen.findByText("No release notes yet.")).toBeInTheDocument();
 		expect(screen.getByLabelText("path")).toHaveTextContent(/^\/changelog$/);
