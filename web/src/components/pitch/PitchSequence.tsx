@@ -47,14 +47,19 @@ function pitchDetail(pitch: PitchEvent): { label: string;
  * the room, so a zone dot and a row select the same pitch. Rows are buttons; Up / Down
  * move the selection. Mobile lists the detail as rows; medium / desktop as a
  * four-column grid (`variant` from the layout host). Each row ends in the frames' chevron,
- * up on the open pitch and down on the rest (owner, 2026-11-04). Each call is `pitchCallLabel`'s, so
- * with Hide Scores on an in-play pitch reads "IN PLAY" rather than say runs scored (S75).
+ * up on the open pitch and down on the rest (owner, 2026-11-04). Tapping the open pitch closes it, as
+ * its up chevron says, so at most one is open and none may be (owner, 2026-11-24, #522: "you can still
+ * open a max of 1 pitch at a time, but the minimum changes from 1 to 0"): `onSelectPitch(null)`.
+ * Each call is `pitchCallLabel`'s, so with Hide Scores on an in-play pitch reads "IN PLAY" rather
+ * than say runs scored (S75).
  */
 export function PitchSequence({
 	pitches, selectedPitchNumber, onSelectPitch, variant, scoresHidden = false,
 }: { pitches: readonly PitchEvent[];
+	/** The open pitch, or `null` with every pitch closed. */
 	selectedPitchNumber: number | null;
-	onSelectPitch: (pitchNumber: number) => void;
+	/** A pitch opened, or `null` when the open one is closed. */
+	onSelectPitch: (pitchNumber: number | null) => void;
 	variant: LayoutVariant;
 	/** Hide Scores for this game (`useScoresHidden`, asked by the room). */
 	scoresHidden?: boolean; })
@@ -94,7 +99,7 @@ export function PitchSequence({
 						<UnstyledButton
 							data-pitch={pitch.pitchNumber}
 							aria-expanded={open}
-							onClick={() => onSelectPitch(pitch.pitchNumber)}
+							onClick={() => onSelectPitch(open ? null : pitch.pitchNumber)}
 							onKeyDown={(event) => onKeyDown(event, index)}
 							className="bt-hover"
 							w="100%"

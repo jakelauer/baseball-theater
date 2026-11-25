@@ -10,10 +10,13 @@
  * (`src/scripts/`) and has no place in the Worker.
  */
 import { cachedSeasonCalendars, defaultCalendarStore } from "./adapters/cached-season-calendars.js";
-import type { MlbStatsClient, OwedEdgePurgeRepository } from "@bt/ports";
+import type {
+	BackgroundWork, MlbStatsClient, OwedEdgePurgeRepository,
+} from "@bt/ports";
 import {
 	createDevAccountData, createDevAuth, StaticSecretsProvider,
 } from "./adapters/fixtures/auth.js";
+import { ScopedBackgroundWork } from "./adapters/background-work.js";
 import { CloudflareEdgeCachePurger, NoopEdgeCachePurger } from "./adapters/cloudflare/edge-cache-purger.js";
 import { createBundledFixtureClient } from "./adapters/fixtures/bundled.js";
 import { LogtoIdentityAdmin, LogtoManagementApi } from "./adapters/logto/admin.js";
@@ -81,6 +84,13 @@ export type WorkerEnv = {
 	 */
 	BT_MOCK_SIGN_IN?: string;
 	/**
+	 * `"1"` offers staging's backer tier override (S215; `tierOverrideAllowed`), for testing only:
+	 * set in `env.staging`'s vars only, and honoured only beside the mock sign-in, so production,
+	 * which names a Logto tenant, refuses it on the server even if the var were copied there. The
+	 * override never changes the real tier or touches Patreon.
+	 */
+	BT_TIER_OVERRIDE?: string;
+	/**
 	 * A Cloudflare API token with the Zone → Cache Purge permission, and the zone's ID (S212 AC 4; Worker secrets,
 	 * pushed from GitHub secrets by the staging and production deploys (B543)): where both and `BT_APP_ORIGIN` are set, a write of a past, finished day or game purges its edge
 	 * copy by URL (`edgePurgeFor`); otherwise nothing is purged and that is logged once.
@@ -144,15 +154,22 @@ export function edgePurgeFor(env: WorkerEnv, fetcher?: WorkerAppOptions["fetch"]
 	};
 }
 
-/** What tests swap in the composition: the `fetch` the Logto adapters (and the edge purge, S212) call (a stand-in tenant). */
+/**
+ * What tests swap in the composition: the `fetch` the Logto adapters (and the edge purge, S212) call (a stand-in tenant).
+ * `background` is where an on-read refresh's deferred writes run (S216 AC 3): the Worker's per-request queue
+ * (`workerApp`), the Node server's run-at-once adapter (`local-server.ts`); absent (most tests), they run before the
+ * read returns.
+ */
 export type WorkerAppOptions = {
 	fetch?: (input: string, init?: RequestInit) => Promise<Response>;
+	background?: BackgroundWork;
 };
 
 /**
  * Wires the API for `env` on `db`. Exported for tests and the Node server; the Worker calls
  * `workerApp`, which builds it once on `scopedDatabase`. Nothing is seeded here: `pnpm db:seed`
  * fills the database, and a day or game that isn't stored is read through from MLB anyway.
+ * `options.background` (S216) is where a read's refresh defers its writes that carry no version of its answer.
  */
 export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerAppOptions = {}): WorkerApp
 {
@@ -175,6 +192,9 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		// One coordinator per isolate: stale out-of-window reads refresh single-flighted.
 		refresh: new RefreshCoordinator(),
 		edgePurge: edgePurgeFor(env, options.fetch, new PostgresOwedEdgePurgeRepository(db)),
+		...options.background && {
+			background: options.background,
+		},
 	};
 	const secrets = new StaticSecretsProvider({
 		[SESSION_KEY_SECRET]: env.BT_SESSION_KEY ?? crypto.randomUUID(),
@@ -191,6 +211,9 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		},
 		...mockSignInAllowed(env) && {
 			mock: new MockIdentityProvider(),
+		},
+		...tierOverrideAllowed(env) && {
+			tierOverrideAllowed: true,
 		},
 	};
 	const settings = new PostgresSettingsRepository(db);
@@ -240,6 +263,20 @@ export function devSignInAllowed(env: WorkerEnv): boolean
 export function mockSignInAllowed(env: WorkerEnv): boolean
 {
 	return env.BT_MOCK_SIGN_IN === "1" && !env.LOGTO_ENDPOINT && !env.LOGTO_APP_ID;
+}
+
+/**
+ * Whether staging's backer tier override is offered (S215 AC 2): only where the env's vars set
+ * `BT_TIER_OVERRIDE` to `"1"` **and** the mock sign-in is wired ({@link mockSignInAllowed}), so an
+ * env naming a Logto tenant, as production does, never honours it even if the var were copied
+ * there. Deploy-time config only: no request header, query, cookie or body can switch it on, and
+ * the local Node server never sets the var. It exists for staging tests; production refuses it on
+ * the server (its routes answer 404 and the stored override is never read), not by hiding it, and
+ * the override never changes the real tier or touches Patreon.
+ */
+export function tierOverrideAllowed(env: WorkerEnv): boolean
+{
+	return env.BT_TIER_OVERRIDE === "1" && mockSignInAllowed(env);
 }
 
 /** Logto sign-in where the env's vars name the tenant and the app (S116 AC 2); none elsewhere. */
@@ -308,11 +345,14 @@ let app: WorkerApp | undefined;
  * The isolate's one app, on `scopedDatabase`: what lives as long as the isolate (the refresh
  * single-flight, the session key, the fixture client's caches) is shared, while each unit
  * of work brings its own connection (`inDatabaseScope`). Built on first use, from that first
- * call's `env`.
+ * call's `env`. Its deferred writes go to the request's own queue (`ScopedBackgroundWork`, S216 AC 3), which the
+ * Worker's `fetch` drains after the response.
  */
 export function workerApp(env: WorkerEnv): WorkerApp
 {
-	app ??= createWorkerApp(env, scopedDatabase);
+	app ??= createWorkerApp(env, scopedDatabase, {
+		background: new ScopedBackgroundWork(),
+	});
 	return app;
 }
 

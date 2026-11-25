@@ -81,4 +81,13 @@ describe("Linescore (S2)", () =>
 		expect(within(home!).getAllByTestId("inning-cell")[1]).toHaveTextContent(/^$/);
 		expect([...away!.querySelectorAll("td")].slice(-3).map((td) => td.textContent)).toEqual(["1", "2", "0"]);
 	});
+	it("team column: its header shows no \"Team\" text but still names the column for screen readers (#433)", () =>
+	{
+		rows(null);
+		const header = screen.getByRole("columnheader", {
+			name: "Team",
+		});
+		expect(within(header).getByText("Team").className).toMatch(/VisuallyHidden/);
+		expect(screen.queryByText("TEAM")).toBeNull();
+	});
 });

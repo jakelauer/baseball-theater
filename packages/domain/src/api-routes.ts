@@ -24,7 +24,7 @@ import type { ScheduleDayCount } from "./schedule-month.js";
 import type { AccountSettings } from "./settings.js";
 import type { StandingsChampion } from "./standings-phase.js";
 import type {
-	Entitlements, GameSnapshot, Role, ScheduleDay, StandingsSnapshot, UserProfile,
+	Entitlements, GameSnapshot, PatronTier, Role, ScheduleDay, StandingsSnapshot, UserProfile,
 } from "./types.js";
 
 export type ScheduleDayResponse = ScheduleDay;
@@ -262,6 +262,27 @@ export interface SignInResponse {
 }
 
 /**
+ * Staging's backer tier override (S215), for testing only: `tier` is the tier the signed-in tester
+ * chose (null: their real tier stands) and `realTier` their stored one, which the override never
+ * changes and which only a Patreon link writes. Answered only where the server's deploy-time config
+ * allows the override (staging); production's config answers 404, so the route does not exist there.
+ */
+export interface TierOverrideResponse {
+	tier: PatronTier | null;
+	realTier: PatronTier;
+}
+
+/** A tier override saved (S215): the same answer plus a new session token, whose entitlements are the chosen tier's. */
+export interface TierOverrideSetResponse extends TierOverrideResponse {
+	token: string;
+}
+
+/** The tier to test as (S215): a tier (`"none"` is "not a patron"), or null for "use my real Patreon tier". */
+export interface TierOverrideRequest {
+	tier: PatronTier | null;
+}
+
+/**
  * One release's notes as the public releases API serves them: `ReleaseNotes` without `approval`,
  * the owner's dated, quoted approval, which only `pnpm release:check` and the production deploy's
  * "Release notes approved" step read (#327; owner, 2026-11-22, asked "Should the public releases API
@@ -302,6 +323,8 @@ export interface ApiResponseTypes {
 	SignInConfigResponse: SignInConfigResponse;
 	SignInResponse: SignInResponse;
 	ReleasesResponse: ReleasesResponse;
+	TierOverrideResponse: TierOverrideResponse;
+	TierOverrideSetResponse: TierOverrideSetResponse;
 	ApiErrorResponse: ApiErrorResponse;
 }
 
@@ -326,6 +349,8 @@ export const ApiRoutes = {
 	"POST /api/v1/me/delete": "MeDeleteResponse",
 	"GET /api/v1/me/settings": "SettingsResponse",
 	"PUT /api/v1/me/settings": "SettingsResponse",
+	"GET /api/v1/me/tier-override": "TierOverrideResponse",
+	"PUT /api/v1/me/tier-override": "TierOverrideSetResponse",
 	"GET /api/v1/sign-in": "SignInConfigResponse",
 	"POST /api/v1/sign-in": "SignInResponse",
 	"GET /api/v1/releases": "ReleasesResponse",
@@ -341,6 +366,7 @@ export interface ApiRequestTypes {
 	MeDeleteRequest: MeDeleteRequest;
 	SettingsRequest: SettingsRequest;
 	SignInRequest: SignInRequest;
+	TierOverrideRequest: TierOverrideRequest;
 }
 
 /**
@@ -352,6 +378,7 @@ export const ApiRequestBodies = {
 	"POST /api/v1/me/delete": "MeDeleteRequest",
 	"PUT /api/v1/me/settings": "SettingsRequest",
 	"POST /api/v1/sign-in": "SignInRequest",
+	"PUT /api/v1/me/tier-override": "TierOverrideRequest",
 } as const satisfies Partial<Record<ApiRoute, keyof ApiRequestTypes>>;
 
 export type ApiRouteWithBody = keyof typeof ApiRequestBodies;

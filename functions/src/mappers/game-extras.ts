@@ -56,3 +56,16 @@ export function assembleGame(
 		recap: editorial?.recap,
 	}, playMetrics, graph);
 }
+
+/**
+ * A stored game with play metrics that arrived after it was stored (S216 AC 5): its extras attached again with them,
+ * its own video play refs and related articles kept, as `fetchGame` would have built it had they come in time. What a
+ * late playMetrics write stores over a newer stored snapshot that still lacks them.
+ */
+export function withLatePlayMetrics(game: Unversioned<GameSnapshot>, playMetrics: GamePlayMetrics): Unversioned<GameSnapshot>
+{
+	return withGameExtras(game, playMetrics, {
+		videoPlayRefs: game.videoPlayRefs ?? [],
+		relatedArticles: game.relatedArticles ?? [],
+	});
+}

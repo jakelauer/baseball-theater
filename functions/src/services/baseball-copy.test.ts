@@ -111,6 +111,7 @@ async function production(migrated?: PostgresDb): Promise<PostgresDb>
 	await db.execute(sql`INSERT INTO users (uid, email, display_name, role, created_at, updated_at) VALUES ('u1', 'fan@example.com', 'Fan', 'user', 'now', 'now')`);
 	await db.execute(sql`INSERT INTO entitlements (uid, tier, faster_live_refresh, cloud_synced_settings, savant_links) VALUES ('u1', 'free', false, false, false)`);
 	await db.execute(sql`INSERT INTO identity_links (provider, subject, uid) VALUES ('logto', 'sub-1', 'u1')`);
+	await db.execute(sql`INSERT INTO tier_overrides (uid, tier) VALUES ('u1', 'Star Backer')`);
 	await db.execute(sql`INSERT INTO account_settings (uid, favorite_team_ids, opens_first, game_row_slot, collapse_non_favorites, hide_scores, video_player, version)
 		VALUES ('u1', '{147}', 'scoreboard', 'score', false, false, 'inline', 1)`);
 	await db.execute(sql`INSERT INTO deletion_log (uid, deleted_at) VALUES ('gone', 'then')`);
@@ -269,7 +270,7 @@ describe("copyBaseballData (S117)", () =>
 		await forbid(target, PERSONAL_TABLES, ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]);
 		const copies = await copy(source, target);
 		expect(copies.map((entry) => entry.table)).toEqual(["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts"]);
-		expect(PERSONAL_TABLES.sort()).toEqual(["account_settings", "deletion_log", "entitlements", "identity_links", "users"]);
+		expect(PERSONAL_TABLES.sort()).toEqual(["account_settings", "deletion_log", "entitlements", "identity_links", "tier_overrides", "users"]);
 		for (const table of COPIED_TABLES) expect(await dump(target, table)).toEqual(await dump(source, table));
 		for (const table of PERSONAL_TABLES) expect(await dump(target, table)).toEqual([]);
 	});

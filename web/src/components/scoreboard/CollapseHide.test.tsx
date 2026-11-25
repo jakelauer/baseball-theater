@@ -236,7 +236,9 @@ describe("Hide Scores (S68)", () =>
 		await renderScoreboard({
 			hideScores: true,
 		});
-		const [final, live, pregame] = screen.getAllByTestId("scoreboard-module").map((m) => within(m));
+		// By phase, not position: the default order puts the game in progress first (B430).
+		const all = screen.getAllByTestId("scoreboard-module");
+		const [final, live, pregame] = ["final", "live", "pregame"].map((phase) => within(all.find((m) => m.dataset.phase === phase)!));
 		expect(final!.getAllByTestId("runs").map((c) => c.textContent)).toEqual(["–", "–"]);
 		expect(final!.getAllByTestId("hits").map((c) => c.textContent)).toEqual(["–", "–"]);
 		expect(final!.getByText((_, el) => el?.textContent === "SF (▒▒-▒▒)" && el.tagName === "P")).toBeInTheDocument();

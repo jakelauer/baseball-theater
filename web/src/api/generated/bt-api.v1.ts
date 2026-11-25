@@ -124,6 +124,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/tier-override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staging only, for testing: the backer tier the signed-in tester chose to see BT as (`tier`, null when their real tier stands) and their real one (`realTier`). Exists only where the server's deploy-time config allows the override (staging); everywhere else, production included, it answers 404 as an unknown route does. Never cached (`no-store`). */
+        get: operations["getTierOverride"];
+        /** Staging only, for testing: chooses the backer tier to see BT as (`"none"` is not a patron; null goes back to the real tier), and answers as the GET does plus a new session token whose entitlements are the chosen tier's, so every check that reads the session uses it at once. Never changes the real tier or calls Patreon. Exists only where the server's deploy-time config allows the override (staging); everywhere else it answers 404. Never cached (`no-store`). */
+        put: operations["putTierOverride"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/releases": {
         parameters: {
             query?: never;
@@ -990,6 +1008,21 @@ export interface components {
             losses: number;
             wins: number;
         };
+        /** @description The tier to test as (S215): a tier (`"none"` is "not a patron"), or null for "use my real Patreon tier". */
+        TierOverrideRequest: {
+            tier: components["schemas"]["PatronTier"] | null;
+        };
+        /** @description Staging's backer tier override (S215), for testing only: `tier` is the tier the signed-in tester chose (null: their real tier stands) and `realTier` their stored one, which the override never changes and which only a Patreon link writes. Answered only where the server's deploy-time config allows the override (staging); production's config answers 404, so the route does not exist there. */
+        TierOverrideResponse: {
+            realTier: components["schemas"]["PatronTier"];
+            tier: components["schemas"]["PatronTier"] | null;
+        };
+        /** @description A tier override saved (S215): the same answer plus a new session token, whose entitlements are the chosen tier's. */
+        TierOverrideSetResponse: {
+            realTier: components["schemas"]["PatronTier"];
+            tier: components["schemas"]["PatronTier"] | null;
+            token: string;
+        };
         /** @description The pitch a video shows, by MLB's own link (S94; GraphQL `playIdRef`): `videoId` is the video's id in the content feed (`MediaHighlight.id`), `playId` the pitch's `PitchEvent.playId`. It covers clips the content feed links to no play, such as ABS challenges. */
         VideoPlayRef: {
             playId: string;
@@ -1409,6 +1442,113 @@ export interface operations {
             };
             /** @description No session, or the account no longer exists. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getTierOverride: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierOverrideResponse"];
+                };
+            };
+            /** @description No session, or the account no longer exists. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `not_found`: this deployment offers no tier override (production, previews, local dev). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    putTierOverride: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TierOverrideRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierOverrideSetResponse"];
+                };
+            };
+            /** @description `invalid_tier`: the body is not JSON with `tier` set to a backer tier or null. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description No session, or the account no longer exists. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `not_found`: this deployment offers no tier override (production, previews, local dev). */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

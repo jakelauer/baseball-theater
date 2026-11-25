@@ -116,7 +116,9 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
  * MLBAM disclaimer. `PlayerDialog` and `PlayerStage` host it; neither repeats any of it.
  * Space plays and pauses (VISUAL-DESIGN §6) unless focus is on something Space already
  * means something to, such as the search box or a button. `autoPlay` starts the clip when
- * the reader chose it; the stage's first clip waits for a press.
+ * the reader chose it; the stage's first clip waits for a press. `autoPlay` turning on after mount
+ * (the dialog once its opening transition ends, #423) plays the same element, since the
+ * `<video>`'s own autoplay counts only on its first load.
  *
  * Under the progress row sit the quality picker (`QualityPicker`, the clip's
  * `videoQualities` this browser can play, HLS natively or through hls.js, starting on the quality the reader last
@@ -154,6 +156,8 @@ export function VideoPlayer({
 	// not-yet-autoplayed clip reports itself paused. The media load algorithm sets `paused`
 	// without firing `pause`, so only real plays and pauses move it.
 	const wantsPlay = useRef(autoPlay);
+	// `autoPlay` as last rendered, so only its turning on after mount plays the clip here (#423).
+	const autoPlayed = useRef(autoPlay);
 
 	const toggle = () => togglePlayer(ref.current, resume.current !== null, wantsPlay, setPlaying);
 	const switchTo = (next: VideoQuality) =>
@@ -171,6 +175,18 @@ export function VideoPlayer({
 	};
 	// The clip as a file (`fileQuality`): the MP4 playing, or the same cut's MP4 while a stream plays.
 	const fileUrl = fileQuality(qualities, quality)?.url ?? null;
+
+	useEffect(() =>
+	{
+		const turnedOn = autoPlay && !autoPlayed.current;
+		autoPlayed.current = autoPlay;
+		// Only the first source autoplays (`picked` null), as the element's own `autoPlay` below.
+		if (!turnedOn || picked !== null) return;
+		wantsPlay.current = true;
+		playWanted(ref.current, wantsPlay, setPlaying);
+		// Only `autoPlay` turning on plays: a quality pick mustn't.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [autoPlay]);
 
 	useEffect(() =>
 	{

@@ -327,6 +327,25 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 			401: "No session, or the account no longer exists.",
 		},
 	},
+	"GET /api/v1/me/tier-override": {
+		operationId: "getTierOverride",
+		summary: "Staging only, for testing: the backer tier the signed-in tester chose to see BT as (`tier`, null when their real tier stands) and their real one (`realTier`). Exists only where the server's deploy-time config allows the override (staging); everywhere else, production included, it answers 404 as an unknown route does. Never cached (`no-store`).",
+		parameters: [],
+		errors: {
+			401: "No session, or the account no longer exists.",
+			404: "`not_found`: this deployment offers no tier override (production, previews, local dev).",
+		},
+	},
+	"PUT /api/v1/me/tier-override": {
+		operationId: "putTierOverride",
+		summary: "Staging only, for testing: chooses the backer tier to see BT as (`\"none\"` is not a patron; null goes back to the real tier), and answers as the GET does plus a new session token whose entitlements are the chosen tier's, so every check that reads the session uses it at once. Never changes the real tier or calls Patreon. Exists only where the server's deploy-time config allows the override (staging); everywhere else it answers 404. Never cached (`no-store`).",
+		parameters: [],
+		errors: {
+			400: "`invalid_tier`: the body is not JSON with `tier` set to a backer tier or null.",
+			401: "No session, or the account no longer exists.",
+			404: "`not_found`: this deployment offers no tier override (production, previews, local dev).",
+		},
+	},
 	"GET /api/v1/sign-in": {
 		operationId: "getSignInConfig",
 		summary: "How this deployment signs fans in: its Logto tenant's address and the web app's ID, or `logto: null` where it offers no Logto sign-in; and `mock: true` where it signs in as one shared test account instead (staging). Where both say no, it offers no sign-in (previews, and local dev, which signs in as `dev:`).",

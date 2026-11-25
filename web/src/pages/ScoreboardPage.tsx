@@ -1,13 +1,17 @@
 import {
-	Box, SimpleGrid, Stack,
+	Box, Group, Menu, SimpleGrid, Stack,
 } from "@mantine/core";
+import { IconArrowsSort } from "@tabler/icons-react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { scoreboardRows } from "@bt/domain";
+import { scoreboardRows, sortScoreboardGames } from "@bt/domain";
+import type { ScoreboardSort } from "@bt/domain";
 import { useDayDigest } from "../api/digest.js";
 import { useScheduleDay } from "../api/schedule.js";
 import { useScoreboardDefaultDate } from "../api/scoreboardDate.js";
 import type { ScheduleDayPayload } from "../api/schedule.js";
 import { ViewState } from "../components/ViewState.js";
+import { FilterPill } from "../components/videos/QuickFilters.js";
 import { queryScreen } from "../components/queryScreen.js";
 import { CollapsedBar } from "../components/scoreboard/CollapsedBar.js";
 import { DayDigest } from "../components/scoreboard/DayDigest.js";
@@ -21,14 +25,28 @@ import { useSavedCopy } from "../pwa/offline.js";
 import { useSettings } from "../settings/store.js";
 import { SectionHeading } from "../components/SectionHeading.js";
 
-/** The scoreboard's columns: one on mobile, two on medium and desktop; the games and their loading skeleton share it. */
+/**
+ * The scoreboard's columns: one on mobile, two on medium, three on desktop (B429, #429; owner,
+ * 2026-11-23: "baseball theater right now fits three and then it at a certain size it drops down to
+ * two and then down to one"); the games and their loading skeleton share it.
+ */
 function scoreboardColumns(variant: LayoutVariant): number
 {
-	return variant === "mobile" ? 1 : 2;
+	if (variant === "mobile") return 1;
+	return variant === "medium" ? 2 : 3;
 }
 
+/** The sort control's labels (B430, #430), in the order its menu lists them; the default first. */
+const SORT_LABELS: Readonly<Record<ScoreboardSort, string>> = {
+	default: "Favorites, live first",
+	startTime: "Start time",
+};
+
 /**
- * The day's games under their `GAMES — SEP 21, 2026` label, or the empty sentence. With
+ * The day's games under their `GAMES — SEP 21, 2026` label, or the empty sentence. They are in
+ * the order the sort control beside the label picks (`sortScoreboardGames`; B430, #430): the
+ * default, favorites then live games first, or start time. The choice is the page's own state, so
+ * a new visit opens on the default (the issue: not remembered between visits). With
  * Collapse Non-Favorites on, `scoreboardRows` folds games without a favorite team into
  * `CollapsedBar`s after the favorites; choosing a bar opens its game (S126). While
  * anything is collapsed, a favorite's module spans the whole row at medium and desktop
@@ -39,17 +57,33 @@ function Games({ day, variant }: { day: ScheduleDayPayload;
 	variant: LayoutVariant; })
 {
 	const { favoriteTeamIds, collapseNonFavorites } = useSettings();
+	const [sort, setSort] = useState<ScoreboardSort>("default");
 	if (day.games.length === 0)
 	{
 		return <ViewState kind="empty" message="No games scheduled for this date." />;
 	}
-	const rows = scoreboardRows(day.games, favoriteTeamIds, collapseNonFavorites);
+	const rows = scoreboardRows(sortScoreboardGames(day.games, favoriteTeamIds, sort), favoriteTeamIds, collapseNonFavorites);
 	const wide = variant !== "mobile" && rows.some((row) => row.collapsed);
 	return (
 		<Stack gap="sm">
-			<SectionHeading>
-				Games — {formatDate(day.date)}
-			</SectionHeading>
+			<Group justify="space-between" align="center" wrap="nowrap" gap={8}>
+				<SectionHeading>
+					Games — {formatDate(day.date)}
+				</SectionHeading>
+				{/* The Videos room's sort control, reused (S69): a pill naming the order, opening a menu of the choices. */}
+				<Menu position="bottom-end">
+					<Menu.Target>
+						<FilterPill leftSection={<IconArrowsSort size={14} />} aria-label={`Sort: ${SORT_LABELS[sort]}`}>
+							{SORT_LABELS[sort]}
+						</FilterPill>
+					</Menu.Target>
+					<Menu.Dropdown>
+						{(Object.keys(SORT_LABELS) as ScoreboardSort[]).map((value) => (
+							<Menu.Item key={value} onClick={() => setSort(value)}>{SORT_LABELS[value]}</Menu.Item>
+						))}
+					</Menu.Dropdown>
+				</Menu>
+			</Group>
 			<SimpleGrid cols={scoreboardColumns(variant)} spacing="md" verticalSpacing="md" data-testid="scoreboard-grid">
 				{rows.map(({ game, collapsed }) =>
 				{
@@ -92,7 +126,7 @@ export function ScoreboardPage({ variant, setFooter }: { variant: LayoutVariant;
 
 /**
  * One day's scoreboard: the date control, then the day's games as
- * `ScoreboardModule`s — one column on mobile, two on medium and desktop, from the
+ * `ScoreboardModule`s — one column on mobile, two on medium, three on desktop, from the
  * host's `variant` — and the day digest under them (S71), or the loading, empty or
  * error state from `ViewState`. Offline (S74) it draws the day as last stored, and tells the
  * shell's offline marker its time (`useSavedCopy`). The

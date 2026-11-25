@@ -99,6 +99,7 @@ describe("AppHeader sign-in feedback (owner, 2026-11-12: \"clicking sign in give
 			signIn,
 			finishSignIn: () => Promise.resolve("/"),
 			signInOffer: "offered",
+			keepSession: async () => undefined,
 			signOut: () => undefined,
 		};
 		render(
@@ -186,12 +187,14 @@ describe("AppHeader sign-in feedback (owner, 2026-11-12: \"clicking sign in give
 				signIn,
 				finishSignIn: () => Promise.resolve("/"),
 				signInOffer: "offered",
+				keepSession: async () => undefined,
 				signOut: () => set("signedOut"),
 			} : {
 				status,
 				signIn,
 				finishSignIn: () => Promise.resolve("/"),
 				signInOffer: "offered",
+				keepSession: async () => undefined,
 				signOut: () => undefined,
 			}) satisfies Session;
 			return (

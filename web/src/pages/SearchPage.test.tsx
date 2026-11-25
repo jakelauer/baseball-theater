@@ -206,7 +206,7 @@ describe("Search Highlights (S5)", () =>
 		await hydrateSettings("test-user");
 		renderSearch();
 		await searchFor("walk-off");
-		await userEvent.click(await screen.findByRole("button", {
+		await userEvent.click(await screen.findByRole("link", {
 			name: "Play Ben Williamson's walk-off single to win Game 4",
 		}));
 		const link = await screen.findByRole("link", {
@@ -231,7 +231,7 @@ describe("Search Highlights (S5)", () =>
 	{
 		serve(() => WALK_OFF);
 		renderSearch("/search?q=walk-off");
-		await userEvent.click(await screen.findByRole("button", {
+		await userEvent.click(await screen.findByRole("link", {
 			name: "Play ALL walk-offs from the 2026 season",
 		}));
 		await screen.findByRole("button", {
@@ -246,7 +246,7 @@ describe("Search Highlights (S5)", () =>
 		})).toBeNull());
 		expect(screen.getAllByTestId("search-result")).toHaveLength(2);
 
-		await userEvent.click(screen.getByRole("button", {
+		await userEvent.click(screen.getByRole("link", {
 			name: "Play Ben Williamson's walk-off single to win Game 4",
 		}));
 		await userEvent.click(await screen.findByRole("link", {
@@ -378,7 +378,7 @@ describe("Search Highlights (S5)", () =>
 		expect(await screen.findByText("Recap: MIL 7, TB 6")).toBeInTheDocument();
 		expect(screen.getByText("Ben Williamson's walk-off single to win Game 4")).toBeInTheDocument();
 		expect(screen.queryByText(/score hidden/i)).toBeNull();
-		await userEvent.click(screen.getByRole("button", {
+		await userEvent.click(screen.getByRole("link", {
 			name: "Play Recap: MIL 7, TB 6",
 		}));
 		await screen.findByRole("button", {

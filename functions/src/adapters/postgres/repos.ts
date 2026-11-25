@@ -40,7 +40,7 @@ import type { SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
 	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, replayArtifacts, scheduleDays, scheduleMonths,
-	users,
+	tierOverrides, users,
 } from "./schema.js";
 
 /** Any Drizzle Postgres database: PGlite in tests, node-postgres behind Hyperdrive in the Worker (S51). */
@@ -111,11 +111,13 @@ export class PostgresScheduleRepository implements ScheduleRepository
 
 	/**
 	 * One statement: the version-guarded write and the `served_base` raise (`servedBaseRaise`, the dropped games' state
-	 * versions read in this same statement) land together or not at all (S150 AC 6). A new day drops nothing.
+	 * versions read in this same statement) land together or not at all (S150 AC 6). A new day drops nothing. S216: the
+	 * statement returns the `served_base` it left (`RETURNING`), and no row when the version guard refused it, so the
+	 * caller answers from the day it formed with no read-back.
 	 */
-	async upsert(day: StoredScheduleDay): Promise<void>
+	async upsert(day: StoredScheduleDay): Promise<number | null>
 	{
-		await this.db.insert(scheduleDays).values({
+		const [stored] = await this.db.insert(scheduleDays).values({
 			date: day.date,
 			version: day.version,
 			document: day,
@@ -127,7 +129,10 @@ export class PostgresScheduleRepository implements ScheduleRepository
 				document: sql`excluded.document`,
 			},
 			setWhere: sql`excluded.version > ${scheduleDays.version}`,
+		}).returning({
+			servedBase: scheduleDays.servedBase,
 		});
+		return stored ? Number(stored.servedBase) : null;
 	}
 
 	/**
@@ -347,6 +352,45 @@ export class PostgresGameRepository implements GameRepository
 		await upsertGame(this.db, game);
 	}
 
+	/** One statement over the primary key (S216 AC 2): a day's games in one read. */
+	async getMany(gamePks: readonly number[]): Promise<GameSnapshot[]>
+	{
+		if (gamePks.length === 0) return [];
+		const rows = await this.db.select({
+			document: games.document,
+		}).from(games).where(inArray(games.gamePk, [...new Set(gamePks)]));
+		return rows.map((row) => row.document);
+	}
+
+	/**
+	 * One statement for the whole batch (S216 AC 2), `upsertGame`'s version guard applied per row by the database; the
+	 * rows it took come back (`RETURNING`), so a row a newer stored version refused is left out. Written in gamePk order,
+	 * one row per gamePk (its newest version: one statement can't write a row twice), so two batches over the same games
+	 * lock them in the same order.
+	 */
+	async upsertMany(batch: readonly GameSnapshot[]): Promise<number[]>
+	{
+		const rows = newestByKey(batch, (game) => game.gamePk, (game) => game.version);
+		if (rows.length === 0) return [];
+		const taken = await this.db.insert(games).values(rows.map((game) => ({
+			gamePk: game.gamePk,
+			officialDate: game.officialDate,
+			version: game.version,
+			document: game,
+		}))).onConflictDoUpdate({
+			target: games.gamePk,
+			set: {
+				officialDate: sql`excluded.official_date`,
+				version: sql`excluded.version`,
+				document: sql`excluded.document`,
+			},
+			setWhere: sql`excluded.version > ${games.version}`,
+		}).returning({
+			gamePk: games.gamePk,
+		});
+		return taken.map((row) => row.gamePk);
+	}
+
 	/**
 	 * Each document is read once (`jsonb_to_record`), not once per field, and only its status, linescore, live moment
 	 * and last at-bat's matchup leave the database.
@@ -563,6 +607,40 @@ export class PostgresGameProjectionRepository implements GameProjectionRepositor
 			setWhere: sql`excluded.version > ${gameProjections.version}`,
 		});
 	}
+
+	/** One statement for the whole batch (S216 AC 2), as {@link PostgresGameRepository.upsertMany}: the rows it took come back. */
+	async upsertMany(batch: readonly GameProjection[]): Promise<number[]>
+	{
+		const rows = newestByKey(batch, (projection) => projection.header.gamePk, (projection) => projection.header.version);
+		if (rows.length === 0) return [];
+		const taken = await this.db.insert(gameProjections).values(rows.map((projection) => ({
+			gamePk: projection.header.gamePk,
+			version: projection.header.version,
+			document: projection,
+		}))).onConflictDoUpdate({
+			target: gameProjections.gamePk,
+			set: {
+				version: sql`excluded.version`,
+				document: sql`excluded.document`,
+			},
+			setWhere: sql`excluded.version > ${gameProjections.version}`,
+		}).returning({
+			gamePk: gameProjections.gamePk,
+		});
+		return taken.map((row) => row.gamePk);
+	}
+}
+
+/** One value per key, the newest by `versionOf`, in key order: what a multi-row upsert writes (S216). */
+function newestByKey<T>(values: readonly T[], keyOf: (value: T) => number, versionOf: (value: T) => number): T[]
+{
+	const newest = new Map<number, T>();
+	for (const value of values)
+	{
+		const held = newest.get(keyOf(value));
+		if (held === undefined || versionOf(value) > versionOf(held)) newest.set(keyOf(value), value);
+	}
+	return [...newest.values()].sort((a, b) => keyOf(a) - keyOf(b));
 }
 
 export class PostgresReplayArtifactRepository implements ReplayArtifactRepository
@@ -607,7 +685,8 @@ function entitlementsRow(uid: string, value: Entitlements)
 }
 
 /**
- * Users, their entitlements and their identity links (ADR-019). Profiles carry no version:
+ * Users, their entitlements, their identity links (ADR-019) and staging's tier overrides (S215,
+ * a table of their own, so an override never writes the real tier). Profiles carry no version:
  * an upsert replaces the profile, as the in-memory double does. A provider account links to
  * one uid; linking it to another throws.
  */
@@ -675,6 +754,37 @@ export class PostgresUserRepository implements UserRepository
 		}).where(eq(users.uid, uid));
 	}
 
+	async getTierOverride(uid: string): Promise<PatronTier | null>
+	{
+		const [row] = await this.db.select({
+			tier: tierOverrides.tier,
+		}).from(tierOverrides).where(eq(tierOverrides.uid, uid));
+		return row?.tier ?? null;
+	}
+
+	async setTierOverride(uid: string, tier: PatronTier | null): Promise<void>
+	{
+		if (tier === null)
+		{
+			await this.db.delete(tierOverrides).where(eq(tierOverrides.uid, uid));
+			return;
+		}
+		// Only for an existing user (the foreign key would refuse anything else), as setEntitlements.
+		const [existing] = await this.db.select({
+			uid: users.uid,
+		}).from(users).where(eq(users.uid, uid));
+		if (!existing) return;
+		await this.db.insert(tierOverrides).values({
+			uid,
+			tier,
+		}).onConflictDoUpdate({
+			target: tierOverrides.uid,
+			set: {
+				tier,
+			},
+		});
+	}
+
 	async linkIdentity(provider: string, subject: string, uid: string): Promise<void>
 	{
 		const linked = await this.getByIdentity(provider, subject);
@@ -704,15 +814,21 @@ export class PostgresUserRepository implements UserRepository
 			provider: identityLinks.provider,
 			subject: identityLinks.subject,
 		}).from(identityLinks).where(eq(identityLinks.uid, uid)).orderBy(asc(identityLinks.provider), asc(identityLinks.subject));
-		return profile === null && identities.length === 0 ? null : {
+		const tierOverride = await this.getTierOverride(uid);
+		return profile === null && identities.length === 0 && tierOverride === null ? null : {
 			profile,
 			identities,
+			...tierOverride !== null && {
+				tierOverride,
+			},
 		};
 	}
 
 	async deleteFor(uid: string): Promise<void>
 	{
 		await this.db.delete(identityLinks).where(eq(identityLinks.uid, uid));
+		// The tier override goes too, named here though ON DELETE CASCADE would also take it (S215).
+		await this.db.delete(tierOverrides).where(eq(tierOverrides.uid, uid));
 		// Entitlements go with the user (ON DELETE CASCADE).
 		await this.db.delete(users).where(eq(users.uid, uid));
 	}

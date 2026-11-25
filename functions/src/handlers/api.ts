@@ -1,17 +1,17 @@
 import type {
-	ApiErrorResponse, ApiResponseFor, ApiRoute, ApiVersionTable, CacheLifetimeStep, MeDeleteRequest, ReleaseNotes, SeasonPhaseName,
+	ApiErrorResponse, ApiResponseFor, ApiRoute, ApiVersionTable, CacheLifetimeStep, MeDeleteRequest, PatronTier, ReleaseNotes, SeasonPhaseName, TierOverrideResponse, UserProfile,
 } from "@bt/domain";
 import type { SettingsRepository } from "@bt/ports";
 import {
 	API_VERSIONS, DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
 	isCalendarMonth, isPastFinishedGame, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
-	mlbDayEndsAt, mlbToday, parseAccountSettings, parseSearchFilters, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
+	isPatronTier, mlbDayEndsAt, mlbToday, parseAccountSettings, parseSearchFilters, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
 import type { AccountDataDeps } from "../services/account-deletion.js";
 import { deleteAccount } from "../services/account-deletion.js";
 import type { AuthDeps } from "../services/accounts.js";
 import {
-	authenticateAccount, completeProviderSignIn, CredentialRefusedError,
+	accountEntitlements, authenticateAccount, completeProviderSignIn, CredentialRefusedError, issueSession,
 } from "../services/accounts.js";
 import {
 	clearDeletedCookie, hasDeletedCookie, setDeletedCookie,
@@ -244,6 +244,57 @@ function notFound(): Response
 	return sendError(404, {
 		error: "not_found",
 	});
+}
+
+/**
+ * The tier of `PUT /api/v1/me/tier-override`'s body (S215): a `PatronTier`, or null for "use my
+ * real Patreon tier"; undefined when the body isn't `{ tier }` with one of those (400 `invalid_tier`).
+ */
+async function readOverrideTier(request: Request): Promise<PatronTier | null | undefined>
+{
+	const body = await readJson(request);
+	if (body === null || typeof body !== "object" || !("tier" in body)) return undefined;
+	const { tier } = body as Record<string, unknown>;
+	return tier === null || isPatronTier(tier) ? tier : undefined;
+}
+
+/** The tier override's answer for `user` (S215): the chosen tier and the real one, which it never changes. */
+async function overrideAnswer(ctx: ApiContext, user: UserProfile): Promise<TierOverrideResponse>
+{
+	return {
+		tier: await ctx.auth.users.getTierOverride(user.uid),
+		realTier: user.entitlements.tier,
+	};
+}
+
+/**
+ * Staging's backer tier override routes (S215 AC 4), for testing only. Where the deploy-time
+ * config doesn't allow it (`tierOverrideAllowed`, false in production and on previews) they answer
+ * 404 exactly as an unknown route does, before any session or database read: production refuses
+ * the override on the server, not by hiding it. Every answer is `no-store`: a signed-in, per-user
+ * answer the edge cache must never keep. Setting it never writes the real tier or calls Patreon.
+ */
+async function handleTierOverride(ctx: ApiContext, request: Request, write: boolean): Promise<Response>
+{
+	if (!ctx.auth.tierOverrideAllowed) return noStore(notFound());
+	const account = await authenticateAccount(request, ctx.auth);
+	if (!account) return noStore(unauthorized());
+	if (!write) return noStore(sendJson(200, "GET /api/v1/me/tier-override", await overrideAnswer(ctx, account.user)));
+	const tier = await readOverrideTier(request);
+	if (tier === undefined)
+	{
+		return noStore(sendError(400, {
+			error: "invalid_tier",
+			hint: "{ tier: \"none\" | \"Backer\" | \"Pro Backer\" | \"Star Backer\" | \"Premium Sponsor\" | null }",
+		}));
+	}
+	await ctx.auth.users.setTierOverride(account.user.uid, tier);
+	// A new session at once, so every server check that reads it uses the chosen tier; the sign-in time stays the old one's.
+	const { token } = await issueSession(ctx.auth, account.user, await accountEntitlements(ctx.auth, account.user), account.session.authTime);
+	return noStore(sendJson(200, "PUT /api/v1/me/tier-override", {
+		...await overrideAnswer(ctx, account.user),
+		token,
+	}));
 }
 
 /**
@@ -548,8 +599,12 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			// `account_deleted` once, and any /me that sees the cookie clears it, signed in or
 			// not (owner, 2026-10-29: "Drop it (clear on any /me)").
 			const deleted = hasDeletedCookie(request);
+			// The entitlements come from the one rule (S215 AC 1): the staging tier override where allowed, else the stored tier.
 			const response = account
-				? sendJson(200, "GET /api/v1/me", toMeResponse(account.user))
+				? sendJson(200, "GET /api/v1/me", toMeResponse({
+					...account.user,
+					entitlements: await accountEntitlements(ctx.auth, account.user),
+				}))
 				: deleted ? sendError(401, {
 					error: "account_deleted",
 				}) : unauthorized();
@@ -618,6 +673,14 @@ export const API_ROUTER: readonly RouteEntry[] = [
 				deleted: true,
 			}), request);
 		},
+	},
+	{
+		route: "GET /api/v1/me/tier-override",
+		handle: (_url, _params, ctx, request) => handleTierOverride(ctx, request, false),
+	},
+	{
+		route: "PUT /api/v1/me/tier-override",
+		handle: (_url, _params, ctx, request) => handleTierOverride(ctx, request, true),
 	},
 	{
 		route: "GET /api/v1/sign-in",
@@ -816,7 +879,8 @@ export async function handleApiRequest(
 			hint: "This version of the app has been retired; reload to update.",
 		});
 	}
-	if (!match) return notFound();
+	// `no-store`, as the tier override's 404 off staging (S215), so the two can't be told apart by their headers.
+	if (!match) return noStore(notFound());
 	const response = await match.entry.handle(url, match.params, ctx, request);
 	const headers = state ? deprecationHeaders(state) : {};
 	// A WebSocket upgrade (101) can't be re-wrapped; it carries no warning.

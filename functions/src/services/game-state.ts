@@ -133,8 +133,17 @@ function storedAfter(row: GameStateRow | null, next: GameStateRow): GameStateRow
  * order. A row the repository refuses (another writer stored a newer version, or the same version with another state,
  * between the read and the write) is read again and decided again from the start, the source and the feed time
  * included, once; a write refused twice leaves the row as the other writer stored it.
+ *
+ * S216: `known` holds rows the caller already read or wrote in this request (null: known to have none), such as the
+ * rows a day read joined or the schedule's switch just stored; the first try decides those games from them and reads
+ * only the rest, so a digest's feed writes reuse what the day's switch read and wrote. A retry always reads.
  */
-export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, writes: readonly GameStateWrite[], now: Date): Promise<Map<number, SwitchOutcome>>
+export async function switchGameState(
+	deps: Pick<GameStateDeps, "gameStates">,
+	writes: readonly GameStateWrite[],
+	now: Date,
+	known?: ReadonlyMap<number, GameStateRow | null>,
+): Promise<Map<number, SwitchOutcome>>
 {
 	const latest = new Map<number, GameStateWrite>();
 	for (const write of writes) latest.set(write.gamePk, write);
@@ -143,7 +152,15 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
 	let todo = pending;
 	for (let attempt = 0; attempt < 2 && todo.length > 0; attempt++)
 	{
-		const rows = new Map((await deps.gameStates.getMany(todo.map((write) => write.gamePk))).map((row) => [row.gamePk, row]));
+		const held = attempt === 0 && known ? todo.filter((write) => known.has(write.gamePk)) : [];
+		const rows = new Map<number, GameStateRow>();
+		for (const write of held)
+		{
+			const row = known!.get(write.gamePk);
+			if (row) rows.set(write.gamePk, row);
+		}
+		const unread = todo.filter((write) => !held.includes(write));
+		if (unread.length > 0) for (const row of await deps.gameStates.getMany(unread.map((write) => write.gamePk))) rows.set(row.gamePk, row);
 		const nexts: GameStateRow[] = [];
 		for (const write of todo)
 		{
@@ -193,11 +210,11 @@ export async function switchGameState(deps: Pick<GameStateDeps, "gameStates">, w
  * `scheduleDayWindowMode` of the joined games, which judges a suspended game from when BT saw it suspended.
  * The stored day is returned too, since its own `fetchedAt` and `lastChangedAt` (its schedule data) are what the day
  * read's refresh judges, and so are the gamePks of the listings served as this day's because their games moved to
- * another day (`listingMovedAway`), which the day's settledness counts as settled (`isScheduleDaySettled`).
+ * another day (`listingMovedAway`), which the day's settledness counts as settled (`isScheduleDaySettled`). S216: so
+ * are its `servedBase` and the rows it joined, which a refresh of the day hands to `storeSchedule` and the digest to
+ * its game reads instead of reading them again.
  */
-export async function readJoinedScheduleDay(deps: GameStateDeps, date: string, now: Date): Promise<{ stored: StoredScheduleDay;
-	served: ScheduleDay;
-	moved: ReadonlySet<number>; } | null>
+export async function readJoinedScheduleDay(deps: GameStateDeps, date: string, now: Date): Promise<JoinedScheduleDay | null>
 {
 	const held = await deps.schedules.getWithServedBase(date);
 	if (!held) return null;
@@ -210,11 +227,16 @@ export async function readJoinedScheduleDay(deps: GameStateDeps, date: string, n
  * {@link readJoinedScheduleDay}'s join of a stored day over the game rows given (`rows`, by gamePk; a game without one
  * is served from its stored snapshot's fields, read here, or as scheduled). Also how `storeSchedule` judges whether a
  * day it changed was past and finished before its write (S212 review): the stored day as it read it, over the rows as
- * the switch read them.
+ * the switch read them. S216: also how `storeSchedule` forms the day it answers, from the day it stored, the served base
+ * the write reported and the rows the switch stored, so nothing it wrote is read back.
  */
-export async function joinStoredScheduleDay(deps: Pick<GameStateDeps, "games">, day: StoredScheduleDay, servedBase: number, rows: ReadonlyMap<number, GameStateRow>, now: Date): Promise<{ stored: StoredScheduleDay;
-	served: ScheduleDay;
-	moved: ReadonlySet<number>; }>
+export async function joinStoredScheduleDay(
+	deps: Pick<GameStateDeps, "games">,
+	day: StoredScheduleDay,
+	servedBase: number,
+	rows: ReadonlyMap<number, GameStateRow>,
+	now: Date,
+): Promise<JoinedScheduleDay>
 {
 	const missing = day.games.map((game) => game.gamePk).filter((pk) => !rows.has(pk));
 	const fallbacks = new Map<number, Unversioned<GameState>>(missing.length === 0
@@ -229,8 +251,23 @@ export async function joinStoredScheduleDay(deps: Pick<GameStateDeps, "games">, 
 			windowMode: await scheduleDayWindowMode(deps, served, now),
 		},
 		moved: new Set(day.games.filter((game) => listingMovedAway(game, rows.get(game.gamePk), day.date)).map((game) => game.gamePk)),
+		servedBase,
+		rows,
 	};
 }
+
+/**
+ * A stored day joined as it is served (S150 AC 6): the stored day, the served day, the listings moved away, and what
+ * the join was built from (its `servedBase` and the game rows by gamePk, S216), so a caller that goes on to write the
+ * day or read its games doesn't read them again.
+ */
+export type JoinedScheduleDay = {
+	stored: StoredScheduleDay;
+	served: ScheduleDay;
+	moved: ReadonlySet<number>;
+	servedBase: number;
+	rows: ReadonlyMap<number, GameStateRow>;
+};
 
 /** A schedule summary as the window judges it: with its game's `suspendedAt` when it is listed suspended (#323). */
 export type WindowedSummary = ScheduleDay["games"][number] & { suspendedAt?: string };

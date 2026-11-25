@@ -95,7 +95,7 @@ export function versionedMonthCacheControl(month: string, matches: boolean, toda
  * How long the edge keeps a past, finished schedule day, game or digest (S212 AC 3): 2592000 seconds, 30 days,
  * ADR-021's hard cap. Its 2026-11-24 amendment gives the reason it may be that long: the cron re-checks each day of the
  * current year about every six hours and each recently finished game's full detail for a week, and purges the edge copy
- * by URL when one really changes (`purgeDayEdge` / `purgeGameEdge`; a failed purge is owed and retried by the cron), so
+ * by URL when one really changes (`purgeGameEdge`; a failed purge is owed and retried by the cron), so
  * the lifetime only bounds a correction nothing purged (one written by the backfill or the baseball-data copy,
  * `baseball-copy.ts`, neither of which purges, or one while the purge credentials are missing).
  */

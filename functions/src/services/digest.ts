@@ -3,7 +3,7 @@ import {
 	dayDigest, digestFreshness, isPastFinishedGame,
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
-import { getOrRefreshGame, getScheduleRead } from "./ingest.js";
+import { readDayAndGames } from "./ingest.js";
 
 /**
  * Which edge lifetime a digest gets (S212 AC 3): `past` when its day is past and finished and so is every one of its
@@ -24,13 +24,19 @@ export type DigestEdgeLifetime = "past" | "partialPast" | "ladder";
  * S212: the day and game reads serve stored past, finished data with no MLB request, so a past, finished day whose
  * games are all stored costs no MLB request at all; a game never stored is still fetched on its first read (#516).
  * Also returns which edge lifetime the digest gets ({@link DigestEdgeLifetime}).
+ *
+ * S216: the day and its games are read together (`readDayAndGames`): every game's snapshot in one read and its state
+ * row from the day's, the cold ones fetched and stored in one batch and answered from what was formed (no read-back),
+ * the projections and the one edge purge after the response. A cold 15-game digest makes at most 7 database round
+ * trips before it answers, 9 in all.
  */
 export async function getDayDigest(deps: IngestDeps, date: string): Promise<{ freshness: Pick<ScheduleDay, "windowMode" | "lastChangedAt">;
 	digest: DayDigestResponse;
 	edgeLifetime: DigestEdgeLifetime; }>
 {
-	const { day, pastFinished } = await getScheduleRead(deps, date);
-	const read = await Promise.all(day.games.map((game) => getOrRefreshGame(deps, game.gamePk).catch(() => null)));
+	const {
+		day, pastFinished, games: read,
+	} = await readDayAndGames(deps, date);
 	const games = read.filter((game) => game !== null);
 	const freshness = digestFreshness(day, games);
 	const now = deps.now?.() ?? new Date();

@@ -26,6 +26,7 @@ import type {
 	StandingsSnapshot,
 	Unversioned,
 } from "@bt/domain";
+import { wholeFetchedGame } from "@bt/domain";
 import type { StandingsResponse } from "@bt/mlb-api";
 import { parseStandingsResponse } from "@bt/mlb-api";
 import type { MlbStatsClient } from "@bt/ports";
@@ -303,7 +304,8 @@ export async function recordNormalized(
 	written.push(`schedule-${date}.json`);
 
 	// The game alone: its feed time (S150 AC 2) is never written to a fixture.
-	const { game } = await client.fetchGame(gamePk);
+	// Its playMetrics waited for, however late (S216 AC 5): a fixture is the whole game.
+	const { game } = await wholeFetchedGame(await client.fetchGame(gamePk));
 	const {
 		fetchedAt: _f, windowMode: _w, plays, ...rest
 	} = game;

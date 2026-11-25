@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { isFavoriteGame } from "@bt/domain";
 import { BACKGROUND_PREFETCH_MS } from "../api/freshness.js";
 import { gameQueryOptions } from "../api/game.js";
 import { scheduleKey, scheduleQueryOptions } from "../api/schedule.js";
@@ -15,7 +16,8 @@ import { useSettings } from "../settings/store.js";
  * signal goes. `today` is the scoreboard's default day (S111). Through the resources' own query
  * descriptors, so a prefetch fills the same TanStack cache the pages read and asks nothing a fresh
  * copy already answers. Favorites exist only for signed-in fans (ADR-027): signed out, or with no
- * favorites, only the schedule is asked for. A failed request is left alone: the page asks again
+ * favorites, only the schedule is asked for. A favorite's game is the domain's `isFavoriteGame` (S213), the
+ * scoreboard's own rule. A failed request is left alone: the page asks again
  * when it opens.
  */
 export async function prefetchOnOpen(client: QueryClient, today: string, favoriteTeamIds: readonly number[] | null): Promise<void>
@@ -23,8 +25,7 @@ export async function prefetchOnOpen(client: QueryClient, today: string, favorit
 	await client.prefetchQuery(scheduleQueryOptions(today));
 	if (!favoriteTeamIds?.length) return;
 	const day = client.getQueryData<ScheduleDayPayload>(scheduleKey(today));
-	const favorites = new Set(favoriteTeamIds);
-	const games = (day?.games ?? []).filter((game) => favorites.has(game.teams.away.id) || favorites.has(game.teams.home.id));
+	const games = (day?.games ?? []).filter((game) => isFavoriteGame(game, favoriteTeamIds));
 	await Promise.all(games.map((game) => client.prefetchQuery(gameQueryOptions(game.gamePk))));
 }
 

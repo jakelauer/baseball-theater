@@ -1,6 +1,6 @@
 import type {
-	AccountSettings, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay,
-	UserProfile,
+	AccountSettings, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, PatronTier, ScheduleDayTally, ScheduleMonthCheck,
+	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
 	contentHash, downloadExpired, GAME_RECHECK_CLAIM_LEASE_MS, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
@@ -51,11 +51,25 @@ class VersionedMemoryStore<K, T>
 		return value === undefined ? null : jsonCopy(value);
 	}
 
-	put(key: K, value: T): void
+	/** Stores `value` if it is newer than what `key` holds; says whether it did (S216: an upsert reports a refusal). */
+	put(key: K, value: T): boolean
 	{
 		const current = this.entries.get(key);
-		if (current !== undefined && this.versionOf(value) <= this.versionOf(current)) return;
+		if (current !== undefined && this.versionOf(value) <= this.versionOf(current)) return false;
 		this.entries.set(key, jsonCopy(value));
+		return true;
+	}
+
+	/** Stores each of `values` under `keyOf` as {@link put} does, the newest of one key's values only; returns the keys it took. */
+	putMany(values: readonly T[], keyOf: (value: T) => K): K[]
+	{
+		const newest = new Map<K, T>();
+		for (const value of values)
+		{
+			const held = newest.get(keyOf(value));
+			if (held === undefined || this.versionOf(value) > this.versionOf(held)) newest.set(keyOf(value), value);
+		}
+		return [...newest].filter(([key, value]) => this.put(key, value)).map(([key]) => key);
 	}
 
 	values(): T[]
@@ -103,16 +117,19 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 
 	/**
 	 * The version-guarded write, and with it the `served_base` raise: the stored state versions of the games the stored
-	 * day lists and `day` doesn't, read in the same synchronous step, as the Postgres statement reads them.
+	 * day lists and `day` doesn't, read in the same synchronous step, as the Postgres statement reads them. Returns the
+	 * `served_base` it left, or null when refused (S216).
 	 */
-	async upsert(day: StoredScheduleDay): Promise<void>
+	async upsert(day: StoredScheduleDay): Promise<number | null>
 	{
 		const before = this.store.get(day.date);
-		if (before !== null && day.version <= before.version) return;
+		if (before !== null && day.version <= before.version) return null;
 		const listed = new Set(day.games.map((game) => game.gamePk));
 		const raise = (before?.games ?? []).filter((game) => !listed.has(game.gamePk)).reduce((sum, game) => sum + this.gameStates.versionOf(game.gamePk), 0);
 		this.store.put(day.date, day);
-		this.servedBases.set(day.date, (this.servedBases.get(day.date) ?? 0) + raise);
+		const servedBase = (this.servedBases.get(day.date) ?? 0) + raise;
+		this.servedBases.set(day.date, servedBase);
+		return servedBase;
 	}
 
 	async listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>
@@ -296,6 +313,16 @@ export class InMemoryGameRepository implements GameRepository
 		this.store.put(game.gamePk, game);
 	}
 
+	async getMany(gamePks: readonly number[]): Promise<GameSnapshot[]>
+	{
+		return [...new Set(gamePks)].flatMap((gamePk) => this.store.get(gamePk) ?? []);
+	}
+
+	async upsertMany(games: readonly GameSnapshot[]): Promise<number[]>
+	{
+		return this.store.putMany(games, (game) => game.gamePk);
+	}
+
 	async getStateFields(gamePks: readonly number[]): Promise<GameStateFields[]>
 	{
 		return gamePks.flatMap((gamePk) =>
@@ -451,6 +478,11 @@ export class InMemoryGameProjectionRepository implements GameProjectionRepositor
 		this.store.put(projection.header.gamePk, projection);
 	}
 
+	async upsertMany(projections: readonly GameProjection[]): Promise<number[]>
+	{
+		return this.store.putMany(projections, (projection) => projection.header.gamePk);
+	}
+
 	clear(): void
 	{
 		this.store.clear();
@@ -478,7 +510,8 @@ export class InMemoryReplayArtifactRepository implements ReplayArtifactRepositor
 }
 
 /**
- * Users and their identity links (ADR-019), stored as JSON copies like the
+ * Users, their identity links (ADR-019) and staging's tier overrides (S215, kept apart from the
+ * real entitlements), stored as JSON copies like the
  * other doubles. Users carry no version: a user record changes by explicit
  * edits (profile, Patreon sync), not by ingest re-deliveries, so last write wins.
  */
@@ -487,6 +520,8 @@ export class InMemoryUserRepository implements UserRepository
 	private readonly byUid = new Map<string, UserProfile>();
 	/** `"<provider>\u0000<subject>"` → uid; NUL can't occur in either part, so keys can't collide. */
 	private readonly links = new Map<string, string>();
+	/** Staging's tier overrides (S215), apart from `byUid`'s real entitlements. */
+	private readonly tierOverrides = new Map<string, PatronTier>();
 
 	async getByUid(uid: string): Promise<UserProfile | null>
 	{
@@ -508,6 +543,19 @@ export class InMemoryUserRepository implements UserRepository
 			entitlements: jsonCopy(entitlements),
 			updatedAt: new Date().toISOString(),
 		});
+	}
+
+	async getTierOverride(uid: string): Promise<PatronTier | null>
+	{
+		return this.tierOverrides.get(uid) ?? null;
+	}
+
+	async setTierOverride(uid: string, tier: PatronTier | null): Promise<void>
+	{
+		// Only for an existing user, as Postgres's foreign key and setEntitlements have it.
+		if (!this.byUid.has(uid)) return;
+		if (tier === null) this.tierOverrides.delete(uid);
+		else this.tierOverrides.set(uid, tier);
 	}
 
 	async linkIdentity(provider: string, subject: string, uid: string): Promise<void>
@@ -537,15 +585,20 @@ export class InMemoryUserRepository implements UserRepository
 				subject,
 			};
 		});
-		return profile === null && identities.length === 0 ? null : {
+		const tierOverride = this.tierOverrides.get(uid);
+		return profile === null && identities.length === 0 && tierOverride === undefined ? null : {
 			profile,
 			identities,
+			...tierOverride !== undefined && {
+				tierOverride,
+			},
 		};
 	}
 
 	async deleteFor(uid: string): Promise<void>
 	{
 		this.byUid.delete(uid);
+		this.tierOverrides.delete(uid);
 		for (const key of this.linkKeysFor(uid)) this.links.delete(key);
 	}
 
