@@ -17,11 +17,15 @@ const KIND_LABELS: Readonly<Record<HighlightKind, string>> = {
  * reads `Highlight · Sep 5, 2026` (its kind's word, then the date, either alone if the other is
  * missing); a clip with none of them has no line (`null`). The one rule for the line (ADR-025):
  * `VideoCard` draws it, and Search's rows (S153) reuse it. `text` is the muted words, `pill` the play.
+ * `noDate` leaves the date out: only the game's own Videos room passes it, since every clip there
+ * is from that game's day (#421; owner, 2026-11-25, waiving game-shell A6's date on each card:
+ * "Drop the date in the game's room"), so a play clip reads just its pill and one with no play
+ * just its kind. Best of, Search and the player keep the date.
  */
-export function videoMeta(video: Pick<Video, "kind" | "date">, playLink: PlayLink | null | undefined): { text: string | null;
+export function videoMeta(video: Pick<Video, "kind" | "date">, playLink: PlayLink | null | undefined, { noDate = false }: { noDate?: boolean } = {}): { text: string | null;
 	pill: PlayLink | null; } | null
 {
-	const date = video.date ? formatDate(video.date) : null;
+	const date = video.date && !noDate ? formatDate(video.date) : null;
 	if (playLink) return {
 		text: date,
 		pill: playLink,

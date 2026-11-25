@@ -31,11 +31,36 @@ async function armedAlarm(stub: ReturnType<typeof env.GAME_INGEST.get>): Promise
 	return null;
 }
 
+/**
+ * A stub of `name` that reaches an object of this load of the Worker. Storage is shared across test files
+ * (`isolatedStorage: false`), and S149's day hub test wakes this same object; when this file loads the Worker again
+ * the runtime invalidates it ("worker.ts changed … retry"), and a stub that met that answer keeps it, so each try
+ * takes a new stub, with a harmless call (an unknown hub let go).
+ */
+async function freshStub(name: string): Promise<ReturnType<typeof env.GAME_INGEST.get>>
+{
+	for (let attempt = 0; ; attempt++)
+	{
+		const stub = env.GAME_INGEST.get(env.GAME_INGEST.idFromName(name));
+		try
+		{
+			await stub.fetch("https://game-ingest/hubs/unregister?hub=warm", {
+				method: "POST",
+			});
+			return stub;
+		}
+		catch (error)
+		{
+			if (attempt >= 4 || !String(error).includes("invalidating this Durable Object")) throw error;
+		}
+	}
+}
+
 describe("GameIngestObject on workerd (S48)", () =>
 {
 	it("ensureRunning twice arms exactly one alarm; the alarm polls 745001 and arms the next", async () =>
 	{
-		const stub = env.GAME_INGEST.get(env.GAME_INGEST.idFromName("game-ingest:745001"));
+		const stub = await freshStub("game-ingest:745001");
 		expect(await (await ensure(stub)).json()).toEqual({
 			armed: true,
 		});

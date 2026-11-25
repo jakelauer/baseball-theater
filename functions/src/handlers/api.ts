@@ -34,7 +34,7 @@ import { getOrRefreshGame, getScheduleRead } from "../services/ingest.js";
 import {
 	edgeCacheControl, PARTIAL_PAST_DIGEST_CACHE_CONTROL, PAST_CACHE_CONTROL, RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, versionedMonthCacheControl,
 } from "./cache-control.js";
-import { liveUpgrade } from "./live.js";
+import { liveDayUpgrade, liveUpgrade } from "./live.js";
 
 export type ApiContext = {
 	ingest: IngestDeps;
@@ -48,6 +48,11 @@ export type ApiContext = {
 	 * the `game-hub` Durable Object). Absent where there are no hubs (the Node server).
 	 */
 	live?: (gamePk: number, request: Request) => Promise<Response>;
+	/**
+	 * Hands the scoreboard's live-route upgrade to the day's hub (S149; the Worker forwards it to the `day-hub`
+	 * Durable Object). Absent where there are no hubs (the Node server).
+	 */
+	liveDay?: (date: string, request: Request) => Promise<Response>;
 	/** Records each versioned request's version and route (S28); absent, nothing is recorded. */
 	usage?: ApiUsageLog;
 	/** The version lifecycle to enforce; `API_VERSIONS` unless a test supplies its own (S28). */
@@ -303,7 +308,7 @@ async function handleTierOverride(ctx: ApiContext, request: Request, write: bool
  * be keys of `ApiRoutes`; the route-table check allows a dispatched route
  * outside `ApiRoutes` only if it is named here.
  */
-export const STREAMING_ROUTE_EXCEPTIONS = ["GET /api/v1/games/:gamePk/live"] as const satisfies readonly string[];
+export const STREAMING_ROUTE_EXCEPTIONS = ["GET /api/v1/games/:gamePk/live", "GET /api/v1/schedule/live"] as const satisfies readonly string[];
 
 type StreamingRoute = (typeof STREAMING_ROUTE_EXCEPTIONS)[number];
 
@@ -343,6 +348,24 @@ export const API_ROUTER: readonly RouteEntry[] = [
 				lifetime: pastFinished ? "past" : "ladder",
 				force,
 			}, day, ctx);
+		},
+	},
+	{
+		// S149: the scoreboard's day over the day hub's WebSocket, while the day has a game in its window.
+		route: "GET /api/v1/schedule/live",
+		handle: async (url, _params, ctx, request) =>
+		{
+			const date = url.searchParams.get("date");
+			if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date))
+			{
+				const response = sendError(400, {
+					error: "date_required",
+					hint: "YYYY-MM-DD",
+				});
+				response.headers.set("Cache-Control", "no-store");
+				return response;
+			}
+			return liveDayUpgrade(date, request, ctx);
 		},
 	},
 	{
