@@ -118,7 +118,8 @@ async function renderScoreboard(settings: Partial<AccountSettings>, variant: Lay
 			</QueryClientProvider>
 		</MantineProvider>,
 	);
-	await screen.findByText(/^Games —/);
+	// The games' grid, not their heading: the heading draws over the loading skeleton too (B584).
+	await screen.findByTestId("scoreboard-grid");
 }
 
 afterEach(() =>

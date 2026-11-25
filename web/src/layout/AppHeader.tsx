@@ -1,6 +1,7 @@
 import {
-	ActionIcon, Burger, Group, Loader, Menu, Text, UnstyledButton,
+	ActionIcon, Burger, Group, Menu, Skeleton, Text, UnstyledButton,
 } from "@mantine/core";
+import { useReducedMotion } from "@mantine/hooks";
 import {
 	IconLogout, IconSettings, IconUser,
 } from "@tabler/icons-react";
@@ -16,7 +17,7 @@ import { HomeLink } from "./Wordmark.js";
  * own; Logto's provides it (owner, 2026-10-22).
  *
  * Pressing it shows at once that it was heard (owner, 2026-11-12: "clicking sign in gives no
- * feedback"): it reads "Signing in…" with a spinner and stops taking presses while Logto's
+ * feedback"): it reads "Signing in…" and stops taking presses while Logto's
  * SDK loads and the redirect starts. It stays that way only while the page is leaving for
  * Logto (`signIn()` answers true). It goes back to "Sign in" when the start fails, when
  * `signIn()` answers false (staging's mock sign-in or a local dev sign-in, which finish on the
@@ -24,7 +25,9 @@ import { HomeLink } from "./Wordmark.js";
  * when the reader comes Back from Logto to this very page out of the back/forward cache
  * (`pageshow` with `persisted`), where React's state is restored as it was left. Its state
  * lives here, not in `AccountControl`, so signing in unmounts it and a later sign-out starts
- * a fresh one.
+ * a fresh one. While pending, the account icon's place pulses as a skeleton, as every loading state
+ * does, not a spinner (B578, #578; owner: "generally when we're loading stuff, we should use a skeleton
+ * style loading"); under prefers-reduced-motion it holds still.
  *
  * Values from the Figma `header-mobile` (signed out, 543:8106; S83): "Sign in"
  * 14px Regular Light, 8px before a 24px account icon.
@@ -32,6 +35,7 @@ import { HomeLink } from "./Wordmark.js";
 function SignInButton({ signIn }: { signIn: () => Promise<boolean> })
 {
 	const [pending, setPending] = useState(false);
+	const reduceMotion = useReducedMotion();
 	useEffect(() =>
 	{
 		function onPageShow(event: PageTransitionEvent): void
@@ -67,7 +71,7 @@ function SignInButton({ signIn }: { signIn: () => Promise<boolean> })
 				<Text fz={14} c="var(--bt-light)">
 					{pending ? "Signing in…" : "Sign in"}
 				</Text>
-				{pending ? <Loader size={20} color="var(--bt-light)" aria-hidden /> : <IconUser size={24} aria-hidden />}
+				{pending ? <Skeleton h={24} w={24} circle animate={!reduceMotion} aria-hidden /> : <IconUser size={24} aria-hidden />}
 			</Group>
 		</UnstyledButton>
 	);

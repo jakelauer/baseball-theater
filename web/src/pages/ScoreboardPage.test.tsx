@@ -222,9 +222,10 @@ describe("ScoreboardPage layout (S66)", () =>
 		expect(counts).toEqual(["3", "2", "1"]);
 		vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
 		renderScoreboard("desktop");
-		expect(getComputedStyle(screen.getByRole("status", {
+		// The skeleton's card grid, inside the loading status.
+		expect(getComputedStyle(within(screen.getByRole("status", {
 			name: "Loading",
-		})).getPropertyValue("--sg-cols")).toBe("3");
+		})).getByTestId("skeleton-grid")).getPropertyValue("--sg-cols")).toBe("3");
 	});
 
 	it("date control: previous and next go to the day before and after", async () =>
@@ -317,13 +318,11 @@ describe("ScoreboardPage states (S66, ViewState)", () =>
 		expect(screen.getByTestId("date-control")).toBeInTheDocument();
 	});
 
-	it("loading: the page title is kept above the loader", () =>
+	it("loading: the date control and the games' heading are kept above the skeleton (B584 replaced the frames' page title with the loaded page's own heading)", () =>
 	{
 		vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
 		renderScoreboard();
-		expect(screen.getByRole("heading", {
-			name: "Sep 5, 2026 Scoreboard",
-		})).toBeInTheDocument();
+		expect(screen.getByText("Games — Sep 5, 2026")).toBeInTheDocument();
 		expect(screen.getByLabelText("Loading")).toBeInTheDocument();
 		expect(screen.getByTestId("date-control")).toBeInTheDocument();
 	});
@@ -338,9 +337,65 @@ describe("ScoreboardPage states (S66, ViewState)", () =>
 		expect(cards.length).toBeGreaterThan(1);
 		for (const card of cards)
 		{
-			expect(card).toHaveClass("mantine-Skeleton-root");
-			expect(card).toHaveAttribute("data-animate", "true");
+			const bones = card.querySelectorAll(".mantine-Skeleton-root");
+			expect(bones.length).toBeGreaterThan(0);
+			for (const bone of bones) expect(bone).toHaveAttribute("data-animate", "true");
 		}
+	});
+
+	/*
+	 * B584 (#584): a skeleton broadly matches what it stands for (NN/g, "Skeleton Screens 101": "The structure of the
+	 * gray boxes mimics the structure of the final page"), so the day's is game cards, each with the two team rows a
+	 * scoreboard card draws, and the heading the games draw over is the loaded page's own (its words need only the
+	 * day), so nothing above the cards changes when they land.
+	 */
+	it("loading: the skeleton is game cards with two team rows each, under the games' own heading, which stays when they land (#584)", async () =>
+	{
+		// One answer for the day, made before the page asks, so it can be given whenever the request goes out.
+		let answer: (response: Response) => void = () => undefined;
+		const schedule = new Promise<Response>((resolve) =>
+		{
+			answer = resolve;
+		});
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/schedule"
+			? schedule
+			: Promise.resolve(orDigest(request, day()))));
+		renderScoreboard();
+		const loading = screen.getByLabelText("Loading");
+		expect(loading).toHaveAttribute("data-skeleton", "games");
+		const cards = within(loading).getAllByTestId("skeleton-card");
+		for (const card of cards)
+		{
+			expect(within(card).getAllByTestId("skeleton-team-row")).toHaveLength(2);
+		}
+		expect(screen.getByText("Games — Sep 5, 2026")).toBeInTheDocument();
+		await act(async () => answer(jsonResponse(day())));
+		await modules();
+		expect(screen.getByText("Games — Sep 5, 2026")).toBeInTheDocument();
+	});
+
+	it("loading Best of: a skeleton of video cards under its heading while the day's digest loads, not nothing (#578)", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/digest"
+			? new Promise<Response>(() => undefined)
+			: Promise.resolve(jsonResponse(day()))));
+		renderScoreboard();
+		await modules();
+		const digest = screen.getByTestId("day-digest-loading");
+		expect(within(digest).getByText("Best of Sep 5 — Highlights")).toBeInTheDocument();
+		const loading = within(digest).getByLabelText("Loading");
+		expect(loading).toHaveAttribute("data-skeleton", "videos");
+		expect(within(loading).getAllByTestId("skeleton-video").length).toBeGreaterThan(1);
+	});
+
+	it("Best of: a day with no games draws no skeleton for a digest it won't have (#578)", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/digest"
+			? new Promise<Response>(() => undefined)
+			: Promise.resolve(jsonResponse(day([])))));
+		renderScoreboard();
+		await screen.findByText("No games scheduled for this date.");
+		expect(screen.queryByTestId("day-digest-loading")).toBeNull();
 	});
 
 	it("error: Couldn't load games, the hint, and Retry refetches", async () =>
@@ -469,6 +524,15 @@ describe("ScoreboardPage without a date (S111)", () =>
 		renderUndated();
 		expect(screen.getByLabelText("Loading")).toBeInTheDocument();
 		expect(screen.queryByTestId("date-control")).toBeNull();
+	});
+
+	it("default date loading: the date bar holds its place with a skeleton, and the games' skeleton is card-shaped (#584)", () =>
+	{
+		serveUndated(null);
+		renderUndated();
+		// The bar the date control will fill is drawn at once (B584: no chrome disappears while loading).
+		expect(screen.getByTestId("date-control-loading")).toBeInTheDocument();
+		expect(screen.getByLabelText("Loading")).toHaveAttribute("data-skeleton", "games");
 	});
 
 	it("default date fails: opens MLB's today, the Eastern date", async () =>
@@ -617,5 +681,52 @@ describe("ScoreboardPage live marker (S149)", () =>
 		await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
 		expect(FakeWebSocket.opened).toHaveLength(0);
 		expect(strip()).toBeNull();
+	});
+});
+
+describe("ScoreboardPage footer and a slow digest (#577, #578)", () =>
+{
+	beforeEach(() =>
+	{
+		FakeWebSocket.opened = [];
+		vi.stubGlobal("WebSocket", FakeWebSocket);
+	});
+
+	/*
+	 * #577: a cold past day's digest took 8-16 s, and the page held the shell's footer until it answered, so the page
+	 * looked unfinished that whole time. Best of's skeleton (#578) now holds the digest's place under the games, so the
+	 * footer comes once the day's games are drawn: here the digest never answers, and the footer still shows.
+	 */
+	it("the footer shows once the day's games are drawn, without waiting for the day's digest (#577)", async () =>
+	{
+		const body = day([read<ScheduleDayPayload>("schedule-2026-09-05.json").games[0]!]);
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/digest"
+			? new Promise<Response>(() => undefined)
+			: Promise.resolve(jsonResponse(body))));
+		renderScoreboardInShell();
+		await modules();
+		await waitFor(() => expect(screen.queryByTestId("site-footer")).not.toBeNull(), {
+			timeout: 500,
+		});
+		expect(screen.getByTestId("day-digest-loading")).toBeInTheDocument();
+	});
+
+	/*
+	 * The digest ranks every game's clips, pregame ones too (lineups, bullpens), so a day of games not yet started still
+	 * expects one: its skeleton shows, and the footer with it, at once.
+	 */
+	it("a day of only unstarted games shows Best of's skeleton and the footer at once (#577, #578)", async () =>
+	{
+		const moments = read<{ pregame: Game }>("schedule-823823-moments.json");
+		const body = day([moments.pregame]);
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/digest"
+			? new Promise<Response>(() => undefined)
+			: Promise.resolve(jsonResponse(body))));
+		renderScoreboardInShell();
+		await modules();
+		expect(screen.getByTestId("day-digest-loading")).toBeInTheDocument();
+		await waitFor(() => expect(screen.queryByTestId("site-footer")).not.toBeNull(), {
+			timeout: 500,
+		});
 	});
 });

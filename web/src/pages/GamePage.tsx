@@ -9,11 +9,13 @@ import { findScheduledGame } from "../api/schedule.js";
 import { useLiveGame } from "../api/live.js";
 import { BoxRoom } from "../components/game/BoxRoom.js";
 import { GameTopBar } from "../components/game/GameTopBar.js";
+import type { GameTopBarGame } from "../components/game/GameTopBar.js";
 import { LiveRoom } from "../components/game/LiveRoom.js";
 import { RecapRoom } from "../components/game/RecapRoom.js";
 import { PlaysPanel } from "../components/pitch/PlaysPanel.js";
 import { VideosRoom } from "../components/videos/VideosRoom.js";
 import { ViewState } from "../components/ViewState.js";
+import type { SkeletonShape } from "../components/ViewState.js";
 import { queryScreen } from "../components/queryScreen.js";
 import type { SetFooterMode } from "../layout/footerMode.js";
 import { useFooterMode } from "../layout/footerMode.js";
@@ -22,7 +24,7 @@ import { NoticeSlot } from "../layout/NoticeSlot.js";
 import { useOfflineNotice, useSavedCopy } from "../pwa/offline.js";
 import type { Room } from "@bt/domain";
 import {
-	gamePhase, openingRoom, roomsForPhase,
+	gamePhase, openingRoom, ROOMS, roomsForPhase,
 } from "@bt/domain";
 import { roomLabel } from "../components/game/format.js";
 import { useSettings } from "../settings/store.js";
@@ -38,7 +40,8 @@ const TAB_MAX_WIDTH = 160;
 function RoomTabs({
 	gamePk, active, children,
 }: { gamePk: number;
-	active: string;
+	/** The open room, or `null` for none yet (kept controlled: Mantine reads `undefined` as uncontrolled). */
+	active: string | null;
 	children?: ReactNode; })
 {
 	const navigate = useNavigate();
@@ -92,6 +95,29 @@ function RoomTabList({ rooms }: { rooms: readonly Room[] })
 	);
 }
 
+/** The top bar's game as a cached day lists it (`findScheduledGame`): offline, and before the game answers. */
+function listedTopBar(listed: NonNullable<ReturnType<typeof findScheduledGame>>): GameTopBarGame
+{
+	return {
+		away: listed.teams.away.abbreviation ?? "",
+		home: listed.teams.home.abbreviation ?? "",
+		officialDate: listed.officialDate,
+		status: listed.status,
+	};
+}
+
+/**
+ * What a room's loading skeleton stands for (B584, #584): the Videos room's highlight grid, the Box
+ * room's tables, the Recap's prose, and rows for the Plays and Live rooms' lists.
+ */
+const ROOM_SKELETONS: Readonly<Record<Room, SkeletonShape>> = {
+	videos: "videos",
+	live: "rows",
+	plays: "rows",
+	box: "table",
+	recap: "text",
+};
+
 /**
  * One game: the game top bar (in place of the app header, S60) with the room tabs in its row (B528) —
  * equal widths up to `TAB_MAX_WIDTH`, centered (owner, 2026-11-12) — and the room.
@@ -105,6 +131,18 @@ function RoomTabList({ rooms }: { rooms: readonly Room[] })
  * shown (`queryScreen`). A game never opened while online has no copy: the page then shows only
  * "You're offline." over an empty room, no error and no explanation (owner, 2026-10-21), with the
  * top bar and tabs when a day in the cache lists the game (`findScheduledGame`).
+ *
+ * Before the game answers, the top bar and room tabs are already there (B584, #584; owner, 2026-11-25:
+ * "A game detail is the weirdest one, because the entire navigation chrome goes away"), and only the
+ * room is a skeleton shaped like it (`ROOM_SKELETONS`). The bar shows what is known: a cached day's
+ * listing of the game (its teams, day and status, and so its phase's rooms), else skeletons for the
+ * date and matchup over the rooms every game has (`roomsForPhase("pregame", false)`). A room the URL
+ * names (one of `ROOMS`) is the open one and gets its tab if those rooms lack it, so a `/live` link
+ * doesn't open on Videos and then jump; a `/live` link to a game that turns out to have ended shows
+ * Live until the game answers, then moves to the game's real room (an accepted trade-off). With no room
+ * in the URL and no phase known, Opens First is chosen only if every game has it; otherwise no tab is
+ * chosen yet, over a plain row skeleton. A game that never loaded keeps that same bar and tabs over
+ * the room's error and Retry (B584).
  */
 export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 	setFooter?: SetFooterMode; })
@@ -151,11 +189,8 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 				<RoomTabs gamePk={listed.gamePk} active={openingRoom(tab, opensFirst, phase, false)}>
 					<Stack gap="xs">
 						<GameTopBar
-							away={listed.teams.away.abbreviation ?? ""}
-							home={listed.teams.home.abbreviation ?? ""}
-							officialDate={listed.officialDate}
 							// The status as the cached day lists it (S170's marker reads it, as online).
-							status={listed.status}
+							game={listedTopBar(listed)}
 							variant={variant}
 							tabs={<RoomTabList rooms={roomsForPhase(phase, false)} />}
 						/>
@@ -165,13 +200,41 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 			</Box>
 		);
 	}
-	if (screen === "error")
+	if (screen === "error" || screen === "loading" || !game)
 	{
-		return <ViewState kind="error" title="Couldn't load this room" onRetry={() => void refetch()} />;
-	}
-	if (screen === "loading" || !game)
-	{
-		return <ViewState kind="loading" />;
+		// Loading or failed, the top bar and tabs stay (B584, #584): the error room, like the skeleton, is the room's only.
+		const failed = screen === "error";
+		const listed = findScheduledGame(client, Number(gamePk));
+		// The phase the cached day lists; without one, the rooms every game has. No recap is known before the game.
+		const phase = listed ? gamePhase(listed.status.codedGameState) : null;
+		const known = roomsForPhase(phase ?? "pregame", false);
+		const named = ROOMS.find((room) => room === tab);
+		const rooms = named && !known.includes(named) ? ROOMS.filter((room) => room === named || known.includes(room)) : known;
+		let active: Room | null;
+		if (named) active = named;
+		else if (phase || tab !== undefined) active = openingRoom(tab, opensFirst, phase ?? "pregame", false);
+		else active = known.includes(opensFirst) ? opensFirst : null;
+		return (
+			<Box data-variant={variant}>
+				<RoomTabs gamePk={Number(gamePk)} active={active}>
+					<Stack gap="xs">
+						<GameTopBar
+							game={listed ? listedTopBar(listed) : null}
+							busy={!failed}
+							variant={variant}
+							tabs={<RoomTabList rooms={rooms} />}
+						/>
+						<NoticeSlot notice={marker} flush />
+						{/* A room panel's own top padding, so the room lands where its skeleton was. */}
+						<Box pt="md">
+							{failed
+								? <ViewState kind="error" title="Couldn't load this room" onRetry={() => void refetch()} />
+								: <ViewState kind="loading" shape={active ? ROOM_SKELETONS[active] : "rows"} variant={variant} />}
+						</Box>
+					</Stack>
+				</RoomTabs>
+			</Box>
+		);
 	}
 
 	const phase = gamePhase(game.status.codedGameState);
@@ -189,10 +252,12 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 			<RoomTabs gamePk={game.gamePk} active={active}>
 				<Stack gap="xs">
 					<GameTopBar
-						away={game.teams.away.abbreviation}
-						home={game.teams.home.abbreviation}
-						officialDate={game.officialDate}
-						status={game.status}
+						game={{
+							away: game.teams.away.abbreviation,
+							home: game.teams.home.abbreviation,
+							officialDate: game.officialDate,
+							status: game.status,
+						}}
 						variant={variant}
 						tabs={<RoomTabList rooms={rooms} />}
 					/>

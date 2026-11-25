@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { MantineProvider } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
-	act, cleanup, render, screen, within,
+	act, cleanup, render, screen, waitFor, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
@@ -15,6 +15,8 @@ import {
 } from "vitest";
 import type { GamePayload } from "../api/game.js";
 import { gameKey } from "../api/game.js";
+import type { ScheduleDayPayload } from "../api/schedule.js";
+import { writeScheduleDay } from "../api/schedule.js";
 import type { LayoutVariant } from "../layout/variant.js";
 import { createQueryClient } from "../api/queryClient.js";
 import { jsonResponse } from "../test/jsonResponse.js";
@@ -22,6 +24,7 @@ import { GamePage } from "./GamePage.js";
 import type { OpensFirst } from "@bt/domain";
 import { hydrateSettings, resetSettings } from "../settings/store.js";
 import { resetVersionNotice } from "../api/versionNotice.js";
+import { findLoadedTopBar } from "../test/gameTopBar.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../fixtures");
 
@@ -61,7 +64,7 @@ function serve(game: GamePayload)
 
 async function tabNames(): Promise<string[]>
 {
-	await screen.findByTestId("game-topbar");
+	await findLoadedTopBar();
 	// The first tablist is the room tabs; a room (Plays) may hold tabs of its own.
 	const rooms = screen.getAllByRole("tablist")[0]!;
 	return within(rooms).getAllByRole("tab").map((t) => t.textContent ?? "");
@@ -146,7 +149,7 @@ describe("GamePage top bar (S40)", () =>
 		serve(fixture(744834));
 		renderGame("/game/744834");
 
-		const bar = within(await screen.findByTestId("game-topbar"));
+		const bar = within(await findLoadedTopBar());
 		expect(bar.getByRole("link", {
 			name: "Back to scoreboard",
 		})).toHaveAttribute("href", "/games/2024-07-04");
@@ -161,7 +164,7 @@ describe("GamePage top bar (S40)", () =>
 		serve(fixture(744834));
 		renderGame("/game/744834", "desktop");
 
-		const bar = await screen.findByTestId("game-topbar");
+		const bar = await findLoadedTopBar();
 		const rooms = screen.getAllByRole("tablist")[0]!;
 		expect(bar.contains(rooms)).toBe(true);
 	});
@@ -171,7 +174,7 @@ describe("GamePage top bar (S40)", () =>
 		serve(fixture(744834));
 		renderGame("/game/744834", "mobile");
 
-		const bar = await screen.findByTestId("game-topbar");
+		const bar = await findLoadedTopBar();
 		const rooms = screen.getAllByRole("tablist")[0]!;
 		expect(bar.contains(rooms)).toBe(true);
 		const line = bar.lastElementChild as HTMLElement;
@@ -186,7 +189,7 @@ describe("GamePage top bar (S40)", () =>
 		serve(fixture(744834));
 		renderGame("/game/744834");
 
-		const barEl = await screen.findByTestId("game-topbar");
+		const barEl = await findLoadedTopBar();
 		const text = barEl.textContent ?? "";
 		expect(text).not.toMatch(/0\s*[–-]\s*1/);
 		expect(text).not.toContain("0 – 1");
@@ -248,7 +251,7 @@ describe("GamePage phase-aware tabs (S40)", () =>
 		serve(fixture(744834));
 		renderGame("/game/744834/live");
 
-		await screen.findByTestId("game-topbar");
+		await findLoadedTopBar();
 		expect(screen.getByRole("tab", {
 			name: "Videos",
 		})).toHaveAttribute("aria-selected", "true");
@@ -265,6 +268,115 @@ describe("GamePage room states (S40)", () =>
 		renderGame("/game/744834");
 
 		expect(screen.getByLabelText("Loading")).toBeInTheDocument();
+	});
+
+	/*
+	 * B584 (#584; owner, 2026-11-25: "A game detail is the weirdest one, because the entire navigation chrome goes
+	 * away"): the top bar and the room tabs render from what is already known before the game answers, and only the
+	 * room is a skeleton (Carbon's loading pattern: non-data content shows in the first batch, skeletons stand in for
+	 * the data-based parts). Nothing in the bar or the tabs changes when the game lands.
+	 */
+	it("before the game answers, nothing cached: the top bar with Back and the room tabs every game has, over a skeleton of the room (#584)", () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+		renderGame("/game/744834");
+		const bar = screen.getByTestId("game-topbar");
+		expect(within(bar).getByRole("link", {
+			name: "Back to scoreboard",
+		})).toBeInTheDocument();
+		expect(within(screen.getAllByRole("tablist")[0]!).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Videos", "Plays", "Box"]);
+		expect(screen.getByLabelText("Loading")).toHaveAttribute("data-skeleton", "videos");
+	});
+
+	it("before the game answers, its day cached: the bar shows the scoreboard's matchup and date, and neither it nor the tabs change when the game lands (#584)", async () =>
+	{
+		const client = createQueryClient();
+		writeScheduleDay(client, JSON.parse(readFileSync(join(FIXTURES, "schedule-2024-07-04.json"), "utf8")) as ScheduleDayPayload);
+		// One answer for the game, made before the page asks, so it can be given whenever the request goes out.
+		let answer: (response: Response) => void = () => undefined;
+		const gameAnswer = new Promise<Response>((resolve) =>
+		{
+			answer = resolve;
+		});
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname.startsWith("/api/v1/games/") ? gameAnswer : new Promise<Response>(() => undefined)));
+		renderGame("/game/744834/box", "desktop", client);
+		const bar = () => screen.getByTestId("game-topbar");
+		const tabs = () => within(screen.getAllByRole("tablist")[0]!).getAllByRole("tab").map((t) => `${t.textContent}:${t.getAttribute("aria-selected")}`);
+		expect(bar()).toHaveTextContent("NYM @ WSH");
+		const before = {
+			bar: bar().textContent,
+			tabs: tabs(),
+		};
+		expect(screen.getByLabelText("Loading")).toHaveAttribute("data-skeleton", "table");
+		await act(async () => answer(jsonResponse(fixture(744834))));
+		await waitFor(() => expect(screen.queryByLabelText("Loading")).toBeNull());
+		expect(bar().textContent).toBe(before.bar);
+		expect(tabs()).toEqual(before.tabs);
+	});
+
+	it("before the game answers, the room's skeleton matches the room: play rows for Plays (#584)", () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+		renderGame("/game/744834/plays");
+		expect(screen.getByLabelText("Loading")).toHaveAttribute("data-skeleton", "rows");
+	});
+
+	it("before the game answers, a room named in the URL stays chosen, its tab added, and stays chosen once the game lands (#584)", async () =>
+	{
+		let answer: (response: Response) => void = () => undefined;
+		const gameAnswer = new Promise<Response>((resolve) =>
+		{
+			answer = resolve;
+		});
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname.startsWith("/api/v1/games/") ? gameAnswer : new Promise<Response>(() => undefined)));
+		renderGame("/game/745001/live");
+		const selected = () => within(screen.getAllByRole("tablist")[0]!).getAllByRole("tab").filter((t) => t.getAttribute("aria-selected") === "true").map((t) => t.textContent);
+		expect(selected()).toEqual(["Live"]);
+		await act(async () => answer(jsonResponse(fixture(745001))));
+		await findLoadedTopBar();
+		expect(selected()).toEqual(["Live"]);
+	});
+
+	it("before the game answers, a URL segment that names no room adds no tab (#584)", () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+		renderGame("/game/744834/foo");
+		expect(within(screen.getAllByRole("tablist")[0]!).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Videos", "Plays", "Box"]);
+	});
+
+	it("before the game answers, with no room in the URL and Opens First a room the phase may not offer, no tab is chosen yet (#584)", async () =>
+	{
+		await opensFirst("live");
+		vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+		renderGame("/game/745001");
+		expect(within(screen.getAllByRole("tablist")[0]!).getAllByRole("tab").filter((t) => t.getAttribute("aria-selected") === "true")).toHaveLength(0);
+		expect(screen.getByLabelText("Loading")).toHaveAttribute("data-skeleton", "rows");
+	});
+
+	it("loading: the top bar's skeletons are hidden from screen readers; a failed game with nothing cached draws no placeholder there (#584)", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+		const { unmount } = renderGame("/game/744834");
+		const bones = screen.getByTestId("game-topbar").querySelectorAll(".mantine-Skeleton-root");
+		expect(bones.length).toBeGreaterThan(0);
+		for (const bone of bones) expect(bone).toHaveAttribute("aria-hidden", "true");
+		unmount();
+		vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}, 503))));
+		renderGame("/game/744834");
+		await screen.findByRole("alert");
+		expect(screen.getByTestId("game-topbar").querySelectorAll(".mantine-Skeleton-root")).toHaveLength(0);
+	});
+
+	it("a game that fails to load keeps the top bar with Back and the room tabs over the error, as loading does (#584)", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}, 503))));
+		renderGame("/game/744834/box");
+		const alert = await screen.findByRole("alert");
+		expect(within(alert).getByText("Couldn't load this room")).toBeInTheDocument();
+		expect(within(screen.getByTestId("game-topbar")).getByRole("link", {
+			name: "Back to scoreboard",
+		})).toBeInTheDocument();
+		expect(within(screen.getAllByRole("tablist")[0]!).getAllByRole("tab").map((t) => `${t.textContent}:${t.getAttribute("aria-selected")}`)).toEqual(["Videos:false", "Plays:false", "Box:true"]);
 	});
 
 	it("shows the error with Retry, and Retry asks again", async () =>

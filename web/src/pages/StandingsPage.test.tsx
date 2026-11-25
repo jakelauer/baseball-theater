@@ -163,6 +163,31 @@ describe("StandingsPage (S4)", () =>
 		expect(screen.getByLabelText("Loading")).toBeInTheDocument();
 	});
 
+	/*
+	 * B584 (#584): the skeleton broadly matches the tables it stands for (Atlassian Design System, Skeleton: "Match the
+	 * size and shape of the expected content so the page does not jump when loading completes"): division tables of
+	 * rows, each row a team cell and figure cells, under the date control and the heading, which draw at once.
+	 */
+	it("loading: a table-shaped skeleton, rows of a team cell and figure cells, under the date control and heading (#584)", () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+		renderStandings();
+		expect(screen.getByTestId("date-control")).toBeInTheDocument();
+		const loading = screen.getByLabelText("Loading");
+		expect(loading).toHaveAttribute("data-skeleton", "table");
+		const tables = within(loading).getAllByTestId("skeleton-table");
+		expect(tables.length).toBeGreaterThan(0);
+		for (const table of tables)
+		{
+			const rows = within(table).getAllByTestId("skeleton-table-row");
+			expect(rows.length).toBeGreaterThan(1);
+			for (const row of rows)
+			{
+				expect(within(row).getAllByTestId("skeleton-cell").length).toBeGreaterThanOrEqual(4);
+			}
+		}
+	});
+
 	it("empty: a day with no tables says so", async () =>
 	{
 		serve(() => jsonResponse({

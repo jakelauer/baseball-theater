@@ -113,7 +113,7 @@ describe("AppHeader sign-in feedback (owner, 2026-11-12: \"clicking sign in give
 		);
 	}
 
-	it("pressing Sign in turns it into a disabled, busy \"Signing in…\" with a spinner while sign-in starts", async () =>
+	it("pressing Sign in turns it into a disabled, busy \"Signing in…\" with a pulsing skeleton, not a spinner, while sign-in starts (#578)", async () =>
 	{
 		const signIn = vi.fn(() => new Promise<boolean>(() => undefined));
 		renderWithSignIn(signIn);
@@ -125,7 +125,9 @@ describe("AppHeader sign-in feedback (owner, 2026-11-12: \"clicking sign in give
 		});
 		expect(pending).toBeDisabled();
 		expect(pending).toHaveAttribute("aria-busy", "true");
-		expect(pending.querySelector(".mantine-Loader-root")).not.toBeNull();
+		// The account icon's place pulses, as every loading state does (#578; owner: "skeleton style loading").
+		expect(pending.querySelector(".mantine-Loader-root")).toBeNull();
+		expect(pending.querySelector(".mantine-Skeleton-root")).not.toBeNull();
 		await userEvent.click(pending);
 		expect(signIn).toHaveBeenCalledTimes(1);
 	});

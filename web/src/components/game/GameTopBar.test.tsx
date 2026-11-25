@@ -42,7 +42,13 @@ function renderBar(code: string, variant: LayoutVariant)
 	render(
 		<MantineProvider>
 			<MemoryRouter>
-				<GameTopBar away="NYY" home="BOS" officialDate="2026-09-21" status={status(code)} variant={variant} />
+				<GameTopBar game={{
+					away: "NYY",
+					home: "BOS",
+					officialDate: "2026-09-21",
+					status: status(code),
+				}} variant={variant}
+				/>
 			</MemoryRouter>
 		</MantineProvider>,
 	);
