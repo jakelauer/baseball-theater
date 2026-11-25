@@ -135,7 +135,8 @@ const ROOM_SKELETONS: Readonly<Record<Room, SkeletonShape>> = {
  * "A game detail is the weirdest one, because the entire navigation chrome goes away"), and only the
  * room is a skeleton shaped like it (`ROOM_SKELETONS`). The bar shows what is known: a cached day's
  * listing of the game (its teams, day and status, and so its phase's rooms), else skeletons for the
- * date and matchup over the rooms every game has (`roomsForPhase("pregame", false)`).
+ * date and matchup over the rooms every game has (`roomsForPhase("pregame", false)`). A game that never
+ * loaded keeps that same bar and tabs over the room's error and Retry (B584).
  */
 export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 	setFooter?: SetFooterMode; })
@@ -193,12 +194,10 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 			</Box>
 		);
 	}
-	if (screen === "error")
+	if (screen === "error" || screen === "loading" || !game)
 	{
-		return <ViewState kind="error" title="Couldn't load this room" onRetry={() => void refetch()} />;
-	}
-	if (screen === "loading" || !game)
-	{
+		// Loading or failed, the top bar and tabs stay (B584, #584): the error room, like the skeleton, is the room's only.
+		const failed = screen === "error";
 		const listed = findScheduledGame(client, Number(gamePk));
 		// The phase the cached day lists, else one whose rooms every game has; no recap is known before the game.
 		const phase = listed ? gamePhase(listed.status.codedGameState) : "pregame";
@@ -209,14 +208,16 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 					<Stack gap="xs">
 						<GameTopBar
 							game={listed ? listedTopBar(listed) : null}
-							busy
+							busy={!failed}
 							variant={variant}
 							tabs={<RoomTabList rooms={roomsForPhase(phase, false)} />}
 						/>
 						<NoticeSlot notice={marker} flush />
 						{/* A room panel's own top padding, so the room lands where its skeleton was. */}
 						<Box pt="md">
-							<ViewState kind="loading" shape={ROOM_SKELETONS[active]} variant={variant} />
+							{failed
+								? <ViewState kind="error" title="Couldn't load this room" onRetry={() => void refetch()} />
+								: <ViewState kind="loading" shape={ROOM_SKELETONS[active]} variant={variant} />}
 						</Box>
 					</Stack>
 				</RoomTabs>

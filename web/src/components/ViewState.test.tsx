@@ -100,6 +100,19 @@ describe("ViewState (S60)", () =>
 		}
 	});
 
+	it("loading cards and videos without a column count or pairing draw one column and the phone's grid (#584)", () =>
+	{
+		for (const shape of ["games", "videos"] as const)
+		{
+			renderState({
+				kind: "loading",
+				shape,
+			});
+			expect(screen.getByLabelText("Loading")).toHaveAttribute("data-skeleton", shape);
+			cleanup();
+		}
+	});
+
 	it("empty is one sentence", () =>
 	{
 		renderState({

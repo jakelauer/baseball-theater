@@ -321,6 +321,18 @@ describe("GamePage room states (S40)", () =>
 		expect(screen.getByLabelText("Loading")).toHaveAttribute("data-skeleton", "rows");
 	});
 
+	it("a game that fails to load keeps the top bar with Back and the room tabs over the error, as loading does (#584)", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}, 503))));
+		renderGame("/game/744834/box");
+		const alert = await screen.findByRole("alert");
+		expect(within(alert).getByText("Couldn't load this room")).toBeInTheDocument();
+		expect(within(screen.getByTestId("game-topbar")).getByRole("link", {
+			name: "Back to scoreboard",
+		})).toBeInTheDocument();
+		expect(within(screen.getAllByRole("tablist")[0]!).getAllByRole("tab").map((t) => `${t.textContent}:${t.getAttribute("aria-selected")}`)).toEqual(["Videos:false", "Plays:false", "Box:true"]);
+	});
+
 	it("shows the error with Retry, and Retry asks again", async () =>
 	{
 		const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({}, 503)));
