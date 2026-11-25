@@ -307,3 +307,25 @@ describe("account control, signed out and signed in", () =>
 		})).toBeNull();
 	});
 });
+
+describe("footer at the window's bottom on a short page (#525)", () =>
+{
+	// Owner, 2026-11-24: "Ideally, the footer behaves as sticky to the bottom of the window unless the content
+	// pushes it past that." jsdom lays nothing out, so this checks the flex chain that does it in a browser:
+	// the shell is at least the window's height, its content column stretches to it, and `<main>` takes the
+	// leftover height, so the footer after it starts at the window's bottom; taller content pushes it down.
+	it.fails.each([
+		["mobile", 375],
+		["desktop", 1280],
+	] as const)("%s: <main> grows to fill the window's leftover height, so the footer after it sits at the bottom", (_name, width) =>
+	{
+		renderShell("/", width);
+		const main = screen.getByRole("main");
+		const column = main.parentElement!;
+		expect(column.parentElement!.style.minHeight).toBe("100vh");
+		expect(column.style.display).toBe("flex");
+		expect(column.style.flexDirection).toBe("column");
+		expect(main.style.flexGrow).toBe("1");
+		expect(screen.getByRole("contentinfo").previousElementSibling).toBe(main);
+	});
+});

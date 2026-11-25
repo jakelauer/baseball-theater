@@ -19,6 +19,7 @@ import {
 import type { GamePayload } from "../../api/game.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { resetSettings } from "../../settings/store.js";
+import { BODY_FONT_PX, mantineFontPx } from "../../test/fontSize.js";
 import { VideosRoom } from "./VideosRoom.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
@@ -303,5 +304,21 @@ describe("VideosRoom states and play (S69)", () =>
 		expect(within(dialog).queryByRole("link", {
 			name: /Go to game/,
 		})).toBeNull();
+	});
+});
+
+describe("Videos headers are never smaller than body text (#527)", () =>
+{
+	it.fails("the Videos title and every group's header draw at body size or larger", () =>
+	{
+		renderRoom();
+		expect(mantineFontPx(screen.getByText("Videos"))).toBeGreaterThanOrEqual(BODY_FONT_PX);
+		const groups = screen.getAllByTestId("videos-group");
+		expect(groups.length).toBeGreaterThan(0);
+		for (const group of groups)
+		{
+			const label = group.getAttribute("aria-label")!;
+			expect(mantineFontPx(within(group).getByText(label)), label).toBeGreaterThanOrEqual(BODY_FONT_PX);
+		}
 	});
 });

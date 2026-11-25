@@ -43,6 +43,16 @@ describe("ViewState (S60)", () =>
 		expect(screen.getByLabelText("Loading")).toBeInTheDocument();
 	});
 
+	it.fails("loading is an animated skeleton, never a spinner (#431)", () =>
+	{
+		renderState({
+			kind: "loading",
+		});
+		const loading = screen.getByLabelText("Loading");
+		expect(loading.querySelector(".mantine-Loader-root")).toBeNull();
+		expect(loading.querySelectorAll(".mantine-Skeleton-root[data-animate=true]").length).toBeGreaterThan(0);
+	});
+
 	it("empty is one sentence", () =>
 	{
 		renderState({
