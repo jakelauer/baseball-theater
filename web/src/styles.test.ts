@@ -143,6 +143,12 @@ describe("hover feedback", () =>
 		expect([...off!.selectors].sort()).toEqual([...transitionRule.selectors].sort());
 	});
 
+	it("reduced motion stops the loading skeleton's pulse from the first frame (#431)", () =>
+	{
+		const still = reducedRules.filter((rule) => decl(rule, "animation")?.startsWith("none")).flatMap((rule) => rule.selectors);
+		expect(still).toContain(".mantine-Skeleton-root::after");
+	});
+
 	it("every hover movement (a lift, a zoom, a grow) is cancelled under reduced motion", () =>
 	{
 		const still = new Set(reducedRules.filter((rule) => decl(rule, "transform")?.startsWith("none")).flatMap((rule) => rule.selectors));

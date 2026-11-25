@@ -25,6 +25,7 @@ import {
 import type { GamePayload } from "../../api/game.js";
 import { createQueryClient } from "../../api/queryClient.js";
 import { GamePage } from "../../pages/GamePage.js";
+import { BODY_FONT_PX, mantineFontPx } from "../../test/fontSize.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
 import { AtBatViewer } from "./AtBatViewer.js";
 import { PlaysPanel } from "./PlaysPanel.js";
@@ -235,6 +236,18 @@ describe("the Plays room on 823823 (S41)", () =>
 			name: "Runs",
 		}));
 		expect(screen.getByText("No scoring plays yet.")).toBeInTheDocument();
+	});
+});
+
+describe("Plays headers are never smaller than body text (#527)", () =>
+{
+	it("the view's heading and each half's header draw at body size or larger", async () =>
+	{
+		const panel = await playsPanel();
+		for (const header of ["9th inning", "Top 9th · CHC", "Bottom 9th · MIA"])
+		{
+			expect(mantineFontPx(within(panel).getByText(header)), header).toBeGreaterThanOrEqual(BODY_FONT_PX);
+		}
 	});
 });
 

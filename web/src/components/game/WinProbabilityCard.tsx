@@ -4,6 +4,7 @@ import {
 } from "@mantine/core";
 import type { GamePayload } from "../../api/game.js";
 import { HiddenValue } from "../HiddenValue.js";
+import { SectionHeading } from "../SectionHeading.js";
 
 /** The chart's drawing box; the SVG scales it to the card's width. */
 const W = 300;
@@ -52,7 +53,7 @@ export function WinProbabilityCard({ game, scoresHidden }: { game: GamePayload;
 			}}
 		>
 			<Group justify="space-between" wrap="nowrap" mb={8}>
-				<Text fz={11} fw={700} tt="uppercase">Win probability ({game.teams.home.abbreviation})</Text>
+				<SectionHeading>Win probability ({game.teams.home.abbreviation})</SectionHeading>
 				<Text fz={13} fw={700} c="var(--bt-accent)" data-testid="win-probability-value">
 					{scoresHidden ? <HiddenValue kind="score" /> : `${series.currentPercent}%`}
 				</Text>

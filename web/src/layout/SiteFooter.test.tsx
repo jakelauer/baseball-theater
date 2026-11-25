@@ -14,6 +14,7 @@ import {
 } from "vitest";
 import type { Session, SessionState } from "../session/session.js";
 import { SessionContext } from "../session/session.js";
+import { mantineFontPx } from "../test/fontSize.js";
 import { DEV_ACCOUNT } from "../test/meApi.js";
 import { SiteFooter } from "./SiteFooter.js";
 import type { LayoutVariant } from "./variant.js";
@@ -203,6 +204,18 @@ describe("SiteFooter (S142)", () =>
 			name: "Your data",
 		})).toBeNull();
 		expect(screen.getByText("Legal")).toBeInTheDocument();
+	});
+
+	it("its column headings are never smaller than the links under them (#527)", () =>
+	{
+		renderFooter(false);
+		const link = mantineFontPx(screen.getByRole("link", {
+			name: "About",
+		}));
+		for (const heading of ["Baseball Theater", "Legal"])
+		{
+			expect(mantineFontPx(screen.getByText(heading)), heading).toBeGreaterThanOrEqual(link);
+		}
 	});
 
 	it("S142 AC 1: columns inset 16px and 48px apart at mobile, 24px and 64px at medium and desktop (A14 Width=Mobile / Wide)", () =>

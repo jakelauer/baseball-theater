@@ -247,6 +247,21 @@ describe("ScoreboardPage states (S66, ViewState)", () =>
 		expect(screen.getByTestId("date-control")).toBeInTheDocument();
 	});
 
+	it("loading: an animated skeleton of the day's game cards, not a spinner (#431)", () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+		renderScoreboard();
+		const loading = screen.getByLabelText("Loading");
+		expect(loading.querySelector(".mantine-Loader-root")).toBeNull();
+		const cards = within(loading).getAllByTestId("skeleton-card");
+		expect(cards.length).toBeGreaterThan(1);
+		for (const card of cards)
+		{
+			expect(card).toHaveClass("mantine-Skeleton-root");
+			expect(card).toHaveAttribute("data-animate", "true");
+		}
+	});
+
 	it("error: Couldn't load games, the hint, and Retry refetches", async () =>
 	{
 		const fetchMock = vi.fn((_request: Request) => Promise.resolve(jsonResponse({
