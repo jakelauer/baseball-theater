@@ -9,6 +9,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import {
 	act, cleanup, fireEvent, render, screen, waitFor, within,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
 	Link, MemoryRouter, useLocation,
 } from "react-router-dom";
@@ -45,14 +46,14 @@ const RELEASE = {
 	fixesAndPolish: null,
 };
 
-/** Answers `(min-width: Nem)` as a viewport `width` px wide; no reduced motion. */
-function viewport(width: number)
+/** Answers `(min-width: Nem)` as a viewport `width` px wide, and `prefers-reduced-motion` as `reduced` says. */
+function viewport(width: number, reduced = false)
 {
 	vi.spyOn(window, "matchMedia").mockImplementation((query: string) =>
 	{
 		const min = /min-width:\s*([\d.]+)em/.exec(query);
 		return {
-			matches: min ? width >= Number(min[1]) * 16 : false,
+			matches: min ? width >= Number(min[1]) * 16 : query.includes("prefers-reduced-motion") && reduced,
 			media: query,
 			onchange: null,
 			addListener: () => undefined,
@@ -97,10 +98,13 @@ function Shell()
 	);
 }
 
-function renderShell({ width = WIDTHS.mobile, path = "/game/745525" }: { width?: number;
-	path?: string; } = {})
+function renderShell({
+	width = WIDTHS.mobile, path = "/game/745525", reduced = false,
+}: { width?: number;
+	path?: string;
+	reduced?: boolean; } = {})
 {
-	viewport(width);
+	viewport(width, reduced);
 	render(
 		<MantineProvider>
 			<QueryClientProvider client={createQueryClient()}>
@@ -136,10 +140,12 @@ const where = () => screen.getByTestId("where").textContent;
 /** Lets a 150ms fade-out finish. */
 const settle = () => act(() => vi.advanceTimersByTime(250));
 
-function openModal()
+/** Taps the notice and waits for the modal, whose module loads on first opening. */
+async function openModal()
 {
-	fireEvent.click(screen.getByTestId("after-update-notice"));
+	fireEvent.click(within(screen.getByTestId("after-update-notice")).getByRole("button"));
 	settle();
+	await screen.findByTestId("changelog-modal");
 }
 
 beforeEach(() =>
@@ -162,7 +168,7 @@ afterEach(() =>
 
 describe("the notice where the pointer can't aim (S193 AC 1)", () =>
 {
-	it("S193 AC 1: a game page at a phone width after an update shows the notice, in A9's words with the link, and not the pointer", () =>
+	it("S193 AC 1: a game page at a phone width after an update shows the notice, in A9's words with the link, and not the pointer", async () =>
 	{
 		serve();
 		updatedLoad();
@@ -171,7 +177,7 @@ describe("the notice where the pointer can't aim (S193 AC 1)", () =>
 		expect(shown).toHaveTextContent("Update complete");
 		expect(shown).toHaveTextContent("You're on v3.10.0. What changed is in the changelog.");
 		expect(within(shown).getByRole("button", {
-			name: "Open the changelog",
+			name: /Open the changelog/,
 		})).toBeInTheDocument();
 		expect(within(shown).queryByRole("link")).toBeNull();
 		expect(within(shown).getByTestId("pointer-countdown")).toBeInTheDocument();
@@ -179,7 +185,7 @@ describe("the notice where the pointer can't aim (S193 AC 1)", () =>
 		expect(shown.style.right).toBe("16px");
 	});
 
-	it("S193 AC 1: a game page at a tablet (medium) width shows the notice too, 24px from the edges", () =>
+	it("S193 AC 1: a game page at a tablet (medium) width shows the notice too, 24px from the edges", async () =>
 	{
 		serve();
 		updatedLoad();
@@ -190,7 +196,7 @@ describe("the notice where the pointer can't aim (S193 AC 1)", () =>
 		expect(pointer()).toBeNull();
 	});
 
-	it("S193 AC 1: a page with a menu button still shows S135's pointer, not the notice; a desktop game page keeps the rail's pointer", () =>
+	it("S193 AC 1: a page with a menu button still shows S135's pointer, not the notice; a desktop game page keeps the rail's pointer", async () =>
 	{
 		serve();
 		updatedLoad();
@@ -207,7 +213,7 @@ describe("the notice where the pointer can't aim (S193 AC 1)", () =>
 		expect(notice()).toBeNull();
 	});
 
-	it("S193 AC 1: it goes after its 10 seconds and doesn't come back on that load", () =>
+	it("S193 AC 1: it goes after its 10 seconds and doesn't come back on that load", async () =>
 	{
 		serve();
 		updatedLoad();
@@ -220,7 +226,7 @@ describe("the notice where the pointer can't aim (S193 AC 1)", () =>
 		expect(pointer()).toBeNull();
 	});
 
-	it("S193 AC 1: the update notice up suppresses both, and a notice already showing goes at once and doesn't come back", () =>
+	it("S193 AC 1: the update notice up suppresses both, and a notice already showing goes at once and doesn't come back", async () =>
 	{
 		serve();
 		updatedLoad();
@@ -248,12 +254,12 @@ describe("the notice where the pointer can't aim (S193 AC 1)", () =>
 		expect(pointer()).toBeNull();
 	});
 
-	it("S193 AC 1: a change log modal the fan already opened stays open when the update notice comes up", () =>
+	it("S193 AC 1: a change log modal the fan already opened stays open when the update notice comes up", async () =>
 	{
 		serve();
 		updatedLoad();
 		renderShell();
-		openModal();
+		await openModal();
 		expect(modal()).not.toBeNull();
 		act(() => announceUpdate(async () => undefined));
 		settle();
@@ -263,7 +269,7 @@ describe("the notice where the pointer can't aim (S193 AC 1)", () =>
 		})).toBeInTheDocument();
 	});
 
-	it("S193 AC 1: leaving the game page while the notice shows runs the rest of its 10 seconds as the pointer; the release is recorded once", () =>
+	it("S193 AC 1: leaving the game page while the notice shows runs the rest of its 10 seconds as the pointer; the release is recorded once", async () =>
 	{
 		serve();
 		const write = vi.spyOn(Storage.prototype, "setItem");
@@ -289,7 +295,7 @@ describe("the notice where the pointer can't aim (S193 AC 1)", () =>
 		expect(readStored("bt.lastRelease")).toBe("v3.10.0");
 	});
 
-	it("S193 AC 1: opening a game page while the pointer shows runs the rest as the notice, its countdown line starting from the time left", () =>
+	it("S193 AC 1: opening a game page while the pointer shows runs the rest as the notice, its countdown line starting from the time left", async () =>
 	{
 		serve();
 		const write = vi.spyOn(Storage.prototype, "setItem");
@@ -328,7 +334,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		renderShell();
 		fireEvent.click(within(screen.getByTestId("after-update-notice")).getByText("Update complete"));
 		settle();
-		const open = screen.getByTestId("changelog-modal");
+		const open = await screen.findByTestId("changelog-modal");
 		expect(within(open).getByRole("heading", {
 			name: "Change log",
 			level: 1,
@@ -340,17 +346,78 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		expect(where()).toBe("/game/745525");
 	});
 
-	it("S193 AC 2: its link 'Open the changelog' opens the modal, not the /changelog page", () =>
+	it("S193 AC 2: its link 'Open the changelog' opens the modal, not the /changelog page", async () =>
 	{
 		serve();
 		updatedLoad();
 		renderShell();
 		fireEvent.click(screen.getByRole("button", {
-			name: "Open the changelog",
+			name: /Open the changelog/,
 		}));
 		settle();
-		expect(modal()).not.toBeNull();
+		expect(await screen.findByTestId("changelog-modal")).toBeInTheDocument();
 		expect(where()).toBe("/game/745525");
+	});
+
+	it("S193 AC 2: the whole notice is one button, reached by Tab and pressed with Enter, its link part of it", async () =>
+	{
+		serve();
+		updatedLoad();
+		renderShell();
+		const shown = screen.getByTestId("after-update-notice");
+		const buttons = within(shown).getAllByRole("button");
+		expect(buttons).toHaveLength(1);
+		expect(buttons[0]).toHaveAccessibleName(/Update complete.*Open the changelog/);
+		const user = userEvent.setup({
+			advanceTimers: (ms) => vi.advanceTimersByTime(ms),
+		});
+		// From the top of the document, Tab reaches it (it sits after the page and its footer).
+		for (let i = 0; i < 40 && document.activeElement !== buttons[0]; i++) await user.tab();
+		expect(buttons[0]).toHaveFocus();
+		await user.keyboard("{Enter}");
+		settle();
+		expect(await screen.findByTestId("changelog-modal")).toBeInTheDocument();
+	});
+
+	it("S193 AC 2: closing it returns focus to the page's first control (the game top bar's back link), not the document", async () =>
+	{
+		serve();
+		updatedLoad();
+		renderShell();
+		await openModal();
+		fireEvent.click(screen.getByRole("button", {
+			name: "Close the change log",
+		}));
+		settle();
+		await waitFor(() => expect(modal()).toBeNull());
+		await waitFor(() => expect(screen.getByRole("link", {
+			name: "to scoreboard",
+		})).toHaveFocus());
+	});
+
+	it("S193 AC 2: on a tablet (medium) width it opens as the dialog", async () =>
+	{
+		serve();
+		updatedLoad();
+		renderShell({
+			width: WIDTHS.medium,
+		});
+		await openModal();
+		expect(screen.getByRole("button", {
+			name: "Close the change log",
+		})).toBeInTheDocument();
+	});
+
+	it("S193 AC 2: under reduced motion the notice draws no countdown line and the modal still opens, without its transition", async () =>
+	{
+		serve();
+		updatedLoad();
+		renderShell({
+			reduced: true,
+		});
+		expect(within(screen.getByTestId("after-update-notice")).queryByTestId("pointer-countdown")).toBeNull();
+		await openModal();
+		expect(modal()).not.toBeNull();
 	});
 
 	it("S193 AC 2: its loading, empty and error (with Retry) states are the change log page's", async () =>
@@ -359,7 +426,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		serve(() => answer());
 		updatedLoad();
 		renderShell();
-		openModal();
+		await openModal();
 		expect(within(screen.getByTestId("changelog-modal")).getByRole("heading", {
 			name: "Change log",
 		})).toBeInTheDocument();
@@ -371,7 +438,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		resetAfterUpdate();
 		updatedLoad();
 		renderShell();
-		openModal();
+		await openModal();
 		expect(await within(screen.getByTestId("changelog-modal")).findByText("No release notes yet.")).toBeInTheDocument();
 		cleanup();
 		answer = () => jsonResponse({
@@ -380,7 +447,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		resetAfterUpdate();
 		updatedLoad();
 		renderShell();
-		openModal();
+		await openModal();
 		expect(await within(screen.getByTestId("changelog-modal")).findByText("Couldn't load the change log", {}, {
 			timeout: 10_000,
 		})).toBeInTheDocument();
@@ -394,7 +461,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		serve();
 		updatedLoad();
 		renderShell();
-		openModal();
+		await openModal();
 		fireEvent.click(screen.getByRole("button", {
 			name: "Close the change log",
 		}));
@@ -407,7 +474,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		serve();
 		updatedLoad();
 		renderShell();
-		openModal();
+		await openModal();
 		const overlay = document.querySelector(".mantine-Modal-overlay");
 		expect(overlay).not.toBeNull();
 		fireEvent.click(overlay as Element);
@@ -419,7 +486,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		serve();
 		updatedLoad();
 		renderShell();
-		openModal();
+		await openModal();
 		fireEvent.keyDown(screen.getByTestId("changelog-modal"), {
 			key: "Escape",
 		});
@@ -431,7 +498,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		serve();
 		updatedLoad();
 		renderShell();
-		openModal();
+		await openModal();
 		expect(window.history.state).toMatchObject({
 			btChangelogModal: true,
 		});
@@ -444,7 +511,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		resetAfterUpdate();
 		updatedLoad();
 		renderShell();
-		openModal();
+		await openModal();
 		fireEvent.click(screen.getByRole("button", {
 			name: "Close the change log",
 		}));
@@ -454,7 +521,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 
 describe("counts as seen (S193 AC 3)", () =>
 {
-	it("S193 AC 3: a reload after the notice shows neither the notice nor the pointer", () =>
+	it("S193 AC 3: a reload after the notice shows neither the notice nor the pointer", async () =>
 	{
 		serve();
 		updatedLoad();
@@ -471,19 +538,19 @@ describe("counts as seen (S193 AC 3)", () =>
 		expect(pointer()).toBeNull();
 	});
 
-	it("S193 AC 3: a reload after the modal was opened shows neither", () =>
+	it("S193 AC 3: a reload after the modal was opened shows neither", async () =>
 	{
 		serve();
 		updatedLoad();
 		renderShell();
-		openModal();
+		await openModal();
 		reload();
 		renderShell();
 		expect(notice()).toBeNull();
 		expect(pointer()).toBeNull();
 	});
 
-	it("S193 AC 3: a reload after a hand-over between the notice and the pointer shows neither", () =>
+	it("S193 AC 3: a reload after a hand-over between the notice and the pointer shows neither", async () =>
 	{
 		serve();
 		updatedLoad();

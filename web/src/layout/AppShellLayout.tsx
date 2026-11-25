@@ -1,10 +1,12 @@
 import { Box, Drawer } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { useState } from "react";
+import {
+	Suspense, lazy, useState,
+} from "react";
 import { useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { AfterUpdate } from "../pwa/afterUpdate.js";
-import { ChangelogModal, UpdatedNotice } from "../pwa/UpdatedNotice.js";
+import { UpdatedNotice } from "../pwa/UpdatedNotice.js";
 import { AppHeader } from "./AppHeader.js";
 import { NavRail } from "./NavRail.js";
 import type { Notice } from "./NoticeSlot.js";
@@ -14,6 +16,11 @@ import { RAIL_WIDTH } from "./nav.js";
 import { SiteFooter } from "./SiteFooter.js";
 import type { LayoutVariant } from "./variant.js";
 import { useLayoutVariant } from "./variant.js";
+
+/** The change log modal and the page it holds, loaded the first time the game page's notice opens it, so neither is in the entry chunk (S193; S110). */
+const ChangelogModal = lazy(() => import("../pwa/ChangelogModal.js").then((m) => ({
+	default: m.ChangelogModal,
+})));
 
 /**
  * The one layout host (ADR-014 rule 8; S60). It is the only reader of the
@@ -74,6 +81,13 @@ export function AppShellLayout({
 	const [drawerHighlight, setDrawerHighlight] = useState(false);
 	const [footer, setFooter] = useState<FooterMode>("plain");
 	const [changelogOpen, setChangelogOpen] = useState(false);
+	// Mounted from its first opening on, so its close transition still runs after it closes.
+	const [changelogUsed, setChangelogUsed] = useState(false);
+	const openChangelog = () =>
+	{
+		setChangelogUsed(true);
+		setChangelogOpen(true);
+	};
 	// However the drawer closes (the burger, a link, the overlay, Escape), its link's highlight goes with it.
 	const closeDrawer = () =>
 	{
@@ -152,8 +166,12 @@ export function AppShellLayout({
 					{children(variant, setFooter)}
 				</Box>
 				{footer === "none" ? null : <SiteFooter live={footer === "live"} variant={variant} />}
-				{gameRoute && !desktop ? <UpdatedNotice pointer={pointer} variant={variant} onOpen={() => setChangelogOpen(true)} /> : null}
-				<ChangelogModal opened={changelogOpen} onClose={() => setChangelogOpen(false)} variant={variant} />
+				{gameRoute && !desktop ? <UpdatedNotice pointer={pointer} variant={variant} onOpen={openChangelog} /> : null}
+				{changelogUsed ? (
+					<Suspense fallback={null}>
+						<ChangelogModal opened={changelogOpen} onClose={() => setChangelogOpen(false)} variant={variant} />
+					</Suspense>
+				) : null}
 			</Box>
 		</Box>
 	);

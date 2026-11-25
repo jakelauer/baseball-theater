@@ -221,16 +221,17 @@ export function AfterUpdatePointer({
 /**
  * The popover's words and its countdown line (A9 `after-update-pointer`), shared by A9's pointer and
  * A17's game-page notice (`UpdatedNotice`). `link` is what "Open the changelog" is: `page`, a link to
- * the change log page (A9's `Link=Yes`); `button`, a button that does what a tap on the rest of the
- * notice does, opening the change log over the game page (A17: "Its link … opens the modal, not the
- * `/changelog` page"); `none`, no link and "… on this page." (A9's `Link=No`, on the change log page).
+ * the change log page (A9's `Link=Yes`); `inline`, the same words drawn as a link but part of the notice's
+ * one button, so it does what a tap on the rest of the notice does, opening the change log over the game
+ * page (A17: "Its link … opens the modal, not the `/changelog` page"); `none`, no link and "… on this
+ * page." (A9's `Link=No`, on the change log page).
  */
 export function PointerBody({
 	release, timeLeft, link, reduceMotion,
 }: {
 	release: string;
 	timeLeft: () => number;
-	link: "page" | "button" | "none";
+	link: "page" | "inline" | "none";
 	reduceMotion: boolean;
 })
 {
@@ -253,8 +254,8 @@ export function PointerBody({
 					{link === "none" ? `You're on ${release}. What changed is on this page.` : `You're on ${release}. What changed is in the changelog.`}
 				</Text>
 				{link === "page" ? <Anchor component={Link} to={CHANGELOG_PATH} {...linkProps}>Open the changelog</Anchor> : null}
-				{/* No handler of its own: its click reaches the notice's, so the link and the rest of it do one thing. */}
-				{link === "button" ? <Anchor component="button" type="button" {...linkProps}>Open the changelog</Anchor> : null}
+				{/* Inside the notice's one button (`UpdatedNotice`), so a link here would nest one control in another. */}
+				{link === "inline" ? <Text component="span" fz={13} fw={600} c="var(--bt-primary-light)" lh={1.3} mt={4} display="inline-block">Open the changelog</Text> : null}
 			</div>
 			{reduceMotion ? null : <Countdown timeLeft={timeLeft} />}
 		</>

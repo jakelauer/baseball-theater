@@ -16,7 +16,7 @@ cd "$(dirname "$0")/.."
 source "$(dirname "$0")/lib/checks.sh"
 
 check 1 "AC 1: on a game page at mobile and medium the notice shows instead of the pointer; a page with a menu button keeps the pointer; the update notice suppresses both and ends a showing notice while an opened modal stays; the hand-over between pages carries the time left and records the release once (RTL named 'S193 AC 1')"
-check 2 "AC 2: the notice opens the change log in a Mantine Modal reusing S134's ChangelogPage (one component, no second copy); ✕, scrim, Escape and Back each close it (RTL named 'S193 AC 2'); e2e/flows/ has the phone-width Back/✕ flow, never asserting history.length"
+check 2 "AC 2: the notice opens the change log in a Mantine Modal (web/src/pwa/ChangelogModal.tsx, which the shell lazy-loads so the page stays out of the entry chunk) reusing S134's ChangelogPage (one component, no second copy); ✕, scrim, Escape and Back each close it (RTL named 'S193 AC 2'); e2e/flows/ has the phone-width Back/✕ flow, never asserting history.length"
 check 3 "AC 3: the notice records the release through checkAfterUpdate/startAfterUpdate only, once per release whether shown as the notice, the pointer or both (RTL named 'S193 AC 3')"
 check 4 "AC 4: the 10 design captures of A17's frames from e2e/design/S193.spec.ts under docs/v3/design-checks/S193/ at their pairing widths (390 mobile, 768 medium)"
 check 5 "AC 5: S193's Status is done: its snapshot records done"
@@ -28,7 +28,7 @@ BASE=da8dfb6d95b14e93c7439443e44b15b059144c9d
 TMP="$(mktemp -d /tmp/verify-S193.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 
-WEB_TESTS=(src/pwa/afterUpdate.test.tsx src/layout/AppShellLayout.test.tsx src/pages/ChangelogPage.test.tsx src/pwa/UpdatedNotice.test.tsx)
+WEB_TESTS=(src/pwa/afterUpdate.test.tsx src/layout/AppShellLayout.test.tsx src/pages/ChangelogPage.test.tsx src/pwa/UpdatedNotice.test.tsx src/pwa/ChangelogModal.lazy.test.tsx)
 present=()
 for t in "${WEB_TESTS[@]}"; do [ -f "web/$t" ] && present+=("$t"); done
 if [ "${#present[@]}" -gt 0 ]; then
@@ -85,13 +85,21 @@ else
 	grep -qE 'useMediaQuery|hiddenFrom|visibleFrom' "$N" && bad 1 "$N reads the viewport itself (only web/src/layout/ may)"
 fi
 
-# --- Check 2: one change log, in a Mantine Modal; four ways to close; the flow ---
-if [ -f "$N" ]; then
-	grep -qE '\bModal\b' "$N" || bad 2 "$N does not open the change log in Mantine's Modal"
-	grep -qE 'ChangelogPage' "$N" || bad 2 "$N does not reuse S134's ChangelogPage"
-	grep -qE 'pushState' "$N" || bad 2 "$N adds no history entry for Back to close the modal"
-	grep -qE 'popstate' "$N" || bad 2 "$N does not close the modal on Back (popstate)"
+# --- Check 2: one change log, in a Mantine Modal loaded on demand; four ways to close; the flow ---
+# (Updated before shipping, rule 7: the pre-PR review moved the modal out of UpdatedNotice.tsx into its
+# own lazily loaded module, so the change log page stays out of the entry chunk.)
+M=web/src/pwa/ChangelogModal.tsx
+if [ ! -f "$M" ]; then
+	bad 2 "$M missing"
+else
+	grep -qE '\bModal\b' "$M" || bad 2 "$M does not open the change log in Mantine's Modal"
+	grep -qE 'ChangelogPage' "$M" || bad 2 "$M does not reuse S134's ChangelogPage"
+	grep -qE 'pushState' "$M" || bad 2 "$M adds no history entry for Back to close the modal"
+	grep -qE 'popstate' "$M" || bad 2 "$M does not close the modal on Back (popstate)"
 fi
+grep -qE 'lazy\(\(\) => import\("\.\./pwa/ChangelogModal\.js"\)' "$L" || bad 2 "$L does not lazy-load the change log modal"
+grep -rqE '^import .*(ChangelogPage|ChangelogModal)\.js' "$L" "$N" && bad 2 "the shell or the notice imports the change log statically (it belongs out of the entry chunk)"
+file_passed "$TMP/web.json" "ChangelogModal.lazy.test.tsx" || bad 2 "web/src/pwa/ChangelogModal.lazy.test.tsx did not pass"
 copies=$(grep -rlF "Couldn't load the change log" web/src --include='*.tsx' --include='*.ts' | grep -v '\.test\.' | grep -vc '^web/src/pages/ChangelogPage\.tsx$')
 [ "$copies" = "0" ] || bad 2 "the change log's words are copied outside ChangelogPage.tsx ($copies file(s))"
 for c in "✕|close button" "scrim|outside" "Escape" "Back"; do
