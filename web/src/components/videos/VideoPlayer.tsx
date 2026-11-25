@@ -1,10 +1,9 @@
 import {
-	Box, Group, Stack, Text, UnstyledButton,
+	Box, Group, Stack, Text,
 } from "@mantine/core";
-import { IconPlayerPauseFilled, IconPlayerPlayFilled } from "@tabler/icons-react";
 import type { VideoQuality } from "@bt/domain";
 import {
-	clipClock, defaultVideoQuality, fileQuality, rememberedVideoQuality, videoQualities,
+	defaultVideoQuality, fileQuality, rememberedVideoQuality, videoQualities,
 } from "@bt/domain";
 import {
 	useEffect, useRef, useState,
@@ -20,10 +19,13 @@ import type { Video } from "./VideoCard.js";
  */
 const DISCLAIMER = "This video is provided by MLBAM and MLB.com and has no affiliation with or connection to Baseball Theater. It has been displayed on your device via a public API provided by Major League Baseball.";
 
-/** True when a key press belongs to whatever has focus (typing, a button), not to the player. */
+/**
+ * True when a key press belongs to whatever has focus (typing, a button, or the `<video>` itself,
+ * whose built-in controls already play and pause on Space, #579), not to the player.
+ */
 function ownsSpace(target: HTMLElement): boolean
 {
-	return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(target.tagName) || target.getAttribute("role") === "button";
+	return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A", "VIDEO"].includes(target.tagName) || target.getAttribute("role") === "button";
 }
 
 /** Plays a paused clip and pauses a playing one; a refused play (no source, autoplay rules) is ignored. */
@@ -69,31 +71,30 @@ function playableQualities(video: Video, path: HlsPath, libraryFailed: boolean):
 /**
  * Plays the element for a reader who wants it playing. If the browser refuses (`NotAllowedError`:
  * autoplay blocked by a site setting, Low Power Mode, or a play with no user gesture), they can't
- * have it playing, so `wantsPlay` and the button go back to paused. Any other refusal (an
- * `AbortError` when a newer load replaces this one) leaves the intent for that load to follow.
+ * have it playing, so `wantsPlay` goes back to paused. Any other refusal (an `AbortError` when a
+ * newer load replaces this one) leaves the intent for that load to follow.
  */
-function playWanted(element: HTMLVideoElement | null, wantsPlay: { current: boolean }, setPlaying: (playing: boolean) => void): void
+function playWanted(element: HTMLVideoElement | null, wantsPlay: { current: boolean }): void
 {
 	void element?.play().catch((error: unknown) =>
 	{
 		// A DOMException, which isn't an Error subclass everywhere, so read its name.
 		if ((error as { name?: unknown } | null)?.name !== "NotAllowedError") return;
 		wantsPlay.current = false;
-		setPlaying(false);
 	});
 }
 
 /**
- * A press on play / pause (the button, the picture, Space). While a quality switch reloads the
- * clip (`reloading`) the element reports itself paused whatever the reader wants, so the press
- * follows `wantsPlay`, which the button shows during a reload (`switchTo`): a pause records it
- * in `wantsPlay` (which the reload's `loadedmetadata` follows) and pauses the element in case an
- * earlier press already started it; a play goes to the element, since `play()` also starts a
- * load the browser may not have begun (iOS can skip `preload="metadata"`). On a failed load a
- * press only changes what the reader wants; picking another quality reloads. Otherwise it plays or pauses the
- * element; its play / pause events update `wantsPlay`.
+ * A Space press on the page (the built-in controls take presses on the clip itself, #579). While
+ * a quality switch reloads the clip (`reloading`) the element reports itself paused whatever the
+ * reader wants, so the press follows `wantsPlay`: a pause records it in `wantsPlay` (which the
+ * reload's `loadedmetadata` follows) and pauses the element in case an earlier press already
+ * started it; a play goes to the element, since `play()` also starts a load the browser may not
+ * have begun (iOS can skip `preload="metadata"`). On a failed load a press only changes what the
+ * reader wants; picking another quality reloads. Otherwise it plays or pauses the element; its
+ * play / pause events update `wantsPlay`.
  */
-function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, wantsPlay: { current: boolean }, setPlaying: (playing: boolean) => void): void
+function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, wantsPlay: { current: boolean }): void
 {
 	if (!reloading)
 	{
@@ -103,24 +104,25 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
 	if (wantsPlay.current)
 	{
 		wantsPlay.current = false;
-		setPlaying(false);
 		element?.pause();
 		return;
 	}
-	playWanted(element, wantsPlay, setPlaying);
+	playWanted(element, wantsPlay);
 }
 
 /**
- * The one video player (S70; game-shell `video-player` frames): the clip, a Primary play /
- * pause control, the progress bar and `elapsed / total` (`clipClock`), the title, and the
- * MLBAM disclaimer. `PlayerDialog` and `PlayerStage` host it; neither repeats any of it.
+ * The one video player (S70; game-shell `video-player` frames): the clip under the browser's
+ * own controls (seek, mute and volume, fullscreen, captions, AirPlay / picture-in-picture),
+ * which replace the frames' custom play button, progress bar and clock (owner, 2026-11-25,
+ * #579: "Yeah, let's use the default controls."), the title, and the MLBAM disclaimer.
+ * `PlayerDialog` and `PlayerStage` host it; neither repeats any of it.
  * Space plays and pauses (VISUAL-DESIGN §6) unless focus is on something Space already
- * means something to, such as the search box or a button. `autoPlay` starts the clip when
+ * means something to, such as the search box, a button or the clip. `autoPlay` starts the clip when
  * the reader chose it; the stage's first clip waits for a press. `autoPlay` turning on after mount
  * (the dialog once its opening transition ends, #423) plays the same element, since the
  * `<video>`'s own autoplay counts only on its first load.
  *
- * Under the progress row sit the quality picker (`QualityPicker`, the clip's
+ * Under the clip sit the quality picker (`QualityPicker`, the clip's
  * `videoQualities` this browser can play, HLS natively or through hls.js, starting on the quality the reader last
  * chose, else the nearest one the clip has, else `playbackUrl`'s: `rememberedVideoQuality`, #416) and the palette of
  * actions (`PlayerActions`: copy link, direct link, share; Download waits for S151), both on the quality
@@ -136,9 +138,6 @@ export function VideoPlayer({
 	autoPlay?: boolean; })
 {
 	const ref = useRef<HTMLVideoElement>(null);
-	const [playing, setPlaying] = useState(false);
-	const [elapsed, setElapsed] = useState(0);
-	const [total, setTotal] = useState(0);
 
 	const path = hlsPath();
 	// Set once hls.js fails on this clip (a fatal error, or its chunk wouldn't load): HLS leaves the picker.
@@ -159,7 +158,6 @@ export function VideoPlayer({
 	// `autoPlay` as last rendered, so only its turning on after mount plays the clip here (#423).
 	const autoPlayed = useRef(autoPlay);
 
-	const toggle = () => togglePlayer(ref.current, resume.current !== null, wantsPlay, setPlaying);
 	const switchTo = (next: VideoQuality) =>
 	{
 		const element = ref.current;
@@ -170,8 +168,6 @@ export function VideoPlayer({
 		};
 		setPicked(next.id);
 		setVideoQuality(next.id);
-		// During the reload the button shows what the reader wants, so a press means the same.
-		setPlaying(wantsPlay.current);
 	};
 	// The clip as a file (`fileQuality`): the MP4 playing, or the same cut's MP4 while a stream plays.
 	const fileUrl = fileQuality(qualities, quality)?.url ?? null;
@@ -183,7 +179,7 @@ export function VideoPlayer({
 		// Only the first source autoplays (`picked` null), as the element's own `autoPlay` below.
 		if (!turnedOn || picked !== null) return;
 		wantsPlay.current = true;
-		playWanted(ref.current, wantsPlay, setPlaying);
+		playWanted(ref.current, wantsPlay);
 		// Only `autoPlay` turning on plays: a quality pick mustn't.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [autoPlay]);
@@ -194,7 +190,7 @@ export function VideoPlayer({
 		{
 			if (event.code !== "Space" || ownsSpace(event.target as HTMLElement)) return;
 			event.preventDefault();
-			togglePlayer(ref.current, resume.current !== null, wantsPlay, setPlaying);
+			togglePlayer(ref.current, resume.current !== null, wantsPlay);
 		}
 		document.addEventListener("keydown", onKey);
 		return () => document.removeEventListener("keydown", onKey);
@@ -225,10 +221,9 @@ export function VideoPlayer({
 			const fallback = sameCut && !sameCut.hls ? sameCut : defaultVideoQuality(files, video.playbackUrl);
 			if (!fallback)
 			{
-				// Nothing plays here: no reload will come to resume, and the button shows Play.
+				// Nothing plays here: no reload will come to resume.
 				resume.current = null;
 				wantsPlay.current = false;
-				setPlaying(false);
 				return;
 			}
 			resume.current = {
@@ -241,6 +236,10 @@ export function VideoPlayer({
 		{
 			if (cancelled) return;
 			const hls = new Hls();
+			// Captions start off (#580). This light build has no subtitle controller, so here (Chrome,
+			// Firefox) Auto carries no caption track at all and the setting only states the intent;
+			// where the browser plays HLS itself (Safari, iOS) its CC menu and system setting decide.
+			hls.subtitleDisplay = false;
 			player = hls;
 			hls.on(Hls.Events.ERROR, (_event, data) =>
 			{
@@ -258,14 +257,13 @@ export function VideoPlayer({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [libraryUrl]);
 
-	const Icon = playing ? IconPlayerPauseFilled : IconPlayerPlayFilled;
 	return (
 		<Stack gap={10} data-testid="video-player">
 			<Box
 				component="video"
 				ref={ref}
-				// A click on the picture plays or pauses it, so it answers the pointer (`.bt-video`, styles.css).
-				className="bt-video"
+				// The browser's own controls (#579): a click or tap on the picture is theirs to handle.
+				controls
 				// No `src` while hls.js plays the quality: it attaches its own stream (the effect above).
 				src={libraryUrl ? undefined : quality?.url ?? video.playbackUrl ?? undefined}
 				poster={video.imageUrl ?? undefined}
@@ -277,27 +275,28 @@ export function VideoPlayer({
 				playsInline
 				webkit-playsinline="true"
 				preload="metadata"
-				onClick={toggle}
 				onPlay={() =>
 				{
 					wantsPlay.current = true;
-					setPlaying(true);
 				}}
 				onPause={() =>
 				{
 					wantsPlay.current = false;
-					setPlaying(false);
 				}}
-				onTimeUpdate={(event) => setElapsed(event.currentTarget.currentTime)}
+				// At the end, go back to the start (#581): the picture holds a frame instead of going
+				// blank, and the next play starts the clip again on every browser.
+				onEnded={(event) =>
+				{
+					event.currentTarget.currentTime = 0;
+				}}
 				onLoadedMetadata={(event) =>
 				{
 					const element = event.currentTarget;
-					setTotal(element.duration);
 					const at = resume.current;
 					if (!at) return;
 					resume.current = null;
 					element.currentTime = at.time;
-					if (wantsPlay.current) playWanted(element, wantsPlay, setPlaying);
+					if (wantsPlay.current) playWanted(element, wantsPlay);
 				}}
 				style={{
 					display: "block",
@@ -309,37 +308,6 @@ export function VideoPlayer({
 					background: "var(--bt-raised)",
 				}}
 			/>
-			<Group gap={10} wrap="nowrap">
-				<UnstyledButton onClick={toggle} aria-label={playing ? "Pause" : "Play"} c="var(--bt-primary-light)" className="bt-hover" p={6} m={-6} style={{
-					display: "flex",
-					borderRadius: 6,
-				}}
-				>
-					<Icon size={14} />
-				</UnstyledButton>
-				<Box
-					role="progressbar"
-					aria-label="Progress"
-					aria-valuemin={0}
-					aria-valuemax={Math.round(total)}
-					aria-valuenow={Math.round(elapsed)}
-					style={{
-						flex: 1,
-						height: 4,
-						borderRadius: 2,
-						background: "rgb(255 242 211 / 15%)",
-						overflow: "hidden",
-					}}
-				>
-					<Box h="100%" w={total > 0 ? `${(elapsed / total) * 100}%` : 0} bg="var(--bt-primary-light)" />
-				</Box>
-				<Text size="xs" c="var(--bt-muted)" style={{
-					flexShrink: 0,
-				}}
-				>
-					{clipClock(elapsed)} / {clipClock(total)}
-				</Text>
-			</Group>
 			{quality ? (
 				<Group gap={4} justify="space-between" wrap="wrap">
 					<PlayerActions title={title} url={quality.url} fileUrl={fileUrl} />
@@ -348,8 +316,9 @@ export function VideoPlayer({
 			) : null}
 			<Text size="sm" fw={500}>{title}</Text>
 			<Stack gap={2}>
-				<Text fz={10} fw={700} tt="uppercase" c="var(--bt-muted)">Disclaimer:</Text>
-				<Text fz={10} lh={1.4} c="var(--bt-muted)">{DISCLAIMER}</Text>
+				{/* `xs`, as the tools row's labels: 10px was too small to read (#589). */}
+				<Text size="xs" fw={700} tt="uppercase" c="var(--bt-muted)">Disclaimer:</Text>
+				<Text size="xs" lh={1.4} c="var(--bt-muted)">{DISCLAIMER}</Text>
 			</Stack>
 		</Stack>
 	);
