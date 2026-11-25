@@ -1199,3 +1199,28 @@ describe("StandingsPage: the title (S130 AC 5)", () =>
 		expect(document.title).toBe("Baseball Theater");
 	});
 });
+
+describe("StandingsPage: the two leagues side by side (#434)", () =>
+{
+	const leagues = () => screen.getAllByTestId("standings-league").map((league) => within(league).getAllByRole("heading", {
+		level: 3,
+	}).map((h) => h.textContent));
+
+	it.each(["desktop", "medium"] as const)("%s: the American League's tables in one column, the National League's beside it (#434)", async (variant) =>
+	{
+		serve(() => jsonResponse(STANDINGS));
+		renderPage("/standings?date=2026-09-05", variant);
+		await screen.findAllByTestId("division-table");
+		expect(screen.getByTestId("standings-leagues")).toHaveAttribute("data-columns", "2");
+		expect(leagues()).toEqual([["AL East", "AL Central", "AL West"], ["NL East", "NL Central", "NL West"]]);
+	});
+
+	it("mobile: the leagues stack, the American League over the National (#434)", async () =>
+	{
+		serve(() => jsonResponse(STANDINGS));
+		renderPage("/standings?date=2026-09-05", "mobile");
+		await screen.findAllByTestId("division-table");
+		expect(screen.getByTestId("standings-leagues")).toHaveAttribute("data-columns", "1");
+		expect(leagues()).toEqual([["AL East", "AL Central", "AL West"], ["NL East", "NL Central", "NL West"]]);
+	});
+});
