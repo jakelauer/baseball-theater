@@ -9,11 +9,13 @@
  * its live window the feed (polled every few seconds) owns its row; before and after it the schedule does (owner,
  * 2026-11-17: "I like your idea of a sort of "railroad switch" based on game state.").
  */
+import { gamePhase } from "./game-phase.js";
 import type { AtBat } from "./plays.js";
 import type {
 	GameSnapshot, LinescoreSummary, ScheduleDay, ScheduleGameSummary, ScheduleLive,
 } from "./types.js";
 import type { Unversioned, VersionStamp } from "./versioning.js";
+import type { ScoreboardWinProbability } from "./win-probability.js";
 import type { CadenceParams } from "./window.js";
 import {
 	DEFAULT_CADENCE, isGameInActiveWindow, isLiveStatus, isPostponedStatus, isSuspendedStatus, scheduleWindowMode,
@@ -37,6 +39,12 @@ export type GameStateSource = "feed" | "schedule";
  * One `game_states` row (S150 AC 3): the state, the source that wrote it, the newest feed time the row has accepted
  * (`null` until the feed writes one), and what the switch needs to place the game in its window: its official date
  * and first pitch (`null` when no write has carried one).
+ *
+ * S161: `winProbability` is the game's scoreboard line (`scoreboardWinProbability`), worked out by the feed write that
+ * carries the game's play metrics and kept beside the state, outside its document. It is feed-only data, exempt from
+ * the switch: any feed write may set it whichever source holds the row's other fields, and a schedule write (which
+ * carries no play metrics) never clears it. A change to it alone still stamps a new state `version` and
+ * `lastChangedAt` (ADR-022), so the served day's version rises with it. Absent or null: no line stored.
  */
 export type GameStateRow = {
 	gamePk: number;
@@ -45,6 +53,7 @@ export type GameStateRow = {
 	officialDate: string;
 	startTime: string | null;
 	state: GameState;
+	winProbability?: ScoreboardWinProbability | null;
 };
 
 /**
@@ -85,7 +94,7 @@ export async function wholeFetchedGame(fetched: FetchedGame): Promise<FetchedGam
  * made up on a later day: "Original day: Postponed (Recommended)"), which `joinScheduleDay` serves when the game has
  * since moved to another day; it is never named `status`, which only the game's row holds.
  */
-export type StoredScheduleGame = Omit<ScheduleGameSummary, "status" | "linescore" | "live"> & {
+export type StoredScheduleGame = Omit<ScheduleGameSummary, "status" | "linescore" | "live" | "winProbability"> & {
 	listingStatus?: ScheduleGameSummary["status"];
 };
 
@@ -99,7 +108,8 @@ export type StoredScheduleDay = Omit<ScheduleDay, "games"> & {
 };
 
 /**
- * A fetched day as it is stored: each game without its status, linescore and live moment, a postponed or suspended
+ * A fetched day as it is stored: each game without its status, linescore, live moment and win-probability line (S161,
+ * which `game_states` holds too), a postponed or suspended
  * listing keeping its status as `listingStatus` (`StoredScheduleGame`). It is kept for every such listing, since the
  * listing alone can't say whether its game will be made up elsewhere; the join decides when to serve it.
  */
@@ -108,7 +118,7 @@ export function toStoredScheduleDay<T extends Pick<ScheduleDay, "games">>(day: T
 	return {
 		...day,
 		games: day.games.map(({
-			status, linescore: _linescore, live: _live, ...game
+			status, linescore: _linescore, live: _live, winProbability: _line, ...game
 		}) => isPostponedStatus(status.codedGameState) || isSuspendedStatus(status.codedGameState)
 			? {
 				...game,
@@ -293,6 +303,10 @@ const SCHEDULED: Unversioned<GameState> = {
  * date on both listings (as it may for a suspended game resumed on a later day), the row's date never moves, the two
  * days' listings both write the row, and both days can flip between the listings' states on every refresh.
  *
+ * Each game also carries its row's win-probability line (S161, `GameStateRow.winProbability`), or null: always null
+ * for a game served pregame (`gamePhase`), whatever its row holds (a postponed game's stray play metrics included), and
+ * for a listing served with its own status, whose game was played elsewhere.
+ *
  * - `version` is the stored day's version plus `servedBase` (the day's `served_base`, raised by the state version of
  *   each game a refresh drops from it) plus the state versions of the games it lists, so it only rises: a state change
  *   raises it, and a dropped game doesn't lower it.
@@ -305,7 +319,7 @@ const SCHEDULED: Unversioned<GameState> = {
 export function joinScheduleDay(
 	day: StoredScheduleDay,
 	servedBase: number,
-	rows: ReadonlyMap<number, Pick<GameStateRow, "state" | "officialDate">>,
+	rows: ReadonlyMap<number, Pick<GameStateRow, "state" | "officialDate" | "winProbability">>,
 	fallbacks: ReadonlyMap<number, Unversioned<GameState>>,
 	now: Date,
 	params: CadenceParams = DEFAULT_CADENCE,
@@ -336,6 +350,7 @@ export function joinScheduleDay(
 			status: state.status,
 			linescore: state.linescore,
 			live: state.live,
+			winProbability: ownListing || gamePhase(state.status.codedGameState) === "pregame" ? null : row?.winProbability ?? null,
 		};
 	});
 	return {

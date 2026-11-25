@@ -437,6 +437,21 @@ describe("purging every URL that shows a change (S212 review)", () =>
 
 describe("owed purges (S212 review)", () =>
 {
+	it("S161 AC 4 owed path: a purge owed as a path alone is sent under the deployment's origin", async () =>
+	{
+		const deps = memoryDeps();
+		const owed = new InMemoryOwedEdgePurgeRepository();
+		deps.edgePurge = {
+			purger: deps.purger,
+			origin: `${ORIGIN}/`,
+			owed,
+		};
+		await owed.owe(["/api/v1/games/823823", GAME_URL(1)], NOW.toISOString());
+		expect(await retryOwedEdgePurges(deps)).toBe(2);
+		expect([...deps.purger.purged].sort()).toEqual([GAME_URL(823823), GAME_URL(1)].sort());
+		expect(await owed.listDue(NOW.toISOString(), 10)).toEqual([]);
+	});
+
 	it("S212 review owed: a purge that fails owes its URLs, and the cron's retry purges and clears them", async () =>
 	{
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);

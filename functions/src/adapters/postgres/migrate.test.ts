@@ -70,6 +70,18 @@ async function applied(pglite: PGlite): Promise<string[]>
 
 describe("pnpm db:migrate (S113)", () =>
 {
+	it("S161 AC 4 fill failure: a failing win-probability fill is warned about and the migration still succeeds", async () =>
+	{
+		const { pglite, url } = await emptyDatabase();
+		const warned: string[] = [];
+		await migrateDatabaseAt(url, {
+			warn: (line) => warned.push(line),
+			fill: () => Promise.reject(new Error("fill broke")),
+		});
+		expect(await tables(pglite)).toContain("game_states");
+		expect(warned.some((line) => /win-probability fill \(S161\) failed.*fill broke/.test(line))).toBe(true);
+	});
+
 	it("S113 AC 1: applies the committed migrations to the database a connection string names, and twice changes nothing", async () =>
 	{
 		const { pglite, url } = await emptyDatabase();
