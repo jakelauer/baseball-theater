@@ -341,17 +341,19 @@ production's deploy is followed by the `production-logto` job, which registers i
 
 **What the workflow reads from GitHub** (the owner sets these up once; the automation never does):
 
-| Name                        | Kind        | What                                                                                                                                    |
-| --------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`      | secret      | Workers Scripts edit, Hyperdrive edit, Workers custom domains / routes and DNS edit on the `baseball.theater` zone                      |
-| `CLOUDFLARE_ACCOUNT_ID`     | variable    | the Cloudflare account                                                                                                                  |
-| `NEON_API_KEY`              | secret      | creates, reads, resets and deletes branches, and reads connection strings, in the project                                               |
-| `NEON_PROJECT_ID`           | variable    | `old-sun-72319473`                                                                                                                      |
-| `BT_SESSION_KEY_STAGING`    | secret      | signs sessions on staging and previews                                                                                                  |
-| `BT_SESSION_KEY_PRODUCTION` | secret      | signs sessions on production                                                                                                            |
-| `LOGTO_S2S_APP_ID`          | secret      | production's Logto machine-to-machine app ID (the `production` and `production-logto` jobs only; a Worker secret too)                   |
-| `LOGTO_S2S_SECRET`          | secret      | that app's secret: deletes fans' Logto accounts and sets production's sign-in addresses (`production` and `production-logto` jobs only) |
-| `production`                | environment | no required reviewers; deployments only from `v*` tags, so only a release reaches production's secrets                                  |
+| Name                        | Kind        | What                                                                                                                                                                 |
+| --------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`      | secret      | Workers Scripts edit, Hyperdrive edit, Workers custom domains / routes and DNS edit on the `baseball.theater` zone                                                   |
+| `CLOUDFLARE_ACCOUNT_ID`     | variable    | the Cloudflare account                                                                                                                                               |
+| `NEON_API_KEY`              | secret      | creates, reads, resets and deletes branches, and reads connection strings, in the project                                                                            |
+| `NEON_PROJECT_ID`           | variable    | `old-sun-72319473`                                                                                                                                                   |
+| `BT_SESSION_KEY_STAGING`    | secret      | signs sessions on staging and previews                                                                                                                               |
+| `BT_SESSION_KEY_PRODUCTION` | secret      | signs sessions on production                                                                                                                                         |
+| `BT_CF_PURGE_TOKEN`         | secret      | a Cloudflare API token with Zone → Cache Purge on `baseball.theater`: staging's and production's Workers purge a corrected past day's edge copy (S212; not previews) |
+| `BT_CF_ZONE_ID`             | secret      | the `baseball.theater` zone's ID, for that purge (staging and production Workers only)                                                                               |
+| `LOGTO_S2S_APP_ID`          | secret      | production's Logto machine-to-machine app ID (the `production` and `production-logto` jobs only; a Worker secret too)                                                |
+| `LOGTO_S2S_SECRET`          | secret      | that app's secret: deletes fans' Logto accounts and sets production's sign-in addresses (`production` and `production-logto` jobs only)                              |
+| `production`                | environment | no required reviewers; deployments only from `v*` tags, so only a release reaches production's secrets                                                               |
 
 **GitHub settings the owner sets** (S118, S121; agents never change repo settings), in this order:
 

@@ -257,3 +257,24 @@ describe("deploy.yml migrate steps (issue #48)", () =>
 		expect(settings).toHaveLength(2);
 	});
 });
+
+describe("deploy.yml edge purge secrets (issue #543)", () =>
+{
+	const PURGE = ["BT_CF_PURGE_TOKEN", "BT_CF_ZONE_ID"];
+
+	it("staging and production map the edge purge's GitHub secrets for their Workers; previews and other jobs never do (#543)", () =>
+	{
+		// The Worker purges a corrected past day's edge copy only with both (S212 AC 4); a preview lives on workers.dev, off the zone.
+		for (const name of ["staging", "production"])
+		{
+			for (const secret of PURGE) expect(`${header(job(DEPLOY_YML, name))}\n`, `${name} ${secret}`).toContain(`\n            ${secret}: \${{ secrets.${secret} }}\n`);
+		}
+		for (const name of ["preview", "preview-teardown", "production-logto"])
+		{
+			for (const secret of PURGE) expect(job(DEPLOY_YML, name), `${name} ${secret}`).not.toContain(secret);
+		}
+		// Mapped only in those two job envs, never workflow-wide or in a step anyone could echo from.
+		const settings = DEPLOY_YML.split("\n").filter((line) => !/^\s*#/.test(line) && PURGE.some((secret) => line.includes(secret)));
+		expect(settings).toHaveLength(4);
+	});
+});
