@@ -295,7 +295,7 @@ describe("VideosRoom states and play (S69)", () =>
 		expect(cardTitles()).toEqual(grouped(sortHighlights(game().highlights, "oldest")));
 	});
 
-	it("onPlay: choosing a card plays that video in the player dialog (S70), with no link back to this game", async () =>
+	it("onPlay: choosing a card plays that video in the player dialog (S70), with no game pill back to this game (S173)", async () =>
 	{
 		const user = userEvent.setup();
 		renderRoom();
@@ -306,7 +306,7 @@ describe("VideosRoom states and play (S69)", () =>
 		const dialog = await screen.findByRole("dialog");
 		expect(within(dialog).getByTestId("video-player")).toHaveTextContent(first.title);
 		expect(within(dialog).queryByRole("link", {
-			name: /Go to game/,
+			name: /More from game/,
 		})).toBeNull();
 	});
 });

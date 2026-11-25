@@ -4,30 +4,10 @@ import { Link } from "react-router-dom";
 import type { SearchHighlightsPayload } from "../../api/search.js";
 import { MatchupAbbr } from "../team/MatchupAbbr.js";
 import { PlayInningPill } from "../videos/PlayInningPill.js";
-import { playInningLink } from "../videos/playLink.js";
-import type { PlayLink } from "../videos/playLink.js";
 import { videoMeta } from "../videos/videoMeta.js";
+import { resultPlayLink } from "./resultPlayLink.js";
 
 export type SearchResult = SearchHighlightsPayload["highlights"][number];
-
-/**
- * A result's link to its play (S153; game-shell A6): `playInningLink` from the route's play id,
- * half-inning and inning and the game's pk. Null unless all four are there: a clip with no play, or
- * one MLB ties to no game (`gamePk: -1`, so `game` is null), has no pill, and BT never loads the game
- * to find what MLB left out (owner, 2026-11-19: "Show no pill (Recommended)").
- */
-function resultPlayLink({
-	highlight, game, halfInning, inning,
-}: SearchResult): PlayLink | null
-{
-	if (!game || !highlight.playId || !halfInning || inning === null) return null;
-	return playInningLink({
-		gamePk: game.gamePk,
-		playId: highlight.playId,
-		halfInning,
-		inning,
-	});
-}
 
 /**
  * One search result as the ratified frames draw it (standings-search-settings `search-*`): a

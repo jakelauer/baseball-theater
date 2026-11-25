@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
 	describe, expect, it,
 } from "vitest";
@@ -6,6 +8,7 @@ import {
 } from "./digest.js";
 import type { DigestGame } from "./digest.js";
 import type { AtBat } from "./plays.js";
+import { atBatOfPlay } from "./video-play-links.js";
 import type {
 	AtBatMetrics, GamePlayMetrics, MediaHighlight,
 } from "./types.js";
@@ -163,6 +166,56 @@ describe("dayDigest (S71)", () =>
 			} as GamePlayMetrics),
 		]);
 		expect(items.map((i) => [i.highlight.id, i.game.gamePk])).toEqual([["b-big", 2], ["a-small", 1]]);
+	});
+});
+
+/** Reads a recorded fixture from the repo's `fixtures/`. */
+const fixture = <T>(name: string): T => JSON.parse(readFileSync(fileURLToPath(new URL(`../../../fixtures/${name}`, import.meta.url)), "utf8")) as T;
+
+describe("dayDigest's plays (S173)", () =>
+{
+	/** CHC @ MIA, Sep 5 2026 (823823) as BT serves it: its 40 recorded videos and its recorded plays. */
+	const RECORDED = {
+		...fixture<DigestGame>("game-823823.json"),
+		plays: fixture<AtBat[]>("plays-823823.json"),
+	};
+
+	it("S173 AC 1: each item carries its play's id and half-inning, found through atBatOfPlay over its game's plays; a clip with no play has none", () =>
+	{
+		const items = dayDigest([RECORDED], 40);
+		expect(items).toHaveLength(40);
+		// Griffin Conine's two-run home run is in the bottom of the 5th.
+		const conine = items.find((item) => item.highlight.title === "Griffin Conine's two-run home run (15)")!;
+		expect(conine.play).toEqual({
+			playId: "874c613e-e449-38dd-8eb6-9659ad89a049",
+			halfInning: "bottom",
+			inning: 5,
+		});
+		// A clip with no play (the condensed game) has none.
+		const condensed = items.find((item) => item.highlight.title.startsWith("Condensed Game"))!;
+		expect(condensed.highlight.playId).toBeNull();
+		expect(condensed.play).toBeNull();
+		// Every item agrees with the one pitch → at-bat lookup.
+		for (const item of items)
+		{
+			const atBat = atBatOfPlay(RECORDED.plays, item.highlight.playId);
+			expect(item.play).toEqual(atBat ? {
+				playId: item.highlight.playId,
+				halfInning: atBat.about.halfInning,
+				inning: atBat.about.inning,
+			} : null);
+		}
+		expect(items.filter((item) => item.play !== null)).toHaveLength(20);
+	});
+
+	it("S173 AC 1: a clip whose play isn't in its game's plays has none", () =>
+	{
+		const items = dayDigest([{
+			...RECORDED,
+			plays: [],
+		}], 40);
+		expect(items.filter((item) => item.highlight.playId !== null)).toHaveLength(20);
+		expect(items.every((item) => item.play === null)).toBe(true);
 	});
 });
 

@@ -263,7 +263,7 @@
 			},
 			"DigestClipGame": {
 				"additionalProperties": false,
-				"description": "The game a digest clip comes from, enough for the player's \"Go to game: NYY @ BOS, Sep 21\" link.",
+				"description": "The game a digest clip comes from, enough for the player's game pill (S173), which speaks it as `NYY @ BOS, Sep 21`.",
 				"properties": {
 					"away": { "type": "string" },
 					"gamePk": { "type": "number" },
@@ -275,14 +275,29 @@
 			},
 			"DigestItem": {
 				"additionalProperties": false,
-				"description": "One clip in the day digest: its place, whether to watch it first, the clip and its game.",
+				"description": "One clip in the day digest: its place, whether to watch it first, the clip, its game and its play.",
 				"properties": {
 					"game": { "$ref": "#/components/schemas/DigestClipGame" },
 					"highlight": { "$ref": "#/components/schemas/MediaHighlight" },
+					"play": {
+						"anyOf": [{ "$ref": "#/components/schemas/DigestPlay" }, { "type": "null" }],
+						"description": "The clip's play (S173), or null for a clip with no play or one whose pitch isn't in its game's plays."
+					},
 					"rank": { "description": "1 for the top clip.", "type": "number" },
 					"watchFirst": { "description": "Only the top clip (the frames' `WATCH FIRST`).", "type": "boolean" }
 				},
-				"required": ["rank", "watchFirst", "highlight", "game"],
+				"required": ["rank", "watchFirst", "highlight", "game", "play"],
+				"type": "object"
+			},
+			"DigestPlay": {
+				"additionalProperties": false,
+				"description": "The play a digest clip shows (S173): its id and the half-inning of the at-bat its pitch is in, enough for the player's inning pill (`Top 6 →`), which the browser builds with `playInningLink`.",
+				"properties": {
+					"halfInning": { "enum": ["top", "bottom"], "type": "string" },
+					"inning": { "type": "number" },
+					"playId": { "type": "string" }
+				},
+				"required": ["halfInning", "inning", "playId"],
 				"type": "object"
 			},
 			"Entitlements": {

@@ -414,21 +414,30 @@ export interface components {
              */
             windowMode: "active" | "cache";
         };
-        /** @description The game a digest clip comes from, enough for the player's "Go to game: NYY @ BOS, Sep 21" link. */
+        /** @description The game a digest clip comes from, enough for the player's game pill (S173), which speaks it as `NYY @ BOS, Sep 21`. */
         DigestClipGame: {
             away: string;
             gamePk: number;
             home: string;
             officialDate: string;
         };
-        /** @description One clip in the day digest: its place, whether to watch it first, the clip and its game. */
+        /** @description One clip in the day digest: its place, whether to watch it first, the clip, its game and its play. */
         DigestItem: {
             game: components["schemas"]["DigestClipGame"];
             highlight: components["schemas"]["MediaHighlight"];
+            /** @description The clip's play (S173), or null for a clip with no play or one whose pitch isn't in its game's plays. */
+            play: components["schemas"]["DigestPlay"] | null;
             /** @description 1 for the top clip. */
             rank: number;
             /** @description Only the top clip (the frames' `WATCH FIRST`). */
             watchFirst: boolean;
+        };
+        /** @description The play a digest clip shows (S173): its id and the half-inning of the at-bat its pitch is in, enough for the player's inning pill (`Top 6 →`), which the browser builds with `playInningLink`. */
+        DigestPlay: {
+            /** @enum {string} */
+            halfInning: "top" | "bottom";
+            inning: number;
+            playId: string;
         };
         Entitlements: {
             cloudSyncedSettings: boolean;

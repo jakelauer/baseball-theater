@@ -14,8 +14,8 @@ import { queryScreen } from "../components/queryScreen.js";
 import type { SearchFilterName } from "../components/search/SearchFilterChips.js";
 import { SearchFilterChips } from "../components/search/SearchFilterChips.js";
 import type { SearchResult } from "../components/search/SearchResultRow.js";
+import { resultPlayLink } from "../components/search/resultPlayLink.js";
 import { SearchResultRow } from "../components/search/SearchResultRow.js";
-import { gameLabel } from "../components/videos/gameLabel.js";
 import { LazyPlayerDialog } from "../components/videos/LazyPlayerDialog.js";
 import { useOpenClip } from "../components/videos/openClip.js";
 
@@ -35,7 +35,8 @@ import { useOpenClip } from "../components/videos/openClip.js";
  * a new search from it searches the words without that URL's filters.
  *
  * A row plays its clip in S70's floating player over the results, whatever the Video Player setting
- * (there is no stage on Search), with the link to its game when it has one (A2, A6). The open clip is in the
+ * (there is no stage on Search), with A10's pills (S173): the game pill when the result has a game, then
+ * its inning pill when it has a play (`resultPlayLink`, as its row builds it). The open clip is in the
  * URL too (`?clip=`, `useOpenClip`, #424), so each row is a link a middle-click opens in a new tab; a new
  * search drops it. Loading, no
  * results and error are `ViewState`'s generic treatment, through `queryScreen` (S28's one "keep
@@ -122,11 +123,9 @@ export function SearchPage()
 					video={playing.highlight}
 					onClose={close}
 					{...playing.game && {
-						game: {
-							gamePk: playing.game.gamePk,
-							label: gameLabel(playing.game),
-						},
+						game: playing.game,
 					}}
+					playLink={resultPlayLink(playing)}
 				/>
 			) : null}
 		</Stack>

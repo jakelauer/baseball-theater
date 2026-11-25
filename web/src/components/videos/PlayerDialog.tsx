@@ -1,23 +1,20 @@
 import {
-	Anchor, Box, Group, Modal, UnstyledButton,
+	Box, Group, Modal, UnstyledButton,
 } from "@mantine/core";
 import { useReducedMotion } from "@mantine/hooks";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { highlightTitle } from "@bt/domain";
 import type { Video } from "./VideoCard.js";
 import { PlayInningPill } from "./PlayInningPill.js";
+import { gameVideosLink } from "./playLink.js";
 import type { PlayLink } from "./playLink.js";
 import { VideoPlayer } from "./VideoPlayer.js";
 
 /** How long the dialog takes to open, in ms: brief enough to feel almost instant, long enough to read as opening (#423). */
 const OPEN_MS = 150;
 
-/** The game a clip belongs to, as the dialog's link names it (`NYY @ BOS, Sep 21`). */
-export type PlayerGame = {
-	gamePk: number;
-	label: string;
-};
+/** The game a clip belongs to: its pk, and its teams and date, which the game pill speaks (`gameVideosLink`). */
+export type PlayerGame = Parameters<typeof gameVideosLink>[0];
 
 /**
  * The only modal player (S70; game-shell A4, standings-search-settings A6): the
@@ -27,13 +24,15 @@ export type PlayerGame = {
  * future"); Esc and a press on the empty overlay close it too. The Videos room, Search
  * (S5) and the day digest (S71) all open this one.
  *
- * At top left it links to the clip's game whenever the clip carries one and isn't being
- * played from that game's own page (owner, 2026-10-21: "All videos which have enough
- * context to associate them to a game should show a link to the game unless they are
- * already being played from the game"): the caller passes `game` when it knows it and
- * `fromGamePk` when it is that game's page; there the slot shows the clip's play link instead
- * (S97), when it has one: the inning pill, `Top 6 →` (S145; game-shell A6), closing the player as
- * it opens the play.
+ * At top left sit its pills (S173; standings-search-settings A10, which repealed the text link to
+ * the game): first the game pill, to the clip's game's Videos tab (`gameVideosLink`), whenever
+ * the clip carries a game and isn't being played from that game's own page (owner, 2026-10-21: "All
+ * videos which have enough context to associate them to a game should show a link to the game unless
+ * they are already being played from the game"); then, 8px after it, the clip's inning pill, `Top 6 →`
+ * (S97, S145; game-shell A6), when it has a play link. The caller passes `game` when it knows it,
+ * `fromGamePk` when it is that game's page and `playLink` when the clip has a play. Both pills are the
+ * one `PlayInningPill` (A10: the game pill is an instance of the same component), and each closes the
+ * player as it navigates. With neither, only "Close ✕" shows, at top right.
  *
  * With scores hidden the recap clip is titled "Recap (score hidden)" (`highlightTitle`,
  * S75); only the game page passes `scoresHidden`, so Search and the digest keep MLB's title.
@@ -60,7 +59,7 @@ export function PlayerDialog({
 	playLink?: PlayLink | null; })
 {
 	const title = highlightTitle(video, scoresHidden);
-	const link = game && game.gamePk !== fromGamePk ? game : null;
+	const gameLink = game && game.gamePk !== fromGamePk ? gameVideosLink(game) : null;
 	const reduceMotion = useReducedMotion();
 	const [opened, setOpened] = useState(false);
 	const [entered, setEntered] = useState(false);
@@ -102,11 +101,10 @@ export function PlayerDialog({
 			}}
 		>
 			<Group justify="space-between" wrap="nowrap" gap="md">
-				{link ? (
-					<Anchor component={Link} to={`/game/${link.gamePk}`} c="var(--bt-primary-light)" onClick={onClose}>
-						Go to game: {link.label} →
-					</Anchor>
-				) : playLink ? <PlayInningPill link={playLink} testId="player-play-link" onClick={onClose} /> : <span />}
+				<Group gap={8} wrap="nowrap" data-testid="player-pills">
+					{gameLink ? <PlayInningPill link={gameLink} testId="player-game-link" onClick={onClose} /> : null}
+					{playLink ? <PlayInningPill link={playLink} testId="player-play-link" onClick={onClose} /> : null}
+				</Group>
 				<UnstyledButton onClick={onClose} aria-label="Close video" c="var(--bt-light)" className="bt-hover" px={8} py={4} mx={-8} my={-4} style={{
 					flexShrink: 0,
 					borderRadius: 8,
