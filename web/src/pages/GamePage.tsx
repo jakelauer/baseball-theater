@@ -1,4 +1,6 @@
-import { Stack, Tabs } from "@mantine/core";
+import {
+	Box, Stack, Tabs,
+} from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -29,13 +31,13 @@ import { useSettings } from "../settings/store.js";
 const TAB_MAX_WIDTH = 160;
 
 /**
- * The room tabs — equal widths up to `TAB_MAX_WIDTH`, centered (owner, 2026-11-12) — around the
- * open room's panel (`children`); choosing a tab moves to that room's URL.
+ * The room tabs' `Tabs` — the open room's URL is its value, and choosing a tab moves to that room's
+ * URL — around the whole game view (`children`): the top bar, which draws the tab list in its own
+ * row (B528), and the open room's panel.
  */
 function RoomTabs({
-	gamePk, rooms, active, children,
+	gamePk, active, children,
 }: { gamePk: number;
-	rooms: readonly Room[];
 	active: string;
 	children?: ReactNode; })
 {
@@ -52,36 +54,43 @@ function RoomTabs({
 				}
 			}}
 		>
-			{/* Equal-width tabs, each at most TAB_MAX_WIDTH, centered as a group (owner, 2026-11-12: "tab menu
-			    on games should have a max width per tab and the tabs should be centered, and equal width to each other"). */}
-			<Tabs.List
-				grow
-				justify="center"
-				style={{
-					flexWrap: "nowrap",
-					overflowX: "auto",
-				}}
-			>
-				{rooms.map((room) => (
-					<Tabs.Tab
-						key={room}
-						value={room}
-						style={{
-							flex: "1 1 0",
-							maxWidth: TAB_MAX_WIDTH,
-						}}
-					>
-						{roomLabel(room)}
-					</Tabs.Tab>
-				))}
-			</Tabs.List>
 			{children}
 		</Tabs>
 	);
 }
 
+/** The room tab list — equal widths up to `TAB_MAX_WIDTH`, centered (owner, 2026-11-12) — for the top bar's row. */
+function RoomTabList({ rooms }: { rooms: readonly Room[] })
+{
+	return (
+		// Equal-width tabs, each at most TAB_MAX_WIDTH, centered as a group (owner, 2026-11-12: "tab menu
+		// on games should have a max width per tab and the tabs should be centered, and equal width to each other").
+		<Tabs.List
+			grow
+			justify="center"
+			style={{
+				flexWrap: "nowrap",
+				overflowX: "auto",
+			}}
+		>
+			{rooms.map((room) => (
+				<Tabs.Tab
+					key={room}
+					value={room}
+					style={{
+						flex: "1 1 0",
+						maxWidth: TAB_MAX_WIDTH,
+					}}
+				>
+					{roomLabel(room)}
+				</Tabs.Tab>
+			))}
+		</Tabs.List>
+	);
+}
+
 /**
- * One game: the game top bar (in place of the app header, S60), the room tabs —
+ * One game: the game top bar (in place of the app header, S60) with the room tabs in its row (B528) —
  * equal widths up to `TAB_MAX_WIDTH`, centered (owner, 2026-11-12) — and the room.
  * `variant` comes from the layout host; rooms take their tablet and desktop
  * layouts from it as they're built (S63/S64 and on). While the game's live socket is open the
@@ -134,18 +143,23 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 		if (!listed) return <NoticeSlot notice={marker} flush />;
 		const phase = gamePhase(listed.status.codedGameState);
 		return (
-			<Stack gap="xs" data-variant={variant}>
-				<GameTopBar
-					away={listed.teams.away.abbreviation ?? ""}
-					home={listed.teams.home.abbreviation ?? ""}
-					officialDate={listed.officialDate}
-					// The status as the cached day lists it (S170's marker reads it, as online).
-					status={listed.status}
-					variant={variant}
-				/>
-				<NoticeSlot notice={marker} flush />
-				<RoomTabs gamePk={listed.gamePk} rooms={roomsForPhase(phase, false)} active={openingRoom(tab, opensFirst, phase, false)} />
-			</Stack>
+			// The host pairing rides on a plain wrapper: Mantine's Tabs writes its own `data-variant`.
+			<Box data-variant={variant}>
+				<RoomTabs gamePk={listed.gamePk} active={openingRoom(tab, opensFirst, phase, false)}>
+					<Stack gap="xs">
+						<GameTopBar
+							away={listed.teams.away.abbreviation ?? ""}
+							home={listed.teams.home.abbreviation ?? ""}
+							officialDate={listed.officialDate}
+							// The status as the cached day lists it (S170's marker reads it, as online).
+							status={listed.status}
+							variant={variant}
+							tabs={<RoomTabList rooms={roomsForPhase(phase, false)} />}
+						/>
+						<NoticeSlot notice={marker} flush />
+					</Stack>
+				</RoomTabs>
+			</Box>
 		);
 	}
 	if (screen === "error")
@@ -166,43 +180,47 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 	const active = openingRoom(tab, opensFirst, phase, hasRecap);
 
 	return (
-		<Stack gap="xs" data-variant={variant}>
-			<GameTopBar
-				away={game.teams.away.abbreviation}
-				home={game.teams.home.abbreviation}
-				officialDate={game.officialDate}
-				status={game.status}
-				variant={variant}
-			/>
+		// Only the open room is mounted: a hidden room (Plays opens an at-bat, Live replays pitches) costs nothing.
+		// The host pairing rides on a plain wrapper: Mantine's Tabs writes its own `data-variant`.
+		<Box data-variant={variant}>
+			<RoomTabs gamePk={game.gamePk} active={active}>
+				<Stack gap="xs">
+					<GameTopBar
+						away={game.teams.away.abbreviation}
+						home={game.teams.home.abbreviation}
+						officialDate={game.officialDate}
+						status={game.status}
+						variant={variant}
+						tabs={<RoomTabList rooms={rooms} />}
+					/>
 
-			<NoticeSlot notice={marker} flush />
+					<NoticeSlot notice={marker} flush />
 
-			{/* Only the open room is mounted: a hidden room (Plays opens an at-bat, Live replays pitches) costs nothing. */}
-			<RoomTabs gamePk={game.gamePk} rooms={rooms} active={active}>
-				<Tabs.Panel value="videos" pt="md">
-					<VideosRoom game={game} variant={variant} />
-				</Tabs.Panel>
-
-				{rooms.includes("live") ? (
-					<Tabs.Panel value="live" pt="md">
-						<LiveRoom game={game} variant={variant} />
+					<Tabs.Panel value="videos" pt="md">
+						<VideosRoom game={game} variant={variant} />
 					</Tabs.Panel>
-				) : null}
 
-				<Tabs.Panel value="plays" pt="md">
-					<PlaysPanel game={game} />
-				</Tabs.Panel>
+					{rooms.includes("live") ? (
+						<Tabs.Panel value="live" pt="md">
+							<LiveRoom game={game} variant={variant} />
+						</Tabs.Panel>
+					) : null}
 
-				<Tabs.Panel value="box" pt="md">
-					<BoxRoom game={game} variant={variant} />
-				</Tabs.Panel>
-
-				{game.recap && rooms.includes("recap") ? (
-					<Tabs.Panel value="recap" pt="md">
-						<RecapRoom game={game} recap={game.recap} />
+					<Tabs.Panel value="plays" pt="md">
+						<PlaysPanel game={game} />
 					</Tabs.Panel>
-				) : null}
+
+					<Tabs.Panel value="box" pt="md">
+						<BoxRoom game={game} variant={variant} />
+					</Tabs.Panel>
+
+					{game.recap && rooms.includes("recap") ? (
+						<Tabs.Panel value="recap" pt="md">
+							<RecapRoom game={game} recap={game.recap} />
+						</Tabs.Panel>
+					) : null}
+				</Stack>
 			</RoomTabs>
-		</Stack>
+		</Box>
 	);
 }

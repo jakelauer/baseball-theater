@@ -154,6 +154,33 @@ describe("GamePage top bar (S40)", () =>
 		expect(bar.getByText("Jul 4, 2024")).toBeInTheDocument();
 	});
 
+	it("B528: the room tabs share the top bar's row with the back button and date (#528)", async () =>
+	{
+		// Owner, 2026-11-24: "Game pages have the tabs as one row, and the date/back button as a row above that. I'd prefer that to be all one row."
+		// Design waived by the owner, 2026-11-25 ("Build it without a design").
+		serve(fixture(744834));
+		renderGame("/game/744834", "desktop");
+
+		const bar = await screen.findByTestId("game-topbar");
+		const rooms = screen.getAllByRole("tablist")[0]!;
+		expect(bar.contains(rooms)).toBe(true);
+	});
+
+	it("B528 phone: the tabs stay in the bar, on a full-width line of their own after the matchup (#528)", async () =>
+	{
+		serve(fixture(744834));
+		renderGame("/game/744834", "mobile");
+
+		const bar = await screen.findByTestId("game-topbar");
+		const rooms = screen.getAllByRole("tablist")[0]!;
+		expect(bar.contains(rooms)).toBe(true);
+		const line = bar.lastElementChild as HTMLElement;
+		expect(line.contains(rooms)).toBe(true);
+		expect(line.style.flexBasis).toBe("100%");
+		// Every room is still reachable from the bar.
+		expect(within(rooms).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Videos", "Plays", "Box"]);
+	});
+
 	it("never shows the score, the venue, or the status", async () =>
 	{
 		serve(fixture(744834));
