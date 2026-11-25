@@ -236,7 +236,9 @@ export function VideoPlayer({
 		{
 			if (cancelled) return;
 			const hls = new Hls();
-			// Captions start off (#580); the built-in CC button turns the stream's track on.
+			// Captions start off (#580). This light build has no subtitle controller, so here (Chrome,
+			// Firefox) Auto carries no caption track at all and the setting only states the intent;
+			// where the browser plays HLS itself (Safari, iOS) its CC menu and system setting decide.
 			hls.subtitleDisplay = false;
 			player = hls;
 			hls.on(Hls.Events.ERROR, (_event, data) =>
@@ -260,9 +262,8 @@ export function VideoPlayer({
 			<Box
 				component="video"
 				ref={ref}
-				// The browser's own controls (#579); a click on the picture is theirs to play or pause (`.bt-video`, styles.css).
+				// The browser's own controls (#579): a click or tap on the picture is theirs to handle.
 				controls
-				className="bt-video"
 				// No `src` while hls.js plays the quality: it attaches its own stream (the effect above).
 				src={libraryUrl ? undefined : quality?.url ?? video.playbackUrl ?? undefined}
 				poster={video.imageUrl ?? undefined}

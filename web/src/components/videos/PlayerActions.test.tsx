@@ -244,6 +244,8 @@ describe("quality picker", () =>
 			playbackUrl: HLS,
 		});
 		await vi.waitFor(() => expect(hlsPlayers).toHaveLength(1));
+		// Proves the player sets `subtitleDisplay` off, not that captions render off: the light
+		// build hls-loader.ts loads has no subtitle controller, so it never shows captions anyway.
 		expect(hlsPlayers[0]!.subtitleDisplay).toBe(false);
 	});
 
