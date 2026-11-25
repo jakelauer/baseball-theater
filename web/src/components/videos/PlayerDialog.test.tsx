@@ -71,7 +71,9 @@ describe("PlayerDialog opening (#423)", () =>
 		// The same element plays: opening doesn't replace it, so nothing reloads and a playing clip
 		// survives (GamePage.live's update test holds the element it found as the dialog appeared).
 		expect(screen.getByTestId("video-player").querySelector("video")).toBe(opening);
-		expect(play).toHaveBeenCalledTimes(1);
+		// The player's effect plays it after React commits `autoplay`, and a slow run can let a check
+		// in between, so wait for the play itself rather than assume it follows at once (#559).
+		await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
 	});
 
 	it("with reduced motion, opens at once and plays at once (#423)", async () =>
@@ -82,6 +84,6 @@ describe("PlayerDialog opening (#423)", () =>
 		renderDialog();
 		await waitFor(() => expect(screen.getByTestId("video-player").querySelector("video")!.autoplay).toBe(true));
 		expect(screen.getByRole("dialog").style.opacity).not.toBe("0");
-		expect(play).toHaveBeenCalledTimes(1);
+		await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
 	});
 });
