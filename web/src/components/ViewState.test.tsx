@@ -43,6 +43,14 @@ describe("ViewState (S60)", () =>
 		expect(screen.getByLabelText("Loading")).toBeInTheDocument();
 	});
 
+	it("loading's status is marked busy (#584)", () =>
+	{
+		renderState({
+			kind: "loading",
+		});
+		expect(screen.getByLabelText("Loading")).toHaveAttribute("aria-busy", "true");
+	});
+
 	it("loading is an animated skeleton, never a spinner (#431)", () =>
 	{
 		renderState({

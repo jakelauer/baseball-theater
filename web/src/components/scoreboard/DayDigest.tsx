@@ -28,17 +28,26 @@ import { ViewState } from "../ViewState.js";
  * detect this to make a reliable detector beyond the recap"). While it loads, its heading (its words
  * need only the day) over a skeleton of the grid's cards holds its place, so it doesn't pop in seconds
  * later with no sign it was coming (B578, #578; owner: "generally when we're loading stuff, we should
- * use a skeleton style loading"), and the shell's footer under it needn't wait for it (#577). Nothing
- * shows if it fails or on a day with no videos: the games above are the page.
+ * use a skeleton style loading"), and the shell's footer under it needn't wait for it (#577). That is
+ * on a day that lists games (`expected`); a day with none draws no skeleton. Nothing shows if it fails
+ * or answers with no videos: then the skeleton collapses and what is under it (the footer) moves up,
+ * a rare shift accepted so the common day never pops in. The games above are the page.
  */
-export function DayDigest({ date, variant }: { date: string;
-	variant: LayoutVariant; })
+export function DayDigest({
+	date, variant, expected,
+}: { date: string;
+	variant: LayoutVariant;
+	/**
+	 * Whether the day lists any game. The digest ranks every game's clips, pregame ones (lineups, bullpens)
+	 * included, so any listed game may bring one; a day with none gets no skeleton.
+	 */
+	expected: boolean; })
 {
 	const { data, isPending } = useDayDigest(date);
 	const {
 		playing, href, close,
 	} = useOpenClip(data?.items, (item) => item.highlight.id);
-	if (isPending)
+	if (isPending && expected)
 	{
 		return (
 			<Stack gap="sm" data-testid="day-digest-loading">

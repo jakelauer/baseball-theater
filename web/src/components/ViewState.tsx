@@ -219,7 +219,7 @@ export function ViewState(props: ViewStateProps)
 			<Stack gap="lg">
 				{props.title ? <Title order={2}>{props.title}</Title> : null}
 				{/* Mantine's Skeleton pulses (`animate`) unless motion is reduced; the label keeps "Loading" for screen readers. */}
-				<Box role="status" aria-label="Loading" data-skeleton={shape}>
+				<Box role="status" aria-label="Loading" aria-busy data-skeleton={shape}>
 					<SkeletonBlocks shape={shape} columns={props.columns} variant={props.variant} animate={!reduceMotion} />
 				</Box>
 			</Stack>

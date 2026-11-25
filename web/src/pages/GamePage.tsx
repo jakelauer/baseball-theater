@@ -24,7 +24,7 @@ import { NoticeSlot } from "../layout/NoticeSlot.js";
 import { useOfflineNotice, useSavedCopy } from "../pwa/offline.js";
 import type { Room } from "@bt/domain";
 import {
-	gamePhase, openingRoom, roomsForPhase,
+	gamePhase, openingRoom, ROOMS, roomsForPhase,
 } from "@bt/domain";
 import { roomLabel } from "../components/game/format.js";
 import { useSettings } from "../settings/store.js";
@@ -40,7 +40,8 @@ const TAB_MAX_WIDTH = 160;
 function RoomTabs({
 	gamePk, active, children,
 }: { gamePk: number;
-	active: string;
+	/** The open room, or `null` for none yet (kept controlled: Mantine reads `undefined` as uncontrolled). */
+	active: string | null;
 	children?: ReactNode; })
 {
 	const navigate = useNavigate();
@@ -135,8 +136,13 @@ const ROOM_SKELETONS: Readonly<Record<Room, SkeletonShape>> = {
  * "A game detail is the weirdest one, because the entire navigation chrome goes away"), and only the
  * room is a skeleton shaped like it (`ROOM_SKELETONS`). The bar shows what is known: a cached day's
  * listing of the game (its teams, day and status, and so its phase's rooms), else skeletons for the
- * date and matchup over the rooms every game has (`roomsForPhase("pregame", false)`). A game that never
- * loaded keeps that same bar and tabs over the room's error and Retry (B584).
+ * date and matchup over the rooms every game has (`roomsForPhase("pregame", false)`). A room the URL
+ * names (one of `ROOMS`) is the open one and gets its tab if those rooms lack it, so a `/live` link
+ * doesn't open on Videos and then jump; a `/live` link to a game that turns out to have ended shows
+ * Live until the game answers, then moves to the game's real room (an accepted trade-off). With no room
+ * in the URL and no phase known, Opens First is chosen only if every game has it; otherwise no tab is
+ * chosen yet, over a plain row skeleton. A game that never loaded keeps that same bar and tabs over
+ * the room's error and Retry (B584).
  */
 export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 	setFooter?: SetFooterMode; })
@@ -199,9 +205,15 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 		// Loading or failed, the top bar and tabs stay (B584, #584): the error room, like the skeleton, is the room's only.
 		const failed = screen === "error";
 		const listed = findScheduledGame(client, Number(gamePk));
-		// The phase the cached day lists, else one whose rooms every game has; no recap is known before the game.
-		const phase = listed ? gamePhase(listed.status.codedGameState) : "pregame";
-		const active = openingRoom(tab, opensFirst, phase, false);
+		// The phase the cached day lists; without one, the rooms every game has. No recap is known before the game.
+		const phase = listed ? gamePhase(listed.status.codedGameState) : null;
+		const known = roomsForPhase(phase ?? "pregame", false);
+		const named = ROOMS.find((room) => room === tab);
+		const rooms = named && !known.includes(named) ? ROOMS.filter((room) => room === named || known.includes(room)) : known;
+		let active: Room | null;
+		if (named) active = named;
+		else if (phase || tab !== undefined) active = openingRoom(tab, opensFirst, phase ?? "pregame", false);
+		else active = known.includes(opensFirst) ? opensFirst : null;
 		return (
 			<Box data-variant={variant}>
 				<RoomTabs gamePk={Number(gamePk)} active={active}>
@@ -210,14 +222,14 @@ export function GamePage({ variant, setFooter }: { variant: LayoutVariant;
 							game={listed ? listedTopBar(listed) : null}
 							busy={!failed}
 							variant={variant}
-							tabs={<RoomTabList rooms={roomsForPhase(phase, false)} />}
+							tabs={<RoomTabList rooms={rooms} />}
 						/>
 						<NoticeSlot notice={marker} flush />
 						{/* A room panel's own top padding, so the room lands where its skeleton was. */}
 						<Box pt="md">
 							{failed
 								? <ViewState kind="error" title="Couldn't load this room" onRetry={() => void refetch()} />
-								: <ViewState kind="loading" shape={ROOM_SKELETONS[active]} variant={variant} />}
+								: <ViewState kind="loading" shape={active ? ROOM_SKELETONS[active] : "rows"} variant={variant} />}
 						</Box>
 					</Stack>
 				</RoomTabs>

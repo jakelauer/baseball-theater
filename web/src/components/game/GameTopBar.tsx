@@ -27,9 +27,9 @@ export interface GameTopBarGame
 interface GameTopBarProps
 {
 	/**
-	 * The game, or `null` while the page knows nothing of it yet (opened by its address, before the game
-	 * answers and with no cached day listing it): then the date and matchup are skeletons and Back goes to
-	 * the scoreboard's default day (B584, #584).
+	 * The game, or `null` while the page knows nothing of it (opened by its address with no cached day
+	 * listing it): Back then goes to the scoreboard's default day, and the date and matchup are skeletons
+	 * while `busy`, or left out once the game has failed to load, since nothing is coming (B584, #584).
 	 */
 	game: GameTopBarGame | null;
 	/** True while the game itself is still loading (`aria-busy`): the bar may already show what a cached day listed. */
@@ -98,7 +98,7 @@ export function GameTopBar({
 						whiteSpace: "nowrap",
 					}}
 					>{formatDate(game.officialDate)}</Text>
-				) : <Skeleton h={12} w={84} radius="sm" animate={animate} />}
+				) : busy ? <Skeleton h={12} w={84} radius="sm" animate={animate} aria-hidden /> : null}
 			</Group>
 			{tabs && !phone ? (
 				<Box style={{
@@ -126,7 +126,7 @@ export function GameTopBar({
 							>
 								{game.away} @ {game.home}
 							</Text>
-						) : <Skeleton h={14} w={96} radius="sm" animate={animate} />}
+						) : busy ? <Skeleton h={14} w={96} radius="sm" animate={animate} aria-hidden /> : null}
 						{ownLine ? null : indicator}
 					</Group>
 					{ownLine ? (

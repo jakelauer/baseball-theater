@@ -321,6 +321,52 @@ describe("GamePage room states (S40)", () =>
 		expect(screen.getByLabelText("Loading")).toHaveAttribute("data-skeleton", "rows");
 	});
 
+	it("before the game answers, a room named in the URL stays chosen, its tab added, and stays chosen once the game lands (#584)", async () =>
+	{
+		let answer: (response: Response) => void = () => undefined;
+		const gameAnswer = new Promise<Response>((resolve) =>
+		{
+			answer = resolve;
+		});
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname.startsWith("/api/v1/games/") ? gameAnswer : new Promise<Response>(() => undefined)));
+		renderGame("/game/745001/live");
+		const selected = () => within(screen.getAllByRole("tablist")[0]!).getAllByRole("tab").filter((t) => t.getAttribute("aria-selected") === "true").map((t) => t.textContent);
+		expect(selected()).toEqual(["Live"]);
+		await act(async () => answer(jsonResponse(fixture(745001))));
+		await findLoadedTopBar();
+		expect(selected()).toEqual(["Live"]);
+	});
+
+	it("before the game answers, a URL segment that names no room adds no tab (#584)", () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+		renderGame("/game/744834/foo");
+		expect(within(screen.getAllByRole("tablist")[0]!).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Videos", "Plays", "Box"]);
+	});
+
+	it("before the game answers, with no room in the URL and Opens First a room the phase may not offer, no tab is chosen yet (#584)", async () =>
+	{
+		await opensFirst("live");
+		vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+		renderGame("/game/745001");
+		expect(within(screen.getAllByRole("tablist")[0]!).getAllByRole("tab").filter((t) => t.getAttribute("aria-selected") === "true")).toHaveLength(0);
+		expect(screen.getByLabelText("Loading")).toHaveAttribute("data-skeleton", "rows");
+	});
+
+	it("loading: the top bar's skeletons are hidden from screen readers; a failed game with nothing cached draws no placeholder there (#584)", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+		const { unmount } = renderGame("/game/744834");
+		const bones = screen.getByTestId("game-topbar").querySelectorAll(".mantine-Skeleton-root");
+		expect(bones.length).toBeGreaterThan(0);
+		for (const bone of bones) expect(bone).toHaveAttribute("aria-hidden", "true");
+		unmount();
+		vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}, 503))));
+		renderGame("/game/744834");
+		await screen.findByRole("alert");
+		expect(screen.getByTestId("game-topbar").querySelectorAll(".mantine-Skeleton-root")).toHaveLength(0);
+	});
+
 	it("a game that fails to load keeps the top bar with Back and the room tabs over the error, as loading does (#584)", async () =>
 	{
 		vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}, 503))));

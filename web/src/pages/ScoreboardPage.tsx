@@ -191,8 +191,9 @@ function ScoreboardDay({
 		data: day, error, refetch, dataUpdatedAt,
 	} = useScheduleDay(date, live.inWindow);
 	// The same query `DayDigest` reads, so asking here adds no request; it only starts it with the day's.
-	// The footer no longer waits for it (#577): while it loads, Best of's skeleton holds its place under
-	// the games (#578), so a footer drawn once the games are has nothing to jump over.
+	// The footer no longer waits for it (#577): while it loads on a day with games, Best of's skeleton holds
+	// its place under them (#578). A day with no games expects none. A listed day whose digest fails or
+	// comes back empty collapses that skeleton and the footer moves up: a rare shift, accepted (`DayDigest`).
 	useDayDigest(date);
 	// Offline (S74): the shell's marker names this day's copy, "Scores as of …": a stored copy's own
 	// time, or when this page last got the day.
@@ -223,7 +224,7 @@ function ScoreboardDay({
 		body = (
 			<>
 				<Games day={day} variant={variant} />
-				<DayDigest date={day.date} variant={variant} />
+				<DayDigest date={day.date} variant={variant} expected={day.games.length > 0} />
 				{/* The site footer is the shell's (S142); its Live strip follows `useLiveDay` through `useFooterMode` (S149). */}
 			</>
 		);

@@ -388,6 +388,16 @@ describe("ScoreboardPage states (S66, ViewState)", () =>
 		expect(within(loading).getAllByTestId("skeleton-video").length).toBeGreaterThan(1);
 	});
 
+	it("Best of: a day with no games draws no skeleton for a digest it won't have (#578)", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/digest"
+			? new Promise<Response>(() => undefined)
+			: Promise.resolve(jsonResponse(day([])))));
+		renderScoreboard();
+		await screen.findByText("No games scheduled for this date.");
+		expect(screen.queryByTestId("day-digest-loading")).toBeNull();
+	});
+
 	it("error: Couldn't load games, the hint, and Retry refetches", async () =>
 	{
 		const fetchMock = vi.fn((_request: Request) => Promise.resolve(jsonResponse({
@@ -699,5 +709,24 @@ describe("ScoreboardPage footer and a slow digest (#577, #578)", () =>
 			timeout: 500,
 		});
 		expect(screen.getByTestId("day-digest-loading")).toBeInTheDocument();
+	});
+
+	/*
+	 * The digest ranks every game's clips, pregame ones too (lineups, bullpens), so a day of games not yet started still
+	 * expects one: its skeleton shows, and the footer with it, at once.
+	 */
+	it("a day of only unstarted games shows Best of's skeleton and the footer at once (#577, #578)", async () =>
+	{
+		const moments = read<{ pregame: Game }>("schedule-823823-moments.json");
+		const body = day([moments.pregame]);
+		vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/digest"
+			? new Promise<Response>(() => undefined)
+			: Promise.resolve(jsonResponse(body))));
+		renderScoreboardInShell();
+		await modules();
+		expect(screen.getByTestId("day-digest-loading")).toBeInTheDocument();
+		await waitFor(() => expect(screen.queryByTestId("site-footer")).not.toBeNull(), {
+			timeout: 500,
+		});
 	});
 });
