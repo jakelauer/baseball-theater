@@ -96,7 +96,8 @@ grep -qE 'export class DayHubObject|export \{ DayHubObject \}' "$F/worker.ts" ||
 games=$(grep -cE '"name": "GAME_HUB", "class_name": "GameHubObject"' wrangler.jsonc)
 days=$(grep -cE '"name": "DAY_HUB", "class_name": "DayHubObject"' wrangler.jsonc)
 [ "$days" -ge 1 ] && [ "$days" = "$games" ] || bad 1 "wrangler.jsonc binds DAY_HUB $days times, GAME_HUB $games times (top level and every env)"
-mig="$(awk '/"migrations": \[/{f=1} f{print} f&&/\]/{exit}' wrangler.jsonc)"
+# The migrations list: from its opening line to its closing bracket on a line of its own.
+mig="$(awk '/"migrations": \[/{f=1; next} f && /^[[:space:]]*\],?[[:space:]]*$/{exit} f{print}' wrangler.jsonc)"
 grep -qF '{ "tag": "v1", "new_sqlite_classes": ["GameIngestObject"] },' <<<"$mig" || bad 1 "migration v1 changed"
 grep -qF '{ "tag": "v2", "new_sqlite_classes": ["GameHubObject"] },' <<<"$mig" || bad 1 "migration v2 changed (or is no longer followed by v3)"
 grep -qF '{ "tag": "v3", "new_sqlite_classes": ["DayHubObject"] }' <<<"$mig" || bad 1 "no migration v3 adding DayHubObject"

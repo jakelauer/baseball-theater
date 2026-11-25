@@ -20,6 +20,7 @@ declare module "cloudflare:test"
 	export const env: {
 		GAME_INGEST: Namespace;
 		GAME_HUB: Namespace;
+		DAY_HUB: Namespace;
 	};
 	export function runInDurableObject<R>(stub: DurableObjectStub, callback: (instance: unknown, state: { storage: DurableObjectStorage }) => R | Promise<R>): Promise<R>;
 	export function runDurableObjectAlarm(stub: DurableObjectStub): Promise<boolean>;

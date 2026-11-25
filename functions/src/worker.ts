@@ -21,6 +21,7 @@ import { tickAllowed, workerApp } from "./worker-app.js";
 import type { WorkerEnv } from "./worker-app.js";
 
 export { GameHubObject } from "./game-hub-object.js";
+export { DayHubObject } from "./day-hub-object.js";
 export { GameIngestObject } from "./game-ingest-object.js";
 
 /** The part of the Workers `ExecutionContext` this Worker uses. */
