@@ -364,4 +364,25 @@ describe("videoMeta, the meta line's play-wins rule (S145)", () =>
 			date: undefined,
 		}), null)).toBeNull();
 	});
+
+	it("noDate (the game's own room, #421): a play clip reads just its pill, one with no play just its kind", () =>
+	{
+		expect(videoMeta(clip(), TOP6, {
+			noDate: true,
+		})).toEqual({
+			text: null,
+			pill: TOP6,
+		});
+		expect(videoMeta(clip(), null, {
+			noDate: true,
+		})).toEqual({
+			text: "Highlight",
+			pill: null,
+		});
+		expect(videoMeta(clip({
+			kind: undefined,
+		}), null, {
+			noDate: true,
+		})).toBeNull();
+	});
 });
