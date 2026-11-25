@@ -12,12 +12,13 @@ import {
 	Fragment, useEffect, useRef, useState,
 } from "react";
 import { flushSync } from "react-dom";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { GamePayload } from "../../api/game.js";
 import { useScoresHidden } from "../../settings/useScoresHidden.js";
 import { HiddenValue } from "../HiddenValue.js";
 import { shortPlayerName } from "../game/format.js";
 import { Linescore } from "../game/Linescore.js";
+import { useOpenClip } from "../videos/openClip.js";
 import { PlayerHost } from "../videos/PlayerHost.js";
 import type { Video } from "../videos/VideoCard.js";
 import { videoPlayLink } from "../videos/playLink.js";
@@ -170,7 +171,9 @@ function InningSidebar({
  * to show"). Every at-bat starts closed (owner, 2026-11-12: "the plays view shouldn't expand
  * any plays by default"), except the one a video's play link arrives on (S97). An open
  * at-bat is Live's cards, zone and pitch sequence (`AtBatViewer`). An at-bat with a clip has a
- * play button on its row that plays the clip in `PlayerHost` without opening the at-bat (#422).
+ * play button on its row that plays the clip in `PlayerHost` without opening the at-bat (#422); the
+ * button is a link to this room with the clip open (`useOpenClip`), so a middle-click opens it in a
+ * new tab (#424).
  * With Hide Scores on (S75; game-rooms A4 `plays-hidden-nonotice-mobile`,
  * `plays-scoring-hidden-nonotice-mobile`) the linescore masks every inning and R·H·E, the
  * Runs view masks the score after each play, and an in-play pitch reads "IN PLAY"; the
@@ -190,20 +193,18 @@ export function PlaysPanel({ game }: { game: GamePayload })
 	// the first clip in the game's order. It replaced A6's `Video: <clip title>` line, which said a
 	// clip existed but gave no way to play it (owner, 2026-11-23, #422).
 	const clips = new Map([...videosByAtBat(game.highlights, plays)].map(([index, videos]) => [index, videos[0]!]));
-	const [playing, setPlaying] = useState<Video | null>(null);
+	const {
+		playing, href, close,
+	} = useOpenClip(game.highlights, (video) => video.id);
 	const reduceMotion = useReducedMotion();
 	// With Video Player set to Stage, the stage plays at the top of the room, which a row far down a
 	// long inning has scrolled out of view: bring it into view, or the button seems to do nothing
 	// (#422). The dialog sits in a portal, outside `host`, so it finds nothing to scroll to.
 	const host = useRef<HTMLDivElement>(null);
-	// Counts presses, so choosing the clip already playing (the same object, which `setPlaying`
-	// ignores) still brings the stage back into view.
+	// Counts presses, so choosing the clip already playing (the same URL, which changes nothing)
+	// still brings the stage back into view.
 	const [presses, setPresses] = useState(0);
-	const play = (video: Video) =>
-	{
-		setPlaying(video);
-		setPresses((n) => n + 1);
-	};
+	const play = () => setPresses((n) => n + 1);
 	useEffect(() =>
 	{
 		const stage = playing ? host.current?.querySelector("section") : null;
@@ -260,7 +261,7 @@ export function PlaysPanel({ game }: { game: GamePayload })
 				<PlayerHost
 					video={playing}
 					first={undefined}
-					onClose={() => setPlaying(null)}
+					onClose={close}
 					fromGamePk={game.gamePk}
 					scoresHidden={scoresHidden}
 					playLink={playing ? videoPlayLink(playing, game) : null}
@@ -288,6 +289,7 @@ export function PlaysPanel({ game }: { game: GamePayload })
 							defaultOpen={view === null ? (arrival?.about.atBatIndex ?? null) : null}
 							marked={arrival?.about.atBatIndex ?? null}
 							clips={clips}
+							clipHref={href}
 							onPlay={play}
 						/>
 					)}
@@ -381,7 +383,7 @@ function afterScroll(item: Element, then: () => void): () => void
  * succession, starting after the top of screen animation is completed").
  */
 function PlaysAccordion({
-	plays, sections, tagged, end, defaultOpen, scoresHidden, marked = null, clips = new Map<number, Video>(), onPlay,
+	plays, sections, tagged, end, defaultOpen, scoresHidden, marked = null, clips = new Map<number, Video>(), clipHref, onPlay,
 }: { plays: readonly AtBat[];
 	sections: Section[];
 	tagged: boolean;
@@ -392,8 +394,10 @@ function PlaysAccordion({
 	marked?: number | null;
 	/** Each at-bat's clip, by `atBatIndex`, played from the play button on its row (#422). */
 	clips?: ReadonlyMap<number, Video>;
-	/** Plays a clip, called from a row's play button. */
-	onPlay?: (video: Video) => void; })
+	/** This room with a clip open (`useOpenClip`'s `href`, #424): where a row's play button links. */
+	clipHref?: (video: Video) => string;
+	/** Called on a press of a row's play button, as its link opens the clip. */
+	onPlay?: () => void; })
 {
 	useEffect(() =>
 	{
@@ -521,16 +525,19 @@ function PlaysAccordion({
 										}}>
 											{shown ? <OpenHeader atBat={atBat} /> : <ClosedRow atBat={atBat} tagged={tagged} end={end} />}
 										</Accordion.Control>
-										{clip && title ? (
+										{clip && title && clipHref ? (
 											<Tooltip label={title} multiline maw={280}>
 												<ActionIcon
+													component={Link}
+													to={clipHref(clip)}
+													replace
 													data-testid="play-video"
 													aria-label={title}
 													variant="subtle"
 													color="var(--bt-primary-light)"
 													size="lg"
 													m={8}
-													onClick={() => onPlay?.(clip)}
+													onClick={() => onPlay?.()}
 												>
 													<IconPlayerPlayFilled size={18} />
 												</ActionIcon>

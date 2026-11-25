@@ -66,9 +66,15 @@ export function DivisionTable({
 	return (
 		<Stack gap={4} data-testid="division-table">
 			<Title order={3} fz={18}>{heading}</Title>
-			<Box style={{
-				overflowX: "auto",
-			}}
+			{/* A table wider than its column (two leagues side by side at 768px, #434) scrolls here, so the
+			box takes focus and is named for its table, letting a keyboard reach and scroll it. */}
+			<Box
+				tabIndex={0}
+				role="region"
+				aria-label={`${heading} standings`}
+				style={{
+					overflowX: "auto",
+				}}
 			>
 				<Table
 					verticalSpacing={8}
