@@ -29,11 +29,13 @@ import { withAskedPlayerOfTheGame } from "./player-of-the-game.js";
  * for good is asked as often as a working one, not after every 5-minute lease; a store failure is BT's own and rejects.
  *
  * Upstream budget (ADR-002): one game per tick, `fetchGame`'s 4 MLB requests at most, plus S99's player-of-the-game
- * request only while a due game's stored pick lacks a side (bounded by `PLAY_METRICS_LIMIT_MS`), so at most 7,200
- * requests a day by the tick count (1,440 ticks). In practice each recent game is tried once per 6 h, for 7 days,
- * whether MLB answers or fails: at most 7 days × about 17 games × 4 tries × 4 requests ≈ 1,900 requests a day in
- * mid-season, up to ≈ 2,400 while picks are still missing (a game MLB never gives a fan pick is asked on each of its
- * 4 tries a day), and none in the off-season. Each re-check reads the stored game once more for its pick. A correction
+ * request only while a due game's stored pick lacks a side and S101's uniforms request only while the stored game has
+ * none (`uniformsDue`; each bounded by `PLAY_METRICS_LIMIT_MS`), so at most 6 requests a try and 8,640 a day by the
+ * tick count (1,440 ticks). In practice each recent game is tried once per 6 h, for 7 days, whether MLB answers or
+ * fails: at most 7 days × about 17 games × 4 tries × 4 requests ≈ 1,900 requests a day in mid-season, up to ≈ 2,400
+ * while picks or uniforms are missing and ≈ 2,900 while both are (a game MLB never gives a fan pick, or never lists
+ * uniforms for, is asked on all 28 of its tries: 4 a day for 7 days), and none in the off-season. Each re-check reads
+ * the stored game once more for its pick; the uniforms decision uses the stored game `ingestGame` reads anyway. A correction
  * MLB makes to a game more than 7 days after it was played is never picked up (the owner's
  * choice). A tick with no due game sends no request and does one database read (`listRecheckCandidates`).
  */

@@ -10,6 +10,7 @@ export * from "./graphql-content.js";
 export * from "./search.js";
 export * from "./playmetrics.js";
 export * from "./player-of-the-game.js";
+export * from "./uniforms.js";
 export * from "./seasons.js";
 export * from "./parse.js";
 export * from "./replay.js";

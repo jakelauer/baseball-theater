@@ -34,6 +34,7 @@ function recorded(url: URL): string | null
 	if (url.hostname === "data-graph.mlb.com") return "graphql-content-823823.json";
 	if (url.pathname.endsWith("/bdfed/playMetrics/823823")) return "playmetrics-823823.json";
 	if (url.hostname === "www.mlb.com" && url.pathname === "/apps/player-of-the-game/game/json/winners/823823.json") return "potg-823823.json";
+	if (url.pathname === "/api/v1/uniforms/game" && url.searchParams.get("gamePks") === "823823") return "uniforms-823823.json";
 	if (url.searchParams.get("gameType") === "W") return `worldseries-${url.searchParams.get("season")}.json`;
 	const season = /\/api\/v1\/seasons\/(\d{4})$/.exec(url.pathname);
 	if (season) return `seasons-${season[1]}.json`;

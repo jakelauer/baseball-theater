@@ -15,7 +15,7 @@ import { parseScheduleResponse } from "@bt/mlb-api";
 import { mapScheduleRange } from "../../mappers/schedule.js";
 import { recordedClient } from "../../test/recorded-mlb.js";
 import {
-	finalStandingsUrl, HttpMlbStatsClient, PLAY_METRICS_LIMIT_MS, playerOfTheGameUrl, springStandingsUrl,
+	finalStandingsUrl, gameUniformsUrl, HttpMlbStatsClient, PLAY_METRICS_LIMIT_MS, playerOfTheGameUrl, springStandingsUrl,
 } from "./mlb.js";
 
 const RAW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/raw");
@@ -535,5 +535,53 @@ describe("HttpMlbStatsClient player of the game (S99)", () =>
 		// The rest of the game is all there: the recorded play metrics arrived well inside the limit.
 		expect(answered?.game.playMetrics?.atBats).toHaveLength(85);
 		expect(answered?.playMetricsLate).toBeUndefined();
+	});
+});
+
+describe("HttpMlbStatsClient game uniforms (S101)", () =>
+{
+	const UNIFORMS_URL = "https://statsapi.mlb.com/api/v1/uniforms/game?gamePks=823823";
+	const isUniforms = (url: URL) => url.pathname === "/api/v1/uniforms/game";
+
+	afterEach(() =>
+	{
+		vi.useRealTimers();
+	});
+
+	it("S101 AC 3: fetchGameUniforms asks the Stats API's uniforms endpoint and maps the recording", async () =>
+	{
+		const { mlb, asked } = recordedClient();
+		expect(gameUniformsUrl(823823)).toBe(UNIFORMS_URL);
+		const uniforms = await mlb.fetchGameUniforms(823823);
+		expect(uniforms?.home?.[0]).toEqual({
+			code: "146_jersey_1_2026",
+			text: "Marlins Home White Jersey",
+			type: "Jersey",
+		});
+		expect(uniforms?.away).toHaveLength(3);
+		expect(asked).toEqual([UNIFORMS_URL]);
+	});
+
+	it("S101 AC 3: fetchGame never asks it, so no game read or live poll adds the request", async () =>
+	{
+		const { mlb, asked } = recordedClient();
+		const { game } = await mlb.fetchGame(823823);
+		expect(game).not.toHaveProperty("uniforms");
+		expect(asked.some((url) => url.includes("/uniforms/"))).toBe(false);
+	});
+
+	it("S101 AC 5 hung: a uniforms request that never resolves leaves fetchGame answering within PLAY_METRICS_LIMIT_MS, the field absent", async () =>
+	{
+		vi.useFakeTimers();
+		const { mlb } = recordedClient((url) => isUniforms(url) ? new Promise<Response>(() => undefined) as unknown as Response : undefined);
+		let answered: Awaited<ReturnType<typeof mlb.fetchGame>> | undefined;
+		void mlb.fetchGame(823823).then((fetched) =>
+		{
+			answered = fetched;
+		});
+		await vi.advanceTimersByTimeAsync(PLAY_METRICS_LIMIT_MS);
+		expect(answered).toBeDefined();
+		expect(answered?.game).not.toHaveProperty("uniforms");
+		expect(answered?.game.playMetrics?.atBats).toHaveLength(85);
 	});
 });

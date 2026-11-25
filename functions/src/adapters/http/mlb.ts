@@ -13,6 +13,7 @@ import type {
 	GameGraphContent,
 	GamePlayMetrics,
 	GameSnapshot,
+	GameUniforms,
 	PlayerOfTheGame,
 	PlayerProfile,
 	ScheduleDay,
@@ -29,6 +30,7 @@ import type { GameContentResponse, GameDiffPatchResponse } from "@bt/mlb-api";
 import {
 	parseGameContentResponse,
 	parseGameDiffPatchResponse,
+	parseGameUniformsResponse,
 	parseGraphContentResponse,
 	parseGameTimestamps,
 	parseLiveFeedResponse,
@@ -55,6 +57,7 @@ import { mapPlayMetrics } from "../../mappers/play-metrics.js";
 import { mapPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
 import { mapScheduleRange, mapScheduleResponse } from "../../mappers/schedule.js";
 import { mapSeasonCalendar } from "../../mappers/season-calendar.js";
+import { mapGameUniforms } from "../../mappers/uniforms.js";
 
 const DEFAULT_BASE_URL = "https://statsapi.mlb.com";
 
@@ -176,6 +179,15 @@ export function playMetricsUrl(gamePk: number): string
 export function playerOfTheGameUrl(gamePk: number): string
 {
 	return `https://www.mlb.com/apps/player-of-the-game/game/json/winners/${gamePk}.json`;
+}
+
+/**
+ * The uniforms each team wore in one game (S101), on the Stats API. `fetchGame` never asks it (a value settled before
+ * first pitch, asked by ingest off the fetch path: `withAskedUniforms`). The recorder (S14) records the same URL.
+ */
+export function gameUniformsUrl(gamePk: number, baseUrl = DEFAULT_BASE_URL): string
+{
+	return `${baseUrl}/api/v1/uniforms/game?gamePks=${gamePk}`;
 }
 
 /** One season's calendar (S111); the recorder (S14) records the same URL. */
@@ -510,6 +522,19 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		try
 		{
 			return mapPlayerOfTheGame(parsePlayerOfTheGameResponse(await this.getJson(playerOfTheGameUrl(gamePk))));
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/** The uniforms each team wore, mapped; null when the call fails, can't be parsed or lists none (S101 AC 5). */
+	async fetchGameUniforms(gamePk: number): Promise<GameUniforms | null>
+	{
+		try
+		{
+			return mapGameUniforms(parseGameUniformsResponse(await this.getJson(gameUniformsUrl(gamePk, this.baseUrl))), gamePk);
 		}
 		catch
 		{
