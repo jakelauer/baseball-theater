@@ -177,13 +177,13 @@ describe("clips are links (#424)", () =>
 	it("a day digest row links to the scoreboard with its clip open, and loading that link opens it (#424)", async () =>
 	{
 		renderAt("/games/2024-07-04");
-		const row = (await screen.findAllByTestId("digest-item"))[0]!;
+		const row = within(await screen.findByTestId("day-digest")).getAllByTestId("video-card")[0]!;
 		const first = DIGEST.items[0]!.highlight;
 		expect(row.tagName).toBe("A");
 		expect(row).toHaveAttribute("href", `/games/2024-07-04?clip=${first.id}`);
 		cleanup();
 		renderAt(`/games/2024-07-04?clip=${first.id}`);
-		await screen.findAllByTestId("digest-item");
+		await screen.findByTestId("day-digest");
 		expect(within(await screen.findByRole("dialog")).getByText(first.title)).toBeInTheDocument();
 	});
 });

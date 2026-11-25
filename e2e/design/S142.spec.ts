@@ -76,7 +76,7 @@ async function scoreboard(page: Page, signedOut = false): Promise<void>
 	if (signedOut) await page.goto(DAY);
 	else await signInDev(page, DAY);
 	await page.getByTestId("scoreboard-module").first().waitFor();
-	await page.getByTestId("digest-item").first().waitFor();
+	await page.getByTestId("day-digest").getByTestId("video-card").first().waitFor();
 	if (!signedOut)
 	{
 		await page.getByRole("contentinfo").getByRole("link", {

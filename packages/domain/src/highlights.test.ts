@@ -4,7 +4,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	classifyHighlight, clipClock, clipDuration, filterHighlights, groupHighlights, highlightGroup, highlightTitle, isGameRecapHighlight, sortHighlights,
+	classifyHighlight, clipClock, clipDuration, countHighlightFacets, filterHighlights, groupHighlights, highlightGroup, highlightTitle, isGameRecapHighlight, sortHighlights,
 } from "./highlights.js";
 import { rankHighlightsByImpact } from "./impact.js";
 import type { MediaHighlight } from "./types.js";
@@ -146,7 +146,7 @@ describe("groupHighlights (S69)", () =>
 		expect(group("Bench availability for Miami")).toBe("pregame");
 		expect(group("Fielding alignment for Miami")).toBe("pregame");
 		expect(group("Griffin Conine's two-run home run")).toBe("highlights");
-		expect(group("Ball 1 overturned")).toBe("highlights");
+		expect(group("Ball 1 overturned")).toBe("statcast");
 		expect(group("Kyle Stowers' home run through bat tracking")).toBe("statcast");
 		expect(group("Breaking down Javier Assad's pitches")).toBe("statcast");
 		expect(group("Kyle Stowers' 442-foot home run")).toBe("statcast");
@@ -171,8 +171,50 @@ describe("groupHighlights (S69)", () =>
 		const onlyHighlights = filterHighlights(VIDEOS, {
 			query: "ABS challenge",
 		});
-		expect(groupHighlights(onlyHighlights).map((g) => g.group)).toEqual(["highlights"]);
+		expect(groupHighlights(onlyHighlights).map((g) => g.group)).toEqual(["statcast"]);
 		expect(groupHighlights([])).toEqual([]);
+	});
+});
+
+describe("countHighlightFacets (#418, #428)", () =>
+{
+	it("counts every clip, each team's clips and the stat / viz clips, each equal to what that filter alone keeps", () =>
+	{
+		const counts = countHighlightFacets(VIDEOS);
+		expect(counts.all).toBe(40);
+		for (const teamId of [112, 146]) expect(counts.byTeam[teamId]).toBe(filterHighlights(VIDEOS, {
+			teamId,
+		}).length);
+		expect(counts.statViz).toBe(filterHighlights(VIDEOS, {
+			statViz: true,
+		}).length);
+		expect(countHighlightFacets([{
+			id: "x",
+			title: "No keywords",
+		} as MediaHighlight])).toEqual({
+			all: 1,
+			byTeam: {},
+			statViz: 0,
+		});
+	});
+});
+
+describe("ABS challenge clips are Statcast (#432)", () =>
+{
+	it("an ABS challenge clip, BT-matched or linked by MLB, groups under Statcast; other clips stay where they were", () =>
+	{
+		const absClips = VIDEOS.filter((h) => /ABS challenge/.test(h.title));
+		// 823823 has both kinds: two BT matched to their challenge (S95) and three MLB linked, tagged `abs`.
+		expect(absClips.filter((h) => h.playLink === "challenge")).toHaveLength(2);
+		expect(absClips.filter((h) => h.playLink === "mlb")).toHaveLength(3);
+		for (const clip of absClips) expect(highlightGroup(clip), clip.title).toBe("statcast");
+		expect(highlightGroup(VIDEOS.find((h) => h.title.startsWith("Griffin Conine's two-run home run"))!)).toBe("highlights");
+		// A manager's challenge replay is not an ABS challenge: it stays a game highlight.
+		expect(highlightGroup({
+			tags: ["highlight", "challenge", "replay-review"],
+		})).toBe("highlights");
+		// An ABS clip is not a stat / viz clip: only its group changes (B418's filter is `classifyHighlight`'s).
+		for (const clip of absClips) expect(classifyHighlight(clip).statViz).toBe(false);
 	});
 });
 

@@ -78,6 +78,40 @@ export function highlightTitle(highlight: Pick<MediaHighlight, "title" | "tags">
 	return scoresHidden && isGameRecapHighlight(highlight) ? "Recap (score hidden)" : highlight.title;
 }
 
+export type HighlightFacetCounts = {
+	/** Every clip given. */
+	all: number;
+	/** Clips featuring each team id MLB tagged; a clip featuring neither of a game's teams counts only in `all`. */
+	byTeam: Readonly<Record<number, number>>;
+	/** Stat / viz clips (`classifyHighlight`'s `statViz`). */
+	statViz: number;
+};
+
+/**
+ * How many clips each quick filter would keep (#418, #428): the Featured team control shows
+ * each option's count (owner, 2026-11-23: "all is however many total videos there are and then
+ * each team shows however many videos there are that are specific to that one"), and the
+ * Stat / viz filter shows only when some clip fits it ("the stat viz button should not show if
+ * there are no videos that fit that description"). Counted with `classifyHighlight`, the
+ * filters' own reading, so a count always equals what choosing that filter alone leaves.
+ */
+export function countHighlightFacets(highlights: readonly MediaHighlight[]): HighlightFacetCounts
+{
+	const byTeam: Record<number, number> = {};
+	let statViz = 0;
+	for (const highlight of highlights)
+	{
+		const facets = classifyHighlight(highlight);
+		for (const teamId of new Set(facets.teamIds)) byTeam[teamId] = (byTeam[teamId] ?? 0) + 1;
+		if (facets.statViz) statViz += 1;
+	}
+	return {
+		all: highlights.length,
+		byTeam,
+		statViz,
+	};
+}
+
 /** The Videos room's sort choices: impact (the server's order, the default), then by publish time. */
 export type HighlightSort = "impact" | "newest" | "oldest";
 
@@ -122,16 +156,21 @@ const PREGAME_TAGS = new Set(["darkroom-starting-lineup", "darkroom-bullpen", "d
  *   data-visualization clip MLB did not tag `in-game-data-visualization` is made before
  *   the game, so it lands here too;
  * - `statcast`: the remaining stat / viz clips (`classifyHighlight`'s `statViz`: bat
- *   tracking, pitch breakdowns, home-run distance);
- * - `highlights`: everything else — play highlights, ABS challenges, in-game interviews.
+ *   tracking, pitch breakdowns, home-run distance), and ABS challenge clips (#432; owner,
+ *   2026-11-23: "ABS challenges always get a highlight that's specific to them So those ones
+ *   could … go into the stat cast one"): a clip BT matched to its challenge (`playLink:
+ *   "challenge"`, S95) or one MLB linked itself and tagged `abs` (on 823823 every ABS clip
+ *   carries `abs`; a manager's replay challenge does not). Only the group changes: an ABS clip
+ *   is not stat / viz, so the Stat / viz filter still leaves it out;
+ * - `highlights`: everything else — play highlights, other replays, in-game interviews.
  */
-export function highlightGroup(highlight: Pick<MediaHighlight, "kind" | "tags" | "teamIds">): HighlightGroup
+export function highlightGroup(highlight: Pick<MediaHighlight, "kind" | "tags" | "teamIds" | "playLink">): HighlightGroup
 {
 	const tags = highlight.tags ?? [];
 	if (highlight.kind === "recap" || highlight.kind === "condensed" || tags.some((tag) => POSTGAME_TAGS.has(tag))) return "postgame";
 	if (tags.some((tag) => PREGAME_TAGS.has(tag))) return "pregame";
 	if (tags.includes("data-visualization") && !tags.includes("in-game-data-visualization")) return "pregame";
-	if (classifyHighlight(highlight).statViz) return "statcast";
+	if (classifyHighlight(highlight).statViz || highlight.playLink === "challenge" || tags.includes("abs")) return "statcast";
 	return "highlights";
 }
 
