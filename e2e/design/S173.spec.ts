@@ -8,8 +8,9 @@
  * Search is the dev API's own `GET /api/v1/search/highlights?q=walk-off`, answered from MLB's recorded
  * answer (`fixtures/search-walk-off.json`): Game 4's walk-off has its play (`Bot 12 →`), the radio call
  * of Chourio's walk-off has a game and no play, and the season montage has no game. The digest is the dev
- * API's own `GET /api/v1/digest` for S66's day (2026-09-05, 823823 CHC @ MIA with its recorded plays): its
- * first clip with a play and its first clip without one.
+ * API's own `GET /api/v1/digest`: for a clip with a play, S66's day (2026-09-05, 823823 CHC @ MIA with its
+ * recorded plays), whose top five clips are all plays; for a clip with no play, S71's 2024-07-04 (NYM @ WSH,
+ * NYY @ BOS), whose first such clip is Judge's home run (745001 has no recorded plays) and has no still.
  *
  * Judge only the player's top row (owner, 2026-10-28: "Judge only the story's own parts"). Expected
  * differences: the frames' sample clips (Judge's `Top 6 →`, Cole's clip with no play) and game
@@ -35,6 +36,9 @@ async function settle(page: Page): Promise<void>
 		await document.fonts.ready;
 	});
 	await hideDevControls(page);
+	// The dialog focuses its first control as it opens, and a page reached by `goto` shows that focus ring;
+	// the frames draw the pills at rest.
+	await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 	// A full-page shot of a fixed dialog over a long page lands it mid-page; keep the shot to one screen.
 	const height = page.viewportSize()?.height ?? 844;
 	await page.addStyleTag({
@@ -56,7 +60,7 @@ async function search(page: Page, title: RegExp): Promise<void>
 /** The digest's player playing its first clip that has (or hasn't) a play: each card's link opens it in turn. */
 async function digest(page: Page, withPlay: boolean): Promise<void>
 {
-	await page.goto("/games/2026-09-05");
+	await page.goto(withPlay ? "/games/2026-09-05" : "/games/2024-07-04");
 	const cards = page.getByTestId("day-digest").getByTestId("video-card");
 	await cards.first().waitFor();
 	const hrefs = await page.getByTestId("day-digest").locator("a[href*='clip=']").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
