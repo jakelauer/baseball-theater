@@ -74,18 +74,23 @@ export function VideoStill({
  * one row's columns, the pill sitting 6px after the date. Hovering the pill leaves the still
  * unzoomed, since it isn't in the zoom host. The title is `highlightTitle`'s: the game page
  * passes `scoresHidden`, so there the recap clip reads "Recap (score hidden)" (S75).
+ * `noDate` drops the date from the meta line (`videoMeta`'s option; the game's own room, #421).
  */
 export function VideoCard({
-	video, layout, href, scoresHidden = false, playLink,
+	video, layout, href, scoresHidden = false, playLink, noDate = false,
 }: { video: Video;
 	layout: "grid" | "list";
 	/** This page with the clip open (`useOpenClip`'s `href`, #424). */
 	href: string;
 	scoresHidden?: boolean;
-	playLink?: PlayLink | null; })
+	playLink?: PlayLink | null;
+	/** Leave the date out of the meta line: only the game's own Videos room passes it (#421). */
+	noDate?: boolean; })
 {
 	const title = highlightTitle(video, scoresHidden);
-	const meta = videoMeta(video, playLink);
+	const meta = videoMeta(video, playLink, {
+		noDate,
+	});
 	const grid = layout === "grid";
 	// Grid: rows still, title, meta; the meta row's columns are the text, the pill and the rest.
 	// List: the still beside the title and meta rows (2 and 3), centred by the two 1fr rows around
