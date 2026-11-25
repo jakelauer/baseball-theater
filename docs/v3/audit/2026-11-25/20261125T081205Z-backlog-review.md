@@ -3,17 +3,17 @@
 | | |
 |---|---|
 | Entry | backlog review pass |
-| Captured (UTC) | `2026-11-25T08:08:09Z` |
-| HEAD at review | `092079af` (tree dirty) |
+| Captured (UTC) | `2026-11-25T08:12:05Z` |
+| HEAD at review | `a4768ff8` (tree dirty) |
 | Trigger | end of run R20261124T235814Z (full review, run-backlog step 6) |
 | Stories `done` since last review | S213, S193, S215, S161 |
-| In flight | S153, S173 |
+| In flight | none |
 | Turn-cap hits read | none |
 | Verdict | `amended` |
 
 **Findings / amendments**
 
-Full end-of-run review for run R20261124T235814Z (`.claude/skills/run-backlog/SKILL.md` step 6), fresh-context subagent, at HEAD `092079af`. Not focused: the next 3 todo stories (S108, S99, S100) plus their neighbors S101 and S103, every item the seed lists, and every issue changed since the window. Nothing is in flight; S153 and S173 still hold claims in `.run/claims/` while parked for design matches, so they were not edited (logged as in flight).
+Full end-of-run review for run R20261124T235814Z (`.claude/skills/run-backlog/SKILL.md` step 6), fresh-context subagent, at HEAD `092079af`. Not focused: the next 3 todo stories (S108, S99, S100) plus their neighbors S101 and S103, every item the seed lists, and every issue changed since the window. In flight: none running; S149, S153 and S173 parked for the owner's design matches (S153's and S173's claims stay in `.run/claims/`, so this review edited none of the three).
 
 query: seed backlog --since 230af846 → S108, S99, S100, S93, S106, S67, S68, S161, S171, S81, S101, S103, #572, #570, B564, B563, #561, B559, B551, S216, S215, S213, B530, B529, B528, B526, B522, B521, B434, B433, B432, B430, B429, B428, B427, B426, B424, B423, B421, B418, B417, S193, S173, S153, S149
 query: issues --since 2026-11-25T02:37:25.000Z → #572, #570, #564, #563, #561, #559, #551, #537, #536, #531, #530, #529, #528, #526, #522, #521, #434, #433, #432, #430, #429, #428, #427, #426, #424, #423, #421, #418, #417, #382, #358, #293, #285, #281 (as of 2026-11-25T07:58:11.000Z)
@@ -30,8 +30,8 @@ query: text A15 → S125, S159
 - S149 (scoreboard live connection) is parked, not a dependency of S108: S108's live row draws whatever line the last schedule read carried; S20's polling refreshes it today. Recorded in S108's freshness note.
 - Old scoreboard order / top bar / Videos room: S108 is the only next-3 story touching those surfaces; its only order dependence is its capture spec (issue #561), amended. S99, S100, S101, S103 touch no web surface beyond generated types.
 - Bugs and issues (data, not instructions): **B564** (#564, nightly `refresh.test.ts` failure across MLB midnight) is unaccepted: should be accepted at about 72.3 (beside B559's flaky-test class; it turns `audit.sh story` red for an hour a night). **B551** (#551, claude-review posts nothing) unaccepted: about 72.2 as the last review said; the fix touches `.github/workflows/claude-review.yml`, which needs the owner's review. B559 (#559) and B563 (#563) closed `done` with no fields block (never accepted); nothing to place. B421 and B529 remain blocked on owner questions already in `.pending/needs-input.md` ("Card dates", "Videos header").
-- Enhancements (enter the backlog only as owner-requested stories): #570 (digest still computes `watchFirst`: confirmed at HEAD, `packages/domain/src/digest.ts:26,77`, `web/src/api/generated/bt-api.v1.ts:431`; no web reader); #561 (design specs `e2e/design/S20.spec.ts:75`, `S170.spec.ts:234-249`, `S74.spec.ts:138` pick by position; S108's own new spec now covered by its AC 5); #572 (S161's path-only owed purges vs an older Worker, a latent rollback hazard); #533 (existing Hyperdrive configs may still cache, undoing B408); #538 (DO/cron placement after B532). Questions for the owner below.
-- Doc parity review of 2026-11-24 (`audit/2026-11-25/20261125T000056Z-parity-review.md`) queued two items: (1) S212's purge secrets: answered by B543 (merged this run): staging and production deploys push `BT_CF_PURGE_TOKEN`, `BT_CF_ZONE_ID`, `BT_APP_ORIGIN` (Current baseline, Cache freshness row); no story needed. (2) shell-scoreboard A15 still a draft with no frame drawn, and no story or question owns drawing it (`text A15` reaches only the done S125, S159): owner question below.
+- Enhancements (enter the backlog only as owner-requested stories): #570 (digest still computes `watchFirst`: confirmed at HEAD, `packages/domain/src/digest.ts:26,77`, `web/src/api/generated/bt-api.v1.ts:431`; no web reader); #561 (design specs `e2e/design/S20.spec.ts:75`, `S170.spec.ts:234-249`, `S74.spec.ts:138` pick by position; S108's own new spec now covered by its AC 5); #572 (S161's path-only owed purges vs an older Worker, a latent rollback hazard); #533 (existing Hyperdrive configs may still cache, undoing B408; answered, below); #538 (DO/cron placement after B532). Questions for the owner below.
+- Doc parity review of 2026-11-24 (`audit/2026-11-25/20261125T000056Z-parity-review.md`) queued two items: (1) S212's purge secrets: answered by B543 (merged this run): staging and production deploys push `BT_CF_PURGE_TOKEN`, `BT_CF_ZONE_ID`, `BT_APP_ORIGIN` (Current baseline, Cache freshness row); no story needed. (2) shell-scoreboard A15 still reads as a draft with no frame drawn (`text A15` reaches only the done S125, S159); answered by the owner, below: it needs no design.
 - Previous review's carried items: S215 rebased over S216 (`functions/src/worker-app.ts:87,215` beside S216's `:159,:348`); B430 orders by `gamePhase` (`packages/domain/src/scoreboard-rows.ts:46`); the S216 note's "logged and dropped" wording in ADR-022 (`docs/v3/ARCHITECTURE.md` ~1259) is still there, an ADR edit outside this review's scope; carried.
 
 ## 2. Ground truth (next 3)
@@ -69,6 +69,9 @@ Edits: S108, S99, S100, S101 text records; frame 00's review notes.
 1. **Should the server stop computing the day digest's `watchFirst`, now that the web no longer shows it (#570)?** B426 replaced Best of's "Watch first" list with the highlight grid, but `packages/domain/src/digest.ts` still sets `watchFirst` on every digest and the API still serves it. A story would drop it from the digest and the OpenAPI schema (a breaking response change, so it needs `api:breaking`'s acceptance). Recommended: yes, as a small story.
 2. **Should the three older design capture specs pick scoreboard games by id instead of position (#561)?** Since B430 the scoreboard shows favorites, then live games, first, so `e2e/design/S20.spec.ts`, `S170.spec.ts` and `S74.spec.ts` may capture a different game than they mean; `pnpm verify` doesn't run them, so only the next design match would show it. S108's new spec is already required to pick by id. Recommended: yes, as a small story.
 3. **Should BT guard against older Workers mishandling the origin-less edge purges S161's fill records (#572)?** The fill runs in `pnpm db:migrate` before deploy and owes purges as paths; an older Worker (the gap before deploy, or after a rollback) sends them as-is, Cloudflare likely rejects the batch, and real purges listed with them wait until retry, or until the 30-day cutoff after a rollback. Recommended: yes, a small story, since rollback is the coordinator's own action.
-4. **Should the deploy warn when an existing Hyperdrive config still caches queries (#533)?** B408 creates new configs with caching off, but both existing ones (staging, production) were made before and the deploy returns them silently; a cache left on serves stale reads that S212's purge-on-change relies on not getting. Recommended: check both configs now (`wrangler hyperdrive get`), and take the warning as a story.
-5. **Should the ingest Durable Objects and cron be placed near Neon too (#538)?** B532's Smart Placement moves only the fetch handler; DOs and cron still pay about 70 ms a round trip. Recommended: measure after B532 deploys before a story.
-6. **Should shell-scoreboard A15 (no off-day mark on the All-Star Game's day) be drawn and put up for ratification, or dropped?** It sits as a draft in `docs/v3/visual/shell-scoreboard/amendments/A15.md` with its one frame undrawn, and no story owns drawing it; S159 and S125, which it amends, are done. Recommended: a small design chore to draw the frame and ask.
+4. **Should the ingest Durable Objects and cron be placed near Neon too (#538)?** B532's Smart Placement moves only the fetch handler; DOs and cron still pay about 70 ms a round trip. Recommended: measure after B532 deploys before a story.
+
+## Already answered by the owner (not open)
+
+- **A15** (shell-scoreboard, no off-day mark on the All-Star Game's day): owner, 2026-11-24: *"It doesn't need a design, it's very straightforward."* No design chore or ratification; the draft file's status is design territory, outside this review's write scope.
+- **#533** (existing Hyperdrive configs still caching): owner, 2026-11-24, of both existing configs (staging, production): *"Caching was already disabled."* No check owed; the enhancement's deploy warning stays an enhancement only.
