@@ -9,6 +9,9 @@ import { formatDate } from "../../format/datetime.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { LiveIndicator } from "./LiveIndicator.js";
 
+/** The bar's bottom border, in px: Mantine's default tab line (2px), which the active tab's underline matches. */
+const TAB_LINE = 2;
+
 interface GameTopBarProps
 {
 	away: string;
@@ -54,7 +57,16 @@ export function GameTopBar({
 	const phone = variant === "mobile";
 	const ownLine = marker !== null && marker.kind !== "live" && phone;
 	return (
-		<Group component="header" aria-label="Game top bar" data-testid="game-topbar" justify="space-between" wrap={phone ? "wrap" : "nowrap"} gap="xs" py="xs">
+		// The bottom border runs edge to edge, like the site header's (B585; owner, 2026-11-25: "the
+		// border doesn't extend the entire way like it should"): the negative inline margin undoes the
+		// shell main's `px="md"` and the bar pads itself back in. With tabs there's no bottom padding,
+		// so the tab list sits on the border, and its 2px overlap lets the active tab's underline cover
+		// the border, as Mantine's own tab line did (the list draws none of its own; `RoomTabList`).
+		<Group component="header" aria-label="Game top bar" data-testid="game-topbar" justify="space-between" wrap={phone ? "wrap" : "nowrap"} gap="xs" px="md" pt="xs" pb={tabs ? 0 : "xs"} style={{
+			marginInline: "calc(var(--mantine-spacing-md) * -1)",
+			borderBottom: `${TAB_LINE}px solid var(--mantine-color-dark-4)`,
+		}}
+		>
 			<Group gap="xs" wrap="nowrap" data-testid="topbar-back" style={{
 				flexShrink: 0,
 			}}
@@ -71,6 +83,7 @@ export function GameTopBar({
 				<Box style={{
 					flex: 1,
 					minWidth: 0,
+					marginBottom: -TAB_LINE,
 				}}
 				>{tabs}</Box>
 			) : null}
@@ -107,6 +120,7 @@ export function GameTopBar({
 				<Box style={{
 					flexBasis: "100%",
 					minWidth: 0,
+					marginBottom: -TAB_LINE,
 				}}
 				>{tabs}</Box>
 			) : null}

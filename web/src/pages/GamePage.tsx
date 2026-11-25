@@ -2,7 +2,7 @@ import {
 	Box, Stack, Tabs,
 } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCachedGame, useGame } from "../api/game.js";
 import { findScheduledGame } from "../api/schedule.js";
@@ -71,7 +71,10 @@ function RoomTabList({ rooms }: { rooms: readonly Room[] })
 			style={{
 				flexWrap: "nowrap",
 				overflowX: "auto",
-			}}
+				// No line of its own: the top bar's bottom border is the tabs' line, edge to edge (B585).
+				// The active tab keeps its own underline, which sits on that border.
+				"--tabs-list-border-size": "0",
+			} as CSSProperties}
 		>
 			{rooms.map((room) => (
 				<Tabs.Tab
