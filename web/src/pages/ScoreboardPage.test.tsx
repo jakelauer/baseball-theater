@@ -17,14 +17,17 @@ import {
 	MemoryRouter, Route, Routes, useLocation,
 } from "react-router-dom";
 import {
-	afterEach, describe, expect, it, vi,
+	afterEach, beforeEach, describe, expect, it, vi,
 } from "vitest";
 import { contrastSafeTeamColor, formatGameTime } from "@bt/domain";
 import { createQueryClient } from "../api/queryClient.js";
 import { writeScheduleDay } from "../api/schedule.js";
 import type { ScheduleDayPayload } from "../api/schedule.js";
 import { viewerTimeZone } from "../format/datetime.js";
+import { AppShellLayout } from "../layout/AppShellLayout.js";
 import type { LayoutVariant } from "../layout/variant.js";
+import { SessionProvider } from "../session/SessionProvider.js";
+import { setSessionToken } from "../session/token.js";
 import { jsonResponse } from "../test/jsonResponse.js";
 import { resetSettings, setFavoriteTeams } from "../settings/store.js";
 import { createRenderCounter } from "../test/renderCount.js";
@@ -492,16 +495,127 @@ describe("ScoreboardPage footer (S148)", () =>
 		expect(screen.queryByRole("contentinfo")).toBeNull();
 		expect(container).not.toHaveTextContent(/Fetched|baseball\.theater/);
 	});
+});
 
-	it("S148 AC 3: with no useLiveDay yet, the scoreboard opens no WebSocket and shows no Live marker", async () =>
+/** The browser WebSocket, stood in: every one opened is kept so a test can open or drop it. */
+class FakeWebSocket
+{
+	static opened: FakeWebSocket[] = [];
+	onopen: ((event: unknown) => void) | null = null;
+	onmessage: ((event: { data: unknown }) => void) | null = null;
+	onclose: ((event: unknown) => void) | null = null;
+	readonly close = vi.fn();
+
+	constructor(readonly url: string)
 	{
-		const sockets = vi.fn();
-		vi.stubGlobal("WebSocket", sockets);
+		FakeWebSocket.opened.push(this);
+	}
+
+	static last(): FakeWebSocket
+	{
+		return FakeWebSocket.opened.at(-1)!;
+	}
+}
+
+/**
+ * The scoreboard inside the shell, which draws the site footer (S142): the page tells it through `setFooter` whether
+ * its day's socket is open. Signed out: `/api/v1/me` answers 401; every other request as `serve` set it.
+ */
+function renderScoreboardInShell(client: QueryClient = createQueryClient())
+{
+	setSessionToken(null);
+	const served = vi.mocked(fetch);
+	vi.stubGlobal("fetch", vi.fn((request: Request) => new URL(request.url).pathname === "/api/v1/me"
+		? Promise.resolve(jsonResponse({
+			error: "unauthorized",
+		}, 401))
+		: served(request)));
+	return render(
+		<MantineProvider>
+			<QueryClientProvider client={client}>
+				<SessionProvider>
+					<MemoryRouter initialEntries={["/games/2026-09-05"]}>
+						<AppShellLayout>
+							{(variant, setFooter) => (
+								<Routes>
+									<Route path="/games/:date" element={<ScoreboardPage variant={variant} setFooter={setFooter} />} />
+								</Routes>
+							)}
+						</AppShellLayout>
+					</MemoryRouter>
+				</SessionProvider>
+			</QueryClientProvider>
+		</MantineProvider>,
+	);
+}
+
+describe("ScoreboardPage live marker (S149)", () =>
+{
+	beforeEach(() =>
+	{
+		FakeWebSocket.opened = [];
+		vi.stubGlobal("WebSocket", FakeWebSocket);
+	});
+
+	const strip = () => screen.queryByTestId("footer-live-strip");
+
+	it("S149 AC 7 open shows the Live marker: a day in its window opens its socket, and the footer's Live strip shows exactly while it is open", async () =>
+	{
 		serve();
-		renderScoreboard("desktop");
+		renderScoreboardInShell();
 		await modules();
-		expect(sockets).not.toHaveBeenCalled();
-		expect(screen.queryByTestId("footer-live-strip")).toBeNull();
-		expect(screen.queryByText("Live Data · Active")).toBeNull();
+		await vi.waitFor(() => expect(FakeWebSocket.opened).toHaveLength(1));
+		expect(FakeWebSocket.last().url).toContain("/api/v1/schedule/live?date=2026-09-05");
+		expect(strip()).toBeNull();
+		act(() => FakeWebSocket.last().onopen?.({}));
+		await waitFor(() => expect(strip()).not.toBeNull());
+		expect(within(strip()!).getByText("Live Data · Active")).toBeInTheDocument();
+	});
+
+	it("S149 AC 6 the day query starts no refetch interval while its day is in its window, open or waiting to reconnect", async () =>
+	{
+		serve();
+		const client = createQueryClient();
+		renderScoreboardInShell(client);
+		await modules();
+		await vi.waitFor(() => expect(FakeWebSocket.opened).toHaveLength(1));
+		const intervals = () =>
+		{
+			const query = client.getQueryCache().find({
+				queryKey: ["schedule", "2026-09-05"],
+			})!;
+			return query.observers.map((observer) =>
+			{
+				const option = observer.options.refetchInterval;
+				return typeof option === "function" ? option(query as never) : option;
+			});
+		};
+		await waitFor(() => expect(intervals()).toEqual([false]));
+		act(() => FakeWebSocket.last().onopen?.({}));
+		expect(intervals()).toEqual([false]);
+		act(() => FakeWebSocket.last().onclose?.({}));
+		expect(intervals()).toEqual([false]);
+	});
+
+	it("S149 AC 7 closed, reconnecting, polling and out-of-window show no marker: a dropped socket hides it, and a finished day never opens one", async () =>
+	{
+		serve();
+		const { unmount } = renderScoreboardInShell();
+		await modules();
+		await vi.waitFor(() => expect(FakeWebSocket.opened).toHaveLength(1));
+		act(() => FakeWebSocket.last().onopen?.({}));
+		await waitFor(() => expect(strip()).not.toBeNull());
+		// Closed: the stream waits to reconnect (and, after enough drops, polls); neither is open.
+		act(() => FakeWebSocket.last().onclose?.({}));
+		await waitFor(() => expect(strip()).toBeNull());
+		unmount();
+		FakeWebSocket.opened = [];
+		// Out of its window: only the finished game, long over.
+		serve(day([read<ScheduleDayPayload>("schedule-2026-09-05.json").games[0]!]));
+		renderScoreboardInShell();
+		await modules();
+		await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
+		expect(FakeWebSocket.opened).toHaveLength(0);
+		expect(strip()).toBeNull();
 	});
 });

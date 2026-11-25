@@ -106,14 +106,15 @@ export class GameIngest
 			suspendedAt,
 		}, now, this.params);
 		const {
-			snapshot, state, changed,
+			snapshot, state, changed, stateChanged,
 		} = await ingestGame(this.deps, {
 			...game,
 			fetchedAt: now.toISOString(),
 			windowMode: inWindow ? "active" : "cache",
 		}, feedTime);
 		// S150 AC 6: the served game (status and linescore from its one stored state), as the HTTP read and the hub's first send serve it.
-		if (changed || !inWindow) await this.publishToHubs(servedGame(snapshot, state, now), now);
+		// S149 AC 2: a mend (the row changed under an unchanged snapshot) is published too, so a day hub pushes its day.
+		if (changed || stateChanged || !inWindow) await this.publishToHubs(servedGame(snapshot, state, now), now);
 		if (inWindow)
 		{
 			await this.storage.setAlarm(now.getTime() + this.params.intervalMs);

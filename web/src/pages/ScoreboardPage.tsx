@@ -7,6 +7,7 @@ import { useParams } from "react-router-dom";
 import { scoreboardRows, sortScoreboardGames } from "@bt/domain";
 import type { ScoreboardSort } from "@bt/domain";
 import { useDayDigest } from "../api/digest.js";
+import { useLiveDay } from "../api/live-day.js";
 import { useScheduleDay } from "../api/schedule.js";
 import { useScoreboardDefaultDate } from "../api/scoreboardDate.js";
 import type { ScheduleDayPayload } from "../api/schedule.js";
@@ -140,9 +141,11 @@ function ScoreboardDay({
 	today: string | undefined;
 	setFooter?: SetFooterMode; })
 {
+	// S149: the day's live connection while it has a game in its window; the query stops re-asking it then.
+	const live = useLiveDay(date);
 	const {
 		data: day, error, refetch, dataUpdatedAt,
-	} = useScheduleDay(date);
+	} = useScheduleDay(date, live.inWindow);
 	// The digest draws under the games once it answers (or nothing, if it fails), so the footer waits
 	// for both: drawn earlier it would sit under the games and jump when the highlights arrive (S142).
 	// The same query `DayDigest` reads, so asking here adds no request; it only starts it with the day's.
@@ -161,7 +164,8 @@ function ScoreboardDay({
 		data: day,
 		error,
 	});
-	useFooterMode(setFooter, screen === "error" || (screen !== "loading" && day && !digestPending) ? "plain" : "none");
+	// The footer opens with A13's Live strip exactly while the day's socket is open (S149 AC 7, S148's `LiveMarker`).
+	useFooterMode(setFooter, screen === "error" || (screen !== "loading" && day && !digestPending) ? live.open ? "live" : "plain" : "none");
 	if (screen === "error")
 	{
 		body = <ViewState kind="error" title="Couldn't load games" onRetry={() => void refetch()} />;
@@ -176,8 +180,7 @@ function ScoreboardDay({
 			<>
 				<Games day={day} variant={variant} />
 				<DayDigest date={day.date} variant={variant} />
-				{/* The site footer is the shell's (S142). The scoreboard opens no WebSocket yet: S149 adds its live
-				    connection and turns the footer's Live strip on through `useFooterMode`. */}
+				{/* The site footer is the shell's (S142); its Live strip follows `useLiveDay` through `useFooterMode` (S149). */}
 			</>
 		);
 	}

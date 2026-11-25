@@ -44,6 +44,7 @@ import {
 } from "@bt/domain";
 import { scheduleDayWindowMode } from "./game-state.js";
 import type { IngestDeps } from "./ingest.js";
+import { DayHubCalls } from "./day-hubs.js";
 import { runRefresh, storeSchedule } from "./ingest.js";
 
 /**
@@ -125,13 +126,22 @@ export async function fillScheduleMonth(deps: IngestDeps, month: string, span: [
 		return null;
 	}
 	const written: ScheduleDay[] = [];
-	for (const day of days)
+	// S149 AC 2: the fill's day hub calls (only its days with a game in their window) made once, after all its writes.
+	const hubCalls = new DayHubCalls();
+	try
 	{
-		written.push(await storeSchedule(deps, {
-			...day,
-			fetchedAt,
-			windowMode: await scheduleDayWindowMode(deps, day, now),
-		}));
+		for (const day of days)
+		{
+			written.push(await storeSchedule(deps, {
+				...day,
+				fetchedAt,
+				windowMode: await scheduleDayWindowMode(deps, day, now),
+			}, undefined, hubCalls));
+		}
+	}
+	finally
+	{
+		await hubCalls.flush(deps.dayHubs);
 	}
 	const fillable = fillableDays(month, now);
 	const storedDates = new Set(written.map((day) => day.date));
