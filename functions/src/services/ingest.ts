@@ -617,10 +617,11 @@ async function joinedBefore(deps: Pick<IngestDeps, "games" | "gameStates">, stor
  * S101: with `mlb`, the game's uniforms are asked here, against the stored game it already read (`withAskedUniforms`,
  * bounded by `PLAY_METRICS_LIMIT_MS`): only while none is stored, and then when the game is new to the store, its status
  * changed, or it is final (`uniformsDue`). So every path that writes one game (the ingest object's poll, the cron tick,
- * the day seed, the re-check, the backfill) asks it off the game fetch; a live poll at an unchanged status never asks
+ * the day seed, the re-check) asks it off the game fetch; a live poll at an unchanged status never asks
  * again, and a final game still lacking them is asked once per write (a re-check fills one stored before S101). The
- * backfill writes only games not already stored as final, so a stored final past its re-check window stays without
- * them (#619's scope). Without `mlb` (tests) nothing is asked.
+ * backfill asks them itself, as an extra source it can give up (`EXTRA_SOURCES` in `backfill.ts`), and writes without
+ * `mlb`; it writes only games not already stored as final, so a stored final past its re-check window stays without
+ * them (#619's scope). Without `mlb` (the backfill, tests) nothing is asked.
  */
 export async function ingestGame(
 	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge" | "dayHubs"> & { mlb?: Pick<MlbStatsClient, "fetchGameUniforms"> },
