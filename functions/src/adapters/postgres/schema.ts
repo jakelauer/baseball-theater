@@ -90,6 +90,10 @@ export const owedEdgePurgeVersions = pgSequence("owed_edge_purges_version_seq");
  * the version that owe took from {@link owedEdgePurgeVersions} (so settling an older listing never drops a newer owe),
  * how many retries of it have failed and when it may next be retried (an ISO instant, or null for now). Instants
  * compared as `timestamptz` by the adapter.
+ *
+ * A path-only owe (`/api/v1/…`, S161's win-probability fill) keeps its retry time in `path_retry_at` instead, and its
+ * `retry_at` holds `'infinity'` (S219): a Worker from before S161 lists by `retry_at` alone and sends what it lists as it
+ * is, so it must never reach those rows (see `PostgresOwedEdgePurgeRepository`).
  */
 export const owedEdgePurges = pgTable("owed_edge_purges", {
 	url: text("url").primaryKey(),
@@ -99,6 +103,7 @@ export const owedEdgePurges = pgTable("owed_edge_purges", {
 	}).notNull().default(sql`nextval('owed_edge_purges_version_seq')`),
 	failures: integer("failures").notNull().default(0),
 	retryAt: text("retry_at"),
+	pathRetryAt: text("path_retry_at"),
 });
 
 /** One game snapshot per game (`GameRepository`): its day for `listByDate`, the document for queries into it. */

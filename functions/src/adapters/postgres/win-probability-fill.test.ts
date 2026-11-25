@@ -5,17 +5,29 @@
  */
 import type { GameSnapshot, Unversioned } from "@bt/domain";
 import { scoreboardWinProbability } from "@bt/domain";
-import { sql } from "drizzle-orm";
+import type { OwedEdgePurge } from "@bt/ports";
+import { PGlite } from "@electric-sql/pglite";
+import { asc, sql } from "drizzle-orm";
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
+import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
+import {
+	cpSync, mkdtempSync, readFileSync, writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	describe, expect, it,
 } from "vitest";
 import { FixtureMlbStatsClient } from "../fixtures/mlb.js";
+import { MemoryEdgeCachePurger } from "../memory/edge-cache-purger.js";
 import { ingestGame } from "../../services/ingest.js";
-import { migratedPglite } from "./migrate.js";
+import { OWED_PURGE_GIVE_UP_MS, retryOwedEdgePurges } from "../../services/edge-purge.js";
+import { MIGRATIONS_FOLDER, migratedPglite } from "./migrate.js";
 import type { PostgresDb } from "./repos.js";
 import {
-	PostgresGameProjectionRepository, PostgresGameRepository, PostgresGameStateRepository, PostgresScheduleRepository,
+	PostgresGameProjectionRepository, PostgresGameRepository, PostgresGameStateRepository, PostgresOwedEdgePurgeRepository, PostgresScheduleRepository,
 } from "./repos.js";
+import { owedEdgePurges } from "./schema.js";
 import { fillWinProbability } from "./win-probability-fill.js";
 
 const PK = 823823;
@@ -170,5 +182,218 @@ describe("the win-probability fill (S161 AC 4)", () =>
 		});
 		expect(rest.filled).toBe(3);
 		expect(await lined()).toEqual(pks);
+	});
+});
+
+/**
+ * The owed-purge listing an older Worker runs (S219): `PostgresOwedEdgePurgeRepository.listDue` exactly as the last
+ * commit before S161 had it (`git show f152a44d:functions/src/adapters/postgres/repos.ts`, S161's parent; unchanged
+ * since S212 added it). A Worker from before S161 sends every URL it lists as it is, so a path-only owe it lists is a
+ * URL Cloudflare refuses, and the refusal defers the full URLs listed beside it.
+ */
+function preS161ListDue(db: PostgresDb, at: string, limit = 30): Promise<OwedEdgePurge[]>
+{
+	return db.select({
+		url: owedEdgePurges.url,
+		owedAt: owedEdgePurges.owedAt,
+		version: owedEdgePurges.version,
+		failures: owedEdgePurges.failures,
+	}).from(owedEdgePurges)
+		.where(sql`${owedEdgePurges.retryAt} IS NULL OR ${owedEdgePurges.retryAt}::timestamptz <= ${at}::timestamptz`)
+		.orderBy(sql`${owedEdgePurges.owedAt}::timestamptz`, asc(owedEdgePurges.url))
+		.limit(limit);
+}
+
+const ORIGIN = "https://baseball.theater";
+const FULL = `${ORIGIN}/api/v1/games/777001`;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The instants an older Worker could list at, from `from`: then, a day later, and 29 days later (before the give-up). */
+function olderWorkerTicks(from: Date): string[]
+{
+	return [0, DAY_MS, 29 * DAY_MS].map((offset) => new Date(from.getTime() + offset).toISOString());
+}
+
+async function owedUrls(db: PostgresDb): Promise<string[]>
+{
+	return ((await db.execute(sql`SELECT url FROM owed_edge_purges ORDER BY url`)) as unknown as { rows: { url: string }[] }).rows.map((row) => row.url);
+}
+
+/** A purger that refuses a batch holding any URL that is not absolute, as Cloudflare would, and records what it purged. */
+class AbsoluteOnlyPurger extends MemoryEdgeCachePurger
+{
+	readonly refused: string[][] = [];
+
+	override async purge(urls: readonly string[]): Promise<void>
+	{
+		if (urls.some((url) => !url.startsWith("https://")))
+		{
+			this.refused.push([...urls]);
+			throw new Error("refused: not an absolute URL");
+		}
+		await super.purge(urls);
+	}
+}
+
+/** A database the fill has run on (15 days after 823823's date, so it owes that game's paths), with a full-URL owe beside them. */
+async function filledWithFullOwe(): Promise<{ db: PostgresDb;
+	now: Date;
+	owed: PostgresOwedEdgePurgeRepository; }>
+{
+	const { db } = await storedBeforeS161([await game823823()]);
+	const owed = new PostgresOwedEdgePurgeRepository(db);
+	const now = new Date("2026-09-20T12:00:00Z");
+	// Owed before the fill, so the oldest-first listing puts it beside (or ahead of) the fill's paths.
+	await owed.owe([FULL], new Date(now.getTime() - 60_000).toISOString());
+	const result = await fillWinProbability(db, {
+		now,
+	});
+	expect(result.owed).toBeGreaterThan(0);
+	return {
+		db,
+		now,
+		owed,
+	};
+}
+
+describe("owed edge purges an older Worker sees (S219)", () =>
+{
+	it("S219 AC 1 older Worker never lists a path-only owe: after the fill, now, a day and 29 days later, even after a failed retry", async () =>
+	{
+		const {
+			db, now, owed,
+		} = await filledWithFullOwe();
+		expect((await owedUrls(db)).some((url) => url.startsWith("/"))).toBe(true);
+		for (const at of olderWorkerTicks(now))
+		{
+			const listed = (await preS161ListDue(db, at)).map((row) => row.url);
+			expect(listed.filter((url) => url.startsWith("/")), at).toEqual([]);
+			expect(listed, at).toContain(FULL);
+		}
+		// A retry the current Worker fails defers the paths; an older Worker still never reaches them, while the full
+		// URL deferred with them comes back to it once its retry time passes.
+		const failing = {
+			purger: {
+				purge: () => Promise.reject(new Error("Cloudflare down")),
+			},
+			origin: ORIGIN,
+			owed,
+		};
+		await retryOwedEdgePurges({
+			edgePurge: failing,
+			now: () => now,
+		});
+		const later = new Date(now.getTime() + 60 * 60 * 1000);
+		for (const at of olderWorkerTicks(later))
+		{
+			const listed = (await preS161ListDue(db, at)).map((row) => row.url);
+			expect(listed.filter((url) => url.startsWith("/")), at).toEqual([]);
+			expect(listed, at).toContain(FULL);
+		}
+	});
+
+	it("S219 AC 1 rows already owed: path-only owes recorded before S219's migration are hidden from an older Worker after it", async () =>
+	{
+		// A database migrated as far as S161 left it (through 0006), holding the owes the fill and a failed retry wrote then.
+		const journal = JSON.parse(readFileSync(join(MIGRATIONS_FOLDER, "meta", "_journal.json"), "utf8")) as { entries: { tag: string }[] };
+		const upTo = journal.entries.findIndex((entry) => entry.tag === "0006_game_states_win_probability");
+		expect(upTo).toBeGreaterThanOrEqual(0);
+		const folder = mkdtempSync(join(tmpdir(), "bt-migrations-s161-"));
+		cpSync(MIGRATIONS_FOLDER, folder, {
+			recursive: true,
+		});
+		writeFileSync(join(folder, "meta", "_journal.json"), JSON.stringify({
+			...journal,
+			entries: journal.entries.slice(0, upTo + 1),
+		}));
+		const db = drizzlePglite(new PGlite()) as unknown as PostgresDb;
+		await migratePglite(db as Parameters<typeof migratePglite>[0], {
+			migrationsFolder: folder,
+		});
+		const now = new Date("2026-09-20T12:00:00Z");
+		const at = now.toISOString();
+		const retry = new Date(now.getTime() + 2 * 60_000).toISOString();
+		await db.execute(sql`INSERT INTO owed_edge_purges (url, owed_at, failures, retry_at) VALUES
+			('/api/v1/games/823823', ${at}, 0, NULL),
+			('/api/v1/schedule?date=2026-09-05', ${at}, 1, ${retry}),
+			(${FULL}, ${at}, 0, NULL)`);
+		await migratePglite(db as Parameters<typeof migratePglite>[0], {
+			migrationsFolder: MIGRATIONS_FOLDER,
+		});
+		for (const tick of olderWorkerTicks(now))
+		{
+			expect((await preS161ListDue(db, tick)).map((row) => row.url), tick).toEqual([FULL]);
+		}
+		// The current Worker still lists them, each at its own retry time.
+		const owed = new PostgresOwedEdgePurgeRepository(db);
+		expect((await owed.listDue(at, 30)).map((row) => row.url).sort()).toEqual(["/api/v1/games/823823", FULL].sort());
+		expect((await owed.listDue(retry, 30)).map((row) => row.url)).toContain("/api/v1/schedule?date=2026-09-05");
+	});
+
+	it("S219 AC 2 the current Worker clears the fill's owes under its origin, every URL absolute, and settles them", async () =>
+	{
+		const {
+			db, now, owed,
+		} = await filledWithFullOwe();
+		const paths = (await owedUrls(db)).filter((url) => url.startsWith("/"));
+		const purger = new AbsoluteOnlyPurger();
+		// A first retry that fails (an outage) defers them; the next allowed tick clears them, long before the give-up.
+		const failed = await retryOwedEdgePurges({
+			edgePurge: {
+				purger: {
+					purge: () => Promise.reject(new Error("Cloudflare down")),
+				},
+				origin: ORIGIN,
+				owed,
+			},
+			now: () => now,
+		});
+		expect(failed).toBe(0);
+		const early = await retryOwedEdgePurges({
+			edgePurge: {
+				purger,
+				origin: `${ORIGIN}/`,
+				owed,
+			},
+			now: () => new Date(now.getTime() + 30_000),
+		});
+		expect(early).toBe(0);
+		const next = new Date(now.getTime() + 60_000);
+		expect(next.getTime() - now.getTime()).toBeLessThan(OWED_PURGE_GIVE_UP_MS);
+		const purged = await retryOwedEdgePurges({
+			edgePurge: {
+				purger,
+				origin: `${ORIGIN}/`,
+				owed,
+			},
+			now: () => next,
+		});
+		expect(purger.refused).toEqual([]);
+		expect(purger.purged.every((url) => url.startsWith(`${ORIGIN}/api/v1/`))).toBe(true);
+		expect(purger.purged).toEqual(expect.arrayContaining([...paths.map((path) => `${ORIGIN}${path}`), FULL]));
+		expect(purged).toBe(paths.length + 1);
+		expect(await owedUrls(db)).toEqual([]);
+	});
+
+	it("S219 AC 3 a refused URL doesn't hold up the rest: a full-URL owe listed with the fill's owes is purged that tick", async () =>
+	{
+		const {
+			db, now, owed,
+		} = await filledWithFullOwe();
+		const purger = new AbsoluteOnlyPurger();
+		const due = (await owed.listDue(now.toISOString(), 30)).map((row) => row.url);
+		expect(due).toContain(FULL);
+		expect(due.some((url) => url.startsWith("/"))).toBe(true);
+		await retryOwedEdgePurges({
+			edgePurge: {
+				purger,
+				origin: ORIGIN,
+				owed,
+			},
+			now: () => now,
+		});
+		expect(purger.refused).toEqual([]);
+		expect(purger.purged).toContain(FULL);
+		expect(await owedUrls(db)).not.toContain(FULL);
 	});
 });
