@@ -7,7 +7,7 @@
  * edge copy (through `ingestGame`'s store, `purgeGameEdge`).
  */
 import {
-	GAME_RECHECK_CLAIM_LEASE_MS, GAME_RECHECK_FAILED_HOLD_MS, gamesDueForRecheck, recentRecheckDates,
+	GAME_RECHECK_CLAIM_LEASE_MS, GAME_RECHECK_FAILED_HOLD_MS, gamesDueForRecheck, recentRecheckDates, wholeFetchedGame,
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
 import { ingestGame } from "./ingest.js";
@@ -45,7 +45,8 @@ export async function recheckDueGame(deps: IngestDeps): Promise<number | null>
 		let fetched;
 		try
 		{
-			fetched = await deps.mlb.fetchGame(game.gamePk);
+			// The whole game, its playMetrics waited for (S216 AC 5).
+			fetched = await wholeFetchedGame(await deps.mlb.fetchGame(game.gamePk));
 		}
 		catch (error)
 		{

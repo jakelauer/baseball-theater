@@ -35,11 +35,12 @@ function setup(rewrite: (game: Awaited<ReturnType<FixtureMlbStatsClient["fetchGa
 	mlb.fetchGame = fetchGame;
 	const order: string[] = [];
 	const games = new InMemoryGameRepository();
-	const upsert = games.upsert.bind(games);
-	games.upsert = async (game) =>
+	// A snapshot write is one `upsertMany` (S216 AC 2), a day's games or one game alike.
+	const upsertMany = games.upsertMany.bind(games);
+	games.upsertMany = async (batch) =>
 	{
 		order.push("write");
-		await upsert(game);
+		return upsertMany(batch);
 	};
 	const deps: IngestDeps = {
 		mlb,
@@ -107,6 +108,28 @@ describe("GameIngest", () =>
 		await ingest.alarm(T0);
 		expect(order).toEqual(["write", "publish"]);
 		expect(published.map((p) => [p.hubId, p.snapshot.gamePk, p.snapshot.version])).toEqual([["hub-a", 745001, 1]]);
+		expect(storage.alarmAt).toBe(T0.getTime() + DEFAULT_CADENCE.intervalMs);
+	});
+
+	it("S216 AC 3 game ingest writes before it publishes: an active game's writes stay with its ingest object, the projection too, all stored before the hub hears", async () =>
+	{
+		const {
+			deps, ingest, order, storage,
+		} = setup();
+		const projected: number[] = [];
+		const upsertMany = deps.projections.upsertMany.bind(deps.projections);
+		deps.projections.upsertMany = async (batch) =>
+		{
+			order.push("projection");
+			projected.push(...batch.map((projection) => projection.header.version));
+			return upsertMany(batch);
+		};
+		await ingest.hubs.register("hub-a", T0);
+		await ingest.ensureRunning(745001, T0);
+		await ingest.alarm(T0);
+		// No background work: the ingest object writes the row, the snapshot and the projection, then publishes.
+		expect(order).toEqual(["write", "projection", "publish"]);
+		expect(projected).toEqual([1]);
 		expect(storage.alarmAt).toBe(T0.getTime() + DEFAULT_CADENCE.intervalMs);
 	});
 

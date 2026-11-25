@@ -10,10 +10,13 @@
  * (`src/scripts/`) and has no place in the Worker.
  */
 import { cachedSeasonCalendars, defaultCalendarStore } from "./adapters/cached-season-calendars.js";
-import type { MlbStatsClient, OwedEdgePurgeRepository } from "@bt/ports";
+import type {
+	BackgroundWork, MlbStatsClient, OwedEdgePurgeRepository,
+} from "@bt/ports";
 import {
 	createDevAccountData, createDevAuth, StaticSecretsProvider,
 } from "./adapters/fixtures/auth.js";
+import { ScopedBackgroundWork } from "./adapters/background-work.js";
 import { CloudflareEdgeCachePurger, NoopEdgeCachePurger } from "./adapters/cloudflare/edge-cache-purger.js";
 import { createBundledFixtureClient } from "./adapters/fixtures/bundled.js";
 import { LogtoIdentityAdmin, LogtoManagementApi } from "./adapters/logto/admin.js";
@@ -144,15 +147,22 @@ export function edgePurgeFor(env: WorkerEnv, fetcher?: WorkerAppOptions["fetch"]
 	};
 }
 
-/** What tests swap in the composition: the `fetch` the Logto adapters (and the edge purge, S212) call (a stand-in tenant). */
+/**
+ * What tests swap in the composition: the `fetch` the Logto adapters (and the edge purge, S212) call (a stand-in tenant).
+ * `background` is where an on-read refresh's deferred writes run (S216 AC 3): the Worker's per-request queue
+ * (`workerApp`), the Node server's run-at-once adapter (`local-server.ts`); absent (most tests), they run before the
+ * read returns.
+ */
 export type WorkerAppOptions = {
 	fetch?: (input: string, init?: RequestInit) => Promise<Response>;
+	background?: BackgroundWork;
 };
 
 /**
  * Wires the API for `env` on `db`. Exported for tests and the Node server; the Worker calls
  * `workerApp`, which builds it once on `scopedDatabase`. Nothing is seeded here: `pnpm db:seed`
  * fills the database, and a day or game that isn't stored is read through from MLB anyway.
+ * `options.background` (S216) is where a read's refresh defers its writes that carry no version of its answer.
  */
 export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerAppOptions = {}): WorkerApp
 {
@@ -175,6 +185,9 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		// One coordinator per isolate: stale out-of-window reads refresh single-flighted.
 		refresh: new RefreshCoordinator(),
 		edgePurge: edgePurgeFor(env, options.fetch, new PostgresOwedEdgePurgeRepository(db)),
+		...options.background && {
+			background: options.background,
+		},
 	};
 	const secrets = new StaticSecretsProvider({
 		[SESSION_KEY_SECRET]: env.BT_SESSION_KEY ?? crypto.randomUUID(),
@@ -308,11 +321,14 @@ let app: WorkerApp | undefined;
  * The isolate's one app, on `scopedDatabase`: what lives as long as the isolate (the refresh
  * single-flight, the session key, the fixture client's caches) is shared, while each unit
  * of work brings its own connection (`inDatabaseScope`). Built on first use, from that first
- * call's `env`.
+ * call's `env`. Its deferred writes go to the request's own queue (`ScopedBackgroundWork`, S216 AC 3), which the
+ * Worker's `fetch` drains after the response.
  */
 export function workerApp(env: WorkerEnv): WorkerApp
 {
-	app ??= createWorkerApp(env, scopedDatabase);
+	app ??= createWorkerApp(env, scopedDatabase, {
+		background: new ScopedBackgroundWork(),
+	});
 	return app;
 }
 

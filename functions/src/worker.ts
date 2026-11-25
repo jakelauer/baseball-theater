@@ -9,6 +9,7 @@
  * hours with no second cron expression, and re-checks at most one recently finished game's full
  * detail (S212, `recheckDueGame`). Composition lives in `worker-app.ts`.
  */
+import { DeferredWorkQueue, withDeferredWork } from "./adapters/background-work.js";
 import { inDatabaseScope } from "./adapters/postgres/connect.js";
 import { ensureGameIngest } from "./game-ingest-object.js";
 import { handleApiRequest } from "./handlers/api.js";
@@ -26,11 +27,17 @@ export { GameIngestObject } from "./game-ingest-object.js";
 type WorkerContext = { waitUntil(promise: Promise<unknown>): void };
 
 export default {
-	/** Each request on its own Postgres connection through Hyperdrive (S51), closed after the response. */
+	/**
+	 * Each request on its own Postgres connection through Hyperdrive (S51), closed after the response. S216 AC 3: the
+	 * request's deferred writes (`ScopedBackgroundWork`, the app's `BackgroundWork`) gather in its own queue and run after
+	 * the response, inside the same `inDatabaseScope`, before the connection closes, all in `ctx.waitUntil`.
+	 */
 	async fetch(request: Request, env: WorkerEnv, ctx: WorkerContext): Promise<Response>
 	{
 		const app = workerApp(env);
-		return inDatabaseScope(env.HYPERDRIVE, () => handleApiRequest(request, app.context), (closing) => ctx.waitUntil(closing));
+		const deferred = new DeferredWorkQueue();
+		const handle = () => withDeferredWork(deferred, () => handleApiRequest(request, app.context));
+		return inDatabaseScope(env.HYPERDRIVE, handle, (closing) => ctx.waitUntil(closing), () => deferred.drain());
 	},
 
 	/**

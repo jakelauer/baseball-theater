@@ -336,7 +336,7 @@ describe("purging every URL that shows a change (S212 review)", () =>
 		expect(deps.purger.purged).toEqual([GAME_URL(gamePk!), ...DAY_URLS(PAST_DATE)]);
 	});
 
-	it("S212 review late game: a change to yesterday's games that aren't settled (suspended, the schedule's rows) purges nothing and reads nothing more than with no purge", async () =>
+	it("S212 review late game: a change to yesterday's games that aren't settled (suspended, the schedule's rows) purges nothing and reads only one games.getMany more than with no purge (S216 AC 3: no hand-written pre-filter)", async () =>
 	{
 		const changing = async (detailedState: string, at: Date): Promise<Unversioned<ScheduleDay>> =>
 		{
@@ -382,7 +382,11 @@ describe("purging every URL that shows a change (S212 review)", () =>
 			return reads;
 		};
 		const withPurge = await run(true);
-		expect(withPurge).toEqual(await run(false));
+		const without = await run(false);
+		// S216 AC 3: the judgement is `isPastFinishedGame` / `isPastFinishedDay` alone, with no hand-written pre-filter: the
+		// changed games' snapshots in one `games.getMany`, and the before-verdict's window judgement of the suspended games.
+		expect(withPurge.slice(0, without.length - 1)).toEqual(without.slice(0, -1));
+		expect(withPurge.slice(without.length - 1, -1).filter((read) => read !== "games.getByPk")).toEqual(["games.getMany"]);
 	});
 
 	it("S212 review one listing read: purging several games reads their listing days in one query", async () =>

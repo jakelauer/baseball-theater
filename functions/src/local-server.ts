@@ -13,6 +13,7 @@ import { DEFAULT_CADENCE } from "@bt/domain";
 import {
 	FIXTURES_ROOT, FixtureMlbStatsClient, nodeFixtureFiles,
 } from "./adapters/fixtures/mlb.js";
+import { NodeBackgroundWork } from "./adapters/background-work.js";
 import { toNodeListener } from "./adapters/node/http.js";
 import { setNodeDatabase } from "./adapters/postgres/connect.js";
 import { migratedPglite } from "./adapters/postgres/migrate.js";
@@ -36,7 +37,10 @@ async function main(): Promise<void>
 		BT_USE_LIVE_MLB: process.env.BT_USE_LIVE_MLB,
 		BT_SESSION_KEY: process.env.BT_SESSION_KEY,
 		BT_APP_ORIGIN: process.env.BT_APP_ORIGIN,
-	}, db);
+	}, db, {
+		// An on-read refresh's deferred writes run beside the response, a failure logged (S216 AC 3).
+		background: new NodeBackgroundWork(),
+	});
 	const days = await seedFromFixtures({
 		...app.ingest,
 		// The seed is the committed fixtures, whichever client serves requests.
