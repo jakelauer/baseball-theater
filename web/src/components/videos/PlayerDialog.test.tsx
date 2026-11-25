@@ -56,6 +56,7 @@ describe("PlayerDialog opening (#423)", () =>
 	it("opens with a brief fade, and the clip starts only once it has finished opening (#423)", async () =>
 	{
 		reducedMotion(false);
+		const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
 		renderDialog();
 		const dialog = await screen.findByRole("dialog");
 		// Caught as it appears: still faded out, part way into its transition, and the clip isn't set to play.
@@ -63,16 +64,24 @@ describe("PlayerDialog opening (#423)", () =>
 		expect(dialog.style.transitionDuration).not.toBe("0ms");
 		const opening = screen.getByTestId("video-player").querySelector("video")!;
 		expect(opening.autoplay).toBe(false);
+		expect(play).not.toHaveBeenCalled();
 		// Once open, the clip plays.
 		await waitFor(() => expect(screen.getByTestId("video-player").querySelector("video")!.autoplay).toBe(true));
 		expect(screen.getByRole("dialog").style.opacity).not.toBe("0");
+		// The same element plays: opening doesn't replace it, so nothing reloads and a playing clip
+		// survives (GamePage.live's update test holds the element it found as the dialog appeared).
+		expect(screen.getByTestId("video-player").querySelector("video")).toBe(opening);
+		expect(play).toHaveBeenCalledTimes(1);
 	});
 
 	it("with reduced motion, opens at once and plays at once (#423)", async () =>
 	{
 		reducedMotion(true);
+		// jsdom's `play` isn't implemented (it returns no promise), so stand in for the browser's.
+		const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
 		renderDialog();
 		await waitFor(() => expect(screen.getByTestId("video-player").querySelector("video")!.autoplay).toBe(true));
 		expect(screen.getByRole("dialog").style.opacity).not.toBe("0");
+		expect(play).toHaveBeenCalledTimes(1);
 	});
 });

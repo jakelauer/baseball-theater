@@ -46,8 +46,8 @@ export type PlayerGame = {
  * instant, but it should be not instant … the video shouldn't play until the animation is
  * completed"). With reduced motion it opens at once and plays at once. Mantine runs a modal's
  * enter transition only when `opened` turns true after mounting, so the dialog mounts closed and
- * opens a frame later; the player is keyed on whether it has opened, as `PlayerStage` keys it on
- * `autoPlay`, since the `<video>`'s autoplay counts only on the element's first load.
+ * opens a frame later; the player's `autoPlay` turns on once it has opened, which starts the same
+ * `<video>` (`VideoPlayer`), so the element isn't replaced and nothing reloads.
  */
 export function PlayerDialog({
 	video, onClose, game, fromGamePk, scoresHidden = false, playLink,
@@ -132,7 +132,7 @@ export function PlayerDialog({
 				    its controls and the disclaimer still fit the screen's height (owner, 2026-11-12: "video
 				    player on desktop needs to play videos larger, taking more of the screen"). */}
 				<Box className="bt-player-frame">
-					<VideoPlayer key={entered ? "open" : "opening"} video={video} title={title} autoPlay={entered} />
+					<VideoPlayer video={video} title={title} autoPlay={entered} />
 				</Box>
 			</Box>
 		</Modal>
