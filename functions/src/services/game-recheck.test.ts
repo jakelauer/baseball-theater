@@ -91,7 +91,7 @@ describe("recheckDueGame (S212 AC 5)", () =>
 		expect(await recheckDueGame(deps)).toBe(744834);
 		expect(await recheckDueGame(deps)).toBeNull();
 		// S101 review: the fixture lists no uniforms for 744834, so each re-check of the final game asks them once (`uniformsDue`).
-		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
+		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834", "fetchGameRuleSettings 744834"]);
 	});
 
 	it("S212 AC 5 new clip: a re-check whose only difference is a new highlight clip stores it and purges its three URLs", async () =>
@@ -145,7 +145,7 @@ describe("recheckDueGame (S212 AC 5)", () =>
 		// Six hours after that re-check it is due again.
 		deps.now = () => new Date(NOW.getTime() + 3600_000);
 		expect(await recheckDueGame(deps)).toBe(744834);
-		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
+		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834", "fetchGameRuleSettings 744834"]);
 	});
 
 	it("S212 AC 5 none due: with no due game a call sends no MLB request and does one database read", async () =>
@@ -250,7 +250,7 @@ describe("recheckDueGame (S212 AC 5)", () =>
 		});
 		const calls = withMlb(deps, new Map([[744834, same]]));
 		expect(await recheckDueGame(deps)).toBe(744834);
-		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
+		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834", "fetchGameRuleSettings 744834"]);
 	});
 });
 
@@ -301,7 +301,7 @@ describe("recheckDueGame player of the game (S99, Claude's review of #621)", () 
 		const { playerOfTheGame: _sent, ...sent } = both;
 		const calls = dueMlb(deps, sent);
 		expect(await recheckDueGame(deps)).toBe(744834);
-		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
+		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834", "fetchGameRuleSettings 744834"]);
 		expect((await deps.games.getByPk(744834))?.playerOfTheGame).toEqual(both.playerOfTheGame);
 	});
 
@@ -318,7 +318,7 @@ describe("recheckDueGame player of the game (S99, Claude's review of #621)", () 
 		const { playerOfTheGame: _sent, ...sent } = one;
 		const calls = dueMlb(deps, sent);
 		expect(await recheckDueGame(deps)).toBe(744834);
-		expect(calls).toEqual(["fetchGame 744834", "fetchPlayerOfTheGame 744834", "fetchGameUniforms 744834"]);
+		expect(calls).toEqual(["fetchGame 744834", "fetchPlayerOfTheGame 744834", "fetchGameUniforms 744834", "fetchGameRuleSettings 744834"]);
 		expect((await deps.games.getByPk(744834))?.playerOfTheGame).toEqual({
 			media: MEDIA,
 			fan: FAN,
@@ -372,22 +372,33 @@ describe("recheckDueGame uniforms (S101 pre-PR review)", () =>
 		expect((await deps.games.getByPk(744834))?.uniforms).toBeUndefined();
 		const calls = sameMlb(deps, sent);
 		expect(await recheckDueGame(deps)).toBe(744834);
-		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
+		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834", "fetchGameRuleSettings 744834"]);
 		expect((await deps.games.getByPk(744834))?.uniforms).toEqual(WORN);
 	});
 
-	it("S101 review recheck stored: a final game with uniforms stored is re-checked with no uniforms request", async () =>
+	it("S101 review recheck stored: a final game with uniforms (and S100's rule settings) stored is re-checked with no request for either", async () =>
 	{
 		const deps = memoryDeps();
+		const rules = [{
+			name: "strikeZoneTopFactor",
+			label: "Strike Zone Top",
+			description: "Top of strike zone as a percentage of player height",
+			value: 53.5,
+			unit: "percent" as const,
+		}];
 		const worn = {
 			...await game(),
 			uniforms: WORN,
+			ruleSettings: rules,
 		};
 		await stored(deps, worn);
-		const { uniforms: _sent, ...sent } = worn;
+		const {
+			uniforms: _sent, ruleSettings: _rules, ...sent
+		} = worn;
 		const calls = sameMlb(deps, sent);
 		expect(await recheckDueGame(deps)).toBe(744834);
 		expect(calls).toEqual(["fetchGame 744834"]);
 		expect((await deps.games.getByPk(744834))?.uniforms).toEqual(WORN);
+		expect((await deps.games.getByPk(744834))?.ruleSettings).toEqual(rules);
 	});
 });

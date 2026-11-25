@@ -87,7 +87,7 @@ describe("past, finished reads (S212 AC 2)", () =>
 		empty.mlb = counting.client;
 		expect(await getOrRefreshGame(empty, 744834)).not.toBeNull();
 		// The game once, and (S101) its uniforms once, asked as the game is first stored.
-		expect(counting.calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
+		expect(counting.calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834", "fetchGameRuleSettings 744834"]);
 	});
 
 	it("S212 AC 2 today stale: MLB's today, stale-stamped, still makes one MLB request", async () =>
@@ -125,7 +125,7 @@ describe("past, finished reads (S212 AC 2)", () =>
 		// The game first: the day's refresh may write the schedule's final state over the suspended one.
 		await getOrRefreshGame(deps, gamePks[0]!);
 		// S101 review: a final game stored without uniforms has them asked by each write that refreshes it (`uniformsDue`).
-		expect(calls).toEqual([`fetchGame ${gamePks[0]!}`, `fetchGameUniforms ${gamePks[0]!}`]);
+		expect(calls).toEqual([`fetchGame ${gamePks[0]!}`, `fetchGameUniforms ${gamePks[0]!}`, `fetchGameRuleSettings ${gamePks[0]!}`]);
 		await deps.gameStates.write([{
 			...row,
 			state: {
@@ -139,7 +139,7 @@ describe("past, finished reads (S212 AC 2)", () =>
 			},
 		}]);
 		await getOrRefreshSchedule(deps, PAST_DATE);
-		expect(calls).toEqual([`fetchGame ${gamePks[0]!}`, `fetchGameUniforms ${gamePks[0]!}`, `fetchSchedule ${PAST_DATE}`]);
+		expect(calls).toEqual([`fetchGame ${gamePks[0]!}`, `fetchGameUniforms ${gamePks[0]!}`, `fetchGameRuleSettings ${gamePks[0]!}`, `fetchSchedule ${PAST_DATE}`]);
 	});
 
 	it("S212 AC 2 force: ?refresh=1 still asks MLB for a past, finished day and game", async () =>
@@ -153,6 +153,6 @@ describe("past, finished reads (S212 AC 2)", () =>
 		await getOrRefreshGame(deps, gamePks[0]!, {
 			force: true,
 		});
-		expect(calls).toEqual([`fetchSchedule ${PAST_DATE}`, `fetchGame ${gamePks[0]!}`, `fetchGameUniforms ${gamePks[0]!}`]);
+		expect(calls).toEqual([`fetchSchedule ${PAST_DATE}`, `fetchGame ${gamePks[0]!}`, `fetchGameUniforms ${gamePks[0]!}`, `fetchGameRuleSettings ${gamePks[0]!}`]);
 	});
 });

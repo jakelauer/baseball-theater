@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type {
-	FetchedGame, GameUniforms, PlayerOfTheGame, ScheduleDay, ScheduleGameSummary, Unversioned,
+	FetchedGame, GameRuleSetting, GameUniforms, PlayerOfTheGame, ScheduleDay, ScheduleGameSummary, Unversioned,
 } from "@bt/domain";
 import {
 	addDays, GIVE_UP_AFTER_DAYS, sourceGivenUpAt,
@@ -80,6 +80,15 @@ const WORN: GameUniforms = {
 		type: "shirt",
 	}],
 };
+
+/** The rules every fake game was played under (S100), unless the fake's `fails.ruleSettings` says it lists none. */
+const RULES: GameRuleSetting[] = [{
+	name: "strikeZoneTopFactor",
+	label: "Strike Zone Top",
+	description: "Top of strike zone as a percentage of player height",
+	value: 53.5,
+	unit: "percent",
+}];
 
 /** Game `n` of `date`: a stable gamePk per day and slot. */
 function pkOf(date: string, n: number): number
@@ -205,6 +214,14 @@ class FakeMlb implements MlbGameSources
 		const date = this.dateOf(gamePk);
 		this.requests.push(`uniforms ${gamePk} ${date}`);
 		return this.failing("uniforms", gamePk, date) ? null : WORN;
+	}
+
+	/** The rule settings (S100), counted like the other extras and failing by `fails.ruleSettings`. */
+	async fetchGameRuleSettings(gamePk: number): Promise<GameRuleSetting[] | null>
+	{
+		const date = this.dateOf(gamePk);
+		this.requests.push(`ruleSettings ${gamePk} ${date}`);
+		return this.failing("ruleSettings", gamePk, date) ? null : RULES;
 	}
 }
 
@@ -405,7 +422,7 @@ describe("runBackfill (S122)", () =>
 		const first = await runBackfill(deps(mlb, repos, memoryStore()), JULY);
 		expect(first.gamesStored).toBe(20);
 		expect(first.incomplete).toEqual([]);
-		expect(mlb.requests).toHaveLength(10 + 20 * 5);
+		expect(mlb.requests).toHaveLength(10 + 20 * 6);
 		mlb.requests.length = 0;
 		repos.writes.length = 0;
 		const second = await runBackfill(deps(mlb, repos, memoryStore()), JULY);
@@ -644,6 +661,63 @@ describe("runBackfill (S122)", () =>
 		expect(state.saved?.sources.uniforms).toBeUndefined();
 		expect(result.gamesStored).toBe(2);
 		expect((await repos.games.getByPk(pkOf(day, 0)))?.uniforms).toEqual(WORN);
+	});
+
+	it("S100 AC 5 backfill: each game's rule settings are asked once in its fetch and stored, and 14 days with none give the source up", async () =>
+	{
+		const answering = new FakeMlb();
+		const repos = counted(memoryRepos());
+		await runBackfill(deps(answering, repos, memoryStore()), {
+			from: "2026-07-20",
+			to: "2026-07-20",
+		});
+		// One ask per game, in the game's fetch: the write (`ingestGame`) asks nothing more.
+		expect(answering.count("ruleSettings", "2026-07-20")).toBe(2);
+		expect((await repos.games.getByPk(pkOf("2026-07-20", 0)))?.ruleSettings).toEqual(RULES);
+
+		const mlb = new FakeMlb();
+		mlb.fails.ruleSettings = () => true;
+		const result = await runBackfill(deps(mlb, counted(memoryRepos()), memoryStore()), {
+			from: "2026-07-01",
+			to: "2026-07-20",
+		});
+		const givenUpAt = addDays("2026-07-20", -(GIVE_UP_AFTER_DAYS - 1));
+		expect(result.givenUp).toEqual({
+			ruleSettings: givenUpAt,
+		});
+		expect(mlb.requests.filter((r) => r.startsWith("ruleSettings") && r.slice(-10) < givenUpAt)).toEqual([]);
+		expect(mlb.count("ruleSettings")).toBe(2 * GIVE_UP_AFTER_DAYS);
+		// The uniforms kept answering and are still asked for the oldest day.
+		expect(mlb.count("uniforms", "2026-07-01")).toBe(2);
+	});
+
+	it("S100 AC 5 backfill: games stored in play with their rule settings are not asked them again, and their day doesn't count toward a give-up", async () =>
+	{
+		const mlb = new FakeMlb();
+		mlb.fails.ruleSettings = () => true;
+		const repos = counted(memoryRepos());
+		const day = "2026-07-10";
+		for (const n of [0, 1])
+		{
+			await ingestGame(repos, {
+				...TEMPLATE_FEED,
+				gamePk: pkOf(day, n),
+				gameDate: day,
+				officialDate: day,
+				status: LIVE,
+				ruleSettings: RULES,
+				fetchedAt: NOW().toISOString(),
+				windowMode: "cache",
+			});
+		}
+		const state = memoryStore();
+		await runBackfill(deps(mlb, repos, state), {
+			from: day,
+			to: day,
+		});
+		expect(mlb.count("ruleSettings")).toBe(0);
+		expect(state.saved?.sources.ruleSettings).toBeUndefined();
+		expect((await repos.games.getByPk(pkOf(day, 0)))?.ruleSettings).toEqual(RULES);
 	});
 
 	it("split run: a streak survives a stop, so 13 failed days then a resume gives up after the next failed day", async () =>
@@ -1260,7 +1334,7 @@ describe("runBackfill (S122)", () =>
 
 	it("pacing: the pacer is told each day before its first request, and older days get the longer gap", async () =>
 	{
-		// Only the pacer's day and gap are read here; a request through it would be a bug. Each day asks 6: its schedule, then its game's feed and four extras.
+		// Only the pacer's day and gap are read here; a request through it would be a bug. Each day asks 7: its schedule, then its game's feed and five extras.
 		const polite = new PoliteFetch({
 			today: "2026-11-08",
 			fetchImpl: async () =>
@@ -1282,9 +1356,9 @@ describe("runBackfill (S122)", () =>
 		});
 		expect(seen).toEqual([
 			`2016-11-09 ${RECENT_GAP_MS} after 0`,
-			`2016-11-08 ${RECENT_GAP_MS} after 6`,
-			`2016-11-07 ${OLD_GAP_MS} after 12`,
-			`2016-11-06 ${OLD_GAP_MS} after 18`,
+			`2016-11-08 ${RECENT_GAP_MS} after 7`,
+			`2016-11-07 ${OLD_GAP_MS} after 14`,
+			`2016-11-06 ${OLD_GAP_MS} after 21`,
 		]);
 	});
 });

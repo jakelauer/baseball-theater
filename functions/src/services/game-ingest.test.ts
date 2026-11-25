@@ -550,8 +550,10 @@ describe("GameIngest player of the game (S99 review)", () =>
 		};
 		const fetchPlayerOfTheGame = vi.fn(pick);
 		mlb.fetchPlayerOfTheGame = fetchPlayerOfTheGame;
-		// S101: the uniforms (asked by the write for a game not stored yet) answer at once, so only the pick's timing counts.
+		// S101, S100: the uniforms and the rule settings (asked by the write for a game not stored yet) answer at once, so only
+		// the pick's timing counts.
 		mlb.fetchGameUniforms = async () => null;
+		mlb.fetchGameRuleSettings = async () => null;
 		return {
 			...setupResult,
 			fetchPlayerOfTheGame,
@@ -595,12 +597,17 @@ describe("GameIngest player of the game (S99 review)", () =>
 		}));
 		const fetchGameUniforms = vi.fn(async () => null);
 		(deps.mlb as FixtureMlbStatsClient).fetchGameUniforms = fetchGameUniforms;
+		// S100: the rule settings ride the same guard.
+		const fetchGameRuleSettings = vi.fn(async () => null);
+		(deps.mlb as FixtureMlbStatsClient).fetchGameRuleSettings = fetchGameRuleSettings;
 		await ingest.ensureRunning(823823, IN);
 		await ingest.alarm(IN);
 		expect(fetchGameUniforms).toHaveBeenCalledTimes(1);
+		expect(fetchGameRuleSettings).toHaveBeenCalledTimes(1);
 		await ingest.alarm(new Date(IN.getTime() + DEFAULT_CADENCE.intervalMs));
 		await ingest.alarm(new Date(IN.getTime() + 2 * DEFAULT_CADENCE.intervalMs));
 		expect(fetchGameUniforms).toHaveBeenCalledTimes(1);
+		expect(fetchGameRuleSettings).toHaveBeenCalledTimes(1);
 		// Out of its window: the last poll clears the key with the game's other keys.
 		await ingest.alarm(OUT);
 		expect(await storage.get("uniformsAsked")).toBeUndefined();

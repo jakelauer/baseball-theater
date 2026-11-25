@@ -4,6 +4,7 @@ import type {
 	GamePlayMetrics,
 	GameRecap,
 	MediaHighlight,
+	GameRuleSetting,
 	GameUniforms,
 	PlayerOfTheGame,
 	PlayerProfile,
@@ -59,9 +60,15 @@ export interface MlbStatsClient {
 	fetchPlayerOfTheGame(gamePk: number): Promise<PlayerOfTheGame | null>;
 	/**
 	 * The uniforms each team wore (S101), mapped; null when the call fails or lists none. `fetchGame` never asks it:
-	 * ingest does, off the fetch path, while none is stored (`uniformsDue`, `withAskedUniforms`).
+	 * ingest does, off the fetch path, while none is stored (`askedExtraDue`, `withAskedExtras`).
 	 */
 	fetchGameUniforms(gamePk: number): Promise<GameUniforms | null>;
+	/**
+	 * The rules the game was played under (S100), the strike zone its ABS challenges were judged against among them,
+	 * mapped; null when the call fails or lists none. `fetchGame` never asks it: ingest does, off the fetch path, while
+	 * none is stored, as it asks the uniforms (`askedExtraDue`, `withAskedExtras`).
+	 */
+	fetchGameRuleSettings(gamePk: number): Promise<GameRuleSetting[] | null>;
 	/** The regular season's standings as of `date` (S4); MLB has none outside the regular season. */
 	fetchStandings(date: string): Promise<StandingsSnapshot>;
 	/** A season's final regular-season table (S128): MLB's standings for the season with no date. */
@@ -112,7 +119,7 @@ export type GameEditorial = {
  * it answered, and stop asking one it has given up, which `fetchGame`'s fan-out can't do.
  * `fetchGame` is the live feed with all three extras attached; these are its parts.
  */
-export interface MlbGameSources extends Pick<MlbStatsClient, "fetchSchedule" | "fetchPlayMetrics" | "fetchGameGraphContent" | "fetchPlayerOfTheGame" | "fetchGameUniforms"> {
+export interface MlbGameSources extends Pick<MlbStatsClient, "fetchSchedule" | "fetchPlayMetrics" | "fetchGameGraphContent" | "fetchPlayerOfTheGame" | "fetchGameUniforms" | "fetchGameRuleSettings"> {
 	/**
 	 * The live feed alone, mapped, with no highlights or extras, and `playerOfTheGameDue` as `fetchGame` says it (S99:
 	 * the backfill asks a due game's pick once); throws when it can't be had.

@@ -17,6 +17,7 @@ import {
 	COVERAGE_IGNORE,
 	parseGameContentResponse,
 	parseGameDiffPatchResponse,
+	parseGameRuleSettingsResponse,
 	parseGameTimestamps,
 	parseGameUniformsResponse,
 	parseLiveFeedResponse,
@@ -66,6 +67,8 @@ const PARSERS: ReadonlyArray<readonly [RegExp, Parser]> = [
 	[/^potg-\d+\.json$/, parsePlayerOfTheGameResponse],
 	// The uniforms each team wore (S101).
 	[/^uniforms-\d+\.json$/, parseGameUniformsResponse],
+	// The rules the game was played under (S100), the live feed filtered to its ruleSettings hydrate.
+	[/^rulesettings-\d+\.json$/, parseGameRuleSettingsResponse],
 	[/^timestamps-.*\.json$/, parseGameTimestamps],
 	[/^standings-.*\.json$/, parseStandingsResponse],
 	[/^people-.*\.json$/, parsePeopleResponse],

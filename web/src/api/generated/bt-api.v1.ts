@@ -482,6 +482,19 @@ export interface components {
         };
         /** @enum {string} */
         GameRowSlot: "status" | "roomMenu";
+        /** @description One rule a game was played under (S100), from MLB's `ruleSettings`: its stable `name` (`strikeZoneTopFactor`), MLB's `label` ("Strike Zone Top") and description, its value and the unit to read the value in. */
+        GameRuleSetting: {
+            description: string;
+            label: string;
+            name: string;
+            unit: components["schemas"]["GameRuleSettingUnit"];
+            value: number | boolean | string;
+        };
+        /**
+         * @description How a rule setting's value reads (S100), from MLB's `valueType`: `percent` (53.5 means 53.5%, of the batter's height for the strike zone's top and bottom), `number` (a count, or inches where the description says so, as the zone's width and depth), `boolean` (the rule is on) or `text` (a named mode, as `absType`'s `challengeABS`).
+         * @enum {string}
+         */
+        GameRuleSettingUnit: "percent" | "number" | "boolean" | "text";
         GameSnapshot: {
             /** @description The box score (S2); absent until MLB has one, and on older recordings. */
             boxscore?: components["schemas"]["GameBoxscore"];
@@ -504,6 +517,8 @@ export interface components {
             recap?: components["schemas"]["GameRecap"];
             /** @description mlb.com stories about the game (S94); absent, like `videoPlayRefs`, when the source failed or had none. */
             relatedArticles?: components["schemas"]["RelatedArticle"][];
+            /** @description The rules the game was played under (S100), in MLB's order: the strike zone its ABS challenges were judged against (`strikeZoneTopFactor` and `strikeZoneBottomFactor` as a share of the batter's height, `strikeZoneWidth` in inches) and its other settings (designated hitter, pitch timer, challenges…). Asked and kept as the uniforms are: by ingest off the game fetch (`withAskedExtras`) while none is stored, when it first stores the game, sees its status change, or writes a final game (`askedExtraDue`), and kept once stored (`keepStoredExtras`). Absent until MLB lists any BT has asked for, and then the game is served as before. A final game BT no longer refreshes (past its re-check window, which the backfill skips as already stored) gets none here: #619's scope. */
+            ruleSettings?: components["schemas"]["GameRuleSetting"][];
             /** @description First pitch as an ISO instant, from the live feed's `gameData.datetime.dateTime`. The active window is measured from it (`isGameInActiveWindow`, #71); absent on snapshots stored before it existed, which fall back to a mid-afternoon assumption. */
             startTime?: string;
             status: {
@@ -517,7 +532,7 @@ export interface components {
                 away: components["schemas"]["AbstractTeam"];
                 home: components["schemas"]["AbstractTeam"];
             };
-            /** @description What each team wore (S101), asked by ingest off the game fetch (`withAskedUniforms`) while none is stored, when it first stores the game, sees its status change, or writes a final game (`uniformsDue`), so a live poll at an unchanged status never asks again for a value settled before first pitch. Once stored it is kept (`keepStoredExtras`): a later write that didn't ask, or whose ask failed or ran past its limit, never clears it. Absent until MLB lists one BT has asked for, and then the game is served as before. A final game BT no longer refreshes (past its re-check window, which the backfill skips as already stored) gets none here: #619's scope. */
+            /** @description What each team wore (S101), asked by ingest off the game fetch (`withAskedExtras`) while none is stored, when it first stores the game, sees its status change, or writes a final game (`askedExtraDue`), so a live poll at an unchanged status never asks again for a value settled before first pitch. Once stored it is kept (`keepStoredExtras`): a later write that didn't ask, or whose ask failed or ran past its limit, never clears it. Absent until MLB lists one BT has asked for, and then the game is served as before. A final game BT no longer refreshes (past its re-check window, which the backfill skips as already stored) gets none here: #619's scope. */
             uniforms?: components["schemas"]["GameUniforms"];
             venue: {
                 id: number;

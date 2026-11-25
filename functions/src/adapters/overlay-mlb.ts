@@ -39,6 +39,7 @@ export function overlayMlbClient(inner: MlbStatsClient, source: MlbOverlaySource
 		fetchGameGraphContent: (gamePk) => inner.fetchGameGraphContent(gamePk),
 		fetchPlayerOfTheGame: (gamePk) => inner.fetchPlayerOfTheGame(gamePk),
 		fetchGameUniforms: (gamePk) => inner.fetchGameUniforms(gamePk),
+		fetchGameRuleSettings: (gamePk) => inner.fetchGameRuleSettings(gamePk),
 		fetchStandings: (date) => inner.fetchStandings(date),
 		fetchFinalStandings: (season) => inner.fetchFinalStandings(season),
 		fetchSpringStandings: (season, date) => inner.fetchSpringStandings(season, date),

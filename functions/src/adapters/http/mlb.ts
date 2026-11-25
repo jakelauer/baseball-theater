@@ -12,6 +12,7 @@ import type {
 	FetchedGame,
 	GameGraphContent,
 	GamePlayMetrics,
+	GameRuleSetting,
 	GameSnapshot,
 	GameUniforms,
 	PlayerOfTheGame,
@@ -30,6 +31,7 @@ import type { GameContentResponse, GameDiffPatchResponse } from "@bt/mlb-api";
 import {
 	parseGameContentResponse,
 	parseGameDiffPatchResponse,
+	parseGameRuleSettingsResponse,
 	parseGameUniformsResponse,
 	parseGraphContentResponse,
 	parseGameTimestamps,
@@ -58,6 +60,7 @@ import { mapPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
 import { mapScheduleRange, mapScheduleResponse } from "../../mappers/schedule.js";
 import { mapSeasonCalendar } from "../../mappers/season-calendar.js";
 import { mapGameUniforms } from "../../mappers/uniforms.js";
+import { mapGameRuleSettings } from "../../mappers/rule-settings.js";
 
 const DEFAULT_BASE_URL = "https://statsapi.mlb.com";
 
@@ -183,11 +186,22 @@ export function playerOfTheGameUrl(gamePk: number): string
 
 /**
  * The uniforms each team wore in one game (S101), on the Stats API. `fetchGame` never asks it (a value settled before
- * first pitch, asked by ingest off the fetch path: `withAskedUniforms`). The recorder (S14) records the same URL.
+ * first pitch, asked by ingest off the fetch path: `withAskedExtras`). The recorder (S14) records the same URL.
  */
 export function gameUniformsUrl(gamePk: number, baseUrl = DEFAULT_BASE_URL): string
 {
 	return `${baseUrl}/api/v1/uniforms/game?gamePks=${gamePk}`;
+}
+
+/**
+ * The rules a game was played under (S100): the live feed filtered to its `ruleSettings` hydrate, a few kilobytes on the
+ * Stats API. A request of its own, not a hydrate on `fetchGame`'s live feed: the settings are fixed before first pitch,
+ * so ingest asks them off the fetch path while none is stored (`withAskedExtras`), and no live poll carries them again.
+ * The recorder (S14) records the same URL.
+ */
+export function gameRuleSettingsUrl(gamePk: number, baseUrl = DEFAULT_BASE_URL): string
+{
+	return `${baseUrl}/api/v1.1/game/${gamePk}/feed/live?language=en&hydrate=ruleSettings&fields=gameData,ruleSettings`;
 }
 
 /** One season's calendar (S111); the recorder (S14) records the same URL. */
@@ -535,6 +549,19 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		try
 		{
 			return mapGameUniforms(parseGameUniformsResponse(await this.getJson(gameUniformsUrl(gamePk, this.baseUrl))), gamePk);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/** The game's rule settings, mapped; null when the call fails, can't be parsed or lists none (S100 AC 5). */
+	async fetchGameRuleSettings(gamePk: number): Promise<GameRuleSetting[] | null>
+	{
+		try
+		{
+			return mapGameRuleSettings(parseGameRuleSettingsResponse(await this.getJson(gameRuleSettingsUrl(gamePk, this.baseUrl))));
 		}
 		catch
 		{

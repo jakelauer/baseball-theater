@@ -62,23 +62,26 @@ export function keepPlayerOfTheGame<T extends { playerOfTheGame?: PlayerOfTheGam
 }
 
 /**
- * The extras ingest asks off the game fetch and keeps across refreshes (S99, generalized for S101): the player of the
- * game and the uniforms. A fetched game carries one only when its write asked for it, so every game write keeps the
- * stored value its incoming game lacks ({@link keepStoredExtras}).
+ * The extras ingest asks off the game fetch and keeps across refreshes (S99, generalized for S101 and S100): the player
+ * of the game, the uniforms and the rule settings. A fetched game carries one only when its write asked for it, so every
+ * game write keeps the stored value its incoming game lacks ({@link keepStoredExtras}).
  */
-export type StoredExtras = Pick<GameSnapshot, "playerOfTheGame" | "uniforms">;
+export type StoredExtras = Pick<GameSnapshot, "playerOfTheGame" | "uniforms" | "ruleSettings">;
 
 /**
- * The extras kept whole (S101): a stored value stays until an incoming game names a new one. A new extra asked off the
- * fetch path joins this list rather than getting its own keep (ADR-025). The player of the game is kept side by side
+ * The extras kept whole (S101, S100): a stored value stays until an incoming game names a new one. A new extra asked off
+ * the fetch path joins this list rather than getting its own keep (ADR-025). The player of the game is kept side by side
  * instead ({@link keepPlayerOfTheGame}), since MLB names its two picks at different times.
  */
-const KEPT_WHOLE = ["uniforms"] as const satisfies readonly (keyof StoredExtras)[];
+const KEPT_WHOLE = ["uniforms", "ruleSettings"] as const satisfies readonly (keyof StoredExtras)[];
+
+/** An extra kept whole ({@link KEPT_WHOLE}), asked while none is stored ({@link askedExtraDue}). */
+export type AskedExtra = (typeof KEPT_WHOLE)[number];
 
 /**
- * The incoming game with every extra the stored game has and the incoming one lacks kept (S99, S101): the one keep every
- * game write calls before stamping the version (`storeGames`, the late playMetrics write), so a refresh that didn't ask,
- * or whose ask failed or ran past its limit, neither drops a stored extra nor makes a new version for its absence.
+ * The incoming game with every extra the stored game has and the incoming one lacks kept (S99, S101, S100): the one keep
+ * every game write calls before stamping the version (`storeGames`, the late playMetrics write), so a refresh that didn't
+ * ask, or whose ask failed or ran past its limit, neither drops a stored extra nor makes a new version for its absence.
  */
 export function keepStoredExtras<T extends StoredExtras>(stored: StoredExtras | null | undefined, incoming: T): T
 {
@@ -94,16 +97,17 @@ export function keepStoredExtras<T extends StoredExtras>(stored: StoredExtras | 
 }
 
 /**
- * Whether ingest should ask MLB for a game's uniforms (S101): only while none is stored, and then when it first stores
- * the game, sees its status change (scheduled, warming up, live, final), or writes a game that is over
- * (`isFinalStatus`, as S99 asks a final game still missing its pick, #621's review). So a live poll whose status stays
- * the same never asks again; a final game stored without them (before S101, or whose ask found nothing) is asked once
- * per write that refreshes it: its ingest object's final-trail polls, a cold read, a re-check. Clubs set them before
- * first pitch.
+ * Whether ingest should ask MLB for a game's `extra` (S101's uniforms, S100's rule settings): only while none is stored,
+ * and then when it first stores the game, sees its status change (scheduled, warming up, live, final), or writes a game
+ * that is over (`isFinalStatus`, as S99 asks a final game still missing its pick, #621's review). So a live poll whose
+ * status stays the same never asks again; a final game stored without it (before its story, or whose ask found nothing)
+ * is asked once per write that refreshes it: its ingest object's final-trail polls, a cold read, a re-check. Both are
+ * settled before first pitch.
  */
-export function uniformsDue(stored: { uniforms?: GameSnapshot["uniforms"];
-	status: { codedGameState: string }; } | null | undefined, codedGameState: string): boolean
+export function askedExtraDue(extra: AskedExtra, stored: (Partial<Pick<GameSnapshot, AskedExtra>> & {
+	status: { codedGameState: string };
+}) | null | undefined, codedGameState: string): boolean
 {
-	if (stored?.uniforms !== undefined) return false;
+	if (stored?.[extra] !== undefined) return false;
 	return stored?.status.codedGameState !== codedGameState || isFinalStatus(codedGameState);
 }
