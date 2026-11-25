@@ -336,10 +336,27 @@ a {
  * of the screen"), up to a 1280px clip: the chrome (the modal's 16px padding and border, the Close
  * row, the title, the tools and the disclaimer) is about 280px tall, held back from the height, and
  * the 32px of side padding added to the width. It never drops below a 560px clip (or 90% of the
- * screen's width, if narrower), so on a short landscape screen the modal scrolls inside its border.
+ * screen's width, if narrower). On a short landscape screen (a phone on its side) that floor would
+ * push the clip's foot, its tools and the disclaimer below the screen, so the modal is a flex column
+ * down to the `<video>`, which alone shrinks (`object-fit: contain` letterboxes the picture) until
+ * everything fits inside 90dvh; only below a 96px clip does the modal scroll. The stage's player is
+ * outside the modal and keeps its 16:9 height.
  */
 .bt-player-modal {
 	width: max(min(90vw, 592px), min(90vw, 1312px, calc((90dvh - 280px) * 16 / 9 + 32px)));
 	max-width: 90vw;
 	max-height: 90dvh;
+	display: flex;
+	flex-direction: column;
+}
+
+.bt-player-modal .mantine-Modal-body,
+.bt-player-modal [data-testid="video-player"] {
+	flex: 0 1 auto;
+	min-height: 0;
+}
+
+.bt-player-modal video {
+	flex: 0 1 auto;
+	min-height: 96px;
 }
