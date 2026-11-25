@@ -11,6 +11,7 @@ import { gameLabel } from "../videos/gameLabel.js";
 import { LazyPlayerDialog } from "../videos/LazyPlayerDialog.js";
 import { useOpenClip } from "../videos/openClip.js";
 import { VideoStill } from "../videos/VideoCard.js";
+import { SectionHeading } from "../SectionHeading.js";
 
 type DigestItem = DayDigestPayload["items"][number];
 
@@ -96,9 +97,9 @@ export function DayDigest({ date, variant }: { date: string;
 	const columns = variant === "mobile" ? [data.items] : [data.items.slice(0, half), data.items.slice(half)];
 	return (
 		<Stack gap="sm" data-testid="day-digest">
-			<Text size="xs" fw={700} tt="uppercase">
+			<SectionHeading>
 				Best of {formatMonthDay(data.date)} — Highlights
-			</Text>
+			</SectionHeading>
 			<SimpleGrid cols={columns.length} spacing={8}>
 				{columns.map((column, index) => (
 					<Stack key={index} gap={8} data-testid="digest-column">

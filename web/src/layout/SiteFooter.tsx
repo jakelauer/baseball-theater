@@ -11,11 +11,15 @@ import type { LayoutVariant } from "./variant.js";
 /** The Support & Community link's address, the r/BaseballTheater subreddit (owner, 2026-11-19; A14 Support & Community). */
 const SUPPORT_URL = "https://www.reddit.com/r/BaseballTheater/";
 
-/** One column's heading (A14: 11px IBM Plex Sans Medium, uppercase, muted). */
+/**
+ * One column's heading (A14: IBM Plex Sans Medium, uppercase, muted), at the links' 13px rather than
+ * A14's 11px, so it is never smaller than the text under it (B527, #527; owner, 2026-11-24: "The headers
+ * are smaller than the body text, and they shouldn't be.").
+ */
 function Heading({ children }: { children: ReactNode })
 {
 	return (
-		<Text fz={11} fw={500} tt="uppercase" c="var(--bt-muted)" lh="14px" style={{
+		<Text fz={13} fw={500} tt="uppercase" c="var(--bt-muted)" lh="18px" style={{
 			letterSpacing: "0.04em",
 		}}>
 			{children}

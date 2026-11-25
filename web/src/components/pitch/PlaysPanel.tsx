@@ -23,6 +23,7 @@ import { PlayerHost } from "../videos/PlayerHost.js";
 import type { Video } from "../videos/VideoCard.js";
 import { videoPlayLink } from "../videos/playLink.js";
 import { AtBatViewer } from "./AtBatViewer.js";
+import { SectionHeading } from "../SectionHeading.js";
 
 /**
  * An open at-bat's header: the matchup, inning and final count, what happened, and the
@@ -273,7 +274,7 @@ export function PlaysPanel({ game }: { game: GamePayload })
 					flex: 1,
 					minWidth: 0,
 				}}>
-					<Text fz={11} fw={700} tt="uppercase">{heading}</Text>
+					<SectionHeading>{heading}</SectionHeading>
 					{rows.length === 0 ? <Text c="dimmed">No scoring plays yet.</Text> : (
 						<PlaysAccordion
 							// A new view starts fresh with every row closed (owner, 2026-11-12: "the plays view shouldn't
@@ -497,7 +498,7 @@ function PlaysAccordion({
 		<Accordion value={open} onChange={choose} variant="separated" transitionDuration={duration}>
 			{sections.map((section) => (
 				<Fragment key={section.label}>
-					{section.label ? <Text fz={11} fw={700} tt="uppercase" mt={8}>{section.label}</Text> : null}
+					{section.label ? <SectionHeading mt={8}>{section.label}</SectionHeading> : null}
 					{section.plays.map((atBat) =>
 					{
 						const value = String(atBat.about.atBatIndex);

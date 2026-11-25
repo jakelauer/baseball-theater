@@ -1,5 +1,5 @@
 import {
-	Box, SimpleGrid, Stack, Text,
+	Box, SimpleGrid, Stack,
 } from "@mantine/core";
 import { useParams } from "react-router-dom";
 import { scoreboardRows } from "@bt/domain";
@@ -19,6 +19,13 @@ import { useFooterMode } from "../layout/footerMode.js";
 import type { LayoutVariant } from "../layout/variant.js";
 import { useSavedCopy } from "../pwa/offline.js";
 import { useSettings } from "../settings/store.js";
+import { SectionHeading } from "../components/SectionHeading.js";
+
+/** The scoreboard's columns: one on mobile, two on medium and desktop; the games and their loading skeleton share it. */
+function scoreboardColumns(variant: LayoutVariant): number
+{
+	return variant === "mobile" ? 1 : 2;
+}
 
 /**
  * The day's games under their `GAMES — SEP 21, 2026` label, or the empty sentence. With
@@ -40,10 +47,10 @@ function Games({ day, variant }: { day: ScheduleDayPayload;
 	const wide = variant !== "mobile" && rows.some((row) => row.collapsed);
 	return (
 		<Stack gap="sm">
-			<Text size="xs" fw={700} tt="uppercase">
+			<SectionHeading>
 				Games — {formatDate(day.date)}
-			</Text>
-			<SimpleGrid cols={variant === "mobile" ? 1 : 2} spacing="md" verticalSpacing="md" data-testid="scoreboard-grid">
+			</SectionHeading>
+			<SimpleGrid cols={scoreboardColumns(variant)} spacing="md" verticalSpacing="md" data-testid="scoreboard-grid">
 				{rows.map(({ game, collapsed }) =>
 				{
 					if (collapsed)
@@ -66,7 +73,7 @@ function Games({ day, variant }: { day: ScheduleDayPayload;
 
 /**
  * The scoreboard (S31 frames; S66) for the URL's day, or, with none in the URL, the
- * server's default day (S111) — `ViewState`'s loading treatment until it is known.
+ * server's default day (S111) — `ViewState`'s loading skeleton of game cards until it is known (#431).
  * `setFooter` holds the shell's footer back while the page loads (S142; `FooterMode`).
  */
 export function ScoreboardPage({ variant, setFooter }: { variant: LayoutVariant;
@@ -80,7 +87,7 @@ export function ScoreboardPage({ variant, setFooter }: { variant: LayoutVariant;
 	// No day in the URL and the default not known yet: hold the footer back (S142).
 	useFooterMode(setFooter, shown ? null : "none");
 	// No day in the URL: the default; it is MLB's today if the server can't say.
-	return shown ? <ScoreboardDay date={shown} variant={variant} today={today} setFooter={setFooter} /> : <ViewState kind="loading" />;
+	return shown ? <ScoreboardDay date={shown} variant={variant} today={today} setFooter={setFooter} /> : <ViewState kind="loading" cards={scoreboardColumns(variant)} />;
 }
 
 /**
@@ -127,7 +134,7 @@ function ScoreboardDay({
 	}
 	else if (screen === "loading" || !day)
 	{
-		body = <ViewState kind="loading" title={`${formatDate(date)} Scoreboard`} />;
+		body = <ViewState kind="loading" title={`${formatDate(date)} Scoreboard`} cards={scoreboardColumns(variant)} />;
 	}
 	else
 	{

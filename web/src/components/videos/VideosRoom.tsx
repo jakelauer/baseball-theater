@@ -18,6 +18,7 @@ import { PlayerHost } from "./PlayerHost.js";
 import { videoPlayLink } from "./playLink.js";
 import { FilterPill, QuickFilters } from "./QuickFilters.js";
 import { VideoCard } from "./VideoCard.js";
+import { SectionHeading } from "../SectionHeading.js";
 
 /** Grid columns by pairing (game-shell Videos frames: two, three, four). */
 const COLUMNS: Readonly<Record<LayoutVariant, number>> = {
@@ -221,7 +222,7 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 				playLink={playing ? videoPlayLink(playing, game) : null}
 				stageGame={game}
 			/>
-			<Text size="xs" fw={700} tt="uppercase">Videos</Text>
+			<SectionHeading>Videos</SectionHeading>
 			<TextInput
 				aria-label="Search videos"
 				placeholder="Search videos..."
@@ -299,7 +300,7 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 						>
 							<Group gap={6} wrap="nowrap">
 								<Chevron size={14} color="var(--bt-muted)" aria-hidden />
-								<Text size="xs" fw={700} tt="uppercase" c="var(--bt-muted)">{GROUP_LABELS[group]}</Text>
+								<SectionHeading c="var(--bt-muted)">{GROUP_LABELS[group]}</SectionHeading>
 								<Text size="xs" c="var(--bt-muted)">{highlights.length}</Text>
 							</Group>
 						</UnstyledButton>
