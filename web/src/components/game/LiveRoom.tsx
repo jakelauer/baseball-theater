@@ -11,6 +11,7 @@ import { PitchTheater } from "../pitch/PitchTheater.js";
 import { useScoresHidden } from "../../settings/useScoresHidden.js";
 import { LiveStatus } from "./LiveStatus.js";
 import { WinProbabilityCard } from "./WinProbabilityCard.js";
+import { SectionHeading } from "../SectionHeading.js";
 
 /** The pitcher's and batter's surnames: "Gusto vs Bregman". */
 function matchupTitle(atBat: AtBat): string
@@ -79,7 +80,7 @@ export function LiveRoom({ game, variant }: { game: GamePayload;
 				</Box>
 				{cards}
 				<PitchTheater atBat={atBat} selected={selected} onSelectPitch={select} arrivals={arrivals} scoresHidden={scoresHidden} />
-				<Text fz={12} fw={700} tt="uppercase">Pitch sequence</Text>
+				<SectionHeading>Pitch sequence</SectionHeading>
 				{sequence}
 			</Stack>
 		);

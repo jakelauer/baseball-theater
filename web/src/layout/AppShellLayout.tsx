@@ -46,9 +46,13 @@ import { useLayoutVariant } from "./variant.js";
  * page's `contentinfo` and spans the content column edge to edge, never the rail, and never in
  * the drawer. What only the page knows (its live socket open, or the deleted page's "no footer")
  * reaches it through `setFooter`, the setter of a `useState` here that the render prop passes
- * beside `variant` (ADR-024: no store, no context); pages set it with `useFooterMode`. `<main>`
- * doesn't grow, so on a page shorter than the screen the footer follows the content and the
- * leftover height is left empty below it (A14 Short page; owner, 2026-11-19: "A13").
+ * beside `variant` (ADR-024: no store, no context); pages set it with `useFooterMode`. The footer is
+ * never pinned (A14 Short page), but `<main>` grows to fill the window's leftover height, so on a
+ * page shorter than the screen the footer sits at the window's bottom, and on a taller one it follows
+ * the content (B525, #525; owner, 2026-11-24: "It's never pinned, but the content's minimum height
+ * should be either a percentage of the viewport height or something similar to avoid a highwater
+ * footer"). The shell's `.bt-shell` class (`styles.css`) makes it at least the window's height,
+ * `100dvh` after a `100vh` fallback, which an inline style can't express.
  */
 export function AppShellLayout({
 	children, notice = null, marker = null, pointer = null,
@@ -88,10 +92,7 @@ export function AppShellLayout({
 	const gameRoute = pathname.startsWith("/game/");
 
 	return (
-		<Box style={{
-			display: "flex",
-			minHeight: "100vh",
-		}}>
+		<Box className="bt-shell">
 			{desktop ? (
 				<Box
 					component="nav"
@@ -138,7 +139,9 @@ export function AppShellLayout({
 				{gameRoute ? null : <AppHeader burger={!desktop} wordmark={!desktop} drawerOpened={opened} onBurger={onBurger} pointer={desktop ? null : pointer} />}
 				<NoticeSlot notice={notice} />
 				{gameRoute ? null : <NoticeSlot notice={marker} />}
-				<Box component="main" px="md" pb="md" pt={gameRoute ? 0 : "md"}>
+				<Box component="main" px="md" pb="md" pt={gameRoute ? 0 : "md"} style={{
+					flexGrow: 1,
+				}}>
 					{children(variant, setFooter)}
 				</Box>
 				{footer === "none" ? null : <SiteFooter live={footer === "live"} variant={variant} />}
