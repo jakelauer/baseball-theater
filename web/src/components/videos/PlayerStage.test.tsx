@@ -133,7 +133,7 @@ describe("the stage's inning row (S172)", () =>
 	it("S172 AC 1: a chosen clip with a play shows its own inning pill on the row", async () =>
 	{
 		await openStage();
-		fireEvent.click(screen.getByRole("button", {
+		fireEvent.click(screen.getByRole("link", {
 			name: `Play ${BUSCH.title}`,
 		}));
 		await waitFor(() => expect(within(stage()).getByTestId("stage-play-row").textContent).toBe("Top 6 →"));
@@ -146,7 +146,7 @@ describe("the stage's inning row (S172)", () =>
 	it("S172 AC 1: a clip with no play shows no pill and no row", async () =>
 	{
 		await openStage();
-		fireEvent.click(screen.getAllByRole("button", {
+		fireEvent.click(screen.getAllByRole("link", {
 			name: `Play ${NO_PLAY.title}`,
 		})[0]!);
 		await waitFor(() => expect(within(stage()).getByTestId("video-player")).toHaveTextContent(NO_PLAY.title));
@@ -158,7 +158,7 @@ describe("the stage's inning row (S172)", () =>
 	it("S172 AC 2: choosing the pill opens the play in the Plays room, leaving the Videos room and its stage", async () =>
 	{
 		await openStage();
-		fireEvent.click(screen.getByRole("button", {
+		fireEvent.click(screen.getByRole("link", {
 			name: `Play ${BUSCH.title}`,
 		}));
 		await waitFor(() => expect(within(stage()).getByTestId("stage-play-row").textContent).toBe("Top 6 →"));

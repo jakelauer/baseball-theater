@@ -109,14 +109,14 @@ describe("video play links (S97)", () =>
 			}));
 			const links = screen.getAllByTestId("play-link");
 			expect(links).toHaveLength(20);
-			const conine = screen.getByRole("button", {
+			const conine = screen.getByRole("link", {
 				name: `Play ${CONINE.title}`,
 			});
 			// S145: the pill on the meta line, the card button's next sibling, not inside it.
 			expect(conine.contains(links[0]!)).toBe(false);
 			expect(conine.nextElementSibling?.textContent).toBe(conineLabel);
 			const recap = GAME.highlights.find((h) => !h.playId)!;
-			expect(screen.getAllByRole("button", {
+			expect(screen.getAllByRole("link", {
 				name: `Play ${recap.title}`,
 			})[0]!.nextElementSibling?.getAttribute("data-testid")).not.toBe("play-link");
 		}
@@ -125,7 +125,7 @@ describe("video play links (S97)", () =>
 	it("S97 AC 1: choosing the link opens the play without opening the player", async () =>
 	{
 		await open("/game/823823/videos", "video-card");
-		fireEvent.click(screen.getByRole("button", {
+		fireEvent.click(screen.getByRole("link", {
 			name: `Play ${CONINE.title}`,
 		}).nextElementSibling!);
 		await waitFor(() => expect(screen.getByTestId("where").textContent).toBe(`/game/823823/plays?play=${encodeURIComponent(CONINE.playId!)}`));
@@ -135,7 +135,7 @@ describe("video play links (S97)", () =>
 	it("S97 AC 2: the floating player shows the play link top left; choosing it closes the player and opens the play", async () =>
 	{
 		await open("/game/823823/videos", "video-card");
-		fireEvent.click(screen.getByRole("button", {
+		fireEvent.click(screen.getByRole("link", {
 			name: `Play ${CONINE.title}`,
 		}));
 		const dialog = await screen.findByRole("dialog");
@@ -244,7 +244,8 @@ describe("a play's video plays from its row in Plays (#422)", () =>
 		}));
 		const item = document.getElementById(`at-bat-${conineAtBat.about.atBatIndex}`)!;
 		const toggle = within(item).getAllByRole("button")[0]!;
-		const play = within(item).getByRole("button", {
+		// A link to the room with the clip open (#424).
+		const play = within(item).getByRole("link", {
 			name: CONINE.title,
 		});
 		// In the row, not inside the accordion's own button (a button can't hold another).
@@ -268,7 +269,7 @@ describe("a play's video plays from its row in Plays (#422)", () =>
 		})).getByRole("button", {
 			name: String(conineAtBat.about.inning),
 		}));
-		return within(document.getElementById(`at-bat-${conineAtBat.about.atBatIndex}`)!).getByRole("button", {
+		return within(document.getElementById(`at-bat-${conineAtBat.about.atBatIndex}`)!).getByRole("link", {
 			name,
 		});
 	}
@@ -364,7 +365,7 @@ describe("the inning pill in the player and on the game page's cards (S145)", ()
 			inning: 6,
 		});
 		await open("/game/823823/videos", "video-card");
-		const card = screen.getByRole("button", {
+		const card = screen.getByRole("link", {
 			name: `Play ${BUSCH.title}`,
 		});
 		const pill = within(card.parentElement!).getByRole("link", {
@@ -378,7 +379,7 @@ describe("the inning pill in the player and on the game page's cards (S145)", ()
 		})).textContent).toBe("Top 6 →");
 	});
 
-	it("S145 AC 1: the player's pill for a bottom-of-the-3rd play reads Bot 3 → and is named 'Bot 3: open play, bottom of 3rd inning'", () =>
+	it("S145 AC 1: the player's pill for a bottom-of-the-3rd play reads Bot 3 → and is named 'Bot 3: open play, bottom of 3rd inning'", async () =>
 	{
 		render(
 			<MantineProvider>
@@ -393,7 +394,8 @@ describe("the inning pill in the player and on the game page's cards (S145)", ()
 				</MemoryRouter>
 			</MantineProvider>,
 		);
-		const pill = within(screen.getByRole("dialog")).getByRole("link", {
+		// The dialog opens a frame after it mounts, so its transition runs (#423).
+		const pill = within(await screen.findByRole("dialog")).getByRole("link", {
 			name: "Bot 3: open play, bottom of 3rd inning",
 		});
 		expect(pill.textContent).toBe("Bot 3 →");
@@ -403,7 +405,7 @@ describe("the inning pill in the player and on the game page's cards (S145)", ()
 	it("S145 AC 4: the floating player shows the pill in place of the play link; choosing it closes the player and opens the play", async () =>
 	{
 		await open("/game/823823/videos", "video-card");
-		fireEvent.click(screen.getByRole("button", {
+		fireEvent.click(screen.getByRole("link", {
 			name: `Play ${CONINE.title}`,
 		}));
 		const dialog = await screen.findByRole("dialog");
