@@ -34,7 +34,8 @@ function Team({ team, side }: { team: ScoreboardGame["teams"]["away"];
  * `/game/<gamePk>` like the full module's link, so it lands in the room Settings' Opens
  * First picks; it never expands in place (S126; owner, 2026-11-07: "collapsed games in the
  * game list should not expand on click, they should go to the game page."). It lifts on
- * hover like the full module (`.bt-card`).
+ * hover like the full module (`.bt-card`). Like the module it carries its game's id as
+ * `data-game-pk`, so a check finds a game by itself, not by its place in the order (S218).
  */
 export function CollapsedBar({ game }: { game: ScoreboardGame })
 {
@@ -48,6 +49,7 @@ export function CollapsedBar({ game }: { game: ScoreboardGame })
 			component={Link}
 			to={`/game/${game.gamePk}`}
 			data-testid="collapsed-bar"
+			data-game-pk={game.gamePk}
 			className="bt-card"
 			aria-label={`${game.teams.away.abbreviation} at ${game.teams.home.abbreviation}${live ? `, ${live}` : ""}: open the game`}
 			style={{

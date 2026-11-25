@@ -169,6 +169,16 @@ describe("collapse non-favorites (S68)", () =>
 		expect(screen.queryByTestId("scoreboard-module")).toBeNull();
 	});
 
+	// The design capture specs find a game by this attribute, collapsed or not, never by its place in the order (S218).
+	it("S218 AC 1: a collapsed bar rendered for a fixture game carries its gamePk", async () =>
+	{
+		await renderScoreboard({
+			favoriteTeamIds: [112],
+			collapseNonFavorites: true,
+		});
+		expect(screen.getByTestId("collapsed-bar").dataset.gamePk).toBe("823577");
+	});
+
 	it("collapsed bar: a live bar names its inning; a scheduled bar shows its start time, or nothing without one", async () =>
 	{
 		await renderScoreboard({

@@ -28,12 +28,14 @@ export type DigestPlay = HalfInning & {
 	playId: string;
 };
 
-/** One clip in the day digest: its place, whether to watch it first, the clip, its game and its play. */
+/**
+ * One clip in the day digest: its place, the clip, its game and its play. It carries no
+ * "watch first" flag (S217): Best of draws on the highlight grid with no such label since
+ * B426, so the top clip is simply rank 1.
+ */
 export type DigestItem = {
 	/** 1 for the top clip. */
 	rank: number;
-	/** Only the top clip (the frames' `WATCH FIRST`). */
-	watchFirst: boolean;
 	highlight: MediaHighlight;
 	game: DigestClipGame;
 	/** The clip's play (S173), or null for a clip with no play or one whose pitch isn't in its game's plays. */
@@ -53,8 +55,8 @@ export const DIGEST_SIZE = 5;
  * against its own game's plays and metrics (`rankHighlightGroupsByImpact`, #61), so the
  * scoreboard and a game's Videos room agree on what matters: play clips by how much their
  * play swung the game, then interviews, recaps and other clips with no measured play. The
- * top `limit` are kept, numbered from 1, and the first is the one to watch first. A clip
- * that appears in two games' lists (same id) is kept once, with the first game that lists it.
+ * top `limit` are kept, numbered from 1. A clip that appears in two games' lists (same id) is
+ * kept once, with the first game that lists it.
  */
 export function dayDigest(games: readonly DigestGame[], limit = DIGEST_SIZE): DigestItem[]
 {
@@ -88,7 +90,6 @@ export function dayDigest(games: readonly DigestGame[], limit = DIGEST_SIZE): Di
 	}
 	return rankHighlightGroupsByImpact(groups).slice(0, limit).map((highlight, index) => ({
 		rank: index + 1,
-		watchFirst: index === 0,
 		highlight,
 		game: gameOf.get(highlight.id)!,
 		play: playOf.get(highlight.id) ?? null,

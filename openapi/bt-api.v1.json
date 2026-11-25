@@ -275,7 +275,7 @@
 			},
 			"DigestItem": {
 				"additionalProperties": false,
-				"description": "One clip in the day digest: its place, whether to watch it first, the clip, its game and its play.",
+				"description": "One clip in the day digest: its place, the clip, its game and its play. It carries no \"watch first\" flag (S217): Best of draws on the highlight grid with no such label since B426, so the top clip is simply rank 1.",
 				"properties": {
 					"game": { "$ref": "#/components/schemas/DigestClipGame" },
 					"highlight": { "$ref": "#/components/schemas/MediaHighlight" },
@@ -283,10 +283,9 @@
 						"anyOf": [{ "$ref": "#/components/schemas/DigestPlay" }, { "type": "null" }],
 						"description": "The clip's play (S173), or null for a clip with no play or one whose pitch isn't in its game's plays."
 					},
-					"rank": { "description": "1 for the top clip.", "type": "number" },
-					"watchFirst": { "description": "Only the top clip (the frames' `WATCH FIRST`).", "type": "boolean" }
+					"rank": { "description": "1 for the top clip.", "type": "number" }
 				},
-				"required": ["rank", "watchFirst", "highlight", "game", "play"],
+				"required": ["rank", "highlight", "game", "play"],
 				"type": "object"
 			},
 			"DigestPlay": {
@@ -1515,7 +1514,7 @@
 						"description": "`version_unsupported`: this API version has been retired (ADR-015); the client should reload to update."
 					}
 				},
-				"summary": "Best of one day: the top videos across its games, ranked by impact, the first marked to watch first."
+				"summary": "Best of one day: the top videos across its games, ranked by impact, numbered from 1."
 			}
 		},
 		"/api/v1/games/{gamePk}": {

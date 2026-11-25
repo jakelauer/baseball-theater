@@ -107,9 +107,12 @@ describe("dayDigest (S71)", () =>
 		expect(items[1]!.game.gamePk).toBe(1);
 	});
 
-	it("watch first: only the top clip is flagged", () =>
+	it("S217 AC 1: no clip carries a watchFirst flag (the top clip is rank 1)", () =>
 	{
-		expect(dayDigest(DAY).map((i) => i.watchFirst)).toEqual([true, false, false, false]);
+		for (const item of dayDigest(DAY))
+		{
+			expect(item).not.toHaveProperty("watchFirst");
+		}
 	});
 
 	it("keeps the top `limit` (DIGEST_SIZE by default); a day with no clips has none", () =>
