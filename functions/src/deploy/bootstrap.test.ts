@@ -576,17 +576,20 @@ describe("issue #532: the deployed Workers run near their database", () =>
 	{
 		// Cloudflare refuses any other hint at upload ("invalid placement hint 'aws:us-east-2'. Valid
 		// options are: wnam, enam, sam, weur, eeur, apac, oc, afr, me [code: 10021]"), which failed every
-		// staging deploy after S220 (issue #629). The list is the one that error names.
+		// staging deploy after S220 (issue #629). The list is the one that error names. Read from
+		// `wrangler.jsonc` itself, top level and every env, since the deploy copies `placement` unchanged
+		// (the #532 test above checks that for staging and production).
 		const regions = ["wnam", "enam", "sam", "weur", "eeur", "apac", "oc", "afr", "me"];
-		for (const env of ["staging", "production"] as const)
+		const placements: [string, unknown][] = [
+			["top-level", WRANGLER.placement],
+			...Object.entries(WRANGLER.env ?? {}).map(([env, config]): [string, unknown] => [env, config.placement]),
+		];
+		for (const [where, placement] of placements)
 		{
-			const config = deployConfig(WRANGLER, env, {
-				hyperdriveId: "hd-1",
-			}, (path) => path);
-			const hint = (config.env![env]!.placement as { hint?: string } | undefined)?.hint;
+			const hint = (placement as { hint?: string } | undefined)?.hint;
 			if (hint !== undefined)
 			{
-				expect(regions, `${env} placement hint`).toContain(hint);
+				expect(regions, `${where} placement hint`).toContain(hint);
 			}
 		}
 	});
