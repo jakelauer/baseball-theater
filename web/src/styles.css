@@ -120,7 +120,6 @@ a {
  *   (owner: "hover effects that zoom an image inside its container").
  * - `.bt-hover`: a plain clickable (a nav item, a text button) gets the Light wash behind it.
  * - `.bt-pitch-dot`: a pitch on the catcher's view grows a little.
- * - `.bt-video`: the playing picture, which pauses and plays on a click, brightens a touch.
  * - Mantine's own controls (icon buttons, buttons, links, tabs, accordion rows, menu items, close
  *   buttons, list options, radios, checkboxes, switches, text fields) get the same timing and a wash or edge
  *   that shows on the dark palette, where Mantine's gray barely does.
@@ -129,7 +128,6 @@ a {
 .bt-hover,
 .bt-zoom img,
 .bt-pitch-dot circle,
-.bt-video,
 .mantine-ActionIcon-root,
 .mantine-Button-root,
 .mantine-Anchor-root,
@@ -178,10 +176,6 @@ a {
 	transform-origin: center;
 }
 
-.bt-video {
-	cursor: pointer;
-}
-
 /* A card that is one big link: the link's box covers the whole card, so its padding and slot click through to the game. */
 .bt-card-link::after {
 	content: "";
@@ -220,10 +214,6 @@ a {
 
 	.bt-pitch-dot:hover circle {
 		transform: scale(1.2);
-	}
-
-	.bt-video:hover {
-		filter: brightness(1.06);
 	}
 
 	/* `!important` because these controls set their resting ground inline (`transparent`). */
@@ -303,7 +293,6 @@ a {
 	.bt-hover,
 	.bt-zoom img,
 	.bt-pitch-dot circle,
-	.bt-video,
 	.mantine-ActionIcon-root,
 	.mantine-Button-root,
 	.mantine-Anchor-root,
