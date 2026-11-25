@@ -55,8 +55,8 @@ export const DIGEST_SIZE = 5;
  * against its own game's plays and metrics (`rankHighlightGroupsByImpact`, #61), so the
  * scoreboard and a game's Videos room agree on what matters: play clips by how much their
  * play swung the game, then interviews, recaps and other clips with no measured play. The
- * top `limit` are kept, numbered from 1. A clip
- * that appears in two games' lists (same id) is kept once, with the first game that lists it.
+ * top `limit` are kept, numbered from 1. A clip that appears in two games' lists (same id) is
+ * kept once, with the first game that lists it.
  */
 export function dayDigest(games: readonly DigestGame[], limit = DIGEST_SIZE): DigestItem[]
 {
