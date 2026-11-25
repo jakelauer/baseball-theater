@@ -107,12 +107,14 @@
 			// Smart Placement (issue #532): run the fetch handler near Neon (us-east-2), not where the
 			// request landed, as each Postgres round trip from far away cost ~70 ms. Crons and Durable
 			// Objects are not moved. Per env, never top-level, so local dev and previews keep the default.
-			// S220: staging alone adds a placement hint, Neon's own region. With mode "smart" a hint only
-			// seeds Smart Placement (pinning would be mode "targeted" with a region); it is expected to move
-			// the Worker, its per-minute cron included, near the database, and staging's `db-round-trips`
-			// log lines (kind `cron`) will show whether it does. Production takes it only through a later
-			// change the owner approves once those lines show it helps.
-			"placement": { "mode": "smart", "hint": "aws:us-east-2" },
+			// S220: staging alone adds a placement hint, `enam` (eastern North America, the Cloudflare region
+			// holding Neon's us-east-2). The hint takes only Cloudflare's region codes (wnam, enam, sam, weur,
+			// eeur, apac, oc, afr, me); a cloud region such as `aws:us-east-2` is refused at upload (issue #629).
+			// With mode "smart" a hint only seeds Smart Placement (pinning would be mode "targeted" with a
+			// region); it is expected to move the Worker, its per-minute cron included, near the database, and
+			// staging's `db-round-trips` log lines (kind `cron`) will show whether it does. Production takes it
+			// only through a later change the owner approves once those lines show it helps.
+			"placement": { "mode": "smart", "hint": "enam" },
 			"routes": [{ "pattern": "stage.baseball.theater", "custom_domain": true }],
 			"durable_objects": {
 				"bindings": [

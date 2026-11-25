@@ -547,12 +547,13 @@ describe("issue #532: the deployed Workers run near their database", () =>
 	{
 		// Each Postgres round trip from a Worker far from Neon (us-east-2) cost ~70 ms; Smart Placement
 		// moves the fetch handler next to it. Checked in the config each deploy generates, which is
-		// what `wrangler deploy` reads. S220: staging alone adds Neon's region as a placement hint, so its
-		// cron runs there too; production keeps Smart Placement alone until the owner approves the hint.
+		// what `wrangler deploy` reads. S220: staging alone adds a placement hint, `enam`, the Cloudflare
+		// region holding Neon's (#629), so its cron runs there too; production keeps Smart Placement alone
+		// until the owner approves the hint.
 		const expected = {
 			staging: {
 				mode: "smart",
-				hint: "aws:us-east-2",
+				hint: "enam",
 			},
 			production: {
 				mode: "smart",
@@ -569,6 +570,28 @@ describe("issue #532: the deployed Workers run near their database", () =>
 		// previews stay where the request lands.
 		expect(WRANGLER.placement).toBeUndefined();
 		expect(WRANGLER.env!.preview!.placement).toBeUndefined();
+	});
+
+	it("any placement hint is one of Cloudflare's Smart Placement region codes (#629)", () =>
+	{
+		// Cloudflare refuses any other hint at upload ("invalid placement hint 'aws:us-east-2'. Valid
+		// options are: wnam, enam, sam, weur, eeur, apac, oc, afr, me [code: 10021]"), which failed every
+		// staging deploy after S220 (issue #629). The list is the one that error names. Read from
+		// `wrangler.jsonc` itself, top level and every env, since the deploy copies `placement` unchanged
+		// (the #532 test above checks that for staging and production).
+		const regions = ["wnam", "enam", "sam", "weur", "eeur", "apac", "oc", "afr", "me"];
+		const placements: [string, unknown][] = [
+			["top-level", WRANGLER.placement],
+			...Object.entries(WRANGLER.env ?? {}).map(([env, config]): [string, unknown] => [env, config.placement]),
+		];
+		for (const [where, placement] of placements)
+		{
+			const hint = (placement as { hint?: string } | undefined)?.hint;
+			if (hint !== undefined)
+			{
+				expect(regions, `${where} placement hint`).toContain(hint);
+			}
+		}
 	});
 });
 
