@@ -10,7 +10,7 @@ import { VideoGrid } from "../videos/VideoGrid.js";
 import { SectionHeading } from "../SectionHeading.js";
 
 /**
- * "Best of <date> — Highlights" (S71; `digest-item` on every ratified scoreboard frame):
+ * "Best of <date> — Highlights" (S71; the ratified scoreboard frames' digest, now the `day-digest` section of `video-card`s):
  * the day's top clips across its games, ranked by `dayDigest` on the server, drawn in the
  * game's Videos room highlight grid (`VideoGrid` of `VideoCard`s, 2 / 3 / 4 columns), in rank
  * order left to right, and with no "Watch first" label (#426; owner, 2026-11-23: "the best of
