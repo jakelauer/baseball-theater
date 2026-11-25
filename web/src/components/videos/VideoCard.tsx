@@ -170,8 +170,9 @@ export function VideoCard({
 				>
 					{title}
 				</Text>
+				{/* The matchup line wraps (and its cell may shrink) so matchup · date and the pill fit a phone's two-column grid card. */}
 				{matchup ? (
-					<Group gap={6} wrap="nowrap" style={cell}>
+					<Group gap={6} wrap="wrap" data-testid="video-meta-line" style={cell}>
 						<MatchupAbbr awayId={matchup.awayId} homeId={matchup.homeId} />
 						{metaText ? <Text span size="sm" c="var(--bt-muted)" aria-hidden>·</Text> : null}
 						{metaText}

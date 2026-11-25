@@ -414,6 +414,10 @@ describe("Search's results draw as the shared video cards, in a grid or a list (
 		// The matchup the old rows showed stays, at the start of the meta line.
 		expect(within(cards[0]!).getByTestId("matchup-abbr")).toHaveTextContent("TB@NYY");
 		expect(within(cards[1]!).getByTestId("matchup-abbr")).toHaveTextContent("MIL@TB");
+		// In a phone's ~170px grid card the matchup line wraps and may shrink, so matchup · date and the pill never overflow.
+		const line = within(cards[0]!).getByTestId("video-meta-line");
+		expect(line.getAttribute("style")).toMatch(/--group-wrap: wrap/);
+		expect(line.getAttribute("style")).toMatch(/min-width: 0/);
 		// Each card keeps its date line and, with a play, its inning pill (S153).
 		expect(within(rowOf(MESA.highlight.title)).getByTestId("video-meta")).toHaveTextContent(/^Oct 7, 2026$/);
 		expect(within(rowOf(MESA.highlight.title)).getByTestId("search-play-link")).toHaveAttribute("href", "/game/849838/plays?play=4f687124-5ec9-337b-a32b-2dedc930bcee");
