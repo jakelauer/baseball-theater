@@ -1,14 +1,16 @@
 import {
-	Button, Checkbox, Drawer, Group, Menu, Radio, ScrollArea, SegmentedControl, SimpleGrid, Stack, Text, TextInput, UnstyledButton, VisuallyHidden,
+	Box, Button, Checkbox, Drawer, Group, Menu, Radio, ScrollArea, SegmentedControl, Stack, Text, TextInput, UnstyledButton, VisuallyHidden,
 } from "@mantine/core";
 import {
 	IconArrowsSort, IconChevronDown, IconChevronRight, IconLayoutGrid, IconList, IconSearch,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import {
-	filterHighlights, groupHighlights, sortHighlights,
+	countHighlightFacets, filterHighlights, groupHighlights, sortHighlights,
 } from "@bt/domain";
-import type { HighlightGroup, HighlightSort } from "@bt/domain";
+import type {
+	HighlightFacetCounts, HighlightGroup, HighlightSort,
+} from "@bt/domain";
 import type { GamePayload } from "../../api/game.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { useScoresHidden } from "../../settings/useScoresHidden.js";
@@ -18,14 +20,8 @@ import { PlayerHost } from "./PlayerHost.js";
 import { videoPlayLink } from "./playLink.js";
 import { FilterPill, QuickFilters } from "./QuickFilters.js";
 import { VideoCard } from "./VideoCard.js";
+import { VideoGrid } from "./VideoGrid.js";
 import { SectionHeading } from "../SectionHeading.js";
-
-/** Grid columns by pairing (game-shell Videos frames: two, three, four). */
-const COLUMNS: Readonly<Record<LayoutVariant, number>> = {
-	mobile: 2,
-	medium: 3,
-	desktop: 4,
-};
 
 const SORT_LABELS: Readonly<Record<HighlightSort, string>> = {
 	impact: "Impact",
@@ -47,32 +43,43 @@ type Filters = {
 	statViz: boolean;
 };
 
+/** The Featured team control's value for "All": no team chosen. */
+const ALL_TEAMS = "all";
+
 /**
- * The Featured team quick filter: a pill that opens a menu of the game's two teams, plus
- * "All teams" to clear it. Nothing is chosen until the reader picks a team (owner,
- * 2026-10-30: "One of the game's two teams and the default filter value should be none");
- * once chosen the pill names the team.
+ * The Featured team quick filter (#428; owner, 2026-11-23: "it should be a … button set where
+ * the buttons are connected all in one pill … all and then each of the teams … we should put
+ * the number of videos each one has"): one segmented control, All · away · home, All chosen
+ * until the reader picks a team (FEATURES: the default is none). Each option shows its count
+ * (`countHighlightFacets`); a clip featuring neither team counts only under All.
  */
 function FeaturedTeam({
-	game, teamId, onChange,
+	game, teamId, counts, onChange,
 }: { game: GamePayload;
 	teamId: number | null;
+	counts: HighlightFacetCounts;
 	onChange: (teamId: number | null) => void; })
 {
 	const { away, home } = game.teams;
-	const chosen = [away, home].find((team) => team.id === teamId);
+	const option = (label: string, count: number) => <>{label} <Text span inherit c="var(--bt-muted)">{count}</Text></>;
 	return (
-		<Menu position="bottom-start">
-			<Menu.Target>
-				<FilterPill active={Boolean(chosen)} rightSection={<IconChevronDown size={12} />} aria-label={chosen ? `Featured team: ${chosen.abbreviation}` : "Featured team"}>
-					{chosen ? chosen.abbreviation : "Featured team"}
-				</FilterPill>
-			</Menu.Target>
-			<Menu.Dropdown>
-				<Menu.Item onClick={() => onChange(null)}>All teams</Menu.Item>
-				{[away, home].map((team) => <Menu.Item key={team.id} onClick={() => onChange(team.id)}>{team.abbreviation}</Menu.Item>)}
-			</Menu.Dropdown>
-		</Menu>
+		<SegmentedControl
+			size="xs"
+			aria-label="Featured team"
+			color="primary"
+			value={teamId === null ? ALL_TEAMS : String(teamId)}
+			onChange={(value) => onChange(value === ALL_TEAMS ? null : Number(value))}
+			data={[
+				{
+					value: ALL_TEAMS,
+					label: option("All", counts.all),
+				},
+				...[away, home].map((team) => ({
+					value: String(team.id),
+					label: option(team.abbreviation, counts.byTeam[team.id] ?? 0),
+				})),
+			]}
+		/>
 	);
 }
 
@@ -82,9 +89,11 @@ function FeaturedTeam({
  * edits a copy of the filters; Apply sets them and closes, dismissing discards.
  */
 function FilterDrawer({
-	game, opened, filters, onApply, onClose,
+	game, opened, filters, statViz, onApply, onClose,
 }: { game: GamePayload;
 	opened: boolean;
+	/** Whether to offer Stat / viz: only when some clip fits it (#418). */
+	statViz: boolean;
 	filters: Filters;
 	onApply: (filters: Filters) => void;
 	onClose: () => void; })
@@ -125,14 +134,16 @@ function FilterDrawer({
 							{[away, home].map((team) => <Radio key={team.id} value={String(team.id)} label={team.abbreviation} />)}
 						</Stack>
 					</Radio.Group>
-					<Checkbox
-						label="Stat / viz"
-						checked={draft.statViz}
-						onChange={(event) => setDraft({
-							...draft,
-							statViz: event.currentTarget.checked,
-						})}
-					/>
+					{statViz ? (
+						<Checkbox
+							label="Stat / viz"
+							checked={draft.statViz}
+							onChange={(event) => setDraft({
+								...draft,
+								statViz: event.currentTarget.checked,
+							})}
+						/>
+					) : null}
 				</Stack>
 			</ScrollArea.Autosize>
 			<Button fullWidth onClick={() => onApply(draft)}>Apply</Button>
@@ -146,14 +157,17 @@ function FilterDrawer({
  * sorted by time; owner, 2026-10-30: "Use “Videos”"), a full-width search, then one row: the quick filters on the
  * left (`QuickFilters`: as many as fit, then a Filters button opening `FilterDrawer`), and
  * on the right the sort (`sortHighlights`; impact first, the server's
- * `rankHighlightsByImpact` order) and the Grid / List icons (owner, 2026-10-30). The grid
+ * `rankHighlightsByImpact` order) and the Grid / List icons (owner, 2026-10-30). The quick
+ * filters are the Featured team control with each option's count and, only when some clip
+ * fits it, Stat / viz (`countHighlightFacets`; #428, #418). The grid (`VideoGrid`)
  * has 2 / 3 / 4 columns at mobile / medium / desktop from the host's `variant`; List
  * shows the same `VideoCard`s as rows. Filtering is `filterHighlights` (packages/domain).
  * The results show in groups — Pre-game, Game highlights, Statcast, Post-game
  * (`groupHighlights`), each in the chosen sort — and a group with nothing in it is left
  * out (owner, 2026-10-30). Each group's heading, with its count, is a button that folds
  * the group away and back (owner, 2026-10-30: "the groups should be collapsible"); all
- * start open.
+ * start open, each open group's clips inset in a container whose left rule runs down
+ * from the chevron (#427).
  * Choosing a video (a card linking to this room with it open, `useOpenClip`, #424) plays it in `PlayerHost` (S70): a dialog by default, or the stage at
  * the top of the room when the reader chose Stage. Played from the game's own room, the
  * dialog carries no link back to it. With Hide Scores on the recap clip is titled
@@ -186,17 +200,19 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 		query,
 		...filters,
 	}), sort);
+	const counts = countHighlightFacets(game.highlights);
 	const pills = [
 		{
 			key: "team",
 			active: filters.teamId !== null,
-			node: <FeaturedTeam game={game} teamId={filters.teamId} onChange={(teamId) => setFilters({
+			node: <FeaturedTeam game={game} teamId={filters.teamId} counts={counts} onChange={(teamId) => setFilters({
 				...filters,
 				teamId,
 			})}
 			/>,
 		},
-		{
+		// Stat / viz only when some clip fits it (#418; owner, 2026-11-23: "the stat viz button should not show if there are no videos that fit that description").
+		...(counts.statViz === 0 ? [] : [{
 			key: "statViz",
 			active: filters.statViz,
 			node: (
@@ -208,7 +224,7 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 					Stat / viz
 				</FilterPill>
 			),
-		},
+		}]),
 	];
 
 	return (
@@ -304,18 +320,29 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 								<Text size="xs" c="var(--bt-muted)">{highlights.length}</Text>
 							</Group>
 						</UnstyledButton>
-						{!open ? null : layout === "grid" ? (
-							<SimpleGrid cols={COLUMNS[variant]} spacing="md" verticalSpacing="lg" data-testid="videos-grid" style={{
-								alignItems: "start",
-							}}
+						{/*
+							The group's container (#427; owner, 2026-11-23: "a border on the left that sort of like goes down
+							from the arrow … the videos inside that section are actually inside it"): a rule from under the
+							chevron, the clips inset beside it.
+						*/}
+						{open ? (
+							<Box
+								data-testid="videos-group-body"
+								style={{
+									marginLeft: 6,
+									paddingLeft: 14,
+									borderLeftWidth: 2,
+									borderLeftStyle: "solid",
+									borderLeftColor: "var(--mantine-color-dark-4)",
+								}}
 							>
-								{cards}
-							</SimpleGrid>
-						) : <Stack gap="sm" data-testid="videos-list">{cards}</Stack>}
+								{layout === "grid" ? <VideoGrid variant={variant}>{cards}</VideoGrid> : <Stack gap="sm" data-testid="videos-list">{cards}</Stack>}
+							</Box>
+						) : null}
 					</Stack>
 				);
 			})}
-			{drawer ? <FilterDrawer game={game} opened filters={filters} onApply={(next) =>
+			{drawer ? <FilterDrawer game={game} opened filters={filters} statViz={counts.statViz > 0} onApply={(next) =>
 			{
 				setFilters(next);
 				setDrawer(false);
