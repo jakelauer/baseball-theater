@@ -51,11 +51,25 @@ class VersionedMemoryStore<K, T>
 		return value === undefined ? null : jsonCopy(value);
 	}
 
-	put(key: K, value: T): void
+	/** Stores `value` if it is newer than what `key` holds; says whether it did (S216: an upsert reports a refusal). */
+	put(key: K, value: T): boolean
 	{
 		const current = this.entries.get(key);
-		if (current !== undefined && this.versionOf(value) <= this.versionOf(current)) return;
+		if (current !== undefined && this.versionOf(value) <= this.versionOf(current)) return false;
 		this.entries.set(key, jsonCopy(value));
+		return true;
+	}
+
+	/** Stores each of `values` under `keyOf` as {@link put} does, the newest of one key's values only; returns the keys it took. */
+	putMany(values: readonly T[], keyOf: (value: T) => K): K[]
+	{
+		const newest = new Map<K, T>();
+		for (const value of values)
+		{
+			const held = newest.get(keyOf(value));
+			if (held === undefined || this.versionOf(value) > this.versionOf(held)) newest.set(keyOf(value), value);
+		}
+		return [...newest].filter(([key, value]) => this.put(key, value)).map(([key]) => key);
 	}
 
 	values(): T[]
@@ -103,16 +117,19 @@ export class InMemoryScheduleRepository implements ScheduleRepository
 
 	/**
 	 * The version-guarded write, and with it the `served_base` raise: the stored state versions of the games the stored
-	 * day lists and `day` doesn't, read in the same synchronous step, as the Postgres statement reads them.
+	 * day lists and `day` doesn't, read in the same synchronous step, as the Postgres statement reads them. Returns the
+	 * `served_base` it left, or null when refused (S216).
 	 */
-	async upsert(day: StoredScheduleDay): Promise<void>
+	async upsert(day: StoredScheduleDay): Promise<number | null>
 	{
 		const before = this.store.get(day.date);
-		if (before !== null && day.version <= before.version) return;
+		if (before !== null && day.version <= before.version) return null;
 		const listed = new Set(day.games.map((game) => game.gamePk));
 		const raise = (before?.games ?? []).filter((game) => !listed.has(game.gamePk)).reduce((sum, game) => sum + this.gameStates.versionOf(game.gamePk), 0);
 		this.store.put(day.date, day);
-		this.servedBases.set(day.date, (this.servedBases.get(day.date) ?? 0) + raise);
+		const servedBase = (this.servedBases.get(day.date) ?? 0) + raise;
+		this.servedBases.set(day.date, servedBase);
+		return servedBase;
 	}
 
 	async listGameCounts(from: string, to: string): Promise<ScheduleDayTally[]>
@@ -296,6 +313,16 @@ export class InMemoryGameRepository implements GameRepository
 		this.store.put(game.gamePk, game);
 	}
 
+	async getMany(gamePks: readonly number[]): Promise<GameSnapshot[]>
+	{
+		return [...new Set(gamePks)].flatMap((gamePk) => this.store.get(gamePk) ?? []);
+	}
+
+	async upsertMany(games: readonly GameSnapshot[]): Promise<number[]>
+	{
+		return this.store.putMany(games, (game) => game.gamePk);
+	}
+
 	async getStateFields(gamePks: readonly number[]): Promise<GameStateFields[]>
 	{
 		return gamePks.flatMap((gamePk) =>
@@ -449,6 +476,11 @@ export class InMemoryGameProjectionRepository implements GameProjectionRepositor
 	async upsert(projection: GameProjection): Promise<void>
 	{
 		this.store.put(projection.header.gamePk, projection);
+	}
+
+	async upsertMany(projections: readonly GameProjection[]): Promise<number[]>
+	{
+		return this.store.putMany(projections, (projection) => projection.header.gamePk);
 	}
 
 	clear(): void

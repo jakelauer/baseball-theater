@@ -84,8 +84,10 @@ export function QualityPicker({
  * - **Download** isn't offered yet: a browser ignores `download` on another site's file and just
  *   opens it, which is Direct link again. S151 saves it through the service worker instead;
  *   until then Direct link opens the file, where the browser's own save works.
- * - **Share** opens the device's share sheet with the title and URL where the browser has one
- *   (`navigator.share`), and copies the link where it doesn't, with Copy link's answer.
+ * - **Share** opens the device's share sheet with the title and URL. It is drawn only where the
+ *   browser has one (`navigator.share`) that takes this title and URL (`navigator.canShare`, where
+ *   the browser has it); elsewhere Copy link already does what a fallback would (owner, 2026-11-23,
+ *   #417: "I would prefer that we just don't show the share option if it isn't available").
  */
 export function PlayerActions({
 	title, url, fileUrl,
@@ -114,17 +116,15 @@ export function PlayerActions({
 		}
 		navigator.clipboard.writeText(link).then(() => setCopy("copied"), () => setCopy("failed"));
 	};
+	const payload = {
+		title,
+		url: link,
+	};
+	// `canShare` is newer than `share` (older Safari has only `share`), so its absence doesn't hide Share.
+	const canShare = typeof navigator.share === "function" && (typeof navigator.canShare !== "function" || navigator.canShare(payload));
 	const share = () =>
 	{
-		if (typeof navigator.share !== "function")
-		{
-			copyLink();
-			return;
-		}
-		navigator.share({
-			title,
-			url: link,
-		}).catch(() =>
+		navigator.share(payload).catch(() =>
 		{
 			// The reader closed the share sheet: nothing to do.
 		});
@@ -139,9 +139,11 @@ export function PlayerActions({
 			<ActionButton icon={<IconExternalLink size={14} />} component="a" href={link} target="_blank" rel="noopener noreferrer">
 				Direct link
 			</ActionButton>
-			<ActionButton icon={<IconShare size={14} />} onClick={share}>
-				Share
-			</ActionButton>
+			{canShare ? (
+				<ActionButton icon={<IconShare size={14} />} onClick={share}>
+					Share
+				</ActionButton>
+			) : null}
 		</Group>
 	);
 }

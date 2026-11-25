@@ -27,8 +27,12 @@ export interface ScheduleRepository {
 	 * Writes the day if its version is newer (ADR-022). The same write raises its `served_base` by the state versions,
 	 * as stored at that moment, of the games the stored day lists and `day` doesn't, so a stop can never leave one
 	 * without the other and no state write in between can make the served version fall.
+	 *
+	 * S216: reports what it stored, so a caller answers from the day it formed without reading it back: the day's
+	 * `served_base` as this write left it (raised or not), or null when the write was refused because another writer
+	 * stored this version or a newer one first (then, and only then, the caller reads the stored day).
 	 */
-	upsert(day: StoredScheduleDay): Promise<void>;
+	upsert(day: StoredScheduleDay): Promise<number | null>;
 	/**
 	 * Every stored day from `from` to `to` (both included, `YYYY-MM-DD`) as its game count, its
 	 * teams' IDs (S136; each once, ascending), its games' types with whether it has a
@@ -96,6 +100,17 @@ export interface GameStateRepository {
 export interface GameRepository {
 	getByPk(gamePk: number): Promise<GameSnapshot | null>;
 	/**
+	 * The stored snapshots of `gamePks` in one read (S216 AC 2: a day's games read at once, not one query a game), in no
+	 * particular order; games not stored are left out.
+	 */
+	getMany(gamePks: readonly number[]): Promise<GameSnapshot[]>;
+	/**
+	 * Writes `games` in one write, each only if its version is newer than the stored one (ADR-022), and returns the
+	 * gamePks it took (S216 AC 2): a game left out was refused, another writer having stored that version or a newer
+	 * one first. Given one gamePk twice, only its newest version is written.
+	 */
+	upsertMany(games: readonly GameSnapshot[]): Promise<number[]>;
+	/**
 	 * What `gameStateFromGame` reads of each stored game of `gamePks` (S150 AC 6: a game with no `game_states` row is
 	 * served from its snapshot), in one read and without the rest of the document; games not stored are left out.
 	 */
@@ -128,6 +143,12 @@ export interface GameRepository {
 /** The five projected store documents per game; versioned by `header.version`. */
 export interface GameProjectionRepository {
 	upsert(projection: GameProjection): Promise<void>;
+	/**
+	 * Writes `projections` in one write, each only if its `header.version` is newer than the stored one (ADR-022), and
+	 * returns the gamePks it took (S216 AC 2); one left out was refused by a newer stored version. Given one gamePk
+	 * twice, only its newest version is written.
+	 */
+	upsertMany(projections: readonly GameProjection[]): Promise<number[]>;
 	getByPk(gamePk: number): Promise<GameProjection | null>;
 }
 

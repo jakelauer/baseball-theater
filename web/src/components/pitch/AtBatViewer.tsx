@@ -27,8 +27,13 @@ export function AtBatViewer({
 }: Props)
 {
 	const newest = atBat.pitches.at(-1)?.pitchNumber ?? null;
-	const [picked, setPicked] = useState<number | null>(null);
-	const selected = picked ?? newest;
+	// The open pitch: `undefined` until the viewer chooses (the newest is open), `null` once they
+	// close it (#522), so every pitch can be closed.
+	const [picked, setPicked] = useState<number | null | undefined>(undefined);
+	const open = picked === undefined ? newest : picked;
+	// The zone and its charts show the open pitch, or the last one with none open ("those should
+	// always show the selected / last pitch").
+	const selected = open ?? newest;
 	// Opening the at-bat replays every pitch in the zone, overlapping (owner, 2026-10-29:
 	// "Opening an at bat should animate each pitch in quick succession, starting after the
 	// top of screen animation is completed"; "should overlap a bit"). The last pitch is
@@ -46,8 +51,8 @@ export function AtBatViewer({
 			setReplaying(true);
 		}
 	}
-	// Choosing a pitch by hand stops a replay in progress.
-	const choose = (pitchNumber: number) =>
+	// Choosing a pitch by hand, or closing the open one, stops a replay in progress.
+	const choose = (pitchNumber: number | null) =>
 	{
 		setReplaying(false);
 		setPicked(pitchNumber);
@@ -64,7 +69,7 @@ export function AtBatViewer({
 				onReplayAllEnd={() => setReplaying(false)}
 				scoresHidden={scoresHidden}
 			/>
-			<PitchSequence pitches={atBat.pitches} selectedPitchNumber={selected} onSelectPitch={choose} variant="mobile" scoresHidden={scoresHidden} />
+			<PitchSequence pitches={atBat.pitches} selectedPitchNumber={open} onSelectPitch={choose} variant="mobile" scoresHidden={scoresHidden} />
 		</Stack>
 	);
 }

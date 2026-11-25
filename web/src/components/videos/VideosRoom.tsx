@@ -13,11 +13,12 @@ import type { GamePayload } from "../../api/game.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { useScoresHidden } from "../../settings/useScoresHidden.js";
 import { ViewState } from "../ViewState.js";
+import { useOpenClip } from "./openClip.js";
 import { PlayerHost } from "./PlayerHost.js";
 import { videoPlayLink } from "./playLink.js";
 import { FilterPill, QuickFilters } from "./QuickFilters.js";
 import { VideoCard } from "./VideoCard.js";
-import type { Video } from "./VideoCard.js";
+import { SectionHeading } from "../SectionHeading.js";
 
 /** Grid columns by pairing (game-shell Videos frames: two, three, four). */
 const COLUMNS: Readonly<Record<LayoutVariant, number>> = {
@@ -153,7 +154,7 @@ function FilterDrawer({
  * out (owner, 2026-10-30). Each group's heading, with its count, is a button that folds
  * the group away and back (owner, 2026-10-30: "the groups should be collapsible"); all
  * start open.
- * Choosing a video plays it in `PlayerHost` (S70): a dialog by default, or the stage at
+ * Choosing a video (a card linking to this room with it open, `useOpenClip`, #424) plays it in `PlayerHost` (S70): a dialog by default, or the stage at
  * the top of the room when the reader chose Stage. Played from the game's own room, the
  * dialog carries no link back to it. With Hide Scores on the recap clip is titled
  * "Recap (score hidden)" on its card and in the player (S75; game-shell A3); search still
@@ -171,7 +172,9 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 	const [sort, setSort] = useState<HighlightSort>("impact");
 	const [collapsed, setCollapsed] = useState<ReadonlySet<HighlightGroup>>(new Set());
 	const [layout, setLayout] = useState<"grid" | "list">("grid");
-	const [playing, setPlaying] = useState<Video | null>(null);
+	const {
+		playing, href, close,
+	} = useOpenClip(game.highlights, (video) => video.id);
 	const scoresHidden = useScoresHidden(game);
 
 	if (game.highlights.length === 0)
@@ -213,13 +216,13 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 			<PlayerHost
 				video={playing}
 				first={game.highlights[0]}
-				onClose={() => setPlaying(null)}
+				onClose={close}
 				fromGamePk={game.gamePk}
 				scoresHidden={scoresHidden}
 				playLink={playing ? videoPlayLink(playing, game) : null}
 				stageGame={game}
 			/>
-			<Text size="xs" fw={700} tt="uppercase">Videos</Text>
+			<SectionHeading>Videos</SectionHeading>
 			<TextInput
 				aria-label="Search videos"
 				placeholder="Search videos..."
@@ -272,7 +275,7 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 			{groupHighlights(videos).map(({ group, highlights }) =>
 			{
 				const cards = highlights.map((video) => (
-					<VideoCard key={video.id} video={video} layout={layout} onPlay={setPlaying} scoresHidden={scoresHidden} playLink={videoPlayLink(video, game)} />
+					<VideoCard key={video.id} video={video} layout={layout} href={href(video)} scoresHidden={scoresHidden} playLink={videoPlayLink(video, game)} />
 				));
 				const open = !collapsed.has(group);
 				const Chevron = open ? IconChevronDown : IconChevronRight;
@@ -297,7 +300,7 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 						>
 							<Group gap={6} wrap="nowrap">
 								<Chevron size={14} color="var(--bt-muted)" aria-hidden />
-								<Text size="xs" fw={700} tt="uppercase" c="var(--bt-muted)">{GROUP_LABELS[group]}</Text>
+								<SectionHeading c="var(--bt-muted)">{GROUP_LABELS[group]}</SectionHeading>
 								<Text size="xs" c="var(--bt-muted)">{highlights.length}</Text>
 							</Group>
 						</UnstyledButton>

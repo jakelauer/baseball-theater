@@ -49,20 +49,33 @@ export function probableSpoken(pitcher: { fullName: string;
 	return hand ? `${name}, ${hand}` : name;
 }
 
-/** The Game info lines the Box frames draw, in their order (game-rooms DESIGN, S33). */
-const GAME_INFO_LABELS = ["Venue", "First pitch", "Weather", "Wind", "T", "Att"] as const;
+/**
+ * The Game info lines the Box frames draw, in their order (game-rooms DESIGN, S33): MLB's
+ * label, then the label shown. MLB's `T` and `Att` are written out (B433, #433; owner,
+ * 2026-11-23: "You also have attendance like shortened to ATT and time shortened to T.
+ * Those should just be the full label.").
+ */
+const GAME_INFO_LABELS = [
+	["Venue", "Venue"],
+	["First pitch", "First pitch"],
+	["Weather", "Weather"],
+	["Wind", "Wind"],
+	["T", "Time"],
+	["Att", "Attendance"],
+] as const;
 
 /**
- * MLB's boxscore info lines as the Box room shows them: the drawn labels in the
- * drawn order, each value without MLB's closing period (`loanDepot park.`).
+ * MLB's boxscore info lines as the Box room shows them: the drawn lines in the drawn
+ * order under their written-out labels, each value without MLB's closing period
+ * (`loanDepot park.`).
  */
 export function gameInfoLines(info: readonly { label: string;
 	value: string; }[]): { label: string;
 	value: string; }[]
 {
-	return GAME_INFO_LABELS.flatMap((label) =>
+	return GAME_INFO_LABELS.flatMap(([mlb, label]) =>
 	{
-		const line = info.find((l) => l.label === label);
+		const line = info.find((l) => l.label === mlb);
 		return line ? [{
 			label,
 			value: line.value.replace(/\.$/, ""),

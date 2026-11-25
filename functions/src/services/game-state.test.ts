@@ -428,16 +428,16 @@ describe("both writers hand over every poll (S150 AC 5)", () =>
 	it("S150 AC 5 stop: a stop between the row's write and the snapshot's is mended by the next poll", async () =>
 	{
 		const deps = memoryDeps();
-		const upsert = deps.games.upsert.bind(deps.games);
+		const upsertMany = deps.games.upsertMany.bind(deps.games);
 		let stopped = false;
-		deps.games.upsert = async (game) =>
+		deps.games.upsertMany = async (batch) =>
 		{
 			if (!stopped)
 			{
 				stopped = true;
 				throw new Error("the Worker stopped");
 			}
-			await upsert(game);
+			return upsertMany(batch);
 		};
 		const game = {
 			...await feedGame(LIVE, 3),
@@ -459,7 +459,7 @@ describe("both writers hand over every poll (S150 AC 5)", () =>
 	it("S150 AC 5 stop: a stop after the snapshot's write leaves the row already written", async () =>
 	{
 		const deps = memoryDeps();
-		deps.projections.upsert = async () =>
+		deps.projections.upsertMany = async () =>
 		{
 			throw new Error("the Worker stopped");
 		};

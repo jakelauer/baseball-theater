@@ -11,6 +11,7 @@ import { PitchTheater } from "../pitch/PitchTheater.js";
 import { useScoresHidden } from "../../settings/useScoresHidden.js";
 import { LiveStatus } from "./LiveStatus.js";
 import { WinProbabilityCard } from "./WinProbabilityCard.js";
+import { SectionHeading } from "../SectionHeading.js";
 
 /** The pitcher's and batter's surnames: "Gusto vs Bregman". */
 function matchupTitle(atBat: AtBat): string
@@ -23,8 +24,8 @@ function matchupTitle(atBat: AtBat): string
  * The Live room (S3 status, S64 pitch theater; game-rooms `live-mobile` / `-medium` /
  * `-desktop`): the status with the base diamond, the pitcher and batter cards, the catcher's
  * view of each pitch's flight, and the pitch sequence of the at-bat in progress — the last play.
- * One pitch is selected at a time, newest by default; a zone dot and a sequence row
- * select the same one. Mobile stacks it all under the status row; medium / desktop put
+ * At most one pitch is open at a time, newest by default, and tapping it closes it (#522); a zone
+ * dot and a sequence row select the same one. Mobile stacks it all under the status row; medium / desktop put
  * the cards and zone on the left with the status card beside them, the Win probability
  * card under it (S106; owner, 2026-10-30: "Bring back win probability charts"; none at
  * mobile, as the frame draws none), and the sequence below. A game with no plays
@@ -37,35 +38,43 @@ export function LiveRoom({ game, variant }: { game: GamePayload;
 	const scoresHidden = useScoresHidden(game);
 	const atBat = game.plays.at(-1);
 	const newest = atBat?.pitches.at(-1)?.pitchNumber ?? null;
+	// The pitch the viewer opened in this at-bat, or `null` once they closed it (#522); none
+	// picked here, the newest is open. A new at-bat starts back at its newest pitch.
 	const [picked, setPicked] = useState<{ atBat: number;
-		pitch: number } | null>(null);
-	// A new pitch arriving live jumps to it and replays it in the zone (owner, 2026-10-29:
-	// "when a new pitch is added during real time data it should animate"); the pitch
-	// already there when the room opens doesn't replay.
+		pitch: number | null } | null>(null);
+	const mine = picked && picked.atBat === atBat?.about.atBatIndex ? picked : null;
+	const open = mine ? mine.pitch : newest;
+	// A new pitch arriving live opens and replays in the zone (owner, 2026-10-29: "when a new
+	// pitch is added during real time data it should animate") when no pitch is open or the
+	// previous arrival is; with an older pitch open, which the viewer chose, it arrives closed and
+	// the chosen one stays (owner, 2026-11-24, #522: "if a different pitch is open, we should make
+	// the new pitch arrive collapsed"). The pitch already there when the room opens doesn't replay.
 	const latest = atBat && newest !== null ? `${atBat.about.atBatIndex}:${newest}` : null;
 	const [seenLatest, setSeenLatest] = useState(latest);
 	const [arrivals, setArrivals] = useState(0);
 	if (latest !== seenLatest)
 	{
 		setSeenLatest(latest);
-		if (latest !== null)
+		const previous = seenLatest?.startsWith(`${atBat?.about.atBatIndex}:`) ? Number(seenLatest.split(":")[1]) : null;
+		const keepChosen = mine !== null && mine.pitch !== null && mine.pitch !== previous;
+		if (latest !== null && !keepChosen)
 		{
 			setPicked(null);
 			setArrivals(arrivals + 1);
 		}
 	}
-	// A new at-bat starts back at its newest pitch.
-	const selected = picked && picked.atBat === atBat?.about.atBatIndex ? picked.pitch : newest;
+	// The zone and its charts show the open pitch, or the newest with none open.
+	const selected = open ?? newest;
 	const status = <LiveStatus game={game} variant={variant} />;
 	if (!atBat) return status;
 
-	const select = (pitch: number) => setPicked({
+	const select = (pitch: number | null) => setPicked({
 		atBat: atBat.about.atBatIndex,
 		pitch,
 	});
 	const cards = <MatchupCards plays={game.plays} atBat={atBat} />;
 	const sequence = (
-		<PitchSequence pitches={atBat.pitches} selectedPitchNumber={selected} onSelectPitch={select} variant={variant} scoresHidden={scoresHidden} />
+		<PitchSequence pitches={atBat.pitches} selectedPitchNumber={open} onSelectPitch={select} variant={variant} scoresHidden={scoresHidden} />
 	);
 
 	if (variant === "mobile")
@@ -79,7 +88,7 @@ export function LiveRoom({ game, variant }: { game: GamePayload;
 				</Box>
 				{cards}
 				<PitchTheater atBat={atBat} selected={selected} onSelectPitch={select} arrivals={arrivals} scoresHidden={scoresHidden} />
-				<Text fz={12} fw={700} tt="uppercase">Pitch sequence</Text>
+				<SectionHeading>Pitch sequence</SectionHeading>
 				{sequence}
 			</Stack>
 		);

@@ -26,6 +26,7 @@ import type { ScheduleDayPayload } from "../api/schedule.js";
 import { viewerTimeZone } from "../format/datetime.js";
 import type { LayoutVariant } from "../layout/variant.js";
 import { jsonResponse } from "../test/jsonResponse.js";
+import { resetSettings, setFavoriteTeams } from "../settings/store.js";
 import { createRenderCounter } from "../test/renderCount.js";
 import { ScoreboardPage } from "./ScoreboardPage.js";
 
@@ -194,7 +195,7 @@ describe("ScoreboardPage layout (S66)", () =>
 	it.each([
 		["mobile", "1"],
 		["medium", "2"],
-		["desktop", "2"],
+		["desktop", "3"],
 	] as const)("columns: %s lays modules in %s column(s)", async (variant, cols) =>
 	{
 		serve();
@@ -202,6 +203,25 @@ describe("ScoreboardPage layout (S66)", () =>
 		await modules();
 		const grid = screen.getByTestId("scoreboard-grid");
 		expect(getComputedStyle(grid).getPropertyValue("--sg-cols")).toBe(cols);
+	});
+
+	it("columns: three games per row on wide screens, then two, then one as the width shrinks, and the loading skeleton matches (#429)", async () =>
+	{
+		const counts: string[] = [];
+		for (const variant of ["desktop", "medium", "mobile"] as const)
+		{
+			serve();
+			const { unmount } = renderScoreboard(variant);
+			await modules();
+			counts.push(getComputedStyle(screen.getByTestId("scoreboard-grid")).getPropertyValue("--sg-cols"));
+			unmount();
+		}
+		expect(counts).toEqual(["3", "2", "1"]);
+		vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+		renderScoreboard("desktop");
+		expect(getComputedStyle(screen.getByRole("status", {
+			name: "Loading",
+		})).getPropertyValue("--sg-cols")).toBe("3");
 	});
 
 	it("date control: previous and next go to the day before and after", async () =>
@@ -225,6 +245,64 @@ describe("ScoreboardPage layout (S66)", () =>
 	});
 });
 
+describe("ScoreboardPage game order (#430)", () =>
+{
+	/**
+	 * Three games given earliest first, as MLB sends them: CHC @ MIA before first pitch at 17:00,
+	 * SF @ NYM final from 20:10, and CHC @ MIA in progress from 21:00 (start times set here, so the
+	 * order is the test's own).
+	 */
+	function ordered(): ScheduleDayPayload
+	{
+		const schedule = read<ScheduleDayPayload>("schedule-2026-09-05.json");
+		const moments = read<{ pregame: Game;
+			live: Game; }>("schedule-823823-moments.json");
+		return day([{
+			...moments.pregame,
+			gamePk: 1,
+			startTime: "2026-09-05T17:00:00Z",
+		}, {
+			...schedule.games[0]!,
+			startTime: "2026-09-05T20:10:00Z",
+		}, {
+			...moments.live,
+			startTime: "2026-09-05T21:00:00Z",
+		}]);
+	}
+
+	afterEach(() => resetSettings());
+
+	it("default order: a favorite team's game first, then games in progress, then by start time, earliest first (#430)", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("offline"))));
+		await setFavoriteTeams([137]);
+		serve(ordered());
+		renderScoreboard("medium");
+		expect((await modules()).map((m) => m.dataset.phase)).toEqual(["final", "live", "pregame"]);
+	});
+
+	it("sort control: offers the default and start time; start time orders every game earliest first, and a new visit opens on the default (#430)", async () =>
+	{
+		serve(ordered());
+		const user = userEvent.setup();
+		const { unmount } = renderScoreboard("medium");
+		expect((await modules()).map((m) => m.dataset.phase)).toEqual(["live", "pregame", "final"]);
+		await user.click(screen.getByRole("button", {
+			name: "Sort: Favorites, live first",
+		}));
+		await user.click(await screen.findByRole("menuitem", {
+			name: "Start time",
+		}));
+		expect(screen.getAllByTestId("scoreboard-module").map((m) => m.dataset.phase)).toEqual(["pregame", "final", "live"]);
+		expect(screen.getByRole("button", {
+			name: "Sort: Start time",
+		})).toBeInTheDocument();
+		unmount();
+		renderScoreboard("medium");
+		expect((await modules()).map((m) => m.dataset.phase)).toEqual(["live", "pregame", "final"]);
+	});
+});
+
 describe("ScoreboardPage states (S66, ViewState)", () =>
 {
 	it("empty: one muted sentence when the day has no games", async () =>
@@ -245,6 +323,21 @@ describe("ScoreboardPage states (S66, ViewState)", () =>
 		})).toBeInTheDocument();
 		expect(screen.getByLabelText("Loading")).toBeInTheDocument();
 		expect(screen.getByTestId("date-control")).toBeInTheDocument();
+	});
+
+	it("loading: an animated skeleton of the day's game cards, not a spinner (#431)", () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+		renderScoreboard();
+		const loading = screen.getByLabelText("Loading");
+		expect(loading.querySelector(".mantine-Loader-root")).toBeNull();
+		const cards = within(loading).getAllByTestId("skeleton-card");
+		expect(cards.length).toBeGreaterThan(1);
+		for (const card of cards)
+		{
+			expect(card).toHaveClass("mantine-Skeleton-root");
+			expect(card).toHaveAttribute("data-animate", "true");
+		}
 	});
 
 	it("error: Couldn't load games, the hint, and Retry refetches", async () =>

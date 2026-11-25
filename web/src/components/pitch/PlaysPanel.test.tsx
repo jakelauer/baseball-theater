@@ -25,6 +25,7 @@ import {
 import type { GamePayload } from "../../api/game.js";
 import { createQueryClient } from "../../api/queryClient.js";
 import { GamePage } from "../../pages/GamePage.js";
+import { BODY_FONT_PX, mantineFontPx } from "../../test/fontSize.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
 import { AtBatViewer } from "./AtBatViewer.js";
 import { PlaysPanel } from "./PlaysPanel.js";
@@ -235,6 +236,46 @@ describe("the Plays room on 823823 (S41)", () =>
 			name: "Runs",
 		}));
 		expect(screen.getByText("No scoring plays yet.")).toBeInTheDocument();
+	});
+});
+
+describe("parked on the owner (design)", () =>
+{
+	// Parked: the ratified `plays-mobile` frame draws `9TH INNING` over `TOP 9TH · NYY`, and the
+	// issue records no design waiver; the fix that finishes #526 makes this a plain test.
+	it.fails("an inning chosen in the sidebar shows its half-inning headers but no inning header (#526)", async () =>
+	{
+		const panel = await playsPanel();
+		expect(within(panel).getByText("Top 9th · CHC")).toBeInTheDocument();
+		expect(within(panel).queryByText("9th inning")).toBeNull();
+	});
+
+	// Parked: the ratified `plays-mobile` frame and game-rooms DESIGN ("the pitch accordion
+	// newest-first with the last pitch open") draw an open at-bat with its newest pitch expanded,
+	// and the issue records no design waiver; the fix that finishes #522 makes this a plain test.
+	it.fails("opening a play shows all of its pitches collapsed (#522)", async () =>
+	{
+		vi.stubGlobal("scrollBy", vi.fn());
+		const panel = await playsPanel();
+		const last = PLAYS.filter((play) => play.about.inning === 9).at(-1)!;
+		fireEvent.click(control(panel, last));
+		act(() =>
+		{
+			window.dispatchEvent(new Event("scrollend"));
+		});
+		expect(within(item(last)).getAllByTestId("pitch-row").map((row) => row.dataset.expanded)).toEqual(last.pitches.map(() => "false"));
+	});
+});
+
+describe("Plays headers are never smaller than body text (#527)", () =>
+{
+	it("the view's heading and each half's header draw at body size or larger", async () =>
+	{
+		const panel = await playsPanel();
+		for (const header of ["9th inning", "Top 9th · CHC", "Bottom 9th · MIA"])
+		{
+			expect(mantineFontPx(within(panel).getByText(header)), header).toBeGreaterThanOrEqual(BODY_FONT_PX);
+		}
 	});
 });
 
@@ -524,6 +565,53 @@ describe("opening an at-bat (S64 choreography, kept in S41)", () =>
 		expect(within(item(atBat)).queryByTestId("catcher-view")).toBeNull();
 	});
 
+	it("switching from one open play to another opens the new one instantly, as the old one closes, so the page doesn't jump (#521)", () =>
+	{
+		vi.useFakeTimers();
+		vi.stubGlobal("scrollBy", vi.fn());
+		const { container } = wrap(<PlaysPanel game={game(PLAYS.slice(0, 3))} />);
+		const [first, second] = [PLAYS[0]!, PLAYS[1]!];
+		const panel = (atBat: AtBat) => item(atBat).querySelector<HTMLElement>(".mantine-Accordion-panel");
+		// The first play opens from nothing, with the open animation.
+		fireEvent.click(control(container, first));
+		expect(panel(first)?.style.transition).toContain("200ms");
+		// Already at the top (jsdom's rects are all 0), the second opens at once: with no animation.
+		fireEvent.click(control(container, second));
+		expect(within(item(second)).getByTestId("catcher-view")).toBeInTheDocument();
+		expect(panel(second)?.style.transition ?? "").toBe("");
+		// Its pitches replay straight away, with no open animation to wait out.
+		act(() =>
+		{
+			vi.advanceTimersByTime(20);
+		});
+		expect(within(item(second)).getByTestId("zone-ball")).toBeInTheDocument();
+	});
+
+	it("a second tap while a switch is still scrolling opens instantly too (#521)", () =>
+	{
+		vi.useFakeTimers();
+		vi.stubGlobal("scrollBy", vi.fn());
+		let top = 0;
+		vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => undefined);
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(() => ({
+			top,
+		}) as DOMRect);
+		const { container } = wrap(<PlaysPanel game={game(PLAYS.slice(0, 3))} />);
+		const [first, second, third] = [PLAYS[0]!, PLAYS[1]!, PLAYS[2]!];
+		// The first opens at once (at the top); the second, 300px down, closes it and starts scrolling.
+		fireEvent.click(control(container, first));
+		top = 300;
+		fireEvent.click(control(container, second));
+		// Before that scroll ends, the third is tapped; its scroll ends and it opens with no animation.
+		fireEvent.click(control(container, third));
+		act(() =>
+		{
+			window.dispatchEvent(new Event("scrollend"));
+		});
+		expect(within(item(third)).getByTestId("catcher-view")).toBeInTheDocument();
+		expect(item(third).querySelector<HTMLElement>(".mantine-Accordion-panel")?.style.transition ?? "").toBe("");
+	});
+
 	it("closing again after a quick reopen keeps the contents through the whole second collapse (#420)", () =>
 	{
 		vi.useFakeTimers();
@@ -589,6 +677,15 @@ describe("AtBatViewer", () =>
 		expect(screen.getByRole("button", {
 			name: `Pitch ${firstPitch.pitchNumber}`,
 		})).toHaveAttribute("aria-pressed", "true");
+	});
+
+	it("an open pitch closes when its header is tapped, leaving none open (#522)", () =>
+	{
+		const atBat = PLAYS.find((play) => play.pitches.length >= 2)!;
+		wrap(<AtBatViewer plays={PLAYS} atBat={atBat} />);
+		const open = screen.getAllByTestId("pitch-row").find((row) => row.dataset.expanded === "true")!;
+		fireEvent.click(within(open).getByRole("button"));
+		expect(screen.getAllByTestId("pitch-row").map((row) => row.dataset.expanded)).toEqual(atBat.pitches.map(() => "false"));
 	});
 
 	it("an at-bat with no pitches has nothing to animate", () =>
