@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import {
-	Stack, Text, Title,
+	SimpleGrid, Stack, Text, Title,
 } from "@mantine/core";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import type { SeasonPhaseName, StandingsViews } from "@bt/domain";
+import type {
+	SeasonPhaseName, StandingsDivision, StandingsViews,
+} from "@bt/domain";
 import {
 	BACKFILL_EARLIEST_DATE, championBoxShows, clinchLegend, isCalendarDate, mlbToday, SEASON_PHASES, standingsHasNoTeams, standingsViews,
 } from "@bt/domain";
@@ -69,8 +71,9 @@ function phasesFor(view: SeasonPhaseName | null): SeasonPhaseName[]
  * `/standings` (Standings' own today, owner 2026-11-19). Then the heading, with "as of
  * <day>" on a day in the address that isn't MLB's today; the view switch (spring training, the regular
  * season, the playoffs) when the day offers more than the regular season; the World Series box when
- * `championBoxShows`; then one `DivisionTable` per division of the shown view's table, the clinch
- * legend under the last. Loading, empty and error are `ViewState`'s, with no switch and no box.
+ * `championBoxShows`; then one `DivisionTable` per division of the shown view's table, each league's
+ * in its own column side by side on tablet and desktop and stacked on mobile (#434), the clinch
+ * legend under them. Loading, empty and error are `ViewState`'s, with no switch and no box.
  *
  * Which views a day offers and which opens first is `standingsViews`, given the day being viewed
  * (`?date=`, else MLB's today) and the answer. The view shown is the address's `?view=` when the day
@@ -238,6 +241,24 @@ export function StandingsPage({ variant = "desktop", setFooter }: { variant?: La
 }
 
 /**
+ * A table's divisions grouped by league, each group in the order MLB sent it and the groups in the
+ * order their first division came (the American League first in every recorded answer), so each
+ * league is one column on tablet and desktop (#434). Divisions with no league share one group. This
+ * only partitions the list for layout; it derives no value from the standings.
+ */
+function byLeague(divisions: readonly StandingsDivision[]): StandingsDivision[][]
+{
+	const groups = new Map<number | null, StandingsDivision[]>();
+	for (const division of divisions)
+	{
+		const group = groups.get(division.leagueId);
+		if (group) group.push(division);
+		else groups.set(division.leagueId, [division]);
+	}
+	return [...groups.values()];
+}
+
+/**
  * The page under its heading once a table is in: the switch (marking `shown`, the view the address
  * asks for, even while its table is still on its way), the World Series box, the drawn view's tables
  * and the clinch legend (in the switch's panel when there is a switch). The site footer after it is
@@ -283,9 +304,20 @@ function StandingsBody({
 	else
 	{
 		const columns = view === "spring" ? "spring" : view === "playoffs" ? "teams" : "full";
+		const leagues = byLeague(table.divisions);
+		// The leagues side by side from tablet width up, stacked on mobile (#434, the owner's words).
+		const across = variant === "mobile" ? 1 : Math.min(leagues.length, 2);
 		tables = (
 			<>
-				{table.divisions.map((division) => <DivisionTable key={division.divisionId ?? division.name} division={division} columns={columns} variant={variant} />)}
+				<SimpleGrid cols={across} spacing="xl" verticalSpacing="xl" data-testid="standings-leagues" data-columns={across} style={{
+					alignItems: "start",
+				}}>
+					{leagues.map((league) => (
+						<Stack key={league[0]!.leagueId ?? "none"} gap="xl" data-testid="standings-league" miw={0}>
+							{league.map((division) => <DivisionTable key={division.divisionId ?? division.name} division={division} columns={columns} variant={variant} />)}
+						</Stack>
+					))}
+				</SimpleGrid>
 				{view === "spring" ? null : <ClinchLegend lines={clinchLegend([table])} />}
 			</>
 		);
