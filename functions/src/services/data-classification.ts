@@ -150,7 +150,7 @@ export const DATA_CLASSIFICATION = {
 		},
 		owed_edge_purges: {
 			kind: "none",
-			why: "per BT URL (url) whose Cloudflare edge purge failed, when it was owed (owed_at), its owe count (version), failed retries (failures) and next retry (retry_at), S212; no user data",
+			why: "per BT URL (url) whose Cloudflare edge purge failed, when it was owed (owed_at), its owe count (version), failed retries (failures) and next retry (retry_at, or path_retry_at for a path-only URL, whose retry_at is 'infinity' so older Workers skip it, S219), S212; no user data",
 		},
 		games: {
 			kind: "none",
