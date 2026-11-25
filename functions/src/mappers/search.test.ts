@@ -6,9 +6,10 @@ import path from "node:path";
 import {
 	describe, expect, it, vi,
 } from "vitest";
+import { parseSearchResponse } from "@bt/mlb-api";
 import { searchFixtureName } from "../adapters/fixtures/fixture-client.js";
 import { recordSearch } from "../services/recorder.js";
-import { mapSearchResults, parseSearchResponse } from "./search.js";
+import { mapSearchResults } from "./search.js";
 
 /** One search hit as MLB answers it, with the fields BT asks for. */
 function play(gamePk: number, teams: { away: { id: number;
@@ -68,25 +69,6 @@ const answer = (plays: unknown[]) => ({
 	},
 });
 
-describe("parseSearchResponse (S5)", () =>
-{
-	it("refuses MLB's errors and an answer that isn't the search's shape", () =>
-	{
-		expect(() => parseSearchResponse({
-			errors: [{
-				message: "Unknown Query Field",
-			}],
-		})).toThrow(/Unknown Query Field/);
-		expect(() => parseSearchResponse({
-			errors: [{}],
-		})).toThrow(/query refused/);
-		expect(() => parseSearchResponse(null)).toThrow(/not an object/);
-		expect(() => parseSearchResponse({
-			data: {},
-		})).toThrow(/no data.search/);
-	});
-});
-
 describe("mapSearchResults (S5)", () =>
 {
 	it("maps a play to a playable highlight with its game, by MLB's club ids", () =>
@@ -129,6 +111,8 @@ describe("mapSearchResults (S5)", () =>
 				awayId: 146,
 				homeId: 135,
 			},
+			halfInning: null,
+			inning: null,
 		}]);
 	});
 
@@ -163,6 +147,72 @@ describe("mapSearchResults (S5)", () =>
 			},
 		])));
 		expect(page.highlights.map((h) => h.game?.away ?? null)).toEqual([null, null, "NYY"]);
+	});
+});
+
+/** MLB's recorded answer to "walk off" (S5), read fresh for each test so one test's edits never reach another. */
+async function walkOff(): Promise<{ data: { search: { total: number;
+	plays: { gamePk: number;
+		mediaPlayback: { title: string;
+			guid: string | null;
+			playInfo: { inning: number;
+				inningHalf?: string | null; }; }[]; }[]; }; }; }>
+{
+	return JSON.parse(await readFile(new URL("../../../fixtures/search-walk-off.json", import.meta.url), "utf8")) as Awaited<ReturnType<typeof walkOff>>;
+}
+
+describe("the play's fields (S153)", () =>
+{
+	it("S153 AC 1: maps the recording's guid, inningHalf and inning to playId, halfInning and inning; a clip with no play has all three null; a half removed leaves the other two", async () =>
+	{
+		const raw = await walkOff();
+		const plays = raw.data.search.plays;
+		const ws = plays.findIndex((p) => p.mediaPlayback[0]?.title === "Ben Williamson's walk-off single to win Game 4");
+		const noPlay = plays.findIndex((p) => p.mediaPlayback[0]?.title === "Junior Caminero's walk-off home run (40)");
+		// A result with a play id and an inning but no half: the recording has none, so one's `inningHalf` is removed.
+		const noHalf = plays.findIndex((p, i) => i !== ws && p.mediaPlayback[0]?.playInfo.inningHalf === "Bottom");
+		expect(Math.min(ws, noPlay, noHalf)).toBeGreaterThanOrEqual(0);
+		delete plays[noHalf]!.mediaPlayback[0]!.playInfo.inningHalf;
+		const page = mapSearchResults(parseSearchResponse(raw));
+		const byTitle = (title: string | undefined) => page.highlights.find((h) => h.highlight.title === title);
+		expect(byTitle(plays[ws]!.mediaPlayback[0]!.title)).toMatchObject({
+			highlight: {
+				playId: "2c372a74-a8c3-3c0f-bec5-f1098f389117",
+			},
+			halfInning: "bottom",
+			inning: 12,
+		});
+		// MLB writes `inning: 0` with a null `inningHalf` (and no guid) on a clip with no play.
+		expect(plays[noPlay]!.mediaPlayback[0]!.playInfo).toMatchObject({
+			inning: 0,
+			inningHalf: null,
+		});
+		expect(byTitle(plays[noPlay]!.mediaPlayback[0]!.title)).toMatchObject({
+			highlight: {
+				playId: null,
+			},
+			halfInning: null,
+			inning: null,
+		});
+		const half = byTitle(plays[noHalf]!.mediaPlayback[0]!.title);
+		expect(half?.highlight.playId).toBe(plays[noHalf]!.mediaPlayback[0]!.guid);
+		expect(half?.highlight.playId).toEqual(expect.any(String));
+		expect(half?.halfInning).toBeNull();
+		expect(half?.inning).toEqual(expect.any(Number));
+	});
+
+	it("S153 AC 1: maps Top to top, and an unknown half or a non-positive inning to null", async () =>
+	{
+		const raw = await walkOff();
+		const media = raw.data.search.plays.filter((p) => p.mediaPlayback[0]?.playInfo.inningHalf === "Bottom").slice(0, 3).map((p) => p.mediaPlayback[0]!);
+		media[0]!.playInfo.inningHalf = "Top";
+		media[1]!.playInfo.inningHalf = "Middle";
+		media[2]!.playInfo.inning = -1;
+		const page = mapSearchResults(parseSearchResponse(raw));
+		const of = (i: number) => page.highlights.find((h) => h.highlight.title === media[i]!.title);
+		expect(of(0)?.halfInning).toBe("top");
+		expect(of(1)?.halfInning).toBeNull();
+		expect(of(2)?.inning).toBeNull();
 	});
 });
 

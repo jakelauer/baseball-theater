@@ -104,6 +104,45 @@ describe("GET /api/v1/search/highlights (S5)", () =>
 		expect(body.highlights.some((h) => h.game === null)).toBe(true);
 	});
 
+	it("S153 AC 1: each result carries its play id, half-inning and inning from MLB's recording, or nulls for a clip with no play", async () =>
+	{
+		const body = await search("walk-off");
+		for (const h of body.highlights)
+		{
+			expect(h).toHaveProperty("highlight.playId");
+			expect(h).toHaveProperty("halfInning");
+			expect(h).toHaveProperty("inning");
+		}
+		// The World Series walk-off as recorded (`fixtures/search-walk-off.json`): guid, inning 12, "Bottom".
+		const ws = body.highlights.find((h) => h.highlight.title === "Ben Williamson's walk-off single to win Game 4");
+		expect(ws).toMatchObject({
+			highlight: {
+				playId: "2c372a74-a8c3-3c0f-bec5-f1098f389117",
+			},
+			halfInning: "bottom",
+			inning: 12,
+		});
+		// A clip MLB ties to no play (inning 0, no half, no guid) carries none of the three.
+		const none = body.highlights.find((h) => h.highlight.title === "Junior Caminero's walk-off home run (40)");
+		expect(none).toMatchObject({
+			highlight: {
+				playId: null,
+			},
+			halfInning: null,
+			inning: null,
+		});
+		// A top half, from S72's recording (`fixtures/search--team-147--tag-home-run.json`).
+		const response = await get("/api/v1/search/highlights?team=147&tag=home-run");
+		const filtered = await response.json() as SearchHighlightsResponse;
+		expect(filtered.highlights.find((h) => h.highlight.title.startsWith("Victor Mesa Jr.'s two-run home run"))).toMatchObject({
+			highlight: {
+				playId: "4f687124-5ec9-337b-a32b-2dedc930bcee",
+			},
+			halfInning: "top",
+			inning: 6,
+		});
+	});
+
 	it("S5 AC 8: the request asks MLB's free-text search for each clip's guid and playInfo, sending walk-off as walk off", () =>
 	{
 		const { url } = searchHighlightsRequest("walk-off");

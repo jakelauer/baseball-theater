@@ -81,14 +81,15 @@ describe("VideosRoom layout (S69)", () =>
 		expect(cardTitles()).toEqual(grouped(game().highlights));
 	});
 
-	it("each card shows the still's duration, the title and a Kind · date meta line", () =>
+	// The kind alone, no date: every clip here is from the game's own day (#421; owner, 2026-11-25).
+	it("each card shows the still's duration, the title and a Kind meta line", () =>
 	{
 		renderRoom();
 		const recap = within(screen.getByRole("link", {
 			name: "Play Conforto clubs Cubs' 200th homer in close win",
 		}));
 		expect(recap.getByTestId("video-duration")).toHaveTextContent("3:06");
-		expect(recap.getByText(/^Recap · (Sep 5|Sep 6), 2026$/)).toBeInTheDocument();
+		expect(recap.getByTestId("video-meta")).toHaveTextContent(/^Recap$/);
 	});
 
 	it("list: List shows the same VideoCards as rows; Grid brings the grid back", async () =>
@@ -313,10 +314,10 @@ describe("VideosRoom states and play (S69)", () =>
 
 describe("Videos headers are never smaller than body text (#527)", () =>
 {
-	it("the Videos title and every group's header draw at body size or larger", () =>
+	// The room has no "Videos" title any more (#529), so only the group headers are checked.
+	it("every group's header draws at body size or larger", () =>
 	{
 		renderRoom();
-		expect(mantineFontPx(screen.getByText("Videos"))).toBeGreaterThanOrEqual(BODY_FONT_PX);
 		const groups = screen.getAllByTestId("videos-group");
 		expect(groups.length).toBeGreaterThan(0);
 		for (const group of groups)
@@ -388,7 +389,7 @@ describe("the Videos room's filters and groups (videos-room bugs)", () =>
 		})).queryByTestId("videos-group-body")).toBeNull();
 	});
 
-	it.fails("a game's clips show no date: every clip is from the game's own day (#421)", () =>
+	it("a game's clips show no date: every clip is from the game's own day (#421)", () =>
 	{
 		renderRoom();
 		const metas = screen.getAllByTestId("video-meta").map((meta) => meta.textContent ?? "");
@@ -396,7 +397,7 @@ describe("the Videos room's filters and groups (videos-room bugs)", () =>
 		expect(metas.filter((meta) => /\b2026\b/.test(meta))).toEqual([]);
 	});
 
-	it.fails("the Videos tab has no \"Videos\" header (#529)", () =>
+	it("the Videos tab has no \"Videos\" header (#529)", () =>
 	{
 		renderRoom();
 		expect(screen.queryByText("Videos")).toBeNull();

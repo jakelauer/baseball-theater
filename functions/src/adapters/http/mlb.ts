@@ -34,6 +34,7 @@ import {
 	parsePeopleResponse,
 	parsePlayMetricsResponse,
 	parseScheduleResponse,
+	parseSearchResponse,
 	parseSeasonsResponse,
 	parseStandingsResponse,
 } from "@bt/mlb-api";
@@ -45,7 +46,7 @@ import { mapContentHighlights, mapRecap } from "../../mappers/content.js";
 import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
 import { mapPeople } from "../../mappers/players.js";
-import { mapSearchResults, parseSearchResponse } from "../../mappers/search.js";
+import { mapSearchResults } from "../../mappers/search.js";
 import { mapStandings } from "../../mappers/standings.js";
 import { mapLiveFeed } from "../../mappers/live.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
@@ -109,9 +110,9 @@ export const SEARCH_PAGE_SIZE = 36;
  * `Description ~ [...]`), since MLB's free-text search ignores filters written into it. `query` goes out
  * as `mlbSearchText` words, so `walk-off` is sent as `walk off`, which MLB matches (a hyphenated word matches nothing). The gateway
  * answers a GET, so this is an `MlbRequest` the client's one sender sends, like
- * `graphContentRequest`. Each clip's `guid` and `playInfo { inning inningHalf gamePk }` are asked for
- * beside its `id` so the recording carries them for S153's inning pill; BT reads only
- * `playInfo.teams` today. `recordSearch` (`services/recorder.ts`) records the same request; it is a
+ * `graphContentRequest`. Each clip's `guid` and `playInfo { inning inningHalf gamePk teams }` are asked
+ * for beside its `id`: the clubs give the row's matchup, and the play id and inning its inning pill
+ * (S153). `recordSearch` (`services/recorder.ts`) records the same request; it is a
  * library function, with no `pnpm record-fixtures` form yet, so a recording is made by calling it.
  */
 export function searchHighlightsRequest(query: string, filters: SearchFilters = {}): MlbRequest

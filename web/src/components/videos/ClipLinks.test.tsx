@@ -75,6 +75,8 @@ const SEARCH: SearchHighlightsPayload = {
 			date: "2026-10-27",
 		},
 		game: null,
+		halfInning: null,
+		inning: null,
 	}],
 };
 
