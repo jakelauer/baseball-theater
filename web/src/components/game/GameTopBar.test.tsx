@@ -90,8 +90,9 @@ describe("GameTopBar's status marker (S170)", () =>
 		const bar = renderBar("PI", "mobile");
 		const line = within(bar).getByTestId("status-line");
 		expect(within(line).getByText("Delayed start · Inclement Weather")).toBeInTheDocument();
-		const side = bar.firstElementChild as HTMLElement;
-		const date = bar.lastElementChild as HTMLElement;
+		// Since B530 the date sits beside back, at the left, and the teams' side at the right.
+		const side = within(bar).getByTestId("topbar-matchup");
+		const date = within(bar).getByTestId("topbar-back");
 		expect(side.style.flex).toBe("1 1 0%");
 		expect(side.style.minWidth).toMatch(/^0(px)?$/);
 		expect((line.parentElement as HTMLElement).style.minWidth).toMatch(/^0(px)?$/);
@@ -99,11 +100,10 @@ describe("GameTopBar's status marker (S170)", () =>
 		expect(date.style.flexShrink).toBe("0");
 	});
 
-	it.fails("B530: the date sits beside the back button and the matchup after it, so back reads as returning to that day's games (#530)", () =>
+	it("B530: the date sits beside the back button and the matchup after it, so back reads as returning to that day's games (#530)", () =>
 	{
 		// Owner, 2026-11-24: "The team @ team label and the date label in the top bar should swap, to show that the back button returns to the game list."
-		// Parked (expected to fail): every ratified game-shell frame draws "← NYY @ BOS" with the date at the
-		// right, so the fix waits on the owner's design call; the fix turns this back into a plain `it`.
+		// Design waived by the owner, 2026-11-25 ("Build it without a design").
 		const bar = renderBar("F", "desktop");
 		const back = within(bar).getByRole("link", {
 			name: "Back to scoreboard",
