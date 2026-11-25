@@ -73,7 +73,7 @@ function phasesFor(view: SeasonPhaseName | null): SeasonPhaseName[]
  * season, the playoffs) when the day offers more than the regular season; the World Series box when
  * `championBoxShows`; then one `DivisionTable` per division of the shown view's table, each league's
  * in its own column side by side where both tables fit and stacked below that (#434, #563), the clinch
- * legend under them. Loading, empty and error are `ViewState`'s, with no switch and no box.
+ * legend under them. Loading (a table-shaped skeleton, B584), empty and error are `ViewState`'s, with no switch and no box.
  *
  * Which views a day offers and which opens first is `standingsViews`, given the day being viewed
  * (`?date=`, else MLB's today) and the answer. The view shown is the address's `?view=` when the day
@@ -205,7 +205,8 @@ export function StandingsPage({ variant = "desktop", setFooter }: { variant?: La
 	}
 	else if (!display)
 	{
-		body = <ViewState kind="loading" />;
+		// Table-shaped, under the date control and heading, which draw at once (B584, #584).
+		body = <ViewState kind="loading" shape="table" />;
 	}
 	else
 	{

@@ -37,6 +37,7 @@ import { offlineMessage, useOfflineNotice } from "./offline.js";
 import {
 	announceUpdate, resetUpdates, useUpdateNotice,
 } from "./updates.js";
+import { findLoadedTopBar } from "../test/gameTopBar.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../fixtures");
 const read = (name: string) => JSON.parse(readFileSync(join(FIXTURES, name), "utf8"));
@@ -342,7 +343,7 @@ describe("offline, a game already opened stays readable (S74 AC 2)", () =>
 	{
 		serveApi();
 		renderAt("/game/823823/box");
-		await screen.findByTestId("game-topbar");
+		await findLoadedTopBar();
 		await screen.findByRole("contentinfo");
 
 		goOffline();
@@ -371,7 +372,7 @@ describe("offline, a game already opened stays readable (S74 AC 2)", () =>
 		{
 			serveApi(liveGame());
 			renderAt("/game/823823/live");
-			await screen.findByTestId("game-topbar");
+			await findLoadedTopBar();
 			await waitFor(() => expect(FakeWebSocket.opened.length).toBeGreaterThan(0));
 			act(() => FakeWebSocket.opened.at(-1)!.onopen?.({}));
 			expect(await screen.findByTestId("footer-live-strip")).toBeInTheDocument();
