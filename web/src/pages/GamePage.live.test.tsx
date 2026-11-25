@@ -243,7 +243,7 @@ describe("GamePage live (S19)", () =>
 		renderGame("videos");
 		await opened();
 		const first = live().highlights[0]!;
-		await user.click(await screen.findByRole("button", {
+		await user.click(await screen.findByRole("link", {
 			name: `Play ${first.title}`,
 		}));
 		const dialog = await screen.findByRole("dialog");

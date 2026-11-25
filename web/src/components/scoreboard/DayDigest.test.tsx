@@ -158,7 +158,7 @@ describe("the day digest (S71)", () =>
 	{
 		const user = userEvent.setup();
 		const digest = await renderScoreboard();
-		await user.click(within(digest).getByRole("button", {
+		await user.click(within(digest).getByRole("link", {
 			name: "Play Judge hammers a two-run home run",
 		}));
 		const dialog = await screen.findByRole("dialog");

@@ -1,12 +1,17 @@
 import {
 	Anchor, Box, Group, Modal, UnstyledButton,
 } from "@mantine/core";
+import { useReducedMotion } from "@mantine/hooks";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { highlightTitle } from "@bt/domain";
 import type { Video } from "./VideoCard.js";
 import { PlayInningPill } from "./PlayInningPill.js";
 import type { PlayLink } from "./playLink.js";
 import { VideoPlayer } from "./VideoPlayer.js";
+
+/** How long the dialog takes to open, in ms: brief enough to feel almost instant, long enough to read as opening (#423). */
+const OPEN_MS = 150;
 
 /** The game a clip belongs to, as the dialog's link names it (`NYY @ BOS, Sep 21`). */
 export type PlayerGame = {
@@ -35,6 +40,14 @@ export type PlayerGame = {
  *
  * The content fills the screen so the Close row and the player share one focus trap; it
  * is transparent, so the overlay behind it is the dimmed page the frames draw.
+ *
+ * It opens with a brief pop (opacity and scale, `OPEN_MS`), and the clip starts only once that
+ * ends, so no sound plays while it opens (owner, 2026-11-23, #423: "It should feel almost
+ * instant, but it should be not instant … the video shouldn't play until the animation is
+ * completed"). With reduced motion it opens at once and plays at once. Mantine runs a modal's
+ * enter transition only when `opened` turns true after mounting, so the dialog mounts closed and
+ * opens a frame later; the player is keyed on whether it has opened, as `PlayerStage` keys it on
+ * `autoPlay`, since the `<video>`'s autoplay counts only on the element's first load.
  */
 export function PlayerDialog({
 	video, onClose, game, fromGamePk, scoresHidden = false, playLink,
@@ -48,13 +61,28 @@ export function PlayerDialog({
 {
 	const title = highlightTitle(video, scoresHidden);
 	const link = game && game.gamePk !== fromGamePk ? game : null;
+	const reduceMotion = useReducedMotion();
+	const [opened, setOpened] = useState(false);
+	const [entered, setEntered] = useState(false);
+	useEffect(() =>
+	{
+		// A frame later, once the portal holding the dialog has mounted closed: opened in the same pass,
+		// the portal's first render would already be open and Mantine would skip the transition.
+		const frame = requestAnimationFrame(() => setOpened(true));
+		return () => cancelAnimationFrame(frame);
+	}, []);
 	return (
 		<Modal
-			opened
+			opened={opened}
 			onClose={onClose}
 			fullScreen
 			withCloseButton={false}
 			aria-label={title}
+			transitionProps={{
+				transition: "pop",
+				duration: reduceMotion ? 0 : OPEN_MS,
+				onEntered: () => setEntered(true),
+			}}
 			styles={{
 				// The frames draw the page behind fully dimmed (Mantine's own overlay color can't take a CSS variable).
 				overlay: {
@@ -104,7 +132,7 @@ export function PlayerDialog({
 				    its controls and the disclaimer still fit the screen's height (owner, 2026-11-12: "video
 				    player on desktop needs to play videos larger, taking more of the screen"). */}
 				<Box className="bt-player-frame">
-					<VideoPlayer video={video} title={title} autoPlay />
+					<VideoPlayer key={entered ? "open" : "opening"} video={video} title={title} autoPlay={entered} />
 				</Box>
 			</Box>
 		</Modal>

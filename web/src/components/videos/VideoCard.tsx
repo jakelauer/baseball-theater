@@ -1,6 +1,7 @@
 import {
 	Box, Image, Text, UnstyledButton,
 } from "@mantine/core";
+import { Link } from "react-router-dom";
 import { clipDuration, highlightTitle } from "@bt/domain";
 import type { GamePayload } from "../../api/game.js";
 import { PlayInningPill } from "./PlayInningPill.js";
@@ -62,22 +63,24 @@ export function VideoStill({
 /**
  * One video (S69; game-shell Videos frames): the still with its duration, the title and the
  * meta line (`videoMeta`). One component for both modes — a grid cell (still above the text)
- * and a list row (a small still beside it). The card is one button, its still zooming on hover
- * (`.bt-zoom-host`): choosing it calls `onPlay` with the video; the player is S70's.
+ * and a list row (a small still beside it). The card is one link, its still zooming on hover
+ * (`.bt-zoom-host`): `href` is this page with the clip open (`useOpenClip`, #424), so a click opens
+ * S70's player in place and a middle-click opens the page with the clip in a new tab.
  *
  * A clip with a play gets the inning pill after its date (S145; game-shell A6), which opens the
- * play. A link inside the button would also start the clip (S97), so the pill is the button's next
- * sibling, laid over the button's meta row: the card is a grid and the button spans it as a
- * subgrid, so the date (in the button, playing the clip) and the pill (outside it, above it) share
+ * play. A link inside the card's link would also start the clip (S97), so the pill is the card link's next
+ * sibling, laid over its meta row: the card is a grid and the link spans it as a
+ * subgrid, so the date (in the link, playing the clip) and the pill (outside it, above it) share
  * one row's columns, the pill sitting 6px after the date. Hovering the pill leaves the still
  * unzoomed, since it isn't in the zoom host. The title is `highlightTitle`'s: the game page
  * passes `scoresHidden`, so there the recap clip reads "Recap (score hidden)" (S75).
  */
 export function VideoCard({
-	video, layout, onPlay, scoresHidden = false, playLink,
+	video, layout, href, scoresHidden = false, playLink,
 }: { video: Video;
 	layout: "grid" | "list";
-	onPlay: (video: Video) => void;
+	/** This page with the clip open (`useOpenClip`'s `href`, #424). */
+	href: string;
 	scoresHidden?: boolean;
 	playLink?: PlayLink | null; })
 {
@@ -104,11 +107,13 @@ export function VideoCard({
 			}}
 		>
 			<UnstyledButton
+				component={Link}
+				to={href}
+				replace
 				data-testid="video-card"
 				data-layout={layout}
 				className="bt-zoom-host"
 				aria-label={`Play ${title}`}
-				onClick={() => onPlay(video)}
 				style={{
 					gridColumn: "1 / -1",
 					gridRow: "1 / -1",

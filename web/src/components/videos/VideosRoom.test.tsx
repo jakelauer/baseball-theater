@@ -13,6 +13,7 @@ import {
 	cleanup, render, screen, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
@@ -38,7 +39,10 @@ function renderRoom(variant: LayoutVariant = "mobile", g: GamePayload = game())
 {
 	render(
 		<MantineProvider>
-			<VideosRoom game={g} variant={variant} />
+			{/* The open clip lives in the URL (`?clip=`, #424). */}
+			<MemoryRouter initialEntries={["/game/823823/videos"]}>
+				<VideosRoom game={g} variant={variant} />
+			</MemoryRouter>
 		</MantineProvider>,
 	);
 }
@@ -79,7 +83,7 @@ describe("VideosRoom layout (S69)", () =>
 	it("each card shows the still's duration, the title and a Kind · date meta line", () =>
 	{
 		renderRoom();
-		const recap = within(screen.getByRole("button", {
+		const recap = within(screen.getByRole("link", {
 			name: "Play Conforto clubs Cubs' 200th homer in close win",
 		}));
 		expect(recap.getByTestId("video-duration")).toHaveTextContent("3:06");
@@ -112,7 +116,7 @@ describe("VideosRoom layout (S69)", () =>
 		expect(screen.getByText("Game highlights")).toBeInTheDocument();
 		expect(within(screen.getByRole("region", {
 			name: "Post-game",
-		})).getByRole("button", {
+		})).getByRole("link", {
 			name: "Play Condensed Game: CHC@MIA - 9/5/26",
 		})).toBeInTheDocument();
 		await user.type(screen.getByRole("textbox", {
@@ -295,7 +299,7 @@ describe("VideosRoom states and play (S69)", () =>
 		const user = userEvent.setup();
 		renderRoom();
 		const first = game().highlights[0]!;
-		await user.click(screen.getByRole("button", {
+		await user.click(screen.getByRole("link", {
 			name: `Play ${first.title}`,
 		}));
 		const dialog = await screen.findByRole("dialog");

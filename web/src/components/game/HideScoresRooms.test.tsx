@@ -249,7 +249,7 @@ describe("Hide Scores in the rooms (S75)", () =>
 		cleanup();
 
 		const panel = await room("videos", game, true, "video-card");
-		await userEvent.click(within(panel).getByRole("button", {
+		await userEvent.click(within(panel).getByRole("link", {
 			name: "Play Recap (score hidden)",
 		}));
 		const dialog = await screen.findByRole("dialog");
@@ -264,7 +264,7 @@ describe("Hide Scores in the rooms (S75)", () =>
 		await hideScores(true);
 		wrap(
 			<MemoryRouter>
-				<VideoCard video={recapClip} layout="grid" onPlay={() => undefined} />
+				<VideoCard video={recapClip} layout="grid" href="/search" />
 				<LazyPlayerDialog video={recapClip} onClose={() => undefined} />
 			</MemoryRouter>,
 		);

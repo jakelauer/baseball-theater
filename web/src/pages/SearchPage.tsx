@@ -17,6 +17,7 @@ import type { SearchResult } from "../components/search/SearchResultRow.js";
 import { SearchResultRow } from "../components/search/SearchResultRow.js";
 import { gameLabel } from "../components/videos/gameLabel.js";
 import { LazyPlayerDialog } from "../components/videos/LazyPlayerDialog.js";
+import { useOpenClip } from "../components/videos/openClip.js";
 
 /**
  * Search Highlights (S5; standings-search-settings `search-*`, retitled by A2 for a highlights-only
@@ -34,7 +35,9 @@ import { LazyPlayerDialog } from "../components/videos/LazyPlayerDialog.js";
  * a new search from it searches the words without that URL's filters.
  *
  * A row plays its clip in S70's floating player over the results, whatever the Video Player setting
- * (there is no stage on Search), with the link to its game when it has one (A2, A6). Loading, no
+ * (there is no stage on Search), with the link to its game when it has one (A2, A6). The open clip is in the
+ * URL too (`?clip=`, `useOpenClip`, #424), so each row is a link a middle-click opens in a new tab; a new
+ * search drops it. Loading, no
  * results and error are `ViewState`'s generic treatment, through `queryScreen` (S28's one "keep
  * what's on screen" rule). Hide Scores changes nothing here (owner, 2026-10-21: "Search is
  * unaffected by hide scores"): titles and blurbs are MLB's.
@@ -45,10 +48,12 @@ export function SearchPage()
 	const q = (params.get("q") ?? "").trim();
 	const parsed = parseSearchFilters((name) => params.get(name));
 	const filters: SearchFilters = parsed === "invalid" ? {} : parsed;
-	const [playing, setPlaying] = useState<SearchResult | null>(null);
 	const {
 		data, error, refetch,
 	} = useHighlightSearch(q, filters);
+	const {
+		playing, href, close,
+	} = useOpenClip<SearchResult>(data?.highlights, (result) => result.highlight.id);
 
 	/**
 	 * The URL for words `words` with the filters set now, less `without` (a removed chip's). It writes the
@@ -97,7 +102,7 @@ export function SearchPage()
 		{
 			body = (
 				<Stack gap={0}>
-					{data.highlights.map((result) => <SearchResultRow key={result.highlight.id} result={result} onPlay={setPlaying} />)}
+					{data.highlights.map((result) => <SearchResultRow key={result.highlight.id} result={result} href={href(result)} />)}
 				</Stack>
 			);
 		}
@@ -115,7 +120,7 @@ export function SearchPage()
 			{playing ? (
 				<LazyPlayerDialog
 					video={playing.highlight}
-					onClose={() => setPlaying(null)}
+					onClose={close}
 					{...playing.game && {
 						game: {
 							gamePk: playing.game.gamePk,

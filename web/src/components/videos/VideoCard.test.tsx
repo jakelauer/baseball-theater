@@ -14,7 +14,7 @@ import {
 	MemoryRouter, Route, Routes, useLocation,
 } from "react-router-dom";
 import {
-	afterEach, describe, expect, it, vi,
+	afterEach, describe, expect, it,
 } from "vitest";
 import { formatDate } from "../../format/datetime.js";
 import type { Video } from "./VideoCard.js";
@@ -61,19 +61,17 @@ function Where()
 
 function renderCard(video: Video, layout: "grid" | "list", playLink: PlayLink | null)
 {
-	const onPlay = vi.fn();
 	render(
 		<MantineProvider>
 			<MemoryRouter initialEntries={["/game/823823/videos"]}>
 				<Routes>
-					<Route path="*" element={<><VideoCard video={video} layout={layout} onPlay={onPlay} playLink={playLink} /><Where /></>} />
+					<Route path="*" element={<><VideoCard video={video} layout={layout} href={`/game/823823/videos?clip=${video.id}`} playLink={playLink} /><Where /></>} />
 				</Routes>
 			</MemoryRouter>
 		</MantineProvider>,
 	);
 	const card = screen.getByTestId("video-card");
 	return {
-		onPlay,
 		card,
 		// The card's whole box: the button and, with a play, the pill beside it.
 		box: card.parentElement!,
@@ -98,7 +96,7 @@ describe("VideoCard meta line (S145)", () =>
 {
 	it.each(LAYOUTS)("S145 AC 1: %s: a clip with a play reads its date then the Top 6 → pill, no kind word, linking to the play", (layout) =>
 	{
-		const { box } = renderCard(clip(), layout, TOP6);
+		const { box, card } = renderCard(clip(), layout, TOP6);
 		const meta = within(box).getByTestId("video-meta");
 		expect(meta.textContent).toBe(SHOWN);
 		expect(box.textContent).not.toMatch(/Highlight/);
@@ -116,7 +114,8 @@ describe("VideoCard meta line (S145)", () =>
 		// On the meta line (the same grid row, after the date), not a line of its own under the card.
 		expect(pill.style.gridRow).toBe(meta.style.gridRow);
 		expect(Number(pill.style.gridColumn)).toBe(Number(meta.style.gridColumn) + 1);
-		expect(within(box).getAllByRole("link")).toHaveLength(1);
+		// The card's own link (to its clip, #424), then the pill.
+		expect(within(box).getAllByRole("link")).toEqual([card, pill]);
 	});
 
 	it.each(LAYOUTS)("S145 AC 1: %s: a bottom-half play reads Bot 3 → and is spoken Bottom of 3rd inning", (layout) =>
@@ -177,34 +176,40 @@ describe("VideoCard meta line (S145)", () =>
 			expect(meta.textContent).toBe(`${word} · ${SHOWN}`);
 			expect(meta.getAttribute("style")).toMatch(/color: var\(--bt-muted\)/);
 			expect(card.contains(meta)).toBe(true);
-			expect(within(box).queryByRole("link")).toBeNull();
+			// No pill: the card's own link (to its clip, #424) is the only one.
+			expect(within(box).getAllByRole("link")).toEqual([card]);
 			cleanup();
 		}
 	});
 
 	it.each(LAYOUTS)("S145 AC 3: %s: the pill opens the play without playing the clip; the title and the date play it", (layout) =>
 	{
-		const { onPlay, box } = renderCard(clip(), layout, TOP6);
+		// The card's link opens its clip (`?clip=`, #424); the pill goes to the play and opens no clip.
+		const { box } = renderCard(clip(), layout, TOP6);
+		const where = () => screen.getByTestId("where").textContent;
 		fireEvent.click(within(box).getByText("Aaron Judge's solo home run (52)"));
-		expect(onPlay).toHaveBeenCalledTimes(1);
-		fireEvent.click(within(box).getByTestId("video-meta"));
-		expect(onPlay).toHaveBeenCalledTimes(2);
-		fireEvent.click(within(box).getByRole("link", {
+		expect(where()).toBe(`/game/823823/videos?clip=${clip().id}`);
+		cleanup();
+		const again = renderCard(clip(), layout, TOP6);
+		fireEvent.click(within(again.box).getByTestId("video-meta"));
+		expect(where()).toBe(`/game/823823/videos?clip=${clip().id}`);
+		cleanup();
+		const pill = renderCard(clip(), layout, TOP6);
+		fireEvent.click(within(pill.box).getByRole("link", {
 			name: "Top 6: open play, top of 6th inning",
 		}));
-		expect(screen.getByTestId("where").textContent).toBe("/game/823823/plays?play=abc");
-		expect(onPlay).toHaveBeenCalledTimes(2);
+		expect(where()).toBe("/game/823823/plays?play=abc");
 	});
 
-	it.each(LAYOUTS)("S145 AC 3: %s: one button for the clip; the pill is in no button and no zoom host, and follows the button in focus order", (layout) =>
+	it.each(LAYOUTS)("S145 AC 3: %s: one link for the clip (#424); the pill is outside it and any zoom host, and follows it in focus order", (layout) =>
 	{
 		const { card, box } = renderCard(clip(), layout, TOP6);
-		expect(within(box).getAllByRole("button")).toEqual([card]);
+		expect(within(box).queryAllByRole("button")).toEqual([]);
 		expect(card.getAttribute("aria-label")).toBe("Play Aaron Judge's solo home run (52)");
 		const pill = within(box).getByRole("link", {
 			name: "Top 6: open play, top of 6th inning",
 		});
-		expect(pill.closest("button")).toBeNull();
+		expect(card.contains(pill)).toBe(false);
 		expect(pill.closest(".bt-zoom-host")).toBeNull();
 		expect(card.classList.contains("bt-zoom-host")).toBe(true);
 		expect(card.compareDocumentPosition(pill) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -215,7 +220,9 @@ describe("VideoCard meta line (S145)", () =>
 	it("S145 AC 3: the pill's hit area is at least 24×24 px and its hover fill is var(--bt-raised-current)", () =>
 	{
 		const { box } = renderCard(clip(), "grid", TOP6);
-		expect(within(box).getByRole("link").classList.contains("bt-play-pill")).toBe(true);
+		expect(within(box).getByRole("link", {
+			name: /open play/,
+		}).classList.contains("bt-play-pill")).toBe(true);
 		const pill = rule(/^\s*\.bt-play-pill\s*$/);
 		expect(pill).toMatch(/min-width:\s*24px;/);
 		expect(pill).toMatch(/min-height:\s*24px;/);
@@ -227,7 +234,9 @@ describe("VideoCard meta line (S145)", () =>
 	it("S145 AC 3: no stylesheet paints the pill's hit box on hover or focus", () =>
 	{
 		const { box } = renderCard(clip(), "grid", TOP6);
-		const pill = within(box).getByRole("link");
+		const pill = within(box).getByRole("link", {
+			name: /open play/,
+		});
 		const scanned = paintingStateSelectors();
 		// Proves the scan reached the site's link wash rules (styles.css's Anchor hover, inside `@media (hover: hover)`, and its focus list).
 		expect(scanned.filter((selector) => selector.includes(".mantine-Anchor-root:not(:disabled)") && selector.includes(":hover"))).toHaveLength(1);
@@ -239,7 +248,9 @@ describe("VideoCard meta line (S145)", () =>
 	it("S145 AC 3: keyboard focus fills the pill like hover and rings the pill alone", () =>
 	{
 		const { box } = renderCard(clip(), "grid", TOP6);
-		expect(within(box).getByRole("link").classList.contains("mantine-focus-auto")).toBe(false);
+		expect(within(box).getByRole("link", {
+			name: /open play/,
+		}).classList.contains("mantine-focus-auto")).toBe(false);
 		expect(rule(/^\s*\.bt-play-pill:focus-visible\s*$/)).toMatch(/outline:\s*none;/);
 		const face = rule(/^\s*\.bt-play-pill:focus-visible \.bt-play-pill-face\s*$/);
 		expect(face).toMatch(/background-color:\s*var\(--bt-raised-current\);/);
