@@ -72,7 +72,8 @@ for (const frame of ["scoreboard-mobile", "scoreboard-medium", "scoreboard-deskt
 		});
 		await page.clock.install();
 		await page.goto("/games/2026-09-05");
-		const live = page.getByTestId("scoreboard-module").nth(1);
+		// The live game by its id: the scoreboard's order (favorites, live, then by start time) decides where it sits (S218).
+		const live = page.locator('[data-testid="scoreboard-module"][data-game-pk="823823"]');
 		await expect(live.getByTestId("runs")).toHaveText(["1", "0"]);
 		await page.clock.runFor(16_000);
 		await expect(live.getByTestId("runs")).toHaveText(["3", "2"]);

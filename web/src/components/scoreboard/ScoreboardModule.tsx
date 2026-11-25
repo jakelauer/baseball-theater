@@ -166,7 +166,9 @@ function ProbableCell({ pitcher }: { pitcher: Probable | undefined })
  * (`.bt-above-card-link`) — one link, no link nested in another. The card lifts on hover
  * (`.bt-card`). With Hide Scores on (S68, `useScoresHidden`) the R · H · E cells,
  * records and pitchers of record are masked by `HiddenValue` in place, so the module
- * keeps its size; collapsed bars are `CollapsedBar`.
+ * keeps its size; collapsed bars are `CollapsedBar`. `data-game-pk` names the game the card
+ * shows, so a check finds a game by itself rather than by where the scoreboard's order put
+ * it (S218).
  */
 export function ScoreboardModule({ game }: { game: ScoreboardGame })
 {
@@ -181,6 +183,7 @@ export function ScoreboardModule({ game }: { game: ScoreboardGame })
 	return (
 		<Paper
 			data-testid="scoreboard-module"
+			data-game-pk={game.gamePk}
 			data-phase={phase}
 			bg="var(--bt-raised)"
 			radius="md"

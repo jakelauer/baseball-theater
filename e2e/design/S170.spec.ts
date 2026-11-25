@@ -155,7 +155,8 @@ for (const pairing of ["mobile", "desktop"] as const)
 			}),
 		}));
 		await page.goto("/games/2026-09-05");
-		await page.getByTestId("scoreboard-module").nth(3).waitFor();
+		// Every game drawn, each found by its id rather than its place in the scoreboard's order (S218).
+		for (const game of games) await page.locator(`[data-testid="scoreboard-module"][data-game-pk="${game.gamePk}"]`).waitFor();
 		await settle(page);
 		await capture(page, testInfo, frame);
 	});
@@ -229,10 +230,14 @@ for (const width of [390, 375, 360])
 			}),
 		}));
 		await page.goto("/games/2026-09-05");
-		await page.getByTestId("scoreboard-module").nth(1).waitFor();
+		// Each row by its game's id, not its place in the scoreboard's order (S218).
+		const suspendedRow = '[data-testid="scoreboard-module"][data-game-pk="823577"]';
+		const delayedRow = '[data-testid="scoreboard-module"][data-game-pk="824389"]';
+		await page.locator(suspendedRow).waitFor();
+		await page.locator(delayedRow).waitFor();
 		await settle(page);
-		const suspended = await fit(page, "[data-testid=scoreboard-module] >> nth=0");
-		const delayed = await fit(page, "[data-testid=scoreboard-module] >> nth=1");
+		const suspended = await fit(page, suspendedRow);
+		const delayed = await fit(page, delayedRow);
 		expect(suspended).toMatchObject({
 			text: "Suspended \u00b7 Inclement Weather",
 			pastCard: 0,
@@ -246,7 +251,7 @@ for (const width of [390, 375, 360])
 		});
 		for (const marker of [suspended, delayed]) expect(marker.lines).toBeLessThanOrEqual(2);
 		// The venue isn't squeezed out: it keeps its whole line below the wrapped reason, inside the card.
-		const venue = await page.getByTestId("scoreboard-module").nth(1).evaluate((root) =>
+		const venue = await page.locator(delayedRow).evaluate((root) =>
 		{
 			const marker = root.querySelector("[data-testid=status-marker]")!.getBoundingClientRect();
 			const name = [...root.querySelectorAll("p")].find((p) => p.textContent?.startsWith("\u00b7 "))!.getBoundingClientRect();

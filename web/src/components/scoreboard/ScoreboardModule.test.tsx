@@ -213,3 +213,15 @@ describe("the scheduled row (S171, shell-scoreboard A16)", () =>
 		expect(probables(card)).toEqual([["M. Pérez (L)", "8-9, 3.25"], ["Z. Wheeler (R)", "12-5, 3.23"]]);
 	});
 });
+
+describe("ScoreboardModule's game id", () =>
+{
+	// The design capture specs find a game by this attribute, not by its place in the scoreboard's order (S218).
+	it("S218 AC 1: a module rendered for a fixture game carries its gamePk", () =>
+	{
+		expect(renderRow(scheduled()).dataset.gamePk).toBe("823419");
+		cleanup();
+		const final = SCHEDULE.games.find((g) => g.gamePk === 823577)!;
+		expect(renderRow(final).dataset.gamePk).toBe("823577");
+	});
+});

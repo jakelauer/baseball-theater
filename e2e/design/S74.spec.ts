@@ -134,8 +134,9 @@ const FRAMES: [string, (page: Page) => Promise<void>][] = [
 		await page.getByTestId("scoreboard-module").first().waitFor();
 		await page.context().setOffline(true);
 		await page.getByTestId("notice-slot").waitFor();
-		// SF @ NYM, the day's first game, never opened online; a link, so the app moves without a reload.
-		await page.getByTestId("scoreboard-module").first().getByRole("link").first().click();
+		// SF @ NYM (823577), never opened online, found by its id rather than its place in the
+		// scoreboard's order (S218); a link, so the app moves without a reload.
+		await page.locator('[data-testid="scoreboard-module"][data-game-pk="823577"]').getByRole("link").first().click();
 		await page.getByTestId("game-topbar").waitFor();
 		await page.getByTestId("notice-slot").getByText("You're offline.", {
 			exact: true,
