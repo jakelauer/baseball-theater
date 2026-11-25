@@ -42,6 +42,7 @@ import type { ApiContext } from "./handlers/api.js";
 import { APP_ORIGIN_SECRET } from "./services/data-downloads.js";
 import { logApiUsage } from "./services/api-usage.js";
 import type { AuthDeps } from "./services/accounts.js";
+import { dayHubName, dayHubNotifier } from "./services/day-hubs.js";
 import type { EdgePurge } from "./services/edge-purge.js";
 import type { IngestDeps } from "./services/ingest.js";
 import { RefreshCoordinator } from "./services/refresh.js";
@@ -103,6 +104,8 @@ export type WorkerEnv = {
 	GAME_INGEST?: GameIngestNamespace;
 	/** The per-game live hubs (S18; `wrangler.jsonc` `durable_objects`); absent under Node. */
 	GAME_HUB?: GameIngestNamespace;
+	/** The scoreboard's per-day live hubs (S149; `wrangler.jsonc` `durable_objects`); absent under Node. */
+	DAY_HUB?: GameIngestNamespace;
 	/** Postgres through Hyperdrive (S51; `wrangler.jsonc` `hyperdrive`); absent under Node. */
 	HYPERDRIVE?: HyperdriveBinding;
 };
@@ -195,6 +198,10 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		...options.background && {
 			background: options.background,
 		},
+		// S149 AC 2: a schedule write tells the day hubs of the in-window days it changed; the Node server has none.
+		...env.DAY_HUB && {
+			dayHubs: dayHubNotifier(env.DAY_HUB),
+		},
 	};
 	const secrets = new StaticSecretsProvider({
 		[SESSION_KEY_SECRET]: env.BT_SESSION_KEY ?? crypto.randomUUID(),
@@ -238,6 +245,9 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 			usage: logApiUsage,
 			...env.GAME_HUB && {
 				live: liveForwarder(env.GAME_HUB),
+			},
+			...env.DAY_HUB && {
+				liveDay: liveDayForwarder(env.DAY_HUB),
 			},
 		},
 		ingest,
@@ -334,6 +344,22 @@ export function liveForwarder(namespace: GameIngestNamespace): (gamePk: number, 
 		const since = new URL(request.url).searchParams.get("since");
 		const target = `https://game-hub/connect?gamePk=${gamePk}${since === null ? "" : `&since=${encodeURIComponent(since)}`}`;
 		return namespace.get(namespace.idFromName(`game-hub:${gamePk}`) as never).fetch(target, {
+			headers: request.headers,
+		});
+	};
+}
+
+/**
+ * Hands `GET /api/v1/schedule/live?date=` to the date's day hub (S149 AC 5), as {@link liveForwarder} does a game's:
+ * the request's headers (the upgrade) and its `?since=` go along.
+ */
+export function liveDayForwarder(namespace: GameIngestNamespace): (date: string, request: Request) => Promise<Response>
+{
+	return (date, request) =>
+	{
+		const since = new URL(request.url).searchParams.get("since");
+		const target = `https://day-hub/connect?date=${encodeURIComponent(date)}${since === null ? "" : `&since=${encodeURIComponent(since)}`}`;
+		return namespace.get(namespace.idFromName(dayHubName(date)) as never).fetch(target, {
 			headers: request.headers,
 		});
 	};

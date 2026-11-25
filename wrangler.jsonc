@@ -22,14 +22,17 @@
 	},
 	"durable_objects": {
 		// S18: game-hub:<gamePk> holds each game's viewers' WebSockets (ADR-020 layer 2).
+		// S149: day-hub:<YYYY-MM-DD> holds the scoreboard viewers of one day (ADR-020 as amended 2026-11-16).
 		"bindings": [
 			{ "name": "GAME_INGEST", "class_name": "GameIngestObject" },
-			{ "name": "GAME_HUB", "class_name": "GameHubObject" }
+			{ "name": "GAME_HUB", "class_name": "GameHubObject" },
+			{ "name": "DAY_HUB", "class_name": "DayHubObject" }
 		]
 	},
 	"migrations": [
 		{ "tag": "v1", "new_sqlite_classes": ["GameIngestObject"] },
-		{ "tag": "v2", "new_sqlite_classes": ["GameHubObject"] }
+		{ "tag": "v2", "new_sqlite_classes": ["GameHubObject"] },
+		{ "tag": "v3", "new_sqlite_classes": ["DayHubObject"] }
 	],
 	// Workers Cache (S47, ADR-021; owner, 2026-10-30: "Workers cache"): Cloudflare checks
 	// its tiered edge cache before running the Worker and keeps schedule and game responses
@@ -82,7 +85,8 @@
 			"durable_objects": {
 				"bindings": [
 					{ "name": "GAME_INGEST", "class_name": "GameIngestObject" },
-					{ "name": "GAME_HUB", "class_name": "GameHubObject" }
+					{ "name": "GAME_HUB", "class_name": "GameHubObject" },
+					{ "name": "DAY_HUB", "class_name": "DayHubObject" }
 				]
 			},
 			"hyperdrive": [
@@ -108,7 +112,8 @@
 			"durable_objects": {
 				"bindings": [
 					{ "name": "GAME_INGEST", "class_name": "GameIngestObject" },
-					{ "name": "GAME_HUB", "class_name": "GameHubObject" }
+					{ "name": "GAME_HUB", "class_name": "GameHubObject" },
+					{ "name": "DAY_HUB", "class_name": "DayHubObject" }
 				]
 			},
 			"hyperdrive": [
@@ -150,7 +155,8 @@
 			"durable_objects": {
 				"bindings": [
 					{ "name": "GAME_INGEST", "class_name": "GameIngestObject" },
-					{ "name": "GAME_HUB", "class_name": "GameHubObject" }
+					{ "name": "GAME_HUB", "class_name": "GameHubObject" },
+					{ "name": "DAY_HUB", "class_name": "DayHubObject" }
 				]
 			},
 			"hyperdrive": [
