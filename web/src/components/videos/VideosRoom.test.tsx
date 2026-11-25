@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-	groupHighlights, rankHighlightsByImpact, sortHighlights,
+	classifyHighlight, groupHighlights, rankHighlightsByImpact, sortHighlights,
 } from "@bt/domain";
 import { MantineProvider } from "@mantine/core";
 import {
@@ -123,7 +123,8 @@ describe("VideosRoom layout (S69)", () =>
 		await user.type(screen.getByRole("textbox", {
 			name: "Search videos",
 		}), "ABS challenge");
-		expect(groups()).toEqual(["Game highlights"]);
+		// ABS challenge clips are Statcast (#432).
+		expect(groups()).toEqual(["Statcast"]);
 	});
 
 	it("groups collapse: each heading folds its group away and back; the others stay open", async () =>
@@ -170,18 +171,14 @@ describe("VideosRoom search and quick filters (S69)", () =>
 		expect(screen.getByText("No videos match.")).toBeInTheDocument();
 	});
 
-	it("quick filter: Featured team starts on none, narrows to the team picked from the game's two, and clears with All teams; Stat / viz the viz clips, together both", async () =>
+	it("quick filter: Featured team starts on All, narrows to the team picked from the game's two, and clears with All; Stat / viz the viz clips, together both", async () =>
 	{
 		const user = userEvent.setup();
 		renderRoom();
 		const all = grouped(game().highlights);
 		expect(cardTitles()).toEqual(all);
-		await user.click(screen.getByRole("button", {
-			name: "Featured team",
-		}));
-		expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["All teams", "CHC", "MIA"]);
-		await user.click(screen.getByRole("menuitem", {
-			name: "MIA",
+		await user.click(screen.getByRole("radio", {
+			name: /^MIA \d+$/,
 		}));
 		const marlins = grouped(game().highlights.filter((h) => h.teamIds?.includes(146)));
 		expect(cardTitles()).toEqual(marlins);
@@ -194,11 +191,8 @@ describe("VideosRoom search and quick filters (S69)", () =>
 		await user.click(screen.getByRole("button", {
 			name: "Stat / viz",
 		}));
-		await user.click(screen.getByRole("button", {
-			name: "Featured team: MIA",
-		}));
-		await user.click(await screen.findByRole("menuitem", {
-			name: "All teams",
+		await user.click(screen.getByRole("radio", {
+			name: /^All \d+$/,
 		}));
 		expect(cardTitles()).toEqual(all);
 	});
@@ -219,7 +213,10 @@ describe("VideosRoom states and play (S69)", () =>
 		expect(within(screen.getByTestId("filter-row")).queryByRole("button", {
 			name: "Filters",
 		})).toBeNull();
-		expect(within(screen.getByTestId("filter-row")).getAllByRole("button")).toHaveLength(2);
+		expect(within(screen.getByTestId("filter-row")).getAllByRole("button").map((b) => b.textContent)).toEqual(["Stat / viz"]);
+		expect(within(screen.getByTestId("filter-row")).getByRole("radiogroup", {
+			name: "Featured team",
+		})).toBeInTheDocument();
 	});
 
 	it("filters overflow: pills that don't fit move behind a last Filters button whose drawer lists every filter, applied with Apply", async () =>
@@ -233,7 +230,10 @@ describe("VideosRoom states and play (S69)", () =>
 		const user = userEvent.setup();
 		renderRoom();
 		const row = within(screen.getByTestId("filter-row"));
-		expect(row.getAllByRole("button").map((b) => b.textContent)).toEqual(["Featured team", "Filters"]);
+		expect(row.getByRole("radiogroup", {
+			name: "Featured team",
+		})).toBeInTheDocument();
+		expect(row.getAllByRole("button").map((b) => b.textContent)).toEqual(["Filters"]);
 		await user.click(row.getByRole("button", {
 			name: "Filters",
 		}));
@@ -324,5 +324,81 @@ describe("Videos headers are never smaller than body text (#527)", () =>
 			const label = group.getAttribute("aria-label")!;
 			expect(mantineFontPx(within(group).getByText(label)), label).toBeGreaterThanOrEqual(BODY_FONT_PX);
 		}
+	});
+});
+
+describe("the Videos room's filters and groups (videos-room bugs)", () =>
+{
+	it("the Stat / viz filter is hidden when no clip is a stat or viz clip (#418)", () =>
+	{
+		renderRoom("mobile", game(game().highlights.filter((h) => !classifyHighlight(h).statViz)));
+		expect(screen.queryAllByText("Stat / viz")).toEqual([]);
+		cleanup();
+		renderRoom();
+		expect(screen.getByRole("button", {
+			name: "Stat / viz",
+		})).toBeInTheDocument();
+	});
+
+	it("Featured team is one connected control, All · away · home, All chosen, each with its clip count (#428)", async () =>
+	{
+		const user = userEvent.setup();
+		renderRoom();
+		const all = game().highlights;
+		const count = (teamId: number) => all.filter((h) => h.teamIds?.includes(teamId)).length;
+		const control = within(screen.getByRole("radiogroup", {
+			name: "Featured team",
+		}));
+		expect(control.getAllByRole("radio").map((radio) => (radio as HTMLInputElement).labels?.[0]?.textContent)).toEqual([
+			`All ${all.length}`, `CHC ${count(112)}`, `MIA ${count(146)}`,
+		]);
+		expect(control.getByRole("radio", {
+			name: `All ${all.length}`,
+		})).toBeChecked();
+		// A clip featuring neither team counts only under All.
+		expect(count(112) + count(146)).not.toBe(all.length);
+		await user.click(control.getByRole("radio", {
+			name: `MIA ${count(146)}`,
+		}));
+		expect(cardTitles()).toEqual(grouped(all.filter((h) => h.teamIds?.includes(146))));
+		await user.click(control.getByRole("radio", {
+			name: `All ${all.length}`,
+		}));
+		expect(cardTitles()).toEqual(grouped(all));
+	});
+
+	it("each group reads as a collapsible container: a left rule runs down from its chevron and its clips sit inset inside it (#427)", async () =>
+	{
+		const user = userEvent.setup();
+		renderRoom();
+		for (const group of screen.getAllByTestId("videos-group"))
+		{
+			const body = within(group).getByTestId("videos-group-body");
+			expect(body.style.borderLeftStyle, group.dataset.group).toBe("solid");
+			expect(Number.parseFloat(body.style.paddingLeft), group.dataset.group).toBeGreaterThan(0);
+			expect(body).toContainElement(within(group).getAllByTestId("video-card")[0]!);
+		}
+		await user.click(within(screen.getByRole("region", {
+			name: "Statcast",
+		})).getByRole("button", {
+			name: /^Statcast \d+$/,
+		}));
+		expect(within(screen.getByRole("region", {
+			name: "Statcast",
+		})).queryByTestId("videos-group-body")).toBeNull();
+	});
+
+	it.fails("a game's clips show no date: every clip is from the game's own day (#421)", () =>
+	{
+		renderRoom();
+		const metas = screen.getAllByTestId("video-meta").map((meta) => meta.textContent ?? "");
+		expect(metas.length).toBeGreaterThan(0);
+		expect(metas.filter((meta) => /\b2026\b/.test(meta))).toEqual([]);
+	});
+
+	it.fails("the Videos tab has no \"Videos\" header (#529)", () =>
+	{
+		renderRoom();
+		expect(screen.queryByText("Videos")).toBeNull();
 	});
 });

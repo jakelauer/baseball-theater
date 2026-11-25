@@ -94,7 +94,7 @@ for (const [frame, signedOut] of FOOTER_FRAMES)
 		});
 		await open(page, DAY, signedOut);
 		await page.getByTestId("scoreboard-module").first().waitFor();
-		await page.getByTestId("digest-item").first().waitFor();
+		await page.getByTestId("day-digest").getByTestId("video-card").first().waitFor();
 		await settle(page, testInfo, frame);
 	});
 

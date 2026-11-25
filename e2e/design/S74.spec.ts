@@ -81,7 +81,7 @@ async function scoreboard(page: Page): Promise<void>
 	await serve(page);
 	await signInDev(page, DAY);
 	await page.getByTestId("scoreboard-module").first().waitFor();
-	await page.getByTestId("digest-item").first().waitFor();
+	await page.getByTestId("day-digest").getByTestId("video-card").first().waitFor();
 	await page.getByRole("contentinfo").getByRole("link", {
 		name: "Your data",
 	}).waitFor();

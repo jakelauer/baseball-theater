@@ -67,9 +67,9 @@ async function scoreboard(page: Page, hide: boolean): Promise<void>
 	{
 		await page.goto("/games/2026-09-05");
 	}
-	await page.getByTestId("digest-item").first().waitFor();
+	await page.getByTestId("day-digest").getByTestId("video-card").first().waitFor();
 	// Let the stills load before the capture.
-	await page.waitForFunction(() => [...document.querySelectorAll("[data-testid='digest-item'] img")].every((img) => (img as HTMLImageElement).complete));
+	await page.waitForFunction(() => [...document.querySelectorAll("[data-testid='day-digest'] [data-testid='video-card'] img")].every((img) => (img as HTMLImageElement).complete));
 	await page.evaluate(async () =>
 	{
 		await document.fonts.ready;
