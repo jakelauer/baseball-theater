@@ -175,22 +175,35 @@ describe("the Box room (S2)", () =>
 
 	for (const variant of ["medium", "desktop"] as const)
 	{
-		it(`variant: at ${variant} the Box room draws the same modules`, async () =>
+		it(`variant: at ${variant} both teams' batting tables show side by side, home on the right, with no switcher (#433)`, async () =>
 		{
 			const panel = await boxPanel(fixture(823823), variant);
 			expect(within(panel).getByTestId("box-room")).toHaveAttribute("data-variant", variant);
 			expect(within(panel).getByRole("table", {
 				name: "Linescore",
 			})).toBeInTheDocument();
-			expect(within(panel).getByRole("group", {
+			expect(within(panel).queryByRole("group", {
 				name: "Team",
-			})).toBeInTheDocument();
-			expect(within(panel).getAllByRole("table", {
+			})).toBeNull();
+			const tables = within(panel).getAllByRole("table", {
 				name: /batting$/,
-			})).toHaveLength(1);
+			});
+			expect(tables.map((t) => t.getAttribute("aria-label"))).toEqual(["CHC batting", "MIA batting"]);
 			expect(within(panel).getByRole("region", {
 				name: "Game info",
 			})).toBeInTheDocument();
 		});
 	}
+
+	it("game info: MLB's T and Att are written out as Time and Attendance (#433)", async () =>
+	{
+		const panel = await boxPanel(fixture(823823), "desktop");
+		const info = within(panel).getByRole("region", {
+			name: "Game info",
+		});
+		expect(within(info).getByText("Time")).toBeInTheDocument();
+		expect(within(info).getByText("Attendance")).toBeInTheDocument();
+		expect(within(info).queryByText("T")).toBeNull();
+		expect(within(info).queryByText("Att")).toBeNull();
+	});
 });

@@ -1,4 +1,6 @@
-import { Box, Paper } from "@mantine/core";
+import {
+	Box, Paper, VisuallyHidden,
+} from "@mantine/core";
 import type { CSSProperties } from "react";
 import { linescoreCells } from "@bt/domain";
 import type { GamePayload } from "../../api/game.js";
@@ -36,6 +38,9 @@ const TOTAL: CSSProperties = {
  * 2026-10-29: "for now, let's make the linescore only take up the amount of width it
  * requires and center it"); the aim is innings spread evenly across the full width.
  * It scrolls sideways rather than overflow when extra innings outgrow the room.
+ * The team column's header is visually hidden but still names the column for screen
+ * readers (B433, #433; owner, 2026-11-23: "should not have the word team on it, that's
+ * unnecessary").
  * `hidden` masks every inning cell and R·H·E with `HiddenValue` (S75; game-rooms A4
  * `plays-hidden-nonotice-mobile`): Plays passes its Hide Scores answer; Box passes none,
  * since someone opening the box score wants the numbers (A4 `box-hidden-nonotice-mobile`).
@@ -90,7 +95,7 @@ export function Linescore({
 							...HEAD,
 							textAlign: "left",
 						}}
-						>TEAM
+						><VisuallyHidden>Team</VisuallyHidden>
 						</th>
 						{cells.innings.map((num) => <th key={num} scope="col" style={HEAD}>{num}</th>)}
 						<th aria-hidden style={{
