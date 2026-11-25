@@ -1,7 +1,9 @@
 import {
 	describe, expect, it,
 } from "vitest";
-import { collapsedBarState, scoreboardRows } from "./scoreboard-rows.js";
+import {
+	collapsedBarState, isFavoriteGame, scoreboardRows,
+} from "./scoreboard-rows.js";
 import type { ScheduleGameSummary } from "./types.js";
 
 /** Only the team ids matter to the layout; the rest of a game is left out. */
@@ -36,6 +38,42 @@ describe("scoreboardRows (S68)", () =>
 	{
 		expect(scoreboardRows(DAY, [146], false).every((r) => !r.collapsed)).toBe(true);
 		expect(scoreboardRows(DAY, [146], false).map((r) => r.game.gamePk)).toEqual([1, 2, 3]);
+	});
+
+	it("S213 AC 3 home only: a game where only the home team is a favorite stays open, first", () =>
+	{
+		const rows = scoreboardRows(DAY, [121], true);
+		expect(rows.map((r) => [r.game.gamePk, r.collapsed])).toEqual([[1, false], [2, true], [3, true]]);
+	});
+});
+
+describe("isFavoriteGame (S213)", () =>
+{
+	const yankeesAtPadres = game(9, 147, 135);
+
+	it("S213 AC 1 away: the away team a favorite", () =>
+	{
+		expect(isFavoriteGame(yankeesAtPadres, [147])).toBe(true);
+	});
+
+	it("S213 AC 1 home: the home team a favorite", () =>
+	{
+		expect(isFavoriteGame(yankeesAtPadres, [111, 135])).toBe(true);
+	});
+
+	it("S213 AC 1 both: both teams favorites", () =>
+	{
+		expect(isFavoriteGame(yankeesAtPadres, [135, 147])).toBe(true);
+	});
+
+	it("S213 AC 1 neither: neither team a favorite", () =>
+	{
+		expect(isFavoriteGame(yankeesAtPadres, [111, 146])).toBe(false);
+	});
+
+	it("S213 AC 1 empty: no favorites at all", () =>
+	{
+		expect(isFavoriteGame(yankeesAtPadres, [])).toBe(false);
 	});
 });
 
