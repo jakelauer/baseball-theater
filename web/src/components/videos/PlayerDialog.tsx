@@ -1,5 +1,5 @@
 import {
-	Anchor, Box, Group, Modal, UnstyledButton,
+	Anchor, Box, FocusTrap, Group, Modal, UnstyledButton,
 } from "@mantine/core";
 import { useReducedMotion } from "@mantine/hooks";
 import { useEffect, useState } from "react";
@@ -48,6 +48,12 @@ export type PlayerGame = {
  * enter transition only when `opened` turns true after mounting, so the dialog mounts closed and
  * opens a frame later; the player's `autoPlay` turns on once it has opened, which starts the same
  * `<video>` (`VideoPlayer`), so the element isn't replaced and nothing reloads.
+ *
+ * It opens with focus on Mantine's hidden `FocusTrap.InitialFocus`, not on its first control (#582):
+ * a clip's link opened in a new tab (#424) opens the dialog on a page the reader hasn't touched,
+ * where the browser counts focus placed on open as keyboard focus and rings that control, so the
+ * player opened with a red box around "Go to game", the play pill or Close. Tab still reaches each
+ * control in order, Esc still closes, and Space plays and pauses (`VideoPlayer`).
  */
 export function PlayerDialog({
 	video, onClose, game, fromGamePk, scoresHidden = false, playLink,
@@ -101,6 +107,7 @@ export function PlayerDialog({
 				},
 			}}
 		>
+			<FocusTrap.InitialFocus />
 			<Group justify="space-between" wrap="nowrap" gap="md">
 				{link ? (
 					<Anchor component={Link} to={`/game/${link.gamePk}`} c="var(--bt-primary-light)" onClick={onClose}>
