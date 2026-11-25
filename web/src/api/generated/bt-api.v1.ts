@@ -10,7 +10,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Best of one day: the top videos across its games, ranked by impact, the first marked to watch first. */
+        /** Best of one day: the top videos across its games, ranked by impact, numbered from 1. */
         get: operations["getDayDigest"];
         put?: never;
         post?: never;
@@ -421,7 +421,7 @@ export interface components {
             home: string;
             officialDate: string;
         };
-        /** @description One clip in the day digest: its place, whether to watch it first, the clip, its game and its play. */
+        /** @description One clip in the day digest: its place, the clip, its game and its play. It carries no "watch first" flag (S217): Best of draws on the highlight grid with no such label since B426, so the top clip is simply rank 1. */
         DigestItem: {
             game: components["schemas"]["DigestClipGame"];
             highlight: components["schemas"]["MediaHighlight"];
@@ -429,8 +429,6 @@ export interface components {
             play: components["schemas"]["DigestPlay"] | null;
             /** @description 1 for the top clip. */
             rank: number;
-            /** @description Only the top clip (the frames' `WATCH FIRST`). */
-            watchFirst: boolean;
         };
         /** @description The play a digest clip shows (S173): its id and the half-inning of the at-bat its pitch is in, enough for the player's inning pill (`Top 6 →`), which the browser builds with `playInningLink`. */
         DigestPlay: {
