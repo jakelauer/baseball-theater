@@ -24,6 +24,7 @@ import { resetVersionNotice } from "../api/versionNotice.js";
 import { resetSettings } from "../settings/store.js";
 import { jsonResponse } from "../test/jsonResponse.js";
 import { GamePage } from "./GamePage.js";
+import { findLoadedTopBar } from "../test/gameTopBar.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../fixtures");
 const ROWS = JSON.parse(readFileSync(join(FIXTURES, "raw/gamestatus.json"), "utf8")) as { statusCode: string;
@@ -66,7 +67,7 @@ function renderGame(payload: GamePayload)
 
 async function tabNames(): Promise<string[]>
 {
-	await screen.findByTestId("game-topbar");
+	await findLoadedTopBar();
 	return within(screen.getAllByRole("tablist")[0]!).getAllByRole("tab").map((t) => t.textContent ?? "");
 }
 

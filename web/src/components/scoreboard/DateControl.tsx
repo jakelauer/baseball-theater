@@ -1,11 +1,12 @@
 import {
-	ActionIcon, Drawer, Group, Popover, Text, UnstyledButton,
+	ActionIcon, Drawer, Group, Popover, Skeleton, Text, UnstyledButton,
 } from "@mantine/core";
 import { useReducedMotion, useWindowEvent } from "@mantine/hooks";
 import {
 	IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight,
 } from "@tabler/icons-react";
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { addDays } from "@bt/domain";
 import { useScheduleMonth } from "../../api/scheduleMonth.js";
@@ -127,21 +128,7 @@ export function DateControl({
 	);
 
 	return (
-		<Group
-			component="nav"
-			aria-label="Date"
-			data-testid="date-control"
-			justify="center"
-			gap="lg"
-			wrap="nowrap"
-			px="md"
-			py={8}
-			mx="calc(var(--mantine-spacing-md) * -1)"
-			mt="calc(var(--mantine-spacing-md) * -1)"
-			style={{
-				borderBottom: "1px solid var(--bt-hairline)",
-			}}
-		>
+		<DateBar testId="date-control">
 			<ActionIcon component={Link} to={dayPath(addDays(date, -1))} aria-label="Previous day" variant="subtle" color="gray">
 				<IconChevronLeft size={20} />
 			</ActionIcon>
@@ -196,6 +183,51 @@ export function DateControl({
 			<ActionIcon component={Link} to={dayPath(addDays(date, 1))} aria-label="Next day" variant="subtle" color="gray">
 				<IconChevronRight size={20} />
 			</ActionIcon>
+		</DateBar>
+	);
+}
+
+/** The date control's hairline bar under the header, edge to edge (it undoes `main`'s padding), which its skeleton shares. */
+function DateBar({ testId, children }: { testId: string;
+	children: ReactNode; })
+{
+	return (
+		<Group
+			component="nav"
+			aria-label="Date"
+			data-testid={testId}
+			justify="center"
+			gap="lg"
+			wrap="nowrap"
+			px="md"
+			py={8}
+			mx="calc(var(--mantine-spacing-md) * -1)"
+			mt="calc(var(--mantine-spacing-md) * -1)"
+			style={{
+				borderBottom: "1px solid var(--bt-hairline)",
+			}}
+		>
+			{children}
 		</Group>
+	);
+}
+
+/**
+ * The date control's place while the page doesn't yet know its day (the undated scoreboard asking the
+ * server's default, S111): the same bar, with skeletons for the arrows and the date button, so the bar
+ * is there from the start and nothing under it moves when the day arrives (B584, #584; owner,
+ * 2026-11-25: "right now the skeleton loading hides even the navigation in places that it doesn't
+ * need to, and it's jarring").
+ */
+export function DateControlSkeleton()
+{
+	const animate = !useReducedMotion();
+	return (
+		<DateBar testId="date-control-loading">
+			<Skeleton h={28} w={28} radius="sm" animate={animate} />
+			{/* The date button: 8px padding around a 20px line, about as wide as `SEP 21, 2026` with its glyphs. */}
+			<Skeleton h={38} w={170} radius={8} animate={animate} />
+			<Skeleton h={28} w={28} radius="sm" animate={animate} />
+		</DateBar>
 	);
 }

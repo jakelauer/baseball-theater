@@ -92,7 +92,8 @@ export function SearchPage()
 		}
 		else if (screen === "loading" || !data)
 		{
-			body = <ViewState kind="loading" />;
+			// Result rows' shape, under the title, box and chips, which draw at once (B584, #584).
+			body = <ViewState kind="loading" shape="results" />;
 		}
 		else if (data.highlights.length === 0)
 		{

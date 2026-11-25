@@ -343,6 +343,19 @@ describe("Search Highlights (S5)", () =>
 		})).toBeInTheDocument();
 	});
 
+	it("loading: a skeleton of result rows (an icon, a title line, a meta line), with the search box still there (#584)", async () =>
+	{
+		serve(() => new Promise<never>(() => undefined));
+		renderSearch("/search?q=walk-off");
+		const loading = await screen.findByLabelText("Loading");
+		expect(loading).toHaveAttribute("data-skeleton", "results");
+		const rows = within(loading).getAllByTestId("skeleton-result");
+		expect(rows.length).toBeGreaterThan(1);
+		expect(screen.getByRole("searchbox", {
+			name: "Search highlights",
+		})).toBeInTheDocument();
+	});
+
 	it("S5 AC 10: an error draws ViewState's error with Retry, which asks again", async () =>
 	{
 		let fail = true;

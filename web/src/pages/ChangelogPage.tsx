@@ -135,7 +135,8 @@ export function ChangelogPage({ setFooter, onClose }: { setFooter?: SetFooterMod
 	}
 	else if (screen === "loading" || !data)
 	{
-		body = <ViewState kind="loading" />;
+		// Release notes are prose: a heading over lines (B584, #584).
+		body = <ViewState kind="loading" shape="text" />;
 	}
 	else if (data.releases.length === 0)
 	{
