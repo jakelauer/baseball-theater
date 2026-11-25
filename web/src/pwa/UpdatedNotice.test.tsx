@@ -336,7 +336,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		settle();
 		const open = await screen.findByTestId("changelog-modal");
 		expect(within(open).getByRole("heading", {
-			name: "Change log",
+			name: "Changelog",
 			level: 1,
 		})).toBeInTheDocument();
 		expect(await within(open).findByText("Spring training standings")).toBeInTheDocument();
@@ -428,7 +428,7 @@ describe("the change log over the game page (S193 AC 2)", () =>
 		renderShell();
 		await openModal();
 		expect(within(screen.getByTestId("changelog-modal")).getByRole("heading", {
-			name: "Change log",
+			name: "Changelog",
 		})).toBeInTheDocument();
 		cleanup();
 		answer = () => jsonResponse({

@@ -159,10 +159,10 @@ export function ChangelogPage({ setFooter, onClose }: { setFooter?: SetFooterMod
 		<Stack gap="lg">
 			{onClose ? (
 				<Group justify="space-between" wrap="nowrap" align="center">
-					<Title order={1}>Change log</Title>
+					<Title order={1}>Changelog</Title>
 					<CloseButton size="md" aria-label="Close the change log" onClick={onClose} />
 				</Group>
-			) : <Title order={1}>Change log</Title>}
+			) : <Title order={1}>Changelog</Title>}
 			<Box>{body}</Box>
 		</Stack>
 	);
