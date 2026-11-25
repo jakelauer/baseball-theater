@@ -246,6 +246,14 @@ const SCHEDULE_RANGE_DAYS = 7;
  */
 const SCHEDULE_RANGE_CONCURRENCY = 5;
 
+/**
+ * How long a game fetch waits for MLB's playMetrics before answering without them (S216 AC 5): 750 ms. The latency probe
+ * of 2026-11-24 (`.run/reports/latency-1124.md`) measured playMetrics at 0.71–0.78 s, the slowest of a game's four
+ * calls, so a cold game's answer waited on it; at this limit most answers still carry them, and a slower one is
+ * answered without them while the same request finishes after the response (`FetchedGame.playMetricsLate`).
+ */
+export const PLAY_METRICS_LIMIT_MS = 750;
+
 export interface HttpMlbStatsClientOptions {
 	baseUrl?: string;
 	/** Injected in tests; defaults to global `fetch`. */
@@ -296,14 +304,41 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		return parts.flat();
 	}
 
+	/**
+	 * The live feed, then its three extras (content, playMetrics, GraphQL content) at once, assembled into one game
+	 * (`assembleGame`). S216 AC 5: playMetrics get {@link PLAY_METRICS_LIMIT_MS}; when they haven't arrived by then and
+	 * by the time the other two have, the game is built without them, as when their request fails, and the same request
+	 * keeps running as `playMetricsLate`, the game assembled with them once they come (null if they never do). An
+	 * on-read refresh answers the first and stores the second after the response; every other caller waits for the
+	 * whole game (`wholeFetchedGame`).
+	 */
 	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
 		const { game: feed, feedTime } = await this.fetchGameFeed(gamePk);
-		const [content, playMetrics, graph] = await Promise.all([this.fetchContent(gamePk), this.fetchPlayMetrics(gamePk), this.fetchGameGraphContent(gamePk)]);
+		const playMetrics = this.fetchPlayMetrics(gamePk);
+		let arrived: { value: GamePlayMetrics | null } | undefined;
+		void playMetrics.then((value) =>
+		{
+			arrived = {
+				value,
+			};
+		});
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const limit = new Promise<void>((resolve) =>
+		{
+			timer = setTimeout(resolve, PLAY_METRICS_LIMIT_MS);
+		});
+		const extras = Promise.all([this.fetchContent(gamePk), this.fetchGameGraphContent(gamePk), Promise.race([playMetrics, limit])]);
+		const [content, graph] = await extras.finally(() => clearTimeout(timer));
+		const editorial = content ? editorialOf(content) : null;
+		const late = arrived === undefined;
 		return {
-			game: assembleGame(feed, content ? editorialOf(content) : null, playMetrics, graph),
+			game: assembleGame(feed, editorial, arrived?.value ?? null, graph),
 			...feedTime !== undefined && {
 				feedTime,
+			},
+			...late && {
+				playMetricsLate: playMetrics.then((value) => value ? assembleGame(feed, editorial, value, graph) : null),
 			},
 		};
 	}

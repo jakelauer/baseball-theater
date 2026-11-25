@@ -5,7 +5,7 @@ import type {
 	GameState, GameStateClock, GameStateRow, StoredScheduleDay,
 } from "./game-state.js";
 import {
-	feedTimeToIso, gameStateFromGame, gameStateFromSummary, gameStateSource, isOtherDaysListing, joinScheduleDay, listingMovedAway, toStoredScheduleDay,
+	feedTimeToIso, gameStateFromGame, gameStateFromSummary, gameStateSource, isOtherDaysListing, joinScheduleDay, listingMovedAway, toStoredScheduleDay, wholeFetchedGame,
 } from "./game-state.js";
 import type { AtBat } from "./plays.js";
 import type { GameSnapshot, ScheduleGameSummary } from "./types.js";
@@ -543,5 +543,49 @@ describe("joinScheduleDay (S150 AC 6)", () =>
 		const inPlace = joinScheduleDay(postponedListing, 0, new Map([[1, row(LIVE, 2, "2026-09-05T23:30:00.000Z", 2)]]), new Map(), now);
 		expect(inPlace.games[0]?.status).toEqual(LIVE);
 		expect(inPlace.games[0]?.linescore?.teams.home.runs).toBe(2);
+	});
+});
+
+describe("wholeFetchedGame (S216 AC 5)", () =>
+{
+	const game = {
+		gamePk: 1,
+	} as Unversioned<GameSnapshot>;
+	const late = {
+		gamePk: 1,
+		playMetrics: {
+			atBats: [],
+		},
+	} as unknown as Unversioned<GameSnapshot>;
+
+	it("a fetch whose playMetrics came in time is returned as it is", async () =>
+	{
+		expect(await wholeFetchedGame({
+			game,
+			feedTime: "2026-09-05T23:34:35.000Z",
+		})).toEqual({
+			game,
+			feedTime: "2026-09-05T23:34:35.000Z",
+		});
+	});
+
+	it("late playMetrics are waited for and their game returned, without the promise", async () =>
+	{
+		expect(await wholeFetchedGame({
+			game,
+			playMetricsLate: Promise.resolve(late),
+		})).toEqual({
+			game: late,
+		});
+	});
+
+	it("late playMetrics that never come leave the game without them, as a failed request does", async () =>
+	{
+		expect(await wholeFetchedGame({
+			game,
+			playMetricsLate: Promise.resolve(null),
+		})).toEqual({
+			game,
+		});
 	});
 });

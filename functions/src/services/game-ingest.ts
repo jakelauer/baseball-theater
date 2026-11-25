@@ -12,7 +12,7 @@
  */
 import type { CadenceParams, GameSnapshot } from "@bt/domain";
 import {
-	DEFAULT_CADENCE, isGameInActiveWindow, isSuspendedStatus, suspendedSince,
+	DEFAULT_CADENCE, isGameInActiveWindow, isSuspendedStatus, suspendedSince, wholeFetchedGame,
 } from "@bt/domain";
 import type { DurableStore } from "./hub-leases.js";
 import { HubLeases } from "./hub-leases.js";
@@ -89,7 +89,8 @@ export class GameIngest
 		let fetched;
 		try
 		{
-			fetched = await this.deps.mlb.fetchGame(gamePk);
+			// The whole game, its playMetrics waited for (S216 AC 5): a poll never stores a game without them for being slow.
+			fetched = await wholeFetchedGame(await this.deps.mlb.fetchGame(gamePk));
 		}
 		catch
 		{

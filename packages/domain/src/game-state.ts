@@ -51,11 +51,33 @@ export type GameStateRow = {
  * A game as the port's game fetch returns it (S150 AC 2): the unversioned game beside the feed's own time (MLB's
  * `metaData.timeStamp` as an ISO instant), never merged into it, so no stored game or API response carries it. A
  * fetch with no feed time (fixtures, the dev seed, older recordings) leaves it out.
+ *
+ * S216 AC 5: when MLB's playMetrics didn't answer within the live client's time limit, `game` is built without them and
+ * `playMetricsLate` is the same game with them once they arrive (null when they never do, as a failed request is). An
+ * on-read refresh answers `game` and stores the late one after the response; every other caller waits for the whole
+ * game (`wholeFetchedGame`), so its snapshots never lose playMetrics to the limit.
  */
 export type FetchedGame = {
 	game: Unversioned<GameSnapshot>;
 	feedTime?: string;
+	playMetricsLate?: Promise<Unversioned<GameSnapshot> | null>;
 };
+
+/**
+ * The fetched game as if its playMetrics had never been late (S216 AC 5): the late game when it arrives, else the game
+ * without them, as a fetch whose playMetrics failed is. What the cron, game ingest, the re-check and the seed paths
+ * store, since nothing stores the late game after them.
+ */
+export async function wholeFetchedGame(fetched: FetchedGame): Promise<FetchedGame>
+{
+	const { playMetricsLate, ...rest } = fetched;
+	if (!playMetricsLate) return rest;
+	const whole = await playMetricsLate;
+	return whole ? {
+		...rest,
+		game: whole,
+	} : rest;
+}
 
 /**
  * A scoreboard game as a stored day keeps it (S150 AC 5): everything but the shared state, which `game_states` holds.

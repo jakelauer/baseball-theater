@@ -85,14 +85,34 @@ export const scopedDatabase: PostgresDb = new Proxy({} as PostgresDb, {
  * `waitUntil` when given, so the response isn't held for the goodbye. Inside an existing
  * scope (or under Node, with `setNodeDatabase`) it uses that database, so nested calls share
  * a connection.
+ *
+ * S216 AC 3: `after` is what runs once `work` has returned (a request's deferred writes, `DeferredWorkQueue.drain`),
+ * inside the same scope, before the connection closes, so the response isn't held for it and it still has its
+ * connection; with `waitUntil`, `after` and the close go to it together. It must not reject (the drain never does).
  */
 export async function inDatabaseScope<T>(
 	binding: HyperdriveBinding | undefined,
 	work: () => Promise<T>,
 	waitUntil?: (promise: Promise<unknown>) => void,
+	after?: () => Promise<void>,
 ): Promise<T>
 {
-	if (scope.getStore() ?? nodeDatabase) return work();
+	const finish = async (closing: Promise<unknown>): Promise<void> =>
+	{
+		if (waitUntil) waitUntil(closing);
+		else await closing;
+	};
+	if (scope.getStore() ?? nodeDatabase)
+	{
+		try
+		{
+			return await work();
+		}
+		finally
+		{
+			if (after) await finish(after());
+		}
+	}
 	if (!binding) throw new Error("the HYPERDRIVE binding is missing (wrangler.jsonc hyperdrive)");
 	const { db, close } = await openPostgres(binding.connectionString);
 	try
@@ -101,8 +121,7 @@ export async function inDatabaseScope<T>(
 	}
 	finally
 	{
-		const closing = close();
-		if (waitUntil) waitUntil(closing);
-		else await closing;
+		const settled = after ? withDatabase(db, after) : Promise.resolve();
+		await finish(settled.then(close, close));
 	}
 }
