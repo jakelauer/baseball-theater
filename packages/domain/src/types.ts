@@ -288,9 +288,11 @@ export type GameSnapshot = {
 	/** mlb.com stories about the game (S94); absent, like `videoPlayRefs`, when the source failed or had none. */
 	relatedArticles?: RelatedArticle[];
 	/**
-	 * MLB's player of the game (S99), asked only once a regular-season or postseason game from 2024 on is over
-	 * (`playerOfTheGameExpected`). Absent when the feed (an mlb.com app feed) failed, was slow or had no pick:
-	 * the game is served as before.
+	 * MLB's player of the game (S99), asked by ingest only for a regular-season or postseason game from 2024 on that is
+	 * over (`playerOfTheGameExpected`), while BT still refreshes it (its ingest window, a cold read, a re-check), and only
+	 * until both sides are stored. Each side, once stored, is kept (`keepPlayerOfTheGame`): a later failed or slow request
+	 * never clears it. Absent until MLB names a pick BT has asked for (an older finished game that BT no longer refreshes
+	 * gets none here; filling those is #619's), and then the game is served as before.
 	 */
 	playerOfTheGame?: PlayerOfTheGame;
 	/** Who is on base and who is batting and pitching (S63); `null` unless in progress, absent on older recordings. */

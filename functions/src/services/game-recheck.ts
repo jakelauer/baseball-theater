@@ -11,6 +11,7 @@ import {
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
 import { ingestGame } from "./ingest.js";
+import { withAskedPlayerOfTheGame } from "./player-of-the-game.js";
 
 /**
  * Re-ingests at most one due game per call (S212 AC 5) and returns its gamePk, or null when none was due. Run from
@@ -46,7 +47,8 @@ export async function recheckDueGame(deps: IngestDeps): Promise<number | null>
 		try
 		{
 			// The whole game, its playMetrics waited for (S216 AC 5).
-			fetched = await wholeFetchedGame(await deps.mlb.fetchGame(game.gamePk));
+			// S99: one bounded ask for a due game's pick (a re-check runs once per game).
+			fetched = await withAskedPlayerOfTheGame(deps.mlb, await wholeFetchedGame(await deps.mlb.fetchGame(game.gamePk)), undefined);
 		}
 		catch (error)
 		{

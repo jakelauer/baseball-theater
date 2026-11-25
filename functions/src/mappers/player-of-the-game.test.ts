@@ -12,6 +12,7 @@ import {
 import { parsePlayerOfTheGameResponse } from "@bt/mlb-api";
 import { createBundledFixtureClient } from "../adapters/fixtures/bundled.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
+import { withAskedPlayerOfTheGame } from "../services/player-of-the-game.js";
 import { mapPlayerOfTheGame } from "./player-of-the-game.js";
 
 const RAW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../fixtures/raw");
@@ -115,9 +116,12 @@ describe("the fixture client's player of the game (S99)", () =>
 		});
 	});
 
-	it("S99 AC 4: fetchGame carries it as GameSnapshot.playerOfTheGame", async () =>
+	it("S99 AC 4: the game ingest stores carries it as GameSnapshot.playerOfTheGame (fetchGame says it is due; ingest asks)", async () =>
 	{
-		const { game } = await createBundledFixtureClient().fetchGame(823823);
+		const client = createBundledFixtureClient();
+		const fetched = await client.fetchGame(823823);
+		expect(fetched.playerOfTheGameDue).toBe(true);
+		const { game } = await withAskedPlayerOfTheGame(client, fetched, undefined);
 		expect(game.playerOfTheGame).toEqual({
 			media: ZEFERJAHN,
 		});
@@ -127,7 +131,9 @@ describe("the fixture client's player of the game (S99)", () =>
 	{
 		const client = new FixtureMlbStatsClient();
 		expect(await client.fetchPlayerOfTheGame(744834)).toBeNull();
-		const { game } = await client.fetchGame(744834);
+		const fetched = await client.fetchGame(744834);
+		expect(fetched.playerOfTheGameDue).toBeUndefined();
+		const { game } = await withAskedPlayerOfTheGame(client, fetched, undefined);
 		expect(game).not.toHaveProperty("playerOfTheGame");
 		expect(game.gamePk).toBe(744834);
 	});

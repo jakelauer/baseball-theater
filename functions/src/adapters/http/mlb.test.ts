@@ -475,14 +475,13 @@ describe("HttpMlbStatsClient player of the game (S99)", () =>
 		expect(asked).toEqual([POTG_URL]);
 	});
 
-	it("S99 AC 3: fetchGame of a final regular-season game asks it once and carries it as playerOfTheGame", async () =>
+	it("S99 AC 3: fetchGame of a final regular-season game says it is due a pick and asks none itself (ingest asks, only while a side is missing)", async () =>
 	{
 		const { mlb, asked } = recordedClient();
-		const { game } = await mlb.fetchGame(823823);
-		expect(game.playerOfTheGame).toEqual({
-			media: ZEFERJAHN,
-		});
-		expect(asked.filter((url) => url === POTG_URL)).toHaveLength(1);
+		const fetched = await mlb.fetchGame(823823);
+		expect(fetched.playerOfTheGameDue).toBe(true);
+		expect(fetched.game).not.toHaveProperty("playerOfTheGame");
+		expect(asked.some((url) => isPotg(new URL(url)))).toBe(false);
 	});
 
 	it("S99 AC 3: a game in progress, or of a type MLB doesn't pick for, never asks it, so a live poll adds no request", async () =>
@@ -490,7 +489,8 @@ describe("HttpMlbStatsClient player of the game (S99)", () =>
 		for (const override of [feedAs("R", "I", "Live"), feedAs("S", "F", "Final")])
 		{
 			const { mlb, asked } = recordedClient(override);
-			const { game } = await mlb.fetchGame(823823);
+			const { game, playerOfTheGameDue } = await mlb.fetchGame(823823);
+			expect(playerOfTheGameDue).toBeUndefined();
 			expect(game).not.toHaveProperty("playerOfTheGame");
 			expect(asked.some((url) => isPotg(new URL(url)))).toBe(false);
 		}

@@ -28,7 +28,7 @@ import type {
 import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
-import { mapPlayerOfTheGame, withPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
+import { mapPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
 import { mapSearchResults } from "../../mappers/search.js";
 import { mapSeasonCalendar } from "../../mappers/season-calendar.js";
 import { mapStandings } from "../../mappers/standings.js";
@@ -126,9 +126,10 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 	}
 
 	/**
-	 * The committed game with its extras; a fixture carries no feed time (S150 AC 2). Its player of the game
-	 * (S99) is the recording's, when there is one: only a game MLB picks for has one, so the fixture client
-	 * needs no `playerOfTheGameExpected` check, and reading a file has no latency to bound.
+	 * The committed game with its extras; a fixture carries no feed time (S150 AC 2). Like the HTTP client it never asks
+	 * for the player of the game (S99); it says the game is due one when there is a recording,
+	 * `fixtures/raw/potg-<gamePk>.json`, since a game file keeps no game type or season and only a game MLB picks for has
+	 * a recording.
 	 */
 	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
@@ -136,9 +137,12 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 		const editorial = await this.fetchGameEditorial(gamePk);
 		const playMetrics = await this.fetchPlayMetrics(gamePk);
 		const graph = await this.fetchGameGraphContent(gamePk);
-		const playerOfTheGame = await this.fetchPlayerOfTheGame(gamePk);
+		const playerOfTheGameDue = await this.files.read(`raw/potg-${gamePk}.json`).then(() => true, () => false);
 		return {
-			game: withPlayerOfTheGame(assembleGame(feed, editorial, playMetrics, graph), playerOfTheGame),
+			game: assembleGame(feed, editorial, playMetrics, graph),
+			...playerOfTheGameDue && {
+				playerOfTheGameDue,
+			},
 		};
 	}
 

@@ -170,6 +170,7 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 	let feed;
 	try
 	{
+		// S99: the backfill never asks for the player of the game; filling older games' picks is #619's.
 		feed = await deps.mlb.fetchGameFeed(gamePk);
 	}
 	catch (error)

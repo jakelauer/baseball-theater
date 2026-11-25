@@ -49,8 +49,8 @@ export function mapPlayerOfTheGame(response: PlayerOfTheGameResponse): PlayerOfT
 
 /**
  * A fetched game with its player of the game attached, or the game unchanged when there is none
- * (the call failed, was slow, wasn't asked or named nobody), so it is served as before. Both MLB
- * adapters' `fetchGame` attach it here.
+ * (the call failed, was slow, wasn't asked or named nobody), so it is served as before. The ingest
+ * paths attach an asked pick here (`withAskedPlayerOfTheGame`, `services/player-of-the-game.ts`).
  */
 export function withPlayerOfTheGame(game: Unversioned<GameSnapshot>, playerOfTheGame: PlayerOfTheGame | null): Unversioned<GameSnapshot>
 {

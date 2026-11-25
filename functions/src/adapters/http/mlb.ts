@@ -54,7 +54,7 @@ import { mapSearchResults } from "../../mappers/search.js";
 import { mapStandings } from "../../mappers/standings.js";
 import { mapLiveFeed } from "../../mappers/live.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
-import { mapPlayerOfTheGame, withPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
+import { mapPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
 import { mapScheduleRange, mapScheduleResponse } from "../../mappers/schedule.js";
 import { mapSeasonCalendar } from "../../mappers/season-calendar.js";
 
@@ -327,10 +327,9 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 	 * on-read refresh answers the first and stores the second after the response; every other caller waits for the
 	 * whole game (`wholeFetchedGame`).
 	 *
-	 * S99: for a game `playerOfTheGameExpected` says has one (over, regular season or postseason, 2024 on), the player
-	 * of the game is asked beside the extras under the same limit, so a live poll never asks it and a slow or hanging
-	 * answer never holds the game: past the limit the game is answered, and stored, without it, and a later refresh
-	 * of the finished game asks again.
+	 * S99: beside the game, `playerOfTheGameDue` from the feed's game type and season (`playerOfTheGameExpected`); the
+	 * pick itself is never asked here, so a fetch costs no extra request: the ingest paths ask it
+	 * (`withAskedPlayerOfTheGame`) only while a due game's stored pick lacks a side.
 	 */
 	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
@@ -344,25 +343,27 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 			};
 		});
 		let timer: ReturnType<typeof setTimeout> | undefined;
-		const limit = new Promise<null>((resolve) =>
+		const limit = new Promise<void>((resolve) =>
 		{
-			timer = setTimeout(() => resolve(null), PLAY_METRICS_LIMIT_MS);
+			timer = setTimeout(resolve, PLAY_METRICS_LIMIT_MS);
 		});
-		const potgAsked = playerOfTheGameExpected({
+		const extras = Promise.all([this.fetchContent(gamePk), this.fetchGameGraphContent(gamePk), Promise.race([playMetrics, limit])]);
+		const [content, graph] = await extras.finally(() => clearTimeout(timer));
+		const editorial = content ? editorialOf(content) : null;
+		const late = arrived === undefined;
+		const build = (metrics: GamePlayMetrics | null) => assembleGame(feed, editorial, metrics, graph);
+		const playerOfTheGameDue = playerOfTheGameExpected({
 			gameType: raw.gameData.game?.type,
 			season: raw.gameData.game?.season,
 			codedGameState: feed.status.codedGameState,
 		});
-		const potg = potgAsked ? Promise.race([this.fetchPlayerOfTheGame(gamePk), limit]) : null;
-		const extras = Promise.all([this.fetchContent(gamePk), this.fetchGameGraphContent(gamePk), Promise.race([playMetrics, limit]), potg]);
-		const [content, graph, , playerOfTheGame] = await extras.finally(() => clearTimeout(timer));
-		const editorial = content ? editorialOf(content) : null;
-		const late = arrived === undefined;
-		const build = (metrics: GamePlayMetrics | null) => withPlayerOfTheGame(assembleGame(feed, editorial, metrics, graph), playerOfTheGame);
 		return {
 			game: build(arrived?.value ?? null),
 			...feedTime !== undefined && {
 				feedTime,
+			},
+			...playerOfTheGameDue && {
+				playerOfTheGameDue,
 			},
 			...late && {
 				playMetricsLate: playMetrics.then((value) => value ? build(value) : null),
