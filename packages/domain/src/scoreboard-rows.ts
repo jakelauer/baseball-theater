@@ -14,9 +14,20 @@ export type ScoreboardRow = {
 };
 
 /**
+ * Whether a game is a favorite team's: its away or its home team is among
+ * `favoriteTeamIds` (false for an empty list). The one rule for it (S213, ADR-025), so
+ * the scoreboard's Collapse Non-Favorites (`scoreboardRows`), the open-time prefetch
+ * (`prefetchOnOpen`, web) and the favorites-first order (B430) can't disagree.
+ */
+export function isFavoriteGame(game: Pick<ScheduleGameSummary, "teams">, favoriteTeamIds: readonly number[]): boolean
+{
+	return favoriteTeamIds.includes(game.teams.away.id) || favoriteTeamIds.includes(game.teams.home.id);
+}
+
+/**
  * The day's games as rows. With Collapse Non-Favorites off — or no favorites to keep
- * open — every game is a full module in the order given. On, favorites' games come
- * first (in their given order), then every other game collapsed.
+ * open — every game is a full module in the order given. On, favorites' games
+ * (`isFavoriteGame`) come first (in their given order), then every other game collapsed.
  */
 export function scoreboardRows(games: readonly ScheduleGameSummary[], favoriteTeamIds: readonly number[], collapseNonFavorites: boolean): ScoreboardRow[]
 {
@@ -27,13 +38,12 @@ export function scoreboardRows(games: readonly ScheduleGameSummary[], favoriteTe
 			collapsed: false,
 		}));
 	}
-	const favorite = (game: ScheduleGameSummary) => favoriteTeamIds.includes(game.teams.away.id) || favoriteTeamIds.includes(game.teams.home.id);
 	return [
-		...games.filter(favorite).map((game) => ({
+		...games.filter((game) => isFavoriteGame(game, favoriteTeamIds)).map((game) => ({
 			game,
 			collapsed: false,
 		})),
-		...games.filter((game) => !favorite(game)).map((game) => ({
+		...games.filter((game) => !isFavoriteGame(game, favoriteTeamIds)).map((game) => ({
 			game,
 			collapsed: true,
 		})),
