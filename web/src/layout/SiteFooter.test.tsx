@@ -206,7 +206,7 @@ describe("SiteFooter (S142)", () =>
 		expect(screen.getByText("Legal")).toBeInTheDocument();
 	});
 
-	it.fails("its column headings are never smaller than the links under them (#527)", () =>
+	it("its column headings are never smaller than the links under them (#527)", () =>
 	{
 		renderFooter(false);
 		const link = mantineFontPx(screen.getByRole("link", {

@@ -39,6 +39,17 @@ body {
 	margin: 0;
 }
 
+/*
+ * The app shell (AppShellLayout): at least the window's height, so its content column stretches to it
+ * and <main> fills the leftover, keeping the footer at the window's bottom on a short page without
+ * pinning it (B525, #525). 100dvh follows the mobile browser's toolbars; 100vh is the fallback.
+ */
+.bt-shell {
+	display: flex;
+	min-height: 100vh;
+	min-height: 100dvh;
+}
+
 a {
 	color: inherit;
 	text-decoration: none;

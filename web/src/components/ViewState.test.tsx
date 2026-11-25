@@ -43,7 +43,7 @@ describe("ViewState (S60)", () =>
 		expect(screen.getByLabelText("Loading")).toBeInTheDocument();
 	});
 
-	it.fails("loading is an animated skeleton, never a spinner (#431)", () =>
+	it("loading is an animated skeleton, never a spinner (#431)", () =>
 	{
 		renderState({
 			kind: "loading",

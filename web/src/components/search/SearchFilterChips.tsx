@@ -1,9 +1,10 @@
 import {
-	Badge, CloseButton, Group, Stack, Text,
+	Badge, CloseButton, Group, Stack,
 } from "@mantine/core";
 import type { SearchFilters } from "@bt/domain";
 import { searchTagLabel, teamAbbreviation } from "@bt/domain";
 import { formatDate } from "../../format/datetime.js";
+import { SectionHeading } from "../SectionHeading.js";
 
 /** One filter a chip stands for: the URL parameter it removes. */
 export type SearchFilterName = "date" | "team" | "tag";
@@ -36,7 +37,7 @@ export function SearchFilterChips({ filters, onRemove }: { filters: SearchFilter
 	if (chips.length === 0) return null;
 	return (
 		<Stack gap={6} data-testid="search-filters">
-			<Text size="xs" fw={700} tt="uppercase">Active filters</Text>
+			<SectionHeading>Active filters</SectionHeading>
 			<Group gap="xs">
 				{chips.map((chip) => (
 					<Badge

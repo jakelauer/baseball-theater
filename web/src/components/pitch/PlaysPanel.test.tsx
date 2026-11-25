@@ -241,7 +241,7 @@ describe("the Plays room on 823823 (S41)", () =>
 
 describe("Plays headers are never smaller than body text (#527)", () =>
 {
-	it.fails("the view's heading and each half's header draw at body size or larger", async () =>
+	it("the view's heading and each half's header draw at body size or larger", async () =>
 	{
 		const panel = await playsPanel();
 		for (const header of ["9th inning", "Top 9th · CHC", "Bottom 9th · MIA"])

@@ -309,7 +309,7 @@ describe("VideosRoom states and play (S69)", () =>
 
 describe("Videos headers are never smaller than body text (#527)", () =>
 {
-	it.fails("the Videos title and every group's header draw at body size or larger", () =>
+	it("the Videos title and every group's header draw at body size or larger", () =>
 	{
 		renderRoom();
 		expect(mantineFontPx(screen.getByText("Videos"))).toBeGreaterThanOrEqual(BODY_FONT_PX);

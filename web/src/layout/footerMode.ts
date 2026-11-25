@@ -4,9 +4,9 @@ import { useLayoutEffect } from "react";
  * What the page under the shell tells the footer (S142): `"plain"`, the footer of links;
  * `"live"`, the same opened by A13's Live strip, while the page's live WebSocket is open; `"none"`,
  * no footer: on the account-deleted Settings page for good (standings-search-settings A5), and on
- * any page while it shows its loading state. A footer drawn under a loading page sits right below
- * the header (A14 Short page: `<main>` doesn't grow) and is pushed down when the content arrives,
- * a layout shift (CI's Lighthouse budget, CLS ≤ 0.1); drawn only once the page has settled, it
+ * any page while it shows its loading state. A footer drawn under a loading page sits at the
+ * window's bottom (`<main>` fills the leftover height, B525) and is pushed down when taller content
+ * arrives, a layout shift (CI's Lighthouse budget, CLS ≤ 0.1); drawn only once the page has settled, it
  * appears below the content and nothing moves.
  */
 export type FooterMode = "plain" | "live" | "none";

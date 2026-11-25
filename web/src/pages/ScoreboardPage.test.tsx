@@ -247,7 +247,7 @@ describe("ScoreboardPage states (S66, ViewState)", () =>
 		expect(screen.getByTestId("date-control")).toBeInTheDocument();
 	});
 
-	it.fails("loading: an animated skeleton of the day's game cards, not a spinner (#431)", () =>
+	it("loading: an animated skeleton of the day's game cards, not a spinner (#431)", () =>
 	{
 		vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
 		renderScoreboard();
@@ -257,7 +257,8 @@ describe("ScoreboardPage states (S66, ViewState)", () =>
 		expect(cards.length).toBeGreaterThan(1);
 		for (const card of cards)
 		{
-			expect(card.querySelector(".mantine-Skeleton-root[data-animate=true]")).not.toBeNull();
+			expect(card).toHaveClass("mantine-Skeleton-root");
+			expect(card).toHaveAttribute("data-animate", "true");
 		}
 	});
 
