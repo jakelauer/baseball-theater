@@ -1,6 +1,6 @@
 import type {
-	AccountSettings, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay,
-	UserProfile,
+	AccountSettings, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, PatronTier, ScheduleDayTally, ScheduleMonthCheck,
+	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
 	contentHash, downloadExpired, GAME_RECHECK_CLAIM_LEASE_MS, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
@@ -510,7 +510,8 @@ export class InMemoryReplayArtifactRepository implements ReplayArtifactRepositor
 }
 
 /**
- * Users and their identity links (ADR-019), stored as JSON copies like the
+ * Users, their identity links (ADR-019) and staging's tier overrides (S215, kept apart from the
+ * real entitlements), stored as JSON copies like the
  * other doubles. Users carry no version: a user record changes by explicit
  * edits (profile, Patreon sync), not by ingest re-deliveries, so last write wins.
  */
@@ -519,6 +520,8 @@ export class InMemoryUserRepository implements UserRepository
 	private readonly byUid = new Map<string, UserProfile>();
 	/** `"<provider>\u0000<subject>"` → uid; NUL can't occur in either part, so keys can't collide. */
 	private readonly links = new Map<string, string>();
+	/** Staging's tier overrides (S215), apart from `byUid`'s real entitlements. */
+	private readonly tierOverrides = new Map<string, PatronTier>();
 
 	async getByUid(uid: string): Promise<UserProfile | null>
 	{
@@ -540,6 +543,17 @@ export class InMemoryUserRepository implements UserRepository
 			entitlements: jsonCopy(entitlements),
 			updatedAt: new Date().toISOString(),
 		});
+	}
+
+	async getTierOverride(uid: string): Promise<PatronTier | null>
+	{
+		return this.tierOverrides.get(uid) ?? null;
+	}
+
+	async setTierOverride(uid: string, tier: PatronTier | null): Promise<void>
+	{
+		if (tier === null) this.tierOverrides.delete(uid);
+		else this.tierOverrides.set(uid, tier);
 	}
 
 	async linkIdentity(provider: string, subject: string, uid: string): Promise<void>
@@ -569,15 +583,20 @@ export class InMemoryUserRepository implements UserRepository
 				subject,
 			};
 		});
-		return profile === null && identities.length === 0 ? null : {
+		const tierOverride = this.tierOverrides.get(uid);
+		return profile === null && identities.length === 0 && tierOverride === undefined ? null : {
 			profile,
 			identities,
+			...tierOverride !== undefined && {
+				tierOverride,
+			},
 		};
 	}
 
 	async deleteFor(uid: string): Promise<void>
 	{
 		this.byUid.delete(uid);
+		this.tierOverrides.delete(uid);
 		for (const key of this.linkKeysFor(uid)) this.links.delete(key);
 	}
 

@@ -49,22 +49,30 @@ run_tagged() {
 		return
 	fi
 	# shellcheck disable=SC2086
-	if ! (cd "$dir" && ../node_modules/.bin/vitest run $config $files -t "$tag" --reporter=json --outputFile="$TMP/r.json" >"$TMP/r.log" 2>&1); then
+	if ! (cd "$dir" && pnpm exec vitest run $config $files -t "$tag" --reporter=json --outputFile="$TMP/r.json" >"$TMP/r.log" 2>&1); then
 		bad "$id" "$dir '$tag' failed:"; tail -15 "$TMP/r.log" | sed 's/^/        /'
 	elif ! node -e 'const r = require(process.argv[1]); process.exit(r.numPassedTests > 0 && r.numFailedTests === 0 ? 0 : 1)' "$TMP/r.json"; then
 		bad "$id" "$dir '$tag' ran no passing test"
 	fi
 }
 
-# doc_before <file> <regex> — the JSDoc block (or run of // lines) right above the first line matching <regex>.
+# doc_before <file> <regex> — the comment lines (a JSDoc block or a run of // lines) right above the first
+# line matching <regex>; empty when there is none.
 doc_before() {
-	awk -v re="$2" '
-		/^[[:space:]]*\/\*\*/ { buf = ""; injs = 1 }
-		injs || /^[[:space:]]*\/\// { buf = buf $0 "\n" }
-		/\*\// { injs = 0 }
-		!injs && !/^[[:space:]]*\/\// && !/\*\// && $0 !~ re && !/^[[:space:]]*$/ { buf = "" }
-		$0 ~ re { printf "%s", buf; exit }
-	' "$1" 2>/dev/null
+	node -e '
+		const lines = require("node:fs").readFileSync(process.argv[1], "utf8").split("\n");
+		const re = new RegExp(process.argv[2]);
+		const at = lines.findIndex((l) => re.test(l));
+		if (at < 0) process.exit(0);
+		const out = [];
+		for (let i = at - 1; i >= 0; i--)
+		{
+			const t = lines[i].trim();
+			if (/^(\/\*\*|\*|\*\/|\/\/|\{\/\*)/.test(t)) out.unshift(lines[i]);
+			else break;
+		}
+		console.log(out.join("\n"));
+	' "$1" "$2" 2>/dev/null
 }
 # says_why <check> <what> <text> — the comment names staging, production's refusal and the real tier / Patreon.
 says_why() {
@@ -133,7 +141,14 @@ else
 			bad 3 "$CLASS does not label $table deletedBy USERS_STORE"
 	fi
 fi
-run_tagged 3 functions "" "S215 AC 3"
+# The contract's cases live in repository-contract.ts; the memory and Postgres contract test files run them.
+if ! grep -qF "S215 AC 3" functions/src/adapters/repository-contract.ts; then
+	bad 3 "functions/src/adapters/repository-contract.ts has no 'S215 AC 3' case"
+elif ! (cd functions && pnpm exec vitest run src/adapters/memory/repos.contract.test.ts src/adapters/postgres/repos.contract.test.ts -t "S215 AC 3|\\(h\\)" --reporter=json --outputFile="$TMP/c.json" >"$TMP/c.log" 2>&1); then
+	bad 3 "the repository contract's S215 cases failed:"; tail -15 "$TMP/c.log" | sed 's/^/        /'
+elif ! node -e 'const r = require(process.argv[1]); const ok = r.testResults.every((f) => f.assertionResults.filter((a) => /S215 AC 3/.test(a.title)).some((a) => a.status === "passed")); process.exit(r.numPassedTests >= 4 && r.numFailedTests === 0 && ok ? 0 : 1)' "$TMP/c.json"; then
+	bad 3 "the repository contract's S215 and (h) cases did not run and pass on both memory and Postgres"
+fi
 
 # --- Check 4: the route, 404 off staging ---
 grep -rqF '/api/v1/me/tier-override' packages/domain/src/api-routes.ts || bad 4 "packages/domain/src/api-routes.ts's route table has no /api/v1/me/tier-override"

@@ -1,5 +1,5 @@
 import type {
-	AccountSettings, SearchFilters, SeasonPhaseName,
+	AccountSettings, PatronTier, SearchFilters, SeasonPhaseName,
 } from "@bt/domain";
 import createClient from "openapi-fetch";
 import { getSessionToken } from "../session/token.js";
@@ -332,6 +332,28 @@ export async function fetchAccountDeleted(): Promise<boolean>
 {
 	const result = await api.GET("/api/v1/me");
 	return result.response.status === 401 && result.error?.error === "account_deleted";
+}
+
+/**
+ * Staging's backer tier override (S215), for testing only: the tier chosen and the real one, or
+ * null where the server answers 404, which is everywhere its deploy-time config doesn't offer it
+ * (production, previews, local dev). Never changes the real tier or touches Patreon.
+ */
+export async function fetchTierOverride()
+{
+	const result = await api.GET("/api/v1/me/tier-override");
+	if (result.response.status === 404) return null;
+	return unwrap(result);
+}
+
+/** Chooses the tier to test as on staging (S215; null: the real tier); answers the new session token with the choice. */
+export async function saveTierOverride(tier: PatronTier | null)
+{
+	return unwrap(await api.PUT("/api/v1/me/tier-override", {
+		body: {
+			tier,
+		},
+	}));
 }
 
 /**

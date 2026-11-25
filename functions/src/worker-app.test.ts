@@ -5,7 +5,9 @@
  * also exercises through `inDatabaseScope`.
  */
 import { readFileSync } from "node:fs";
-import { DEFAULT_SETTINGS, MOCK_SIGN_IN_CREDENTIAL } from "@bt/domain";
+import {
+	DEFAULT_SETTINGS, entitlementsForTier, MOCK_SIGN_IN_CREDENTIAL,
+} from "@bt/domain";
 import { sql } from "drizzle-orm";
 import {
 	afterEach, describe, expect, it, vi,
@@ -26,7 +28,7 @@ import {
 } from "./test/logto-tokens.js";
 import type { WorkerEnv } from "./worker-app.js";
 import {
-	createWorkerApp, devSignInAllowed, edgePurgeFor, logtoAdmin, mockSignInAllowed,
+	createWorkerApp, devSignInAllowed, edgePurgeFor, logtoAdmin, mockSignInAllowed, tierOverrideAllowed,
 } from "./worker-app.js";
 import { CloudflareEdgeCachePurger, NoopEdgeCachePurger } from "./adapters/cloudflare/edge-cache-purger.js";
 
@@ -482,6 +484,122 @@ describe("staging's mock sign-in (S143)", () =>
 				},
 			});
 		}
+	});
+});
+
+/** `wrangler.jsonc`'s deployed envs' vars (line comments stripped, as S143's test reads it). */
+function deployedVars(): { top: Record<string, string>;
+	envs: Record<string, Record<string, string>> }
+{
+	const wrangler = JSON.parse(readFileSync(new URL("../../wrangler.jsonc", import.meta.url), "utf8").replace(/^\s*\/\/.*$/gm, "")) as {
+		vars?: Record<string, string>;
+		env: Record<string, { vars?: Record<string, string> }>;
+	};
+	return {
+		top: wrangler.vars ?? {},
+		envs: Object.fromEntries(Object.entries(wrangler.env).map(([name, block]) => [name, block.vars ?? {}])),
+	};
+}
+
+describe("staging's backer tier override (S215)", () =>
+{
+	it("S215 AC 2: tierOverrideAllowed is true for staging's vars, false for production's (even with BT_TIER_OVERRIDE added), preview's, and staging's without the var", () =>
+	{
+		const { top, envs } = deployedVars();
+		const {
+			staging = {}, production = {}, preview = {},
+		} = envs;
+		expect(tierOverrideAllowed(staging)).toBe(true);
+		expect(production.LOGTO_ENDPOINT).toBeTruthy();
+		expect(tierOverrideAllowed({
+			...production,
+			BT_TIER_OVERRIDE: "1",
+		})).toBe(false);
+		expect(tierOverrideAllowed(preview)).toBe(false);
+		const { BT_TIER_OVERRIDE: _var, ...withoutVar } = staging;
+		expect(tierOverrideAllowed(withoutVar)).toBe(false);
+		// Any value but "1" is off; and the local server's env, which sets neither var, is off.
+		for (const value of ["0", "true", "", " 1"])
+		{
+			expect(tierOverrideAllowed({
+				...staging,
+				BT_TIER_OVERRIDE: value,
+			})).toBe(false);
+		}
+		expect(tierOverrideAllowed({
+			BT_LOCAL: "1",
+		})).toBe(false);
+		// Set in env.staging only.
+		expect(top.BT_TIER_OVERRIDE).toBeUndefined();
+		for (const [name, vars] of Object.entries(envs))
+		{
+			if (name !== "staging") expect(vars.BT_TIER_OVERRIDE, `env.${name}`).toBeUndefined();
+		}
+	});
+
+	it("S215 AC 2: the composition wires the override only where tierOverrideAllowed says", async () =>
+	{
+		const { db } = await migratedPglite();
+		const {
+			envs: {
+				staging = {}, production = {}, preview = {},
+			},
+		} = deployedVars();
+		expect(createWorkerApp(staging, db).context.auth.tierOverrideAllowed).toBe(true);
+		for (const vars of [production, preview, {
+			BT_LOCAL: "1",
+		}])
+		{
+			expect(createWorkerApp({
+				...vars,
+				BT_TIER_OVERRIDE: "1",
+			}, db).context.auth.tierOverrideAllowed).toBeUndefined();
+		}
+	});
+
+	it("S215 AC 1: under production's config, sign-in and GET /api/v1/me never ask for the stored override, and hand out the real tier", async () =>
+	{
+		const { db } = await migratedPglite();
+		const tenant = await createTestTenant();
+		const { envs: { production = {} } } = deployedVars();
+		const app = createWorkerApp({
+			...production,
+			BT_TIER_OVERRIDE: "1",
+			LOGTO_ENDPOINT: TEST_LOGTO_ENDPOINT,
+			LOGTO_APP_ID: TEST_LOGTO_APP_ID,
+		}, db, {
+			fetch: tenant.fetch,
+		});
+		const users = app.context.auth.users;
+		const spy = vi.spyOn(users, "getTierOverride");
+		const call = (path: string, init: RequestInit = {}) => handleApiRequest(new Request(`http://bt.test${path}`, init), app.context);
+		const signIn = async () => (await (await call("/api/v1/sign-in", {
+			method: "POST",
+			body: JSON.stringify({
+				idToken: await tenant.sign({
+					sub: "prod-fan",
+				}),
+			}),
+		})).json() as { token: string }).token;
+		const token = await signIn();
+		const me = await (await call("/api/v1/me", {
+			headers: {
+				Authorization: `Bearer ${token}`,
+			},
+		})).json() as { uid: string;
+			entitlements: unknown; };
+		// Even a stored override row (seeded straight into the repository) is never read there.
+		await users.setTierOverride(me.uid, "Premium Sponsor");
+		const again = await signIn();
+		const meAgain = await (await call("/api/v1/me", {
+			headers: {
+				Authorization: `Bearer ${again}`,
+			},
+		})).json() as { entitlements: unknown };
+		expect(meAgain.entitlements).toEqual(entitlementsForTier("none"));
+		expect((await app.context.auth.sessions.verify(again))?.entitlements).toEqual(entitlementsForTier("none"));
+		// setTierOverride above is the test's own seeding; nothing on the read path asked for it.
+		expect(spy).not.toHaveBeenCalled();
 	});
 });
 

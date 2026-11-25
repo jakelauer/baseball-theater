@@ -8,10 +8,14 @@
  * account and the whole account API works behind it, deletion included.
  * S139 AC 8: the standings' season calendars are kept in the Workers Cache between requests.
  * S132 AC 3: the releases API answers the release notes bundled into the build.
+ * S215 AC 4: staging's backer tier override answers only under staging's config; production's and
+ * preview's answer 404 and hand out the real tier even with an override stored.
  * Run with `pnpm --filter @bt/functions test:workerd`.
  */
 import { env, SELF } from "cloudflare:test";
-import { DEFAULT_SETTINGS, MOCK_SIGN_IN_CREDENTIAL } from "@bt/domain";
+import {
+	DEFAULT_SETTINGS, entitlementsForTier, MOCK_SIGN_IN_CREDENTIAL,
+} from "@bt/domain";
 import {
 	describe, expect, it,
 } from "vitest";
@@ -297,5 +301,166 @@ describe("staging's mock sign-in on deployed Workers (S143)", () =>
 		const app = deployedApp(deployed);
 		expect((await app.signIn(MOCK_SIGN_IN_CREDENTIAL)).status).toBe(404);
 		expect((await app.me("dev:test-user")).status).toBe(401);
+	});
+});
+
+describe("staging's backer tier override on deployed Workers (S215)", () =>
+{
+	const { BT_LOCAL: _local, ...deployed } = env as unknown as WorkerEnv;
+
+	/** The Worker's own composition on `workerEnv`, and calls through it. */
+	function overrideApp(workerEnv: WorkerEnv, fetcher?: (input: string, init?: RequestInit) => Promise<Response>)
+	{
+		const app = createWorkerApp(workerEnv, scopedDatabase, fetcher ? {
+			fetch: fetcher,
+		} : {});
+		const call = (path: string, init: RequestInit = {}) => inDatabaseScope(workerEnv.HYPERDRIVE, () => handleApiRequest(new Request(`http://bt.test${path}`, init), app.context));
+		const auth = (token: string) => ({
+			Authorization: `Bearer ${token}`,
+		});
+		return {
+			app,
+			inScope: <T>(run: () => Promise<T>) => inDatabaseScope(workerEnv.HYPERDRIVE, run),
+			signIn: async (idToken: string) => (await (await call("/api/v1/sign-in", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					idToken,
+				}),
+			})).json() as { token: string }).token,
+			me: async (token: string) => await (await call("/api/v1/me", {
+				headers: auth(token),
+			})).json() as { uid: string;
+				entitlements: unknown; },
+			get: (token?: string) => call("/api/v1/me/tier-override", {
+				headers: token ? auth(token) : {},
+			}),
+			put: (token: string | undefined, body: unknown) => call("/api/v1/me/tier-override", {
+				method: "PUT",
+				headers: {
+					...token ? auth(token) : {},
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(body),
+			}),
+			unknown: () => call("/api/v1/me/no-such-route"),
+		};
+	}
+
+	it("S215 AC 4: production's config: GET and PUT answer 404 as an unknown route does, no-store, and a stored override is never handed out", async () =>
+	{
+		const tenant = await createTestTenant();
+		const route = overrideApp({
+			...deployed,
+			LOGTO_ENDPOINT: TEST_LOGTO_ENDPOINT,
+			LOGTO_APP_ID: TEST_LOGTO_APP_ID,
+			BT_TIER_OVERRIDE: "1",
+		}, tenant.fetch);
+		const sub = `logto-${crypto.randomUUID()}`;
+		const token = await route.signIn(await tenant.sign({
+			sub,
+		}));
+		const unknown = await route.unknown();
+		const unknownBody = await unknown.json();
+		for (const res of [await route.get(token), await route.put(token, {
+			tier: "Star Backer",
+		}), await route.get()])
+		{
+			expect(res.status).toBe(404);
+			expect(await res.json()).toEqual(unknownBody);
+			expect(res.headers.get("Cache-Control")).toBe("no-store");
+		}
+		// An override row seeded straight into the repository changes nothing there.
+		const { uid } = await route.me(token);
+		await route.inScope(() => route.app.context.auth.users.setTierOverride(uid, "Premium Sponsor"));
+		expect((await route.me(token)).entitlements).toEqual(entitlementsForTier("none"));
+		const fresh = await route.signIn(await tenant.sign({
+			sub,
+		}));
+		expect((await route.app.context.auth.sessions.verify(fresh))?.entitlements).toEqual(entitlementsForTier("none"));
+		expect((await route.me(fresh)).entitlements).toEqual(entitlementsForTier("none"));
+	});
+
+	it("S215 AC 4: staging's config: PUT a tier, /me and the new session carry it, null goes back, a non-tier is 400, signed out is 401, all no-store", async () =>
+	{
+		const route = overrideApp({
+			...deployed,
+			BT_MOCK_SIGN_IN: "1",
+			BT_TIER_OVERRIDE: "1",
+		});
+		const token = await route.signIn(MOCK_SIGN_IN_CREDENTIAL);
+		const real = (await route.me(token)).entitlements as { tier: string };
+
+		const initial = await route.get(token);
+		expect(initial.status).toBe(200);
+		expect(initial.headers.get("Cache-Control")).toBe("no-store");
+		expect(await initial.json()).toEqual({
+			tier: null,
+			realTier: real.tier,
+		});
+
+		const set = await route.put(token, {
+			tier: "Star Backer",
+		});
+		expect(set.status).toBe(200);
+		expect(set.headers.get("Cache-Control")).toBe("no-store");
+		const answer = await set.json() as { tier: string;
+			realTier: string;
+			token: string; };
+		expect(answer).toMatchObject({
+			tier: "Star Backer",
+			realTier: real.tier,
+		});
+		expect((await route.me(token)).entitlements).toEqual(entitlementsForTier("Star Backer"));
+		expect((await route.app.context.auth.sessions.verify(answer.token))?.entitlements).toEqual(entitlementsForTier("Star Backer"));
+		// A fresh sign-in carries it too.
+		const again = await route.signIn(MOCK_SIGN_IN_CREDENTIAL);
+		expect((await route.app.context.auth.sessions.verify(again))?.entitlements).toEqual(entitlementsForTier("Star Backer"));
+
+		const back = await route.put(token, {
+			tier: null,
+		});
+		expect(back.status).toBe(200);
+		const backAnswer = await back.json() as { tier: null;
+			token: string; };
+		expect(backAnswer.tier).toBeNull();
+		expect((await route.me(token)).entitlements).toEqual(real);
+		expect((await route.app.context.auth.sessions.verify(backAnswer.token))?.entitlements).toEqual(real);
+
+		for (const body of [{
+			tier: "Gold",
+		}, {}, "Backer"])
+		{
+			const bad = await route.put(token, body);
+			expect(bad.status).toBe(400);
+			expect(await bad.json()).toMatchObject({
+				error: "invalid_tier",
+			});
+			expect(bad.headers.get("Cache-Control")).toBe("no-store");
+		}
+		for (const res of [await route.get(), await route.put(undefined, {
+			tier: "Backer",
+		})])
+		{
+			expect(res.status).toBe(401);
+			expect(res.headers.get("Cache-Control")).toBe("no-store");
+		}
+	});
+
+	it("S215 AC 4: preview's config: GET and PUT answer 404, no-store", async () =>
+	{
+		const route = overrideApp({
+			...deployed,
+			BT_TIER_OVERRIDE: "1",
+		});
+		for (const res of [await route.get("any"), await route.put("any", {
+			tier: "Backer",
+		})])
+		{
+			expect(res.status).toBe(404);
+			expect(res.headers.get("Cache-Control")).toBe("no-store");
+		}
 	});
 });

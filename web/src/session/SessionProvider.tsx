@@ -184,6 +184,7 @@ export function SessionProvider({ children, signInWay = deployedSignInWay }: { c
 			}
 			return handOff;
 		},
+		keepSession,
 		signOut()
 		{
 			setSessionToken(null);

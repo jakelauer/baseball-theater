@@ -84,6 +84,13 @@ export type WorkerEnv = {
 	 */
 	BT_MOCK_SIGN_IN?: string;
 	/**
+	 * `"1"` offers staging's backer tier override (S215; `tierOverrideAllowed`), for testing only:
+	 * set in `env.staging`'s vars only, and honoured only beside the mock sign-in, so production,
+	 * which names a Logto tenant, refuses it on the server even if the var were copied there. The
+	 * override never changes the real tier or touches Patreon.
+	 */
+	BT_TIER_OVERRIDE?: string;
+	/**
 	 * A Cloudflare API token with the Zone → Cache Purge permission, and the zone's ID (S212 AC 4; Worker secrets,
 	 * pushed from GitHub secrets by the staging and production deploys (B543)): where both and `BT_APP_ORIGIN` are set, a write of a past, finished day or game purges its edge
 	 * copy by URL (`edgePurgeFor`); otherwise nothing is purged and that is logged once.
@@ -205,6 +212,9 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		...mockSignInAllowed(env) && {
 			mock: new MockIdentityProvider(),
 		},
+		...tierOverrideAllowed(env) && {
+			tierOverrideAllowed: true,
+		},
 	};
 	const settings = new PostgresSettingsRepository(db);
 	const devAccount = createDevAccountData({
@@ -253,6 +263,20 @@ export function devSignInAllowed(env: WorkerEnv): boolean
 export function mockSignInAllowed(env: WorkerEnv): boolean
 {
 	return env.BT_MOCK_SIGN_IN === "1" && !env.LOGTO_ENDPOINT && !env.LOGTO_APP_ID;
+}
+
+/**
+ * Whether staging's backer tier override is offered (S215 AC 2): only where the env's vars set
+ * `BT_TIER_OVERRIDE` to `"1"` **and** the mock sign-in is wired ({@link mockSignInAllowed}), so an
+ * env naming a Logto tenant, as production does, never honours it even if the var were copied
+ * there. Deploy-time config only: no request header, query, cookie or body can switch it on, and
+ * the local Node server never sets the var. It exists for staging tests; production refuses it on
+ * the server (its routes answer 404 and the stored override is never read), not by hiding it, and
+ * the override never changes the real tier or touches Patreon.
+ */
+export function tierOverrideAllowed(env: WorkerEnv): boolean
+{
+	return env.BT_TIER_OVERRIDE === "1" && mockSignInAllowed(env);
 }
 
 /** Logto sign-in where the env's vars name the tenant and the app (S116 AC 2); none elsewhere. */

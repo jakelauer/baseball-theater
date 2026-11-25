@@ -6,8 +6,10 @@
  * and, on its first sign-in, gets a new BT user linked to it. After that the
  * session BT issues is all an ordinary request needs.
  */
-import type { BtSession, UserProfile } from "@bt/domain";
-import { entitlementsForTier } from "@bt/domain";
+import type {
+	BtSession, Entitlements, UserProfile,
+} from "@bt/domain";
+import { effectiveEntitlements, entitlementsForTier } from "@bt/domain";
 import type {
 	IdentityClaims, IdentityProvider, UserRepository,
 } from "@bt/ports";
@@ -40,6 +42,13 @@ export type AuthDeps = {
 	 * and locally.
 	 */
 	mock?: IdentityProvider;
+	/**
+	 * Staging's backer tier override (S215): true only where `tierOverrideAllowed` says, from the
+	 * deploy-time config. For staging tests only; absent in production, on previews and locally, so
+	 * there the stored override is never read (no query) and its routes answer 404. The override
+	 * never changes the real tier or touches Patreon.
+	 */
+	tierOverrideAllowed?: boolean;
 	now?: () => Date;
 };
 
@@ -79,7 +88,7 @@ export class NoEmailError extends CredentialRefusedError
 
 /**
  * Finds or creates the BT user for a provider account and issues their
- * session, carrying the provider's sign-in time (`claims.authTime`) for
+ * session, with the entitlements {@link accountEntitlements} hands out (S215) and the provider's sign-in time (`claims.authTime`) for
  * deletion's recent-sign-in check (S120). `newUid` names a first-time user; it defaults to a random UUID, and
  * the dev provider passes the subject so `dev:test-user` is uid `test-user`.
  *
@@ -113,13 +122,35 @@ export async function signIn(
 		await deps.users.upsert(user);
 		await deps.users.linkIdentity(claims.provider, claims.subject, uid);
 	}
-	// The provider's own sign-in time rides in the session for deletion's recent-sign-in check (S120).
+	return issueSession(deps, user, await accountEntitlements(deps, user), claims.authTime);
+}
+
+/**
+ * The entitlements a signed-in account is handed (S215 AC 1): its stored tier, or the staging tier
+ * override through `effectiveEntitlements`. The override is read only where `deps.tierOverrideAllowed`
+ * is set, so production (where it never is) makes no query for it; it exists for staging tests and
+ * never changes the real tier or touches Patreon. The session at sign-in, `GET /api/v1/me` and the
+ * override route's new session all come here.
+ */
+export async function accountEntitlements(deps: AuthDeps, user: UserProfile): Promise<Entitlements>
+{
+	if (!deps.tierOverrideAllowed) return effectiveEntitlements(user.entitlements, null, false);
+	return effectiveEntitlements(user.entitlements, await deps.users.getTierOverride(user.uid), true);
+}
+
+/**
+ * Issues `user` a session carrying `entitlements`, and its verified form. `authTime` is the
+ * provider's own sign-in time, which rides in the session for deletion's recent-sign-in check
+ * (S120); a session reissued for a tier override (S215) carries the one it replaces.
+ */
+export async function issueSession(deps: AuthDeps, user: UserProfile, entitlements: Entitlements, authTime: number | undefined): Promise<SignedIn>
+{
 	const token = await deps.sessions.issue({
 		uid: user.uid,
 		role: user.role,
-		entitlements: user.entitlements,
-		...claims.authTime !== undefined && {
-			authTime: claims.authTime,
+		entitlements,
+		...authTime !== undefined && {
+			authTime,
 		},
 	});
 	const session = await deps.sessions.verify(token);
