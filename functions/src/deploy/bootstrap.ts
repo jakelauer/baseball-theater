@@ -74,11 +74,19 @@ export function previewHyperdriveName(pullRequest: number): string
 
 /**
  * Every env's Worker secrets, pushed from GitHub secrets on every deploy (S114 AC 8), so GitHub is
- * their one source and none is set once by hand. Not yet the edge purge's two (S212):
- * `BT_CF_PURGE_TOKEN` and `BT_CF_ZONE_ID` are set by hand on each Worker for now (`wrangler secret
- * put`), since no deploy workflow maps them; without them the Worker purges nothing and logs it.
+ * their one source and none is set once by hand.
  */
 export const WORKER_SECRETS = ["BT_SESSION_KEY"] as const;
+
+/**
+ * The edge purge's two (S212 AC 4; issue #543): a Cloudflare API token with Zone → Cache Purge on
+ * `baseball.theater` and that zone's ID, which the owner keeps as GitHub secrets of the same names
+ * (owner, 2026-11-24: "Yes, I'll add them; wire deploy.yml (Recommended)"). Staging and production
+ * only: a preview lives on workers.dev, off the zone, so it has nothing to purge. Required like the
+ * rest (a missing one fails the deploy before anything is written), because a Worker without them
+ * purges nothing and only logs it, leaving a corrected past day stale at the edge for up to 30 days.
+ */
+export const EDGE_PURGE_WORKER_SECRETS = ["BT_CF_PURGE_TOKEN", "BT_CF_ZONE_ID"] as const;
 
 /**
  * Production's alone (S116 AC 5): its one Logto machine-to-machine app, which deletes fans' Logto
@@ -90,10 +98,12 @@ export const WORKER_SECRETS = ["BT_SESSION_KEY"] as const;
  */
 export const PRODUCTION_WORKER_SECRETS = ["LOGTO_S2S_APP_ID", "LOGTO_S2S_SECRET"] as const;
 
-/** The Worker secrets `env`'s deploy pushes. */
+/** The Worker secrets `env`'s deploy pushes: every env's, then the edge purge's (not a preview's), then production's own. */
 export function workerSecretNames(env: DeployEnv): readonly string[]
 {
-	return env === "production" ? [...WORKER_SECRETS, ...PRODUCTION_WORKER_SECRETS] : WORKER_SECRETS;
+	if (env === "preview") return WORKER_SECRETS;
+	if (env === "staging") return [...WORKER_SECRETS, ...EDGE_PURGE_WORKER_SECRETS];
+	return [...WORKER_SECRETS, ...EDGE_PURGE_WORKER_SECRETS, ...PRODUCTION_WORKER_SECRETS];
 }
 
 /** A preview's Worker, one per pull request, on workers.dev. */

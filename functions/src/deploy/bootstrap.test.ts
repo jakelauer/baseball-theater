@@ -15,7 +15,7 @@ import type { PostgresDb } from "../adapters/postgres/repos.js";
 import type { BootstrapDeps, NeonBranch } from "./bootstrap.js";
 import {
 	bootstrapDeploy, cleanupPreviews, deployConfig, findOrCreateBranch, HYPERDRIVE_CONFIG, parsePullRequest, parseWranglerConfig, prepareSchemaOnlyCopy, previewHyperdriveName,
-	previewBranchName, previewWorkerName, teardownPreview, workerSecrets,
+	previewBranchName, previewWorkerName, teardownPreview, workerSecretNames, workerSecrets,
 } from "./bootstrap.js";
 import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
 
@@ -311,6 +311,8 @@ function standIns(initial: { branches?: NeonBranch[];
 		rebase: (path) => `../../${path}`,
 		secrets: {
 			BT_SESSION_KEY: "from-github",
+			BT_CF_PURGE_TOKEN: "purge-from-github",
+			BT_CF_ZONE_ID: "zone-from-github",
 			LOGTO_S2S_APP_ID: "m2m-from-github",
 			LOGTO_S2S_SECRET: "gh-secret",
 		},
@@ -493,7 +495,7 @@ describe("S114 AC 8: Worker secrets from GitHub on every deploy", () =>
 		expect(workerSecrets({
 			BT_SESSION_KEY: "k",
 			OTHER: "ignored",
-		}, "staging")).toEqual({
+		}, "preview")).toEqual({
 			BT_SESSION_KEY: "k",
 		});
 		expect(() => workerSecrets({}, "staging")).toThrow(/missing Worker secrets[^]*BT_SESSION_KEY/);
@@ -501,14 +503,20 @@ describe("S114 AC 8: Worker secrets from GitHub on every deploy", () =>
 		// Staging's Worker never gets production's machine-to-machine secret, even from a job that carried it (S116 AC 5).
 		expect((await bootstrapDeploy(deps, "staging")).secrets).toEqual({
 			BT_SESSION_KEY: "from-github",
+			BT_CF_PURGE_TOKEN: "purge-from-github",
+			BT_CF_ZONE_ID: "zone-from-github",
 		});
 		expect((await bootstrapDeploy(deps, "production")).secrets).toEqual({
 			BT_SESSION_KEY: "from-github",
+			BT_CF_PURGE_TOKEN: "purge-from-github",
+			BT_CF_ZONE_ID: "zone-from-github",
 			LOGTO_S2S_APP_ID: "m2m-from-github",
 			LOGTO_S2S_SECRET: "gh-secret",
 		});
 		expect(() => workerSecrets({
 			BT_SESSION_KEY: "k",
+			BT_CF_PURGE_TOKEN: "p",
+			BT_CF_ZONE_ID: "z",
 		}, "production")).toThrow(/missing Worker secrets[^]*LOGTO_S2S_APP_ID, LOGTO_S2S_SECRET/);
 		const before = writes().length;
 		await expect(bootstrapDeploy({
@@ -1398,5 +1406,39 @@ describe("issue #42: previews survive Neon's and Cloudflare's edge cases", () =>
 		expect(world.branches.map((b) => b.name)).toContain("preview-pr-6");
 		expect([...world.workers]).toEqual(["baseball-theater-pr-6"]);
 		expect(world.writes()).toEqual([]);
+	});
+});
+
+describe("the edge purge's Worker secrets (issue #543)", () =>
+{
+	it("staging's and production's deploys push BT_CF_PURGE_TOKEN and BT_CF_ZONE_ID, a missing one fails them, and a preview's never carries them (#543)", async () =>
+	{
+		const purge = {
+			BT_CF_PURGE_TOKEN: "purge-from-github",
+			BT_CF_ZONE_ID: "zone-from-github",
+		};
+		for (const env of ["staging", "production"] as const)
+		{
+			expect(workerSecretNames(env)).toEqual(expect.arrayContaining(["BT_CF_PURGE_TOKEN", "BT_CF_ZONE_ID"]));
+			expect(workerSecrets({
+				BT_SESSION_KEY: "k",
+				LOGTO_S2S_APP_ID: "a",
+				LOGTO_S2S_SECRET: "s",
+				...purge,
+			}, env)).toMatchObject(purge);
+			// Fails loudly, before anything is written: a Worker deployed without them purges nothing and only logs it.
+			expect(() => workerSecrets({
+				BT_SESSION_KEY: "k",
+				LOGTO_S2S_APP_ID: "a",
+				LOGTO_S2S_SECRET: "s",
+				BT_CF_ZONE_ID: "z",
+			}, env)).toThrow(/missing Worker secrets[^]*BT_CF_PURGE_TOKEN/);
+		}
+		expect(workerSecretNames("preview")).not.toContain("BT_CF_PURGE_TOKEN");
+		expect(workerSecretNames("preview")).not.toContain("BT_CF_ZONE_ID");
+		const { deps } = standIns();
+		expect((await bootstrapDeploy(deps, "preview", 7)).secrets).toEqual({
+			BT_SESSION_KEY: "from-github",
+		});
 	});
 });
