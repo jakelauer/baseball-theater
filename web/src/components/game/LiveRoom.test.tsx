@@ -66,6 +66,29 @@ function rows(panel: HTMLElement): HTMLElement[]
 	return within(panel).getAllByTestId("pitch-row");
 }
 
+/** A sixth pitch to Bregman arrives live, as a cache update of the game (version 2). */
+async function throwPitch(client: ReturnType<typeof createQueryClient>): Promise<void>
+{
+	const game = fixture();
+	const last = game.plays.at(-1)!;
+	const thrown = last.pitches.at(-1)!;
+	await act(async () =>
+	{
+		writeGame(client, {
+			...game,
+			version: 2,
+			plays: [...game.plays.slice(0, -1), {
+				...last,
+				pitches: [...last.pitches, {
+					...thrown,
+					pitchNumber: thrown.pitchNumber + 1,
+					playId: "new-pitch",
+				}],
+			}],
+		});
+	});
+}
+
 afterEach(() =>
 {
 	cleanup();
@@ -211,29 +234,46 @@ describe("the Live pitch theater (S64)", () =>
 		const client = createQueryClient();
 		const panel = await livePanel("mobile", client);
 		expect(within(panel).queryByTestId("zone-ball")).toBeNull();
-		// Something older picked by hand gives way to the new pitch.
-		fireEvent.click(within(rows(panel)[3]!).getByRole("button"));
-		const game = fixture();
-		const last = game.plays.at(-1)!;
-		const thrown = last.pitches.at(-1)!;
-		await act(async () =>
-		{
-			writeGame(client, {
-				...game,
-				version: 2,
-				plays: [...game.plays.slice(0, -1), {
-					...last,
-					pitches: [...last.pitches, {
-						...thrown,
-						pitchNumber: thrown.pitchNumber + 1,
-						playId: "new-pitch",
-					}],
-				}],
-			});
-		});
-		await waitFor(() => expect(rows(panel)[0]).toHaveTextContent(new RegExp(`^${thrown.pitchNumber + 1} · `)));
-		expect(rows(panel)[0]).toHaveAttribute("data-expanded", "true");
+		// The previous arrival, open, gives way to the new pitch (#522).
+		await throwPitch(client);
+		await waitFor(() => expect(rows(panel)[0]).toHaveTextContent(/^6 · /));
+		expect(rows(panel).map((row) => row.dataset.expanded)).toEqual(["true", "false", "false", "false", "false", "false"]);
 		await waitFor(() => expect(within(panel).getByTestId("zone-ball")).toBeInTheDocument());
+	});
+
+	it("an open pitch closes when its header is tapped, leaving none open (#522)", async () =>
+	{
+		const panel = await livePanel();
+		expect(rows(panel)[0]).toHaveAttribute("data-expanded", "true");
+		const header = within(rows(panel)[0]!).getByRole("button");
+		expect(header).toHaveAttribute("aria-expanded", "true");
+		fireEvent.click(header);
+		expect(rows(panel).map((row) => row.dataset.expanded)).toEqual(["false", "false", "false", "false", "false"]);
+		expect(within(panel).queryByTestId("pitch-detail")).toBeNull();
+		// Tapped again, it opens again.
+		fireEvent.click(within(rows(panel)[0]!).getByRole("button"));
+		expect(rows(panel)[0]).toHaveAttribute("data-expanded", "true");
+	});
+
+	it("live: with every pitch closed, a new pitch arrives open (#522)", async () =>
+	{
+		const client = createQueryClient();
+		const panel = await livePanel("mobile", client);
+		fireEvent.click(within(rows(panel)[0]!).getByRole("button"));
+		await throwPitch(client);
+		await waitFor(() => expect(rows(panel)[0]).toHaveTextContent(/^6 · /));
+		expect(rows(panel).map((row) => row.dataset.expanded)).toEqual(["true", "false", "false", "false", "false", "false"]);
+	});
+
+	it("live: with an older pitch open by choice, a new pitch arrives closed and the chosen one stays open (#522)", async () =>
+	{
+		const client = createQueryClient();
+		const panel = await livePanel("mobile", client);
+		// Pitch 2 (fourth from the top), opened by hand.
+		fireEvent.click(within(rows(panel)[3]!).getByRole("button"));
+		await throwPitch(client);
+		await waitFor(() => expect(rows(panel)[0]).toHaveTextContent(/^6 · /));
+		expect(rows(panel).map((row) => row.dataset.expanded)).toEqual(["false", "false", "false", "false", "true", "false"]);
 	});
 
 	it("no win probability renders", async () =>
