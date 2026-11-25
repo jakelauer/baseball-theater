@@ -1,7 +1,8 @@
 /**
  * S71: "Best of <date> — Highlights" under the scoreboard's games. The digest is
  * `dayDigest` over the committed 2024-07-04 games (744834 NYM @ WSH with three clips,
- * 745001 NYY @ BOS with one), served as the API would; the schedule is that day's.
+ * 745001 NYY @ BOS with one), served as the API would; the schedule is that day's. S173's
+ * player pills add 744834's recorded plays (`fixtures/plays-744834.json`), so its clips carry their play.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -125,7 +126,7 @@ describe("the day digest (S71)", () =>
 		for (const row of items) expect(row.querySelector("[style*='aspect-ratio']")).not.toBeNull();
 	});
 
-	it("plays: choosing a clip opens the player dialog with its game link; Close returns to the scoreboard", async () =>
+	it("plays: choosing a clip opens the player dialog with its game pill (S173); Close returns to the scoreboard", async () =>
 	{
 		const user = userEvent.setup();
 		const digest = await renderScoreboard();
@@ -135,9 +136,9 @@ describe("the day digest (S71)", () =>
 		const dialog = await screen.findByRole("dialog");
 		expect(within(dialog).getByTestId("video-player")).toBeInTheDocument();
 		const link = within(dialog).getByRole("link", {
-			name: "Go to game: NYY @ BOS, Jul 4 →",
+			name: "More from game: NYY @ BOS, Jul 4",
 		});
-		expect(link).toHaveAttribute("href", "/game/745001");
+		expect(link).toHaveAttribute("href", "/game/745001/videos");
 		// Closed only once it has finished opening and started the clip (#423), which every run reaches:
 		// closing sooner made the test pass or fail on how fast the machine ran (#559).
 		await waitFor(() => expect(within(dialog).getByTestId("video-player").querySelector("video")!.autoplay).toBe(true));
@@ -202,5 +203,73 @@ describe("the day digest (S71)", () =>
 		);
 		await screen.findAllByTestId("scoreboard-module");
 		expect(screen.queryByTestId("day-digest")).toBeNull();
+	});
+});
+
+/** The digest with 744834's recorded plays, so its clips carry their play (S173); 745001 has none recorded. */
+const WITH_PLAYS: DayDigestPayload = {
+	...DIGEST,
+	items: dayDigest([{
+		...read<DigestGame>("game-744834.json"),
+		plays: read<DigestGame["plays"]>("plays-744834.json"),
+	}, read<DigestGame>("game-745001.json")]),
+};
+
+/** Serves `WITH_PLAYS` and `settings`, renders the scoreboard and opens the clip titled `title`; the dialog's pills by spoken name. */
+async function digestPills(title: string, settings = DEFAULT_SETTINGS): Promise<{ names: string[];
+	dialog: HTMLElement; }>
+{
+	vi.stubGlobal("fetch", vi.fn((request: Request) =>
+	{
+		const { pathname } = new URL(request.url);
+		if (pathname === "/api/v1/digest") return Promise.resolve(jsonResponse(WITH_PLAYS));
+		if (pathname === "/api/v1/me/settings") return Promise.resolve(jsonResponse(settings));
+		return Promise.resolve(jsonResponse(SCHEDULE));
+	}));
+	if (settings !== DEFAULT_SETTINGS) await hydrateSettings("test-user");
+	const digest = await renderScoreboard();
+	await userEvent.click(within(digest).getByRole("link", {
+		name: `Play ${title}`,
+	}));
+	const dialog = await screen.findByRole("dialog");
+	const row = await within(dialog).findByTestId("player-pills");
+	return {
+		names: within(row).queryAllByRole("link").map((link) => link.getAttribute("aria-label") ?? ""),
+		dialog,
+	};
+}
+
+describe("the digest's player pills (S173; standings-search-settings A10 digest-playing-pills-*)", () =>
+{
+	it("S173 AC 5: a clip with a play shows More from game, then its inning pill from the item's play", async () =>
+	{
+		const { names, dialog } = await digestPills("Lane Thomas hits a walk-off home run");
+		expect(names).toEqual(["More from game: NYM @ WSH, Jul 4", "Bot 8: open play, bottom of 8th inning"]);
+		expect(within(dialog).getByRole("link", {
+			name: "More from game: NYM @ WSH, Jul 4",
+		})).toHaveAttribute("href", "/game/744834/videos");
+		expect(within(dialog).getByRole("link", {
+			name: "Bot 8: open play, bottom of 8th inning",
+		})).toHaveAttribute("href", "/game/744834/plays?play=dddd5856-85b9-41d0-9ed9-63679e3519d8");
+		expect(within(dialog).queryByText(/Go to game/)).toBeNull();
+	});
+
+	it("S173 AC 5: a clip with no play shows the game pill alone", async () =>
+	{
+		const { names } = await digestPills("Nationals take the field");
+		expect(names).toEqual(["More from game: NYM @ WSH, Jul 4"]);
+	});
+
+	it("S173 AC 6: Hide Scores changes neither pill in the digest's player", async () =>
+	{
+		const shown = (await digestPills("Lane Thomas hits a walk-off home run")).names;
+		cleanup();
+		const hidden = (await digestPills("Lane Thomas hits a walk-off home run", {
+			...DEFAULT_SETTINGS,
+			hideScores: true,
+			version: 1,
+		})).names;
+		expect(hidden).toEqual(shown);
+		expect(hidden).toHaveLength(2);
 	});
 });
