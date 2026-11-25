@@ -107,7 +107,7 @@ function serve(response: () => Response)
 
 const title = () => screen.getByRole("heading", {
 	level: 1,
-	name: "Change log",
+	name: "Changelog",
 });
 
 afterEach(() =>
@@ -118,7 +118,7 @@ afterEach(() =>
 
 describe("ChangelogPage (S134 AC 1)", () =>
 {
-	it("S134 AC 1: every release newest first from GET /api/v1/releases, under the title 'Change log', each with its version and formatDate'd date", async () =>
+	it("S134 AC 1: every release newest first from GET /api/v1/releases, under the title 'Changelog', each with its version and formatDate'd date", async () =>
 	{
 		const fetchMock = serve(() => jsonResponse(RELEASES));
 		renderChangelog();
