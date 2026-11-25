@@ -2,7 +2,7 @@
 -- S161, which lists owed purges by `retry_at` alone and sends what it lists as it is, a batch the edge refuses. Each
 -- such row's retry time moves to the new `path_retry_at` (where the current Worker reads it), and its `retry_at` becomes
 -- 'infinity', which `retry_at::timestamptz <= now` never reaches. The new column is nullable with no default, so adding
--- it rewrites no row; the UPDATE touches only path-only rows, a few dozen at most. The lock timeout comes first: a lock
+-- it rewrites no row; the UPDATE touches only path-only rows. The lock timeout comes first: a lock
 -- this can't get in 5 seconds fails the deploy, which is re-run, rather than queueing the cron's reads behind it.
 SET LOCAL lock_timeout = '5s';
 --> statement-breakpoint

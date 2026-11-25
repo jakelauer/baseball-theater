@@ -290,6 +290,16 @@ describe("owed edge purges an older Worker sees (S219)", () =>
 			expect(listed.filter((url) => url.startsWith("/")), at).toEqual([]);
 			expect(listed, at).toContain(FULL);
 		}
+		// A later fill owes a deferred path again before its deferral ends (the re-owe path of `owe`): still hidden from an
+		// older Worker, and due at once for this one, its deferral (`path_retry_at`, a minute after `now`) cleared.
+		const reowed = "/api/v1/games/823823";
+		const reowedAt = new Date(now.getTime() + 30_000);
+		await owed.owe([reowed], reowedAt.toISOString());
+		for (const at of olderWorkerTicks(reowedAt))
+		{
+			expect((await preS161ListDue(db, at)).map((row) => row.url), at).not.toContain(reowed);
+		}
+		expect((await owed.listDue(reowedAt.toISOString(), 30)).map((row) => row.url)).toContain(reowed);
 	});
 
 	it("S219 AC 1 rows already owed: path-only owes recorded before S219's migration are hidden from an older Worker after it", async () =>

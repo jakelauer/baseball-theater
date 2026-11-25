@@ -61,12 +61,12 @@ in_file "$FN" "$T" "S219 AC 3 a refused URL doesn't hold up the rest" || bad 3 "
 
 # --- Check 4: comments are true ---
 doc_of functions/src/services/edge-purge.ts 'export async function retryOwedEdgePurges(' | grep -q 'S219' || bad 4 "retryOwedEdgePurges's comment does not name S219"
-doc_of functions/src/services/edge-purge.ts 'export async function retryOwedEdgePurges(' | grep -qi 'older' || bad 4 "retryOwedEdgePurges's comment does not say what older code sees"
+doc_of functions/src/services/edge-purge.ts 'export async function retryOwedEdgePurges(' | grep -qi 'older Worker' || bad 4 "retryOwedEdgePurges's comment does not say what an older Worker sees"
 listdue_doc="$(doc_of functions/src/adapters/postgres/repos.ts 'async listDue(at: string, limit: number)')"
 grep -q 'S219' <<<"$listdue_doc" || bad 4 "listDue's comment does not name S219"
-grep -qi 'older' <<<"$listdue_doc" || bad 4 "listDue's comment does not say what older code sees"
+grep -qi 'older Worker' <<<"$listdue_doc" || bad 4 "listDue's comment does not say what an older Worker sees"
 head -40 functions/src/adapters/postgres/win-probability-fill.ts | grep -q 'S219' || bad 4 "the fill's module comment does not name S219"
-head -40 functions/src/adapters/postgres/win-probability-fill.ts | grep -qi 'older' || bad 4 "the fill's module comment does not say what older code sees"
+head -40 functions/src/adapters/postgres/win-probability-fill.ts | grep -qi 'older Worker' || bad 4 "the fill's module comment does not say what an older Worker sees"
 
 # --- Check 5: fence and status ---
 fence='^(functions/src/|functions/vitest\.config\.ts$|docs/v3/backlog/|docs/v3/audit/|changelog\.d/S219\.md$|scripts/verify-S219\.sh$)'
