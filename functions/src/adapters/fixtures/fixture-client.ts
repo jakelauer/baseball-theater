@@ -18,7 +18,8 @@ import {
 } from "@bt/domain";
 import type { GameDiffPatchResponse, ReplayPatchEntry } from "@bt/mlb-api";
 import {
-	parseGameTimestamps, parseGraphContentResponse, parsePlayMetricsResponse, parseRecordedReplayWalk, parseScheduleResponse, parseSeasonsResponse, parseStandingsResponse,
+	parseGameTimestamps, parseGraphContentResponse, parsePlayMetricsResponse, parseRecordedReplayWalk, parseScheduleResponse, parseSearchResponse,
+	parseSeasonsResponse, parseStandingsResponse,
 } from "@bt/mlb-api";
 import type {
 	GameEditorial, MlbGameSources, MlbStatsClient,
@@ -26,7 +27,7 @@ import type {
 import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
-import { mapSearchResults, parseSearchResponse } from "../../mappers/search.js";
+import { mapSearchResults } from "../../mappers/search.js";
 import { mapSeasonCalendar } from "../../mappers/season-calendar.js";
 import { mapStandings } from "../../mappers/standings.js";
 

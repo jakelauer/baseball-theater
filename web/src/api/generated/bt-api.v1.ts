@@ -875,10 +875,17 @@ export interface components {
             homeId: number;
             officialDate: string;
         };
-        /** @description One highlight search result (S5): the clip, playable as any other BT video, and its game, or null for a clip MLB ties to no game (a season montage, a winter-league hit: MLB's `gamePk: -1`), which then shows no matchup and no game link. */
+        /**
+         * @description One highlight search result (S5): the clip, playable as any other BT video, and its game, or null for a clip MLB ties to no game (a season montage, a winter-league hit: MLB's `gamePk: -1`), which then shows no matchup and no game link.
+         *
+         *     The play it shows (S153; game-shell A6's Search rows): `highlight.playId` (MLB's `guid`), and the play's half and inning as MLB's search names them, each null when MLB gives none (a clip with no play has inning 0 and no half). A row draws the inning pill only when all three are set; BT never loads the game to find a missing one (owner, 2026-11-19: "Show no pill (Recommended)").
+         */
         SearchHighlight: {
             game: components["schemas"]["SearchClipGame"] | null;
+            /** @enum {string|null} */
+            halfInning: "top" | "bottom" | null;
             highlight: components["schemas"]["MediaHighlight"];
+            inning: number | null;
         };
         /** @description Highlight search (S5; ADR-029): MLB's free-text search for `q`, as BT asks it per query, newest first. `total` is how many clips MLB matched in all; `highlights` is the first page of them. */
         SearchHighlightsResponse: {

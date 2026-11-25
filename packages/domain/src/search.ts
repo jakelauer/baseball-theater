@@ -16,10 +16,17 @@ export type SearchClipGame = DigestClipGame & {
  * One highlight search result (S5): the clip, playable as any other BT video, and its game, or null
  * for a clip MLB ties to no game (a season montage, a winter-league hit: MLB's `gamePk: -1`), which
  * then shows no matchup and no game link.
+ *
+ * The play it shows (S153; game-shell A6's Search rows): `highlight.playId` (MLB's `guid`), and the
+ * play's half and inning as MLB's search names them, each null when MLB gives none (a clip with no
+ * play has inning 0 and no half). A row draws the inning pill only when all three are set; BT never
+ * loads the game to find a missing one (owner, 2026-11-19: "Show no pill (Recommended)").
  */
 export type SearchHighlight = {
 	highlight: MediaHighlight;
 	game: SearchClipGame | null;
+	halfInning: "top" | "bottom" | null;
+	inning: number | null;
 };
 
 /**
