@@ -587,6 +587,31 @@ describe("opening an at-bat (S64 choreography, kept in S41)", () =>
 		expect(within(item(second)).getByTestId("zone-ball")).toBeInTheDocument();
 	});
 
+	it("a second tap while a switch is still scrolling opens instantly too (#521)", () =>
+	{
+		vi.useFakeTimers();
+		vi.stubGlobal("scrollBy", vi.fn());
+		let top = 0;
+		vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => undefined);
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(() => ({
+			top,
+		}) as DOMRect);
+		const { container } = wrap(<PlaysPanel game={game(PLAYS.slice(0, 3))} />);
+		const [first, second, third] = [PLAYS[0]!, PLAYS[1]!, PLAYS[2]!];
+		// The first opens at once (at the top); the second, 300px down, closes it and starts scrolling.
+		fireEvent.click(control(container, first));
+		top = 300;
+		fireEvent.click(control(container, second));
+		// Before that scroll ends, the third is tapped; its scroll ends and it opens with no animation.
+		fireEvent.click(control(container, third));
+		act(() =>
+		{
+			window.dispatchEvent(new Event("scrollend"));
+		});
+		expect(within(item(third)).getByTestId("catcher-view")).toBeInTheDocument();
+		expect(item(third).querySelector<HTMLElement>(".mantine-Accordion-panel")?.style.transition ?? "").toBe("");
+	});
+
 	it("closing again after a quick reopen keeps the contents through the whole second collapse (#420)", () =>
 	{
 		vi.useFakeTimers();

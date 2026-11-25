@@ -411,6 +411,9 @@ function PlaysAccordion({
 	const [duration, setDuration] = useState(OPEN_MS);
 	// The at-bat being opened, until its pitches start replaying.
 	const pending = useRef<string | null>(null);
+	// Whether the pending open replaces an at-bat that was open, so it opens at once (#521). A ref,
+	// not `open`: a tap mid-switch finds `open` already cleared, yet is still a switch.
+	const switching = useRef(false);
 	// Which at-bat to replay, and a fresh token each time.
 	const [autoplay, setAutoplay] = useState<{ value: string;
 		token: number } | null>(null);
@@ -446,10 +449,12 @@ function PlaysAccordion({
 
 	const choose = (value: string | null) =>
 	{
+		const wasPending = pending.current !== null;
 		pending.current = value;
 		const item = value === null ? null : document.getElementById(`at-bat-${value}`);
 		if (value === null || !item)
 		{
+			switching.current = false;
 			setDuration(OPEN_MS);
 			if (value === null && open !== null)
 			{
@@ -463,8 +468,10 @@ function PlaysAccordion({
 		}
 		// Switching from one open at-bat to another: the new one opens at once too, as the old
 		// one closed, since an open animation after an instant close made the page jump (owner,
-		// 2026-11-24, #521: "I think we should go with instantly."). Opening from nothing keeps it.
-		const instant = open !== null;
+		// 2026-11-24, #521: "I think we should go with instantly."). A tap while a switch is still
+		// scrolling is a switch too. Opening from nothing keeps the animation.
+		const instant = open !== null || (wasPending && switching.current);
+		switching.current = instant;
 		// 1. Close the open at-bat at once, keeping the tapped one where it was on screen
 		//    (the closed one above it would otherwise pull it up). One still collapsing
 		//    from a close goes at once too, for the same reason.
