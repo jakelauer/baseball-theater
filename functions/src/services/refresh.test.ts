@@ -247,30 +247,46 @@ describe("refresh cooldown", () =>
 
 	it("counts an unchanged refresh as checked, so reads past the TTL don't re-pull until the TTL lapses again", async () =>
 	{
-		const spy = spyClient();
-		spy.release();
-		const games = new InMemoryGameRepository();
-		await games.upsert(cached(STALE));
-		let clock = new Date(Date.parse(STALE) + CACHE_TTL_MS + 1_000);
-		const d = deps({
-			mlb: spy.client,
-			games,
-			refresh: new RefreshCoordinator(() => clock, 60_000),
-			now: () => clock,
+		// The clock below runs ~7 minutes past its start, and the game is dated MLB's today at the wall clock (`cached`,
+		// `spyClient`). Started from the real wall clock, a run just before midnight US Eastern (04:00–05:00 UTC) crossed
+		// into MLB's next day, so the game read as past and finished and the last read never refreshed (#564). Pinning
+		// the wall clock to midday Eastern keeps the game's date and the test's clock on the same day at any hour.
+		vi.useFakeTimers({
+			toFake: ["Date"],
 		});
+		vi.setSystemTime(new Date("2026-07-15T16:00:00Z"));
+		try
+		{
+			const spy = spyClient();
+			spy.release();
+			const games = new InMemoryGameRepository();
+			const stale = new Date(Date.now() - CACHE_TTL_MS - 1_000).toISOString();
+			await games.upsert(cached(stale));
+			let clock = new Date(Date.parse(stale) + CACHE_TTL_MS + 1_000);
+			const d = deps({
+				mlb: spy.client,
+				games,
+				refresh: new RefreshCoordinator(() => clock, 60_000),
+				now: () => clock,
+			});
 
-		await getOrRefreshGame(d, 744834);
-		expect(spy.calls()).toBe(1);
+			await getOrRefreshGame(d, 744834);
+			expect(spy.calls()).toBe(1);
 
-		// Past the cooldown but inside the TTL since that check: served from the store.
-		clock = new Date(clock.getTime() + 2 * 60_000);
-		await getOrRefreshGame(d, 744834);
-		expect(spy.calls()).toBe(1);
+			// Past the cooldown but inside the TTL since that check: served from the store.
+			clock = new Date(clock.getTime() + 2 * 60_000);
+			await getOrRefreshGame(d, 744834);
+			expect(spy.calls()).toBe(1);
 
-		// A full TTL after the check, the next read refreshes again.
-		clock = new Date(clock.getTime() + CACHE_TTL_MS);
-		await getOrRefreshGame(d, 744834);
-		expect(spy.calls()).toBe(2);
+			// A full TTL after the check, the next read refreshes again.
+			clock = new Date(clock.getTime() + CACHE_TTL_MS);
+			await getOrRefreshGame(d, 744834);
+			expect(spy.calls()).toBe(2);
+		}
+		finally
+		{
+			vi.useRealTimers();
+		}
 	});
 });
 
