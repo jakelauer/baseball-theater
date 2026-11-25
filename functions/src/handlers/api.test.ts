@@ -202,7 +202,7 @@ describe("handleApiRequest", () =>
 		});
 	});
 
-	it("serves the day digest (S71): every game's videos ranked together, the first to watch first", async () =>
+	it("S217 AC 1: serves the day digest (S71): every game's videos ranked together, with no watchFirst flag", async () =>
 	{
 		await withServer(async (base) =>
 		{
@@ -213,7 +213,10 @@ describe("handleApiRequest", () =>
 			// 744834 (NYM @ WSH) has three videos and 745001 (NYY @ BOS) one, so the digest holds four.
 			expect(digest.items).toHaveLength(4);
 			expect(digest.items.map((i) => i.rank)).toEqual([1, 2, 3, 4]);
-			expect(digest.items.filter((i) => i.watchFirst)).toEqual([digest.items[0]]);
+			for (const item of digest.items)
+			{
+				expect(item).not.toHaveProperty("watchFirst");
+			}
 			expect(new Set(digest.items.map((i) => i.game.gamePk))).toEqual(new Set([744834, 745001]));
 			expect(digest.items.find((i) => i.game.gamePk === 745001)!.game).toMatchObject({
 				away: "NYY",
