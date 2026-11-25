@@ -7,6 +7,7 @@ export * from "./people.js";
 export * from "./live.js";
 export * from "./content.js";
 export * from "./graphql-content.js";
+export * from "./search.js";
 export * from "./playmetrics.js";
 export * from "./seasons.js";
 export * from "./parse.js";

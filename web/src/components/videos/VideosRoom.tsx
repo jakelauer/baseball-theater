@@ -152,9 +152,9 @@ function FilterDrawer({
 }
 
 /**
- * The Videos room (S69; game-shell `game-videos-*` frames, A1): the game's videos under
- * "Videos" (the frames' "Impact-sorted videos" stopped being true once the list could be
- * sorted by time; owner, 2026-10-30: "Use “Videos”"), a full-width search, then one row: the quick filters on the
+ * The Videos room (S69; game-shell `game-videos-*` frames, A1): the game's videos, opening on a
+ * full-width search with no "Videos" heading above it, since the tab already says so (#529;
+ * owner, 2026-11-25, waiving the ratified frames' heading: "Drop the heading"), then one row: the quick filters on the
  * left (`QuickFilters`: as many as fit, then a Filters button opening `FilterDrawer`), and
  * on the right the sort (`sortHighlights`; impact first, the server's
  * `rankHighlightsByImpact` order) and the Grid / List icons (owner, 2026-10-30). The quick
@@ -168,6 +168,8 @@ function FilterDrawer({
  * the group away and back (owner, 2026-10-30: "the groups should be collapsible"); all
  * start open, each open group's clips inset in a container whose left rule runs down
  * from the chevron (#427).
+ * Every card leaves the date off its meta line (`noDate`), since every clip here is from the
+ * game's own day (#421; owner, 2026-11-25, waiving game-shell A6's date on each card).
  * Choosing a video (a card linking to this room with it open, `useOpenClip`, #424) plays it in `PlayerHost` (S70): a dialog by default, or the stage at
  * the top of the room when the reader chose Stage. Played from the game's own room, the
  * dialog carries no link back to it. With Hide Scores on the recap clip is titled
@@ -238,7 +240,6 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 				playLink={playing ? videoPlayLink(playing, game) : null}
 				stageGame={game}
 			/>
-			<SectionHeading>Videos</SectionHeading>
 			<TextInput
 				aria-label="Search videos"
 				placeholder="Search videos..."
@@ -291,7 +292,7 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 			{groupHighlights(videos).map(({ group, highlights }) =>
 			{
 				const cards = highlights.map((video) => (
-					<VideoCard key={video.id} video={video} layout={layout} href={href(video)} scoresHidden={scoresHidden} playLink={videoPlayLink(video, game)} />
+					<VideoCard key={video.id} video={video} layout={layout} href={href(video)} scoresHidden={scoresHidden} playLink={videoPlayLink(video, game)} noDate />
 				));
 				const open = !collapsed.has(group);
 				const Chevron = open ? IconChevronDown : IconChevronRight;
