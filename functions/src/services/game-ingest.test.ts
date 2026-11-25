@@ -4,7 +4,9 @@
  * the game leaves its window. Fixture 745001 is a game in progress, so it is always in
  * its window.
  */
-import type { GameSnapshot, ScheduleDay } from "@bt/domain";
+import type {
+	GameSnapshot, PlayerOfTheGame, ScheduleDay,
+} from "@bt/domain";
 import {
 	DEFAULT_CADENCE, isGameInActiveWindow, stampVersion,
 } from "@bt/domain";
@@ -16,6 +18,7 @@ import {
 	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
 import { FakeDurableStorage } from "./fake-durable-storage.js";
+import { PLAY_METRICS_LIMIT_MS } from "../adapters/http/mlb.js";
 import {
 	ensureIngestRunning, GameIngest, gameIngestName,
 } from "./game-ingest.js";
@@ -510,5 +513,135 @@ describe("a suspended game's ingest (#79, #323)", () =>
 		const ensure = vi.fn(async (_gamePk: number) => undefined);
 		expect(await ensureIngestRunning(deps, ensure, now)).toEqual([]);
 		expect((await deps.schedules.getByDate("2026-07-04"))?.windowMode).toBe("cache");
+	});
+});
+
+describe("GameIngest player of the game (S99 review)", () =>
+{
+	/** 823823 (final, regular season 2026) polled inside its trail window, then after it. */
+	const IN = new Date("2026-09-05T23:30:00Z");
+	const OUT = new Date("2026-09-07T12:00:00Z");
+	const MEDIA = {
+		playerId: 666171,
+		teamId: 112,
+		summary: "1.2 IP, 0 ER, K, BB",
+		winProbabilityAdded: 40.7,
+	};
+	const FAN = {
+		playerId: 664285,
+		teamId: 146,
+		summary: "2-4, 2B, RBI",
+		winProbabilityAdded: 18.2,
+	};
+
+	/** The fixtures' 823823, due a pick, its pick asked of `pick` (counted) rather than the recording. */
+	function pollable(pick: () => Promise<PlayerOfTheGame | null>)
+	{
+		const setupResult = setup();
+		const real = new FixtureMlbStatsClient();
+		const mlb = setupResult.deps.mlb as FixtureMlbStatsClient;
+		mlb.fetchGame = async (pk: number) =>
+		{
+			const { playerOfTheGame: _recorded, ...game } = (await real.fetchGame(pk)).game;
+			return {
+				game,
+				playerOfTheGameDue: true,
+			};
+		};
+		const fetchPlayerOfTheGame = vi.fn(pick);
+		mlb.fetchPlayerOfTheGame = fetchPlayerOfTheGame;
+		return {
+			...setupResult,
+			fetchPlayerOfTheGame,
+		};
+	}
+
+	it("S99 review poll: a pick asked between the fetch and the write is in that poll's one write and one publish; once both sides are stored, later polls ask no more", async () =>
+	{
+		const {
+			ingest, order, published, storage, fetchPlayerOfTheGame,
+		} = pollable(async () => ({
+			media: MEDIA,
+			fan: FAN,
+		}));
+		await ingest.hubs.register("hub-a", IN);
+		await ingest.ensureRunning(823823, IN);
+		await ingest.alarm(IN);
+		expect(isGameInActiveWindow(published[0]!.snapshot, IN)).toBe(true);
+		expect(order).toEqual(["write", "projection", "publish"].filter((step) => order.includes(step)));
+		expect(order.filter((step) => step === "write")).toHaveLength(1);
+		expect(order.filter((step) => step === "publish")).toHaveLength(1);
+		expect(published[0]!.snapshot.playerOfTheGame).toEqual({
+			media: MEDIA,
+			fan: FAN,
+		});
+		expect(await storage.get("potgComplete")).toBe(true);
+		await ingest.alarm(new Date(IN.getTime() + DEFAULT_CADENCE.intervalMs));
+		expect(fetchPlayerOfTheGame).toHaveBeenCalledTimes(1);
+		// Out of its window: the last poll clears the flag with the game's other keys.
+		await ingest.alarm(OUT);
+		expect(await storage.get("potgComplete")).toBeUndefined();
+	});
+
+	it("S99 review poll per side: with only the media pick named, the next poll asks again and adds the fan pick", async () =>
+	{
+		let answer: PlayerOfTheGame = {
+			media: MEDIA,
+		};
+		const {
+			ingest, games, storage, fetchPlayerOfTheGame,
+		} = pollable(async () => answer);
+		await ingest.ensureRunning(823823, IN);
+		await ingest.alarm(IN);
+		expect(await storage.get("potgComplete")).toBeUndefined();
+		answer = {
+			fan: FAN,
+		};
+		await ingest.alarm(new Date(IN.getTime() + DEFAULT_CADENCE.intervalMs));
+		expect(fetchPlayerOfTheGame).toHaveBeenCalledTimes(2);
+		expect((await games.getByPk(823823))?.playerOfTheGame).toEqual({
+			media: MEDIA,
+			fan: FAN,
+		});
+	});
+
+	it("S99 review poll hung: a pick that never answers doesn't stall the alarm: the game is written without it within PLAY_METRICS_LIMIT_MS and the next alarm armed", async () =>
+	{
+		vi.useFakeTimers({
+			toFake: ["setTimeout", "clearTimeout"],
+		});
+		try
+		{
+			let asked!: () => void;
+			const askedNow = new Promise<void>((resolve) =>
+			{
+				asked = resolve;
+			});
+			const {
+				ingest, games, storage,
+			} = pollable(() =>
+			{
+				asked();
+				return new Promise<PlayerOfTheGame | null>(() => undefined);
+			});
+			await ingest.ensureRunning(823823, IN);
+			let done = false;
+			void ingest.alarm(IN).then(() =>
+			{
+				done = true;
+			});
+			// The fixture reads are real file I/O, so the limit's clock starts once the pick is asked.
+			await askedNow;
+			await vi.advanceTimersByTimeAsync(PLAY_METRICS_LIMIT_MS);
+			expect(done).toBe(true);
+			const stored = await games.getByPk(823823);
+			expect(stored).not.toBeNull();
+			expect(stored).not.toHaveProperty("playerOfTheGame");
+			expect(storage.alarmAt).toBe(IN.getTime() + DEFAULT_CADENCE.intervalMs);
+		}
+		finally
+		{
+			vi.useRealTimers();
+		}
 	});
 });

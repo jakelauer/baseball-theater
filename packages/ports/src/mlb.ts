@@ -4,6 +4,7 @@ import type {
 	GamePlayMetrics,
 	GameRecap,
 	MediaHighlight,
+	PlayerOfTheGame,
 	PlayerProfile,
 	ScheduleDay,
 	SearchFilters,
@@ -48,6 +49,13 @@ export interface MlbStatsClient {
 	 * throw. Ingest calls it (ADR-002); `fetchGame` attaches `videoPlayRefs` / `relatedArticles`.
 	 */
 	fetchGameGraphContent(gamePk: number): Promise<GameGraphContent | null>;
+	/**
+	 * MLB's player of the game (S99; an mlb.com app feed): the media's and the fans' picks, null when
+	 * it fails, can't be parsed or names nobody, never a throw. Ingest calls it (ADR-002), and
+	 * `fetchGame` asks it only for a game `playerOfTheGameExpected` says has one, attaching it as
+	 * `playerOfTheGame`.
+	 */
+	fetchPlayerOfTheGame(gamePk: number): Promise<PlayerOfTheGame | null>;
 	/** The regular season's standings as of `date` (S4); MLB has none outside the regular season. */
 	fetchStandings(date: string): Promise<StandingsSnapshot>;
 	/** A season's final regular-season table (S128): MLB's standings for the season with no date. */
@@ -98,8 +106,11 @@ export type GameEditorial = {
  * it answered, and stop asking one it has given up, which `fetchGame`'s fan-out can't do.
  * `fetchGame` is the live feed with all three extras attached; these are its parts.
  */
-export interface MlbGameSources extends Pick<MlbStatsClient, "fetchSchedule" | "fetchPlayMetrics" | "fetchGameGraphContent"> {
-	/** The live feed alone, mapped, with no highlights or extras; throws when it can't be had. */
+export interface MlbGameSources extends Pick<MlbStatsClient, "fetchSchedule" | "fetchPlayMetrics" | "fetchGameGraphContent" | "fetchPlayerOfTheGame"> {
+	/**
+	 * The live feed alone, mapped, with no highlights or extras, and `playerOfTheGameDue` as `fetchGame` says it (S99:
+	 * the backfill asks a due game's pick once); throws when it can't be had.
+	 */
 	fetchGameFeed(gamePk: number): Promise<FetchedGame>;
 	/** The content endpoint's videos and recap; null when it fails or has neither, never a throw. */
 	fetchGameEditorial(gamePk: number): Promise<GameEditorial | null>;

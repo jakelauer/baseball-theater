@@ -12,13 +12,14 @@
  */
 import type { CadenceParams, GameSnapshot } from "@bt/domain";
 import {
-	DEFAULT_CADENCE, isGameInActiveWindow, isSuspendedStatus, suspendedSince, wholeFetchedGame,
+	DEFAULT_CADENCE, isGameInActiveWindow, isSuspendedStatus, playerOfTheGameComplete, suspendedSince, wholeFetchedGame,
 } from "@bt/domain";
 import type { DurableStore } from "./hub-leases.js";
 import { HubLeases } from "./hub-leases.js";
 import type { IngestDeps } from "./ingest.js";
 import { servedGame } from "./game-state.js";
 import { ingestGame, refreshTodaysWindow } from "./ingest.js";
+import { withAskedPlayerOfTheGame } from "./player-of-the-game.js";
 
 /** Durable Object storage with its alarm (`state.storage`). */
 export interface AlarmStore extends DurableStore
@@ -40,6 +41,12 @@ export function gameIngestName(gamePk: number): string
 const GAME_KEY = "gamePk";
 /** When this object was last armed or polled (epoch ms). */
 const ACTIVE_KEY = "activeAt";
+/**
+ * Set once this run's stored game holds both player-of-the-game picks (S99 review), so later polls ask mlb.com no more:
+ * kept in the object's own storage, so deciding costs no database read. A pick MLB changes after both sides are stored
+ * stays as first stored (accepted). Cleared with the game's other keys when the run ends.
+ */
+const POTG_COMPLETE_KEY = "potgComplete";
 
 export class GameIngest
 {
@@ -91,6 +98,11 @@ export class GameIngest
 		{
 			// The whole game, its playMetrics waited for (S216 AC 5): a poll never stores a game without them for being slow.
 			fetched = await wholeFetchedGame(await this.deps.mlb.fetchGame(gamePk));
+			// S99: a due game's pick, asked between the fetch and the write (bounded by PLAY_METRICS_LIMIT_MS), so a poll
+			// stays one versioned write and one publish; never once both sides are stored. The key needs both, so a game MLB
+			// never gives a fan pick is asked again, one bounded request, on every final-trail poll until its run ends (the
+			// cold read likewise asks again on each refresh of a game whose stored pick has only one side).
+			if (!await this.storage.get<boolean>(POTG_COMPLETE_KEY)) fetched = await withAskedPlayerOfTheGame(this.deps.mlb, fetched, undefined);
 		}
 		catch
 		{
@@ -112,6 +124,7 @@ export class GameIngest
 			fetchedAt: now.toISOString(),
 			windowMode: inWindow ? "active" : "cache",
 		}, feedTime);
+		if (playerOfTheGameComplete(snapshot.playerOfTheGame)) await this.storage.put(POTG_COMPLETE_KEY, true);
 		// S150 AC 6: the served game (status and linescore from its one stored state), as the HTTP read and the hub's first send serve it.
 		// S149 AC 2: a mend (the row changed under an unchanged snapshot) is published too, so a day hub pushes its day.
 		if (changed || stateChanged || !inWindow) await this.publishToHubs(servedGame(snapshot, state, now), now);
@@ -123,6 +136,7 @@ export class GameIngest
 		await this.storage.deleteAlarm();
 		await this.storage.delete(GAME_KEY);
 		await this.storage.delete(ACTIVE_KEY);
+		await this.storage.delete(POTG_COMPLETE_KEY);
 	}
 
 	private async publishToHubs(snapshot: GameSnapshot, now: Date): Promise<void>

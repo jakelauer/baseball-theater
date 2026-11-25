@@ -8,6 +8,7 @@ import {
 	parseGraphContentResponse,
 	parseLiveFeedResponse,
 	parsePlayMetricsResponse,
+	parsePlayerOfTheGameResponse,
 	parseScheduleResponse,
 	parseSeasonsResponse,
 	parseStandingsResponse,
@@ -236,5 +237,35 @@ describe("parseStandingsResponse (S102)", () =>
 			id: 201,
 			link: "/api/v1/divisions/201",
 		});
+	});
+});
+
+describe("parsePlayerOfTheGameResponse (S99)", () =>
+{
+	it("S99 AC 2: parses the recorded 823823 answer: the media pick in full, the fan pick with every field null", () =>
+	{
+		const parsed = parsePlayerOfTheGameResponse(readRaw("potg-823823.json"));
+
+		expect(parsed.gamePK).toBe("823823");
+		expect(parsed.mediaWinner).toEqual({
+			playerId: 1564,
+			feedId: "666171",
+			boxscoreName: "Zeferjahn",
+			WPA: 40.7,
+			teamID: "112",
+			summary: "1.2 IP, 0 ER, K, BB",
+			summaryES: "1.2 IL, 0 CL, P, BB",
+		});
+		expect(parsed.fanWinner?.feedId).toBeNull();
+		expect(parsed.fanWinner?.WPA).toBeNull();
+	});
+
+	it("S99 AC 2: refuses an answer that isn't the feed's shape", () =>
+	{
+		expect(() => parsePlayerOfTheGameResponse({
+			mediaWinner: {
+				WPA: "high",
+			},
+		})).toThrow();
 	});
 });

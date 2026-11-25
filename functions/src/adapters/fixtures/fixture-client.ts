@@ -4,6 +4,7 @@ import type {
 	GamePlayMetrics,
 	GameSnapshot,
 	MediaHighlight,
+	PlayerOfTheGame,
 	PlayerProfile,
 	ScheduleDay,
 	SearchFilters,
@@ -18,7 +19,7 @@ import {
 } from "@bt/domain";
 import type { GameDiffPatchResponse, ReplayPatchEntry } from "@bt/mlb-api";
 import {
-	parseGameTimestamps, parseGraphContentResponse, parsePlayMetricsResponse, parseRecordedReplayWalk, parseScheduleResponse, parseSearchResponse,
+	parseGameTimestamps, parseGraphContentResponse, parsePlayMetricsResponse, parsePlayerOfTheGameResponse, parseRecordedReplayWalk, parseScheduleResponse, parseSearchResponse,
 	parseSeasonsResponse, parseStandingsResponse,
 } from "@bt/mlb-api";
 import type {
@@ -27,6 +28,7 @@ import type {
 import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
+import { mapPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
 import { mapSearchResults } from "../../mappers/search.js";
 import { mapSeasonCalendar } from "../../mappers/season-calendar.js";
 import { mapStandings } from "../../mappers/standings.js";
@@ -123,24 +125,36 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 		return Promise.all(datesBetween(startDate, endDate).map((date) => this.fetchSchedule(date)));
 	}
 
-	/** The committed game with its extras; a fixture carries no feed time (S150 AC 2). */
+	/**
+	 * The committed game with its extras; a fixture carries no feed time (S150 AC 2). Like the HTTP client it never asks
+	 * for the player of the game (S99); it says the game is due one when there is a recording,
+	 * `fixtures/raw/potg-<gamePk>.json`, since a game file keeps no game type or season and only a game MLB picks for has
+	 * a recording.
+	 */
 	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
-		const { game: feed } = await this.fetchGameFeed(gamePk);
+		const { game: feed, playerOfTheGameDue } = await this.fetchGameFeed(gamePk);
 		const editorial = await this.fetchGameEditorial(gamePk);
 		const playMetrics = await this.fetchPlayMetrics(gamePk);
 		const graph = await this.fetchGameGraphContent(gamePk);
 		return {
 			game: assembleGame(feed, editorial, playMetrics, graph),
+			...playerOfTheGameDue && {
+				playerOfTheGameDue,
+			},
 		};
 	}
 
-	/** The committed game without its videos or recap (S122): what the live feed alone gives. */
+	/**
+	 * The committed game without its videos or recap (S122): what the live feed alone gives, with S99's
+	 * `playerOfTheGameDue` when the game has a player-of-the-game recording (see `fetchGame`).
+	 */
 	async fetchGameFeed(gamePk: number): Promise<FetchedGame>
 	{
 		const {
 			highlights: _highlights, recap: _recap, ...data
 		} = await this.readJson<GameFixture>(`game-${gamePk}.json`);
+		const playerOfTheGameDue = await this.files.read(`raw/potg-${gamePk}.json`).then(() => true, () => false);
 		return {
 			game: {
 				...data,
@@ -148,6 +162,9 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 				highlights: [],
 				fetchedAt: new Date().toISOString(),
 				windowMode: "cache",
+			},
+			...playerOfTheGameDue && {
+				playerOfTheGameDue,
 			},
 		};
 	}
@@ -293,6 +310,22 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 		try
 		{
 			return mapPlayMetrics(parsePlayMetricsResponse(await this.readJson(`raw/playmetrics-${gamePk}.json`)));
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/**
+	 * The recorded player of the game, `fixtures/raw/potg-<gamePk>.json` (S99), mapped; null for a
+	 * game with no recording, as the HTTP client answers when the feed fails.
+	 */
+	async fetchPlayerOfTheGame(gamePk: number): Promise<PlayerOfTheGame | null>
+	{
+		try
+		{
+			return mapPlayerOfTheGame(parsePlayerOfTheGameResponse(await this.readJson(`raw/potg-${gamePk}.json`)));
 		}
 		catch
 		{

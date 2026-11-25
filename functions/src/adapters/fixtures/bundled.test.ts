@@ -16,7 +16,7 @@ const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 /**
  * What `FixtureClient` reads by name: `schedule-<date>`, `game-<pk>`, `plays-<pk>`, `standings-<date>`
  * (the mapped table, `fetchStandings`' fallback for a day with no recording), `players-*`, and from `raw/`
- * the play-metrics recordings (S93), the GraphQL game content (S94), the season calendars and World
+ * the play-metrics recordings (S93), the player of the game (S99), the GraphQL game content (S94), the season calendars and World
  * Series (S111), each day's recorded table, `raw/standings-<date>` (S160, which `fetchStandings` maps
  * first), and each season's final and spring standings (S128) — a season's table with no date, which
  * before its first game lists the new season's teams (S139 reads 2027's for the regular season's blank
@@ -26,7 +26,7 @@ const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
  */
 const SERVED = new RegExp(`^(${[
 	String.raw`schedule-\d{4}-\d{2}-\d{2}`, String.raw`game-\d+`, String.raw`plays-\d+`, String.raw`standings-\d{4}-\d{2}-\d{2}`, "players-.+",
-	String.raw`raw/playmetrics-\d+`, String.raw`raw/graphql-content-\d+`, String.raw`raw/seasons-\d{4}`, String.raw`raw/worldseries-\d{4}`,
+	String.raw`raw/playmetrics-\d+`, String.raw`raw/potg-\d+`, String.raw`raw/graphql-content-\d+`, String.raw`raw/seasons-\d{4}`, String.raw`raw/worldseries-\d{4}`,
 	String.raw`raw/standings-\d{4}-(?:final|spring)`, String.raw`raw/standings-\d{4}-\d{2}-\d{2}`, "search-[a-z0-9-]+",
 ].join("|")})\\.json$`);
 

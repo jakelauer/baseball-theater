@@ -23,6 +23,12 @@
  * feed is never given up: a game whose feed fails leaves its day incomplete for the next run, and
  * its reason is logged (#359).
  *
+ * A fourth ask, MLB's player of the game (S99), is made once per due game (the feed's `playerOfTheGameDue`) that isn't
+ * already stored as final, bounded by `PLAY_METRICS_LIMIT_MS` (`withAskedPlayerOfTheGame`). It is not one of the extra
+ * sources above: `recordSourceDay` neither counts it nor gives it up, so a feed that keeps failing costs one bounded
+ * wait per due game on every backfilled day. A game already stored as final before S99 shipped is skipped as complete,
+ * so the backfill never gives it a pick: an accepted gap, tracked by #619.
+ *
  * A day's games are all fetched first, its source answers counted and saved, and only then
  * are its games written. A stop after the save re-fetches the day's games on resume but can't
  * count the day twice (`recordSourceDay` skips a day it has counted); a stop before it leaves
@@ -46,6 +52,7 @@ import type {
 } from "@bt/ports";
 import { assembleGame } from "../mappers/game-extras.js";
 import { readJoinedScheduleDay, scheduleDayWindowMode } from "./game-state.js";
+import { withAskedPlayerOfTheGame } from "./player-of-the-game.js";
 import {
 	ingestGame, repairProjection, storeSchedule,
 } from "./ingest.js";
@@ -184,8 +191,16 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 		ask<GamePlayMetrics>(asking.playMetrics, () => deps.mlb.fetchPlayMetrics(gamePk)),
 		ask<GameGraphContent>(asking.graphContent, () => deps.mlb.fetchGameGraphContent(gamePk)),
 	]);
+	// S99: a game due a player of the game (the feed says so) is asked once, bounded. There is no stored pick to keep:
+	// only a game not already stored as final is fetched here (a final one stored before S99 is #619's).
+	const { game: picked } = await withAskedPlayerOfTheGame(deps.mlb, {
+		game: assembleGame(feed.game, editorial, playMetrics, graph),
+		...feed.playerOfTheGameDue && {
+			playerOfTheGameDue: true,
+		},
+	}, undefined);
 	const game = {
-		...assembleGame(feed.game, editorial, playMetrics, graph),
+		...picked,
 		fetchedAt,
 		windowMode,
 	};

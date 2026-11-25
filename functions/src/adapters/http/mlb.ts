@@ -13,6 +13,7 @@ import type {
 	GameGraphContent,
 	GamePlayMetrics,
 	GameSnapshot,
+	PlayerOfTheGame,
 	PlayerProfile,
 	ScheduleDay,
 	SearchFilters,
@@ -22,7 +23,7 @@ import type {
 	Unversioned,
 } from "@bt/domain";
 import {
-	datesBetween, feedTimeToIso, mlbSearchQuery, rankHighlightsByImpact,
+	datesBetween, feedTimeToIso, mlbSearchQuery, playerOfTheGameExpected, rankHighlightsByImpact,
 } from "@bt/domain";
 import type { GameContentResponse, GameDiffPatchResponse } from "@bt/mlb-api";
 import {
@@ -33,6 +34,7 @@ import {
 	parseLiveFeedResponse,
 	parsePeopleResponse,
 	parsePlayMetricsResponse,
+	parsePlayerOfTheGameResponse,
 	parseScheduleResponse,
 	parseSearchResponse,
 	parseSeasonsResponse,
@@ -50,6 +52,7 @@ import { mapSearchResults } from "../../mappers/search.js";
 import { mapStandings } from "../../mappers/standings.js";
 import { mapLiveFeed } from "../../mappers/live.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
+import { mapPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
 import { mapScheduleRange, mapScheduleResponse } from "../../mappers/schedule.js";
 import { mapSeasonCalendar } from "../../mappers/season-calendar.js";
 
@@ -164,6 +167,15 @@ export function searchHighlightsRequest(query: string, filters: SearchFilters = 
 export function playMetricsUrl(gamePk: number): string
 {
 	return `https://bdfed.stitch.mlbinfra.com/bdfed/playMetrics/${gamePk}?keyMoments=true&scoringPlays=true&homeRuns=true&strikeouts=true&hardHits=true&highLeverage=false&leadChange=true&winProb=true&absChallenge=true`;
+}
+
+/**
+ * MLB's player of the game (S99): an mlb.com app feed on its own host, not the Stats API, as
+ * `playMetricsUrl` is. The recorder (S14) records the same URL.
+ */
+export function playerOfTheGameUrl(gamePk: number): string
+{
+	return `https://www.mlb.com/apps/player-of-the-game/game/json/winners/${gamePk}.json`;
 }
 
 /** One season's calendar (S111); the recorder (S14) records the same URL. */
@@ -312,10 +324,16 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 	 * keeps running as `playMetricsLate`, the game assembled with them once they come (null if they never do). An
 	 * on-read refresh answers the first and stores the second after the response; every other caller waits for the
 	 * whole game (`wholeFetchedGame`).
+	 *
+	 * S99: beside the game, `playerOfTheGameDue` from the feed's game type and season (`playerOfTheGameExpected`); the
+	 * pick itself is never asked here, so a fetch costs no extra request: the ingest paths ask it
+	 * (`withAskedPlayerOfTheGame`) only while a due game's stored pick lacks a side.
 	 */
 	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
-		const { game: feed, feedTime } = await this.fetchGameFeed(gamePk);
+		const {
+			game: feed, feedTime, playerOfTheGameDue,
+		} = await this.fetchGameFeed(gamePk);
 		const playMetrics = this.fetchPlayMetrics(gamePk);
 		let arrived: { value: GamePlayMetrics | null } | undefined;
 		void playMetrics.then((value) =>
@@ -333,13 +351,17 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		const [content, graph] = await extras.finally(() => clearTimeout(timer));
 		const editorial = content ? editorialOf(content) : null;
 		const late = arrived === undefined;
+		const build = (metrics: GamePlayMetrics | null) => assembleGame(feed, editorial, metrics, graph);
 		return {
-			game: assembleGame(feed, editorial, arrived?.value ?? null, graph),
+			game: build(arrived?.value ?? null),
 			...feedTime !== undefined && {
 				feedTime,
 			},
+			...playerOfTheGameDue && {
+				playerOfTheGameDue,
+			},
 			...late && {
-				playMetricsLate: playMetrics.then((value) => value ? assembleGame(feed, editorial, value, graph) : null),
+				playMetricsLate: playMetrics.then((value) => value ? build(value) : null),
 			},
 		};
 	}
@@ -347,19 +369,28 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 	/**
 	 * The live feed alone (S122): what `fetchGame` adds its extras to. Beside the game, the feed's own time (MLB's
 	 * `metaData.timeStamp`) as an ISO instant (S150 AC 2), left out when the feed has none or it can't be right
-	 * (`feedTimeToIso`).
+	 * (`feedTimeToIso`), and S99's `playerOfTheGameDue` from the feed's game type and season (`playerOfTheGameExpected`).
 	 */
 	async fetchGameFeed(gamePk: number): Promise<FetchedGame>
 	{
 		const feedUrl = `${this.baseUrl}/api/v1.1/game/${gamePk}/feed/live`;
-		const feed = parseLiveFeedResponse(await this.getJson(feedUrl));
+		const raw = parseLiveFeedResponse(await this.getJson(feedUrl));
 		// Read after the response, so the tolerance only has to cover the two clocks' difference.
 		const now = this.now();
-		const feedTime = feedTimeToIso(feed.metaData?.timeStamp, now);
+		const feedTime = feedTimeToIso(raw.metaData?.timeStamp, now);
+		const game = mapLiveFeed(raw, now.toISOString(), "active");
+		const playerOfTheGameDue = playerOfTheGameExpected({
+			gameType: raw.gameData.game?.type,
+			season: raw.gameData.game?.season,
+			codedGameState: game.status.codedGameState,
+		});
 		return {
-			game: mapLiveFeed(feed, now.toISOString(), "active"),
+			game,
 			...feedTime !== undefined && {
 				feedTime,
+			},
+			...playerOfTheGameDue && {
+				playerOfTheGameDue,
 			},
 		};
 	}
@@ -466,6 +497,19 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		try
 		{
 			return mapPlayMetrics(parsePlayMetricsResponse(await this.getJson(playMetricsUrl(gamePk))));
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/** MLB's player of the game, mapped; null when it fails, can't be parsed or names nobody (S99 AC 5). */
+	async fetchPlayerOfTheGame(gamePk: number): Promise<PlayerOfTheGame | null>
+	{
+		try
+		{
+			return mapPlayerOfTheGame(parsePlayerOfTheGameResponse(await this.getJson(playerOfTheGameUrl(gamePk))));
 		}
 		catch
 		{

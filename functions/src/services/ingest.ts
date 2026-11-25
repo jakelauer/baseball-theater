@@ -3,13 +3,15 @@ import type {
 } from "@bt/domain";
 import {
 	addDays, cacheLifetimeMs, DEFAULT_CADENCE, gameStateFromGame, gameStateFromSummary, isFinalStatus, isGameInActiveWindow, isPastFinishedDay, isPastFinishedGame,
-	isScheduleDaySettled, mlbToday, normalizeStatusCode, projectGame, scheduleWindowMode, scoreboardWinProbability, stampVersion, suspendedSince, toStoredScheduleDay,
+	isScheduleDaySettled, keepPlayerOfTheGame, mlbToday, normalizeStatusCode, playerOfTheGameComplete, projectGame, scheduleWindowMode, scoreboardWinProbability,
+	stampVersion, suspendedSince, toStoredScheduleDay,
 	wholeFetchedGame,
 } from "@bt/domain";
 import type {
 	BackgroundWork, GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, ScheduleRepository,
 } from "@bt/ports";
 import { withLatePlayMetrics } from "../mappers/game-extras.js";
+import { askPlayerOfTheGame, withAskedPlayerOfTheGame } from "./player-of-the-game.js";
 import type { DayHubNotifier } from "./day-hubs.js";
 import { DayHubCalls } from "./day-hubs.js";
 import type { EdgePurge } from "./edge-purge.js";
@@ -362,7 +364,8 @@ async function storeGames(
 			outcome,
 			snapshot: write.stored,
 		};
-		const { suspendedAt: _ignored, ...upstream } = write.fetched;
+		// S99: a stored player-of-the-game side the fetch lacks (not asked, failed, slow) is kept, never cleared.
+		const { suspendedAt: _ignored, ...upstream } = keepPlayerOfTheGame(write.stored, write.fetched);
 		const suspendedAt = suspendedSince(write.stored, write.fetched.status.codedGameState, write.fetched.fetchedAt);
 		const next = stampVersion<GameSnapshot>(write.stored, suspendedAt === undefined ? upstream : {
 			...upstream,
@@ -696,7 +699,8 @@ export async function ingestScheduleDay(
 		}
 		try
 		{
-			const { game, feedTime } = await wholeFetchedGame(await deps.mlb.fetchGame(summary.gamePk));
+			// S99: one bounded ask for a due game's pick (the seed paths, rarely run, read the stored game only after).
+			const { game, feedTime } = await withAskedPlayerOfTheGame(deps.mlb, await wholeFetchedGame(await deps.mlb.fetchGame(summary.gamePk)), undefined);
 			await ingestGame(deps, {
 				...game,
 				fetchedAt: now.toISOString(),
@@ -939,7 +943,17 @@ async function readGames(
 		due.push(gamePk);
 	}
 
-	const fetched = await Promise.all(due.map((gamePk) => runRefresh(deps, `game:${gamePk}`, () => deps.mlb.fetchGame(gamePk)).then(
+	// S99: a stored game with one pick side (so MLB picks for it) missing the other has it asked beside the fetch, so the
+	// two run at once; any other game is asked after the fetch only if the fetch says it is due (one bounded wait, on its
+	// first reads after it ends) and never once both sides are stored.
+	const fetchWithPick = async (gamePk: number) =>
+	{
+		const snapshot = stored.get(gamePk);
+		const pick = snapshot?.playerOfTheGame;
+		const early = pick && !playerOfTheGameComplete(pick) ? askPlayerOfTheGame(deps.mlb, gamePk) : undefined;
+		return withAskedPlayerOfTheGame(deps.mlb, await deps.mlb.fetchGame(gamePk), snapshot?.playerOfTheGame, early);
+	};
+	const fetched = await Promise.all(due.map((gamePk) => runRefresh(deps, `game:${gamePk}`, () => fetchWithPick(gamePk)).then(
 		(game) => game ?? "cooldown" as const,
 		// MLB failed: the stored game, if any, is served as it is.
 		() => "failed" as const,
@@ -1052,15 +1066,16 @@ async function storeLatePlayMetrics(
 	for (let attempt = 0; attempt < 2; attempt++)
 	{
 		if (base.playMetrics) return;
+		// S99: the late game is built without the player of the game, so the answered game's pick is kept (`keepPlayerOfTheGame`).
 		const content: Unversioned<GameSnapshot> = attempt === 0
-			? {
+			? keepPlayerOfTheGame(answered, {
 				...whole,
 				fetchedAt: answered.fetchedAt,
 				windowMode: answered.windowMode,
 				...answered.suspendedAt !== undefined && {
 					suspendedAt: answered.suspendedAt,
 				},
-			}
+			})
 			: withLatePlayMetrics(unversionedGame(base), whole.playMetrics);
 		// The content differs from `base` (it adds the playMetrics `base` lacks), so this is always its next version.
 		const next = stampVersion<GameSnapshot>(base, content, at.toISOString());
@@ -1220,7 +1235,8 @@ export async function tickIngest(
 	{
 		try
 		{
-			const { game, feedTime } = await wholeFetchedGame(await deps.mlb.fetchGame(summary.gamePk));
+			// S99: one bounded ask for a due game's pick; this cron path reads the stored game only after the fetch.
+			const { game, feedTime } = await withAskedPlayerOfTheGame(deps.mlb, await wholeFetchedGame(await deps.mlb.fetchGame(summary.gamePk)), undefined);
 			await ingestGame(deps, {
 				...game,
 				fetchedAt,

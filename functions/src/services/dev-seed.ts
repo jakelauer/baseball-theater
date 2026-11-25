@@ -115,7 +115,8 @@ export async function recordDevSeed(
 	{
 		try
 		{
-			// The game alone: its feed time (S150 AC 2) is never written to the seed file.
+			// The game alone: its feed time (S150 AC 2) is never written to the seed file. Nor is a player of the game: the
+			// fetch never asks it (S99), so a seeded game gets its pick on its first cold read (dev only).
 			return (await wholeFetchedGame(await mlb.fetchGame(gamePk))).game;
 		}
 		catch

@@ -22,6 +22,7 @@ import {
 	parsePeopleResponse,
 	parseGraphContentResponse,
 	parsePlayMetricsResponse,
+	parsePlayerOfTheGameResponse,
 	parseRecordedReplayWalk,
 	parseScheduleResponse,
 	parseSeasonsResponse,
@@ -60,6 +61,8 @@ const PARSERS: ReadonlyArray<readonly [RegExp, Parser]> = [
 	[/^content-.*\.json$/, parseGameContentResponse],
 	[/^playmetrics-.*\.json$/, parsePlayMetricsResponse],
 	[/^graphql-content-.*\.json$/, parseGraphContentResponse],
+	// MLB's player of the game (S99), an mlb.com app feed.
+	[/^potg-\d+\.json$/, parsePlayerOfTheGameResponse],
 	[/^timestamps-.*\.json$/, parseGameTimestamps],
 	[/^standings-.*\.json$/, parseStandingsResponse],
 	[/^people-.*\.json$/, parsePeopleResponse],

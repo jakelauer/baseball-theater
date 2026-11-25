@@ -48,3 +48,4 @@ export * from "./sign-in.js";
 export * from "./backfill.js";
 export * from "./game-state.js";
 export * from "./past-finished.js";
+export * from "./player-of-the-game.js";

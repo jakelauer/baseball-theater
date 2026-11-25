@@ -252,3 +252,90 @@ describe("recheckDueGame (S212 AC 5)", () =>
 		expect(calls).toEqual(["fetchGame 744834"]);
 	});
 });
+
+describe("recheckDueGame player of the game (S99, Claude's review of #621)", () =>
+{
+	const MEDIA = {
+		playerId: 666171,
+		teamId: 112,
+		summary: "1.2 IP, 0 ER, K, BB",
+		winProbabilityAdded: 40.7,
+	};
+	const FAN = {
+		playerId: 664285,
+		teamId: 146,
+		summary: "2-4, 2B, RBI",
+		winProbabilityAdded: 18.2,
+	};
+
+	/** A fake MLB whose fetch says the game is due a pick, its pick answered with both sides; every call counted. */
+	function dueMlb(deps: ReturnType<typeof memoryDeps>, answer: Unversioned<GameSnapshot>)
+	{
+		const fixture = new FixtureMlbStatsClient();
+		const mlb = countingMlb(Object.assign(Object.create(fixture) as MlbStatsClient, {
+			fetchGame: async (): Promise<FetchedGame> => ({
+				game: answer,
+				playerOfTheGameDue: true,
+			}),
+			fetchPlayerOfTheGame: async () => ({
+				media: MEDIA,
+				fan: FAN,
+			}),
+		}));
+		deps.mlb = mlb.client;
+		return mlb.calls;
+	}
+
+	it("S99 review recheck complete: a re-check of a game with both picks stored asks for no pick", async () =>
+	{
+		const deps = memoryDeps();
+		const both = {
+			...await game(),
+			playerOfTheGame: {
+				media: MEDIA,
+				fan: FAN,
+			},
+		};
+		await stored(deps, both);
+		const { playerOfTheGame: _sent, ...sent } = both;
+		const calls = dueMlb(deps, sent);
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect(calls).toEqual(["fetchGame 744834"]);
+		expect((await deps.games.getByPk(744834))?.playerOfTheGame).toEqual(both.playerOfTheGame);
+	});
+
+	it("S99 review recheck missing side: a re-check of a game with only the media pick stored asks once and adds the fan pick", async () =>
+	{
+		const deps = memoryDeps();
+		const one = {
+			...await game(),
+			playerOfTheGame: {
+				media: MEDIA,
+			},
+		};
+		await stored(deps, one);
+		const { playerOfTheGame: _sent, ...sent } = one;
+		const calls = dueMlb(deps, sent);
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect(calls).toEqual(["fetchGame 744834", "fetchPlayerOfTheGame 744834"]);
+		expect((await deps.games.getByPk(744834))?.playerOfTheGame).toEqual({
+			media: MEDIA,
+			fan: FAN,
+		});
+	});
+
+	it("S99 review recheck read fails: a failed read of the stored game rejects as BT's own, never held as an MLB failure", async () =>
+	{
+		const deps = memoryDeps();
+		const sent = await stored(deps, await game());
+		const calls = dueMlb(deps, sent);
+		deps.games.getByPk = async () =>
+		{
+			throw new Error("database down");
+		};
+		const hold = vi.spyOn(deps.games, "holdGameRecheck");
+		await expect(recheckDueGame(deps)).rejects.toThrow("database down");
+		expect(hold).not.toHaveBeenCalled();
+		expect(calls).toEqual([]);
+	});
+});

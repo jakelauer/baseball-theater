@@ -11,6 +11,7 @@ import {
 } from "@bt/domain";
 import type { IngestDeps } from "./ingest.js";
 import { ingestGame } from "./ingest.js";
+import { withAskedPlayerOfTheGame } from "./player-of-the-game.js";
 
 /**
  * Re-ingests at most one due game per call (S212 AC 5) and returns its gamePk, or null when none was due. Run from
@@ -27,10 +28,13 @@ import { ingestGame } from "./ingest.js";
  * `GAME_RECHECK_FAILED_HOLD_MS` (6 h, `holdGameRecheck`, as S194 holds a month whose fill failed), so a feed that fails
  * for good is asked as often as a working one, not after every 5-minute lease; a store failure is BT's own and rejects.
  *
- * Upstream budget (ADR-002): one game per tick, `fetchGame`'s 4 MLB requests at most, so at most 5,760 requests a day
- * by the tick count (1,440 ticks). In practice each recent game is tried once per 6 h, for 7 days, whether MLB answers
- * or fails: at most 7 days × about 17 games × 4 tries × 4 requests ≈ 1,900 requests a day in mid-season, and none in
- * the off-season. A correction MLB makes to a game more than 7 days after it was played is never picked up (the owner's
+ * Upstream budget (ADR-002): one game per tick, `fetchGame`'s 4 MLB requests at most, plus S99's player-of-the-game
+ * request only while a due game's stored pick lacks a side (bounded by `PLAY_METRICS_LIMIT_MS`), so at most 7,200
+ * requests a day by the tick count (1,440 ticks). In practice each recent game is tried once per 6 h, for 7 days,
+ * whether MLB answers or fails: at most 7 days × about 17 games × 4 tries × 4 requests ≈ 1,900 requests a day in
+ * mid-season, up to ≈ 2,400 while picks are still missing (a game MLB never gives a fan pick is asked on each of its
+ * 4 tries a day), and none in the off-season. Each re-check reads the stored game once more for its pick. A correction
+ * MLB makes to a game more than 7 days after it was played is never picked up (the owner's
  * choice). A tick with no due game sends no request and does one database read (`listRecheckCandidates`).
  */
 export async function recheckDueGame(deps: IngestDeps): Promise<number | null>
@@ -42,11 +46,15 @@ export async function recheckDueGame(deps: IngestDeps): Promise<number | null>
 	{
 		// Another isolate may have claimed or re-checked it since the read: try the next due game.
 		if (!await deps.games.claimGameRecheck(game.gamePk, now.toISOString())) continue;
+		// S99: a due game's pick is asked (bounded) only while its stored pick lacks a side, so the stored game is read for
+		// it (one keyed read; the candidate carries no pick) and a game with both sides is never asked again. Read outside
+		// the MLB try: a database failure rejects as BT's own, like the store below, never held as an MLB failure.
+		const before = await deps.games.getByPk(game.gamePk);
 		let fetched;
 		try
 		{
 			// The whole game, its playMetrics waited for (S216 AC 5).
-			fetched = await wholeFetchedGame(await deps.mlb.fetchGame(game.gamePk));
+			fetched = await withAskedPlayerOfTheGame(deps.mlb, await wholeFetchedGame(await deps.mlb.fetchGame(game.gamePk)), before?.playerOfTheGame);
 		}
 		catch (error)
 		{

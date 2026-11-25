@@ -83,6 +83,11 @@ class CountingMlbClient implements MlbStatsClient
 		return null;
 	}
 
+	async fetchPlayerOfTheGame(): Promise<null>
+	{
+		return null;
+	}
+
 	async fetchSeasonCalendar(): Promise<null>
 	{
 		return null;

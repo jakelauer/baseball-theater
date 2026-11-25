@@ -8,13 +8,14 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-	describe, expect, it,
+	afterEach, describe, expect, it, vi,
 } from "vitest";
 import { datesBetween } from "@bt/domain";
 import { parseScheduleResponse } from "@bt/mlb-api";
 import { mapScheduleRange } from "../../mappers/schedule.js";
+import { recordedClient } from "../../test/recorded-mlb.js";
 import {
-	finalStandingsUrl, HttpMlbStatsClient, springStandingsUrl,
+	finalStandingsUrl, HttpMlbStatsClient, PLAY_METRICS_LIMIT_MS, playerOfTheGameUrl, springStandingsUrl,
 } from "./mlb.js";
 
 const RAW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/raw");
@@ -432,5 +433,107 @@ describe("HttpMlbStatsClient feed time (S150 AC 2)", () =>
 		// The recorded feed says 23:34:35; BT's clock reads 23:00, 34 minutes earlier.
 		const fetched = await feedClient(undefined, new Date("2026-09-05T23:00:00.000Z")).fetchGame(823823);
 		expect(fetched).not.toHaveProperty("feedTime");
+	});
+});
+
+describe("HttpMlbStatsClient player of the game (S99)", () =>
+{
+	const POTG_URL = "https://www.mlb.com/apps/player-of-the-game/game/json/winners/823823.json";
+	const ZEFERJAHN = {
+		playerId: 666171,
+		teamId: 112,
+		summary: "1.2 IP, 0 ER, K, BB",
+		winProbabilityAdded: 40.7,
+	};
+	const isPotg = (url: URL) => url.hostname === "www.mlb.com";
+	/** The recorded 823823 feed with its game type and status changed, answered for the feed's URL. */
+	const feedAs = (type: string, coded: string, abstract: string) =>
+	{
+		const feed = JSON.parse(readFileSync(path.join(RAW, "live-823823.json"), "utf8")) as {
+			gameData: { game: { type: string };
+				status: { codedGameState: string;
+					abstractGameState: string; }; };
+		};
+		feed.gameData.game.type = type;
+		feed.gameData.status.codedGameState = coded;
+		feed.gameData.status.abstractGameState = abstract;
+		return (url: URL) => url.pathname === "/api/v1.1/game/823823/feed/live" ? new Response(JSON.stringify(feed)) : undefined;
+	};
+
+	afterEach(() =>
+	{
+		vi.useRealTimers();
+	});
+
+	it("S99 AC 3: fetchPlayerOfTheGame asks mlb.com's player-of-the-game feed and maps the recording", async () =>
+	{
+		const { mlb, asked } = recordedClient();
+		expect(playerOfTheGameUrl(823823)).toBe(POTG_URL);
+		expect(await mlb.fetchPlayerOfTheGame(823823)).toEqual({
+			media: ZEFERJAHN,
+		});
+		expect(asked).toEqual([POTG_URL]);
+	});
+
+	it("S99 AC 3: fetchGame of a final regular-season game says it is due a pick and asks none itself (ingest asks, only while a side is missing)", async () =>
+	{
+		const { mlb, asked } = recordedClient();
+		const fetched = await mlb.fetchGame(823823);
+		expect(fetched.playerOfTheGameDue).toBe(true);
+		expect(fetched.game).not.toHaveProperty("playerOfTheGame");
+		expect(asked.some((url) => isPotg(new URL(url)))).toBe(false);
+	});
+
+	it("S99 AC 3: a game in progress, or of a type MLB doesn't pick for, never asks it, so a live poll adds no request", async () =>
+	{
+		for (const override of [feedAs("R", "I", "Live"), feedAs("S", "F", "Final")])
+		{
+			const { mlb, asked } = recordedClient(override);
+			const { game, playerOfTheGameDue } = await mlb.fetchGame(823823);
+			expect(playerOfTheGameDue).toBeUndefined();
+			expect(game).not.toHaveProperty("playerOfTheGame");
+			expect(asked.some((url) => isPotg(new URL(url)))).toBe(false);
+		}
+	});
+
+	it("S99 AC 5: when the call fails or names nobody the field is absent and the game is served as before", async () =>
+	{
+		const { game: whole } = await recordedClient().mlb.fetchGame(823823);
+		const { playerOfTheGame: _, ...asBefore } = whole;
+		const nobody = JSON.stringify({
+			gamePK: "823823",
+			fanWinner: {
+				feedId: null,
+			},
+			mediaWinner: {
+				feedId: null,
+			},
+		});
+		for (const answer of [() => new Response("{}", {
+			status: 500,
+		}), () => new Response(nobody), () => new Response("not json")])
+		{
+			const { mlb } = recordedClient((url) => isPotg(url) ? answer() : undefined);
+			expect(await mlb.fetchPlayerOfTheGame(823823)).toBeNull();
+			const { game } = await mlb.fetchGame(823823);
+			expect(game).toEqual(asBefore);
+		}
+	});
+
+	it("S99 AC 5 hung: a player-of-the-game request that never resolves leaves fetchGame answering within PLAY_METRICS_LIMIT_MS, the field absent", async () =>
+	{
+		vi.useFakeTimers();
+		const { mlb } = recordedClient((url) => isPotg(url) ? new Promise<Response>(() => undefined) as unknown as Response : undefined);
+		let answered: Awaited<ReturnType<typeof mlb.fetchGame>> | undefined;
+		void mlb.fetchGame(823823).then((fetched) =>
+		{
+			answered = fetched;
+		});
+		await vi.advanceTimersByTimeAsync(PLAY_METRICS_LIMIT_MS);
+		expect(answered).toBeDefined();
+		expect(answered?.game).not.toHaveProperty("playerOfTheGame");
+		// The rest of the game is all there: the recorded play metrics arrived well inside the limit.
+		expect(answered?.game.playMetrics?.atBats).toHaveLength(85);
+		expect(answered?.playMetricsLate).toBeUndefined();
 	});
 });

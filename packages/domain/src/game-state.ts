@@ -70,6 +70,13 @@ export type FetchedGame = {
 	game: Unversioned<GameSnapshot>;
 	feedTime?: string;
 	playMetricsLate?: Promise<Unversioned<GameSnapshot> | null>;
+	/**
+	 * S99 (review): whether MLB names a player of the game for this game (`playerOfTheGameExpected`: over, regular
+	 * season or postseason, 2024 on), worked out by the adapter from the feed's game type and season, which the game
+	 * itself doesn't keep. The fetch never asks for the pick; the ingest paths do, through `withAskedPlayerOfTheGame`,
+	 * only when this is true and the stored game lacks a side. Absent means not due. Never stored.
+	 */
+	playerOfTheGameDue?: boolean;
 };
 
 /**
