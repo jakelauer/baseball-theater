@@ -4,7 +4,8 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	classifyHighlight, clipClock, clipDuration, countHighlightFacets, filterHighlights, groupHighlights, highlightGroup, highlightTitle, isGameRecapHighlight, sortHighlights,
+	classifyHighlight, clipClock, clipDuration, countHighlightFacets, filterHighlights, groupHighlights, groupHighlightsByTeam, highlightGroup, highlightTitle,
+	isGameRecapHighlight, sortHighlights,
 } from "./highlights.js";
 import { rankHighlightsByImpact } from "./impact.js";
 import type { MediaHighlight } from "./types.js";
@@ -195,7 +196,76 @@ describe("countHighlightFacets (#418, #428)", () =>
 			all: 1,
 			byTeam: {},
 			statViz: 0,
+			byGroup: {
+				highlights: 1,
+			},
 		});
+	});
+
+	it("counts each kind's clips, each equal to what that kind filter alone keeps (S200)", () =>
+	{
+		const counts = countHighlightFacets(VIDEOS);
+		for (const { group, highlights } of groupHighlights(VIDEOS))
+		{
+			expect(counts.byGroup[group], group).toBe(highlights.length);
+			expect(filterHighlights(VIDEOS, {
+				group,
+			})).toEqual(highlights);
+		}
+		expect(filterHighlights(VIDEOS, {
+			group: null,
+		})).toHaveLength(40);
+	});
+});
+
+describe("groupHighlightsByTeam (S200)", () =>
+{
+	const GAME = {
+		teams: {
+			away: {
+				id: 112,
+			},
+			home: {
+				id: 146,
+			},
+		},
+	};
+	const clip = (id: string, teamIds?: number[]) => ({
+		id,
+		title: id,
+		teamIds,
+	}) as MediaHighlight;
+	const shape = (groups: ReturnType<typeof groupHighlightsByTeam>) => groups.map((g) => [g.teamId, g.highlights.map((h) => h.id)]);
+
+	it("S200 AC 1 each team: a group per team, away first then home, each in the order given", () =>
+	{
+		expect(shape(groupHighlightsByTeam([clip("m1", [146]), clip("c1", [112]), clip("m2", [146])], GAME))).toEqual([
+			[112, ["c1"]], [146, ["m1", "m2"]],
+		]);
+	});
+
+	it("S200 AC 1 both: a clip featuring both teams sits in both groups", () =>
+	{
+		expect(shape(groupHighlightsByTeam([clip("both", [146, 112]), clip("c1", [112])], GAME))).toEqual([
+			[112, ["both", "c1"]], [146, ["both"]],
+		]);
+	});
+
+	it("S200 AC 1 neither: a clip featuring neither team (or none tagged) sits in a last Other group; an empty group is left out", () =>
+	{
+		expect(shape(groupHighlightsByTeam([clip("other", [999]), clip("untagged"), clip("m1", [146])], GAME))).toEqual([
+			[146, ["m1"]], [null, ["other", "untagged"]],
+		]);
+		// 823823: every clip lands in at least one group, and only the both-team clips twice.
+		const groups = groupHighlightsByTeam(VIDEOS, GAME);
+		expect(groups.map((g) => g.teamId)).toEqual([112, 146, null]);
+		const placed = groups.reduce((n, g) => n + g.highlights.length, 0);
+		expect(placed).toBe(40 + VIDEOS.filter((h) => h.teamIds?.includes(112) && h.teamIds.includes(146)).length);
+	});
+
+	it("S200 AC 1 no clips: a game with no clips has no groups", () =>
+	{
+		expect(groupHighlightsByTeam([], GAME)).toEqual([]);
 	});
 });
 

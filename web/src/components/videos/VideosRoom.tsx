@@ -6,7 +6,7 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import {
-	countHighlightFacets, filterHighlights, groupHighlights, sortHighlights,
+	countHighlightFacets, filterHighlights, groupHighlights, groupHighlightsByTeam, HIGHLIGHT_GROUPS, sortHighlights,
 } from "@bt/domain";
 import type {
 	HighlightFacetCounts, HighlightGroup, HighlightSort,
@@ -39,11 +39,104 @@ const GROUP_LABELS: Readonly<Record<HighlightGroup, string>> = {
 	postgame: "Post-game",
 };
 
-/** The quick filters' values; the drawer edits a copy and applies it whole. */
+/**
+ * The quick filters' values; the drawer edits a copy and applies it whole. Both the team and the
+ * kind filter are kept whichever grouping shows, so switching back finds the other as it was (S200);
+ * only the one the grouping offers applies.
+ */
 type Filters = {
 	teamId: number | null;
+	group: HighlightGroup | null;
 	statViz: boolean;
 };
+
+/**
+ * How the room groups its clips (S200): by kind (`groupHighlights`, the default) or by featured
+ * team (`groupHighlightsByTeam`). It lasts for the visit and is not a setting.
+ */
+type Grouping = "kind" | "team";
+
+/** The Kind filter's value for "All": no kind chosen. */
+const ALL_KINDS = "all";
+
+/**
+ * The Group by switch (S200; owner, 2026-11-23: "group the highlights by the featured team instead
+ * of by like type"): Kind or Team, the same segmented control as the Grid / List toggle beside it.
+ */
+function GroupBy({ value, onChange }: { value: Grouping;
+	onChange: (grouping: Grouping) => void; })
+{
+	return (
+		<SegmentedControl
+			size="xs"
+			aria-label="Group by"
+			color="primary"
+			value={value}
+			onChange={(next) => onChange(next as Grouping)}
+			style={{
+				flexShrink: 0,
+			}}
+			data={[
+				{
+					value: "kind",
+					label: "Kind",
+				},
+				{
+					value: "team",
+					label: "Team",
+				},
+			]}
+		/>
+	);
+}
+
+/** The kinds that have a clip, each with its count, in the groups' order: the only ones the kind filter offers. */
+function presentKinds(counts: HighlightFacetCounts): { kind: HighlightGroup;
+	count: number; }[]
+{
+	return HIGHLIGHT_GROUPS.flatMap((kind) =>
+	{
+		const count = counts.byGroup[kind];
+		return count ? [{
+			kind,
+			count,
+		}] : [];
+	});
+}
+
+/**
+ * The Kind quick filter (S200; owner, 2026-11-23: grouping by team "would swap it so that the
+ * featured team filter is a type filter"): while the clips are grouped by team it takes the
+ * Featured team control's place, built the same way (#428's connected pill): All, then each kind
+ * that has a clip, each with its count, one chosen at a time.
+ */
+function KindFilter({
+	group, counts, onChange,
+}: { group: HighlightGroup | null;
+	counts: HighlightFacetCounts;
+	onChange: (group: HighlightGroup | null) => void; })
+{
+	const option = (label: string, count: number) => <>{label} <Text span inherit c="var(--bt-muted)">{count}</Text></>;
+	return (
+		<SegmentedControl
+			size="xs"
+			aria-label="Kind"
+			color="primary"
+			value={group ?? ALL_KINDS}
+			onChange={(value) => onChange(value === ALL_KINDS ? null : value as HighlightGroup)}
+			data={[
+				{
+					value: ALL_KINDS,
+					label: option("All", counts.all),
+				},
+				...presentKinds(counts).map(({ kind, count }) => ({
+					value: kind,
+					label: option(GROUP_LABELS[kind], count),
+				})),
+			]}
+		/>
+	);
+}
 
 /** The Featured team control's value for "All": no team chosen. */
 const ALL_TEAMS = "all";
@@ -91,9 +184,13 @@ function FeaturedTeam({
  * edits a copy of the filters; Apply sets them and closes, dismissing discards.
  */
 function FilterDrawer({
-	game, opened, filters, statViz, onApply, onClose,
+	game, opened, filters, statViz, grouping, kinds, onApply, onClose,
 }: { game: GamePayload;
 	opened: boolean;
+	/** Grouped by team, the drawer offers Kind in Featured team's place, as the row does (S200). */
+	grouping: Grouping;
+	/** The kinds that have a clip (`presentKinds`). */
+	kinds: readonly HighlightGroup[];
 	/** Whether to offer Stat / viz: only when some clip fits it (#418). */
 	statViz: boolean;
 	filters: Filters;
@@ -123,19 +220,35 @@ function FilterDrawer({
 		>
 			<ScrollArea.Autosize mah="55dvh" type="auto" data-testid="filter-drawer-list">
 				<Stack gap="lg">
-					<Radio.Group
-						label="Featured team"
-						value={draft.teamId === null ? "" : String(draft.teamId)}
-						onChange={(value) => setDraft({
-							...draft,
-							teamId: value ? Number(value) : null,
-						})}
-					>
-						<Stack gap="xs" mt="xs">
-							<Radio value="" label="All teams" />
-							{[away, home].map((team) => <Radio key={team.id} value={String(team.id)} label={team.abbreviation} />)}
-						</Stack>
-					</Radio.Group>
+					{grouping === "team" ? (
+						<Radio.Group
+							label="Kind"
+							value={draft.group ?? ""}
+							onChange={(value) => setDraft({
+								...draft,
+								group: value ? value as HighlightGroup : null,
+							})}
+						>
+							<Stack gap="xs" mt="xs">
+								<Radio value="" label="All kinds" />
+								{kinds.map((kind) => <Radio key={kind} value={kind} label={GROUP_LABELS[kind]} />)}
+							</Stack>
+						</Radio.Group>
+					) : (
+						<Radio.Group
+							label="Featured team"
+							value={draft.teamId === null ? "" : String(draft.teamId)}
+							onChange={(value) => setDraft({
+								...draft,
+								teamId: value ? Number(value) : null,
+							})}
+						>
+							<Stack gap="xs" mt="xs">
+								<Radio value="" label="All teams" />
+								{[away, home].map((team) => <Radio key={team.id} value={String(team.id)} label={team.abbreviation} />)}
+							</Stack>
+						</Radio.Group>
+					)}
 					{statViz ? (
 						<Checkbox
 							label="Stat / viz"
@@ -170,6 +283,12 @@ function FilterDrawer({
  * the group away and back (owner, 2026-10-30: "the groups should be collapsible"); all
  * start open, each open group's clips inset in a container whose left rule runs down
  * from the chevron (#427).
+ * A Group by switch beside the Grid / List icons (S200) groups the clips by featured team instead
+ * (`groupHighlightsByTeam`: away, home, then Other for clips featuring neither), and while it does
+ * the Featured team filter gives way to a Kind filter (All, then each kind with a clip, with its
+ * count), filtering within each team's group; switching back finds the team filter as it was. The
+ * grouping lasts for the visit (`useState`), not a setting. List mode draws the cards as Best of
+ * rows in 1 / 2 / 3 columns (`VideoGrid`, S200).
  * Every card leaves the date off its meta line (`noDate`), since every clip here is from the
  * game's own day (#421; owner, 2026-11-25, waiving game-shell A6's date on each card).
  * Choosing a video (a card linking to this room with it open, `useOpenClip`, #424) plays it in `PlayerHost` (S70): a dialog by default, or the stage at
@@ -184,11 +303,14 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 	const [query, setQuery] = useState("");
 	const [filters, setFilters] = useState<Filters>({
 		teamId: null,
+		group: null,
 		statViz: false,
 	});
+	const [grouping, setGrouping] = useState<Grouping>("kind");
 	const [drawer, setDrawer] = useState(false);
 	const [sort, setSort] = useState<HighlightSort>("impact");
-	const [collapsed, setCollapsed] = useState<ReadonlySet<HighlightGroup>>(new Set());
+	// Folded groups by section key: a kind, `team-<id>` or `other`.
+	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 	const [layout, setLayout] = useState<VideoLayout>("grid");
 	const {
 		playing, href, close,
@@ -200,13 +322,40 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 		return <ViewState kind="empty" message="No videos yet." />;
 	}
 
+	const byTeam = grouping === "team";
+	// Only the filter the grouping offers applies: the kind filter grouped by team, else the team filter.
 	const videos = sortHighlights(filterHighlights(game.highlights, {
 		query,
-		...filters,
+		statViz: filters.statViz,
+		...(byTeam ? {
+			group: filters.group,
+		} : {
+			teamId: filters.teamId,
+		}),
 	}), sort);
 	const counts = countHighlightFacets(game.highlights);
+	const { away, home } = game.teams;
+	const sections = byTeam
+		? groupHighlightsByTeam(videos, game).map(({ teamId, highlights }) => ({
+			key: teamId === null ? "other" : `team-${teamId}`,
+			label: teamId === null ? "Other" : [away, home].find((team) => team.id === teamId)!.name,
+			highlights,
+		}))
+		: groupHighlights(videos).map(({ group, highlights }) => ({
+			key: group as string,
+			label: GROUP_LABELS[group],
+			highlights,
+		}));
 	const pills = [
-		{
+		byTeam ? {
+			key: "kind",
+			active: filters.group !== null,
+			node: <KindFilter group={filters.group} counts={counts} onChange={(group) => setFilters({
+				...filters,
+				group,
+			})}
+			/>,
+		} : {
 			key: "team",
 			active: filters.teamId !== null,
 			node: <FeaturedTeam game={game} teamId={filters.teamId} counts={counts} onChange={(teamId) => setFilters({
@@ -263,18 +412,21 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 						))}
 					</Menu.Dropdown>
 				</Menu>
+				<GroupBy value={grouping} onChange={setGrouping} />
 				<VideoLayoutToggle value={layout} onChange={setLayout} />
 			</Group>
 			{videos.length === 0 ? <ViewState kind="empty" message="No videos match." /> : null}
-			{groupHighlights(videos).map(({ group, highlights }) =>
+			{sections.map(({
+				key, label, highlights,
+			}) =>
 			{
 				const cards = highlights.map((video) => (
 					<VideoCard key={video.id} video={video} layout={layout} href={href(video)} scoresHidden={scoresHidden} playLink={videoPlayLink(video, game)} noDate />
 				));
-				const open = !collapsed.has(group);
+				const open = !collapsed.has(key);
 				const Chevron = open ? IconChevronDown : IconChevronRight;
 				return (
-					<Stack key={group} gap="xs" component="section" aria-label={GROUP_LABELS[group]} data-testid="videos-group" data-group={group}>
+					<Stack key={key} gap="xs" component="section" aria-label={label} data-testid="videos-group" data-group={key}>
 						<UnstyledButton
 							className="bt-hover"
 							px={6}
@@ -287,14 +439,14 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 							onClick={() =>
 							{
 								const next = new Set(collapsed);
-								if (open) next.add(group);
-								else next.delete(group);
+								if (open) next.add(key);
+								else next.delete(key);
 								setCollapsed(next);
 							}}
 						>
 							<Group gap={6} wrap="nowrap">
 								<Chevron size={14} color="var(--bt-muted)" aria-hidden />
-								<SectionHeading c="var(--bt-muted)">{GROUP_LABELS[group]}</SectionHeading>
+								<SectionHeading c="var(--bt-muted)">{label}</SectionHeading>
 								<Text size="xs" c="var(--bt-muted)">{highlights.length}</Text>
 							</Group>
 						</UnstyledButton>
@@ -320,11 +472,18 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 					</Stack>
 				);
 			})}
-			{drawer ? <FilterDrawer game={game} opened filters={filters} statViz={counts.statViz > 0} onApply={(next) =>
-			{
-				setFilters(next);
-				setDrawer(false);
-			}} onClose={() => setDrawer(false)}
+			{drawer ? <FilterDrawer
+				game={game}
+				opened
+				filters={filters}
+				statViz={counts.statViz > 0}
+				grouping={grouping}
+				kinds={presentKinds(counts).map(({ kind }) => kind)}
+				onApply={(next) =>
+				{
+					setFilters(next);
+					setDrawer(false);
+				}} onClose={() => setDrawer(false)}
 			/> : null}
 		</Stack>
 	);

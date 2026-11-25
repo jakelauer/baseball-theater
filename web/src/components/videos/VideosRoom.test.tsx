@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-	classifyHighlight, groupHighlights, rankHighlightsByImpact, sortHighlights,
+	classifyHighlight, DEFAULT_SETTINGS, groupHighlights, highlightTitle, rankHighlightsByImpact, sortHighlights,
 } from "@bt/domain";
 import { MantineProvider } from "@mantine/core";
 import {
@@ -19,8 +19,9 @@ import {
 } from "vitest";
 import type { GamePayload } from "../../api/game.js";
 import type { LayoutVariant } from "../../layout/variant.js";
-import { resetSettings } from "../../settings/store.js";
+import { hydrateSettings, resetSettings } from "../../settings/store.js";
 import { BODY_FONT_PX, mantineFontPx } from "../../test/fontSize.js";
+import { jsonResponse } from "../../test/jsonResponse.js";
 import { VideosRoom } from "./VideosRoom.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
@@ -403,3 +404,239 @@ describe("the Videos room's filters and groups (videos-room bugs)", () =>
 		expect(screen.queryByText("Videos")).toBeNull();
 	});
 });
+
+describe("Group by team and the list's Best of rows (S200)", () =>
+{
+	const ALL = game().highlights;
+	const featuring = (teamId: number) => ALL.filter((h) => h.teamIds?.includes(teamId));
+	const groupNames = () => screen.getAllByTestId("videos-group").map((g) => g.getAttribute("aria-label"));
+	const groupTitles = (name: string) => within(screen.getByRole("region", {
+		name,
+	})).getAllByTestId("video-card").map((c) => c.getAttribute("aria-label")!.replace(/^Play /, ""));
+
+	it("S200 AC 2 switch: Group by (Kind, Team) sits beside the Layout toggle; Team groups by away, home, then Other, and Kind brings the kinds back", async () =>
+	{
+		const user = userEvent.setup();
+		renderRoom();
+		const groupBy = screen.getByRole("radiogroup", {
+			name: "Group by",
+		});
+		expect(within(groupBy).getAllByRole("radio").map((r) => (r as HTMLInputElement).labels?.[0]?.textContent)).toEqual(["Kind", "Team"]);
+		expect(within(groupBy).getByRole("radio", {
+			name: "Kind",
+		})).toBeChecked();
+		// Beside the Grid / List toggle, in the same row.
+		const layout = screen.getByRole("radiogroup", {
+			name: "Layout",
+		});
+		expect(groupBy.parentElement).toBe(layout.parentElement);
+		expect(groupNames()).toEqual(["Pre-game", "Game highlights", "Statcast", "Post-game"]);
+		await user.click(within(groupBy).getByRole("radio", {
+			name: "Team",
+		}));
+		expect(groupNames()).toEqual(["Chicago Cubs", "Miami Marlins", "Other"]);
+		expect(groupTitles("Chicago Cubs")).toEqual(featuring(112).map((h) => h.title));
+		expect(groupTitles("Miami Marlins")).toEqual(featuring(146).map((h) => h.title));
+		expect(groupTitles("Other")).toEqual(ALL.filter((h) => !h.teamIds?.includes(112) && !h.teamIds?.includes(146)).map((h) => h.title));
+		// The team filter gives way to the kind filter.
+		expect(screen.queryByRole("radiogroup", {
+			name: "Featured team",
+		})).toBeNull();
+		expect(screen.getByRole("radiogroup", {
+			name: "Kind",
+		})).toBeInTheDocument();
+		await user.click(within(groupBy).getByRole("radio", {
+			name: "Kind",
+		}));
+		expect(groupNames()).toEqual(["Pre-game", "Game highlights", "Statcast", "Post-game"]);
+	});
+
+	it("S200 AC 2 kind filter: grouped by team the Kind pill offers All and each kind with its count, filters within each team, and switching back finds the team filter as it was", async () =>
+	{
+		const user = userEvent.setup();
+		renderRoom();
+		await user.click(screen.getByRole("radio", {
+			name: /^MIA \d+$/,
+		}));
+		const marlins = grouped(featuring(146));
+		expect(cardTitles()).toEqual(marlins);
+		await user.click(screen.getByRole("radio", {
+			name: "Team",
+		}));
+		// The team filter doesn't apply grouped by team: every clip is back, in its team's group.
+		expect(groupNames()).toEqual(["Chicago Cubs", "Miami Marlins", "Other"]);
+		const kinds = within(screen.getByRole("radiogroup", {
+			name: "Kind",
+		}));
+		const count = (name: string) => groupHighlights(ALL).find((g) => GROUP_NAMES[g.group] === name)?.highlights.length;
+		expect(kinds.getAllByRole("radio").map((r) => (r as HTMLInputElement).labels?.[0]?.textContent)).toEqual([
+			`All ${ALL.length}`, ...groupHighlights(ALL).map((g) => `${GROUP_NAMES[g.group]} ${count(GROUP_NAMES[g.group])}`),
+		]);
+		expect(kinds.getByRole("radio", {
+			name: `All ${ALL.length}`,
+		})).toBeChecked();
+		await user.click(kinds.getByRole("radio", {
+			name: /^Statcast \d+$/,
+		}));
+		const statcast = groupHighlights(ALL).find((g) => g.group === "statcast")!.highlights;
+		expect(groupTitles("Miami Marlins")).toEqual(statcast.filter((h) => h.teamIds?.includes(146)).map((h) => h.title));
+		expect(groupTitles("Chicago Cubs")).toEqual(statcast.filter((h) => h.teamIds?.includes(112)).map((h) => h.title));
+		// One choice at a time: Statcast checked, All not.
+		expect(kinds.getByRole("radio", {
+			name: `All ${ALL.length}`,
+		})).not.toBeChecked();
+		await user.click(screen.getByRole("radio", {
+			name: "Kind",
+		}));
+		expect(screen.getByRole("radio", {
+			name: /^MIA \d+$/,
+		})).toBeChecked();
+		expect(cardTitles()).toEqual(marlins);
+	});
+
+	it.each([
+		["mobile", "1"],
+		["medium", "2"],
+		["desktop", "3"],
+	] as const)("S200 AC 3 %s: List lays each group's clips out as Best of rows in %s column(s), with no rank number", async (variant, cols) =>
+	{
+		const user = userEvent.setup();
+		renderRoom(variant);
+		await user.click(screen.getByRole("radio", {
+			name: "List",
+		}));
+		const lists = screen.getAllByTestId("videos-list");
+		expect(lists).toHaveLength(4);
+		for (const list of lists) expect(getComputedStyle(list).getPropertyValue("--sg-cols")).toBe(cols);
+		const rows = screen.getAllByTestId("video-card");
+		expect(rows).toHaveLength(40);
+		for (const row of rows)
+		{
+			// The Best of row: a raised card holding the still, the title and the meta line.
+			const card = row.parentElement!;
+			expect(card).toHaveClass("bt-card");
+			expect(card.style.background).toBe("var(--bt-raised)");
+			expect(row.querySelector(".bt-zoom")).not.toBeNull();
+		}
+		expect(screen.queryByTestId("digest-rank")).toBeNull();
+		// The team grouping draws the same rows.
+		await user.click(screen.getByRole("radio", {
+			name: "Team",
+		}));
+		for (const list of screen.getAllByTestId("videos-list")) expect(getComputedStyle(list).getPropertyValue("--sg-cols")).toBe(cols);
+	});
+
+	it("S200 AC 2 kind filter: a kind with no clip is not offered, and All clears the kind chosen", async () =>
+	{
+		const user = userEvent.setup();
+		const noPregame = ALL.filter((h) => !groupHighlights([h]).some((g) => g.group === "pregame"));
+		renderRoom("mobile", game(noPregame));
+		await user.click(screen.getByRole("radio", {
+			name: "Team",
+		}));
+		const kinds = within(screen.getByRole("radiogroup", {
+			name: "Kind",
+		}));
+		expect(kinds.getAllByRole("radio").map((r) => (r as HTMLInputElement).labels?.[0]?.textContent?.replace(/ \d+$/, ""))).toEqual([
+			"All", "Game highlights", "Statcast", "Post-game",
+		]);
+		await user.click(kinds.getByRole("radio", {
+			name: /^Post-game \d+$/,
+		}));
+		expect(cardTitles().length).toBeLessThan(noPregame.length);
+		await user.click(kinds.getByRole("radio", {
+			name: `All ${noPregame.length}`,
+		}));
+		expect(new Set(cardTitles())).toEqual(new Set(noPregame.map((h) => h.title)));
+	});
+
+	it("S200 AC 2 kind filter in the drawer: grouped by team, the Filters drawer offers Kind (All kinds, then each kind with a clip) in Featured team's place", async () =>
+	{
+		const widths = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement)
+		{
+			return this.textContent === "Filters" ? 60 : 100;
+		});
+		const room = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(180);
+		const user = userEvent.setup();
+		renderRoom();
+		await user.click(screen.getByRole("radio", {
+			name: "Team",
+		}));
+		await user.click(within(screen.getByTestId("filter-row")).getByRole("button", {
+			name: "Filters",
+		}));
+		const drawer = within(await screen.findByRole("dialog", {
+			name: "Filters",
+		}));
+		expect(drawer.queryByRole("radiogroup", {
+			name: "Featured team",
+		})).toBeNull();
+		const kinds = within(drawer.getByRole("radiogroup", {
+			name: "Kind",
+		}));
+		expect(kinds.getAllByRole("radio").map((r) => (r as HTMLInputElement).labels?.[0]?.textContent)).toEqual([
+			"All kinds", ...groupHighlights(ALL).map((g) => GROUP_NAMES[g.group]),
+		]);
+		await user.click(kinds.getByRole("radio", {
+			name: "Post-game",
+		}));
+		await user.click(drawer.getByRole("button", {
+			name: "Apply",
+		}));
+		const postgame = groupHighlights(ALL).find((g) => g.group === "postgame")!.highlights.map((h) => h.title);
+		expect(cardTitles().every((t) => postgame.includes(t))).toBe(true);
+		await user.click(within(screen.getByTestId("filter-row")).getByRole("button", {
+			name: "Filters",
+		}));
+		const again = within(await screen.findByRole("dialog", {
+			name: "Filters",
+		}));
+		await user.click(again.getByRole("radio", {
+			name: "All kinds",
+		}));
+		await user.click(again.getByRole("button", {
+			name: "Apply",
+		}));
+		expect(new Set(cardTitles())).toEqual(new Set(ALL.map((h) => h.title)));
+		widths.mockRestore();
+		room.mockRestore();
+	});
+
+	it("S200 AC 4: Hide Scores titles the recap through highlightTitle grouped by kind and by team alike", async () =>
+	{
+		vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({
+			...DEFAULT_SETTINGS,
+			hideScores: true,
+			version: 1,
+		}))));
+		await hydrateSettings("test-user");
+		const user = userEvent.setup();
+		renderRoom();
+		const recap = ALL.find((h) => h.title === "Conforto clubs Cubs' 200th homer in close win")!;
+		expect(highlightTitle(recap, true)).toBe("Recap (score hidden)");
+		expect(screen.getAllByRole("link", {
+			name: "Play Recap (score hidden)",
+		})).toHaveLength(1);
+		expect(screen.queryByText(recap.title)).toBeNull();
+		await user.click(screen.getByRole("radio", {
+			name: "Team",
+		}));
+		// The recap features both teams, so it shows in both groups, hidden in each.
+		const both = (recap.teamIds ?? []).filter((id) => id === 112 || id === 146).length || 1;
+		expect(screen.getAllByRole("link", {
+			name: "Play Recap (score hidden)",
+		})).toHaveLength(both);
+		expect(screen.queryByText(recap.title)).toBeNull();
+		// Every other title stays MLB's.
+		expect(cardTitles().filter((t) => t !== "Recap (score hidden)").every((t) => ALL.some((h) => h.title === t))).toBe(true);
+		vi.unstubAllGlobals();
+	});
+});
+
+/** The kind groups' headings, as the room writes them. */
+const GROUP_NAMES = {
+	pregame: "Pre-game",
+	highlights: "Game highlights",
+	statcast: "Statcast",
+	postgame: "Post-game",
+} as const;
