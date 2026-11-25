@@ -84,7 +84,7 @@ describe("the scoreboard's day hub on workerd (S149)", () =>
 		// test loads none of the Worker's modules itself.
 		await runInDurableObject(dayHub, async (instance) =>
 		{
-			const hub = instance as unknown as { scoped<T>(work: () => Promise<T>): Promise<T>;
+			const hub = instance as unknown as { scoped<T>(work: () => Promise<T>, job: "fetch" | "publish" | "alarm"): Promise<T>;
 				deps: { gameStates: { getByPk(pk: number): Promise<GameStateRow | null>;
 					write(rows: GameStateRow[]): Promise<number[]>; }; }; };
 			await hub.scoped(async () =>
@@ -102,7 +102,7 @@ describe("the scoreboard's day hub on workerd (S149)", () =>
 						},
 					},
 				}]);
-			});
+			}, "alarm");
 		});
 		await ingest.fetch("https://game-ingest/ensure?gamePk=745001", {
 			method: "POST",

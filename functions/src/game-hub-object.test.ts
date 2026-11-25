@@ -268,3 +268,35 @@ describe("hubPublisher", () =>
 		await expect(hubPublisher(namespace(500))("game-hub:999", game)).rejects.toThrow("game-hub:999: 500");
 	});
 });
+
+describe("GameHubObject round-trip lines (S220)", () =>
+{
+	it("S220 AC 1 a warm hub's /publish reads nothing and writes no line; a cold one's read writes one, kind hub", async () =>
+	{
+		const state = hubState();
+		const hub = new GameHubObject(state, {});
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		try
+		{
+			const lines = () => log.mock.calls.map(([line]) => line as Record<string, unknown>).filter((line) => line?.event === "db-round-trips");
+			// Cold, the hub loads the stored game from Postgres before comparing versions.
+			await publish(hub, {
+				gamePk: 745001,
+				version: 1,
+			});
+			const cold = lines();
+			expect(cold.map((line) => [line.kind, line.job])).toEqual([["hub", "publish"]]);
+			expect(cold[0]!.roundTrips).toBeGreaterThan(0);
+			log.mockClear();
+			await publish(hub, {
+				gamePk: 745001,
+				version: 2,
+			});
+			expect(lines()).toEqual([]);
+		}
+		finally
+		{
+			log.mockRestore();
+		}
+	});
+});

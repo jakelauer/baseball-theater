@@ -80,13 +80,16 @@ export class GameHubObject
 	 * `GET /connect?gamePk=&since=` (a WebSocket upgrade, forwarded by the live route)
 	 * adds a viewer; `POST /publish` (from the ingest object) offers a snapshot. A cold hub
 	 * loads the stored game from Postgres, so each call has its own connection (S51), which logs its round trips
-	 * (S220, kind `hub`), as the hub runs where it was made, not beside Neon.
+	 * (S220, kind `hub`), as the hub runs where it was made, not beside Neon. A `/publish` that read nothing (the usual
+	 * warm hub) writes no line, so the most frequent call adds no idle lines.
 	 */
 	fetch(request: Request): Promise<Response>
 	{
+		const publish = new URL(request.url).pathname === "/publish";
 		return inDatabaseScope(this.hyperdrive, () => this.route(request), undefined, undefined, {
 			kind: "hub",
-			job: "fetch",
+			job: publish ? "publish" : "fetch",
+			quietWhenNone: publish,
 		});
 	}
 

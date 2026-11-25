@@ -118,4 +118,22 @@ describe("inDatabaseScope round trips (S220 AC 1)", () =>
 		}));
 		expect(lines.map((line) => [line.kind, line.roundTrips])).toEqual([["ingest", 1], ["cron", 3]]);
 	});
+
+	it("S220 AC 1 a quiet-when-none scope (a hub's /publish) logs nothing with no round trip, and its line once it makes one", async () =>
+	{
+		const label = {
+			kind: "hub",
+			job: "publish",
+			quietWhenNone: true,
+		} as const;
+		expect(await linesOf(() => inDatabaseScope(undefined, async () => "warm", undefined, undefined, label))).toEqual([]);
+		const lines = await linesOf(() => inDatabaseScope(undefined, select, undefined, undefined, label));
+		expect(lines).toHaveLength(1);
+		expect(lines[0]).toMatchObject({
+			kind: "hub",
+			job: "publish",
+			roundTrips: 1,
+		});
+		expect(lines[0]).not.toHaveProperty("quietWhenNone");
+	});
 });

@@ -55,10 +55,13 @@ const scope = new AsyncLocalStorage<PostgresDb>();
 /**
  * What a measured scope is (S220 AC 1), the `kind` its log line is read by: a game's ingest object
  * (`ingest`), a game hub (`hub`), a day hub (`day-hub`) or one cron job (`cron`, the job named). A
- * request's scope has none and logs nothing, so ordinary traffic adds no lines.
+ * request's scope has none and logs nothing, so ordinary traffic adds no lines. `quietWhenNone` drops the line of a
+ * scope that made no round trip (a hub's `/publish`, which often reads nothing), so the busiest calls add no idle lines;
+ * ingest and cron scopes always log.
  */
 export type ScopeLabel = { kind: "ingest" | "hub" | "day-hub" | "cron";
-	job: string; };
+	job: string;
+	quietWhenNone?: boolean; };
 
 /** The round trips one measured scope has made so far; a nested measured scope also counts into its parent's. */
 type RoundTripMeter = { roundTrips: number;
@@ -80,13 +83,14 @@ function recordRoundTrip(ms: number): void
 }
 
 /** The structured line a measured scope writes once its work is done (Workers Logs indexes its fields). */
-export type RoundTripLine = ScopeLabel & { event: "db-round-trips";
+export type RoundTripLine = Omit<ScopeLabel, "quietWhenNone"> & { event: "db-round-trips";
 	roundTrips: number;
 	totalMs: number;
 	maxMs: number; };
 
-function logRoundTrips(label: ScopeLabel, meter: RoundTripMeter): void
+function logRoundTrips({ quietWhenNone, ...label }: ScopeLabel, meter: RoundTripMeter): void
 {
+	if (quietWhenNone && meter.roundTrips === 0) return;
 	const line: RoundTripLine = {
 		event: "db-round-trips",
 		...label,

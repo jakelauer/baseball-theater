@@ -53,8 +53,9 @@ export default {
 	 * `crons: []` (`wrangler.jsonc`) means previews never run either.
 	 *
 	 * S220: each job's scope logs one line of its database round trips (kind `cron`, `job` naming it),
-	 * one line per job rather than per tick, because the cron is not moved near Neon by Smart Placement
-	 * (only by staging's `placement.hint`) and every query may pay the distance. The ingest objects it
+	 * one line per job rather than per tick, because Smart Placement alone doesn't move the cron near Neon
+	 * and every query may pay the distance. Staging's `placement.hint` (with mode "smart", a hint that seeds
+	 * Smart Placement, not a pin) is expected to move it there; these lines will show whether it does. The ingest objects it
 	 * ensures are created with `BT_INGEST_LOCATION_HINT` (`gameIngestStub`).
 	 */
 	async scheduled(_controller: unknown, env: WorkerEnv, ctx: WorkerContext): Promise<void>
