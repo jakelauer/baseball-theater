@@ -2,7 +2,9 @@ import {
 	FocusTrap, Group, Modal, UnstyledButton,
 } from "@mantine/core";
 import { useReducedMotion } from "@mantine/hooks";
-import { useEffect, useState } from "react";
+import {
+	useEffect, useRef, useState,
+} from "react";
 import { highlightTitle } from "@bt/domain";
 import type { Video } from "./VideoCard.js";
 import { PlayInningPill } from "./PlayInningPill.js";
@@ -25,7 +27,12 @@ export type PlayerGame = Parameters<typeof gameVideosLink>[0];
  * "Close ✕", the title, the clip, BT's tools, the disclaimer (owner, same day: "the title should be on
  * top of the video and the tools below the video, and the disclaimer should remain at the bottom";
  * `VideoPlayer`'s `titleAbove`). It closes "with the close button the escape key or clicking outside
- * the border of the modal" (owner, same day): Mantine's Esc and overlay press; a press inside the border
+ * the border of the modal" (owner, same day). Mantine's own Esc and overlay closes are off, since each
+ * closes too much: a press on the overlay closes only when it also started outside the border
+ * (`pressedInside`), so a seek drag on the clip's built-in bar that ends on the dimmed site, which some
+ * browsers report as a click on the overlay, keeps the player; and Esc closes only outside the browser's
+ * full screen (`document.fullscreenElement`, compared loosely since it is undefined where the Fullscreen
+ * API is missing), where that press is the browser's, to leave full screen. A press inside the border
  * never closes it. Full screen, mute and volume are the clip's built-in controls (B579), so it adds no
  * button for them. This replaces game-shell A4's floating player on a fully dimmed page under the
  * owner's design waiver (2026-11-25, in S196's text). The Videos room, Search (S5) and the day digest
@@ -75,6 +82,36 @@ export function PlayerDialog({
 	const reduceMotion = useReducedMotion();
 	const [opened, setOpened] = useState(false);
 	const [entered, setEntered] = useState(false);
+	// Whether the latest press started inside the modal's border, read when a click reaches the overlay.
+	const pressedInside = useRef(false);
+	// The latest `onClose`, read at the press: callers pass a fresh arrow each render.
+	const close = useRef(onClose);
+	useEffect(() =>
+	{
+		close.current = onClose;
+	});
+	useEffect(() =>
+	{
+		function onPress(event: PointerEvent): void
+		{
+			pressedInside.current = event.target instanceof Element && event.target.closest(".bt-player-modal") != null;
+		}
+		// Esc as Mantine handles it (window capture, never mid-composition, not a press a menu inside marked
+		// as its own), except in the browser's full screen.
+		function onKey(event: KeyboardEvent): void
+		{
+			if (event.key !== "Escape" || event.isComposing || document.fullscreenElement != null) return;
+			if (event.target instanceof Element && event.target.getAttribute("data-mantine-stop-propagation") === "true") return;
+			close.current();
+		}
+		document.addEventListener("pointerdown", onPress, true);
+		window.addEventListener("keydown", onKey, true);
+		return () =>
+		{
+			document.removeEventListener("pointerdown", onPress, true);
+			window.removeEventListener("keydown", onKey, true);
+		};
+	}, []);
 	useEffect(() =>
 	{
 		// A frame later, once the portal holding the dialog has mounted closed: opened in the same pass,
@@ -88,6 +125,8 @@ export function PlayerDialog({
 			onClose={onClose}
 			centered
 			withCloseButton={false}
+			closeOnClickOutside={false}
+			closeOnEscape={false}
 			aria-label={title}
 			size="auto"
 			radius={12}
@@ -97,6 +136,10 @@ export function PlayerDialog({
 			overlayProps={{
 				backgroundOpacity: 0.7,
 				color: "var(--bt-dark)",
+				onClick: () =>
+				{
+					if (!pressedInside.current) onClose();
+				},
 			}}
 			classNames={{
 				content: "bt-player-modal",

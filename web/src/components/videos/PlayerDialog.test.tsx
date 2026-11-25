@@ -6,7 +6,7 @@
  */
 import { MantineProvider } from "@mantine/core";
 import {
-	cleanup, render, screen, waitFor, within,
+	cleanup, fireEvent, render, screen, waitFor, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -290,6 +290,53 @@ describe("S196: the inset player modal", () =>
 		await screen.findByRole("dialog");
 		await userEvent.click(document.querySelector<HTMLElement>(".mantine-Modal-overlay")!);
 		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: a press that starts inside, on the clip (a seek drag), and ends outside does not close it; a press and release outside does", async () =>
+	{
+		vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
+		renderPills({});
+		const dialog = await screen.findByRole("dialog");
+		const clip = within(dialog).getByTestId("video-player").querySelector("video")!;
+		const overlay = document.querySelector<HTMLElement>(".mantine-Modal-overlay")!;
+		await userEvent.pointer([{
+			keys: "[MouseLeft>]",
+			target: clip,
+		}, {
+			target: overlay,
+		}, {
+			keys: "[/MouseLeft]",
+			target: overlay,
+		}]);
+		// A browser that sends the release's click to the overlay itself must not close it either.
+		fireEvent.click(overlay);
+		expect(screen.queryByText("closed")).toBeNull();
+		await userEvent.click(overlay);
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: Escape in the browser's full screen only leaves full screen; outside it Escape closes", async () =>
+	{
+		renderPills({});
+		await screen.findByRole("dialog");
+		// jsdom has no Fullscreen API: stand in for the browser's `document.fullscreenElement`.
+		let inFullscreen: Element | null = document.body;
+		Object.defineProperty(document, "fullscreenElement", {
+			configurable: true,
+			get: () => inFullscreen,
+		});
+		try
+		{
+			await userEvent.keyboard("{Escape}");
+			expect(screen.queryByText("closed")).toBeNull();
+			inFullscreen = null;
+			await userEvent.keyboard("{Escape}");
+			expect(await screen.findByText("closed")).toBeInTheDocument();
+		}
+		finally
+		{
+			delete (document as { fullscreenElement?: unknown }).fullscreenElement;
+		}
 	});
 
 	it("S196 AC 2: a press inside, on the clip, a tool or the title, does not close it", async () =>
