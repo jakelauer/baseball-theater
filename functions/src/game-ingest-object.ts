@@ -40,7 +40,7 @@ export class GameIngestObject
 
 	constructor(state: GameIngestState, env: WorkerEnv)
 	{
-		this.ingest = new GameIngest(state.storage, workerApp(env).ingest, env.GAME_HUB ? hubPublisher(env.GAME_HUB) : stubHubPublisher);
+		this.ingest = new GameIngest(state.storage, workerApp(env).ingest, env.GAME_HUB ? hubPublisher(env.GAME_HUB, env.DAY_HUB) : stubHubPublisher);
 		this.hyperdrive = env.HYPERDRIVE;
 	}
 

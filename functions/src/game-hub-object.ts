@@ -153,15 +153,18 @@ export class GameHubObject
 export type GameHubNamespace = GameIngestNamespace;
 
 /**
- * Publishes to a hub by name through the `GAME_HUB` binding: what the ingest object uses
- * once hubs exist (it replaces S48's stub). Rejects on a failed answer, which counts
- * toward dropping the hub (S48's three strikes).
+ * Publishes to a hub by name: a `game-hub:` through the `GAME_HUB` binding, a `day-hub:` (S149, the scoreboard's day
+ * hub, which reads its day afresh and ignores the game) through `DAY_HUB`. What the ingest object uses once hubs exist
+ * (it replaces S48's stub). Rejects on a failed answer, or a day hub with no binding to reach it, which counts toward
+ * dropping the hub (S48's three strikes).
  */
-export function hubPublisher(namespace: GameHubNamespace)
+export function hubPublisher(namespace: GameHubNamespace, dayHubs?: GameHubNamespace)
 {
 	return async (hubId: string, game: GameSnapshot): Promise<void> =>
 	{
-		const response = await namespace.get(namespace.idFromName(hubId) as never).fetch("https://game-hub/publish", {
+		const target = hubId.startsWith("day-hub:") ? dayHubs : namespace;
+		if (!target) throw new Error(`${hubId}: no DAY_HUB binding`);
+		const response = await target.get(target.idFromName(hubId) as never).fetch("https://game-hub/publish", {
 			method: "POST",
 			body: JSON.stringify(game),
 		});

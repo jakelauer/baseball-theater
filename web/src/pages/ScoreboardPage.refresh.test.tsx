@@ -1,8 +1,12 @@
 /**
- * S20: the scoreboard keeps an in-window day current on its own. The day is
- * `schedule-823823-moments.json`'s in-progress CHC @ MIA (1–0, Top 3rd), served as
- * `active`; the schedule hook re-asks BT's `/api/v1/schedule` every `LIVE_REFRESH_MS`
- * while the tab is visible, and asks nothing while it is hidden.
+ * S20: the scoreboard keeps an `active` day current on its own when it isn't streaming it. Since
+ * S149 a day with a game in its live window (by the client's clock) streams over the day hub's
+ * socket and its query stops re-asking (`useLiveDay.test.tsx`); what still polls is a day the
+ * server serves `active` that the client can't place in its window, the one case the story names:
+ * a game suspended late, held in its window by when BT saw it suspended, which the wire doesn't
+ * carry. The day is `schedule-823823-moments.json`'s CHC @ MIA (1–0, Top 3rd) so suspended, served
+ * as `active`; the schedule hook re-asks BT's `/api/v1/schedule` every `LIVE_REFRESH_MS` while the
+ * tab is visible, and asks nothing while it is hidden.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -38,6 +42,13 @@ function day(away: number, home: number, version: number): ScheduleDayPayload
 		...schedule,
 		games: [{
 			...live,
+			// Suspended, first pitch long past: out of its window by the clock alone, so not streamed (S149).
+			status: {
+				abstractGameState: "Live",
+				codedGameState: "U",
+				detailedState: "Suspended: Rain",
+			},
+			startTime: "2026-09-05T17:10:00Z",
 			linescore: {
 				...linescore,
 				teams: {

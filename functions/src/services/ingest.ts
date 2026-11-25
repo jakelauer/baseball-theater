@@ -10,6 +10,8 @@ import type {
 	BackgroundWork, GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, ScheduleRepository,
 } from "@bt/ports";
 import { withLatePlayMetrics } from "../mappers/game-extras.js";
+import type { DayHubNotifier } from "./day-hubs.js";
+import { DayHubCalls } from "./day-hubs.js";
 import type { EdgePurge } from "./edge-purge.js";
 import { purgeGameAndDayEdge, purgeGameEdge } from "./edge-purge.js";
 import type {
@@ -52,6 +54,12 @@ export type IngestDeps = {
 	 * run before the read returns, in the same order.
 	 */
 	background?: BackgroundWork;
+	/**
+	 * Where a schedule write tells the scoreboard's day hubs that a day with a game in its window changed (S149 AC 2,
+	 * `DayHubCalls`): the Worker's `DAY_HUB` binding (`dayHubNotifier`); absent (the Node server, which has no hubs, and
+	 * tests), nothing is called.
+	 */
+	dayHubs?: DayHubNotifier;
 };
 
 /** The one MLB read the standings' calendar cache wraps (S139). */
@@ -104,13 +112,33 @@ class AfterWrites
 		judge: () => Promise<boolean>; }[] = [];
 	/** Late playMetrics writes (S216 AC 5), each after the rest. */
 	readonly followUps: (() => Promise<void>)[] = [];
+	/**
+	 * Each date a schedule write changed, and whether its day has a game in its window before or after the write (S149
+	 * AC 2): judged after the writes, the true ones added to `hubCalls`.
+	 */
+	readonly hubChecks: { date: string;
+		judge: () => Promise<boolean>; }[] = [];
 
-	/** `at` is the writes' time: what the purge judges "past" against and records an owed purge at. */
-	constructor(readonly at: Date) {}
+	/**
+	 * `at` is the writes' time: what the purge judges "past" against and records an owed purge at. `shared` is a
+	 * refresh's or fill's own {@link DayHubCalls}, flushed by it once after all its days (S149 AC 2); without one, these
+	 * writes' hub calls are made by `runAfterWrites` itself.
+	 */
+	constructor(readonly at: Date, shared?: DayHubCalls)
+	{
+		this.hubCalls = shared ?? new DayHubCalls();
+		this.ownsHubCalls = shared === undefined;
+	}
+
+	/** Where the day hub calls go: the caller's shared collector, else this request's own. */
+	readonly hubCalls: DayHubCalls;
+	/** Whether `runAfterWrites` makes the hub calls itself (no refresh or fill shares a collector). */
+	readonly ownsHubCalls: boolean;
 
 	get empty(): boolean
 	{
-		return this.projections.length === 0 && this.purgeGames.size === 0 && this.changedStates.size === 0 && this.dayChecks.length === 0 && this.followUps.length === 0;
+		return this.projections.length === 0 && this.purgeGames.size === 0 && this.changedStates.size === 0 && this.dayChecks.length === 0
+			&& this.followUps.length === 0 && this.hubChecks.length === 0;
 	}
 }
 
@@ -123,7 +151,7 @@ class AfterWrites
  * `purgeGameAndDayEdge`). Then it rejects with every failure (`AggregateError`), so a caller that runs it at once fails
  * as its own write would; deferred, `BackgroundWork` logs it.
  */
-async function runAfterWrites(deps: Pick<IngestDeps, "projections" | "games" | "gameStates" | "schedules" | "edgePurge">, after: AfterWrites): Promise<void>
+async function runAfterWrites(deps: Pick<IngestDeps, "projections" | "games" | "gameStates" | "schedules" | "edgePurge" | "dayHubs">, after: AfterWrites): Promise<void>
 {
 	const errors: unknown[] = [];
 	const step = async (work: () => Promise<void>) =>
@@ -204,6 +232,15 @@ async function runAfterWrites(deps: Pick<IngestDeps, "projections" | "games" | "
 		});
 		if (unjudged.length > 0) await purgeGameAndDayEdge(deps, unjudged, after.at);
 	}
+	// S149 AC 2: the day hubs of the changed dates with a game in their window, after every write they read.
+	for (const check of after.hubChecks)
+	{
+		await step(async () =>
+		{
+			if (await check.judge()) after.hubCalls.add(check.date);
+		});
+	}
+	if (after.ownsHubCalls) await after.hubCalls.flush(deps.dayHubs);
 	for (const followUp of after.followUps) await step(followUp);
 	if (errors.length > 0) throw new AggregateError(errors, `after-write steps failed: ${errors.map(String).join("; ")}`);
 }
@@ -240,6 +277,16 @@ async function handOff(deps: IngestDeps, after: AfterWrites): Promise<void>
 		console.error("[background] on-read refresh writes failed", error);
 	}
 }
+
+/**
+ * What {@link storeGames} stored for one game: the snapshot now stored, its state row, and whether the switch stored a
+ * new state version for it (S149 AC 2: a mend, a changed row under an unchanged snapshot, is published too).
+ */
+type StoredGame = {
+	snapshot: GameSnapshot;
+	state: GameStateRow | null;
+	stateChanged: boolean;
+};
 
 /** One fetched game to store, with the snapshot its caller read (null: none stored), and its feed time. */
 type GameWrite = {
@@ -291,11 +338,9 @@ async function storeGames(
 	at: Date,
 	after: AfterWrites,
 	known?: ReadonlyMap<number, GameStateRow | null>,
-): Promise<Map<number, { snapshot: GameSnapshot;
-	state: GameStateRow | null; }>>
+): Promise<Map<number, StoredGame>>
 {
-	const stored = new Map<number, { snapshot: GameSnapshot;
-		state: GameStateRow | null; }>();
+	const stored = new Map<number, StoredGame>();
 	if (writes.length === 0) return stored;
 	const outcomes = await switchGameState(deps, writes.map(({ fetched, feedTime }) => ({
 		gamePk: fetched.gamePk,
@@ -351,6 +396,7 @@ async function storeGames(
 		stored.set(gamePk, {
 			snapshot,
 			state,
+			stateChanged: outcome?.stateChanged ?? false,
 		});
 	}
 	return stored;
@@ -362,12 +408,11 @@ async function storeGames(
  * seed paths), so the purge stays awaited after its write. `stored` is what the caller read (S216: never read again).
  */
 async function storeGame(
-	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge">,
+	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge" | "dayHubs">,
 	fetched: Unversioned<GameSnapshot>,
 	feedTime: string | undefined,
 	stored: GameSnapshot | null,
-): Promise<{ snapshot: GameSnapshot;
-	state: GameStateRow | null; }>
+): Promise<StoredGame>
 {
 	const at = new Date(fetched.fetchedAt);
 	const after = new AfterWrites(at);
@@ -388,16 +433,19 @@ async function storeGame(
  * stores schedule days without hydrating games, and for the cron's `refreshTodaysWindow`. `held` is the stored day and
  * its served base when the caller read them (S216: then not read again); left out, they are read here. Its purges run at
  * once after its writes (`runAfterWrites`). Returns the served day, formed from what it stored ({@link storeScheduleDay}).
+ * `hubCalls` is a refresh's or fill's shared collector of day hub calls (S149 AC 2), which it flushes once after all its
+ * days; left out, this write's own hub calls are made after it.
  */
 export async function storeSchedule(
-	deps: Pick<IngestDeps, "schedules" | "games" | "gameStates" | "projections" | "edgePurge">,
+	deps: Pick<IngestDeps, "schedules" | "games" | "gameStates" | "projections" | "edgePurge" | "dayHubs">,
 	fetched: Unversioned<ScheduleDay>,
 	held?: { day: StoredScheduleDay;
 		servedBase: number; } | null,
+	hubCalls?: DayHubCalls,
 ): Promise<ScheduleDay>
 {
 	const now = new Date(fetched.fetchedAt);
-	const after = new AfterWrites(now);
+	const after = new AfterWrites(now, hubCalls);
 	const stored = held === undefined ? await deps.schedules.getWithServedBase(fetched.date) : held;
 	const joined = await storeScheduleDay(deps, fetched, stored, undefined, after);
 	await runAfterWrites(deps, after);
@@ -423,9 +471,17 @@ export async function storeSchedule(
  * the before-verdict only when something changed, from the stored day as read and the rows as the switch read them,
  * so a month refresh that changes nothing reads no more and purges nothing; a day stored for the first time was not
  * past and finished before.
+ *
+ * S149 AC 2: when the write changes something and a day hub notifier is composed, the hub of each date it changed is
+ * called after the writes (`after.hubChecks`), if that day has a game in its live window (`scheduleDayWindowMode`)
+ * before or after the write: this date, judged from the day it formed and, only when that has none, from the stored day
+ * over the rows the switch read; and, for a game whose state it changed, the game's official date before and after
+ * the write when it differs from this one (a game moved between days), judged from that day as now stored and the
+ * moved game's row before the write. No stored day is searched for the game: the leases carry its state to every hub
+ * watching it.
  */
 async function storeScheduleDay(
-	deps: Pick<IngestDeps, "schedules" | "games" | "gameStates" | "edgePurge">,
+	deps: Pick<IngestDeps, "schedules" | "games" | "gameStates" | "edgePurge" | "dayHubs">,
 	fetched: Unversioned<ScheduleDay>,
 	held: { day: StoredScheduleDay;
 		servedBase: number; } | null,
@@ -460,33 +516,81 @@ async function storeScheduleDay(
 		joined = await joinStoredScheduleDay(deps, day, servedBase, rows, now);
 	}
 	const changedGames = [...outcomes].filter(([, outcome]) => outcome.stateChanged);
+	// The day as served before the write, read at most once for both judges below (the purge's and the hub's), and only
+	// when one needs it; a failed read reaches both (the purge then purges anyway; the hub check records the error).
+	let beforeRead: Promise<JoinedScheduleDay> | undefined;
+	const before = stored === null ? null : () => beforeRead ??= joinedBefore(deps, stored, outcomes, now);
 	if (deps.edgePurge && (dayChanged || changedGames.length > 0))
 	{
 		const formed = joined;
 		after.dayChecks.push({
 			date: fetched.date,
-			judge: async () => isPastFinishedDay(formed.served, now, formed.moved) || (stored !== null && await wasPastFinishedDay(deps, stored, outcomes, now)),
+			judge: async () => isPastFinishedDay(formed.served, now, formed.moved) || (before !== null && wasPastFinishedDay(await before(), now)),
 		});
 		for (const [gamePk, outcome] of changedGames) after.changedStates.set(gamePk, outcome);
 	}
+	if (deps.dayHubs && (dayChanged || changedGames.length > 0)) addHubChecks(deps, fetched.date, joined, before, changedGames, now, after);
 	return joined;
 }
 
+/** {@link storeScheduleDay}'s day hub checks (S149 AC 2): the dates the write changed, each judged after the writes. */
+function addHubChecks(
+	deps: Pick<IngestDeps, "games" | "gameStates" | "schedules">,
+	date: string,
+	formed: JoinedScheduleDay,
+	before: (() => Promise<JoinedScheduleDay>) | null,
+	changedGames: readonly [number, SwitchOutcome][],
+	now: Date,
+	after: AfterWrites,
+): void
+{
+	after.hubChecks.push({
+		date,
+		judge: async () => formed.served.windowMode === "active" || (before !== null && (await before()).served.windowMode === "active"),
+	});
+	const others = new Map<string, GameStateRow | null>();
+	for (const [, outcome] of changedGames)
+	{
+		for (const row of [outcome.before, outcome.row])
+		{
+			if (row && row.officialDate !== date && !others.has(row.officialDate)) others.set(row.officialDate, outcome.before);
+		}
+	}
+	for (const [other, before] of others)
+	{
+		after.hubChecks.push({
+			date: other,
+			judge: async () => (before !== null && isGameInActiveWindow({
+				officialDate: before.officialDate,
+				startTime: before.startTime,
+				status: before.state.status,
+			}, now)) || (await readScheduleDay(deps, other, now))?.windowMode === "active",
+		});
+	}
+}
+
 /**
- * Whether `stored` was past and finished before a schedule write changed it (S212 review): the stored day as the
- * write read it, joined over each listed game's row as the switch read it (`SwitchOutcome.before`), a game the write
- * didn't list read as it stands (the write didn't touch it). Served base 0: the verdict reads no version. S216: judged
- * by `isPastFinishedDay` alone, with no hand-written date or settledness pre-filter (ADR-025); it runs only after a
- * write changed something, after the response on a read.
+ * Whether a day was past and finished before a schedule write changed it (S212 review), from {@link joinedBefore}'s
+ * day. S216: judged by `isPastFinishedDay` alone, with no hand-written date or settledness pre-filter (ADR-025); it
+ * runs only after a write changed something, after the response on a read.
  */
-async function wasPastFinishedDay(deps: Pick<IngestDeps, "games" | "gameStates">, stored: StoredScheduleDay, outcomes: ReadonlyMap<number, SwitchOutcome>, now: Date): Promise<boolean>
+function wasPastFinishedDay(before: JoinedScheduleDay, now: Date): boolean
+{
+	return isPastFinishedDay(before.served, now, before.moved);
+}
+
+/**
+ * The day as it was served before a schedule write (S212 review; S149 AC 2 judges its window from it): the stored day
+ * as the write read it, joined over each listed game's row as the switch read it (`SwitchOutcome.before`), a game the
+ * write didn't list read as it stands (the write didn't touch it). Served base 0: no caller reads its version.
+ */
+async function joinedBefore(deps: Pick<IngestDeps, "games" | "gameStates">, stored: StoredScheduleDay, outcomes: ReadonlyMap<number, SwitchOutcome>, now: Date): Promise<JoinedScheduleDay>
 {
 	const rows = new Map<number, GameStateRow>();
 	for (const [gamePk, outcome] of outcomes) if (outcome.before) rows.set(gamePk, outcome.before);
 	const untouched = stored.games.map((game) => game.gamePk).filter((gamePk) => !outcomes.has(gamePk));
 	if (untouched.length > 0) for (const row of await deps.gameStates.getMany(untouched)) rows.set(row.gamePk, row);
-	const before = await joinStoredScheduleDay(deps, stored, 0, rows, now);
-	return isPastFinishedDay(before.served, now, before.moved);
+	return joinStoredScheduleDay(deps, stored, 0, rows, now);
 }
 
 /**
@@ -497,26 +601,24 @@ async function wasPastFinishedDay(deps: Pick<IngestDeps, "games" | "gameStates">
  * It reads the stored snapshot once and hands it to `storeGame` (S216: not read again there).
  *
  * A poll that changes only the row (it mends a row the migration or the baseball-data copy
- * wrote, or one the schedule wrote while the game was live) keeps the snapshot's version, so
- * it isn't published: the hub and the client take only a newer version, and the served game's
- * version is the snapshot's. Viewers see the mended score with the game's next snapshot change,
- * a few seconds later in play; a new HTTP read serves it at once. Since the row is written
+ * wrote, or one the schedule wrote while the game was live) keeps the snapshot's version and
+ * reports `stateChanged` (S149 AC 2): the ingest object publishes it too, which a game hub drops
+ * (the served game's version is the snapshot's, and a hub takes only a newer one; its viewers see
+ * the mended score with the game's next snapshot change) and a day hub turns into a push of its
+ * day, whose served version the row's new state version raised. Since the row is written
  * first (`storeGame`), a poll never leaves a row behind its own snapshot.
  */
 export async function ingestGame(
-	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge">,
+	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge" | "dayHubs">,
 	fetched: Unversioned<GameSnapshot>,
 	feedTime?: string,
-): Promise<{ snapshot: GameSnapshot;
-	state: GameStateRow | null;
-	changed: boolean; }>
+): Promise<StoredGame & { changed: boolean }>
 {
 	const before = await deps.games.getByPk(fetched.gamePk);
-	const { snapshot, state } = await storeGame(deps, fetched, feedTime, before);
+	const stored = await storeGame(deps, fetched, feedTime, before);
 	return {
-		snapshot,
-		state,
-		changed: before?.version !== snapshot.version,
+		...stored,
+		changed: before?.version !== stored.snapshot.version,
 	};
 }
 
@@ -1028,6 +1130,8 @@ export async function refreshTodaysWindow(
 	const date = mlbToday(now);
 	const dayBefore = addDays(date, -1);
 	const games: WindowedSummary[] = [];
+	// S149 AC 2: both days' day hub calls made once, after both writes.
+	const hubCalls = new DayHubCalls();
 	const refresh = async (day: string) =>
 	{
 		const fetched = await deps.mlb.fetchSchedule(day);
@@ -1036,29 +1140,36 @@ export async function refreshTodaysWindow(
 			...fetched,
 			fetchedAt: now.toISOString(),
 			windowMode: scheduleWindowMode(windowed, now, params),
-		});
+		}, undefined, hubCalls);
 		games.push(...windowed);
 	};
 
-	await refresh(date);
-	// The stored day's own `windowMode` says whether it was last stored out of its window; its games' statuses are the
-	// joined day's (S150 AC 6), since the stored day has none.
-	const held = await readJoinedScheduleDay(deps, dayBefore, now);
-	// Read without `withSuspendedAt`: a day listing a suspended game is settled only once the game has moved to another
-	// day (`held.moved`), whose own listing then carries its window, so its suspension time can't matter here.
-	const dayBeforeDone = held !== null && held.stored.windowMode === "cache" && isScheduleDaySettled(held.served, date, held.moved)
-		&& !held.served.games.some((g) => isGameInActiveWindow(g, now, params));
-	if (!dayBeforeDone)
+	try
 	{
-		try
+		await refresh(date);
+		// The stored day's own `windowMode` says whether it was last stored out of its window; its games' statuses are the
+		// joined day's (S150 AC 6), since the stored day has none.
+		const held = await readJoinedScheduleDay(deps, dayBefore, now);
+		// Read without `withSuspendedAt`: a day listing a suspended game is settled only once the game has moved to another
+		// day (`held.moved`), whose own listing then carries its window, so its suspension time can't matter here.
+		const dayBeforeDone = held !== null && held.stored.windowMode === "cache" && isScheduleDaySettled(held.served, date, held.moved)
+			&& !held.served.games.some((g) => isGameInActiveWindow(g, now, params));
+		if (!dayBeforeDone)
 		{
-			await refresh(dayBefore);
+			try
+			{
+				await refresh(dayBefore);
+			}
+			catch (error)
+			{
+				// Today is already in hand. A skipped day before is retried by the next cron run, a minute later.
+				console.warn(`refreshTodaysWindow: day before ${dayBefore} not refreshed; retrying next run`, error);
+			}
 		}
-		catch (error)
-		{
-			// Today is already in hand. A skipped day before is retried by the next cron run, a minute later.
-			console.warn(`refreshTodaysWindow: day before ${dayBefore} not refreshed; retrying next run`, error);
-		}
+	}
+	finally
+	{
+		await hubCalls.flush(deps.dayHubs);
 	}
 	// One entry per gamePk: in window if either day's copy is, else skipped once. A suspended game's
 	// window counts from its stored `suspendedAt` (#323); `active` lists the summaries as MLB sent them.

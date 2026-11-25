@@ -19,21 +19,42 @@ export function scheduleKey(date: string)
 	return ["schedule", date] as const;
 }
 
-export function scheduleQueryOptions(date: string)
+/**
+ * `streaming` (S149): the day's live stream keeps it fresh (its socket, or its own polling fallback) while the day has
+ * a game in its window, so the query doesn't re-ask it in the background as well, as `gameQueryOptions` does for a game.
+ */
+export function scheduleQueryOptions(date: string, streaming = false)
 {
 	return queryOptions({
 		queryKey: scheduleKey(date),
 		// A copy the worker served from storage carries its time (S74, `StoredCopy`); other answers don't.
-		queryFn: (): Promise<ScheduleDayPayload & StoredCopy> => fetchSchedule(date),
+		queryFn: async ({ client }): Promise<ScheduleDayPayload & StoredCopy> => keepNewer(client.getQueryData(scheduleKey(date)), await fetchSchedule(date)),
 		staleTime: (query) => freshnessPolicy(query.state.data?.windowMode).staleTime,
-		// Re-ask an in-window day on the live cadence while visible (S20); paused when hidden.
-		refetchInterval: (query) => whileVisible(freshnessPolicy(query.state.data?.windowMode).refetchInterval),
+		// Re-ask an in-window day on the live cadence while visible (S20); paused when hidden, and off while it streams.
+		refetchInterval: (query) => streaming ? false : whileVisible(freshnessPolicy(query.state.data?.windowMode).refetchInterval),
 	});
 }
 
-export function useScheduleDay(date: string): UseQueryResult<ScheduleDayPayload & StoredCopy, Error>
+/**
+ * What a fetch of the day leaves in the cache (S149, ADR-022): the fetched day, unless the cache already holds a
+ * strictly newer version, which a live push (`useLiveDay`) wrote while the request was on its way; then the cached day
+ * stays. An equal version keeps the fetched copy, whose window mode or stored-copy time may have moved without a new
+ * version.
+ */
+export function keepNewer<T extends ScheduleDayPayload>(cached: T | undefined, fetched: T): T
 {
-	return useQuery(scheduleQueryOptions(date));
+	return cached && fetched.version < cached.version ? cached : fetched;
+}
+
+export function useScheduleDay(date: string, streaming = false): UseQueryResult<ScheduleDayPayload & StoredCopy, Error>
+{
+	return useQuery(scheduleQueryOptions(date, streaming));
+}
+
+/** The day as the cache holds it now, without subscribing (S149 decides from it whether to stream, as `useCachedGame`). */
+export function useCachedScheduleDay(date: string): ScheduleDayPayload | undefined
+{
+	return useQueryClient().getQueryData(scheduleKey(date));
 }
 
 /** Write a day into the cache in place (a day fetched elsewhere, e.g. by a test or a prefetch). */

@@ -1,10 +1,15 @@
 /**
  * The live stream itself (S19): see `live.ts` for what it does and why. Kept in its own
- * module so the browser loads it only when a game in its window is open — it stays out of
- * the entry bundle (ADR-026's 200 KB budget).
+ * module so the browser loads it only when a game (or, S149, a scoreboard day) in its window
+ * is open — it stays out of the entry bundle (ADR-026's 200 KB budget).
+ *
+ * One stream for both resources (S149, generalized rather than copied): `LiveStream` owns the
+ * socket, the reconnect with backoff and `?since=`, the polling fallback and the open state;
+ * what differs is the address, the cache entry and what a skipped version means (`gaps`).
  */
+import type { Versioned } from "@bt/domain";
 import { applyIfNewer } from "@bt/domain";
-import type { QueryClient } from "@tanstack/react-query";
+import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import type { GamePayload } from "./game.js";
 import { gameKey } from "./game.js";
 
@@ -34,6 +39,13 @@ export function liveUrl(gamePk: number, since?: number, location: Pick<Location,
 	return `${scheme}//${location.host}/api/v1/games/${gamePk}/live${since === undefined ? "" : `?since=${since}`}`;
 }
 
+/** The scoreboard's live route for `date` (S149, `GET /api/v1/schedule/live?date=`), as {@link liveUrl} builds a game's. */
+export function liveDayUrl(date: string, since?: number, location: Pick<Location, "protocol" | "host"> = window.location): string
+{
+	const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+	return `${scheme}//${location.host}/api/v1/schedule/live?date=${date}${since === undefined ? "" : `&since=${since}`}`;
+}
+
 /**
  * The wait before reconnect attempt `attempt` (0-based): exponential from `baseDelayMs`,
  * capped, then scaled by a random factor in [0.5, 1) so many viewers dropped together
@@ -45,11 +57,11 @@ export function reconnectDelay(attempt: number, random: () => number = Math.rand
 	return Math.round(exponential * (0.5 + random() / 2));
 }
 
-export type LiveStreamOptions = {
-	gamePk: number;
+/** What every stream is given, whatever it streams. */
+type StreamOptions<T> = {
 	client: QueryClient;
-	/** The game resource's cache writer (`writeGame`), the only way a payload reaches the cache. */
-	write: (game: GamePayload) => void;
+	/** The resource's cache writer (`writeGame`, `writeScheduleDay`), the only way a payload reaches the cache. */
+	write: (payload: T) => void;
 	openSocket?: (url: string) => LiveSocket;
 	random?: () => number;
 	/**
@@ -60,7 +72,26 @@ export type LiveStreamOptions = {
 	onOpenChange?: (open: boolean) => void;
 };
 
-export class LiveGameStream
+/** A game's stream (S19): `gamePk` names the game. */
+export type LiveStreamOptions = StreamOptions<GamePayload> & { gamePk: number };
+
+/**
+ * What one resource's stream needs besides the shared options: its cache entry (`queryKey`), its address for a
+ * `since` version (`url`) and its gap rule. `gaps: "refetch"` (a game, S19): a version skipped on the way means an
+ * update went missing, so the resource is refetched rather than written. `gaps: "apply"` (a day, S149 AC 4): every
+ * push is the whole day, so any newer version is applied at once, however far ahead.
+ */
+export type LiveResource = {
+	queryKey: QueryKey;
+	url: (since?: number) => string;
+	gaps: "refetch" | "apply";
+};
+
+/**
+ * One resource's live stream: the socket, reconnects with backoff and `?since=`, the polling fallback (refetching the
+ * resource's query), and its open state (S148).
+ */
+export class LiveStream<T extends Versioned>
 {
 	private socket: LiveSocket | null = null;
 	private failures = 0;
@@ -71,15 +102,15 @@ export class LiveGameStream
 	private open = false;
 	private readonly openSocket: (url: string) => LiveSocket;
 
-	constructor(private readonly options: LiveStreamOptions)
+	constructor(private readonly options: StreamOptions<T>, private readonly resource: LiveResource)
 	{
 		this.openSocket = options.openSocket ?? ((url) => new WebSocket(url) as unknown as LiveSocket);
 	}
 
-	/** The version the cache holds for this game, if any. */
+	/** The version the cache holds for this resource, if any. */
 	private cachedVersion(): number | undefined
 	{
-		return this.options.client.getQueryData<GamePayload>(gameKey(this.options.gamePk))?.version;
+		return this.options.client.getQueryData<T>(this.resource.queryKey)?.version;
 	}
 
 	start(): void
@@ -122,7 +153,7 @@ export class LiveGameStream
 
 	private connect(): void
 	{
-		const socket = this.openSocket(liveUrl(this.options.gamePk, this.cachedVersion()));
+		const socket = this.openSocket(this.resource.url(this.cachedVersion()));
 		this.socket = socket;
 		// Open only once the socket says so: a socket being connected isn't receiving pushes yet.
 		socket.onopen = () =>
@@ -141,19 +172,19 @@ export class LiveGameStream
 		};
 	}
 
-	/** One payload: written if newer, a refetch instead if a version was skipped. */
+	/** One payload: written if newer (ADR-022), or, for a resource that refetches on a gap, a refetch if a version was skipped. */
 	private receive(data: unknown): void
 	{
-		const game = JSON.parse(String(data)) as GamePayload;
-		const current = this.options.client.getQueryData<GamePayload>(gameKey(this.options.gamePk)) ?? null;
-		if (current && game.version > current.version + 1)
+		const payload = JSON.parse(String(data)) as T;
+		const current = this.options.client.getQueryData<T>(this.resource.queryKey) ?? null;
+		if (this.resource.gaps === "refetch" && current && payload.version > current.version + 1)
 		{
 			void this.options.client.refetchQueries({
-				queryKey: gameKey(this.options.gamePk),
+				queryKey: this.resource.queryKey,
 			});
 			return;
 		}
-		if (applyIfNewer(current, game) === game && game !== current) this.options.write(game);
+		if (applyIfNewer(current, payload) === payload && payload !== current) this.options.write(payload);
 	}
 
 	private startPolling(): void
@@ -162,7 +193,7 @@ export class LiveGameStream
 		this.pollTimer = setInterval(() =>
 		{
 			void this.options.client.refetchQueries({
-				queryKey: gameKey(this.options.gamePk),
+				queryKey: this.resource.queryKey,
 			});
 		}, LIVE_TIMING.pollMs);
 	}
@@ -182,4 +213,40 @@ export class LiveGameStream
 	{
 		if (document.visibilityState === "visible") this.retryNow();
 	};
+}
+
+/** A game's live stream (S19): `GET /api/v1/games/:gamePk/live`, refetching the game on a skipped version. */
+export class LiveGameStream extends LiveStream<GamePayload>
+{
+	constructor(options: LiveStreamOptions)
+	{
+		super(options, {
+			queryKey: gameKey(options.gamePk),
+			url: (since) => liveUrl(options.gamePk, since),
+			gaps: "refetch",
+		});
+	}
+}
+
+/** A scoreboard day's stream options (S149): `date` names the day. */
+export type LiveDayStreamOptions<T> = StreamOptions<T> & {
+	date: string;
+	queryKey: QueryKey;
+};
+
+/**
+ * A scoreboard day's live stream (S149 AC 4, AC 6): `GET /api/v1/schedule/live?date=`, each push the whole day, so any
+ * newer version is applied at once. `queryKey` is the day's cache entry (`scheduleKey`), passed in so this module
+ * needn't load the schedule resource.
+ */
+export class LiveDayStream<T extends Versioned> extends LiveStream<T>
+{
+	constructor(options: LiveDayStreamOptions<T>)
+	{
+		super(options, {
+			queryKey: options.queryKey,
+			url: (since) => liveDayUrl(options.date, since),
+			gaps: "apply",
+		});
+	}
 }
