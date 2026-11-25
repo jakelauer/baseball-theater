@@ -204,6 +204,10 @@ export function describeIdentityLinkContract(label: string, create: () => UserRe
 			// Clearing what isn't set is a no-op.
 			await repo.setTierOverride("uid-2", null);
 			expect(await repo.getTierOverride("uid-2")).toBeNull();
+			// A uid with no user stores nothing (Postgres's foreign key; the memory double matches it).
+			await repo.setTierOverride("no-such-uid", "Backer");
+			expect(await repo.getTierOverride("no-such-uid")).toBeNull();
+			expect(await repo.exportFor("no-such-uid")).toBeNull();
 		});
 	});
 }

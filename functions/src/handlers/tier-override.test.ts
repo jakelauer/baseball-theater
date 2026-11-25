@@ -80,13 +80,17 @@ describe("the tier override routes (S215)", () =>
 		const h = await harness(false);
 		const read = vi.spyOn(h.auth.users, "getTierOverride");
 		const write = vi.spyOn(h.auth.users, "setTierOverride");
-		const unknown = await (await h.call("/api/v1/me/no-such-route")).json();
+		const unknownResponse = await h.call("/api/v1/me/no-such-route");
+		const unknownHeaders = [...unknownResponse.headers];
+		const unknown = await unknownResponse.json();
 		for (const res of [await h.get(h.token), await h.put(h.token, JSON.stringify({
 			tier: "Backer",
 		})), await h.get()])
 		{
 			expect(res.status).toBe(404);
 			expect(await res.json()).toEqual(unknown);
+			// The same headers too, so nothing tells the route apart from one that doesn't exist.
+			expect([...res.headers]).toEqual(unknownHeaders);
 			expect(res.headers.get("Cache-Control")).toBe("no-store");
 		}
 		expect(await h.me(h.token)).toEqual(entitlementsForTier("none"));

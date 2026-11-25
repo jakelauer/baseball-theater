@@ -879,7 +879,8 @@ export async function handleApiRequest(
 			hint: "This version of the app has been retired; reload to update.",
 		});
 	}
-	if (!match) return notFound();
+	// `no-store`, as the tier override's 404 off staging (S215), so the two can't be told apart by their headers.
+	if (!match) return noStore(notFound());
 	const response = await match.entry.handle(url, match.params, ctx, request);
 	const headers = state ? deprecationHeaders(state) : {};
 	// A WebSocket upgrade (101) can't be re-wrapped; it carries no warning.

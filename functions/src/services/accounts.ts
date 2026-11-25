@@ -142,6 +142,11 @@ export async function accountEntitlements(deps: AuthDeps, user: UserProfile): Pr
  * Issues `user` a session carrying `entitlements`, and its verified form. `authTime` is the
  * provider's own sign-in time, which rides in the session for deletion's recent-sign-in check
  * (S120); a session reissued for a tier override (S215) carries the one it replaces.
+ *
+ * Its `entitlements` are a copy for the client, never proof: a staging token reissued with an
+ * overridden tier still verifies wherever the session key and data are shared (previews copy
+ * staging's), so a server gate on a tier calls {@link accountEntitlements}, which honours the
+ * override only where the deploy-time config allows it, and never trusts `session.entitlements`.
  */
 export async function issueSession(deps: AuthDeps, user: UserProfile, entitlements: Entitlements, authTime: number | undefined): Promise<SignedIn>
 {

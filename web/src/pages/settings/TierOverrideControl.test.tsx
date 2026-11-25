@@ -31,7 +31,7 @@ const LABEL = "Testing only (staging): backer tier override";
  * `effectiveEntitlements` would) and, by `override`, the tier-override routes: `"staging"` answers
  * them, `404` refuses them as production does, `"fail"` errors.
  */
-function stubApi(override: "staging" | 404 | "fail", initial: PatronTier | null = null)
+function stubApi(override: "staging" | 404 | "fail", initial: PatronTier | null = null, putFailsAfterSaving = false)
 {
 	let chosen = initial;
 	const puts: unknown[] = [];
@@ -55,6 +55,9 @@ function stubApi(override: "staging" | 404 | "fail", initial: PatronTier | null 
 				const body = await request.json() as { tier: PatronTier | null };
 				puts.push(body);
 				chosen = body.tier;
+				if (putFailsAfterSaving) return jsonResponse({
+					error: "boom",
+				}, 500);
 				return jsonResponse({
 					tier: chosen,
 					realTier: "none",
@@ -187,5 +190,19 @@ describe("staging's backer tier override in Settings (S215)", () =>
 		}, {
 			tier: null,
 		}]);
+	});
+
+	it("S215 AC 5: a PUT that fails after the server saved the choice shows the stored choice and tier anyway", async () =>
+	{
+		stubApi("staging", null, true);
+		renderSettings();
+		await screen.findByText(LABEL);
+		await userEvent.click(screen.getByRole("radio", {
+			name: "Star Backer",
+		}));
+		await waitFor(() => expect(screen.getByLabelText("session tier")).toHaveTextContent("Star Backer"));
+		await waitFor(() => expect(screen.getByRole("radio", {
+			name: "Star Backer",
+		})).toBeChecked());
 	});
 });

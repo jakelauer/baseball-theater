@@ -8,8 +8,8 @@
  * account and the whole account API works behind it, deletion included.
  * S139 AC 8: the standings' season calendars are kept in the Workers Cache between requests.
  * S132 AC 3: the releases API answers the release notes bundled into the build.
- * S215 AC 4: staging's backer tier override answers only under staging's config; production's and
- * preview's answer 404 and hand out the real tier even with an override stored.
+ * S215 AC 4: staging's backer tier override answers only under staging's config; production's
+ * answers 404 and hands out the real tier even with an override stored, and preview's answers 404.
  * Run with `pnpm --filter @bt/functions test:workerd`.
  */
 import { env, SELF } from "cloudflare:test";
@@ -363,6 +363,7 @@ describe("staging's backer tier override on deployed Workers (S215)", () =>
 			sub,
 		}));
 		const unknown = await route.unknown();
+		const unknownHeaders = [...unknown.headers];
 		const unknownBody = await unknown.json();
 		for (const res of [await route.get(token), await route.put(token, {
 			tier: "Star Backer",
@@ -370,8 +371,17 @@ describe("staging's backer tier override on deployed Workers (S215)", () =>
 		{
 			expect(res.status).toBe(404);
 			expect(await res.json()).toEqual(unknownBody);
+			expect([...res.headers]).toEqual(unknownHeaders);
 			expect(res.headers.get("Cache-Control")).toBe("no-store");
 		}
+		// The mock sign-in var copied beside production's Logto tenant still offers no override.
+		expect(overrideApp({
+			...deployed,
+			LOGTO_ENDPOINT: TEST_LOGTO_ENDPOINT,
+			LOGTO_APP_ID: TEST_LOGTO_APP_ID,
+			BT_MOCK_SIGN_IN: "1",
+			BT_TIER_OVERRIDE: "1",
+		}).app.context.auth.tierOverrideAllowed).toBeUndefined();
 		// An override row seeded straight into the repository changes nothing there.
 		const { uid } = await route.me(token);
 		await route.inScope(() => route.app.context.auth.users.setTierOverride(uid, "Premium Sponsor"));

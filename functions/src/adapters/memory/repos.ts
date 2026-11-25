@@ -552,6 +552,8 @@ export class InMemoryUserRepository implements UserRepository
 
 	async setTierOverride(uid: string, tier: PatronTier | null): Promise<void>
 	{
+		// Only for an existing user, as Postgres's foreign key and setEntitlements have it.
+		if (!this.byUid.has(uid)) return;
 		if (tier === null) this.tierOverrides.delete(uid);
 		else this.tierOverrides.set(uid, tier);
 	}

@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-query";
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import { ACCOUNT_QUERY_KEY, useSession } from "../session/session.js";
+import { getSessionToken } from "../session/token.js";
 import { fetchTierOverride, saveTierOverride } from "./client.js";
 
 export type TierOverride = Awaited<ReturnType<typeof fetchTierOverride>>;
@@ -44,6 +45,13 @@ export function useSetTierOverride(): UseMutationResult<void, Error, PatronTier 
 			const { token, ...answer } = await saveTierOverride(tier);
 			client.setQueryData(tierOverrideQuery.queryKey, answer);
 			await session.keepSession(token);
+		},
+		// The server may have saved the choice before the request failed: keep the session there is, which reloads
+		// `/api/v1/me` (its entitlements read the stored choice) and asks for the choice again, so both match the server.
+		onError: async () =>
+		{
+			const token = getSessionToken();
+			if (token) await session.keepSession(token);
 		},
 	});
 }

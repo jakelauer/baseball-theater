@@ -516,6 +516,12 @@ describe("staging's backer tier override (S215)", () =>
 			BT_TIER_OVERRIDE: "1",
 		})).toBe(false);
 		expect(tierOverrideAllowed(preview)).toBe(false);
+		// The mock sign-in var copied beside production's Logto tenant still offers no override: the Logto guard holds.
+		expect(tierOverrideAllowed({
+			...production,
+			BT_MOCK_SIGN_IN: "1",
+			BT_TIER_OVERRIDE: "1",
+		})).toBe(false);
 		const { BT_TIER_OVERRIDE: _var, ...withoutVar } = staging;
 		expect(tierOverrideAllowed(withoutVar)).toBe(false);
 		// Any value but "1" is off; and the local server's env, which sets neither var, is off.
