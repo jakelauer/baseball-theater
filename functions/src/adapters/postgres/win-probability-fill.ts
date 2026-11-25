@@ -16,6 +16,10 @@
  * purge credentials or app origin, so for each filled game whose official date is within that lifetime
  * (`PAST_EDGE_TTL_S`; an older copy has expired) it owes the purge of its edge paths (`gameEdgePaths`: its game URL
  * and every day that lists it) as paths alone; the Worker's cron sends them under its origin (`retryOwedEdgePurges`).
+ * It owes them before it writes the lines (Claude's review of #573): the next run reads only rows still unchecked, so
+ * paths owed after the write would be lost for good if owing failed, while paths owed first for a row whose write then
+ * fails or loses a race cost at most one extra purge. Two statements rather than one transaction, since the deploy's
+ * connection may go through Neon's pooler and nothing else here needs one.
  */
 import type { GamePlayMetrics } from "@bt/domain";
 import { addDays, scoreboardWinProbability } from "@bt/domain";
@@ -33,6 +37,8 @@ export type WinProbabilityFillOptions = {
 	batchRows?: number;
 	maxBatches?: number;
 	now?: Date;
+	/** Where the edge paths are owed (tests pass one that fails); the database's `owed_edge_purges` by default. */
+	owe?: (paths: readonly string[], at: string) => Promise<void>;
 };
 
 /** What a fill did: the rows it read (`checked`), those it gave a line (`filled`), the batches, and the edge paths it owed. */
@@ -52,6 +58,8 @@ export type WinProbabilityFillResult = {
 export async function fillWinProbability(db: PostgresDb, options: WinProbabilityFillOptions = {}): Promise<WinProbabilityFillResult>
 {
 	const batchRows = options.batchRows ?? WIN_PROBABILITY_FILL_BATCH;
+	const owed = new PostgresOwedEdgePurgeRepository(db);
+	const owe = options.owe ?? ((paths: readonly string[], at: string) => owed.owe(paths, at));
 	const now = options.now ?? new Date();
 	const at = now.toISOString();
 	// The oldest official date whose past day may still be at the edge without its line.
@@ -98,6 +106,17 @@ export async function fillWinProbability(db: PostgresDb, options: WinProbability
 		}
 		if (lines.length > 0)
 		{
+			// Owed first (see the module comment): a failure here stops the run before any line is written.
+			const recent = lines.filter((line) => line.official_date >= edgeFrom).map((line) => ({
+				gamePk: line.game_pk,
+				officialDate: line.official_date,
+			}));
+			const paths = await gameEdgePaths(new PostgresScheduleRepository(db), recent);
+			if (paths.length > 0)
+			{
+				await owe(paths, at);
+				result.owed += paths.length;
+			}
 			const written = await db.execute(sql`UPDATE game_states s SET
 					win_probability = v.line,
 					version = s.version + 1,
@@ -105,18 +124,7 @@ export async function fillWinProbability(db: PostgresDb, options: WinProbability
 				FROM jsonb_to_recordset(${JSON.stringify(lines)}::jsonb) AS v(game_pk integer, version integer, line jsonb)
 				WHERE s.game_pk = v.game_pk AND s.version = v.version AND s.win_probability IS NULL
 				RETURNING s.game_pk`) as unknown as { rows: { game_pk: number | string }[] };
-			const filled = new Set(written.rows.map((row) => Number(row.game_pk)));
-			result.filled += filled.size;
-			const recent = lines.filter((line) => filled.has(line.game_pk) && line.official_date >= edgeFrom).map((line) => ({
-				gamePk: line.game_pk,
-				officialDate: line.official_date,
-			}));
-			const paths = await gameEdgePaths(new PostgresScheduleRepository(db), recent);
-			if (paths.length > 0)
-			{
-				await new PostgresOwedEdgePurgeRepository(db).owe(paths, at);
-				result.owed += paths.length;
-			}
+			result.filled += written.rows.length;
 		}
 		const last = read.rows.at(-1);
 		if (!last || read.rows.length < batchRows) break;

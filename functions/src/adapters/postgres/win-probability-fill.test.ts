@@ -83,6 +83,24 @@ describe("the win-probability fill (S161 AC 4)", () =>
 		expect((await fillWinProbability(db)).checked).toBe(0);
 	});
 
+	it("S161 AC 4 owe failure retried: if owing the edge paths fails, no line is written, and the next run owes them and fills", async () =>
+	{
+		const { db, states } = await storedBeforeS161([await game823823()]);
+		const now = new Date("2026-09-20T12:00:00Z");
+		await expect(fillWinProbability(db, {
+			now,
+			owe: () => Promise.reject(new Error("owe broke")),
+		})).rejects.toThrow("owe broke");
+		expect((await states.getByPk(PK))?.winProbability).toBeUndefined();
+		const second = await fillWinProbability(db, {
+			now,
+		});
+		expect(second.filled).toBe(1);
+		const owed = ((await db.execute(sql`SELECT url FROM owed_edge_purges`)) as unknown as { rows: { url: string }[] }).rows.map((row) => row.url);
+		expect(owed).toContain("/api/v1/games/823823");
+		expect(owed).toContain("/api/v1/schedule?date=2026-09-05");
+	});
+
 	it("S161 AC 4 owes recent edge paths: only filled games inside the past-day edge lifetime owe their purges, as paths", async () =>
 	{
 		// 823823 (2026-09-05) is 15 days before the fill; 900021's official date is far older than the 30-day lifetime.

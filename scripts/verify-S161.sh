@@ -126,7 +126,7 @@ else
 fi
 grep -qE 'fillWinProbability|WinProbabilityFill' functions/src/adapters/postgres/migrate.ts functions/src/scripts/*.ts 2>/dev/null || bad 4 "neither migrateDatabaseAt nor a functions/src/scripts/ script runs the fill"
 for name in "S161 AC 4 fills a stored game" "S161 AC 4 no play metrics stays null" "S161 AC 4 second run writes nothing" "S161 AC 4 resumes after a stop" \
-	"S161 AC 4 second run reads no checked row" "S161 AC 4 owes recent edge paths"; do
+	"S161 AC 4 second run reads no checked row" "S161 AC 4 owes recent edge paths" "S161 AC 4 owe failure retried"; do
 	in_file "$FN" "$FILL_TEST" "$name" || bad 4 "test '$name' did not pass"
 done
 # Pre-PR review round (rule 7): a filled past game's edge copy is owed its purge, sent under the origin by the cron,
