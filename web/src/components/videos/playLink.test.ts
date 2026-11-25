@@ -7,7 +7,9 @@ import type { AtBat } from "@bt/domain";
 import {
 	describe, expect, it,
 } from "vitest";
-import { playInningLink, videoPlayLink } from "./playLink.js";
+import {
+	gameVideosLink, playInningLink, videoPlayLink,
+} from "./playLink.js";
 
 describe("playInningLink (S145)", () =>
 {
@@ -84,5 +86,22 @@ describe("playInningLink (S145)", () =>
 		expect(videoPlayLink({
 			playId: "nope",
 		}, game)).toBeNull();
+	});
+});
+
+describe("gameVideosLink (S173; standings-search-settings A10's game pill)", () =>
+{
+	it("S173 AC 2: More from game →, spoken More from game: <away @ home, date>, to the game's Videos tab", () =>
+	{
+		expect(gameVideosLink({
+			gamePk: 823823,
+			away: "NYY",
+			home: "BOS",
+			officialDate: "2026-09-21",
+		})).toEqual({
+			label: "More from game \u2192",
+			name: "More from game: NYY @ BOS, Sep 21",
+			to: "/game/823823/videos",
+		});
 	});
 });

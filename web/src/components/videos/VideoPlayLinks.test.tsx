@@ -141,7 +141,7 @@ describe("video play links (S97)", () =>
 		const dialog = await screen.findByRole("dialog");
 		const link = await within(dialog).findByTestId("player-play-link");
 		expect(link.textContent).toBe(conineLabel);
-		expect(within(dialog).queryByText(/Go to game/)).toBeNull();
+		expect(within(dialog).queryByTestId("player-game-link")).toBeNull();
 		fireEvent.click(link);
 		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 		expect(screen.getByTestId("where").textContent).toBe(`/game/823823/plays?play=${encodeURIComponent(CONINE.playId!)}`);

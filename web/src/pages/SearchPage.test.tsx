@@ -119,6 +119,7 @@ function renderSearch(entry = "/search")
 					<Routes>
 						<Route path="/search" element={<><SearchPage variant="desktop" /><Where /></>} />
 						<Route path="/game/:gamePk" element={<p>game page</p>} />
+						<Route path="/game/:gamePk/videos" element={<p>game videos</p>} />
 						<Route path="/game/:gamePk/plays" element={<><p>plays room</p><Where /></>} />
 					</Routes>
 				</MemoryRouter>
@@ -199,7 +200,7 @@ describe("Search Highlights (S5)", () =>
 		expect(asked).toEqual([]);
 	});
 
-	it("S5 AC 9: a tapped result plays in the floating player even with the stage setting, linking to its game; Close returns to the same results and words", async () =>
+	it("S5 AC 9: a tapped result plays in the floating player even with the stage setting, with its game pill (S173); Close returns to the same results and words", async () =>
 	{
 		serve(() => WALK_OFF, {
 			...DEFAULT_SETTINGS,
@@ -213,9 +214,9 @@ describe("Search Highlights (S5)", () =>
 			name: "Play Ben Williamson's walk-off single to win Game 4",
 		}));
 		const link = await screen.findByRole("link", {
-			name: "Go to game: MIL @ TB, Oct 27 →",
+			name: "More from game: MIL @ TB, Oct 27",
 		});
-		expect(link).toHaveAttribute("href", "/game/849803");
+		expect(link).toHaveAttribute("href", "/game/849803/videos");
 		await userEvent.click(screen.getByRole("button", {
 			name: "Close video",
 		}));
@@ -230,7 +231,7 @@ describe("Search Highlights (S5)", () =>
 		expect(asked).toEqual(["walk-off"]);
 	});
 
-	it("S5 AC 9: Esc closes the player back to the results; a clip with no game shows no game link; the game link opens the game", async () =>
+	it("S5 AC 9: Esc closes the player back to the results; a clip with no game shows no game pill; the game pill opens the game's videos", async () =>
 	{
 		serve(() => WALK_OFF);
 		renderSearch("/search?q=walk-off");
@@ -241,7 +242,7 @@ describe("Search Highlights (S5)", () =>
 			name: "Close video",
 		});
 		expect(screen.queryByRole("link", {
-			name: /Go to game/,
+			name: /More from game/,
 		})).toBeNull();
 		await userEvent.keyboard("{Escape}");
 		await waitFor(() => expect(screen.queryByRole("button", {
@@ -253,9 +254,9 @@ describe("Search Highlights (S5)", () =>
 			name: "Play Ben Williamson's walk-off single to win Game 4",
 		}));
 		await userEvent.click(await screen.findByRole("link", {
-			name: "Go to game: MIL @ TB, Oct 27 →",
+			name: "More from game: MIL @ TB, Oct 27",
 		}));
-		expect(await screen.findByText("game page")).toBeInTheDocument();
+		expect(await screen.findByText("game videos")).toBeInTheDocument();
 	});
 
 	it("a query of only hyphens asks nothing and shows no error, as an empty box does", async () =>
@@ -764,5 +765,102 @@ describe("Search's inning pill (S153; game-shell A6 search-playmeta-*)", () =>
 		const shown = await lines(false);
 		expect(shown[0]).toEqual(["Oct 7, 2026", "Top 6 →", "/game/849838/plays?play=4f687124-5ec9-337b-a32b-2dedc930bcee", "Top 6: open play, top of 6th inning"]);
 		expect(await lines(true)).toEqual(shown);
+	});
+});
+
+/**
+ * Three results of MLB's recorded "walk-off" search (`fixtures/search-walk-off.json`) as the route gives
+ * them (S173): Game 4's walk-off with its play (MLB's `guid`, `inningHalf: "Bottom"`, `inning: 12`), a
+ * radio call with its game but no play, and the season montage MLB ties to no game (`gamePk: -1`).
+ */
+const WS_PLAY: SearchHighlightsPayload["highlights"][number] = {
+	...WORLD_SERIES,
+	highlight: {
+		...WORLD_SERIES.highlight,
+		playId: "2c372a74-a8c3-3c0f-bec5-f1098f389117",
+	},
+	halfInning: "bottom",
+	inning: 12,
+};
+
+const CHOURIO: SearchHighlightsPayload["highlights"][number] = {
+	highlight: {
+		id: "c75b5bbe-a715-4f8b-a4c7-0af1c243faa3",
+		playId: null,
+		title: "Radio call of Jackson Chourio's walk-off single",
+		blurb: "Radio call of Jackson Chourio's walk-off single",
+		duration: "00:00:41",
+		imageUrl: null,
+		playbackUrl: "https://mlb-cuts-diamond.mlb.com/chourio.mp4",
+		renditions: [],
+		kind: "highlight",
+		date: "2026-10-04",
+	},
+	game: {
+		gamePk: 849825,
+		officialDate: "2026-10-04",
+		away: "SD",
+		home: "MIL",
+		awayId: 135,
+		homeId: 158,
+	},
+	halfInning: null,
+	inning: null,
+};
+
+/** Opens the result titled `title` from the three, with `settings`; the player's pills by spoken name. */
+async function searchPills(title: string, settings = DEFAULT_SETTINGS): Promise<string[]>
+{
+	serve(() => ({
+		...WALK_OFF,
+		highlights: [WS_PLAY, CHOURIO, MONTAGE],
+	}), settings);
+	if (settings !== DEFAULT_SETTINGS) await hydrateSettings("test-user");
+	renderSearch("/search?q=walk-off");
+	await userEvent.click(await screen.findByRole("link", {
+		name: `Play ${title}`,
+	}));
+	const dialog = await screen.findByRole("dialog");
+	const row = await within(dialog).findByTestId("player-pills");
+	return within(row).queryAllByRole("link").map((link) => link.getAttribute("aria-label") ?? "");
+}
+
+describe("Search's player pills (S173; standings-search-settings A10 search-playing-pills-*)", () =>
+{
+	it("S173 AC 4: a result with a play shows More from game, then its inning pill, as its row builds it", async () =>
+	{
+		expect(await searchPills(WS_PLAY.highlight.title)).toEqual(["More from game: MIL @ TB, Oct 27", "Bot 12: open play, bottom of 12th inning"]);
+		const dialog = screen.getByRole("dialog");
+		expect(within(dialog).getByRole("link", {
+			name: "Bot 12: open play, bottom of 12th inning",
+		})).toHaveAttribute("href", "/game/849803/plays?play=2c372a74-a8c3-3c0f-bec5-f1098f389117");
+		expect(within(dialog).queryByText(/Go to game/)).toBeNull();
+	});
+
+	it("S173 AC 4: a result with a game and no play shows the game pill alone", async () =>
+	{
+		expect(await searchPills(CHOURIO.highlight.title)).toEqual(["More from game: SD @ MIL, Oct 4"]);
+	});
+
+	it("S173 AC 4: a result with no game (gamePk -1) shows no pill", async () =>
+	{
+		expect(await searchPills(MONTAGE.highlight.title)).toEqual([]);
+		expect(screen.getByRole("button", {
+			name: "Close video",
+		})).toBeInTheDocument();
+	});
+
+	it("S173 AC 6: Hide Scores changes neither pill in Search's player", async () =>
+	{
+		const shown = await searchPills(WS_PLAY.highlight.title);
+		cleanup();
+		resetSettings();
+		const hidden = await searchPills(WS_PLAY.highlight.title, {
+			...DEFAULT_SETTINGS,
+			hideScores: true,
+			version: 1,
+		});
+		expect(hidden).toEqual(shown);
+		expect(hidden).toHaveLength(2);
 	});
 });

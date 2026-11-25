@@ -14,11 +14,9 @@ import { ViewState } from "../components/ViewState.js";
 import { queryScreen } from "../components/queryScreen.js";
 import type { SearchFilterName } from "../components/search/SearchFilterChips.js";
 import { SearchFilterChips } from "../components/search/SearchFilterChips.js";
-import { gameLabel } from "../components/videos/gameLabel.js";
+import { resultPlayLink } from "../components/search/resultPlayLink.js";
 import { LazyPlayerDialog } from "../components/videos/LazyPlayerDialog.js";
 import { useOpenClip } from "../components/videos/openClip.js";
-import { playInningLink } from "../components/videos/playLink.js";
-import type { PlayLink } from "../components/videos/playLink.js";
 import { VideoCard } from "../components/videos/VideoCard.js";
 import { VideoGrid } from "../components/videos/VideoGrid.js";
 import type { VideoLayout } from "../components/videos/VideoLayoutToggle.js";
@@ -27,25 +25,6 @@ import type { LayoutVariant } from "../layout/variant.js";
 
 /** One search result: MLB's clip, the game it belongs to (null when MLB ties it to none) and its play's half-inning and inning. */
 type SearchResult = SearchHighlightsPayload["highlights"][number];
-
-/**
- * A result's link to its play (S153; game-shell A6): `playInningLink` from the route's play id,
- * half-inning and inning and the game's pk. Null unless all four are there: a clip with no play, or
- * one MLB ties to no game (`gamePk: -1`, so `game` is null), has no pill, and BT never loads the game
- * to find what MLB left out (owner, 2026-11-19: "Show no pill (Recommended)").
- */
-function resultPlayLink({
-	highlight, game, halfInning, inning,
-}: SearchResult): PlayLink | null
-{
-	if (!game || !highlight.playId || !halfInning || inning === null) return null;
-	return playInningLink({
-		gamePk: game.gamePk,
-		playId: highlight.playId,
-		halfInning,
-		inning,
-	});
-}
 
 /**
  * Search Highlights (S5; standings-search-settings `search-*`, retitled by A2 for a highlights-only
@@ -69,7 +48,8 @@ function resultPlayLink({
  * a new search from it searches the words without that URL's filters.
  *
  * A card plays its clip in S70's floating player over the results, whatever the Video Player setting
- * (there is no stage on Search), with the link to its game when it has one (A2, A6). The open clip is in the
+ * (there is no stage on Search), with A10's pills (S173): the game pill when the result has a game, then
+ * its inning pill when it has a play (`resultPlayLink`, as its card builds it). The open clip is in the
  * URL too (`?clip=`, `useOpenClip`, #424), so each card is a link a middle-click opens in a new tab; a new
  * search drops it. Loading, no
  * results and error are `ViewState`'s generic treatment, through `queryScreen` (S28's one "keep
@@ -173,11 +153,9 @@ export function SearchPage({ variant }: { variant: LayoutVariant })
 					video={playing.highlight}
 					onClose={close}
 					{...playing.game && {
-						game: {
-							gamePk: playing.game.gamePk,
-							label: gameLabel(playing.game),
-						},
+						game: playing.game,
 					}}
+					playLink={resultPlayLink(playing)}
 				/>
 			) : null}
 		</Stack>
