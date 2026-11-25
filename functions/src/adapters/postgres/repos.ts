@@ -111,11 +111,13 @@ export class PostgresScheduleRepository implements ScheduleRepository
 
 	/**
 	 * One statement: the version-guarded write and the `served_base` raise (`servedBaseRaise`, the dropped games' state
-	 * versions read in this same statement) land together or not at all (S150 AC 6). A new day drops nothing.
+	 * versions read in this same statement) land together or not at all (S150 AC 6). A new day drops nothing. S216: the
+	 * statement returns the `served_base` it left (`RETURNING`), and no row when the version guard refused it, so the
+	 * caller answers from the day it formed with no read-back.
 	 */
-	async upsert(day: StoredScheduleDay): Promise<void>
+	async upsert(day: StoredScheduleDay): Promise<number | null>
 	{
-		await this.db.insert(scheduleDays).values({
+		const [stored] = await this.db.insert(scheduleDays).values({
 			date: day.date,
 			version: day.version,
 			document: day,
@@ -127,7 +129,10 @@ export class PostgresScheduleRepository implements ScheduleRepository
 				document: sql`excluded.document`,
 			},
 			setWhere: sql`excluded.version > ${scheduleDays.version}`,
+		}).returning({
+			servedBase: scheduleDays.servedBase,
 		});
+		return stored ? Number(stored.servedBase) : null;
 	}
 
 	/**
@@ -347,6 +352,45 @@ export class PostgresGameRepository implements GameRepository
 		await upsertGame(this.db, game);
 	}
 
+	/** One statement over the primary key (S216 AC 2): a day's games in one read. */
+	async getMany(gamePks: readonly number[]): Promise<GameSnapshot[]>
+	{
+		if (gamePks.length === 0) return [];
+		const rows = await this.db.select({
+			document: games.document,
+		}).from(games).where(inArray(games.gamePk, [...new Set(gamePks)]));
+		return rows.map((row) => row.document);
+	}
+
+	/**
+	 * One statement for the whole batch (S216 AC 2), `upsertGame`'s version guard applied per row by the database; the
+	 * rows it took come back (`RETURNING`), so a row a newer stored version refused is left out. Written in gamePk order,
+	 * one row per gamePk (its newest version: one statement can't write a row twice), so two batches over the same games
+	 * lock them in the same order.
+	 */
+	async upsertMany(batch: readonly GameSnapshot[]): Promise<number[]>
+	{
+		const rows = newestByKey(batch, (game) => game.gamePk, (game) => game.version);
+		if (rows.length === 0) return [];
+		const taken = await this.db.insert(games).values(rows.map((game) => ({
+			gamePk: game.gamePk,
+			officialDate: game.officialDate,
+			version: game.version,
+			document: game,
+		}))).onConflictDoUpdate({
+			target: games.gamePk,
+			set: {
+				officialDate: sql`excluded.official_date`,
+				version: sql`excluded.version`,
+				document: sql`excluded.document`,
+			},
+			setWhere: sql`excluded.version > ${games.version}`,
+		}).returning({
+			gamePk: games.gamePk,
+		});
+		return taken.map((row) => row.gamePk);
+	}
+
 	/**
 	 * Each document is read once (`jsonb_to_record`), not once per field, and only its status, linescore, live moment
 	 * and last at-bat's matchup leave the database.
@@ -563,6 +607,40 @@ export class PostgresGameProjectionRepository implements GameProjectionRepositor
 			setWhere: sql`excluded.version > ${gameProjections.version}`,
 		});
 	}
+
+	/** One statement for the whole batch (S216 AC 2), as {@link PostgresGameRepository.upsertMany}: the rows it took come back. */
+	async upsertMany(batch: readonly GameProjection[]): Promise<number[]>
+	{
+		const rows = newestByKey(batch, (projection) => projection.header.gamePk, (projection) => projection.header.version);
+		if (rows.length === 0) return [];
+		const taken = await this.db.insert(gameProjections).values(rows.map((projection) => ({
+			gamePk: projection.header.gamePk,
+			version: projection.header.version,
+			document: projection,
+		}))).onConflictDoUpdate({
+			target: gameProjections.gamePk,
+			set: {
+				version: sql`excluded.version`,
+				document: sql`excluded.document`,
+			},
+			setWhere: sql`excluded.version > ${gameProjections.version}`,
+		}).returning({
+			gamePk: gameProjections.gamePk,
+		});
+		return taken.map((row) => row.gamePk);
+	}
+}
+
+/** One value per key, the newest by `versionOf`, in key order: what a multi-row upsert writes (S216). */
+function newestByKey<T>(values: readonly T[], keyOf: (value: T) => number, versionOf: (value: T) => number): T[]
+{
+	const newest = new Map<number, T>();
+	for (const value of values)
+	{
+		const held = newest.get(keyOf(value));
+		if (held === undefined || versionOf(value) > versionOf(held)) newest.set(keyOf(value), value);
+	}
+	return [...newest.values()].sort((a, b) => keyOf(a) - keyOf(b));
 }
 
 export class PostgresReplayArtifactRepository implements ReplayArtifactRepository

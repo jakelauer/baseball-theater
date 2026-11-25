@@ -213,7 +213,7 @@ function counted(base: { schedules: ScheduleRepository;
 			upsert: async (day) =>
 			{
 				writes.push(`schedule ${day.date}`);
-				await base.schedules.upsert(day);
+				return base.schedules.upsert(day);
 			},
 		},
 		gameStates: base.gameStates,
@@ -230,6 +230,12 @@ function counted(base: { schedules: ScheduleRepository;
 				writes.push(`game ${game.gamePk}`);
 				await base.games.upsert(game);
 			},
+			getMany: (pks) => base.games.getMany(pks),
+			upsertMany: async (games) =>
+			{
+				for (const game of games) writes.push(`game ${game.gamePk}`);
+				return base.games.upsertMany(games);
+			},
 		},
 		projections: {
 			getByPk: (pk) => base.projections.getByPk(pk),
@@ -242,6 +248,19 @@ function counted(base: { schedules: ScheduleRepository;
 				}
 				writes.push(`projection ${projection.header.gamePk}`);
 				await base.projections.upsert(projection);
+			},
+			upsertMany: async (projections) =>
+			{
+				for (const projection of projections)
+				{
+					if (projection.header.gamePk === failProjectionFor && !failed)
+					{
+						failed = true;
+						throw new Error("killed between the snapshot and projection writes");
+					}
+					writes.push(`projection ${projection.header.gamePk}`);
+				}
+				return base.projections.upsertMany(projections);
 			},
 		},
 	};
