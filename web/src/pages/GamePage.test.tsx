@@ -154,6 +154,19 @@ describe("GamePage top bar (S40)", () =>
 		expect(bar.getByText("Jul 4, 2024")).toBeInTheDocument();
 	});
 
+	it.fails("B528: the room tabs share the top bar's row with the back button and date (#528)", async () =>
+	{
+		// Owner, 2026-11-24: "Game pages have the tabs as one row, and the date/back button as a row above that. I'd prefer that to be all one row."
+		// Parked (expected to fail): every ratified game-shell frame draws the tabs on their own row under the
+		// top bar, so the fix waits on the owner's design call; the fix turns this back into a plain `it`.
+		serve(fixture(744834));
+		renderGame("/game/744834", "desktop");
+
+		const bar = await screen.findByTestId("game-topbar");
+		const rooms = screen.getAllByRole("tablist")[0]!;
+		expect(bar.contains(rooms)).toBe(true);
+	});
+
 	it("never shows the score, the venue, or the status", async () =>
 	{
 		serve(fixture(744834));

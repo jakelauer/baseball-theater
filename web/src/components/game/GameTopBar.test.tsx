@@ -99,6 +99,21 @@ describe("GameTopBar's status marker (S170)", () =>
 		expect(date.style.flexShrink).toBe("0");
 	});
 
+	it.fails("B530: the date sits beside the back button and the matchup after it, so back reads as returning to that day's games (#530)", () =>
+	{
+		// Owner, 2026-11-24: "The team @ team label and the date label in the top bar should swap, to show that the back button returns to the game list."
+		// Parked (expected to fail): every ratified game-shell frame draws "← NYY @ BOS" with the date at the
+		// right, so the fix waits on the owner's design call; the fix turns this back into a plain `it`.
+		const bar = renderBar("F", "desktop");
+		const back = within(bar).getByRole("link", {
+			name: "Back to scoreboard",
+		});
+		const date = within(bar).getByText("Sep 21, 2026");
+		const matchup = within(bar).getByText("NYY @ BOS");
+		expect(back.compareDocumentPosition(date) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		expect(date.compareDocumentPosition(matchup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
 	for (const code of ["P", "PW", "S", "F"])
 	{
 		it(`S170 AC 3 none: ${code} shows no marker at any pairing`, () =>
