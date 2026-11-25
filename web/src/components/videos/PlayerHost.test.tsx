@@ -250,11 +250,11 @@ describe("PlayerHost", () =>
 		const card = append(document.createElement("button"));
 		card.focus();
 		const onClose = await renderChosen();
-		const play = screen.getByRole("button", {
-			name: "Play",
-		});
-		play.focus();
-		pressEscape(play);
+		// The clip itself, which carries the browser's built-in controls (#579).
+		const video = screen.getByTestId("video-player").querySelector("video")!;
+		video.tabIndex = 0;
+		video.focus();
+		pressEscape(video);
 		expect(onClose).toHaveBeenCalledTimes(1);
 		expect(document.activeElement).toBe(card);
 	});

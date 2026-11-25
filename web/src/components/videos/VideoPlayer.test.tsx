@@ -4,7 +4,7 @@
  */
 import { MantineProvider } from "@mantine/core";
 import {
-	cleanup, fireEvent, render, screen, waitFor, within,
+	cleanup, fireEvent, render, screen, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -60,13 +60,12 @@ function wrap(node: React.ReactNode)
 
 describe("VideoPlayer", () =>
 {
-	it("disclaimer: shows the MLBAM disclaimer verbatim under the clip, with the title and the time", () =>
+	it("disclaimer: shows the MLBAM disclaimer verbatim under the clip, with the title", () =>
 	{
 		wrap(<VideoPlayer video={VIDEO} />);
 		expect(screen.getByText("Disclaimer:")).toBeInTheDocument();
 		expect(screen.getByText("This video is provided by MLBAM and MLB.com and has no affiliation with or connection to Baseball Theater. It has been displayed on your device via a public API provided by Major League Baseball.")).toBeInTheDocument();
 		expect(screen.getByText(VIDEO.title)).toBeInTheDocument();
-		expect(screen.getByText("0:00 / 0:00")).toBeInTheDocument();
 	});
 
 	it("plays inline: iOS Safari keeps the clip in the page instead of taking it fullscreen", () =>
@@ -83,9 +82,6 @@ describe("VideoPlayer", () =>
 		wrap(<><input aria-label="Search videos" /><VideoPlayer video={VIDEO} /></>);
 		await user.keyboard(" ");
 		expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
-		await waitFor(() => expect(screen.getByRole("button", {
-			name: "Pause",
-		})).toBeInTheDocument());
 		await user.keyboard(" ");
 		expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledTimes(1);
 		await user.click(screen.getByRole("textbox", {
@@ -98,45 +94,102 @@ describe("VideoPlayer", () =>
 
 describe("VideoPlayer controls", () =>
 {
-	it("the play control and the clip itself toggle playback, and the bar and clock follow the clip's time", async () =>
+	it("Space on the clip itself is left to its built-in controls (#579)", async () =>
 	{
-		const user = userEvent.setup();
 		wrap(<VideoPlayer video={VIDEO} />);
 		const clip = screen.getByTestId("video-player").querySelector("video")!;
-		Object.defineProperty(clip, "duration", {
-			value: 48,
-		});
-		Object.defineProperty(clip, "currentTime", {
-			value: 12,
-		});
-		fireEvent.loadedMetadata(clip);
-		fireEvent.timeUpdate(clip);
-		expect(screen.getByText("0:12 / 0:48")).toBeInTheDocument();
-		expect(screen.getByRole("progressbar", {
-			name: "Progress",
-		})).toHaveAttribute("aria-valuenow", "12");
-		await user.click(screen.getByRole("button", {
-			name: "Play",
-		}));
-		expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
-		await user.click(clip);
-		expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledTimes(1);
+		clip.tabIndex = 0;
+		clip.focus();
+		await userEvent.keyboard(" ");
+		expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
 	});
 
 	it("a clip without a source or still still renders, and Space on a button is left to the button", async () =>
 	{
 		const user = userEvent.setup();
-		wrap(<VideoPlayer video={{
+		wrap(<><button type="button">Elsewhere</button><VideoPlayer video={{
 			...VIDEO,
 			playbackUrl: null,
 		}}
-		/>);
+		/></>);
 		screen.getByRole("button", {
-			name: "Play",
+			name: "Elsewhere",
 		}).focus();
 		await user.keyboard(" ");
-		// The focused button's own Space press plays once; the player's listener adds nothing.
+		// The focused button's own Space press is its own; the player's listener plays nothing.
+		expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+	});
+});
+
+describe("VideoPlayer built-in controls (#579, #581, #589)", () =>
+{
+	it("uses the browser's own controls, inline on iPhone, with BT's tools still below (#579)", () =>
+	{
+		wrap(<VideoPlayer video={{
+			...VIDEO,
+			renditions: [{
+				name: "mp4Avc",
+				url: "https://example.test/clip_1280x720_59_4000K.mp4",
+			}, {
+				name: "highBit",
+				url: "https://example.test/clip_1280x720_59_16000K.mp4",
+			}],
+		}}
+		/>);
+		const player = screen.getByTestId("video-player");
+		const clip = player.querySelector("video");
+		// Seek, mute and volume, fullscreen, captions, AirPlay and picture-in-picture come with `controls`.
+		expect(clip).toHaveAttribute("controls");
+		expect(clip).toHaveAttribute("playsinline");
+		expect(clip).toHaveAttribute("webkit-playsinline");
+		// The custom bar is gone: no play button, no display-only progress line, no clock.
+		expect(screen.queryByRole("button", {
+			name: /^(Play|Pause)$/,
+		})).toBeNull();
+		expect(screen.queryByRole("progressbar")).toBeNull();
+		expect(screen.queryByText("0:00 / 0:00")).toBeNull();
+		// BT's own tools stay in the row below the video.
+		expect(screen.getByRole("button", {
+			name: /^Quality:/,
+		})).toBeInTheDocument();
+		const actions = screen.getByRole("toolbar", {
+			name: "Video actions",
+		});
+		expect(within(actions).getByRole("button", {
+			name: "Copy link",
+		})).toBeInTheDocument();
+		expect(within(actions).getByRole("link", {
+			name: "Direct link",
+		})).toBeInTheDocument();
+	});
+
+	it("at the end of a clip the picture keeps its source and still, and play starts it again from the start (#581)", async () =>
+	{
+		const user = userEvent.setup();
+		wrap(<VideoPlayer video={{
+			...VIDEO,
+			imageUrl: "https://example.test/still.jpg",
+		}}
+		/>);
+		const clip = screen.getByTestId("video-player").querySelector("video")!;
+		clip.currentTime = 48;
+		fireEvent.ended(clip);
+		expect(clip).toHaveAttribute("src", VIDEO.playbackUrl);
+		expect(clip).toHaveAttribute("poster", "https://example.test/still.jpg");
+		await user.keyboard(" ");
 		expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
+		expect(clip.currentTime).toBe(0);
+	});
+
+	it("the disclaimer is no smaller than the player's other small text, Mantine xs, not 10px (#589)", () =>
+	{
+		wrap(<VideoPlayer video={VIDEO} />);
+		for (const text of ["Disclaimer:", /^This video is provided by MLBAM/])
+		{
+			const style = screen.getByText(text).getAttribute("style") ?? "";
+			expect(style).not.toMatch(/0\.625rem/);
+			expect(style).toMatch(/--mantine-font-size-(xs|sm)/);
+		}
 	});
 });
 
