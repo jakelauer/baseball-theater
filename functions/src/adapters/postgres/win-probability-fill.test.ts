@@ -21,7 +21,7 @@ import { fillWinProbability } from "./win-probability-fill.js";
 const PK = 823823;
 const AT = "2026-11-20T12:00:00.000Z";
 
-async function game823823(gamePk = PK, withMetrics = true): Promise<Unversioned<GameSnapshot>>
+async function game823823(gamePk = PK, withMetrics = true, officialDate?: string): Promise<Unversioned<GameSnapshot>>
 {
 	const { game } = await new FixtureMlbStatsClient().fetchGame(PK);
 	const { playMetrics, ...rest } = game;
@@ -29,6 +29,9 @@ async function game823823(gamePk = PK, withMetrics = true): Promise<Unversioned<
 		...rest,
 		gamePk,
 		fetchedAt: AT,
+		...officialDate && {
+			officialDate,
+		},
 		...withMetrics && playMetrics && {
 			playMetrics,
 		},
@@ -56,6 +59,46 @@ async function storedBeforeS161(games: Unversioned<GameSnapshot>[]): Promise<{ d
 
 describe("the win-probability fill (S161 AC 4)", () =>
 {
+	it("S161 AC 4 second run reads no checked row: rows with and without a line are each read once", async () =>
+	{
+		const { db, states } = await storedBeforeS161([await game823823(), await game823823(900002, false)]);
+		expect(await fillWinProbability(db)).toMatchObject({
+			checked: 2,
+			filled: 1,
+		});
+		expect(await fillWinProbability(db)).toMatchObject({
+			checked: 0,
+			filled: 0,
+		});
+		// The checked mark reads as no line, and a later write without one keeps it checked.
+		const unlined = await states.getByPk(900002);
+		expect(unlined).not.toHaveProperty("winProbability");
+		await states.write([{
+			...unlined!,
+			state: {
+				...unlined!.state,
+				version: unlined!.state.version + 1,
+			},
+		}]);
+		expect((await fillWinProbability(db)).checked).toBe(0);
+	});
+
+	it("S161 AC 4 owes recent edge paths: only filled games inside the past-day edge lifetime owe their purges, as paths", async () =>
+	{
+		// 823823 (2026-09-05) is 15 days before the fill; 900021's official date is far older than the 30-day lifetime.
+		const { db } = await storedBeforeS161([await game823823(), await game823823(900021, true, "2026-06-01")]);
+		const result = await fillWinProbability(db, {
+			now: new Date("2026-09-20T12:00:00Z"),
+		});
+		expect(result.filled).toBe(2);
+		const owed = ((await db.execute(sql`SELECT url FROM owed_edge_purges ORDER BY url`)) as unknown as { rows: { url: string }[] }).rows.map((row) => row.url);
+		expect(owed).toContain("/api/v1/games/823823");
+		expect(owed).toContain("/api/v1/schedule?date=2026-09-05");
+		expect(owed).toContain("/api/v1/digest?date=2026-09-05");
+		expect(owed.some((url) => url.includes("900021") || url.includes("2026-06-01"))).toBe(false);
+		expect(result.owed).toBe(owed.length);
+	});
+
 	it("S161 AC 4 fills a stored game: a game stored without its line has it after the step, as a new state version", async () =>
 	{
 		const game = await game823823();
@@ -97,7 +140,8 @@ describe("the win-probability fill (S161 AC 4)", () =>
 			batchRows: 2,
 			maxBatches: 1,
 		});
-		expect(stopped).toEqual({
+		expect(stopped).toMatchObject({
+			checked: 2,
 			filled: 2,
 			batches: 1,
 		});

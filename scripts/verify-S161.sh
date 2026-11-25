@@ -17,7 +17,7 @@ source "$(dirname "$0")/lib/checks.sh"
 check 1 "AC 1: scoreboardWinProbability in packages/domain/src/win-probability.ts is built only on winProbabilitySeries and returns { points, current } or null; tests named 'S161 AC 1' pass (the 823823 final game, the same game cut to its first half as live, the game with its play metrics removed)"
 check 2 "AC 2: the served schedule game gains winProbability additively: openapi/bt-api.v1.json and web/src/api/generated/bt-api.v1.ts carry it and are current (api:spec --check, api:types regenerated equal), api:breaking exits 0; a pregame game serves null whatever is stored (test named 'S161 AC 2' passes)"
 check 3 "AC 3: the line is stored on game_states (a win_probability column), written by the game's feed write (storeGames passes scoreboardWinProbability) whichever source holds the row, never cleared by a schedule write, and a line change alone stamps a new row version; tests named 'S161 AC 3' pass (schedule write keeps the line, first ingested after its window, one new play metric raises the day's version and lastChangedAt, a schedule read reads no game snapshot, the route serves 823823's line); S216's round-trip bounds still pass"
-check 4 "AC 4: the S161 migration only adds the column; a separate TypeScript fill step (run by migrateDatabaseAt or a functions/src/scripts/ script) fills rows still null whose game has play metrics, in batches; tests named 'S161 AC 4' pass on PGlite (fills a stored game, no play metrics stays null, a second run writes nothing, a run stopped after its first batch resumes)"
+check 4 "AC 4: the S161 migration only adds the column; a separate TypeScript fill step (run by migrateDatabaseAt or a functions/src/scripts/ script) fills rows still null whose game has play metrics, in batches; tests named 'S161 AC 4' pass on PGlite (fills a stored game, no play metrics stays null, a second run writes nothing and reads no checked row, a run stopped after its first batch resumes, recent filled games owe their edge purges as paths the cron sends under its origin, a failing fill never fails the migration)"
 check 5 "AC 5: functions/src/services/schedule-fixture.test.ts still passes (fixtures regenerated in the same change if recordNormalized's output changed)"
 check 6 "AC 6: S161 changed no file outside its fence (plus creating scripts/verify-S161.sh and its own records); its snapshot records Status done"
 
@@ -68,7 +68,9 @@ FILL_TEST=src/adapters/postgres/win-probability-fill.test.ts
 LINE_TEST=src/services/win-probability-line.test.ts
 RT=src/services/ingest.round-trips.test.ts
 SF=src/services/schedule-fixture.test.ts
-run_tests functions "$FN" "$LINE_TEST" "$FILL_TEST" "$RT" "$SF"
+MIG_TEST=src/adapters/postgres/migrate.test.ts
+EP_TEST=src/services/edge-purge.test.ts
+run_tests functions "$FN" "$LINE_TEST" "$FILL_TEST" "$RT" "$SF" "$MIG_TEST" "$EP_TEST"
 
 WP=packages/domain/src/win-probability.ts
 
@@ -123,9 +125,14 @@ else
 	done <<<"$mig"
 fi
 grep -qE 'fillWinProbability|WinProbabilityFill' functions/src/adapters/postgres/migrate.ts functions/src/scripts/*.ts 2>/dev/null || bad 4 "neither migrateDatabaseAt nor a functions/src/scripts/ script runs the fill"
-for name in "S161 AC 4 fills a stored game" "S161 AC 4 no play metrics stays null" "S161 AC 4 second run writes nothing" "S161 AC 4 resumes after a stop"; do
+for name in "S161 AC 4 fills a stored game" "S161 AC 4 no play metrics stays null" "S161 AC 4 second run writes nothing" "S161 AC 4 resumes after a stop" \
+	"S161 AC 4 second run reads no checked row" "S161 AC 4 owes recent edge paths"; do
 	in_file "$FN" "$FILL_TEST" "$name" || bad 4 "test '$name' did not pass"
 done
+# Pre-PR review round (rule 7): a filled past game's edge copy is owed its purge, sent under the origin by the cron,
+# and a failing fill never fails the deploy's migration.
+in_file "$FN" "$EP_TEST" "S161 AC 4 owed path" || bad 4 "test 'S161 AC 4 owed path' did not pass"
+in_file "$FN" "$MIG_TEST" "S161 AC 4 fill failure" || bad 4 "test 'S161 AC 4 fill failure' did not pass"
 
 # --- Check 5: the schedule fixtures ---
 file_passed "$FN" "$SF" || bad 5 "$SF did not pass"

@@ -175,6 +175,8 @@ export type MigrateOptions = {
 	/** Pass an `ahead` database with a warning instead of failing (production's and previews' deploys, via `MAY_BE_AHEAD_ENV`). */
 	mayBeAhead?: boolean;
 	warn?: (line: string) => void;
+	/** S161's fill, run after migrating; tests pass one that fails. Defaults to `fillWinProbability`. */
+	fill?: (db: PostgresDb) => Promise<{ filled: number }>;
 };
 
 /**
@@ -189,7 +191,8 @@ export type MigrateOptions = {
  *
  * Then it runs S161's fill (`fillWinProbability`): the win-probability line of every game stored before S161, a step of
  * its own after the migration that added the column, idempotent and resumable, so every deploy runs it and finds
- * nothing once it has finished. Skipped when the migrated folder has no such column (a test's own folder).
+ * nothing once it has finished. Skipped when the migrated folder has no such column (a test's own folder); a fill that
+ * fails is warned about, never thrown, since the migration has already applied.
  */
 export async function migrateDatabaseAt(connectionString: string, options: MigrateOptions = {}): Promise<void>
 {
@@ -223,8 +226,17 @@ export async function migrateDatabaseAt(connectionString: string, options: Migra
 		const { fillWinProbability, hasWinProbabilityColumn } = await import("./win-probability-fill.js");
 		if (await hasWinProbabilityColumn(db))
 		{
-			const fill = await fillWinProbability(db);
-			if (fill.filled > 0) console.log(`win-probability fill (S161): ${fill.filled} game(s) given their line`);
+			// The migration has applied; the fill is idempotent and resumable, so a failure is logged and the next deploy
+			// carries on from where it stopped, rather than failing this deploy after its migration.
+			try
+			{
+				const fill = await (options.fill ?? fillWinProbability)(db);
+				if (fill.filled > 0) console.log(`win-probability fill (S161): ${fill.filled} game(s) given their line`);
+			}
+			catch (error)
+			{
+				warn(`win-probability fill (S161) failed; the next deploy resumes it: ${String(error)}`);
+			}
 		}
 	}
 	finally

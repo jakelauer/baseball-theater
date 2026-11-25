@@ -275,7 +275,7 @@ function gameStateRow(row: typeof gameStates.$inferSelect): GameStateRow
 		officialDate: row.officialDate,
 		startTime: row.startTime,
 		state: row.document,
-		// S161: a null line is left out, as the port's other adapters hand over a row with none.
+		// S161: no line (SQL NULL, or the fill's JSON `null` mark, both read as null) is left out, as the other adapters do.
 		...row.winProbability !== null && {
 			winProbability: row.winProbability,
 		},
@@ -289,7 +289,9 @@ function gameStateRow(row: typeof gameStates.$inferSelect): GameStateRow
  * included) and its feed time is newer (ISO instants, so they compare as text), and then only the accepted feed time
  * and the source move, never the document, so one version never stands for two states (ADR-022). The accepted feed
  * time only moves forward (`GREATEST` ignores a null) and a write with no first pitch keeps the stored one. The line
- * (`win_probability`, S161) moves with the document: a newer version replaces it, and a same-version write never does. The rows
+ * (`win_probability`, S161) moves with the document: a newer version with a line replaces it, a newer one without keeps
+ * the stored one (a line never clears), and a same-version write never touches it. JSON `null` there is the fill's mark
+ * for a row checked and found without a line (`win-probability-fill.ts`), read as no line. The rows
  * are written in gamePk order, so two batches over the same games lock them in the same order.
  */
 export class PostgresGameStateRepository implements GameStateRepository
@@ -330,7 +332,8 @@ export class PostgresGameStateRepository implements GameStateRepository
 				officialDate: sql`CASE WHEN ${newer} THEN excluded.official_date ELSE ${gameStates.officialDate} END`,
 				startTime: sql`COALESCE(excluded.start_time, ${gameStates.startTime})`,
 				document: sql`CASE WHEN ${newer} THEN excluded.document ELSE ${gameStates.document} END`,
-				winProbability: sql`CASE WHEN ${newer} THEN excluded.win_probability ELSE ${gameStates.winProbability} END`,
+				// A line never clears: a newer row without one (SQL NULL) keeps the stored line, or the fill's "checked" mark.
+				winProbability: sql`CASE WHEN ${newer} THEN COALESCE(excluded.win_probability, ${gameStates.winProbability}) ELSE ${gameStates.winProbability} END`,
 			},
 			setWhere: sql`${newer}
 				OR (excluded.version = ${gameStates.version} AND excluded.document = ${gameStates.document}
