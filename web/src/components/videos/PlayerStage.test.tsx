@@ -181,3 +181,22 @@ describe("the stage's inning row (S172)", () =>
 		expect(within(stage()).getByTestId("stage-play-row").outerHTML).toBe(shown);
 	});
 });
+
+describe("the stage keeps its layout beside the inset dialog (S196)", () =>
+{
+	it("S196 AC 4: the stage draws its pill row above the <video> and its title under it, at sm, with the browser's controls", async () =>
+	{
+		await openStage();
+		await waitFor(() => expect(within(stage()).queryByTestId("stage-play-row")).not.toBeNull());
+		const row = within(stage()).getByTestId("stage-play-row");
+		const player = within(stage()).getByTestId("video-player");
+		const clip = player.querySelector("video")!;
+		const title = within(player).getByText(FIRST.title);
+		expect(row.compareDocumentPosition(clip) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+		expect(clip.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+		expect(title.getAttribute("style") ?? "").toMatch(/--mantine-font-size-sm/);
+		// One title, under the clip: none drawn above it.
+		expect(within(player).getAllByText(FIRST.title)).toHaveLength(1);
+		expect(clip).toHaveAttribute("controls");
+	});
+});
