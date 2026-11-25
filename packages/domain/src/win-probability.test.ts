@@ -5,7 +5,7 @@ import {
 } from "vitest";
 import type { AtBat } from "./plays.js";
 import type { AtBatMetrics, GamePlayMetrics } from "./types.js";
-import { winProbabilitySeries } from "./win-probability.js";
+import { scoreboardWinProbability, winProbabilitySeries } from "./win-probability.js";
 
 const fixture = (name: string) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../../fixtures/${name}`, import.meta.url)), "utf8"));
 const game823823 = {
@@ -69,5 +69,56 @@ describe("winProbabilitySeries (S106)", () =>
 			current: null,
 			currentPercent: null,
 		});
+	});
+});
+
+describe("scoreboardWinProbability (S161)", () =>
+{
+	it("S161 AC 1 final game: every measured at-bat's home chance in order, unrounded, and its last value", () =>
+	{
+		const line = scoreboardWinProbability(game823823);
+		const measured = [...game823823.playMetrics.atBats]
+			.filter((m) => m.homeWinProbability != null)
+			.sort((a, b) => a.atBatIndex - b.atBatIndex)
+			.map((m) => m.homeWinProbability as number);
+		expect(measured.length).toBeGreaterThan(10);
+		expect(line).toEqual({
+			points: measured,
+			current: measured.at(-1),
+		});
+		expect(line!.points).toEqual(winProbabilitySeries(game823823).points.map((p) => p.home));
+	});
+
+	it("S161 AC 1 live first half: the same game cut to its first half carries the line so far", () =>
+	{
+		const half = Math.floor(game823823.plays.length / 2);
+		const cutoff = game823823.plays[half - 1]!.about.atBatIndex;
+		const live = {
+			plays: game823823.plays.slice(0, half),
+			playMetrics: {
+				...game823823.playMetrics,
+				atBats: game823823.playMetrics.atBats.filter((m) => m.atBatIndex <= cutoff),
+			},
+		};
+		const line = scoreboardWinProbability(live);
+		const whole = scoreboardWinProbability(game823823)!;
+		expect(line).not.toBeNull();
+		expect(line!.points.length).toBeLessThan(whole.points.length);
+		expect(line!.points).toEqual(whole.points.slice(0, line!.points.length));
+		expect(line!.current).toBe(line!.points.at(-1));
+	});
+
+	it("S161 AC 1 no play metrics: a game with none, or none measured, has no line", () =>
+	{
+		expect(scoreboardWinProbability({
+			plays: game823823.plays,
+		})).toBeNull();
+		expect(scoreboardWinProbability({
+			plays: [atBat(0, 1)],
+			playMetrics: {
+				...game823823.playMetrics,
+				atBats: [metric(0, null)],
+			},
+		})).toBeNull();
 	});
 });

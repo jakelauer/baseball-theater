@@ -80,10 +80,20 @@ export async function purgeGameEdge(deps: EdgePurgeDeps, games: readonly { gameP
 	officialDate: string; }[], at: Date, dates: readonly string[] = []): Promise<void>
 {
 	if (!deps.edgePurge) return;
+	await purgePaths(deps.edgePurge, [...await gameEdgePaths(deps.schedules, games), ...dates.flatMap(dayEdgePaths)], at);
+}
+
+/**
+ * The edge paths that show each of `games` (what {@link purgeGameEdge} purges): its game URL, and the schedule and
+ * digest URLs of its official date and of every stored day of that date's calendar year that lists it, in one
+ * `listGameListings` read (none for no games). Also what S161's win-probability fill owes for the games it fills.
+ */
+export async function gameEdgePaths(schedules: Pick<ScheduleRepository, "listGameListings">, games: readonly { gamePk: number;
+	officialDate: string; }[]): Promise<string[]>
+{
+	if (games.length === 0) return [];
 	const years = games.map((game) => game.officialDate.slice(0, 4)).sort();
-	const listings = games.length === 0
-		? []
-		: await deps.schedules.listGameListings(games.map((game) => game.gamePk), `${years[0]}-01-01`, `${years.at(-1)}-12-31`);
+	const listings = await schedules.listGameListings(games.map((game) => game.gamePk), `${years[0]}-01-01`, `${years.at(-1)}-12-31`);
 	const paths: string[] = [];
 	for (const game of games)
 	{
@@ -91,7 +101,7 @@ export async function purgeGameEdge(deps: EdgePurgeDeps, games: readonly { gameP
 		const listed = listings.filter((listing) => listing.gamePk === game.gamePk && listing.date.startsWith(year)).map((listing) => listing.date);
 		paths.push(gameEdgePath(game.gamePk), ...[game.officialDate, ...listed].flatMap(dayEdgePaths));
 	}
-	await purgePaths(deps.edgePurge, [...paths, ...dates.flatMap(dayEdgePaths)], at);
+	return [...new Set(paths)];
 }
 
 /**
@@ -138,6 +148,9 @@ export function owedPurgeRetryDelayMs(failures: number): number
  * {@link OWED_PURGE_GIVE_UP_MS} are dropped unsent (logged). A purge that works settles the URLs it sent (only those
  * not owed again since the listing); one that fails defers them by {@link owedPurgeRetryDelayMs}. Budget: one database
  * read a tick, and at most one Cloudflare request a tick, only while purges are owed. Returns how many URLs it purged.
+ *
+ * An owed URL may be a path alone (`/api/v1/…`): S161's win-probability fill owes its paths from the deploy's migrate
+ * step, which doesn't know the app's origin, so the retry sends them under this deployment's origin.
  */
 export async function retryOwedEdgePurges(deps: { edgePurge?: EdgePurge;
 	now?: () => Date; }): Promise<number>
@@ -157,7 +170,8 @@ export async function retryOwedEdgePurges(deps: { edgePurge?: EdgePurge;
 	if (live.length === 0) return 0;
 	try
 	{
-		await edge.purger.purge(live.map((owed) => owed.url));
+		const origin = edge.origin.replace(/\/+$/, "");
+		await edge.purger.purge(live.map((owed) => owed.url.startsWith("/") ? `${origin}${owed.url}` : owed.url));
 	}
 	catch (error)
 	{
