@@ -14,8 +14,8 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "AC 1: ScoreboardModule carries data-game-pk={game.gamePk} on its data-testid=\"scoreboard-module\" element; the RTL test named 'S218 AC 1' (a module rendered for a fixture game has its gamePk) passes"
-check 2 "AC 2: S20.spec.ts, S170.spec.ts and S74.spec.ts pick each module they act on by data-game-pk; no spec under e2e/design/ picks a scoreboard module by position (getByTestId(\"scoreboard-module\") then .nth( / .last() / .first() not followed by .waitFor(), or the selector string '[data-testid=scoreboard-module] >> nth=')"
+check 1 "AC 1: ScoreboardModule carries data-game-pk={game.gamePk} on its data-testid=\"scoreboard-module\" element, and CollapsedBar on its data-testid=\"collapsed-bar\" element (a collapsed game is a card too); the RTL tests named 'S218 AC 1' (a module and a collapsed bar rendered for a fixture game have its gamePk) pass"
+check 2 "AC 2: S20.spec.ts, S170.spec.ts and S74.spec.ts pick each module they act on by data-game-pk; no spec under e2e/design/ picks a scoreboard module or collapsed bar by position (getByTestId(\"scoreboard-module\"|\"collapsed-bar\") then .nth( / .last() / .first() not followed by .waitFor(), an index into .all(), or the selector string '[data-testid=scoreboard-module|collapsed-bar] >> nth=')"
 check 3 "AC 3: the only design checks S218 changes are S20's, S170's and S74's (a capture re-taken for the intended game); the captures' exits and games are in the commit body"
 check 4 "AC 4: S218 changed no file outside its fence (plus creating scripts/verify-S218.sh and its own records); its snapshot records Status done"
 
@@ -27,7 +27,9 @@ trap 'rm -rf "$TMP"' EXIT
 
 MOD=web/src/components/scoreboard/ScoreboardModule.tsx
 MOD_TEST=src/components/scoreboard/ScoreboardModule.test.tsx
-(cd web && pnpm exec vitest run "$MOD_TEST" --reporter=json --outputFile="$TMP/web.json" >"$TMP/web.log" 2>&1)
+BAR=web/src/components/scoreboard/CollapsedBar.tsx
+BAR_TEST=src/components/scoreboard/CollapseHide.test.tsx
+(cd web && pnpm exec vitest run "$MOD_TEST" "$BAR_TEST" --reporter=json --outputFile="$TMP/web.json" >"$TMP/web.log" 2>&1)
 WEB="$TMP/web.json"
 
 # passed <report> <regex> — at least one test whose full name matches ran, and every such test passed.
@@ -45,16 +47,23 @@ passed() {
 # The attribute sits in the same JSX element as the test id: within the few lines around it.
 grep -B6 -A6 'data-testid="scoreboard-module"' "$MOD" | grep -qE 'data-game-pk=\{game\.gamePk\}' \
 	|| bad 1 "$MOD: the scoreboard-module element carries no data-game-pk={game.gamePk}"
-passed "$WEB" "S218 AC 1" || bad 1 "test 'S218 AC 1' in web/$MOD_TEST did not pass"
+# Added before S218 shipped (rule 7, from its pre-PR review): a collapsed game is a card the specs may pick too.
+grep -B6 -A6 'data-testid="collapsed-bar"' "$BAR" | grep -qE 'data-game-pk=\{game\.gamePk\}' \
+	|| bad 1 "$BAR: the collapsed-bar element carries no data-game-pk={game.gamePk}"
+passed "$WEB" "S218 AC 1: a module" || bad 1 "the module test 'S218 AC 1' in web/$MOD_TEST did not pass"
+passed "$WEB" "S218 AC 1: a collapsed bar" || bad 1 "the collapsed-bar test 'S218 AC 1' in web/$BAR_TEST did not pass"
 
 # --- Check 2: picks by game, never by position ---
+# A card is a full module or, for a collapsed game, a bar (the bar added before S218 shipped, rule 7, from its pre-PR review).
+CARD='(scoreboard-module|collapsed-bar)'
 positional() {
-	grep -nE 'getByTestId\("scoreboard-module"\)[[:space:]]*\.(nth\(|last\(\))' "$@"
-	grep -nE 'getByTestId\("scoreboard-module"\)[[:space:]]*\.first\(\)' "$@" | grep -vE 'getByTestId\("scoreboard-module"\)[[:space:]]*\.first\(\)\.waitFor\(\)'
-	grep -nE 'scoreboard-module"?\][[:space:]]*>>[[:space:]]*nth=' "$@"
+	grep -nE "getByTestId\(\"$CARD\"\)[[:space:]]*\.(nth\(|last\(\))" "$@"
+	grep -nE "getByTestId\(\"$CARD\"\)[[:space:]]*\.first\(\)" "$@" | grep -vE "getByTestId\(\"$CARD\"\)[[:space:]]*\.first\(\)\.waitFor\(\)"
+	grep -nE "getByTestId\(\"$CARD\"\)[[:space:]]*\.all\(\)\)?[[:space:]]*\[" "$@"
+	grep -nE "$CARD\"?\][[:space:]]*>>[[:space:]]*nth=" "$@"
 }
 hits="$(positional -r e2e/design/ 2>/dev/null)"
-[ -z "$hits" ] || bad 2 "positional scoreboard-module picks remain: $(tr '\n' ' ' <<<"$hits")"
+[ -z "$hits" ] || bad 2 "positional scoreboard card picks remain: $(tr '\n' ' ' <<<"$hits")"
 for spec in S20 S170 S74; do
 	grep -qE 'data-game-pk=' "e2e/design/$spec.spec.ts" || bad 2 "e2e/design/$spec.spec.ts picks no module by data-game-pk"
 done
