@@ -17,8 +17,8 @@ import {
 	openSocketPair, pingAutoResponse, upgradeResponse,
 } from "./adapters/cloudflare/websocket.js";
 import type { GameIngestNamespace } from "./game-ingest-object.js";
+import { gameIngestStub } from "./game-ingest-object.js";
 import type { AlarmStore } from "./services/game-ingest.js";
-import { gameIngestName } from "./services/game-ingest.js";
 import { readServedGame } from "./services/game-state.js";
 import { HUB_LEASE_MS } from "./services/hub-leases.js";
 import { LiveHubState, liveMessage } from "./services/live-hub.js";
@@ -42,11 +42,13 @@ export function gameHubName(gamePk: number): string
 /** The hub's side of S48's lease routes on the game's ingest object. */
 export type IngestLease = (action: "register" | "renew" | "unregister", gamePk: number, hubId: string) => Promise<Response>;
 
-/** Calls `game-ingest:<gamePk>`'s `/hubs/<action>` through the `GAME_INGEST` binding. */
-export function ingestLease(namespace: GameIngestNamespace): IngestLease
+/**
+ * Calls `game-ingest:<gamePk>`'s `/hubs/<action>` through the `GAME_INGEST` binding, by `gameIngestStub` with the
+ * env's `locationHint` (S220 AC 2), since a hub's lease may be what first creates the ingest object.
+ */
+export function ingestLease(namespace: GameIngestNamespace, locationHint: string | undefined): IngestLease
 {
-	return (action, gamePk, hubId) => namespace
-		.get(namespace.idFromName(gameIngestName(gamePk)) as never)
+	return (action, gamePk, hubId) => gameIngestStub(namespace, gamePk, locationHint)
 		.fetch(`https://game-ingest/hubs/${action}?hub=${encodeURIComponent(hubId)}`, {
 			method: "POST",
 		});
@@ -70,18 +72,22 @@ export class GameHubObject
 			// S150 AC 6: the served game, as the HTTP read serves it, so a viewer's first send and its read compare.
 			return gamePk === undefined ? null : readServedGame(app.ingest, gamePk);
 		});
-		this.lease = env.GAME_INGEST ? ingestLease(env.GAME_INGEST) : null;
+		this.lease = env.GAME_INGEST ? ingestLease(env.GAME_INGEST, env.BT_INGEST_LOCATION_HINT) : null;
 		this.hyperdrive = env.HYPERDRIVE;
 	}
 
 	/**
 	 * `GET /connect?gamePk=&since=` (a WebSocket upgrade, forwarded by the live route)
 	 * adds a viewer; `POST /publish` (from the ingest object) offers a snapshot. A cold hub
-	 * loads the stored game from Postgres, so each call has its own connection (S51).
+	 * loads the stored game from Postgres, so each call has its own connection (S51), which logs its round trips
+	 * (S220, kind `hub`), as the hub runs where it was made, not beside Neon.
 	 */
 	fetch(request: Request): Promise<Response>
 	{
-		return inDatabaseScope(this.hyperdrive, () => this.route(request));
+		return inDatabaseScope(this.hyperdrive, () => this.route(request), undefined, undefined, {
+			kind: "hub",
+			job: "fetch",
+		});
 	}
 
 	private async route(request: Request): Promise<Response>

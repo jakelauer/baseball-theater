@@ -3,8 +3,10 @@
  * workerd test runs the real one): its routes reach `GameIngest`, and its alarm polls.
  */
 import {
-	beforeAll, describe, expect, it,
+	afterEach, beforeAll, describe, expect, it, vi,
 } from "vitest";
+import { ingestLease } from "./game-hub-object.js";
+import type { GameIngestNamespace } from "./game-ingest-object.js";
 import {
 	ensureGameIngest, GameIngestObject, stubHubPublisher,
 } from "./game-ingest-object.js";
@@ -88,5 +90,76 @@ describe("ensureGameIngest", () =>
 		await ensureGameIngest(namespace(200), 745001);
 		expect(calls).toEqual(["game-ingest:745001 https://game-ingest/ensure?gamePk=745001"]);
 		await expect(ensureGameIngest(namespace(500), 745001)).rejects.toThrow("game-ingest 745001: 500");
+	});
+});
+
+describe("S220 AC 2: one getter for the ingest objects, with the location hint", () =>
+{
+	/** A namespace that records each `get`'s arguments as given (a missing options argument stays missing). */
+	function recordingNamespace()
+	{
+		const gets: unknown[][] = [];
+		const namespace: GameIngestNamespace = {
+			idFromName: (name: string) => name,
+			get: (...args: [never, { locationHint?: string }?]) =>
+			{
+				gets.push(args);
+				return {
+					fetch: async () => new Response(null, {
+						status: 204,
+					}),
+				};
+			},
+		};
+		return {
+			gets,
+			namespace,
+		};
+	}
+
+	it("S220 AC 2 the cron's ensureGameIngest passes the hint when set and no options when not", async () =>
+	{
+		const hinted = recordingNamespace();
+		await ensureGameIngest(hinted.namespace, 745001, "enam");
+		expect(hinted.gets).toEqual([["game-ingest:745001", {
+			locationHint: "enam",
+		}]]);
+		const plain = recordingNamespace();
+		await ensureGameIngest(plain.namespace, 745001, undefined);
+		expect(plain.gets).toEqual([["game-ingest:745001"]]);
+	});
+
+	it("S220 AC 2 the hubs' ingestLease passes the hint when set and no options when not", async () =>
+	{
+		const hinted = recordingNamespace();
+		await ingestLease(hinted.namespace, "enam")("register", 745001, "game-hub:745001");
+		expect(hinted.gets).toEqual([["game-ingest:745001", {
+			locationHint: "enam",
+		}]]);
+		const plain = recordingNamespace();
+		await ingestLease(plain.namespace, undefined)("renew", 745001, "game-hub:745001");
+		expect(plain.gets).toEqual([["game-ingest:745001"]]);
+	});
+});
+
+describe("S220 AC 1: the ingest object logs its round trips", () =>
+{
+	afterEach(() =>
+	{
+		vi.restoreAllMocks();
+	});
+
+	it("S220 AC 1 an alarm and a call each log one line, kind ingest, with the round trips they made", async () =>
+	{
+		const { object: o } = object();
+		await o.fetch(post("/ensure?gamePk=745001"));
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		await o.fetch(post("/hubs/register?hub=hub-a"));
+		await o.alarm();
+		const lines = log.mock.calls.map(([line]) => line as Record<string, unknown>).filter((line) => line?.event === "db-round-trips");
+		expect(lines.map((line) => [line.kind, line.job])).toEqual([["ingest", "fetch"], ["ingest", "alarm"]]);
+		// The alarm reads and writes the game in Postgres (S51), so it made round trips.
+		expect(lines[1]!.roundTrips).toBeGreaterThan(0);
+		expect(lines[1]!.totalMs).toBeGreaterThanOrEqual(0);
 	});
 });

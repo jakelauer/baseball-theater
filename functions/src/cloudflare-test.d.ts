@@ -24,4 +24,7 @@ declare module "cloudflare:test"
 	};
 	export function runInDurableObject<R>(stub: DurableObjectStub, callback: (instance: unknown, state: { storage: DurableObjectStorage }) => R | Promise<R>): Promise<R>;
 	export function runDurableObjectAlarm(stub: DurableObjectStub): Promise<boolean>;
+	type ExecutionContext = { waitUntil(promise: Promise<unknown>): void };
+	export function createExecutionContext(): ExecutionContext;
+	export function waitOnExecutionContext(ctx: ExecutionContext): Promise<void>;
 }

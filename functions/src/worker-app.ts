@@ -100,6 +100,12 @@ export type WorkerEnv = {
 	BT_CF_ZONE_ID?: string;
 	/** `"1"` lets the cron tick ingest in local dev (ADR-002 cadence; off by default, as `local-server.ts`). */
 	BT_INGEST_TICK?: string;
+	/**
+	 * S220: the `locationHint` each ingest object is created with (`gameIngestStub`), so it runs near Neon rather than
+	 * near whatever first reached it. Set in `wrangler.jsonc`'s staging vars only (`enam`, nearest us-east-2) while the
+	 * round-trip lines show whether it helps; with none, the objects are got without a hint, as before.
+	 */
+	BT_INGEST_LOCATION_HINT?: string;
 	/** The per-game ingest objects (S48; `wrangler.jsonc` `durable_objects`); absent under Node. */
 	GAME_INGEST?: GameIngestNamespace;
 	/** The per-game live hubs (S18; `wrangler.jsonc` `durable_objects`); absent under Node. */

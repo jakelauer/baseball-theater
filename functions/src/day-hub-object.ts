@@ -60,7 +60,7 @@ export class DayHubObject
 		this.deps = deps ?? workerApp(env).ingest;
 		this.injected = deps !== undefined;
 		this.hub = new LiveHubState<ScheduleDayResponse>(async () => (await this.read())?.response ?? null);
-		this.lease = env.GAME_INGEST ? ingestLease(env.GAME_INGEST) : null;
+		this.lease = env.GAME_INGEST ? ingestLease(env.GAME_INGEST, env.BT_INGEST_LOCATION_HINT) : null;
 		this.hyperdrive = env.HYPERDRIVE;
 	}
 
@@ -70,13 +70,20 @@ export class DayHubObject
 	 */
 	fetch(request: Request): Promise<Response>
 	{
-		return this.scoped(() => this.route(request));
+		return this.scoped(() => this.route(request), "fetch");
 	}
 
-	/** Runs `work` on its own database connection (S51), as every call, close and alarm that reads the day does. */
-	private scoped<T>(work: () => Promise<T>): Promise<T>
+	/**
+	 * Runs `work` on its own database connection (S51), as every call, close and alarm that reads the day does, logging
+	 * its round trips (S220, kind `day-hub`, `job` the entry point), as the hub re-reads its day where it was made, not
+	 * beside Neon.
+	 */
+	private scoped<T>(work: () => Promise<T>, job: "fetch" | "alarm" = "fetch"): Promise<T>
 	{
-		return this.injected ? work() : inDatabaseScope(this.hyperdrive, work);
+		return this.injected ? work() : inDatabaseScope(this.hyperdrive, work, undefined, undefined, {
+			kind: "day-hub",
+			job,
+		});
 	}
 
 	private now(): Date
@@ -231,7 +238,7 @@ export class DayHubObject
 					console.warn("day hub: lease sync failed on renewal; retried at the next", error);
 				}
 				await this.push(read);
-			});
+			}, "alarm");
 		}
 		catch (error)
 		{
