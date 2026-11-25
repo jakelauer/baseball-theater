@@ -58,15 +58,24 @@ function BattingTable({ game, side }: { game: GamePayload;
 	);
 }
 
-/** A team's swatch and abbreviation, as the switcher buttons and the side-by-side tables label it. */
-function TeamLabel({ game, side }: { game: GamePayload;
-	side: Side; })
+/**
+ * A team's swatch and name. The mobile switcher buttons (`heading` false) show the
+ * abbreviation centered, as ratified `box-mobile` draws them; the side-by-side tables'
+ * headings (`heading` true) show the full team name, aligned with the table's left edge
+ * (B586, #586; owner, 2026-11-25: the titles "don't show the entire team name and they
+ * are centered").
+ */
+function TeamLabel({
+	game, side, heading = false,
+}: { game: GamePayload;
+	side: Side;
+	heading?: boolean; })
 {
 	const team = game.teams[side];
 	return (
-		<Group gap={8} justify="center" wrap="nowrap">
+		<Group gap={8} justify={heading ? "flex-start" : "center"} wrap="nowrap">
 			<TeamSwatch teamId={team.id} size={8} />
-			<Text size="sm" fw={600}>{team.abbreviation}</Text>
+			<Text size="sm" fw={600}>{heading ? team.name : team.abbreviation}</Text>
 		</Group>
 	);
 }
@@ -76,7 +85,7 @@ function TeamLabel({ game, side }: { game: GamePayload;
  * boxed-inning `Linescore`, the batting tables and the Game info block. On mobile a
  * team switcher (each team marked with its `TeamSwatch`) shows one batting table at a
  * time, away first, as drawn. At medium and desktop both tables show side by side,
- * away on the left and home on the right, each under its team's label (B433, #433;
+ * away on the left and home on the right, each under its full team name (B433, #433; B586, #586;
  * owner, 2026-11-23: "on desktop and tablet, it should show you both teams side by side.
  * The home team is always on the right."). `variant` comes from the layout host
  * (VISUAL-DESIGN §5). Before MLB has a box score, the room's empty state.
@@ -126,7 +135,7 @@ export function BoxRoom({ game, variant }: { game: GamePayload;
 				<SimpleGrid cols={2} spacing="lg">
 					{(["away", "home"] as const).map((s) => (
 						<Stack key={s} gap="xs">
-							<TeamLabel game={game} side={s} />
+							<TeamLabel game={game} side={s} heading />
 							<BattingTable game={game} side={s} />
 						</Stack>
 					))}

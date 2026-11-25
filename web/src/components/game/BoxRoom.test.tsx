@@ -195,6 +195,32 @@ describe("the Box room (S2)", () =>
 		});
 	}
 
+	for (const variant of ["medium", "desktop"] as const)
+	{
+		it(`team headings: at ${variant} each side-by-side table's heading is the full team name, aligned with its table, not centered (#586)`, async () =>
+		{
+			const panel = await boxPanel(fixture(823823), variant);
+			// The heading is the first thing in each table's column, above the table.
+			const headings = within(panel).getAllByRole("table", {
+				name: /batting$/,
+			}).map((table) => table.parentElement!.firstElementChild as HTMLElement);
+			expect(headings.map((h) => h.textContent)).toEqual(["Chicago Cubs", "Miami Marlins"]);
+			for (const heading of headings)
+			{
+				expect(heading.style.getPropertyValue("--group-justify")).toBe("flex-start");
+			}
+		});
+	}
+
+	it("team switcher: at mobile the ratified box-mobile switcher keeps its abbreviations, centered (#586)", async () =>
+	{
+		const panel = await boxPanel(fixture(823823));
+		const group = within(panel).getByRole("group", {
+			name: "Team",
+		});
+		expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["CHC", "MIA"]);
+	});
+
 	it("game info: MLB's T and Att are written out as Time and Attendance (#433)", async () =>
 	{
 		const panel = await boxPanel(fixture(823823), "desktop");
