@@ -544,6 +544,32 @@ describe("joinScheduleDay (S150 AC 6)", () =>
 		expect(inPlace.games[0]?.status).toEqual(LIVE);
 		expect(inPlace.games[0]?.linescore?.teams.home.runs).toBe(2);
 	});
+
+	it("S161 AC 2 pregame: each game serves its row's line, a pregame game null whatever is stored", () =>
+	{
+		const line = {
+			points: [50, 61.5, 72.25],
+			current: 72.25,
+		};
+		const now = new Date("2026-09-08T12:00:00Z");
+		const withLine = (status: GameState["status"]) => ({
+			...row(status, 2, "2026-09-06T03:00:00.000Z"),
+			winProbability: line,
+		});
+		const day = joinScheduleDay(stored([1, 2, 3, 4, 5]), 0, new Map([
+			[1, withLine(FINAL)],
+			[2, withLine(LIVE)],
+			[3, withLine(SCHEDULED)],
+			// A postponed game's stray play metrics, as MLB sometimes sends them.
+			[4, withLine(POSTPONED)],
+			[5, row(FINAL, 1, "2026-09-06T03:00:00.000Z")],
+		]), new Map(), now);
+		expect(day.games.map((game) => game.winProbability)).toEqual([line, line, null, null, null]);
+		// A game with no row is served with no line.
+		expect(joinScheduleDay(stored([9]), 0, new Map(), new Map(), now).games[0]?.winProbability).toBeNull();
+		// The stored day never keeps the line: the row holds it.
+		expect(Object.keys(toStoredScheduleDay(day).games[0]!)).not.toContain("winProbability");
+	});
 });
 
 describe("wholeFetchedGame (S216 AC 5)", () =>

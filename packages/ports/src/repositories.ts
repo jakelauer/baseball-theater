@@ -92,7 +92,9 @@ export interface GameStateRepository {
 	 * is the same, its state is equal to the stored one (`version` and `lastChangedAt` included) and its feed time is
 	 * newer: then only the accepted feed time and the source move (only a feed write carries a feed time, so the row is
 	 * then the feed's), never the state, so one version never stands for two states (ADR-022). The accepted feed time
-	 * never moves back, and a row with no first pitch never clears a stored one.
+	 * never moves back, and a row with no first pitch never clears a stored one. The row's win-probability line (S161,
+	 * `winProbability`) moves with the state: a newer version replaces it (none stored when the row has none), the same
+	 * version never does; a row read back with none leaves the field out.
 	 */
 	write(rows: readonly GameStateRow[]): Promise<number[]>;
 }

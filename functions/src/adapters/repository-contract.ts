@@ -510,6 +510,27 @@ export function describeGameStateContract(label: string, create: () => GameState
 			expect(await repo.write([])).toEqual([]);
 		});
 
+		it("S161 game state line: a row's win-probability line reads back as written, moves only with a newer version, and none reads as absent", async () =>
+		{
+			const line = {
+				points: [50, 44.5, 61.25],
+				current: 61.25,
+			};
+			const lined = gameStateRow(1, 1, {
+				winProbability: line,
+			});
+			await repo.write([lined]);
+			expect(await repo.getByPk(1)).toEqual(lined);
+			// The same version with a newer feed time moves only the feed time, never the line.
+			await repo.write([gameStateRow(1, 1, {
+				feedTime: "2026-09-06T00:00:00.000Z",
+			})]);
+			expect((await repo.getByPk(1))?.winProbability).toEqual(line);
+			// A newer version replaces it with its own, and a row with none reads back without the field.
+			await repo.write([gameStateRow(1, 2)]);
+			expect(await repo.getByPk(1)).not.toHaveProperty("winProbability");
+		});
+
 		it("(k) game state: a batch is written in one call, which returns the gamePks it took", async () =>
 		{
 			await repo.write([gameStateRow(2, 2)]);

@@ -47,3 +47,30 @@ export function winProbabilitySeries(game: { plays: readonly AtBat[];
 		currentPercent: current == null ? null : Math.round(current),
 	};
 }
+
+/**
+ * A scoreboard row's win-probability line (S161): the home team's chance (percent, 0–100, unrounded) after each
+ * measured at-bat in game order, and where it stands now. Small enough to ride on every game the schedule serves
+ * (about one number per plate appearance), so the scoreboard's Win Probability slot (S108) draws it without a request
+ * per game.
+ */
+export type ScoreboardWinProbability = {
+	points: number[];
+	current: number;
+};
+
+/**
+ * The scoreboard's line for a game (S161): {@link winProbabilitySeries}' points' `home` and its `current`, so the slot
+ * and the Live room's chart can never disagree (ADR-025); null for a game with no measured at-bat. The ingest works it
+ * out when it writes a game's play metrics and stores it on the game's state row, so serving a day never loads plays.
+ * The innings `plays` supplies don't change the values, so a caller holding only the play metrics may pass no plays.
+ */
+export function scoreboardWinProbability(game: Parameters<typeof winProbabilitySeries>[0]): ScoreboardWinProbability | null
+{
+	const series = winProbabilitySeries(game);
+	if (series.current === null) return null;
+	return {
+		points: series.points.map((point) => point.home),
+		current: series.current,
+	};
+}

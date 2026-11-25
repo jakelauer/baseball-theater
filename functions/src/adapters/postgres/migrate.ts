@@ -186,6 +186,10 @@ export type MigrateOptions = {
  * difference. Before, a committed file the database never ran is expected when it is newer than the newest record
  * (drizzle is about to apply it), so the check fails a drifted database before any DDL runs; after, every file must
  * be recorded. `ahead` records pass only with `mayBeAhead`, with one warning after migrating.
+ *
+ * Then it runs S161's fill (`fillWinProbability`): the win-probability line of every game stored before S161, a step of
+ * its own after the migration that added the column, idempotent and resumable, so every deploy runs it and finds
+ * nothing once it has finished. Skipped when the migrated folder has no such column (a test's own folder).
  */
 export async function migrateDatabaseAt(connectionString: string, options: MigrateOptions = {}): Promise<void>
 {
@@ -214,6 +218,14 @@ export async function migrateDatabaseAt(connectionString: string, options: Migra
 		await check(true);
 		await migratePostgres(db, folder);
 		await check(false);
+		// Loaded here, not at the top: this module is also loaded by the workerd test config (through
+		// `pglite-server.ts`), which Node loads without resolving `@bt/domain`'s sources, which the fill imports.
+		const { fillWinProbability, hasWinProbabilityColumn } = await import("./win-probability-fill.js");
+		if (await hasWinProbabilityColumn(db))
+		{
+			const fill = await fillWinProbability(db);
+			if (fill.filled > 0) console.log(`win-probability fill (S161): ${fill.filled} game(s) given their line`);
+		}
 	}
 	finally
 	{

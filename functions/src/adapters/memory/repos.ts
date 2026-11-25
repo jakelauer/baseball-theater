@@ -250,10 +250,15 @@ export class InMemoryGameStateRepository implements GameStateRepository
 			const startTime = row.startTime ?? stored?.startTime ?? null;
 			if (!stored || row.state.version > stored.state.version)
 			{
+				// S161: a newer version replaces the line with the row's; no line is kept as none (absent), as Postgres reads a null column.
+				const { winProbability, ...rest } = row;
 				this.rows.set(row.gamePk, jsonCopy({
-					...row,
+					...rest,
 					feedTime,
 					startTime,
+					...winProbability && {
+						winProbability,
+					},
 				}));
 			}
 			else if (row.state.version === stored.state.version && contentHash(row.state) === contentHash(stored.state)
