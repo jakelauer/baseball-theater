@@ -11,7 +11,7 @@
  * this file by `drizzle-kit` (`drizzle.config.ts`) and committed under `migrations/`.
  */
 import type {
-	AccountSettings, GameProjection, GameSnapshot, GameState, StoredScheduleDay,
+	AccountSettings, GameProjection, GameSnapshot, GameState, PatronTier, StoredScheduleDay,
 } from "@bt/domain";
 import type { ReplayArtifact } from "@bt/ports";
 import { sql } from "drizzle-orm";
@@ -143,6 +143,20 @@ export const entitlements = pgTable("entitlements", {
 	fasterLiveRefresh: boolean("faster_live_refresh").notNull(),
 	cloudSyncedSettings: boolean("cloud_synced_settings").notNull(),
 	savantLinks: boolean("savant_links").notNull(),
+});
+
+/**
+ * Staging's backer tier override (S215): the tier a tester chose to see BT as, one row per user,
+ * kept apart from `entitlements` (the real tier, which only a Patreon link writes) so setting it
+ * never touches the real tier or Patreon. For staging tests only: production's deploy-time config
+ * refuses the override on the server and never reads this table. Goes with the user. Personal:
+ * `BT database: users` (the tester's chosen entitlement tier).
+ */
+export const tierOverrides = pgTable("tier_overrides", {
+	uid: text("uid").primaryKey().references(() => users.uid, {
+		onDelete: "cascade",
+	}),
+	tier: text("tier").$type<PatronTier>().notNull(),
 });
 
 /** A provider account (provider, subject) linked to one BT uid (ADR-019). Personal: `BT database: users`. */

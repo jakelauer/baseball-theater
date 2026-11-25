@@ -16,6 +16,7 @@ import { useInstallOffer, useInstallTipDismissed } from "../pwa/install.js";
 import { useSession } from "../session/session.js";
 import { AccountData } from "./settings/AccountData.js";
 import { InstallApp } from "./settings/InstallApp.js";
+import { TierOverrideControl } from "./settings/TierOverrideControl.js";
 import {
 	setCollapseNonFavorites, setFavoriteTeams, setGameRowSlot, setHideScores, setOpensFirst, setVideoPlayer, useSettings,
 } from "../settings/store.js";
@@ -96,7 +97,8 @@ function SettingsFrame({
  * one column: tip, Settings, Account. Every control is one this story can make work; the
  * Video Player control arrives with the screen that reads it (S70), and the Patreon rows with
  * the Patreon link. Signed-in only (the route guards it), so the session has an account.
- * Download and delete your data sit at the end of Account (A4, S79).
+ * Download and delete your data sit at the end of Account (A4, S79), then, on staging only,
+ * the testing-only backer tier override (S215), which renders nothing wherever the server refuses it.
  */
 export function SettingsPage({ variant }: { variant: LayoutVariant })
 {
@@ -202,6 +204,8 @@ export function SettingsPage({ variant }: { variant: LayoutVariant })
 							Sign out
 						</Anchor>
 						<AccountData variant={variant} />
+						{/* Staging's testing-only tier override (S215): shown only where the server offers it, never in production. */}
+						<TierOverrideControl />
 					</Stack>
 				</SettingsFrame>
 			</SimpleGrid>

@@ -129,6 +129,7 @@ function signedIn(): Session
 		signIn: vi.fn(async () => false),
 		finishSignIn: vi.fn(() => Promise.resolve("/")),
 		signInOffer: "offered",
+		keepSession: async () => undefined,
 		signOut: vi.fn(),
 	};
 }
@@ -205,6 +206,7 @@ describe("Account ways in (A4 settings-data-*)", () =>
 			signIn: vi.fn(async () => false),
 			finishSignIn: vi.fn(),
 			signInOffer: "offered",
+			keepSession: async () => undefined,
 			signOut: vi.fn(),
 		});
 		expect(screen.queryByRole("button", {

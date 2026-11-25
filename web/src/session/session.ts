@@ -48,6 +48,13 @@ export type Session = SessionState & {
 	finishSignIn(callbackUrl: string): Promise<string>;
 	/** Ends BT's session and clears every personal browser key; where Logto signed in, ends Logto's too (never for the mock). */
 	signOut(): void;
+	/**
+	 * Keeps a session token BT just issued for this account (the path every sign-in keeps its token
+	 * by): stores it, reloads `/api/v1/me` into the session and refreshes the account's server data.
+	 * Staging's backer tier override (S215) hands it the token its `PUT` answers, so every check that
+	 * reads `account.entitlements` sees the chosen tier at once.
+	 */
+	keepSession(token: string): Promise<void>;
 };
 
 /** The local dev account (S8's `dev:` bearer): uid `test-user`, email `dev@local.test`. */

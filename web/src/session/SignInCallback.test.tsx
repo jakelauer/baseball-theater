@@ -28,6 +28,7 @@ function renderCallback(finishSignIn: Session["finishSignIn"])
 		signIn: vi.fn(async () => false),
 		finishSignIn,
 		signInOffer: "offered",
+		keepSession: async () => undefined,
 		signOut: vi.fn(),
 	};
 	render(

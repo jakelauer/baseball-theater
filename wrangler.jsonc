@@ -120,7 +120,13 @@
 			"vars": {
 				"BT_USE_LIVE_MLB": "1",
 				"BT_APP_ORIGIN": "https://stage.baseball.theater",
-				"BT_MOCK_SIGN_IN": "1"
+				"BT_MOCK_SIGN_IN": "1",
+				// Staging's backer tier override (S215; owner, 2026-11-24: "This functionality must not be
+				// available or visible in production."), for testing only: set here and nowhere else, and the
+				// Worker honours it only beside the mock sign-in (`tierOverrideAllowed`), so production, which
+				// names a Logto tenant, refuses it on the server even if this line were copied there. It never
+				// changes a tester's real tier or touches Patreon.
+				"BT_TIER_OVERRIDE": "1"
 			}
 		},
 		// Every published GitHub Release (S121), at next.baseball.theater until the owner's DNS cutover (S119; owner,

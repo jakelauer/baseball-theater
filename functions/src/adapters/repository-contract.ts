@@ -9,7 +9,8 @@
  * Case (d) runs only for ports that list by date (`listByDate`); the others
  * have no such read. Case (g) is the user repository's identity link (S8,
  * ADR-019), in its own suite because users carry no version for (c)/(f);
- * case (h) is its deletion (ADR-028): `deleteFor` reaches profile and links.
+ * case (h) is its deletion (ADR-028): `deleteFor` reaches profile and links. Case (p) is its staging tier
+ * override (S215), kept apart from the real tier, and (h) proves the download and deletion reach it.
  * Case (i) is the same deletion for any registered `PersonalDataStore` (S6),
  * so each new store (settings now, S50's Postgres stores) runs one shared case.
  * Case (j) is the schedule repository's month read (S124, `listGameCounts`).
@@ -128,7 +129,7 @@ export function describeRepositoryContract<K, T>(label: string, subject: Contrac
 	});
 }
 
-/** The identity-link part of the contract, for any `UserRepository` adapter. */
+/** The identity-link part of the contract, for any `UserRepository` adapter, with its deletion and tier override (S215). */
 export function describeIdentityLinkContract(label: string, create: () => UserRepository): void
 {
 	describe(`${label} — repository contract`, () =>
@@ -160,9 +161,15 @@ export function describeIdentityLinkContract(label: string, create: () => UserRe
 				await repo.linkIdentity("logto", `logto-${uid}`, uid);
 				await repo.linkIdentity("google", `google-${uid}`, uid);
 			}
+			await repo.setTierOverride("uid-1", "Star Backer");
+			await repo.setTierOverride("uid-2", "Backer");
 			const kept = await repo.exportFor("uid-2");
+			// S215 AC 3: the download carries the tier override.
+			expect((await repo.exportFor("uid-1"))?.tierOverride).toBe("Star Backer");
+			expect(kept?.tierOverride).toBe("Backer");
 
 			await repo.deleteFor("uid-1");
+			expect(await repo.getTierOverride("uid-1")).toBeNull();
 			expect(await repo.getByUid("uid-1")).toBeNull();
 			expect(await repo.getByIdentity("logto", "logto-uid-1")).toBeNull();
 			expect(await repo.getByIdentity("google", "google-uid-1")).toBeNull();
@@ -173,6 +180,34 @@ export function describeIdentityLinkContract(label: string, create: () => UserRe
 			// Idempotent (ADR-028): a deletion that failed partway can run again.
 			await repo.deleteFor("uid-1");
 			expect(await repo.exportFor("uid-2")).toEqual(kept);
+		});
+
+		it("(p) S215 AC 3: a tier override is stored per user apart from the real tier, which setting it never changes", async () =>
+		{
+			const repo = create();
+			await repo.upsert(contractUser("uid-1"));
+			await repo.upsert(contractUser("uid-2"));
+			const real = (await repo.getByUid("uid-1"))!.entitlements;
+			expect(await repo.getTierOverride("uid-1")).toBeNull();
+
+			await repo.setTierOverride("uid-1", "Premium Sponsor");
+			expect(await repo.getTierOverride("uid-1")).toBe("Premium Sponsor");
+			expect(await repo.getTierOverride("uid-2")).toBeNull();
+			// The real tier reads back unchanged.
+			expect((await repo.getByUid("uid-1"))!.entitlements).toEqual(real);
+
+			await repo.setTierOverride("uid-1", "none");
+			expect(await repo.getTierOverride("uid-1")).toBe("none");
+			await repo.setTierOverride("uid-1", null);
+			expect(await repo.getTierOverride("uid-1")).toBeNull();
+			expect((await repo.getByUid("uid-1"))!.entitlements).toEqual(real);
+			// Clearing what isn't set is a no-op.
+			await repo.setTierOverride("uid-2", null);
+			expect(await repo.getTierOverride("uid-2")).toBeNull();
+			// A uid with no user stores nothing (Postgres's foreign key; the memory double matches it).
+			await repo.setTierOverride("no-such-uid", "Backer");
+			expect(await repo.getTierOverride("no-such-uid")).toBeNull();
+			expect(await repo.exportFor("no-such-uid")).toBeNull();
 		});
 	});
 }
