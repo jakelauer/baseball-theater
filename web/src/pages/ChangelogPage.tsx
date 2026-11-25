@@ -1,5 +1,5 @@
 import {
-	Badge, Box, Divider, Group, Stack, Text, Title,
+	Badge, Box, CloseButton, Divider, Group, Stack, Text, Title,
 } from "@mantine/core";
 import { Fragment } from "react";
 import type { PublicRelease } from "../api/releases.js";
@@ -108,8 +108,14 @@ function Release({ release }: { release: PublicRelease })
  * list starts with the public launch release, v4.0.0 (S131 AC 6), so until its notes land the API
  * answers an empty list, which is the empty state. Loading, empty and error are `ViewState`'s, the
  * title kept above each. Release notes carry no scores, so Hide Scores changes nothing here.
+ *
+ * The same component is the change log modal's body over a game page (S193; shell-scoreboard A17's
+ * `changelog-modal`, which places A9's `changelog-heading` and `changelog-body` rather than redrawing
+ * them): given `onClose`, the title row carries A8's ✕ at its right, which calls it. The modal passes no
+ * `setFooter`, so it leaves the shell's footer alone.
  */
-export function ChangelogPage({ setFooter }: { setFooter?: SetFooterMode })
+export function ChangelogPage({ setFooter, onClose }: { setFooter?: SetFooterMode;
+	onClose?: () => void; })
 {
 	const {
 		data, error, refetch,
@@ -151,7 +157,12 @@ export function ChangelogPage({ setFooter }: { setFooter?: SetFooterMode })
 
 	return (
 		<Stack gap="lg">
-			<Title order={1}>Change log</Title>
+			{onClose ? (
+				<Group justify="space-between" wrap="nowrap" align="center">
+					<Title order={1}>Change log</Title>
+					<CloseButton size="md" aria-label="Close the change log" onClick={onClose} />
+				</Group>
+			) : <Title order={1}>Change log</Title>}
 			<Box>{body}</Box>
 		</Stack>
 	);

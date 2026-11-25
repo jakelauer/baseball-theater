@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { AfterUpdate } from "../pwa/afterUpdate.js";
+import { ChangelogModal, UpdatedNotice } from "../pwa/UpdatedNotice.js";
 import { AppHeader } from "./AppHeader.js";
 import { NavRail } from "./NavRail.js";
 import type { Notice } from "./NoticeSlot.js";
@@ -39,8 +40,13 @@ import { useLayoutVariant } from "./variant.js";
  * own `variant`, never a second viewport read: at the rail's change log link on desktop, at the
  * burger on mobile and medium. Opening the drawer while it shows ends it, and the drawer's change
  * log link stays highlighted until the drawer closes (A9's `updated-pointer-menu-open-*` frames).
- * Game routes draw no app header, so on mobile and medium the pointer has nothing to aim at there
- * and only its time runs.
+ * Game routes draw no app header, so on mobile and medium the pointer has nothing to aim at there;
+ * the shell draws A17's notice in its place (S193, `UpdatedNotice`), which a tap turns into the change
+ * log over the game page (`ChangelogModal`). Both are the same `pointer`, so moving between a game page
+ * and another page hands the rest of its 10 seconds over either way (A17, "Moving between pages"), as
+ * does turning a tablet to the desktop layout, where the rail's pointer takes over. Whether the modal is
+ * open is the shell's state, not the notice's, so it stays open when the notice ends (A6's box coming
+ * up, A17's "the modal, once the fan has opened it, stays open").
  *
  * The site footer (S142; shell-scoreboard A14) is the shell's, drawn after `<main>` so it is the
  * page's `contentinfo` and spans the content column edge to edge, never the rail, and never in
@@ -67,6 +73,7 @@ export function AppShellLayout({
 	const [opened, { open, close }] = useDisclosure();
 	const [drawerHighlight, setDrawerHighlight] = useState(false);
 	const [footer, setFooter] = useState<FooterMode>("plain");
+	const [changelogOpen, setChangelogOpen] = useState(false);
 	// However the drawer closes (the burger, a link, the overlay, Escape), its link's highlight goes with it.
 	const closeDrawer = () =>
 	{
@@ -145,6 +152,8 @@ export function AppShellLayout({
 					{children(variant, setFooter)}
 				</Box>
 				{footer === "none" ? null : <SiteFooter live={footer === "live"} variant={variant} />}
+				{gameRoute && !desktop ? <UpdatedNotice pointer={pointer} variant={variant} onOpen={() => setChangelogOpen(true)} /> : null}
+				<ChangelogModal opened={changelogOpen} onClose={() => setChangelogOpen(false)} variant={variant} />
 			</Box>
 		</Box>
 	);
