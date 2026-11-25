@@ -55,7 +55,7 @@ export function PlayerDialog({
 	game?: PlayerGame;
 	fromGamePk?: number;
 	scoresHidden?: boolean;
-	/** The clip's play link (S97; game-shell A6's inning pill, S145): shown top left when no game link holds that slot. */
+	/** The clip's play link (S97; game-shell A6's inning pill, S145): its inning pill, drawn after the game pill when there is one (S173). */
 	playLink?: PlayLink | null; })
 {
 	const title = highlightTitle(video, scoresHidden);
