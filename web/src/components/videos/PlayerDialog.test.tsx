@@ -16,6 +16,7 @@ import {
 import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
+import { expectInsetPlayer } from "../../test/insetPlayer.js";
 import { PlayerDialog } from "./PlayerDialog.js";
 import type { PlayerGame } from "./PlayerDialog.js";
 import type { Video } from "./VideoCard.js";
@@ -243,5 +244,85 @@ describe("PlayerDialog's first focus (#582)", () =>
 		const focused = document.activeElement as HTMLElement;
 		expect(focused.closest("a, button, [role=button]")).toBeNull();
 		expect(focused.tabIndex).toBe(-1);
+	});
+});
+
+describe("S196: the inset player modal", () =>
+{
+	it("S196 AC 1: an inset Modal, not full screen, over the dimmed but visible site, title above the clip, tools after it, disclaimer last", async () =>
+	{
+		renderPills({
+			game: GAME,
+			playLink: TOP_6,
+		});
+		const dialog = await screen.findByRole("dialog");
+		await expectInsetPlayer(dialog, VIDEO.title);
+		// Everything A4's player held stays: the pills, Close and the actions.
+		expect(await pills()).toEqual(["More from game: NYY @ BOS, Sep 21", "Top 6: open play, top of 6th inning"]);
+		expect(within(dialog).getByRole("button", {
+			name: "Close video",
+		})).toBeInTheDocument();
+		expect(within(dialog).getByRole("button", {
+			name: "Copy link",
+		})).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: the close control closes it", async () =>
+	{
+		renderPills({});
+		await userEvent.click(await screen.findByRole("button", {
+			name: "Close video",
+		}));
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: Escape closes it", async () =>
+	{
+		renderPills({});
+		await screen.findByRole("dialog");
+		await userEvent.keyboard("{Escape}");
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: a press outside the border (on the dimmed site) closes it", async () =>
+	{
+		renderPills({});
+		await screen.findByRole("dialog");
+		await userEvent.click(document.querySelector<HTMLElement>(".mantine-Modal-overlay")!);
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: a press inside, on the clip, a tool or the title, does not close it", async () =>
+	{
+		vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
+		renderPills({});
+		const dialog = await screen.findByRole("dialog");
+		const player = within(dialog).getByTestId("video-player");
+		await userEvent.click(player.querySelector("video")!);
+		await userEvent.click(within(player).getByText(VIDEO.title));
+		await userEvent.click(within(player).getByRole("button", {
+			name: "Copy link",
+		}));
+		await userEvent.click(within(player).getByText(/^This video is provided by MLBAM/));
+		expect(screen.queryByText("closed")).toBeNull();
+		expect(screen.getByRole("dialog")).toBeInTheDocument();
+	});
+
+	it("S196 AC 3: the clip keeps the browser's controls and plays inline; no mute or full-screen button of BT's own", async () =>
+	{
+		renderPills({
+			game: GAME,
+			playLink: TOP_6,
+		});
+		const dialog = await screen.findByRole("dialog");
+		const clip = within(dialog).getByTestId("video-player").querySelector("video")!;
+		expect(clip).toHaveAttribute("controls");
+		expect(clip).toHaveAttribute("playsinline");
+		expect(within(dialog).queryByRole("button", {
+			name: /mute|full ?screen/i,
+		})).toBeNull();
+		expect(screen.queryByRole("button", {
+			name: /mute|full ?screen/i,
+		})).toBeNull();
 	});
 });

@@ -19,6 +19,7 @@ import { DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH } from "@bt/domain";
 import { createQueryClient } from "../api/queryClient.js";
 import type { SearchHighlightsPayload } from "../api/search.js";
 import { hydrateSettings, resetSettings } from "../settings/store.js";
+import { expectInsetPlayer } from "../test/insetPlayer.js";
 import { jsonResponse } from "../test/jsonResponse.js";
 import { SearchPage } from "./SearchPage.js";
 
@@ -875,5 +876,14 @@ describe("Search's player pills (S173; standings-search-settings A10 search-play
 		});
 		expect(hidden).toEqual(shown);
 		expect(hidden).toHaveLength(2);
+	});
+});
+
+describe("Search's player is the inset modal (S196)", () =>
+{
+	it("S196 AC 1: opened from Search, an inset modal over the dimmed site, title above the clip, tools after it, disclaimer last, A10's pills kept", async () =>
+	{
+		expect(await searchPills(WS_PLAY.highlight.title)).toEqual(["More from game: MIL @ TB, Oct 27", "Bot 12: open play, bottom of 12th inning"]);
+		await expectInsetPlayer(screen.getByRole("dialog"), WS_PLAY.highlight.title);
 	});
 });

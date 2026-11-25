@@ -1,5 +1,5 @@
 import {
-	Box, FocusTrap, Group, Modal, UnstyledButton,
+	FocusTrap, Group, Modal, UnstyledButton,
 } from "@mantine/core";
 import { useReducedMotion } from "@mantine/hooks";
 import { useEffect, useState } from "react";
@@ -17,12 +17,19 @@ const OPEN_MS = 150;
 export type PlayerGame = Parameters<typeof gameVideosLink>[0];
 
 /**
- * The only modal player (S70; game-shell A4, standings-search-settings A6): the
- * `VideoPlayer` floating, with no card, over the fully dimmed page. "Close ✕" sits in the
- * overlay at top right (owner, 2026-10-31: "a floating video with a “Close” button in the
- * dimmed overlay, no borders, so there’s more real estate to show a playlist in the
- * future"); Esc and a press on the empty overlay close it too. The Videos room, Search
- * (S5) and the day digest (S71) all open this one.
+ * The only modal player (S70; S196): the `VideoPlayer` in an inset Mantine `Modal`, framed like the
+ * site's other dialogs (the change log, `ChangelogModal`: Raised, a hairline border, 12px corners),
+ * over the site dimmed but still visible (owner, 2026-11-23: "some maximum amount of the screen so
+ * there's like a border around it that you can see the sight behind"). It takes at most 90% of the
+ * viewport's width and height (`.bt-player-modal`, styles.css). Inside it, top to bottom: the pills and
+ * "Close ✕", the title, the clip, BT's tools, the disclaimer (owner, same day: "the title should be on
+ * top of the video and the tools below the video, and the disclaimer should remain at the bottom";
+ * `VideoPlayer`'s `titleAbove`). It closes "with the close button the escape key or clicking outside
+ * the border of the modal" (owner, same day): Mantine's Esc and overlay press; a press inside the border
+ * never closes it. Full screen, mute and volume are the clip's built-in controls (B579), so it adds no
+ * button for them. This replaces game-shell A4's floating player on a fully dimmed page under the
+ * owner's design waiver (2026-11-25, in S196's text). The Videos room, Search (S5) and the day digest
+ * (S71) all open this one.
  *
  * At top left sit its pills (S173; standings-search-settings A10, which repealed the text link to
  * the game): first the game pill, to the clip's game's Videos tab (`gameVideosLink`), whenever
@@ -37,8 +44,7 @@ export type PlayerGame = Parameters<typeof gameVideosLink>[0];
  * With scores hidden the recap clip is titled "Recap (score hidden)" (`highlightTitle`,
  * S75); only the game page passes `scoresHidden`, so Search and the digest keep MLB's title.
  *
- * The content fills the screen so the Close row and the player share one focus trap; it
- * is transparent, so the overlay behind it is the dimmed page the frames draw.
+ * The Close row and the player sit in the one content box, so they share one focus trap.
  *
  * It opens with a brief pop (opacity and scale, `OPEN_MS`), and the clip starts only once that
  * ends, so no sound plays while it opens (owner, 2026-11-23, #423: "It should feel almost
@@ -80,29 +86,35 @@ export function PlayerDialog({
 		<Modal
 			opened={opened}
 			onClose={onClose}
-			fullScreen
+			centered
 			withCloseButton={false}
 			aria-label={title}
+			size="auto"
+			radius={12}
+			padding={16}
+			shadow="xl"
+			// The site dimmed but visible behind it, as the change log modal dims it.
+			overlayProps={{
+				backgroundOpacity: 0.7,
+				color: "var(--bt-dark)",
+			}}
+			classNames={{
+				content: "bt-player-modal",
+			}}
 			transitionProps={{
 				transition: "pop",
 				duration: reduceMotion ? 0 : OPEN_MS,
 				onEntered: () => setEntered(true),
 			}}
 			styles={{
-				// The frames draw the page behind fully dimmed (Mantine's own overlay color can't take a CSS variable).
-				overlay: {
-					background: "var(--bt-dark)",
-					opacity: 1,
-				},
 				content: {
-					background: "transparent",
-					boxShadow: "none",
+					background: "var(--bt-raised)",
+					border: "1px solid var(--bt-hairline)",
 				},
 				body: {
-					height: "100%",
-					padding: 16,
 					display: "flex",
 					flexDirection: "column",
+					gap: 12,
 				},
 			}}
 		>
@@ -120,26 +132,7 @@ export function PlayerDialog({
 					Close ✕
 				</UnstyledButton>
 			</Group>
-			<Box
-				data-testid="player-backdrop"
-				onClick={(event) =>
-				{
-					if (event.target === event.currentTarget) onClose();
-				}}
-				style={{
-					flex: 1,
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-				}}
-			>
-				{/* `.bt-player-frame` (styles.css): as wide as the screen allows, up to 1280px, while the clip,
-				    its controls and the disclaimer still fit the screen's height (owner, 2026-11-12: "video
-				    player on desktop needs to play videos larger, taking more of the screen"). */}
-				<Box className="bt-player-frame">
-					<VideoPlayer video={video} title={title} autoPlay={entered} />
-				</Box>
-			</Box>
+			<VideoPlayer video={video} title={title} autoPlay={entered} titleAbove />
 		</Modal>
 	);
 }
