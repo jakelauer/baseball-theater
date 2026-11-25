@@ -5,7 +5,7 @@
  * `search-retitled-mobile` (the page retitled "Search Highlights", hint "Search highlights…"; A2
  * overrides the title in the medium and desktop frames too), and A6's
  * `search-playing-floating-mobile` (a tapped result playing in the floating player over the fully
- * dimmed results, "Go to game: … →" top left, "Close ✕" top right). The search is the dev API's own
+ * dimmed results, then its game link top left, now standings-search-settings A10's pills (S173), "Close ✕" top right). The search is the dev API's own
  * `GET /api/v1/search/highlights?q=walk-off`, answered from MLB's recorded answer
  * (`fixtures/search-walk-off.json`), so the rows and matchups are the real route's.
  *

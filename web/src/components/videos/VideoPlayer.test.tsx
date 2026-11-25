@@ -225,34 +225,30 @@ describe("PlayerDialog", () =>
 		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 
-	it("game link: shown when the clip carries its game and plays elsewhere (Search, the digest); absent from that game's own page or without a game", async () =>
+	it("game pill (S173; A10): shown when the clip carries its game and plays elsewhere (Search, the digest); absent from that game's own page or without a game", async () =>
 	{
 		const game = {
 			gamePk: 823823,
-			label: "CHC @ MIA, Sep 5",
+			away: "CHC",
+			home: "MIA",
+			officialDate: "2026-09-05",
 		};
 		const { unmount } = wrap(<PlayerDialog video={VIDEO} onClose={() => undefined} game={game} />);
 		const link = await screen.findByRole("link", {
-			name: "Go to game: CHC @ MIA, Sep 5 →",
+			name: "More from game: CHC @ MIA, Sep 5",
 		});
-		expect(link).toHaveAttribute("href", "/game/823823");
+		expect(link).toHaveAttribute("href", "/game/823823/videos");
 		unmount();
 
 		const own = wrap(<PlayerDialog video={VIDEO} onClose={() => undefined} game={game} fromGamePk={823823} />);
 		await screen.findByRole("dialog");
-		// No game link; the player's own Direct link is its only link.
-		expect(screen.queryByRole("link", {
-			name: /^Go to game/,
-		})).toBeNull();
+		// No game pill; the player's own Direct link is its only link.
 		expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Direct link"]);
 		own.unmount();
 
 		wrap(<PlayerDialog video={VIDEO} onClose={() => undefined} />);
 		await screen.findByRole("dialog");
-		// No game link; the player's own Direct link is its only link.
-		expect(screen.queryByRole("link", {
-			name: /^Go to game/,
-		})).toBeNull();
+		// No game pill; the player's own Direct link is its only link.
 		expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Direct link"]);
 	});
 

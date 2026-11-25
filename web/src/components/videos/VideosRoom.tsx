@@ -1,8 +1,8 @@
 import {
-	Box, Button, Checkbox, Drawer, Group, Menu, Radio, ScrollArea, SegmentedControl, Stack, Text, TextInput, UnstyledButton, VisuallyHidden,
+	Box, Button, Checkbox, Drawer, Group, Menu, Radio, ScrollArea, SegmentedControl, Stack, Text, TextInput, UnstyledButton,
 } from "@mantine/core";
 import {
-	IconArrowsSort, IconChevronDown, IconChevronRight, IconLayoutGrid, IconList, IconSearch,
+	IconArrowsSort, IconChevronDown, IconChevronRight, IconSearch,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import {
@@ -21,6 +21,8 @@ import { videoPlayLink } from "./playLink.js";
 import { FilterPill, QuickFilters } from "./QuickFilters.js";
 import { VideoCard } from "./VideoCard.js";
 import { VideoGrid } from "./VideoGrid.js";
+import type { VideoLayout } from "./VideoLayoutToggle.js";
+import { VideoLayoutToggle } from "./VideoLayoutToggle.js";
 import { SectionHeading } from "../SectionHeading.js";
 
 const SORT_LABELS: Readonly<Record<HighlightSort, string>> = {
@@ -157,7 +159,7 @@ function FilterDrawer({
  * owner, 2026-11-25, waiving the ratified frames' heading: "Drop the heading"), then one row: the quick filters on the
  * left (`QuickFilters`: as many as fit, then a Filters button opening `FilterDrawer`), and
  * on the right the sort (`sortHighlights`; impact first, the server's
- * `rankHighlightsByImpact` order) and the Grid / List icons (owner, 2026-10-30). The quick
+ * `rankHighlightsByImpact` order) and the Grid / List icons (`VideoLayoutToggle`, shared with Search, #588). The quick
  * filters are the Featured team control with each option's count and, only when some clip
  * fits it, Stat / viz (`countHighlightFacets`; #428, #418). The grid (`VideoGrid`)
  * has 2 / 3 / 4 columns at mobile / medium / desktop from the host's `variant`; List
@@ -187,7 +189,7 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 	const [drawer, setDrawer] = useState(false);
 	const [sort, setSort] = useState<HighlightSort>("impact");
 	const [collapsed, setCollapsed] = useState<ReadonlySet<HighlightGroup>>(new Set());
-	const [layout, setLayout] = useState<"grid" | "list">("grid");
+	const [layout, setLayout] = useState<VideoLayout>("grid");
 	const {
 		playing, href, close,
 	} = useOpenClip(game.highlights, (video) => video.id);
@@ -261,32 +263,7 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 						))}
 					</Menu.Dropdown>
 				</Menu>
-				<SegmentedControl
-					size="xs"
-					aria-label="Layout"
-					color="primary"
-					value={layout}
-					onChange={(value) => setLayout(value as "grid" | "list")}
-					style={{
-						flexShrink: 0,
-					}}
-					data={[
-						{
-							value: "grid",
-							label: <><IconLayoutGrid size={16} style={{
-								display: "block",
-							}}
-							/><VisuallyHidden>Grid</VisuallyHidden></>,
-						},
-						{
-							value: "list",
-							label: <><IconList size={16} style={{
-								display: "block",
-							}}
-							/><VisuallyHidden>List</VisuallyHidden></>,
-						},
-					]}
-				/>
+				<VideoLayoutToggle value={layout} onChange={setLayout} />
 			</Group>
 			{videos.length === 0 ? <ViewState kind="empty" message="No videos match." /> : null}
 			{groupHighlights(videos).map(({ group, highlights }) =>
@@ -337,7 +314,7 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 									borderLeftColor: "var(--mantine-color-dark-4)",
 								}}
 							>
-								{layout === "grid" ? <VideoGrid variant={variant}>{cards}</VideoGrid> : <Stack gap="sm" data-testid="videos-list">{cards}</Stack>}
+								<VideoGrid variant={variant} layout={layout}>{cards}</VideoGrid>
 							</Box>
 						) : null}
 					</Stack>

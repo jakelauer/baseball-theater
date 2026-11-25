@@ -1,8 +1,10 @@
 import { rankHighlightGroupsByImpact } from "./impact.js";
 import type { ImpactClipGroup } from "./impact.js";
+import type { HalfInning } from "./inning.js";
 import type {
 	GameSnapshot, MediaHighlight, ScheduleDay,
 } from "./types.js";
+import { atBatOfPlay } from "./video-play-links.js";
 
 /**
  * What the digest needs from each of the day's games: its id, day, teams and videos, plus the
@@ -10,7 +12,7 @@ import type {
  */
 export type DigestGame = Pick<GameSnapshot, "gamePk" | "officialDate" | "teams" | "highlights" | "plays" | "playMetrics">;
 
-/** The game a digest clip comes from, enough for the player's "Go to game: NYY @ BOS, Sep 21" link. */
+/** The game a digest clip comes from, enough for the player's game pill (S173), which speaks it as `NYY @ BOS, Sep 21`. */
 export type DigestClipGame = {
 	gamePk: number;
 	officialDate: string;
@@ -18,7 +20,15 @@ export type DigestClipGame = {
 	home: string;
 };
 
-/** One clip in the day digest: its place, whether to watch it first, the clip and its game. */
+/**
+ * The play a digest clip shows (S173): its id and the half-inning of the at-bat its pitch is in,
+ * enough for the player's inning pill (`Top 6 →`), which the browser builds with `playInningLink`.
+ */
+export type DigestPlay = HalfInning & {
+	playId: string;
+};
+
+/** One clip in the day digest: its place, whether to watch it first, the clip, its game and its play. */
 export type DigestItem = {
 	/** 1 for the top clip. */
 	rank: number;
@@ -26,6 +36,8 @@ export type DigestItem = {
 	watchFirst: boolean;
 	highlight: MediaHighlight;
 	game: DigestClipGame;
+	/** The clip's play (S173), or null for a clip with no play or one whose pitch isn't in its game's plays. */
+	play: DigestPlay | null;
 };
 
 /**
@@ -47,6 +59,7 @@ export const DIGEST_SIZE = 5;
 export function dayDigest(games: readonly DigestGame[], limit = DIGEST_SIZE): DigestItem[]
 {
 	const gameOf = new Map<string, DigestClipGame>();
+	const playOf = new Map<string, DigestPlay | null>();
 	const groups: ImpactClipGroup[] = [];
 	for (const game of games)
 	{
@@ -60,6 +73,7 @@ export function dayDigest(games: readonly DigestGame[], limit = DIGEST_SIZE): Di
 				away: game.teams.away.abbreviation,
 				home: game.teams.home.abbreviation,
 			});
+			playOf.set(highlight.id, digestPlay(game.plays, highlight.playId));
 			clips.push(highlight);
 		}
 		groups.push({
@@ -77,7 +91,24 @@ export function dayDigest(games: readonly DigestGame[], limit = DIGEST_SIZE): Di
 		watchFirst: index === 0,
 		highlight,
 		game: gameOf.get(highlight.id)!,
+		play: playOf.get(highlight.id) ?? null,
 	}));
+}
+
+/**
+ * A digest clip's play (S173): the at-bat its play id names in its own game's plays, through
+ * `atBatOfPlay`, the one pitch → at-bat lookup `videoPlayLink` uses too, so the digest's pill and the
+ * Videos room's agree. Null for a clip with no play, or one whose pitch isn't in those plays.
+ */
+function digestPlay(plays: DigestGame["plays"], playId: string | null): DigestPlay | null
+{
+	const atBat = atBatOfPlay(plays, playId);
+	if (!atBat || !playId) return null;
+	return {
+		playId,
+		halfInning: atBat.about.halfInning,
+		inning: atBat.about.inning,
+	};
 }
 
 /** What a day's games tell the digest about freshness: whether each is live, and when it last changed. */

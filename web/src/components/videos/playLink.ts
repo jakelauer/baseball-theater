@@ -2,10 +2,11 @@ import type { AtBat, HalfInning } from "@bt/domain";
 import {
 	atBatOfPlay, halfInningLabel, halfInningName,
 } from "@bt/domain";
+import { gameLabel } from "./gameLabel.js";
 import type { Video } from "./VideoCard.js";
 
 /**
- * A video's link to its play (game-shell A6): the inning pill's visible words (`Top 6 →`), the
+ * A video's pill link (game-shell A6; standings-search-settings A10): the pill's visible words (`Top 6 →`), the
  * name a screen reader speaks for it (`Top 6: open play, top of 6th inning`), and where it goes.
  */
 export type PlayLink = {
@@ -58,4 +59,24 @@ export function videoPlayLink(video: Pick<Video, "playId">, game: { gamePk: numb
 		halfInning: atBat.about.halfInning,
 		inning: atBat.about.inning,
 	});
+}
+
+/**
+ * A clip's link to its game's videos (S173; standings-search-settings A10's game pill): `More from
+ * game →`, spoken `More from game: NYY @ BOS, Sep 21` (`gameLabel`), opening the game's Videos tab
+ * (`/game/<gamePk>/videos`). Its spoken name starts with the visible words, as the inning pill's
+ * does (owner, 2026-11-22: "Start with the visible words (Recommended)"), superseding A10's
+ * recorded spoken name. The one place the game pill's words and address are made
+ * (ADR-025): the floating player draws it with `PlayInningPill`, whichever page opened it.
+ */
+export function gameVideosLink(game: { gamePk: number;
+	away: string;
+	home: string;
+	officialDate: string; }): PlayLink
+{
+	return {
+		label: "More from game →",
+		name: `More from game: ${gameLabel(game)}`,
+		to: `/game/${game.gamePk}/videos`,
+	};
 }
