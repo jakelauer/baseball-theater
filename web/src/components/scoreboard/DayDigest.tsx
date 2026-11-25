@@ -1,7 +1,7 @@
 import {
 	Badge, Group, SimpleGrid, Stack, Text, UnstyledButton,
 } from "@mantine/core";
-import { useState } from "react";
+import { Link } from "react-router-dom";
 import { clipDuration } from "@bt/domain";
 import { useDayDigest } from "../../api/digest.js";
 import type { DayDigestPayload } from "../../api/digest.js";
@@ -9,6 +9,7 @@ import { formatMonthDay } from "../../format/datetime.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { gameLabel } from "../videos/gameLabel.js";
 import { LazyPlayerDialog } from "../videos/LazyPlayerDialog.js";
+import { useOpenClip } from "../videos/openClip.js";
 import { VideoStill } from "../videos/VideoCard.js";
 import { SectionHeading } from "../SectionHeading.js";
 
@@ -18,18 +19,21 @@ type DigestItem = DayDigestPayload["items"][number];
  * One ranked clip on the raised ground: rank, still, title, duration, and `WATCH FIRST` on the
  * top one. The ratified dull gold ground is gone for now (owner, 2026-11-12: "the gold
  * highlights are too much visually on the featured videos. Let's remove that for now"); the
- * row is a raised card like the games above it, lifting on hover with its still zooming.
+ * row is a raised card like the games above it, lifting on hover with its still zooming. It is a
+ * link to the scoreboard with its clip open (`href`, `useOpenClip`, #424).
  */
-function DigestRow({ item, onPlay }: { item: DigestItem;
-	onPlay: (item: DigestItem) => void; })
+function DigestRow({ item, href }: { item: DigestItem;
+	href: string; })
 {
 	const { highlight } = item;
 	const duration = clipDuration(highlight.duration);
 	return (
 		<UnstyledButton
+			component={Link}
+			to={href}
+			replace
 			data-testid="digest-item"
 			aria-label={`Play ${highlight.title}`}
-			onClick={() => onPlay(item)}
 			p={12}
 			className="bt-card bt-zoom-host"
 			style={{
@@ -73,7 +77,7 @@ function DigestRow({ item, onPlay }: { item: DigestItem;
  * and the rest the right, so five read 1–3 on the left and 4–5 on the right. The split is
  * drawn as two explicit columns, not CSS columns, whose balancing doesn't promise it.
  *
- * Choosing a clip plays it in S70's dialog, whatever the Video Player setting (there is no
+ * Choosing a clip (a link to this page with it open, `useOpenClip`, #424) plays it in S70's dialog, whatever the Video Player setting (there is no
  * stage on the scoreboard), with the link to its game (owner, 2026-10-21: "All videos which
  * have enough context to associate them to a game should show a link to the game unless
  * they are already being played from the game"). Hide Scores leaves the digest as it is,
@@ -85,7 +89,9 @@ export function DayDigest({ date, variant }: { date: string;
 	variant: LayoutVariant; })
 {
 	const { data } = useDayDigest(date);
-	const [playing, setPlaying] = useState<DigestItem | null>(null);
+	const {
+		playing, href, close,
+	} = useOpenClip(data?.items, (item) => item.highlight.id);
 	if (!data || data.items.length === 0) return null;
 	const half = Math.ceil(data.items.length / 2);
 	const columns = variant === "mobile" ? [data.items] : [data.items.slice(0, half), data.items.slice(half)];
@@ -97,14 +103,14 @@ export function DayDigest({ date, variant }: { date: string;
 			<SimpleGrid cols={columns.length} spacing={8}>
 				{columns.map((column, index) => (
 					<Stack key={index} gap={8} data-testid="digest-column">
-						{column.map((item) => <DigestRow key={item.highlight.id} item={item} onPlay={setPlaying} />)}
+						{column.map((item) => <DigestRow key={item.highlight.id} item={item} href={href(item)} />)}
 					</Stack>
 				))}
 			</SimpleGrid>
 			{playing ? (
 				<LazyPlayerDialog
 					video={playing.highlight}
-					onClose={() => setPlaying(null)}
+					onClose={close}
 					game={{
 						gamePk: playing.game.gamePk,
 						label: gameLabel(playing.game),

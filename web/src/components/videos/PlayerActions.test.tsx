@@ -737,7 +737,7 @@ describe("action palette", () =>
 		})).toHaveAttribute("href", HLS);
 	});
 
-	it("Share opens the device's share sheet with the title and URL; without one it copies the link", async () =>
+	it("Share opens the device's share sheet with the title and URL", async () =>
 	{
 		const share = vi.fn(() => Promise.resolve());
 		const writeText = vi.fn(() => Promise.resolve());
@@ -757,23 +757,6 @@ describe("action palette", () =>
 			url: MP4,
 		});
 		expect(writeText).not.toHaveBeenCalled();
-		cleanup();
-
-		vi.stubGlobal("navigator", {
-			...navigator,
-			share: undefined,
-			clipboard: {
-				writeText,
-			},
-		});
-		renderPlayer();
-		await userEvent.click(screen.getByRole("button", {
-			name: "Share",
-		}));
-		expect(writeText).toHaveBeenCalledWith(MP4);
-		expect(await screen.findByRole("button", {
-			name: "Copied",
-		})).toBeInTheDocument();
 	});
 
 	it("playing an HLS stream, Copy link, Direct link and Share all use the MP4 of the same cut, not the playlist", async () =>
@@ -873,19 +856,43 @@ describe("action palette", () =>
 		})).toBeInTheDocument();
 	});
 
-	it("Share without a share sheet or a clipboard says \"Couldn't copy\"", async () =>
+	it("Share shows only where the browser can share the clip: no share sheet, or one that can't share it, draws no Share (#417)", () =>
 	{
+		const writeText = vi.fn(() => Promise.resolve());
+		// No share sheet (most desktop browsers): Copy link already copies, so Share isn't drawn.
 		vi.stubGlobal("navigator", {
 			...navigator,
 			share: undefined,
-			clipboard: undefined,
+			clipboard: {
+				writeText,
+			},
 		});
 		renderPlayer();
-		await userEvent.click(screen.getByRole("button", {
-			name: "Share",
-		}));
-		expect(await screen.findByRole("button", {
-			name: "Couldn't copy",
+		expect(screen.getByRole("button", {
+			name: "Copy link",
 		})).toBeInTheDocument();
+		expect(screen.queryByRole("button", {
+			name: "Share",
+		})).toBeNull();
+		cleanup();
+
+		// A share sheet that says it can't take this clip's title and URL.
+		const canShare = vi.fn(() => false);
+		vi.stubGlobal("navigator", {
+			...navigator,
+			share: vi.fn(() => Promise.resolve()),
+			canShare,
+			clipboard: {
+				writeText,
+			},
+		});
+		renderPlayer();
+		expect(canShare).toHaveBeenCalledWith({
+			title: VIDEO.title,
+			url: MP4,
+		});
+		expect(screen.queryByRole("button", {
+			name: "Share",
+		})).toBeNull();
 	});
 });

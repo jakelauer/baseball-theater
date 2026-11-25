@@ -2,6 +2,7 @@ import {
 	Group, Stack, Text, UnstyledButton,
 } from "@mantine/core";
 import { IconVideo } from "@tabler/icons-react";
+import { Link } from "react-router-dom";
 import type { SearchHighlightsPayload } from "../../api/search.js";
 import { MatchupAbbr } from "../team/MatchupAbbr.js";
 import { videoMeta } from "../videos/videoMeta.js";
@@ -14,18 +15,22 @@ export type SearchResult = SearchHighlightsPayload["highlights"][number];
  * the clip's title as MLB writes it (Search is unaffected by Hide Scores; owner, 2026-10-21), its
  * meta line `Highlight · Sep 21, 2026` from `videoMeta` (the one meta-line rule, ADR-025), and at
  * the right the game's matchup as swatch + abbreviation (`MatchupAbbr`), or nothing for a clip MLB
- * ties to no game. The whole row is the button that plays it; rows are split by hairlines.
+ * ties to no game. The whole row is a link to this search with its clip open (`href`, `useOpenClip`,
+ * #424), so a click plays it in place and a middle-click opens it in a new tab; rows are split by hairlines.
  */
-export function SearchResultRow({ result, onPlay }: { result: SearchResult;
-	onPlay: (result: SearchResult) => void; })
+export function SearchResultRow({ result, href }: { result: SearchResult;
+	/** This search with the clip open (`useOpenClip`'s `href`, #424). */
+	href: string; })
 {
 	const { highlight, game } = result;
 	const meta = videoMeta(highlight, null);
 	return (
 		<UnstyledButton
+			component={Link}
+			to={href}
+			replace
 			data-testid="search-result"
 			aria-label={`Play ${highlight.title}`}
-			onClick={() => onPlay(result)}
 			className="bt-hover"
 			py={16}
 			px={0}
