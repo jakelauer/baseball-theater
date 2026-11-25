@@ -99,7 +99,9 @@ export class GameIngest
 			// The whole game, its playMetrics waited for (S216 AC 5): a poll never stores a game without them for being slow.
 			fetched = await wholeFetchedGame(await this.deps.mlb.fetchGame(gamePk));
 			// S99: a due game's pick, asked between the fetch and the write (bounded by PLAY_METRICS_LIMIT_MS), so a poll
-			// stays one versioned write and one publish; never once both sides are stored.
+			// stays one versioned write and one publish; never once both sides are stored. The key needs both, so a game MLB
+			// never gives a fan pick is asked again, one bounded request, on every final-trail poll until its run ends (the
+			// cold read likewise asks again on each refresh of a game whose stored pick has only one side).
 			if (!await this.storage.get<boolean>(POTG_COMPLETE_KEY)) fetched = await withAskedPlayerOfTheGame(this.deps.mlb, fetched, undefined);
 		}
 		catch
