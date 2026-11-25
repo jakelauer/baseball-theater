@@ -1229,6 +1229,24 @@ describe("StandingsPage: the two leagues side by side (#434)", () =>
 		expect(screen.getAllByRole("region").filter((r) => r.getAttribute("aria-label")?.endsWith(" standings"))).toHaveLength(6);
 	});
 
+	it.each(["desktop", "medium"] as const)("%s: each league's tables fill their column's width, the team column taking the room (#587)", async (variant) =>
+	{
+		serve(() => jsonResponse(STANDINGS));
+		renderPage("/standings?date=2026-09-05", variant);
+		await screen.findAllByTestId("division-table");
+		const tables = screen.getAllByTestId("standings-league").flatMap((league) => within(league).getAllByRole("table"));
+		expect(tables).toHaveLength(6);
+		for (const table of tables)
+		{
+			expect(table).toHaveStyle({
+				width: "100%",
+			});
+			expect(within(table).getAllByTestId("standings-row")[0]!.querySelector("td")).toHaveStyle({
+				width: "100%",
+			});
+		}
+	});
+
 	it("mobile: the leagues stack, the American League over the National (#434)", async () =>
 	{
 		serve(() => jsonResponse(STANDINGS));
