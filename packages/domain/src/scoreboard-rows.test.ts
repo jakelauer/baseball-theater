@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	collapsedBarState, isFavoriteGame, scoreboardRows,
+	collapsedBarState, isFavoriteGame, scoreboardRows, sortScoreboardGames,
 } from "./scoreboard-rows.js";
 import type { ScheduleGameSummary } from "./types.js";
 
@@ -179,5 +179,57 @@ describe("collapsedBarState (S68)", () =>
 			status: status("S"),
 			linescore: null,
 		}, false)).toBeNull();
+	});
+});
+
+describe("sortScoreboardGames (B430, #430)", () =>
+{
+	/** A game with teams, a coded state and a start time (absent when `start` is null). */
+	const timed = (pk: number, away: number, home: number, code: string, start: string | null) => ({
+		...game(pk, away, home),
+		status: {
+			codedGameState: code,
+		},
+		...(start ? {
+			startTime: `2026-09-05T${start}:00Z`,
+		} : {}),
+	}) as unknown as ScheduleGameSummary;
+
+	const GAMES = [
+		timed(1, 137, 121, "F", "17:05"),
+		timed(2, 112, 146, "S", "16:10"),
+		timed(3, 147, 111, "I", "19:10"),
+		timed(4, 119, 135, "I", "18:40"),
+		timed(5, 143, 120, "P", null),
+		timed(6, 108, 133, "S", "23:10"),
+	];
+	const order = (favorites: number[], sort: "default" | "startTime") => sortScoreboardGames(GAMES, favorites, sort).map((g) => g.gamePk);
+
+	it("default with no favorites: games in progress first, each part by start time, earliest first, untimed last", () =>
+	{
+		expect(order([], "default")).toEqual([4, 3, 2, 1, 6, 5]);
+	});
+
+	it("default: a favorite team's games come first, in progress before the rest, then early to late", () =>
+	{
+		expect(order([133, 121, 111], "default")).toEqual([3, 1, 6, 4, 2, 5]);
+	});
+
+	it("default: a favorite by its home team only counts (isFavoriteGame)", () =>
+	{
+		expect(order([146], "default")[0]).toBe(2);
+	});
+
+	it("startTime: every game by first pitch alone, favorites and live games included, untimed last", () =>
+	{
+		expect(order([133], "startTime")).toEqual([2, 1, 4, 3, 6, 5]);
+	});
+
+	it("ties keep the order given, and the input is not changed", () =>
+	{
+		const same = [timed(7, 1, 2, "S", "17:00"), timed(8, 3, 4, "S", "17:00")];
+		expect(sortScoreboardGames(same, [], "default").map((g) => g.gamePk)).toEqual([7, 8]);
+		expect(sortScoreboardGames([...same].reverse(), [], "startTime").map((g) => g.gamePk)).toEqual([8, 7]);
+		expect(GAMES.map((g) => g.gamePk)).toEqual([1, 2, 3, 4, 5, 6]);
 	});
 });
