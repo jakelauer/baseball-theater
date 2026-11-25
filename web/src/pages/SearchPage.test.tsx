@@ -117,7 +117,7 @@ function renderSearch(entry = "/search")
 			<QueryClientProvider client={createQueryClient()}>
 				<MemoryRouter initialEntries={[entry]}>
 					<Routes>
-						<Route path="/search" element={<><SearchPage /><Where /></>} />
+						<Route path="/search" element={<><SearchPage variant="desktop" /><Where /></>} />
 						<Route path="/game/:gamePk" element={<p>game page</p>} />
 						<Route path="/game/:gamePk/plays" element={<><p>plays room</p><Where /></>} />
 					</Routes>
@@ -156,19 +156,17 @@ describe("Search Highlights (S5)", () =>
 		expect(screen.getByTestId("where")).toHaveTextContent("/search?q=walk-off");
 	});
 
-	it("S5 AC 8: rows with kind · date and both teams' MatchupAbbr, with no count; a clip with no game has no matchup", async () =>
+	it("S5 AC 8: cards with kind · date after both teams' MatchupAbbr, with no count; a clip with no game has no matchup (#588)", async () =>
 	{
 		serve(() => WALK_OFF);
 		renderSearch("/search?q=walk-off");
 		const rows = await screen.findAllByTestId("search-result");
 		expect(rows).toHaveLength(2);
-		expect(within(rows[0]!).getByTestId("search-result-meta")).toHaveTextContent("Highlight · Oct 27, 2026");
-		const matchup = within(rows[0]!).getByTestId("matchup-abbr");
-		expect(matchup).toHaveTextContent("MIL@TB");
-		expect(within(rows[1]!).getByTestId("search-result-meta")).toHaveTextContent("Highlight · Nov 3, 2026");
+		expect(within(rows[0]!).getByTestId("video-meta")).toHaveTextContent(/^Highlight · Oct 27, 2026$/);
+		expect(within(rows[0]!).getByTestId("matchup-abbr")).toHaveTextContent("MIL@TB");
+		expect(within(rows[0]!).getByTestId("video-duration")).toHaveTextContent("0:44");
+		expect(within(rows[1]!).getByTestId("video-meta")).toHaveTextContent(/^Highlight · Nov 3, 2026$/);
 		expect(within(rows[1]!).queryByTestId("matchup-abbr")).toBeNull();
-		// Typographic rows: no still, no photo.
-		expect(document.querySelector("[data-testid='search-result'] img")).toBeNull();
 	});
 
 	it("S5 AC 8: no number shows until paging, neither the clips listed nor MLB's total (owner, 2026-11-22)", async () =>
@@ -397,6 +395,48 @@ describe("Search Highlights (S5)", () =>
 	});
 });
 
+describe("Search's results draw as the shared video cards, in a grid or a list (#588)", () =>
+{
+	it("draws each result as the Videos room's VideoCard in its VideoGrid, with no search-only video markup, and the Layout control switches to the list and back (#588)", async () =>
+	{
+		const user = userEvent.setup();
+		serve(() => ({
+			...WALK_OFF,
+			highlights: [MESA, WORLD_SERIES],
+		}));
+		renderSearch("/search?q=walk-off");
+		const grid = await screen.findByTestId("videos-grid");
+		// The shared VideoCard (its `data-layout`, still and meta line), keeping the old rows' test id for S5/S72/S153's design specs.
+		const cards = within(grid).getAllByTestId("search-result");
+		expect(cards).toHaveLength(2);
+		expect(cards.every((card) => card.dataset.layout === "grid")).toBe(true);
+		expect(cards.every((card) => card.classList.contains("bt-zoom-host"))).toBe(true);
+		// The matchup the old rows showed stays, at the start of the meta line.
+		expect(within(cards[0]!).getByTestId("matchup-abbr")).toHaveTextContent("TB@NYY");
+		expect(within(cards[1]!).getByTestId("matchup-abbr")).toHaveTextContent("MIL@TB");
+		// In a phone's ~170px grid card the matchup line wraps and may shrink, so matchup · date and the pill never overflow.
+		const line = within(cards[0]!).getByTestId("video-meta-line");
+		expect(line.getAttribute("style")).toMatch(/--group-wrap: wrap/);
+		expect(line.getAttribute("style")).toMatch(/min-width: 0/);
+		// Each card keeps its date line and, with a play, its inning pill (S153).
+		expect(within(rowOf(MESA.highlight.title)).getByTestId("video-meta")).toHaveTextContent(/^Oct 7, 2026$/);
+		expect(within(rowOf(MESA.highlight.title)).getByTestId("search-play-link")).toHaveAttribute("href", "/game/849838/plays?play=4f687124-5ec9-337b-a32b-2dedc930bcee");
+		expect(within(rowOf(WORLD_SERIES.highlight.title)).getByTestId("video-meta")).toHaveTextContent(/^Highlight · Oct 27, 2026$/);
+
+		await user.click(screen.getByRole("radio", {
+			name: "List",
+		}));
+		expect(screen.queryByTestId("videos-grid")).toBeNull();
+		const rows = within(screen.getByTestId("videos-list")).getAllByTestId("search-result");
+		expect(rows).toHaveLength(2);
+		expect(rows.every((row) => row.dataset.layout === "list")).toBe(true);
+		await user.click(screen.getByRole("radio", {
+			name: "Grid",
+		}));
+		expect(within(screen.getByTestId("videos-grid")).getAllByTestId("search-result")).toHaveLength(2);
+	});
+});
+
 describe("Search's active filter chips (S72)", () =>
 {
 	/** Every search asked, as its query string; answered by `answer` from the request's parameters. */
@@ -560,7 +600,7 @@ describe("Search's inning pill (S153; game-shell A6 search-playmeta-*)", () =>
 		renderSearch("/search?q=home-run");
 		await screen.findAllByTestId("search-result");
 		const row = rowOf(MESA.highlight.title);
-		const meta = within(row).getByTestId("search-result-meta");
+		const meta = within(row).getByTestId("video-meta");
 		expect(meta).toHaveTextContent(/^Oct 7, 2026$/);
 		expect(meta.getAttribute("style")).toMatch(/color: var\(--bt-muted\)/);
 		expect(row.textContent).not.toMatch(/Highlight/);
@@ -604,7 +644,7 @@ describe("Search's inning pill (S153; game-shell A6 search-playmeta-*)", () =>
 		expect(screen.getByTestId("where")).toHaveTextContent(/^\/search\?q=home-run&clip=mesa-hr$/);
 	});
 
-	it("S153 AC 4: a result with no play, a play id and inning but no half, or no game keeps Highlight · date in --bt-light, with no pill", async () =>
+	it("S153 AC 4: a result with no play, a play id and inning but no half, or no game keeps Highlight · date, with no pill", async () =>
 	{
 		const noHalf = {
 			...MESA,
@@ -651,9 +691,8 @@ describe("Search's inning pill (S153; game-shell A6 search-playmeta-*)", () =>
 		for (const result of [WORLD_SERIES, MONTAGE, noHalf, noGame, noPlayId, noInning])
 		{
 			const row = rowOf(result.highlight.title);
-			const meta = within(row).getByTestId("search-result-meta");
+			const meta = within(row).getByTestId("video-meta");
 			expect(meta, result.highlight.id).toHaveTextContent(/^Highlight · \w{3} \d{1,2}, 2026$/);
-			expect(meta.getAttribute("style"), result.highlight.id).toMatch(/color: var\(--bt-light\)/);
 			expect(within(row).queryAllByRole("link")).toHaveLength(1);
 		}
 		expect(document.querySelector(".bt-play-pill")).toBeNull();
@@ -687,11 +726,13 @@ describe("Search's inning pill (S153; game-shell A6 search-playmeta-*)", () =>
 		}));
 		renderSearch("/search?q=walk-off");
 		await screen.findAllByTestId("search-result");
-		expect(within(rowOf("Undated")).queryByTestId("search-result-meta")).toBeNull();
+		expect(within(rowOf("Undated")).queryByTestId("video-meta")).toBeNull();
+		// The matchup still starts the meta row (#588), so the pill keeps its 6px after it.
+		expect(within(rowOf("Undated")).getByTestId("matchup-abbr")).toHaveTextContent("TB@NYY");
 		expect(within(rowOf("Undated")).getByRole("link", {
 			name: "Top 6: open play, top of 6th inning",
-		}).style.marginLeft).toBe("0px");
-		expect(within(rowOf("Bare")).queryByTestId("search-result-meta")).toBeNull();
+		}).style.marginLeft).toBe("6px");
+		expect(within(rowOf("Bare")).queryByTestId("video-meta")).toBeNull();
 		expect(rowOf("Bare").querySelector(".bt-play-pill")).toBeNull();
 	});
 
@@ -714,7 +755,7 @@ describe("Search's inning pill (S153; game-shell A6 search-playmeta-*)", () =>
 			{
 				const row = rowOf(result.highlight.title);
 				const pill = row.querySelector(".bt-play-pill");
-				return [within(row).getByTestId("search-result-meta").textContent, pill?.textContent ?? null, pill?.getAttribute("href") ?? null, pill?.getAttribute("aria-label") ?? null];
+				return [within(row).getByTestId("video-meta").textContent, pill?.textContent ?? null, pill?.getAttribute("href") ?? null, pill?.getAttribute("aria-label") ?? null];
 			});
 			cleanup();
 			resetSettings();

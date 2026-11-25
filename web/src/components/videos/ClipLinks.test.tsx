@@ -106,7 +106,7 @@ function renderAt(path: string)
 					<Routes>
 						<Route path="/game/:gamePk/:tab" element={<><GamePage variant="mobile" /><Where /></>} />
 						<Route path="/games/:date" element={<><ScoreboardPage variant="mobile" /><Where /></>} />
-						<Route path="/search" element={<><SearchPage /><Where /></>} />
+						<Route path="/search" element={<><SearchPage variant="mobile" /><Where /></>} />
 					</Routes>
 				</MemoryRouter>
 			</QueryClientProvider>
@@ -164,7 +164,7 @@ describe("clips are links (#424)", () =>
 		expect(await screen.findByRole("dialog")).toBeInTheDocument();
 	});
 
-	it("a Search row links to the same search with its clip open, and loading that link opens it (#424)", async () =>
+	it("a Search card links to the same search with its clip open, and loading that link opens it (#424)", async () =>
 	{
 		renderAt("/search?q=walk-off");
 		const row = await screen.findByTestId("search-result");
