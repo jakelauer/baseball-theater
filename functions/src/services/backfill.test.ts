@@ -189,6 +189,12 @@ class FakeMlb implements MlbGameSources
 	{
 		return null;
 	}
+
+	/** No uniforms here (S101): the field stays absent. */
+	async fetchGameUniforms(): Promise<null>
+	{
+		return null;
+	}
 }
 
 /** The fake with every feed due a player of the game (S99), its pick asked and counted as `pick <gamePk>`. */

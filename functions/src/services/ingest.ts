@@ -3,7 +3,7 @@ import type {
 } from "@bt/domain";
 import {
 	addDays, cacheLifetimeMs, DEFAULT_CADENCE, gameStateFromGame, gameStateFromSummary, isFinalStatus, isGameInActiveWindow, isPastFinishedDay, isPastFinishedGame,
-	isScheduleDaySettled, keepPlayerOfTheGame, mlbToday, normalizeStatusCode, playerOfTheGameComplete, projectGame, scheduleWindowMode, scoreboardWinProbability,
+	isScheduleDaySettled, keepStoredExtras, mlbToday, normalizeStatusCode, playerOfTheGameComplete, projectGame, scheduleWindowMode, scoreboardWinProbability,
 	stampVersion, suspendedSince, toStoredScheduleDay,
 	wholeFetchedGame,
 } from "@bt/domain";
@@ -11,7 +11,9 @@ import type {
 	BackgroundWork, GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, ScheduleRepository,
 } from "@bt/ports";
 import { withLatePlayMetrics } from "../mappers/game-extras.js";
-import { askPlayerOfTheGame, withAskedPlayerOfTheGame } from "./player-of-the-game.js";
+import {
+	askGameUniforms, askPlayerOfTheGame, withAskedPlayerOfTheGame, withAskedUniforms,
+} from "./player-of-the-game.js";
 import type { DayHubNotifier } from "./day-hubs.js";
 import { DayHubCalls } from "./day-hubs.js";
 import type { EdgePurge } from "./edge-purge.js";
@@ -364,8 +366,8 @@ async function storeGames(
 			outcome,
 			snapshot: write.stored,
 		};
-		// S99: a stored player-of-the-game side the fetch lacks (not asked, failed, slow) is kept, never cleared.
-		const { suspendedAt: _ignored, ...upstream } = keepPlayerOfTheGame(write.stored, write.fetched);
+		// S99, S101: a stored extra (a player-of-the-game side, the uniforms) the fetch lacks (not asked, failed, slow) is kept, never cleared.
+		const { suspendedAt: _ignored, ...upstream } = keepStoredExtras(write.stored, write.fetched);
 		const suspendedAt = suspendedSince(write.stored, write.fetched.status.codedGameState, write.fetched.fetchedAt);
 		const next = stampVersion<GameSnapshot>(write.stored, suspendedAt === undefined ? upstream : {
 			...upstream,
@@ -610,15 +612,21 @@ async function joinedBefore(deps: Pick<IngestDeps, "games" | "gameStates">, stor
  * the mended score with the game's next snapshot change) and a day hub turns into a push of its
  * day, whose served version the row's new state version raised. Since the row is written
  * first (`storeGame`), a poll never leaves a row behind its own snapshot.
+ *
+ * S101: with `mlb`, the game's uniforms are asked here, against the stored game it already read (`withAskedUniforms`:
+ * only while none is stored, when the game is new or its status changed, bounded by `PLAY_METRICS_LIMIT_MS`), so every
+ * path that writes one game (the ingest object's poll, the cron tick, the day seed, the re-check, the backfill) asks it
+ * off the game fetch and no poll whose status stays the same asks again. Without `mlb` (tests) nothing is asked.
  */
 export async function ingestGame(
-	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge" | "dayHubs">,
+	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge" | "dayHubs"> & { mlb?: Pick<MlbStatsClient, "fetchGameUniforms"> },
 	fetched: Unversioned<GameSnapshot>,
 	feedTime?: string,
 ): Promise<StoredGame & { changed: boolean }>
 {
 	const before = await deps.games.getByPk(fetched.gamePk);
-	const stored = await storeGame(deps, fetched, feedTime, before);
+	const asked = deps.mlb ? await withAskedUniforms(deps.mlb, fetched, before) : fetched;
+	const stored = await storeGame(deps, asked, feedTime, before);
 	return {
 		...stored,
 		changed: before?.version !== stored.snapshot.version,
@@ -951,7 +959,14 @@ async function readGames(
 		const snapshot = stored.get(gamePk);
 		const pick = snapshot?.playerOfTheGame;
 		const early = pick && !playerOfTheGameComplete(pick) ? askPlayerOfTheGame(deps.mlb, gamePk) : undefined;
-		return withAskedPlayerOfTheGame(deps.mlb, await deps.mlb.fetchGame(gamePk), snapshot?.playerOfTheGame, early);
+		// S101: a game not stored yet has its uniforms asked beside the fetch (one bounded wait at most, run at once);
+		// a stored one lacking them is asked after the fetch only when its status changed (`withAskedUniforms`).
+		const earlyUniforms = snapshot ? undefined : askGameUniforms(deps.mlb, gamePk);
+		const fetched = await withAskedPlayerOfTheGame(deps.mlb, await deps.mlb.fetchGame(gamePk), snapshot?.playerOfTheGame, early);
+		return {
+			...fetched,
+			game: await withAskedUniforms(deps.mlb, fetched.game, snapshot, earlyUniforms),
+		};
 	};
 	const fetched = await Promise.all(due.map((gamePk) => runRefresh(deps, `game:${gamePk}`, () => fetchWithPick(gamePk)).then(
 		(game) => game ?? "cooldown" as const,
@@ -1066,9 +1081,9 @@ async function storeLatePlayMetrics(
 	for (let attempt = 0; attempt < 2; attempt++)
 	{
 		if (base.playMetrics) return;
-		// S99: the late game is built without the player of the game, so the answered game's pick is kept (`keepPlayerOfTheGame`).
+		// S99, S101: the late game is built without the extras asked off the fetch, so the answered game's are kept (`keepStoredExtras`).
 		const content: Unversioned<GameSnapshot> = attempt === 0
-			? keepPlayerOfTheGame(answered, {
+			? keepStoredExtras(answered, {
 				...whole,
 				fetchedAt: answered.fetchedAt,
 				windowMode: answered.windowMode,

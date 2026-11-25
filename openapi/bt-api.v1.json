@@ -464,6 +464,10 @@
 						"required": ["home", "away"],
 						"type": "object"
 					},
+					"uniforms": {
+						"$ref": "#/components/schemas/GameUniforms",
+						"description": "What each team wore (S101), asked by ingest off the game fetch (`withAskedUniforms`) when it first stores the game or sees its status change while none is stored, so a live poll never asks again for a value settled before first pitch. Once stored it is kept (`keepStoredExtras`): a later write that didn't ask, or whose ask failed or ran past its limit, never clears it. Absent until MLB lists one BT has asked for, and then the game is served as before."
+					},
 					"venue": {
 						"anyOf": [
 							{
@@ -508,6 +512,15 @@
 				"description": "MLB's `codedGameState` letters, every one MLB's `GET /api/v1/gameStatus` lists (#81); `window.ts` says how BT treats each. `X` is MLB's own \"Unknown\", which BT also writes when MLB sends no code. A code MLB doesn't list passes through as it is (the `| string` beside this type wherever BT carries a status), and the domain reads it as unknown (`normalizeStatusCode`). MLB's `U` is a suspended game, not unknown.",
 				"enum": ["S", "P", "I", "M", "N", "T", "U", "F", "O", "C", "Q", "R", "D", "X", "W"],
 				"type": "string"
+			},
+			"GameUniforms": {
+				"additionalProperties": false,
+				"description": "What each team wore in a game (S101): each side's assets, in MLB's order. A side MLB lists nothing for is absent, and a game with neither has no `uniforms`.",
+				"properties": {
+					"away": { "items": { "$ref": "#/components/schemas/UniformAssetWorn" }, "type": "array" },
+					"home": { "items": { "$ref": "#/components/schemas/UniformAssetWorn" }, "type": "array" }
+				},
+				"type": "object"
 			},
 			"HighlightKind": {
 				"description": "What a video is, from MLB's content keywords (S69): a play `highlight`, the game `recap`, the `condensed` game, or another `video` (interviews, lineups, analysis).",
@@ -1481,6 +1494,17 @@
 					"token": { "type": "string" }
 				},
 				"required": ["realTier", "tier", "token"],
+				"type": "object"
+			},
+			"UniformAssetWorn": {
+				"additionalProperties": false,
+				"description": "One piece of a team's uniform in a game (S101): MLB's code (`146_jersey_1_2026`), its name and its kind (\"Jersey\", \"Pants\", \"Cap\").",
+				"properties": {
+					"code": { "type": "string" },
+					"text": { "type": "string" },
+					"type": { "type": "string" }
+				},
+				"required": ["code", "text", "type"],
 				"type": "object"
 			},
 			"VideoPlayRef": {

@@ -4,6 +4,7 @@ import type {
 	GamePlayMetrics,
 	GameRecap,
 	MediaHighlight,
+	GameUniforms,
 	PlayerOfTheGame,
 	PlayerProfile,
 	ScheduleDay,
@@ -56,6 +57,11 @@ export interface MlbStatsClient {
 	 * `playerOfTheGame`.
 	 */
 	fetchPlayerOfTheGame(gamePk: number): Promise<PlayerOfTheGame | null>;
+	/**
+	 * The uniforms each team wore (S101), mapped; null when the call fails or lists none. `fetchGame` never asks it:
+	 * ingest does, off the fetch path, when it first stores a game or sees its status change (`withAskedUniforms`).
+	 */
+	fetchGameUniforms(gamePk: number): Promise<GameUniforms | null>;
 	/** The regular season's standings as of `date` (S4); MLB has none outside the regular season. */
 	fetchStandings(date: string): Promise<StandingsSnapshot>;
 	/** A season's final regular-season table (S128): MLB's standings for the season with no date. */
@@ -106,7 +112,7 @@ export type GameEditorial = {
  * it answered, and stop asking one it has given up, which `fetchGame`'s fan-out can't do.
  * `fetchGame` is the live feed with all three extras attached; these are its parts.
  */
-export interface MlbGameSources extends Pick<MlbStatsClient, "fetchSchedule" | "fetchPlayMetrics" | "fetchGameGraphContent" | "fetchPlayerOfTheGame"> {
+export interface MlbGameSources extends Pick<MlbStatsClient, "fetchSchedule" | "fetchPlayMetrics" | "fetchGameGraphContent" | "fetchPlayerOfTheGame" | "fetchGameUniforms"> {
 	/**
 	 * The live feed alone, mapped, with no highlights or extras, and `playerOfTheGameDue` as `fetchGame` says it (S99:
 	 * the backfill asks a due game's pick once); throws when it can't be had.

@@ -550,6 +550,8 @@ describe("GameIngest player of the game (S99 review)", () =>
 		};
 		const fetchPlayerOfTheGame = vi.fn(pick);
 		mlb.fetchPlayerOfTheGame = fetchPlayerOfTheGame;
+		// S101: the uniforms (asked by the write for a game not stored yet) answer at once, so only the pick's timing counts.
+		mlb.fetchGameUniforms = async () => null;
 		return {
 			...setupResult,
 			fetchPlayerOfTheGame,

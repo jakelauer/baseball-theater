@@ -8,6 +8,7 @@ import {
 	parseGraphContentResponse,
 	parseLiveFeedResponse,
 	parsePlayMetricsResponse,
+	parseGameUniformsResponse,
 	parsePlayerOfTheGameResponse,
 	parseScheduleResponse,
 	parseSeasonsResponse,
@@ -237,6 +238,45 @@ describe("parseStandingsResponse (S102)", () =>
 			id: 201,
 			link: "/api/v1/divisions/201",
 		});
+	});
+});
+
+describe("parseGameUniformsResponse (S101)", () =>
+{
+	it("S101 AC 2: parses the recorded 823823 answer: both sides, each asset's code, name and type", () =>
+	{
+		const parsed = parseGameUniformsResponse(readRaw("uniforms-823823.json"));
+		const game = parsed.uniforms?.[0];
+
+		expect(game?.gamePk).toBe(823823);
+		expect(game?.home?.id).toBe(146);
+		expect(game?.away?.id).toBe(112);
+		expect(game?.home?.uniformAssets?.[0]).toEqual({
+			uniformAssetId: 2548,
+			uniformAssetCode: "146_jersey_1_2026",
+			uniformAssetText: "Marlins Home White Jersey",
+			uniformAssetType: {
+				uniformAssetTypeDesc: "Shirt, jersey, sweater, etc.",
+				uniformAssetTypeCode: "J",
+				uniformAssetTypeText: "Jersey",
+				uniformAssetTypeId: 1,
+			},
+			active: true,
+		});
+		expect(game?.away?.uniformAssets?.map((asset) => asset.uniformAssetType?.uniformAssetTypeText)).toEqual(["Jersey", "Pants", "Cap"]);
+	});
+
+	it("S101 AC 2: refuses an answer that isn't the endpoint's shape", () =>
+	{
+		expect(() => parseGameUniformsResponse({
+			uniforms: [{
+				home: {
+					uniformAssets: [{
+						uniformAssetText: 7,
+					}],
+				},
+			}],
+		})).toThrow();
 	});
 });
 

@@ -86,7 +86,8 @@ describe("past, finished reads (S212 AC 2)", () =>
 		const counting = countingMlb();
 		empty.mlb = counting.client;
 		expect(await getOrRefreshGame(empty, 744834)).not.toBeNull();
-		expect(counting.calls).toEqual(["fetchGame 744834"]);
+		// The game once, and (S101) its uniforms once, asked as the game is first stored.
+		expect(counting.calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
 	});
 
 	it("S212 AC 2 today stale: MLB's today, stale-stamped, still makes one MLB request", async () =>

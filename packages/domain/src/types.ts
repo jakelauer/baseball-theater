@@ -240,6 +240,22 @@ export type PlayerOfTheGame = {
 	fan?: PlayerOfTheGamePick;
 };
 
+/** One piece of a team's uniform in a game (S101): MLB's code (`146_jersey_1_2026`), its name and its kind ("Jersey", "Pants", "Cap"). */
+export type UniformAssetWorn = {
+	code: string;
+	text: string;
+	type: string;
+};
+
+/**
+ * What each team wore in a game (S101): each side's assets, in MLB's order. A side MLB lists nothing for is absent,
+ * and a game with neither has no `uniforms`.
+ */
+export type GameUniforms = {
+	home?: UniformAssetWorn[];
+	away?: UniformAssetWorn[];
+};
+
 export type GameSnapshot = {
 	gamePk: number;
 	gameDate: string; // YYYY-MM-DD (schedule date)
@@ -295,6 +311,13 @@ export type GameSnapshot = {
 	 * gets none here; filling those is #619's), and then the game is served as before.
 	 */
 	playerOfTheGame?: PlayerOfTheGame;
+	/**
+	 * What each team wore (S101), asked by ingest off the game fetch (`withAskedUniforms`) when it first stores the game
+	 * or sees its status change while none is stored, so a live poll never asks again for a value settled before first
+	 * pitch. Once stored it is kept (`keepStoredExtras`): a later write that didn't ask, or whose ask failed or ran past
+	 * its limit, never clears it. Absent until MLB lists one BT has asked for, and then the game is served as before.
+	 */
+	uniforms?: GameUniforms;
 	/** Who is on base and who is batting and pitching (S63); `null` unless in progress, absent on older recordings. */
 	live?: GameLive | null;
 	fetchedAt: string; // ISO
