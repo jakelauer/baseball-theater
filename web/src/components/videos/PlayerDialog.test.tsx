@@ -390,6 +390,40 @@ describe("S196: the inset player modal", () =>
 		expect(await screen.findByText("closed")).toBeInTheDocument();
 	});
 
+	it("S196 AC 2: Escape is left alone mid-composition, when already handled, or when a menu marked it as its own; other keys never close", async () =>
+	{
+		renderPills({});
+		const dialog = await screen.findByRole("dialog");
+		const close = within(dialog).getByRole("button", {
+			name: "Close video",
+		});
+		fireEvent.keyDown(close, {
+			key: "Enter",
+		});
+		fireEvent.keyDown(close, {
+			key: "Escape",
+			isComposing: true,
+		});
+		const handled = new KeyboardEvent("keydown", {
+			key: "Escape",
+			bubbles: true,
+			cancelable: true,
+		});
+		handled.preventDefault();
+		close.dispatchEvent(handled);
+		close.setAttribute("data-mantine-stop-propagation", "true");
+		fireEvent.keyDown(close, {
+			key: "Escape",
+		});
+		close.removeAttribute("data-mantine-stop-propagation");
+		// Sent to the window itself, a target that is no element: the player's Escape.
+		expect(screen.queryByText("closed")).toBeNull();
+		fireEvent.keyDown(window, {
+			key: "Escape",
+		});
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
 	it("S196 AC 2: a press inside, on the clip, a tool or the title, does not close it", async () =>
 	{
 		vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
