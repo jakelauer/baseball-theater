@@ -30,11 +30,12 @@ import type { IngestDeps } from "./ingest.js";
 import {
 	getOrRefreshGame, getOrRefreshSchedule, ingestGame, refreshTodaysWindow, storeSchedule, tickIngest,
 } from "./ingest.js";
-import { liveFixtureAt, scheduleMomentsAt } from "./live-fixture.js";
+import type { LiveFixture, scheduleMomentsAt } from "./live-fixture.js";
 import { LiveHubState } from "./live-hub.js";
 import { RefreshCoordinator } from "./refresh.js";
 
-const RAW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../fixtures/raw");
+const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../fixtures");
+const RAW = path.join(FIXTURES, "raw");
 
 const LIVE = {
 	abstractGameState: "Live",
@@ -166,24 +167,28 @@ async function one(deps: Pick<IngestDeps, "gameStates">, gameWrite: GameStateWri
 
 const homeRuns = (state: { linescore: GameSnapshot["linescore"] } | null | undefined) => state?.linescore?.teams.home.runs ?? null;
 
+/** #508's guard: the live pair must stay cheap, far inside Vitest's 20 s on a slow CI runner (folding the recording took ~5 s locally and over 20 s on CI). */
+const LIVE_PAIR_BUDGET_MS = 2_000;
+
 describe("game state from MLB's two sources (S150 AC 1)", () =>
 {
-	// Skipped (owner, 2026-11-24: "Don't remove it, skip the test and file the bug to fix it."): it times out at 20 s on
-	// CI runners and has failed two stage runs, one blocking a staging deploy. #508 makes it cheaper and turns it back on;
-	// until then S150's feed/schedule agreement has no guard here, so #508 must re-enable this exact test.
-	it.skip("S150 AC 1 live pair: 823823's feed and its schedule row at LIVE_FIXTURE_TIMECODE give the same status, linescore, runners and players", () =>
+	// #508: this read both sides by folding the 5.9 MB recorded walk twice (~5 s locally, past 20 s on CI runners). It now
+	// reads the two committed fixtures that fold writes, which live-fixture.test.ts and schedule-fixture.test.ts each prove
+	// byte-for-byte equal to a fresh fold at LIVE_FIXTURE_TIMECODE, so the pair compared is the same and nothing replays here.
+	it("S150 AC 1 live pair: 823823's feed and its schedule row at LIVE_FIXTURE_TIMECODE give the same status, linescore, runners and players", () =>
 	{
-		// The row is built from the feed recording (`scheduleMomentsAt`), since no MLB schedule was recorded mid-game: this
-		// checks the row builder, not MLB's schedule.
-		const fromRow = gameStateFromSummary(scheduleMomentsAt(RAW).live);
-		const fromFeed = gameStateFromGame(liveFixtureAt(RAW));
+		// The row is built from the feed recording (`scheduleMomentsAt`, committed as schedule-823823-moments.json), since
+		// no MLB schedule was recorded mid-game: this checks the row builder, not MLB's schedule.
+		const read = (name: string): unknown => JSON.parse(readFileSync(path.join(FIXTURES, name), "utf8"));
+		const fromRow = gameStateFromSummary((read("schedule-823823-moments.json") as ReturnType<typeof scheduleMomentsAt>).live);
+		const fromFeed = gameStateFromGame(read("game-823823-live.json") as LiveFixture);
 		expect(fromRow.status.codedGameState).toBe("I");
 		expect(fromFeed.status).toEqual(fromRow.status);
 		expect(fromFeed.linescore).toEqual(fromRow.linescore);
 		expect(fromFeed.live?.runners).toEqual(fromRow.live?.runners);
 		// Both read the batter and pitcher from the feed's current play here, so they agree.
 		expect(fromFeed.live).toEqual(fromRow.live);
-	});
+	}, LIVE_PAIR_BUDGET_MS);
 
 	it("S150 AC 1 final pair: the real schedule mapper on 2026-09-05 and the final feed give 823823 the same status and linescore", () =>
 	{
