@@ -159,6 +159,7 @@ export type MediaHighlight = {
 };
 
 import type { AtBat } from "./plays.js";
+import type { ScoreboardWinProbability } from "./win-probability.js";
 
 /**
  * What one at-bat meant, by MLB's own measure (S93; the play-metrics feed): the chance each
@@ -352,6 +353,12 @@ export type ScheduleGameSummary = {
 	decisions?: GameDecisions | null;
 	/** During the game: runners, matchup and count (S65); `null` unless in progress. */
 	live?: ScheduleLive | null;
+	/**
+	 * The home team's win-probability line so far (S161, `scoreboardWinProbability`): set on every game a served day
+	 * carries, `null` for a pregame game or one with no measured at-bat; absent on a day as MLB's schedule is fetched,
+	 * which carries no play metrics.
+	 */
+	winProbability?: ScoreboardWinProbability | null;
 };
 
 export type ScheduleDay = {

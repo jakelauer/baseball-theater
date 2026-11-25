@@ -1,12 +1,13 @@
 /**
  * The one writer of `game_states` and its readers (S150). `switchGameState` is the only code that writes a game's
- * row (the baseball-data copy, `baseball-copy.ts`, aside): the schedule refresh (`storeSchedule`) and the game's
+ * row (the baseball-data copy, `baseball-copy.ts`, and S161's one-time win-probability fill, `win-probability-fill.ts`,
+ * aside): the schedule refresh (`storeSchedule`) and the game's
  * ingest (`storeGame`) hand it every state they fetch, with their source, and check nothing themselves; it asks the
  * switch (`gameStateSource`) once. The readers join the rows into the served day (`readScheduleDay`) and the served
  * game (`servedGame`), so every page reads a game's score from the one stored place.
  */
 import type {
-	CadenceParams, GameSnapshot, GameState, GameStateRow, GameStateSource, ScheduleDay, StoredScheduleDay, Unversioned,
+	CadenceParams, GameSnapshot, GameState, GameStateRow, GameStateSource, ScheduleDay, ScoreboardWinProbability, StoredScheduleDay, Unversioned,
 } from "@bt/domain";
 import {
 	addDays, clockWindowMode, DEFAULT_CADENCE, gameStateFromGame, gameStateSource, isOtherDaysListing,
@@ -34,7 +35,52 @@ export type GameStateWrite = {
 	startTime?: string | null;
 	/** The live feed's own time (`FetchedGame.feedTime`); only a feed write carries one. */
 	feedTime?: string;
+	/**
+	 * S161: the game's scoreboard line (`scoreboardWinProbability` of the fetched game); only a feed write carries one.
+	 * Null or absent never clears a stored line (a fetch whose play metrics failed has none).
+	 */
+	winProbability?: ScoreboardWinProbability | null;
 };
+
+/**
+ * S161: a feed write of the line alone, for a writer holding a game's play metrics but no fresh state (the late
+ * playMetrics follow-up, S216 AC 5): it sets the row's line and leaves every other field as stored.
+ */
+export type GameStateLineWrite = {
+	gamePk: number;
+	source: "feed";
+	winProbability: ScoreboardWinProbability;
+};
+
+/** The line a write leaves on `row` (S161): a feed write's own when it carries one, else the stored one. */
+function lineAfter(row: GameStateRow | null, write: GameStateWrite | GameStateLineWrite): ScoreboardWinProbability | null
+{
+	return (write.source === "feed" ? write.winProbability : null) ?? row?.winProbability ?? null;
+}
+
+/** Whether two lines are the same (absent and null alike). */
+function sameLine(a: ScoreboardWinProbability | null | undefined, b: ScoreboardWinProbability | null | undefined): boolean
+{
+	return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+/**
+ * `row` with only its line changed to `line` (S161): its state as stored but for a new `version` and `lastChangedAt`
+ * (ADR-022: the line is part of what the row serves, so the served day's version rises and the day hub pushes it), its
+ * source, feed time, official date and first pitch as stored. How a feed write reaches a row the schedule holds.
+ */
+function withLine(row: GameStateRow, line: ScoreboardWinProbability, at: string): GameStateRow
+{
+	return {
+		...row,
+		state: {
+			...row.state,
+			version: row.state.version + 1,
+			lastChangedAt: at,
+		},
+		winProbability: line,
+	};
+}
 
 /**
  * What the switch did with one game's write: the row as it is then stored (null when the game has none), whether
@@ -61,16 +107,31 @@ export type SwitchOutcome = {
  * so an unchanged state isn't a new version; a changed official date or first pitch with an unchanged state is one,
  * since the window the switch reads moved; and an unchanged feed poll with a newer feed time is written with the stored
  * state itself, so the repository takes it as the same state and moves only the accepted feed time.
+ *
+ * S161: the line (`GameStateRow.winProbability`) is feed-only data the switch doesn't guard. A feed write whose line
+ * differs from the row's sets it even when the row is the schedule's (`withLine`: the row as stored, with the new line
+ * and a new version), and a changed line alone is a new version on the feed's own row too; a schedule write carries the
+ * stored line over, so it never clears one. A line-only write (`GameStateLineWrite`) does the first of these alone.
  */
-function decide(row: GameStateRow | null, write: GameStateWrite, now: Date): GameStateRow | "otherSource" | "otherDaysListing" | "staleFeed" | "unchanged"
+function decide(row: GameStateRow | null, write: GameStateWrite | GameStateLineWrite, now: Date): GameStateRow | "otherSource" | "otherDaysListing" | "staleFeed" | "unchanged"
 {
+	const at = now.toISOString();
+	const line = lineAfter(row, write);
+	const lineChanged = row !== null && !sameLine(line, row.winProbability);
+	// A changed line is never null: a write without one leaves the row's (`lineAfter`).
+	if (!("state" in write)) return lineChanged && line ? withLine(row!, line, at) : "unchanged";
 	const startTime = write.startTime ?? null;
 	const may = gameStateSource(row, {
 		state: write.state,
 		officialDate: write.officialDate,
 		startTime,
 	}, now);
-	if (row !== null && may !== write.source) return "otherSource";
+	if (row !== null && may !== write.source)
+	{
+		// The line is the feed's whoever holds the row (S161), unless this feed copy is older than the row's.
+		const stale = write.feedTime !== undefined && row.feedTime !== null && write.feedTime < row.feedTime;
+		return write.source === "feed" && lineChanged && line && !stale ? withLine(row, line, at) : "otherSource";
+	}
 	// Another day's postponed or suspended listing of the game, not its state (`isOtherDaysListing`): it never changes the
 	// row, so the two days' refreshes can't flip it; that day shows its own status (`joinScheduleDay`).
 	if (row !== null && write.source === "schedule" && isOtherDaysListing(row, {
@@ -80,13 +141,12 @@ function decide(row: GameStateRow | null, write: GameStateWrite, now: Date): Gam
 	const feedTime = write.source === "feed" ? write.feedTime ?? null : null;
 	if (row?.feedTime && feedTime !== null && feedTime < row.feedTime) return "staleFeed";
 
-	const at = now.toISOString();
 	let state = stampVersion<GameState>(row?.state ?? null, write.state, at);
 	if (row && state.version === row.state.version)
 	{
 		const moved = write.officialDate !== row.officialDate || (startTime !== null && startTime !== row.startTime);
 		const laterFeed = feedTime !== null && (row.feedTime === null || feedTime > row.feedTime);
-		if (moved) state = {
+		if (moved || lineChanged) state = {
 			...state,
 			version: row.state.version + 1,
 			lastChangedAt: at,
@@ -101,6 +161,10 @@ function decide(row: GameStateRow | null, write: GameStateWrite, now: Date): Gam
 		officialDate: write.officialDate,
 		startTime,
 		state,
+		// No line is left out, as the repositories hand back a row with none.
+		...line && {
+			winProbability: line,
+		},
 	};
 }
 
@@ -134,18 +198,21 @@ function storedAfter(row: GameStateRow | null, next: GameStateRow): GameStateRow
  * between the read and the write) is read again and decided again from the start, the source and the feed time
  * included, once; a write refused twice leaves the row as the other writer stored it.
  *
+ * S161: a write may carry the game's win-probability line, or be the line alone (`GameStateLineWrite`); `decide` says
+ * how the line passes the switch.
+ *
  * S216: `known` holds rows the caller already read or wrote in this request (null: known to have none), such as the
  * rows a day read joined or the schedule's switch just stored; the first try decides those games from them and reads
  * only the rest, so a digest's feed writes reuse what the day's switch read and wrote. A retry always reads.
  */
 export async function switchGameState(
 	deps: Pick<GameStateDeps, "gameStates">,
-	writes: readonly GameStateWrite[],
+	writes: readonly (GameStateWrite | GameStateLineWrite)[],
 	now: Date,
 	known?: ReadonlyMap<number, GameStateRow | null>,
 ): Promise<Map<number, SwitchOutcome>>
 {
-	const latest = new Map<number, GameStateWrite>();
+	const latest = new Map<number, GameStateWrite | GameStateLineWrite>();
 	for (const write of writes) latest.set(write.gamePk, write);
 	const pending = [...latest.values()].sort((a, b) => a.gamePk - b.gamePk);
 	const outcomes = new Map<number, SwitchOutcome>();

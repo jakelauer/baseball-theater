@@ -3,7 +3,8 @@ import type {
 } from "@bt/domain";
 import {
 	addDays, cacheLifetimeMs, DEFAULT_CADENCE, gameStateFromGame, gameStateFromSummary, isFinalStatus, isGameInActiveWindow, isPastFinishedDay, isPastFinishedGame,
-	isScheduleDaySettled, mlbToday, normalizeStatusCode, projectGame, scheduleWindowMode, stampVersion, suspendedSince, toStoredScheduleDay, wholeFetchedGame,
+	isScheduleDaySettled, mlbToday, normalizeStatusCode, projectGame, scheduleWindowMode, scoreboardWinProbability, stampVersion, suspendedSince, toStoredScheduleDay,
+	wholeFetchedGame,
 } from "@bt/domain";
 import type {
 	BackgroundWork, GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, ScheduleRepository,
@@ -256,7 +257,8 @@ type GameWrite = {
  * `after`, written after the snapshots (`runAfterWrites`), deferred past the response on a read.
  *
  * Every game, an unchanged snapshot included, first hands the feed's state with its feed time (`feedTime`, never stored
- * on the game) to `switchGameState` (S150 AC 5), so every feed path reaches the switch; `known` is the rows the request
+ * on the game) and its win-probability line (S161, `scoreboardWinProbability`; the switch stores it on the game's row
+ * whichever source holds it) to `switchGameState` (S150 AC 5), so every feed path reaches the switch; `known` is the rows the request
  * already holds (S216), which the switch then doesn't read again. The row is written before the snapshot: the served
  * game (`servedGame`) takes its score from the row and its version from the snapshot, so a read between the two writes
  * gets the old version with the new score, and this poll's new version, published after, is still newer than anything a
@@ -304,6 +306,8 @@ async function storeGames(
 		...feedTime !== undefined && {
 			feedTime,
 		},
+		// S161: the scoreboard's line, worked out here as the game's play metrics are written, never per read.
+		winProbability: scoreboardWinProbability(fetched),
 	})), at, known);
 	const stamped = writes.map((write) =>
 	{
@@ -927,12 +931,13 @@ async function storeBatchOrEach(
  * what the read stored without them) becomes the fetched game with them, as its next version (ADR-022), and its
  * projection with it. If a newer stored version refuses that write, it retries once: it reads the newer stored snapshot
  * and, when that still lacks playMetrics, writes it with them (`withLatePlayMetrics`) as the next version; a second
- * refusal is logged and dropped, never written over. Once stored, a past, finished game's URL and its day's schedule and
+ * refusal is logged and dropped, never written over. Once stored, the game's row gets the win-probability line the
+ * playMetrics give (S161, a line-only switch write). Then a past, finished game's URL and its day's schedule and
  * digest URLs are purged (`purgeGameAndDayEdge`), since the answer without them may hold S212's long edge lifetime; past
  * and finished is judged of the game as served, over `row`, the state row its read stored.
  */
 async function storeLatePlayMetrics(
-	deps: Pick<IngestDeps, "games" | "projections" | "edgePurge">,
+	deps: Pick<IngestDeps, "games" | "projections" | "edgePurge" | "gameStates">,
 	answered: GameSnapshot,
 	row: GameStateRow | null,
 	late: NonNullable<FetchedGame["playMetricsLate"]>,
@@ -960,8 +965,15 @@ async function storeLatePlayMetrics(
 		if ((await deps.games.upsertMany([next])).includes(next.gamePk))
 		{
 			await writeProjections(deps, [projectGame(next)]);
+			// S161: the line the answered write couldn't work out without them, set on the game's row alone.
+			const line = scoreboardWinProbability(next);
+			const lined = line ? (await switchGameState(deps, [{
+				gamePk: next.gamePk,
+				source: "feed",
+				winProbability: line,
+			}], at)).get(next.gamePk)?.row ?? row : row;
 			// Judged as served, its status from the game's stored state row (S150), as every other purge is.
-			if (isPastFinishedGame(servedGame(next, row, at), at)) await purgeGameAndDayEdge(deps, [next], at);
+			if (isPastFinishedGame(servedGame(next, lined, at), at)) await purgeGameAndDayEdge(deps, [next], at);
 			return;
 		}
 		if (attempt === 1)
