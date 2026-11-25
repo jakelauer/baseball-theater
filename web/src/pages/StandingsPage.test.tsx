@@ -21,6 +21,7 @@ import {
 import type { SeasonPhaseName, StandingsTeamRecord } from "@bt/domain";
 import { blankRegularSeasonTable, playoffsTable } from "@bt/domain";
 import { createQueryClient } from "../api/queryClient.js";
+import { RAIL_WIDTH } from "../layout/nav.js";
 import type { StandingsPayload } from "../api/standings.js";
 import { busyMonth } from "../test/calendar.js";
 import { jsonResponse } from "../test/jsonResponse.js";
@@ -1235,5 +1236,42 @@ describe("StandingsPage: the two leagues side by side (#434)", () =>
 		await screen.findAllByTestId("division-table");
 		expect(screen.getByTestId("standings-leagues")).toHaveAttribute("data-columns", "1");
 		expect(leagues()).toEqual([["AL East", "AL Central", "AL West"], ["NL East", "NL Central", "NL West"]]);
+	});
+
+	/**
+	 * How many columns the leagues' grid draws in a window `width` px wide, read from the CSS
+	 * Mantine writes for it, since jsdom applies no media or container queries: its base
+	 * `--sg-cols`, then each `@media` query against the window and each `@container` query against
+	 * the page's pane (the window less the desktop rail and `main`'s 16px padding each side).
+	 */
+	function columnsAt(width: number, variant: "medium" | "desktop"): number
+	{
+		const grid = screen.getByTestId("standings-leagues");
+		const mark = [...grid.classList].find((c) => c.startsWith("__m__"))!;
+		const css = [...document.querySelectorAll("style")].map((s) => s.textContent).find((t) => t.includes(mark))!;
+		const pane = width - (variant === "desktop" ? RAIL_WIDTH : 0) - 32;
+		let columns = Number(/^[^@{]*\{[^}]*--sg-cols:\s*(\d+)/.exec(css)?.[1] ?? 1);
+		for (const [, kind, min, unit, body] of css.matchAll(/@(media|container)[^(]*\(min-width:\s*([\d.]+)(em|px)\)\{[^{]*\{([^}]*)\}\}/g))
+		{
+			const cols = /--sg-cols:\s*(\d+)/.exec(body!)?.[1];
+			const reach = kind === "media" ? width : pane;
+			if (cols && reach >= Number(min) * (unit === "em" ? 16 : 1)) columns = Number(cols);
+		}
+		return columns;
+	}
+
+	it.each([
+		[768, "medium", 1],
+		[900, "medium", 1],
+		[1000, "medium", 2],
+		[1200, "desktop", 2],
+	] as const)("at %ipx (%s) the leagues sit side by side only where both tables fit: %i column(s) (#563)", async (width, variant, columns) =>
+	{
+		serve(() => jsonResponse(STANDINGS));
+		renderPage("/standings?date=2026-09-05", variant);
+		await screen.findAllByTestId("division-table");
+		expect(columnsAt(width, variant)).toBe(columns);
+		expect(leagues()).toEqual([["AL East", "AL Central", "AL West"], ["NL East", "NL Central", "NL West"]]);
+		expect(screen.getAllByRole("region").filter((r) => r.getAttribute("aria-label")?.endsWith(" standings"))).toHaveLength(6);
 	});
 });

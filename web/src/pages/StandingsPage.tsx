@@ -72,7 +72,7 @@ function phasesFor(view: SeasonPhaseName | null): SeasonPhaseName[]
  * <day>" on a day in the address that isn't MLB's today; the view switch (spring training, the regular
  * season, the playoffs) when the day offers more than the regular season; the World Series box when
  * `championBoxShows`; then one `DivisionTable` per division of the shown view's table, each league's
- * in its own column side by side on tablet and desktop and stacked on mobile (#434), the clinch
+ * in its own column side by side where both tables fit and stacked below that (#434, #563), the clinch
  * legend under them. Loading, empty and error are `ViewState`'s, with no switch and no box.
  *
  * Which views a day offers and which opens first is `standingsViews`, given the day being viewed
@@ -243,7 +243,7 @@ export function StandingsPage({ variant = "desktop", setFooter }: { variant?: La
 /**
  * A table's divisions grouped by league, each group in the order MLB sent it and the groups in the
  * order their first division came (the American League first in every recorded answer), so each
- * league is one column on tablet and desktop (#434). Divisions with no league share one group. This
+ * league is one column where the two fit side by side (#434, #563). Divisions with no league share one group. This
  * only partitions the list for layout; it derives no value from the standings.
  */
 function byLeague(divisions: readonly StandingsDivision[]): StandingsDivision[][]
@@ -305,11 +305,21 @@ function StandingsBody({
 	{
 		const columns = view === "spring" ? "spring" : view === "playoffs" ? "teams" : "full";
 		const leagues = byLeague(table.divisions);
-		// The leagues side by side from tablet width up, stacked on mobile (#434, the owner's words).
+		// The leagues side by side only where both ~410px tables fit, stacked below (#434, #563: the
+		// owner chose "One column below ~1000px", "side by side only where both tables fit; tablets
+		// stack like phones"). Mobile stacks; desktop (1200px up, its pane 928px past the rail) pairs
+		// them. Medium spans 768-1199px, so it asks its own pane: two columns from 960px, which is
+		// Mantine's `md` window (992px) less `main`'s 16px padding each side. A container query reads
+		// the pane, not the viewport, so this view still takes its pairing from the host (law P1).
+		// `data-columns` is the most it draws.
 		const across = variant === "mobile" ? 1 : Math.min(leagues.length, 2);
+		const medium = variant === "medium";
 		tables = (
 			<>
-				<SimpleGrid cols={across} spacing="xl" verticalSpacing="xl" data-testid="standings-leagues" data-columns={across} style={{
+				<SimpleGrid type={medium ? "container" : "media"} cols={medium ? {
+					base: 1,
+					"960px": across,
+				} : across} spacing="xl" verticalSpacing="xl" data-testid="standings-leagues" data-columns={across} style={{
 					alignItems: "start",
 				}}>
 					{leagues.map((league) => (
