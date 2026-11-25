@@ -16,6 +16,9 @@
  * purge credentials or app origin, so for each filled game whose official date is within that lifetime
  * (`PAST_EDGE_TTL_S`; an older copy has expired) it owes the purge of its edge paths (`gameEdgePaths`: its game URL
  * and every day that lists it) as paths alone; the Worker's cron sends them under its origin (`retryOwedEdgePurges`).
+ * An older Worker (from before S161, after a rollback or between this step and the deploy) would send a path as it is,
+ * which the edge refuses with every full URL in its batch, so the store hides path-only owes from the listing older code
+ * runs (S219, `OWED_PATH_HIDDEN_RETRY_AT`); only this release's cron sends them.
  * It owes them before it writes the lines (Claude's review of #573): the next run reads only rows still unchecked, so
  * paths owed after the write would be lost for good if owing failed, while paths owed first for a row whose write then
  * fails or loses a race cost at most one extra purge. Two statements rather than one transaction, since the deploy's

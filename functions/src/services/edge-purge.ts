@@ -150,7 +150,10 @@ export function owedPurgeRetryDelayMs(failures: number): number
  * read a tick, and at most one Cloudflare request a tick, only while purges are owed. Returns how many URLs it purged.
  *
  * An owed URL may be a path alone (`/api/v1/…`): S161's win-probability fill owes its paths from the deploy's migrate
- * step, which doesn't know the app's origin, so the retry sends them under this deployment's origin.
+ * step, which doesn't know the app's origin, so the retry sends them under this deployment's origin, and every URL in
+ * the batch it sends is absolute. An older Worker (from before S161) would send a path as it is, a batch the edge
+ * refuses, deferring the full URLs listed with it; it never lists one, since the store keeps path-only owes out of the
+ * listing older code runs (S219, `PostgresOwedEdgePurgeRepository`).
  */
 export async function retryOwedEdgePurges(deps: { edgePurge?: EdgePurge;
 	now?: () => Date; }): Promise<number>

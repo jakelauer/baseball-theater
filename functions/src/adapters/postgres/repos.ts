@@ -528,9 +528,24 @@ export class PostgresGameRepository implements GameRepository
 }
 
 /**
+ * The `retry_at` of every path-only owed purge (S219): a time no `retry_at::timestamptz <= now` ever reaches, so a Worker
+ * from before S161, which lists owed purges by `retry_at` alone and sends each URL as it is, never lists a path the edge
+ * would refuse (refusing the whole batch, and so deferring the full URLs listed beside it). The row's real retry time is
+ * in `path_retry_at`.
+ */
+export const OWED_PATH_HIDDEN_RETRY_AT = "infinity";
+
+/**
  * `owed_edge_purges` (S212): each write is one statement. An owe inserts the URLs or re-owes them (a new version from
  * the table's sequence, never reused, failures and retry time cleared); a settle or a deferral touches a row only while its version is the listed one, so a
  * URL owed again after the cron listed it is never dropped by that listing's settle.
+ *
+ * Older Workers share this table (S219): after a rollback to a release from before S161, or between the deploy's
+ * migrate step and its Worker, a Worker that knows only full URLs reads it. So a path-only owe (`/api/v1/…`, owed by
+ * S161's win-probability fill, which has no origin) keeps {@link OWED_PATH_HIDDEN_RETRY_AT} in `retry_at`, the column
+ * such a Worker lists by, and its real retry time in `path_retry_at`; a full URL keeps its retry time in `retry_at`
+ * exactly as before, so every release reads full URLs the same way. A Worker from S161 up to S219 doesn't list path
+ * rows either; they wait for this one, which clears them on its next tick.
  */
 export class PostgresOwedEdgePurgeRepository implements OwedEdgePurgeRepository
 {
@@ -544,17 +559,24 @@ export class PostgresOwedEdgePurgeRepository implements OwedEdgePurgeRepository
 		await this.db.insert(owedEdgePurges).values(unique.map((url) => ({
 			url,
 			owedAt: at,
+			retryAt: url.startsWith("/") ? OWED_PATH_HIDDEN_RETRY_AT : null,
 		}))).onConflictDoUpdate({
 			target: owedEdgePurges.url,
 			set: {
 				owedAt: sql`excluded.owed_at`,
 				version: sql`nextval('owed_edge_purges_version_seq')`,
 				failures: 0,
-				retryAt: null,
+				retryAt: sql`excluded.retry_at`,
+				pathRetryAt: null,
 			},
 		});
 	}
 
+	/**
+	 * The owes due at `at`, oldest owed first: a full URL by its `retry_at`, a path-only one by its `path_retry_at`, since
+	 * its `retry_at` is {@link OWED_PATH_HIDDEN_RETRY_AT} (S219). An older Worker's listing, `retry_at` alone, never
+	 * reaches the path-only rows, so it never sends one as it is.
+	 */
 	async listDue(at: string, limit: number): Promise<OwedEdgePurge[]>
 	{
 		return this.db.select({
@@ -563,7 +585,9 @@ export class PostgresOwedEdgePurgeRepository implements OwedEdgePurgeRepository
 			version: owedEdgePurges.version,
 			failures: owedEdgePurges.failures,
 		}).from(owedEdgePurges)
-			.where(sql`${owedEdgePurges.retryAt} IS NULL OR ${owedEdgePurges.retryAt}::timestamptz <= ${at}::timestamptz`)
+			.where(sql`CASE WHEN starts_with(${owedEdgePurges.url}, '/')
+				THEN ${owedEdgePurges.pathRetryAt} IS NULL OR ${owedEdgePurges.pathRetryAt}::timestamptz <= ${at}::timestamptz
+				ELSE ${owedEdgePurges.retryAt} IS NULL OR ${owedEdgePurges.retryAt}::timestamptz <= ${at}::timestamptz END`)
 			.orderBy(sql`${owedEdgePurges.owedAt}::timestamptz`, asc(owedEdgePurges.url))
 			.limit(limit);
 	}
@@ -574,12 +598,14 @@ export class PostgresOwedEdgePurgeRepository implements OwedEdgePurgeRepository
 		await this.db.delete(owedEdgePurges).where(listedVersions(purges));
 	}
 
+	/** Defers each listed purge to `retryAt`: a path-only one in `path_retry_at`, its `retry_at` left hidden (S219). */
 	async defer(purges: readonly Pick<OwedEdgePurge, "url" | "version">[], retryAt: string): Promise<void>
 	{
 		if (purges.length === 0) return;
 		await this.db.update(owedEdgePurges).set({
 			failures: sql`${owedEdgePurges.failures} + 1`,
-			retryAt,
+			retryAt: sql`CASE WHEN starts_with(${owedEdgePurges.url}, '/') THEN ${OWED_PATH_HIDDEN_RETRY_AT}::text ELSE ${retryAt}::text END`,
+			pathRetryAt: sql`CASE WHEN starts_with(${owedEdgePurges.url}, '/') THEN ${retryAt}::text ELSE NULL END`,
 		}).where(listedVersions(purges));
 	}
 }
