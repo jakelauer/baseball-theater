@@ -12,8 +12,9 @@
  * Runs in a throwaway repository under the OS temp directory holding a copy of today's frame notes and text records,
  * FEATURES/INTENT (rule 19's **Source:** check), the frozen AUDIT.md (which draws the pre-S156
  * line for records.ts) and changelog.d/, so it checks the real record formats rather than a
- * fixture's. The three stories are the first migrated stories not yet done with no design and no dependencies,
- * so the test keeps working as the backlog moves (a story that ships drops out of the picks, #618). Child processes get an environment built
+ * fixture's. The three stories are its own (S8001–S8003, created in the copy with no design and no dependencies,
+ * #626): picking real open stories counted a shipped one twice (#618), then ran out of picks once S100 shipped, so no
+ * real story shipping changes the result. Child processes get an environment built
  * from scratch (no user git config, hooks or signing), so the developer's setup can't change
  * the result.
  */
@@ -33,6 +34,7 @@ import {
 	parseFields, readRecords, renderFields, renderRecord,
 } from "./text-records.ts";
 import { renderRunEntry, summarizeRun } from "./runs.ts";
+import { featureNames } from "./source.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const CLI = join(ROOT, "scripts/backlog-vault/cli.ts");
@@ -78,28 +80,38 @@ function backlog(command: "check" | "build"): { status: number | null;
 	return run(process.execPath, [CLI, command, "--quiet", "--dir", join(repo, "docs/v3/backlog"), "--audit", join(repo, "docs/v3/AUDIT.md"), "--index", join(repo, "docs/v3/audit.jsonl")]);
 }
 
+/** The test's own stories: IDs far above any real story's, so none has a text record, snapshot or ledger entry already. */
+const SEEDED = ["S8001", "S8002", "S8003"];
+
 /**
- * The first three open stories (a migration record with a rewrite) with no design and no dependencies (no gate
- * stops them going `done`), read from the copy at `root`. A story that has already shipped (a `done` snapshot or a
- * completed entry) is left out: finishing it again would count it twice and fail the merges on a correct tree (#618).
+ * Write a `create` record for each of {@link SEEDED} into the copy at `root` and return their IDs: open stories with
+ * no design and no dependencies (no gate stops them going `done`), whose **Source:** cites FEATURES.md's first live
+ * feature (rule 19). Before #626 the test picked real open stories instead, and failed once too few were left.
  */
-function pickStories(root = repo): string[]
+function seedStories(root = repo): string[]
 {
-	const records = readRecords(join(root, "docs/v3/audit"));
-	const shipped = new Set([
-		...records.filter((r) => r.kind === "snapshot" && r.status === "done").map((r) => r.id),
-		...readLedger(join(root, "docs/v3/AUDIT.md")).flatMap((e) => (e.kind === "completed" && e.story ? [e.story] : [])),
-	]);
-	return records
-		.filter((r) => r.kind === "migration" && r.id.startsWith("S") && r.rewrites.length > 0 && !shipped.has(r.id))
-		.filter((r) =>
-		{
-			const fields = parseFields(r.body, r.id);
-			return fields.design.length === 0 && fields.depends_on.length === 0;
-		})
-		.map((r) => r.id)
-		.sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)))
-		.slice(0, 3);
+	const feature = [...featureNames(readFileSync(join(ROOT, "docs/v3/FEATURES.md"), "utf8")).live][0]!;
+	const day = join(root, "docs/v3/audit/2000-01-01");
+	mkdirSync(day, {
+		recursive: true,
+	});
+	for (const [i, id] of SEEDED.entries())
+	{
+		const stamp = `2000-01-01T00:00:0${i}Z`;
+		writeFileSync(join(day, `20000101T00000${i}Z-${id}-create.md`), renderRecord({
+			kind: "create",
+			id,
+			date: "2000-01-01",
+			stamp,
+			head: "test",
+			title: `merge-safety story ${id}`,
+			reason: "merge-safety test data (#626)",
+			body: `**Gap:** g\n\n**Impact:** Before ${id}, nothing. After it, the merge-safety test has a story to finish.\n\n**Source:** Feature: ${feature}\n\n${renderFields({
+				priority: 500,
+			})}`,
+		}));
+	}
+	return [...SEEDED];
 }
 
 /** The Current baseline's area rows (table rows after the header and its separator), as line numbers. */
@@ -220,10 +232,10 @@ beforeAll(() =>
 	// The built files are git-ignored by the real repository's own .gitignore (AC 8), copied rather than
 	// restated, so a .gitignore that stopped ignoring them would fail here.
 	cpSync(join(ROOT, ".gitignore"), join(repo, ".gitignore"));
+	stories = seedStories();
 	git(["init", "-q", "-b", "stage"]);
 	git(["add", "-A"]);
 	git(["commit", "-q", "-m", "base"]);
-	stories = pickStories();
 	const rows = areaRows();
 	// Rows two apart: git merges by line, so edits to adjacent rows conflict (tested below).
 	for (const [i, id] of stories.entries())
@@ -251,32 +263,54 @@ describe("the frozen AUDIT.md never changes (law L13)", () =>
 
 describe("story records merge in any order (law L13)", () =>
 {
-	it("never picks a story that is already done (#618)", () =>
+	it("finishes only stories the real backlog has never recorded, so none can have shipped already (#618)", () =>
 	{
-		// A copy of the backlog in which the first story the test would pick has shipped: its done
-		// snapshot and completed entry are committed, as S99's were when this test counted S99 twice.
-		const shipped = join(tmp, "shipped");
-		cpSync(join(ROOT, "docs/v3/audit"), join(shipped, "docs/v3/audit"), {
+		// Finishing a story that already shipped counted it twice and failed the merges on a correct tree (#618).
+		const real = new Set([
+			...readRecords(join(ROOT, "docs/v3/audit")).map((r) => r.id),
+			...readLedger(join(ROOT, "docs/v3/AUDIT.md")).flatMap((e) => (e.story ? [e.story] : [])),
+		]);
+		for (const id of [...SEEDED, ...SEEDED.map((s) => `S${9000 + Number(s.slice(1))}`)])
+		{
+			expect(real.has(id), id).toBe(false);
+		}
+	});
+
+	it("still has three stories to finish once every real story has shipped (#626)", () =>
+	{
+		// A copy of the backlog in which every real story has a done snapshot, as the backlog moves
+		// towards: S100 recording done left only two real picks and failed six of these cases.
+		const allShipped = join(tmp, "all-shipped");
+		cpSync(join(ROOT, "docs/v3/audit"), join(allShipped, "docs/v3/audit"), {
 			recursive: true,
 		});
-		cpSync(join(ROOT, "docs/v3/AUDIT.md"), join(shipped, "docs/v3/AUDIT.md"));
-		const first = pickStories(shipped)[0]!;
-		const newest = readRecords(join(shipped, "docs/v3/audit")).filter((r) => r.id === first).at(-1)!;
-		const day = join(shipped, "docs/v3/audit/2099-01-01");
+		cpSync(join(ROOT, "docs/v3/AUDIT.md"), join(allShipped, "docs/v3/AUDIT.md"));
+		const day = join(allShipped, "docs/v3/audit/2099-01-02");
 		mkdirSync(day);
-		writeFileSync(join(day, `20990101T000000Z-${first}-snapshot.md`), renderRecord({
-			kind: "snapshot",
-			id: first,
-			date: "2099-01-01",
-			stamp: "2099-01-01T00:00:00Z",
-			head: "test",
-			record: newest.file,
-			body: newest.body,
-			status: "done",
-		}));
-		writeFileSync(join(day, `20990101T000001Z-${first}-completed.md`), `## 2099-01-01 — ${first} completed\n\n| | |\n|---|---|\n| Entry | story completion |\n`);
-		expect(readLedger(join(shipped, "docs/v3/AUDIT.md")).some((e) => e.kind === "completed" && e.story === first)).toBe(true);
-		expect(pickStories(shipped)).not.toContain(first);
+		const records = readRecords(join(allShipped, "docs/v3/audit"));
+		for (const id of new Set(records.filter((r) => r.id.startsWith("S")).map((r) => r.id)))
+		{
+			const newest = records.filter((r) => r.id === id).at(-1)!;
+			writeFileSync(join(day, `20990102T000000Z-${id}-snapshot.md`), renderRecord({
+				kind: "snapshot",
+				id,
+				date: "2099-01-02",
+				stamp: "2099-01-02T00:00:00Z",
+				head: "test",
+				record: newest.file,
+				body: newest.body,
+				status: "done",
+			}));
+		}
+		const seeded = seedStories(allShipped);
+		expect(seeded).toHaveLength(3);
+		const after = readRecords(join(allShipped, "docs/v3/audit"));
+		for (const id of seeded)
+		{
+			expect(after.some((r) => r.id === id && r.kind === "snapshot"), id).toBe(false);
+			const fields = parseFields(after.filter((r) => r.id === id).at(-1)!.body, id);
+			expect([fields.design, fields.depends_on]).toEqual([[], []]);
+		}
 	});
 
 	it("finishes three stories on three branches, each passing backlog:check on its own", () =>
