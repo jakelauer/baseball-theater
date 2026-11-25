@@ -153,7 +153,7 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 	},
 	"GET /api/v1/digest": {
 		operationId: "getDayDigest",
-		summary: "Best of one day: the top videos across its games, ranked by impact, the first marked to watch first.",
+		summary: "Best of one day: the top videos across its games, ranked by impact, numbered from 1.",
 		parameters: [
 			{
 				name: "date",
