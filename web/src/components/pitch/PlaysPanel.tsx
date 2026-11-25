@@ -378,7 +378,8 @@ function afterScroll(item: Element, then: () => void): () => void
  * "Opening an at bat should scroll the accordion item to the top of the screen"; "The
  * accordion animation is janky because the open one closes while the scrolling
  * animation is happening"): the open at-bat closes instantly with the tapped one held
- * where it was on screen, the tapped one scrolls to the top, then it opens. Once it's
+ * where it was on screen, the tapped one scrolls to the top, then it opens — animated when
+ * nothing was open, at once when another was, so the close and the open match (#521). Once it's
  * open its pitches replay in turn ("Opening an at bat should animate each pitch in quick
  * succession, starting after the top of screen animation is completed").
  */
@@ -460,6 +461,10 @@ function PlaysAccordion({
 			setOpen(value);
 			return;
 		}
+		// Switching from one open at-bat to another: the new one opens at once too, as the old
+		// one closed, since an open animation after an instant close made the page jump (owner,
+		// 2026-11-24, #521: "I think we should go with instantly."). Opening from nothing keeps it.
+		const instant = open !== null;
 		// 1. Close the open at-bat at once, keeping the tapped one where it was on screen
 		//    (the closed one above it would otherwise pull it up). One still collapsing
 		//    from a close goes at once too, for the same reason.
@@ -476,11 +481,11 @@ function PlaysAccordion({
 		const opened = () =>
 		{
 			if (pending.current !== value) return;
-			setDuration(OPEN_MS);
+			setDuration(instant ? 0 : OPEN_MS);
 			setOpen(value);
-			// The open animation reports its end (`settled`); this covers reduced motion,
-			// where there is no animation to end.
-			later(() => replay(value), OPEN_MS + 400);
+			// The open animation reports its end (`settled`); this covers reduced motion and an
+			// instant open, where there is no animation to end (an instant one replays at once).
+			later(() => replay(value), instant ? 0 : OPEN_MS + 400);
 		};
 		if (Math.abs(item.getBoundingClientRect().top) < 2)
 		{
