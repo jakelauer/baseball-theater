@@ -18,8 +18,8 @@ type Props = {
 /**
  * An open at-bat in Plays (S41): the same modules as Live, in Live's order — the
  * pitcher and batter cards totalled through this at-bat (S64's `MatchupCards`), the
- * catcher's view (`PitchTheater`), and the pitch sequence newest-first with the
- * selected pitch open (`PitchSequence`). Kept at mobile width at every pairing
+ * catcher's view (`PitchTheater`), and the pitch sequence newest-first, every pitch closed
+ * until the viewer opens one (`PitchSequence`, #522). Kept at mobile width at every pairing
  * (game-rooms DESIGN: "the at-bat contents keep their mobile width").
  */
 export function AtBatViewer({
@@ -27,27 +27,28 @@ export function AtBatViewer({
 }: Props)
 {
 	const newest = atBat.pitches.at(-1)?.pitchNumber ?? null;
-	// The open pitch: `undefined` until the viewer chooses (the newest is open), `null` once they
-	// close it (#522), so every pitch can be closed.
-	const [picked, setPicked] = useState<number | null | undefined>(undefined);
-	const open = picked === undefined ? newest : picked;
+	// The open pitch: none until the viewer opens one, so an opened play shows every pitch closed
+	// (owner, 2026-11-25, waiving game-rooms DESIGN's "with the last pitch open": "an opened play shows
+	// every pitch closed, its pitches still replay in the zone, and the zone shows the last pitch until
+	// you open one", #522); `null` again once they close it.
+	const [open, setOpen] = useState<number | null>(null);
 	// The zone and its charts show the open pitch, or the last one with none open ("those should
 	// always show the selected / last pitch").
 	const selected = open ?? newest;
 	// Opening the at-bat replays every pitch in the zone, overlapping (owner, 2026-10-29:
 	// "Opening an at bat should animate each pitch in quick succession, starting after the
-	// top of screen animation is completed"; "should overlap a bit"). The last pitch is
-	// selected straight away, so the side and top charts show it, not the replay ("those
-	// should always show the selected / last pitch irrespective of the initial animation").
+	// top of screen animation is completed"; "should overlap a bit"). It opens no pitch: the side
+	// and top charts show the last pitch, not the replay ("those should always show the selected /
+	// last pitch irrespective of the initial animation"). Nor does it close one: its token lands up to
+	// `OPEN_MS + 400` ms after this mounts, and a pitch the viewer opened before then stays open (Claude's
+	// review of #567). A reopened at-bat mounts afresh (Plays mounts only the open one), so starts closed.
 	const [replaying, setReplaying] = useState(false);
 	const [seenAutoplay, setSeenAutoplay] = useState(autoplay);
 	if (autoplay !== seenAutoplay)
 	{
 		setSeenAutoplay(autoplay);
-		const last = atBat.pitches.filter((p) => p.pitchData).at(-1);
-		if (last)
+		if (atBat.pitches.some((p) => p.pitchData))
 		{
-			setPicked(last.pitchNumber);
 			setReplaying(true);
 		}
 	}
@@ -55,7 +56,7 @@ export function AtBatViewer({
 	const choose = (pitchNumber: number | null) =>
 	{
 		setReplaying(false);
-		setPicked(pitchNumber);
+		setOpen(pitchNumber);
 	};
 
 	return (
