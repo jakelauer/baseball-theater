@@ -253,5 +253,18 @@ describe("the dialog player's modal (S196)", () =>
 		expect(found["width"]).toMatch(/^max\(min\(90vw, 592px\), min\(90vw, 1312px, calc\(\(90dvh - \d+px\) \* 16 \/ 9 \+ 32px\)\)\)$/);
 		expect(found["max-width"]).toBe("90vw");
 		expect(found["max-height"]).toBe("90dvh");
+		// Each dvh value follows a vh fallback for browsers without dvh.
+		ROOT.walkRules(".bt-player-modal", (rule) =>
+		{
+			for (const prop of ["width", "max-height"])
+			{
+				const values: string[] = [];
+				rule.walkDecls(prop, (declaration) =>
+				{
+					values.push(declaration.value);
+				});
+				expect(values).toEqual([values[1]!.replace("90dvh", "90vh"), values[1]]);
+			}
+		});
 	});
 });

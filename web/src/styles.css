@@ -343,8 +343,11 @@ a {
  * outside the modal and keeps its 16:9 height.
  */
 .bt-player-modal {
+	/* vh first: a browser without dvh drops the dvh declaration and keeps this one. */
+	width: max(min(90vw, 592px), min(90vw, 1312px, calc((90vh - 280px) * 16 / 9 + 32px)));
 	width: max(min(90vw, 592px), min(90vw, 1312px, calc((90dvh - 280px) * 16 / 9 + 32px)));
 	max-width: 90vw;
+	max-height: 90vh;
 	max-height: 90dvh;
 	display: flex;
 	flex-direction: column;
