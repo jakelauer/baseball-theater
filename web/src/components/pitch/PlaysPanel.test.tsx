@@ -696,6 +696,19 @@ describe("AtBatViewer", () =>
 		expect(screen.getAllByTestId("pitch-row").map((row) => row.dataset.expanded)).toEqual(atBat.pitches.map(() => "false"));
 	});
 
+	// Claude's review of #567: the replay token lands up to `OPEN_MS + 400` ms after the at-bat
+	// mounts, and must not close a pitch the viewer opened before it.
+	it("a pitch opened before the opening replay starts stays open when it starts (#522)", () =>
+	{
+		const atBat = PLAYS.find((play) => play.pitches.length >= 2 && play.pitches.some((p) => p.pitchData))!;
+		const { rerender } = wrap(<AtBatViewer plays={PLAYS} atBat={atBat} />);
+		const second = screen.getAllByTestId("pitch-row").at(-2)!;
+		fireEvent.click(within(second).getByRole("button"));
+		// The same tree as `wrap`, so the viewer updates rather than remounting.
+		rerender(<MantineProvider><MemoryRouter><AtBatViewer plays={PLAYS} atBat={atBat} autoplay={1} /></MemoryRouter></MantineProvider>);
+		expect(screen.getAllByTestId("pitch-row").at(-2)).toHaveAttribute("data-expanded", "true");
+	});
+
 	it("an at-bat with no pitches has nothing to animate", () =>
 	{
 		wrap(<AtBatViewer plays={PLAYS} atBat={{

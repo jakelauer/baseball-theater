@@ -39,13 +39,14 @@ export function AtBatViewer({
 	// "Opening an at bat should animate each pitch in quick succession, starting after the
 	// top of screen animation is completed"; "should overlap a bit"). It opens no pitch: the side
 	// and top charts show the last pitch, not the replay ("those should always show the selected /
-	// last pitch irrespective of the initial animation").
+	// last pitch irrespective of the initial animation"). Nor does it close one: its token lands up to
+	// `OPEN_MS + 400` ms after this mounts, and a pitch the viewer opened before then stays open (Claude's
+	// review of #567). A reopened at-bat mounts afresh (Plays mounts only the open one), so starts closed.
 	const [replaying, setReplaying] = useState(false);
 	const [seenAutoplay, setSeenAutoplay] = useState(autoplay);
 	if (autoplay !== seenAutoplay)
 	{
 		setSeenAutoplay(autoplay);
-		setOpen(null);
 		if (atBat.pitches.some((p) => p.pitchData))
 		{
 			setReplaying(true);
