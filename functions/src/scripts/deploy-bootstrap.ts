@@ -11,8 +11,8 @@
  * - `config`, `secrets_file` and `origin` to `$GITHUB_OUTPUT`.
  *
  * It reads `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `NEON_API_KEY`, `NEON_PROJECT_ID`
- * (`deploy-apis.ts`) and every Worker secret `workerSecretNames(env)` lists (production adds
- * Logto's, S116) from the job's env, which the workflow maps from GitHub secrets and variables.
+ * (`deploy-apis.ts`) and every Worker secret `workerSecretNames(env)` lists (staging and production add
+ * the edge purge's (B543), production Logto's (S116)) from the job's env, which the workflow maps from GitHub secrets and variables.
  * Running it again changes nothing; for a preview it resets the branch from staging and rewrites
  * its Hyperdrive config, ending as the first run did. Agents never run it (CLAUDE.md): it reaches hosted Cloudflare
  * and Neon, and only the workflow on GitHub holds their keys.

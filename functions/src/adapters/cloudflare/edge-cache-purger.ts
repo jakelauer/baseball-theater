@@ -2,7 +2,7 @@
  * Cloudflare's purge-by-URL API behind the `EdgeCachePurger` port (S212 AC 4; ADR-021's 2026-11-24 amendment). Workers
  * Cache is per data center, so `caches.default.delete` would clear one colo only (S194's notes); this API clears every
  * one. It needs a Cloudflare API token with the Zone → Cache Purge permission and the zone's ID, the Worker secrets
- * `BT_CF_PURGE_TOKEN` and `BT_CF_ZONE_ID` (the owner's step); without them, or without `BT_APP_ORIGIN` to build the
+ * `BT_CF_PURGE_TOKEN` and `BT_CF_ZONE_ID` (pushed from GitHub secrets by the staging and production deploys (B543)); without them, or without `BT_APP_ORIGIN` to build the
  * URLs from, the Worker uses {@link NoopEdgeCachePurger} instead (`edgePurgeFor` in `worker-app.ts`).
  */
 import type { EdgeCachePurger } from "@bt/ports";

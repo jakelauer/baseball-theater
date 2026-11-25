@@ -81,8 +81,8 @@ export type WorkerEnv = {
 	 */
 	BT_MOCK_SIGN_IN?: string;
 	/**
-	 * A Cloudflare API token with the Zone → Cache Purge permission, and the zone's ID (S212 AC 4; Worker secrets, the
-	 * owner's step): where both and `BT_APP_ORIGIN` are set, a write of a past, finished day or game purges its edge
+	 * A Cloudflare API token with the Zone → Cache Purge permission, and the zone's ID (S212 AC 4; Worker secrets,
+	 * pushed from GitHub secrets by the staging and production deploys (B543)): where both and `BT_APP_ORIGIN` are set, a write of a past, finished day or game purges its edge
 	 * copy by URL (`edgePurgeFor`); otherwise nothing is purged and that is logged once.
 	 */
 	BT_CF_PURGE_TOKEN?: string;
