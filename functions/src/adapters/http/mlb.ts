@@ -25,9 +25,7 @@ import type {
 import {
 	datesBetween, feedTimeToIso, mlbSearchQuery, playerOfTheGameExpected, rankHighlightsByImpact,
 } from "@bt/domain";
-import type {
-	GameContentResponse, GameDiffPatchResponse, LiveFeedResponse,
-} from "@bt/mlb-api";
+import type { GameContentResponse, GameDiffPatchResponse } from "@bt/mlb-api";
 import {
 	parseGameContentResponse,
 	parseGameDiffPatchResponse,
@@ -333,7 +331,9 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 	 */
 	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
-		const { raw, fetched: { game: feed, feedTime } } = await this.liveFeed(gamePk);
+		const {
+			game: feed, feedTime, playerOfTheGameDue,
+		} = await this.fetchGameFeed(gamePk);
 		const playMetrics = this.fetchPlayMetrics(gamePk);
 		let arrived: { value: GamePlayMetrics | null } | undefined;
 		void playMetrics.then((value) =>
@@ -352,11 +352,6 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		const editorial = content ? editorialOf(content) : null;
 		const late = arrived === undefined;
 		const build = (metrics: GamePlayMetrics | null) => assembleGame(feed, editorial, metrics, graph);
-		const playerOfTheGameDue = playerOfTheGameExpected({
-			gameType: raw.gameData.game?.type,
-			season: raw.gameData.game?.season,
-			codedGameState: feed.status.codedGameState,
-		});
 		return {
 			game: build(arrived?.value ?? null),
 			...feedTime !== undefined && {
@@ -374,29 +369,28 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 	/**
 	 * The live feed alone (S122): what `fetchGame` adds its extras to. Beside the game, the feed's own time (MLB's
 	 * `metaData.timeStamp`) as an ISO instant (S150 AC 2), left out when the feed has none or it can't be right
-	 * (`feedTimeToIso`).
+	 * (`feedTimeToIso`), and S99's `playerOfTheGameDue` from the feed's game type and season (`playerOfTheGameExpected`).
 	 */
 	async fetchGameFeed(gamePk: number): Promise<FetchedGame>
-	{
-		return (await this.liveFeed(gamePk)).fetched;
-	}
-
-	/** The live feed as MLB sent it (`fetchGame` reads its game type and season, S99) and as `fetchGameFeed` answers it. */
-	private async liveFeed(gamePk: number): Promise<{ raw: LiveFeedResponse;
-		fetched: FetchedGame; }>
 	{
 		const feedUrl = `${this.baseUrl}/api/v1.1/game/${gamePk}/feed/live`;
 		const raw = parseLiveFeedResponse(await this.getJson(feedUrl));
 		// Read after the response, so the tolerance only has to cover the two clocks' difference.
 		const now = this.now();
 		const feedTime = feedTimeToIso(raw.metaData?.timeStamp, now);
+		const game = mapLiveFeed(raw, now.toISOString(), "active");
+		const playerOfTheGameDue = playerOfTheGameExpected({
+			gameType: raw.gameData.game?.type,
+			season: raw.gameData.game?.season,
+			codedGameState: game.status.codedGameState,
+		});
 		return {
-			raw,
-			fetched: {
-				game: mapLiveFeed(raw, now.toISOString(), "active"),
-				...feedTime !== undefined && {
-					feedTime,
-				},
+			game,
+			...feedTime !== undefined && {
+				feedTime,
+			},
+			...playerOfTheGameDue && {
+				playerOfTheGameDue,
 			},
 		};
 	}

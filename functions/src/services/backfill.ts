@@ -46,6 +46,7 @@ import type {
 } from "@bt/ports";
 import { assembleGame } from "../mappers/game-extras.js";
 import { readJoinedScheduleDay, scheduleDayWindowMode } from "./game-state.js";
+import { withAskedPlayerOfTheGame } from "./player-of-the-game.js";
 import {
 	ingestGame, repairProjection, storeSchedule,
 } from "./ingest.js";
@@ -170,7 +171,6 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 	let feed;
 	try
 	{
-		// S99: the backfill never asks for the player of the game; filling older games' picks is #619's.
 		feed = await deps.mlb.fetchGameFeed(gamePk);
 	}
 	catch (error)
@@ -185,8 +185,16 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 		ask<GamePlayMetrics>(asking.playMetrics, () => deps.mlb.fetchPlayMetrics(gamePk)),
 		ask<GameGraphContent>(asking.graphContent, () => deps.mlb.fetchGameGraphContent(gamePk)),
 	]);
+	// S99: a game due a player of the game (the feed says so) is asked once, bounded; nothing is stored for it yet,
+	// since only a game not stored as final is fetched here.
+	const { game: picked } = await withAskedPlayerOfTheGame(deps.mlb, {
+		game: assembleGame(feed.game, editorial, playMetrics, graph),
+		...feed.playerOfTheGameDue && {
+			playerOfTheGameDue: true,
+		},
+	}, undefined);
 	const game = {
-		...assembleGame(feed.game, editorial, playMetrics, graph),
+		...picked,
 		fetchedAt,
 		windowMode,
 	};

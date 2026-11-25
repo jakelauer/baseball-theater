@@ -106,8 +106,11 @@ export type GameEditorial = {
  * it answered, and stop asking one it has given up, which `fetchGame`'s fan-out can't do.
  * `fetchGame` is the live feed with all three extras attached; these are its parts.
  */
-export interface MlbGameSources extends Pick<MlbStatsClient, "fetchSchedule" | "fetchPlayMetrics" | "fetchGameGraphContent"> {
-	/** The live feed alone, mapped, with no highlights or extras; throws when it can't be had. */
+export interface MlbGameSources extends Pick<MlbStatsClient, "fetchSchedule" | "fetchPlayMetrics" | "fetchGameGraphContent" | "fetchPlayerOfTheGame"> {
+	/**
+	 * The live feed alone, mapped, with no highlights or extras, and `playerOfTheGameDue` as `fetchGame` says it (S99:
+	 * the backfill asks a due game's pick once); throws when it can't be had.
+	 */
 	fetchGameFeed(gamePk: number): Promise<FetchedGame>;
 	/** The content endpoint's videos and recap; null when it fails or has neither, never a throw. */
 	fetchGameEditorial(gamePk: number): Promise<GameEditorial | null>;

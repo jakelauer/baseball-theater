@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type {
-	FetchedGame, ScheduleDay, ScheduleGameSummary, Unversioned,
+	FetchedGame, PlayerOfTheGame, ScheduleDay, ScheduleGameSummary, Unversioned,
 } from "@bt/domain";
 import {
 	addDays, GIVE_UP_AFTER_DAYS, sourceGivenUpAt,
@@ -181,6 +181,37 @@ class FakeMlb implements MlbGameSources
 		return this.failing("graphContent", gamePk, date) ? null : {
 			videoPlayRefs: [],
 			relatedArticles: [],
+		};
+	}
+
+	/** No game here is due a pick (its feed never says so), so this is never asked; see `PickedMlb` (S99). */
+	async fetchPlayerOfTheGame(): Promise<PlayerOfTheGame | null>
+	{
+		return null;
+	}
+}
+
+/** The fake with every feed due a player of the game (S99), its pick asked and counted as `pick <gamePk>`. */
+class PickedMlb extends FakeMlb
+{
+	override async fetchGameFeed(gamePk: number): Promise<FetchedGame>
+	{
+		return {
+			...await super.fetchGameFeed(gamePk),
+			playerOfTheGameDue: true,
+		};
+	}
+
+	override async fetchPlayerOfTheGame(gamePk?: number): Promise<PlayerOfTheGame | null>
+	{
+		this.requests.push(`pick ${gamePk}`);
+		return {
+			media: {
+				playerId: 666171,
+				teamId: 112,
+				summary: "1.2 IP, 0 ER, K, BB",
+				winProbabilityAdded: 40.7,
+			},
 		};
 	}
 }
@@ -1529,5 +1560,18 @@ describe("runBackfill and suspended games (#79, #323)", () =>
 			to: "2026-07-01",
 		});
 		expect((await repos.schedules.getByDate("2026-07-01"))?.windowMode).toBe("cache");
+	});
+
+	it("S99 review backfill pick: a backfilled game due a player of the game is asked once and stored with it", async () =>
+	{
+		const mlb = new PickedMlb(1);
+		const repos = counted(memoryRepos());
+		await runBackfill(deps(mlb, repos, memoryStore()), {
+			from: "2026-07-01",
+			to: "2026-07-01",
+		});
+		const gamePk = pkOf("2026-07-01", 0);
+		expect(mlb.count("pick")).toBe(1);
+		expect((await repos.games.getByPk(gamePk))?.playerOfTheGame?.media?.playerId).toBe(666171);
 	});
 });

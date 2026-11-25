@@ -133,11 +133,10 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 	 */
 	async fetchGame(gamePk: number): Promise<FetchedGame>
 	{
-		const { game: feed } = await this.fetchGameFeed(gamePk);
+		const { game: feed, playerOfTheGameDue } = await this.fetchGameFeed(gamePk);
 		const editorial = await this.fetchGameEditorial(gamePk);
 		const playMetrics = await this.fetchPlayMetrics(gamePk);
 		const graph = await this.fetchGameGraphContent(gamePk);
-		const playerOfTheGameDue = await this.files.read(`raw/potg-${gamePk}.json`).then(() => true, () => false);
 		return {
 			game: assembleGame(feed, editorial, playMetrics, graph),
 			...playerOfTheGameDue && {
@@ -146,12 +145,16 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 		};
 	}
 
-	/** The committed game without its videos or recap (S122): what the live feed alone gives. */
+	/**
+	 * The committed game without its videos or recap (S122): what the live feed alone gives, with S99's
+	 * `playerOfTheGameDue` when the game has a player-of-the-game recording (see `fetchGame`).
+	 */
 	async fetchGameFeed(gamePk: number): Promise<FetchedGame>
 	{
 		const {
 			highlights: _highlights, recap: _recap, ...data
 		} = await this.readJson<GameFixture>(`game-${gamePk}.json`);
+		const playerOfTheGameDue = await this.files.read(`raw/potg-${gamePk}.json`).then(() => true, () => false);
 		return {
 			game: {
 				...data,
@@ -159,6 +162,9 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 				highlights: [],
 				fetchedAt: new Date().toISOString(),
 				windowMode: "cache",
+			},
+			...playerOfTheGameDue && {
+				playerOfTheGameDue,
 			},
 		};
 	}
