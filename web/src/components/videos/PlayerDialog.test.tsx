@@ -12,6 +12,7 @@ import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
 import { PlayerDialog } from "./PlayerDialog.js";
+import type { PlayerGame } from "./PlayerDialog.js";
 import type { Video } from "./VideoCard.js";
 
 const VIDEO: Video = {
@@ -34,12 +35,12 @@ function reducedMotion(reduce: boolean)
 	}));
 }
 
-function renderDialog()
+function renderDialog(game?: PlayerGame)
 {
 	render(
 		<MantineProvider>
 			<MemoryRouter>
-				<PlayerDialog video={VIDEO} onClose={() => undefined} />
+				<PlayerDialog video={VIDEO} onClose={() => undefined} game={game} />
 			</MemoryRouter>
 		</MantineProvider>,
 	);
@@ -85,5 +86,26 @@ describe("PlayerDialog opening (#423)", () =>
 		await waitFor(() => expect(screen.getByTestId("video-player").querySelector("video")!.autoplay).toBe(true));
 		expect(screen.getByRole("dialog").style.opacity).not.toBe("0");
 		await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
+	});
+});
+
+describe("PlayerDialog's first focus (#582)", () =>
+{
+	// A clip's link opened in a new tab (#424) opens the dialog on a page the reader hasn't touched, so the
+	// browser counts focus placed on open as keyboard focus and rings it: on a phone the player opened with a
+	// red box around its first control ("Go to game: …", the play pill or Close). So no control takes it.
+	it("opens with focus inside the dialog but on none of its controls, so a fresh page rings nothing (#582)", async () =>
+	{
+		reducedMotion(true);
+		vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
+		renderDialog({
+			gamePk: 744834,
+			label: "NYM @ WSH, Jul 4",
+		});
+		const dialog = await screen.findByRole("dialog");
+		await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+		const focused = document.activeElement as HTMLElement;
+		expect(focused.closest("a, button, [role=button]")).toBeNull();
+		expect(focused.tabIndex).toBe(-1);
 	});
 });
