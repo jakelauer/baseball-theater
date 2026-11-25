@@ -71,7 +71,8 @@ function DigestRow({ item, href }: { item: DigestItem;
  * "Best of <date> — Highlights" (S71; `digest-item` on every ratified scoreboard frame):
  * the day's top clips across its games, ranked by `dayDigest` on the server, each a raised
  * card with its rank, still, title and duration, and `WATCH FIRST` on the top one. One
- * column on mobile, two on medium and desktop, like the games above it. With two columns
+ * column on mobile, two on medium and desktop by design, even where the games above it run
+ * three across on desktop (B429): the ratified frames draw the digest in two. With two columns
  * the ranks run down the first column, then the second (owner, 2026-11-12: "those 5 are
  * sorted LR then TB should be TB then LR"): the first ceil(n/2) clips make the left column
  * and the rest the right, so five read 1–3 on the left and 4–5 on the right. The split is

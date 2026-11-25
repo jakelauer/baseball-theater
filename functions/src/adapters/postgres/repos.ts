@@ -40,7 +40,7 @@ import type { SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
 	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, replayArtifacts, scheduleDays, scheduleMonths,
-	users,
+	tierOverrides, users,
 } from "./schema.js";
 
 /** Any Drizzle Postgres database: PGlite in tests, node-postgres behind Hyperdrive in the Worker (S51). */
@@ -685,7 +685,8 @@ function entitlementsRow(uid: string, value: Entitlements)
 }
 
 /**
- * Users, their entitlements and their identity links (ADR-019). Profiles carry no version:
+ * Users, their entitlements, their identity links (ADR-019) and staging's tier overrides (S215,
+ * a table of their own, so an override never writes the real tier). Profiles carry no version:
  * an upsert replaces the profile, as the in-memory double does. A provider account links to
  * one uid; linking it to another throws.
  */
@@ -753,6 +754,37 @@ export class PostgresUserRepository implements UserRepository
 		}).where(eq(users.uid, uid));
 	}
 
+	async getTierOverride(uid: string): Promise<PatronTier | null>
+	{
+		const [row] = await this.db.select({
+			tier: tierOverrides.tier,
+		}).from(tierOverrides).where(eq(tierOverrides.uid, uid));
+		return row?.tier ?? null;
+	}
+
+	async setTierOverride(uid: string, tier: PatronTier | null): Promise<void>
+	{
+		if (tier === null)
+		{
+			await this.db.delete(tierOverrides).where(eq(tierOverrides.uid, uid));
+			return;
+		}
+		// Only for an existing user (the foreign key would refuse anything else), as setEntitlements.
+		const [existing] = await this.db.select({
+			uid: users.uid,
+		}).from(users).where(eq(users.uid, uid));
+		if (!existing) return;
+		await this.db.insert(tierOverrides).values({
+			uid,
+			tier,
+		}).onConflictDoUpdate({
+			target: tierOverrides.uid,
+			set: {
+				tier,
+			},
+		});
+	}
+
 	async linkIdentity(provider: string, subject: string, uid: string): Promise<void>
 	{
 		const linked = await this.getByIdentity(provider, subject);
@@ -782,15 +814,21 @@ export class PostgresUserRepository implements UserRepository
 			provider: identityLinks.provider,
 			subject: identityLinks.subject,
 		}).from(identityLinks).where(eq(identityLinks.uid, uid)).orderBy(asc(identityLinks.provider), asc(identityLinks.subject));
-		return profile === null && identities.length === 0 ? null : {
+		const tierOverride = await this.getTierOverride(uid);
+		return profile === null && identities.length === 0 && tierOverride === null ? null : {
 			profile,
 			identities,
+			...tierOverride !== null && {
+				tierOverride,
+			},
 		};
 	}
 
 	async deleteFor(uid: string): Promise<void>
 	{
 		await this.db.delete(identityLinks).where(eq(identityLinks.uid, uid));
+		// The tier override goes too, named here though ON DELETE CASCADE would also take it (S215).
+		await this.db.delete(tierOverrides).where(eq(tierOverrides.uid, uid));
 		// Entitlements go with the user (ON DELETE CASCADE).
 		await this.db.delete(users).where(eq(users.uid, uid));
 	}

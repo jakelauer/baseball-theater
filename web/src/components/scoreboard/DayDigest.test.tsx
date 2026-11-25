@@ -167,6 +167,9 @@ describe("the day digest (S71)", () =>
 			name: "Go to game: NYY @ BOS, Jul 4 →",
 		});
 		expect(link).toHaveAttribute("href", "/game/745001");
+		// Closed only once it has finished opening and started the clip (#423), which every run reaches:
+		// closing sooner made the test pass or fail on how fast the machine ran (#559).
+		await waitFor(() => expect(within(dialog).getByTestId("video-player").querySelector("video")!.autoplay).toBe(true));
 		await user.click(within(dialog).getByRole("button", {
 			name: "Close video",
 		}));

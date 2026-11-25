@@ -1,4 +1,6 @@
-import type { Entitlements, UserProfile } from "@bt/domain";
+import type {
+	Entitlements, PatronTier, UserProfile,
+} from "@bt/domain";
 
 /**
  * Who a sign-in proved the user to be, as the identity provider sees them
@@ -94,6 +96,19 @@ export interface UserRepository
 	upsert(user: UserProfile): Promise<void>;
 	setEntitlements(uid: string, entitlements: Entitlements): Promise<void>;
 	/**
+	 * The tier this user chose with staging's backer tier override (S215), or null when none is
+	 * chosen. For staging tests only: callers ask it only where the server's deploy-time config
+	 * allows the override (`tierOverrideAllowed`), so production refuses it on the server and never
+	 * reads it. Kept apart from the real tier (`setEntitlements`, which a Patreon link writes).
+	 */
+	getTierOverride(uid: string): Promise<PatronTier | null>;
+	/**
+	 * Stores (or, with null, clears) this user's staging tier override (S215). For staging tests
+	 * only, behind the same server-side config as {@link getTierOverride}, so production never
+	 * writes it. It never writes the `entitlements` row (the real tier) and never calls Patreon.
+	 */
+	setTierOverride(uid: string, tier: PatronTier | null): Promise<void>;
+	/**
 	 * Links a provider account to a BT user. Linking the same account to the same
 	 * `uid` again is a no-op; linking it to a different `uid` throws, because one
 	 * provider account must never resolve to two BT users.
@@ -103,7 +118,7 @@ export interface UserRepository
 	getByIdentity(provider: string, subject: string): Promise<string | null>;
 	/** The user's profile and identity links for their download (ADR-028); null when neither exists. */
 	exportFor(uid: string): Promise<UserDataExport | null>;
-	/** Removes the user's profile and every identity link to them; a no-op when there are none (ADR-028). */
+	/** Removes the user's profile, every identity link to them and their tier override; a no-op when there are none (ADR-028). */
 	deleteFor(uid: string): Promise<void>;
 }
 
@@ -113,6 +128,8 @@ export interface UserDataExport
 	profile: UserProfile | null;
 	identities: { provider: string;
 		subject: string }[];
+	/** The staging tier override they chose (S215), present only when one is stored. */
+	tierOverride?: PatronTier;
 }
 
 export interface SecretsProvider

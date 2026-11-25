@@ -35,8 +35,8 @@ function stubAccountApi(stored: AccountSettings = DEFAULT_SETTINGS)
 	{
 		const { pathname } = new URL(request.url);
 		if (pathname === "/api/v1/me") return jsonResponse(DEV_ACCOUNT);
-		// No data download yet (S79's Account rows read it).
-		if (pathname.startsWith("/api/v1/me/download")) return jsonResponse({
+		// No data download yet (S79's Account rows read it); no tier override, as production answers (S215).
+		if (pathname.startsWith("/api/v1/me/download") || pathname === "/api/v1/me/tier-override") return jsonResponse({
 			error: "not_found",
 		}, 404);
 		if (request.method === "PUT")

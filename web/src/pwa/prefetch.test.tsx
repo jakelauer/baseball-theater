@@ -24,7 +24,7 @@ import { resetSettings } from "../settings/store.js";
 import { jsonResponse } from "../test/jsonResponse.js";
 import { DEV_ACCOUNT } from "../test/meApi.js";
 import {
-	PREFETCH_TAG, registerPeriodicSync, usePrefetchOnOpen,
+	PREFETCH_TAG, prefetchOnOpen, registerPeriodicSync, usePrefetchOnOpen,
 } from "./prefetch.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../fixtures");
@@ -153,6 +153,31 @@ describe("on open, today is asked for ahead of time (S74 AC 4)", () =>
 		expect(prefetch.mock.calls.at(-1)![0]).toMatchObject({
 			queryKey: ["schedule", "2026-09-05"],
 		});
+	});
+});
+
+describe("prefetchOnOpen picks favorites' games by isFavoriteGame (S213 AC 3)", () =>
+{
+	it("S213 AC 3 null: with no favorites (signed out) it asks for the day only", async () =>
+	{
+		serveApi(false);
+		await prefetchOnOpen(createQueryClient(), "2026-09-05", null);
+		expect(asked).toEqual(["/api/v1/schedule?date=2026-09-05"]);
+	});
+
+	it("S213 AC 3 empty: with an empty favorites list it asks for the day only", async () =>
+	{
+		serveApi(true);
+		await prefetchOnOpen(createQueryClient(), "2026-09-05", []);
+		expect(asked).toEqual(["/api/v1/schedule?date=2026-09-05"]);
+	});
+
+	it("S213 AC 3 favorites: exactly the away-only (NYY @ SD) and home-only (CHC @ MIA) favorites' games, none of the other thirteen", async () =>
+	{
+		serveApi(true);
+		await prefetchOnOpen(createQueryClient(), "2026-09-05", FAVORITES);
+		expect(asked.filter((path) => path.startsWith("/api/v1/schedule"))).toEqual(["/api/v1/schedule?date=2026-09-05"]);
+		expect(games()).toEqual(["/api/v1/games/823257", "/api/v1/games/823823"]);
 	});
 });
 

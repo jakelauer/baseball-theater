@@ -176,6 +176,12 @@ export const DATA_CLASSIFICATION = {
 			kind: "personal",
 			deletedBy: USERS_STORE,
 		},
+		// Staging's backer tier override (S215): the tester's chosen entitlement tier, under ADR-028's
+		// BT database: users row like `entitlements`; the user repository's export and deletion reach it.
+		tier_overrides: {
+			kind: "personal",
+			deletedBy: USERS_STORE,
+		},
 		account_settings: {
 			kind: "personal",
 			deletedBy: SETTINGS_STORE,

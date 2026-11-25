@@ -29,6 +29,8 @@ function spyRepository(): UserRepository
 		getByUid: vi.fn(),
 		upsert: vi.fn(),
 		setEntitlements: vi.fn(),
+		getTierOverride: vi.fn(),
+		setTierOverride: vi.fn(),
 		linkIdentity: vi.fn(),
 		getByIdentity: vi.fn(),
 		exportFor: vi.fn(),
