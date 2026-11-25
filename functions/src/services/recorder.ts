@@ -28,13 +28,12 @@ import type {
 } from "@bt/domain";
 import { wholeFetchedGame } from "@bt/domain";
 import type { StandingsResponse } from "@bt/mlb-api";
-import { parseStandingsResponse } from "@bt/mlb-api";
+import { parseSearchResponse, parseStandingsResponse } from "@bt/mlb-api";
 import type { MlbStatsClient } from "@bt/ports";
 import {
 	finalStandingsUrl, graphContentRequest, playMetricsUrl, searchHighlightsRequest, seasonsUrl, springStandingsUrl, standingsUrl, worldSeriesUrl,
 } from "../adapters/http/mlb.js";
 import { searchFixtureName } from "../adapters/fixtures/fixture-client.js";
-import { parseSearchResponse } from "../mappers/search.js";
 import { mapStandings } from "../mappers/standings.js";
 
 const DEFAULT_BASE_URL = "https://statsapi.mlb.com";

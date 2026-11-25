@@ -43,6 +43,8 @@ const WORLD_SERIES: SearchHighlightsPayload["highlights"][number] = {
 		awayId: 158,
 		homeId: 139,
 	},
+	halfInning: null,
+	inning: null,
 };
 
 const MONTAGE: SearchHighlightsPayload["highlights"][number] = {
@@ -59,6 +61,8 @@ const MONTAGE: SearchHighlightsPayload["highlights"][number] = {
 		date: "2026-11-03",
 	},
 	game: null,
+	halfInning: null,
+	inning: null,
 };
 
 const WALK_OFF: SearchHighlightsPayload = {
@@ -115,6 +119,7 @@ function renderSearch(entry = "/search")
 					<Routes>
 						<Route path="/search" element={<><SearchPage /><Where /></>} />
 						<Route path="/game/:gamePk" element={<p>game page</p>} />
+						<Route path="/game/:gamePk/plays" element={<><p>plays room</p><Where /></>} />
 					</Routes>
 				</MemoryRouter>
 			</QueryClientProvider>
@@ -364,6 +369,8 @@ describe("Search Highlights (S5)", () =>
 				tags: ["game-recap"],
 			},
 			game: WORLD_SERIES.game,
+			halfInning: null,
+			inning: null,
 		};
 		serve(() => ({
 			...WALK_OFF,
@@ -502,5 +509,219 @@ describe("Search's active filter chips (S72)", () =>
 		}));
 		renderSearch("/search?team=147");
 		expect(await screen.findByText("No highlights match these filters.")).toBeInTheDocument();
+	});
+});
+
+/**
+ * A result with its play (S153), as the route gives it for S72's recording
+ * (`fixtures/search--team-147--tag-home-run.json`): MLB's `guid` as the play id, `inningHalf: "Top"`, `inning: 6`.
+ */
+const MESA: SearchHighlightsPayload["highlights"][number] = {
+	highlight: {
+		id: "mesa-hr",
+		playId: "4f687124-5ec9-337b-a32b-2dedc930bcee",
+		title: "Victor Mesa Jr.'s two-run home run",
+		blurb: "Victor Mesa Jr. hits a two-run home run",
+		duration: "00:00:25",
+		imageUrl: null,
+		playbackUrl: "https://mlb-cuts-diamond.mlb.com/mesa.mp4",
+		renditions: [],
+		kind: "highlight",
+		date: "2026-10-07",
+	},
+	game: {
+		gamePk: 849838,
+		officialDate: "2026-10-07",
+		away: "TB",
+		home: "NYY",
+		awayId: 139,
+		homeId: 147,
+	},
+	halfInning: "top",
+	inning: 6,
+};
+
+/** The row's outer box: the row link and, beside it, the inning pill. */
+function rowOf(title: string): HTMLElement
+{
+	return screen.getByRole("link", {
+		name: `Play ${title}`,
+	}).parentElement!;
+}
+
+describe("Search's inning pill (S153; game-shell A6 search-playmeta-*)", () =>
+{
+	it("S153 AC 2: a result with a play reads its date in --bt-muted, then the inning pill to its play, with no kind word", async () =>
+	{
+		serve(() => ({
+			...WALK_OFF,
+			highlights: [MESA],
+		}));
+		renderSearch("/search?q=home-run");
+		await screen.findAllByTestId("search-result");
+		const row = rowOf(MESA.highlight.title);
+		const meta = within(row).getByTestId("search-result-meta");
+		expect(meta).toHaveTextContent(/^Oct 7, 2026$/);
+		expect(meta.getAttribute("style")).toMatch(/color: var\(--bt-muted\)/);
+		expect(row.textContent).not.toMatch(/Highlight/);
+		const pill = within(row).getByRole("link", {
+			name: "Top 6: open play, top of 6th inning",
+		});
+		expect(pill).toHaveTextContent(/^Top 6 →$/);
+		expect(pill).toHaveAttribute("href", "/game/849838/plays?play=4f687124-5ec9-337b-a32b-2dedc930bcee");
+		expect(pill).toHaveClass("bt-play-pill");
+		// The pill follows the date: the row link (holding the date) comes first, the pill straight after it.
+		expect(pill.previousElementSibling).toBe(screen.getByRole("link", {
+			name: `Play ${MESA.highlight.title}`,
+		}));
+	});
+
+	it("S153 AC 3: the pill opens the play without the player; the rest of the row opens the player; the pill is in no button", async () =>
+	{
+		serve(() => ({
+			...WALK_OFF,
+			highlights: [MESA],
+		}));
+		renderSearch("/search?q=home-run");
+		await screen.findAllByTestId("search-result");
+		const pill = screen.getByRole("link", {
+			name: "Top 6: open play, top of 6th inning",
+		});
+		expect(pill.closest("button")).toBeNull();
+		expect(pill.closest("[data-testid='search-result']")).toBeNull();
+		await userEvent.click(pill);
+		expect(await screen.findByText("plays room")).toBeInTheDocument();
+		expect(screen.getByTestId("where")).toHaveTextContent("/game/849838/plays?play=4f687124-5ec9-337b-a32b-2dedc930bcee");
+		expect(screen.queryByRole("dialog")).toBeNull();
+		cleanup();
+		serve(() => ({
+			...WALK_OFF,
+			highlights: [MESA],
+		}));
+		renderSearch("/search?q=home-run");
+		await userEvent.click(await screen.findByText(MESA.highlight.title));
+		expect(await screen.findByRole("dialog")).toBeInTheDocument();
+		expect(screen.getByTestId("where")).toHaveTextContent(/^\/search\?q=home-run&clip=mesa-hr$/);
+	});
+
+	it("S153 AC 4: a result with no play, a play id and inning but no half, or no game keeps Highlight · date in --bt-light, with no pill", async () =>
+	{
+		const noHalf = {
+			...MESA,
+			highlight: {
+				...MESA.highlight,
+				id: "no-half",
+				title: "No half",
+			},
+			halfInning: null,
+		};
+		const noGame = {
+			...MESA,
+			highlight: {
+				...MESA.highlight,
+				id: "no-game",
+				title: "No game",
+			},
+			game: null,
+		};
+		const noPlayId = {
+			...MESA,
+			highlight: {
+				...MESA.highlight,
+				id: "no-play-id",
+				title: "No play id",
+				playId: null,
+			},
+		};
+		const noInning = {
+			...MESA,
+			highlight: {
+				...MESA.highlight,
+				id: "no-inning",
+				title: "No inning",
+			},
+			inning: null,
+		};
+		serve(() => ({
+			...WALK_OFF,
+			highlights: [WORLD_SERIES, MONTAGE, noHalf, noGame, noPlayId, noInning],
+		}));
+		renderSearch("/search?q=walk-off");
+		await screen.findAllByTestId("search-result");
+		for (const result of [WORLD_SERIES, MONTAGE, noHalf, noGame, noPlayId, noInning])
+		{
+			const row = rowOf(result.highlight.title);
+			const meta = within(row).getByTestId("search-result-meta");
+			expect(meta, result.highlight.id).toHaveTextContent(/^Highlight · \w{3} \d{1,2}, 2026$/);
+			expect(meta.getAttribute("style"), result.highlight.id).toMatch(/color: var\(--bt-light\)/);
+			expect(within(row).queryAllByRole("link")).toHaveLength(1);
+		}
+		expect(document.querySelector(".bt-play-pill")).toBeNull();
+		expect(screen.queryByText(/→/)).toBeNull();
+	});
+
+	it("a result with a play but no date shows the pill alone; one with neither kind nor date has no meta line", async () =>
+	{
+		const undated = {
+			...MESA,
+			highlight: {
+				...MESA.highlight,
+				id: "undated",
+				title: "Undated",
+				date: null,
+			},
+		};
+		const bare = {
+			...MONTAGE,
+			highlight: {
+				...MONTAGE.highlight,
+				id: "bare",
+				title: "Bare",
+				date: null,
+				kind: undefined,
+			},
+		};
+		serve(() => ({
+			...WALK_OFF,
+			highlights: [undated, bare],
+		}));
+		renderSearch("/search?q=walk-off");
+		await screen.findAllByTestId("search-result");
+		expect(within(rowOf("Undated")).queryByTestId("search-result-meta")).toBeNull();
+		expect(within(rowOf("Undated")).getByRole("link", {
+			name: "Top 6: open play, top of 6th inning",
+		}).style.marginLeft).toBe("0px");
+		expect(within(rowOf("Bare")).queryByTestId("search-result-meta")).toBeNull();
+		expect(rowOf("Bare").querySelector(".bt-play-pill")).toBeNull();
+	});
+
+	it("S153 AC 6: with Hide Scores on, every result's meta line is unchanged", async () =>
+	{
+		const lines = async (hideScores: boolean) =>
+		{
+			serve(() => ({
+				...WALK_OFF,
+				highlights: [MESA, WORLD_SERIES, MONTAGE],
+			}), {
+				...DEFAULT_SETTINGS,
+				hideScores,
+				version: 1,
+			});
+			await hydrateSettings("test-user");
+			renderSearch("/search?q=walk-off");
+			await screen.findAllByTestId("search-result");
+			const seen = [MESA, WORLD_SERIES, MONTAGE].map((result) =>
+			{
+				const row = rowOf(result.highlight.title);
+				const pill = row.querySelector(".bt-play-pill");
+				return [within(row).getByTestId("search-result-meta").textContent, pill?.textContent ?? null, pill?.getAttribute("href") ?? null, pill?.getAttribute("aria-label") ?? null];
+			});
+			cleanup();
+			resetSettings();
+			return seen;
+		};
+		const shown = await lines(false);
+		expect(shown[0]).toEqual(["Oct 7, 2026", "Top 6 →", "/game/849838/plays?play=4f687124-5ec9-337b-a32b-2dedc930bcee", "Top 6: open play, top of 6th inning"]);
+		expect(await lines(true)).toEqual(shown);
 	});
 });
