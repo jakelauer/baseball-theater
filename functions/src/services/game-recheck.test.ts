@@ -90,7 +90,8 @@ describe("recheckDueGame (S212 AC 5)", () =>
 		const calls = withMlb(deps, answers);
 		expect(await recheckDueGame(deps)).toBe(744834);
 		expect(await recheckDueGame(deps)).toBeNull();
-		expect(calls).toEqual(["fetchGame 744834"]);
+		// S101 review: the fixture lists no uniforms for 744834, so each re-check of the final game asks them once (`uniformsDue`).
+		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
 	});
 
 	it("S212 AC 5 new clip: a re-check whose only difference is a new highlight clip stores it and purges its three URLs", async () =>
@@ -144,7 +145,7 @@ describe("recheckDueGame (S212 AC 5)", () =>
 		// Six hours after that re-check it is due again.
 		deps.now = () => new Date(NOW.getTime() + 3600_000);
 		expect(await recheckDueGame(deps)).toBe(744834);
-		expect(calls).toEqual(["fetchGame 744834"]);
+		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
 	});
 
 	it("S212 AC 5 none due: with no due game a call sends no MLB request and does one database read", async () =>
@@ -249,7 +250,7 @@ describe("recheckDueGame (S212 AC 5)", () =>
 		});
 		const calls = withMlb(deps, new Map([[744834, same]]));
 		expect(await recheckDueGame(deps)).toBe(744834);
-		expect(calls).toEqual(["fetchGame 744834"]);
+		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
 	});
 });
 
@@ -300,7 +301,7 @@ describe("recheckDueGame player of the game (S99, Claude's review of #621)", () 
 		const { playerOfTheGame: _sent, ...sent } = both;
 		const calls = dueMlb(deps, sent);
 		expect(await recheckDueGame(deps)).toBe(744834);
-		expect(calls).toEqual(["fetchGame 744834"]);
+		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
 		expect((await deps.games.getByPk(744834))?.playerOfTheGame).toEqual(both.playerOfTheGame);
 	});
 
@@ -317,7 +318,7 @@ describe("recheckDueGame player of the game (S99, Claude's review of #621)", () 
 		const { playerOfTheGame: _sent, ...sent } = one;
 		const calls = dueMlb(deps, sent);
 		expect(await recheckDueGame(deps)).toBe(744834);
-		expect(calls).toEqual(["fetchGame 744834", "fetchPlayerOfTheGame 744834"]);
+		expect(calls).toEqual(["fetchGame 744834", "fetchPlayerOfTheGame 744834", "fetchGameUniforms 744834"]);
 		expect((await deps.games.getByPk(744834))?.playerOfTheGame).toEqual({
 			media: MEDIA,
 			fan: FAN,
@@ -337,5 +338,56 @@ describe("recheckDueGame player of the game (S99, Claude's review of #621)", () 
 		await expect(recheckDueGame(deps)).rejects.toThrow("database down");
 		expect(hold).not.toHaveBeenCalled();
 		expect(calls).toEqual([]);
+	});
+});
+
+describe("recheckDueGame uniforms (S101 pre-PR review)", () =>
+{
+	const WORN = {
+		home: [{
+			code: "1_jersey",
+			text: "Home Jersey",
+			type: "Jersey",
+		}],
+	};
+
+	/** A fake MLB answering the stored game unchanged (still final) and `uniforms` for it; every call counted. */
+	function sameMlb(deps: ReturnType<typeof memoryDeps>, answer: Unversioned<GameSnapshot>)
+	{
+		const fixture = new FixtureMlbStatsClient();
+		const mlb = countingMlb(Object.assign(Object.create(fixture) as MlbStatsClient, {
+			fetchGame: async (): Promise<FetchedGame> => ({
+				game: answer,
+			}),
+			fetchGameUniforms: async () => WORN,
+		}));
+		deps.mlb = mlb.client;
+		return mlb.calls;
+	}
+
+	it("S101 review recheck missing: a final game stored with no uniforms, re-checked with the same status, asks once and stores them", async () =>
+	{
+		const deps = memoryDeps();
+		const sent = await stored(deps, await game());
+		expect((await deps.games.getByPk(744834))?.uniforms).toBeUndefined();
+		const calls = sameMlb(deps, sent);
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834"]);
+		expect((await deps.games.getByPk(744834))?.uniforms).toEqual(WORN);
+	});
+
+	it("S101 review recheck stored: a final game with uniforms stored is re-checked with no uniforms request", async () =>
+	{
+		const deps = memoryDeps();
+		const worn = {
+			...await game(),
+			uniforms: WORN,
+		};
+		await stored(deps, worn);
+		const { uniforms: _sent, ...sent } = worn;
+		const calls = sameMlb(deps, sent);
+		expect(await recheckDueGame(deps)).toBe(744834);
+		expect(calls).toEqual(["fetchGame 744834"]);
+		expect((await deps.games.getByPk(744834))?.uniforms).toEqual(WORN);
 	});
 });

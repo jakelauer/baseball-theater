@@ -203,7 +203,7 @@ describe("keepStoredExtras and uniformsDue (S101)", () =>
 		expect(keepStoredExtras(null, bare)).toBe(bare);
 	});
 
-	it("asks only while none is stored, and only for a new game or a changed status", () =>
+	it("asks only while none is stored, and then for a new game, a changed status or a final game", () =>
 	{
 		expect(uniformsDue(null, "P")).toBe(true);
 		expect(uniformsDue(undefined, "P")).toBe(true);
@@ -223,5 +223,17 @@ describe("keepStoredExtras and uniformsDue (S101)", () =>
 				codedGameState: "P",
 			},
 		}, "I")).toBe(false);
+		// A final game still lacking them is asked on each write, its status unchanged (S101 review); one with them never.
+		expect(uniformsDue({
+			status: {
+				codedGameState: "F",
+			},
+		}, "F")).toBe(true);
+		expect(uniformsDue({
+			uniforms: WORN,
+			status: {
+				codedGameState: "F",
+			},
+		}, "F")).toBe(false);
 	});
 });

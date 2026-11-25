@@ -11,6 +11,7 @@ import type {
 	BackgroundWork, GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, ScheduleRepository,
 } from "@bt/ports";
 import { withLatePlayMetrics } from "../mappers/game-extras.js";
+import { withGameUniforms } from "../mappers/uniforms.js";
 import {
 	askGameUniforms, askPlayerOfTheGame, withAskedPlayerOfTheGame, withAskedUniforms,
 } from "./player-of-the-game.js";
@@ -613,10 +614,13 @@ async function joinedBefore(deps: Pick<IngestDeps, "games" | "gameStates">, stor
  * day, whose served version the row's new state version raised. Since the row is written
  * first (`storeGame`), a poll never leaves a row behind its own snapshot.
  *
- * S101: with `mlb`, the game's uniforms are asked here, against the stored game it already read (`withAskedUniforms`:
- * only while none is stored, when the game is new or its status changed, bounded by `PLAY_METRICS_LIMIT_MS`), so every
- * path that writes one game (the ingest object's poll, the cron tick, the day seed, the re-check, the backfill) asks it
- * off the game fetch and no poll whose status stays the same asks again. Without `mlb` (tests) nothing is asked.
+ * S101: with `mlb`, the game's uniforms are asked here, against the stored game it already read (`withAskedUniforms`,
+ * bounded by `PLAY_METRICS_LIMIT_MS`): only while none is stored, and then when the game is new to the store, its status
+ * changed, or it is final (`uniformsDue`). So every path that writes one game (the ingest object's poll, the cron tick,
+ * the day seed, the re-check, the backfill) asks it off the game fetch; a live poll at an unchanged status never asks
+ * again, and a final game still lacking them is asked once per write (a re-check fills one stored before S101). The
+ * backfill writes only games not already stored as final, so a stored final past its re-check window stays without
+ * them (#619's scope). Without `mlb` (tests) nothing is asked.
  */
 export async function ingestGame(
 	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge" | "dayHubs"> & { mlb?: Pick<MlbStatsClient, "fetchGameUniforms"> },
@@ -959,13 +963,18 @@ async function readGames(
 		const snapshot = stored.get(gamePk);
 		const pick = snapshot?.playerOfTheGame;
 		const early = pick && !playerOfTheGameComplete(pick) ? askPlayerOfTheGame(deps.mlb, gamePk) : undefined;
-		// S101: a game not stored yet has its uniforms asked beside the fetch (one bounded wait at most, run at once);
-		// a stored one lacking them is asked after the fetch only when its status changed (`withAskedUniforms`).
+		// S101: a game not stored yet has its uniforms asked beside the fetch; a stored one lacking them is asked after
+		// the fetch when `uniformsDue` says so. The two asks after the fetch run together (S101 review), so a read waits
+		// one bounded limit at most, never one per extra.
 		const earlyUniforms = snapshot ? undefined : askGameUniforms(deps.mlb, gamePk);
-		const fetched = await withAskedPlayerOfTheGame(deps.mlb, await deps.mlb.fetchGame(gamePk), snapshot?.playerOfTheGame, early);
+		const fetched = await deps.mlb.fetchGame(gamePk);
+		const [picked, worn] = await Promise.all([
+			withAskedPlayerOfTheGame(deps.mlb, fetched, snapshot?.playerOfTheGame, early),
+			withAskedUniforms(deps.mlb, fetched.game, snapshot, earlyUniforms),
+		]);
 		return {
-			...fetched,
-			game: await withAskedUniforms(deps.mlb, fetched.game, snapshot, earlyUniforms),
+			...picked,
+			game: withGameUniforms(picked.game, worn.uniforms ?? null),
 		};
 	};
 	const fetched = await Promise.all(due.map((gamePk) => runRefresh(deps, `game:${gamePk}`, () => fetchWithPick(gamePk)).then(

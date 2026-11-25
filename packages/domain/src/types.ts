@@ -312,10 +312,12 @@ export type GameSnapshot = {
 	 */
 	playerOfTheGame?: PlayerOfTheGame;
 	/**
-	 * What each team wore (S101), asked by ingest off the game fetch (`withAskedUniforms`) when it first stores the game
-	 * or sees its status change while none is stored, so a live poll never asks again for a value settled before first
-	 * pitch. Once stored it is kept (`keepStoredExtras`): a later write that didn't ask, or whose ask failed or ran past
-	 * its limit, never clears it. Absent until MLB lists one BT has asked for, and then the game is served as before.
+	 * What each team wore (S101), asked by ingest off the game fetch (`withAskedUniforms`) while none is stored, when it
+	 * first stores the game, sees its status change, or writes a final game (`uniformsDue`), so a live poll at an
+	 * unchanged status never asks again for a value settled before first pitch. Once stored it is kept
+	 * (`keepStoredExtras`): a later write that didn't ask, or whose ask failed or ran past its limit, never clears it.
+	 * Absent until MLB lists one BT has asked for, and then the game is served as before. A final game BT no longer
+	 * refreshes (past its re-check window, which the backfill skips as already stored) gets none here: #619's scope.
 	 */
 	uniforms?: GameUniforms;
 	/** Who is on base and who is batting and pitching (S63); `null` unless in progress, absent on older recordings. */

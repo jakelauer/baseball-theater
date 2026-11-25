@@ -94,12 +94,16 @@ export function keepStoredExtras<T extends StoredExtras>(stored: StoredExtras | 
 }
 
 /**
- * Whether ingest should ask MLB for a game's uniforms (S101): only while none is stored, and only when it first stores
- * the game or sees its status change (scheduled, warming up, live, final), so a live poll whose status stays the same
- * never asks again, and a game MLB lists nothing for is asked a few times at most. Clubs set them before first pitch.
+ * Whether ingest should ask MLB for a game's uniforms (S101): only while none is stored, and then when it first stores
+ * the game, sees its status change (scheduled, warming up, live, final), or writes a game that is over
+ * (`isFinalStatus`, as S99 asks a final game still missing its pick, #621's review). So a live poll whose status stays
+ * the same never asks again; a final game stored without them (before S101, or whose ask found nothing) is asked once
+ * per write that refreshes it: its ingest object's final-trail polls, a cold read, a re-check. Clubs set them before
+ * first pitch.
  */
 export function uniformsDue(stored: { uniforms?: GameSnapshot["uniforms"];
 	status: { codedGameState: string }; } | null | undefined, codedGameState: string): boolean
 {
-	return stored?.uniforms === undefined && stored?.status.codedGameState !== codedGameState;
+	if (stored?.uniforms !== undefined) return false;
+	return stored?.status.codedGameState !== codedGameState || isFinalStatus(codedGameState);
 }

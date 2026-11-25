@@ -49,7 +49,7 @@ export function askGameUniforms(mlb: Pick<MlbStatsClient, "fetchGameUniforms">, 
 
 /**
  * The game with its uniforms attached (S101), when `uniformsDue` says to ask (none stored, and the game is new to the
- * store or its status changed); otherwise the game as it is, asking nothing. `stored` is the stored game the caller
+ * store, its status changed, or it is final); otherwise the game as it is, asking nothing. `stored` is the stored game the caller
  * read (null when none). `asked`, when given, is an ask the caller started beside the fetch (a cold read of a game not
  * stored yet), used instead of a new one. An answer of none leaves the game as it is, and the write keeps a stored
  * value (`keepStoredExtras`).

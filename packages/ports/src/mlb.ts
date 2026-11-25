@@ -59,7 +59,7 @@ export interface MlbStatsClient {
 	fetchPlayerOfTheGame(gamePk: number): Promise<PlayerOfTheGame | null>;
 	/**
 	 * The uniforms each team wore (S101), mapped; null when the call fails or lists none. `fetchGame` never asks it:
-	 * ingest does, off the fetch path, when it first stores a game or sees its status change (`withAskedUniforms`).
+	 * ingest does, off the fetch path, while none is stored (`uniformsDue`, `withAskedUniforms`).
 	 */
 	fetchGameUniforms(gamePk: number): Promise<GameUniforms | null>;
 	/** The regular season's standings as of `date` (S4); MLB has none outside the regular season. */
