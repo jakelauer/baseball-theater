@@ -27,6 +27,7 @@ import type { ScheduleDayPayload } from "../../api/schedule.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { ScoreboardPage } from "../../pages/ScoreboardPage.js";
 import { hydrateSettings, resetSettings } from "../../settings/store.js";
+import { expectInsetPlayer } from "../../test/insetPlayer.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
@@ -215,14 +216,14 @@ const WITH_PLAYS: DayDigestPayload = {
 	}, read<DigestGame>("game-745001.json")]),
 };
 
-/** Serves `WITH_PLAYS` and `settings`, renders the scoreboard and opens the clip titled `title`; the dialog's pills by spoken name. */
-async function digestPills(title: string, settings = DEFAULT_SETTINGS): Promise<{ names: string[];
+/** Serves `payload` (`WITH_PLAYS`) and `settings`, renders the scoreboard and opens the clip titled `title`; the dialog's pills by spoken name. */
+async function digestPills(title: string, settings = DEFAULT_SETTINGS, payload = WITH_PLAYS): Promise<{ names: string[];
 	dialog: HTMLElement; }>
 {
 	vi.stubGlobal("fetch", vi.fn((request: Request) =>
 	{
 		const { pathname } = new URL(request.url);
-		if (pathname === "/api/v1/digest") return Promise.resolve(jsonResponse(WITH_PLAYS));
+		if (pathname === "/api/v1/digest") return Promise.resolve(jsonResponse(payload));
 		if (pathname === "/api/v1/me/settings") return Promise.resolve(jsonResponse(settings));
 		return Promise.resolve(jsonResponse(SCHEDULE));
 	}));
@@ -271,5 +272,27 @@ describe("the digest's player pills (S173; standings-search-settings A10 digest-
 		})).names;
 		expect(hidden).toEqual(shown);
 		expect(hidden).toHaveLength(2);
+	});
+});
+
+describe("the digest's player is the inset modal (S196)", () =>
+{
+	it("S196 AC 1: opened from the digest, an inset modal over the dimmed site, title above the clip, tools after it, disclaimer last, A10's pills kept", async () =>
+	{
+		const title = "Lane Thomas hits a walk-off home run";
+		// The recorded digest carries no clip URLs; give the clip one, so its tools row draws as in the app.
+		const playable: DayDigestPayload = {
+			...WITH_PLAYS,
+			items: WITH_PLAYS.items.map((item) => item.highlight.title === title ? {
+				...item,
+				highlight: {
+					...item.highlight,
+					playbackUrl: "https://mlb-cuts-diamond.mlb.com/walk-off.mp4",
+				},
+			} : item),
+		};
+		const { names, dialog } = await digestPills(title, DEFAULT_SETTINGS, playable);
+		expect(names).toEqual(["More from game: NYM @ WSH, Jul 4", "Bot 8: open play, bottom of 8th inning"]);
+		await expectInsetPlayer(dialog, title);
 	});
 });

@@ -6,7 +6,7 @@
  */
 import { MantineProvider } from "@mantine/core";
 import {
-	cleanup, render, screen, waitFor, within,
+	cleanup, fireEvent, render, screen, waitFor, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -16,6 +16,7 @@ import {
 import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
+import { expectInsetPlayer } from "../../test/insetPlayer.js";
 import { PlayerDialog } from "./PlayerDialog.js";
 import type { PlayerGame } from "./PlayerDialog.js";
 import type { Video } from "./VideoCard.js";
@@ -243,5 +244,217 @@ describe("PlayerDialog's first focus (#582)", () =>
 		const focused = document.activeElement as HTMLElement;
 		expect(focused.closest("a, button, [role=button]")).toBeNull();
 		expect(focused.tabIndex).toBe(-1);
+	});
+});
+
+describe("S196: the inset player modal", () =>
+{
+	it("S196 AC 1: an inset Modal, not full screen, over the dimmed but visible site, title above the clip, tools after it, disclaimer last", async () =>
+	{
+		renderPills({
+			game: GAME,
+			playLink: TOP_6,
+		});
+		const dialog = await screen.findByRole("dialog");
+		await expectInsetPlayer(dialog, VIDEO.title);
+		// Everything A4's player held stays: the pills, Close and the actions.
+		expect(await pills()).toEqual(["More from game: NYY @ BOS, Sep 21", "Top 6: open play, top of 6th inning"]);
+		expect(within(dialog).getByRole("button", {
+			name: "Close video",
+		})).toBeInTheDocument();
+		expect(within(dialog).getByRole("button", {
+			name: "Copy link",
+		})).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: the close control closes it", async () =>
+	{
+		renderPills({});
+		await userEvent.click(await screen.findByRole("button", {
+			name: "Close video",
+		}));
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: Escape closes it", async () =>
+	{
+		renderPills({});
+		await screen.findByRole("dialog");
+		await userEvent.keyboard("{Escape}");
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: a press outside the border (on the dimmed site) closes it", async () =>
+	{
+		renderPills({});
+		await screen.findByRole("dialog");
+		await userEvent.click(document.querySelector<HTMLElement>(".mantine-Modal-overlay")!);
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: a press that starts inside, on the clip (a seek drag), and ends outside does not close it; a press and release outside does", async () =>
+	{
+		vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
+		renderPills({});
+		const dialog = await screen.findByRole("dialog");
+		const clip = within(dialog).getByTestId("video-player").querySelector("video")!;
+		const overlay = document.querySelector<HTMLElement>(".mantine-Modal-overlay")!;
+		await userEvent.pointer([{
+			keys: "[MouseLeft>]",
+			target: clip,
+		}, {
+			target: overlay,
+		}, {
+			keys: "[/MouseLeft]",
+			target: overlay,
+		}]);
+		// A browser that sends the release's click to the overlay itself must not close it either.
+		fireEvent.click(overlay);
+		expect(screen.queryByText("closed")).toBeNull();
+		await userEvent.click(overlay);
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: Escape in the browser's full screen only leaves full screen; outside it Escape closes", async () =>
+	{
+		renderPills({});
+		await screen.findByRole("dialog");
+		// jsdom has no Fullscreen API: stand in for the browser's `document.fullscreenElement`.
+		let inFullscreen: Element | null = document.body;
+		Object.defineProperty(document, "fullscreenElement", {
+			configurable: true,
+			get: () => inFullscreen,
+		});
+		try
+		{
+			await userEvent.keyboard("{Escape}");
+			expect(screen.queryByText("closed")).toBeNull();
+			inFullscreen = null;
+			await userEvent.keyboard("{Escape}");
+			expect(await screen.findByText("closed")).toBeInTheDocument();
+		}
+		finally
+		{
+			delete (document as { fullscreenElement?: unknown }).fullscreenElement;
+		}
+	});
+
+	it("S196 AC 2: Escape in Safari's prefixed full screen (webkitFullscreenElement, before 16.4) only leaves full screen", async () =>
+	{
+		renderPills({});
+		await screen.findByRole("dialog");
+		let inFullscreen: Element | null = document.body;
+		Object.defineProperty(document, "webkitFullscreenElement", {
+			configurable: true,
+			get: () => inFullscreen,
+		});
+		try
+		{
+			await userEvent.keyboard("{Escape}");
+			expect(screen.queryByText("closed")).toBeNull();
+			inFullscreen = null;
+			await userEvent.keyboard("{Escape}");
+			expect(await screen.findByText("closed")).toBeInTheDocument();
+		}
+		finally
+		{
+			delete (document as { webkitFullscreenElement?: unknown }).webkitFullscreenElement;
+		}
+	});
+
+	it("S196 AC 2: Escape pressed inside another dialog opened over the player is that dialog's, not the player's", async () =>
+	{
+		renderPills({});
+		await screen.findByRole("dialog");
+		const other = document.createElement("div");
+		other.setAttribute("role", "dialog");
+		other.setAttribute("aria-modal", "true");
+		const button = document.createElement("button");
+		button.textContent = "Other";
+		other.append(button);
+		document.body.append(other);
+		try
+		{
+			// Sent straight to the other dialog's control: the player's own focus trap would pull a jsdom focus
+			// back, where a real modal opened over it traps focus itself.
+			fireEvent.keyDown(button, {
+				key: "Escape",
+			});
+			expect(screen.queryByText("closed")).toBeNull();
+		}
+		finally
+		{
+			other.remove();
+		}
+		await userEvent.keyboard("{Escape}");
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: Escape is left alone mid-composition, when already handled, or when a menu marked it as its own; other keys never close", async () =>
+	{
+		renderPills({});
+		const dialog = await screen.findByRole("dialog");
+		const close = within(dialog).getByRole("button", {
+			name: "Close video",
+		});
+		fireEvent.keyDown(close, {
+			key: "Enter",
+		});
+		fireEvent.keyDown(close, {
+			key: "Escape",
+			isComposing: true,
+		});
+		const handled = new KeyboardEvent("keydown", {
+			key: "Escape",
+			bubbles: true,
+			cancelable: true,
+		});
+		handled.preventDefault();
+		close.dispatchEvent(handled);
+		close.setAttribute("data-mantine-stop-propagation", "true");
+		fireEvent.keyDown(close, {
+			key: "Escape",
+		});
+		close.removeAttribute("data-mantine-stop-propagation");
+		// Sent to the window itself, a target that is no element: the player's Escape.
+		expect(screen.queryByText("closed")).toBeNull();
+		fireEvent.keyDown(window, {
+			key: "Escape",
+		});
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
+	it("S196 AC 2: a press inside, on the clip, a tool or the title, does not close it", async () =>
+	{
+		vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
+		renderPills({});
+		const dialog = await screen.findByRole("dialog");
+		const player = within(dialog).getByTestId("video-player");
+		await userEvent.click(player.querySelector("video")!);
+		await userEvent.click(within(player).getByText(VIDEO.title));
+		await userEvent.click(within(player).getByRole("button", {
+			name: "Copy link",
+		}));
+		await userEvent.click(within(player).getByText(/^This video is provided by MLBAM/));
+		expect(screen.queryByText("closed")).toBeNull();
+		expect(screen.getByRole("dialog")).toBeInTheDocument();
+	});
+
+	it("S196 AC 3: the clip keeps the browser's controls and plays inline; no mute or full-screen button of BT's own", async () =>
+	{
+		renderPills({
+			game: GAME,
+			playLink: TOP_6,
+		});
+		const dialog = await screen.findByRole("dialog");
+		const clip = within(dialog).getByTestId("video-player").querySelector("video")!;
+		expect(clip).toHaveAttribute("controls");
+		expect(clip).toHaveAttribute("playsinline");
+		expect(within(dialog).queryByRole("button", {
+			name: /mute|full ?screen/i,
+		})).toBeNull();
+		expect(screen.queryByRole("button", {
+			name: /mute|full ?screen/i,
+		})).toBeNull();
 	});
 });

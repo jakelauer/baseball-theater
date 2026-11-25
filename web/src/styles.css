@@ -329,15 +329,37 @@ a {
 }
 
 /*
- * The dialog player's frame (S70; owner, 2026-11-12: "video player on desktop needs to play
- * videos larger, taking more of the screen"): as wide as the screen allows, up to 1280px, but
- * no wider than lets the 16:9 clip and everything around it fit the screen's height. That
- * chrome measured 234px with a two-line title and the actions on one row (the dialog's 16px
- * padding top and bottom, the Close row, the controls, actions, title and disclaimer), so 260px
- * is held back. It never drops below the old 560px (or the screen's width, if narrower), so on
- * a short landscape screen (under about 575px tall) the dialog can run past the screen's height
- * and scroll. A phone gets its full width.
+ * The dialog player's modal (S70, S196): an inset window, at most 90% of the viewport's width and
+ * height so the dimmed site shows round it (owner, 2026-11-23: "some maximum amount of the screen so
+ * there's like a border around it"). Within that it is as wide as lets the 16:9 clip and everything
+ * around it fit (owner, 2026-11-12: "video player on desktop needs to play videos larger, taking more
+ * of the screen"), up to a 1280px clip: the chrome (the modal's 16px padding and border, the Close
+ * row, the title, the tools and the disclaimer) is about 280px tall, held back from the height, and
+ * the 32px of side padding added to the width. It never drops below a 560px clip (or 90% of the
+ * screen's width, if narrower). On a short landscape screen (a phone on its side) that floor would
+ * push the clip's foot, its tools and the disclaimer below the screen, so the modal is a flex column
+ * down to the `<video>`, which alone shrinks (`object-fit: contain` letterboxes the picture) until
+ * everything fits inside 90dvh; only below a 96px clip does the modal scroll. The stage's player is
+ * outside the modal and keeps its 16:9 height.
  */
-.bt-player-frame {
-	width: max(min(100%, 560px), min(100%, 1280px, calc((100dvh - 260px) * 16 / 9)));
+.bt-player-modal {
+	/* vh first: a browser without dvh drops the dvh declaration and keeps this one. */
+	width: max(min(90vw, 592px), min(90vw, 1312px, calc((90vh - 280px) * 16 / 9 + 32px)));
+	width: max(min(90vw, 592px), min(90vw, 1312px, calc((90dvh - 280px) * 16 / 9 + 32px)));
+	max-width: 90vw;
+	max-height: 90vh;
+	max-height: 90dvh;
+	display: flex;
+	flex-direction: column;
+}
+
+.bt-player-modal .mantine-Modal-body,
+.bt-player-modal [data-testid="video-player"] {
+	flex: 0 1 auto;
+	min-height: 0;
+}
+
+.bt-player-modal video {
+	flex: 0 1 auto;
+	min-height: 96px;
 }

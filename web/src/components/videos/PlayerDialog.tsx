@@ -1,8 +1,10 @@
 import {
-	Box, FocusTrap, Group, Modal, UnstyledButton,
+	FocusTrap, Group, Modal, UnstyledButton,
 } from "@mantine/core";
 import { useReducedMotion } from "@mantine/hooks";
-import { useEffect, useState } from "react";
+import {
+	useEffect, useRef, useState,
+} from "react";
 import { highlightTitle } from "@bt/domain";
 import type { Video } from "./VideoCard.js";
 import { PlayInningPill } from "./PlayInningPill.js";
@@ -17,12 +19,25 @@ const OPEN_MS = 150;
 export type PlayerGame = Parameters<typeof gameVideosLink>[0];
 
 /**
- * The only modal player (S70; game-shell A4, standings-search-settings A6): the
- * `VideoPlayer` floating, with no card, over the fully dimmed page. "Close ✕" sits in the
- * overlay at top right (owner, 2026-10-31: "a floating video with a “Close” button in the
- * dimmed overlay, no borders, so there’s more real estate to show a playlist in the
- * future"); Esc and a press on the empty overlay close it too. The Videos room, Search
- * (S5) and the day digest (S71) all open this one.
+ * The only modal player (S70; S196): the `VideoPlayer` in an inset Mantine `Modal`, framed like the
+ * site's other dialogs (the change log, `ChangelogModal`: Raised, a hairline border, 12px corners),
+ * over the site dimmed but still visible (owner, 2026-11-23: "some maximum amount of the screen so
+ * there's like a border around it that you can see the sight behind"). It takes at most 90% of the
+ * viewport's width and height (`.bt-player-modal`, styles.css). Inside it, top to bottom: the pills and
+ * "Close ✕", the title, the clip, BT's tools, the disclaimer (owner, same day: "the title should be on
+ * top of the video and the tools below the video, and the disclaimer should remain at the bottom";
+ * `VideoPlayer`'s `titleAbove`). It closes "with the close button the escape key or clicking outside
+ * the border of the modal" (owner, same day). Mantine's own Esc and overlay closes are off, since each
+ * closes too much: a press on the overlay closes only when it also started outside the border
+ * (`pressedInside`), so a seek drag on the clip's built-in bar that ends on the dimmed site, which some
+ * browsers report as a click on the overlay, keeps the player; and Esc closes only outside the browser's
+ * full screen (`document.fullscreenElement`, or Safari's prefixed one, compared loosely since it is
+ * undefined where the Fullscreen API is missing), where that press is the browser's, to leave full
+ * screen, and not while another dialog opened over the player holds focus. A press inside the border
+ * never closes it. Full screen, mute and volume are the clip's built-in controls (B579), so it adds no
+ * button for them. This replaces game-shell A4's floating player on a fully dimmed page under the
+ * owner's design waiver (2026-11-25, in S196's text). The Videos room, Search (S5) and the day digest
+ * (S71) all open this one.
  *
  * At top left sit its pills (S173; standings-search-settings A10, which repealed the text link to
  * the game): first the game pill, to the clip's game's Videos tab (`gameVideosLink`), whenever
@@ -37,8 +52,7 @@ export type PlayerGame = Parameters<typeof gameVideosLink>[0];
  * With scores hidden the recap clip is titled "Recap (score hidden)" (`highlightTitle`,
  * S75); only the game page passes `scoresHidden`, so Search and the digest keep MLB's title.
  *
- * The content fills the screen so the Close row and the player share one focus trap; it
- * is transparent, so the overlay behind it is the dimmed page the frames draw.
+ * The Close row and the player sit in the one content box, so they share one focus trap.
  *
  * It opens with a brief pop (opacity and scale, `OPEN_MS`), and the clip starts only once that
  * ends, so no sound plays while it opens (owner, 2026-11-23, #423: "It should feel almost
@@ -69,6 +83,44 @@ export function PlayerDialog({
 	const reduceMotion = useReducedMotion();
 	const [opened, setOpened] = useState(false);
 	const [entered, setEntered] = useState(false);
+	// Whether the latest press started inside the modal's border, read when a click reaches the overlay.
+	const pressedInside = useRef(false);
+	// The latest `onClose`, read at the press: callers pass a fresh arrow each render.
+	const close = useRef(onClose);
+	useEffect(() =>
+	{
+		close.current = onClose;
+	});
+	useEffect(() =>
+	{
+		function onPress(event: PointerEvent): void
+		{
+			pressedInside.current = event.target instanceof Element && event.target.closest(".bt-player-modal") != null;
+		}
+		// Esc as Mantine handles it (window capture, never mid-composition, not a press a menu inside marked
+		// as its own), except in the browser's full screen (Safari before 16.4 sets only the prefixed
+		// `webkitFullscreenElement`) and except when another dialog or drawer opened over the player holds
+		// focus: Mantine closed only the topmost modal, so that press is the other one's. None stacks one
+		// today (the quality picker is a Menu, inside this dialog); the guard keeps a future one safe.
+		function onKey(event: KeyboardEvent): void
+		{
+			if (event.key !== "Escape" || event.isComposing || event.defaultPrevented) return;
+			const page = document as Document & { webkitFullscreenElement?: Element | null };
+			if (page.fullscreenElement != null || page.webkitFullscreenElement != null) return;
+			const target = event.target instanceof Element ? event.target : null;
+			if (target?.getAttribute("data-mantine-stop-propagation") === "true") return;
+			const holder = target?.closest("[role=\"dialog\"], [aria-modal=\"true\"]");
+			if (holder && !holder.classList.contains("bt-player-modal")) return;
+			close.current();
+		}
+		document.addEventListener("pointerdown", onPress, true);
+		window.addEventListener("keydown", onKey, true);
+		return () =>
+		{
+			document.removeEventListener("pointerdown", onPress, true);
+			window.removeEventListener("keydown", onKey, true);
+		};
+	}, []);
 	useEffect(() =>
 	{
 		// A frame later, once the portal holding the dialog has mounted closed: opened in the same pass,
@@ -80,29 +132,41 @@ export function PlayerDialog({
 		<Modal
 			opened={opened}
 			onClose={onClose}
-			fullScreen
+			centered
 			withCloseButton={false}
+			closeOnClickOutside={false}
+			closeOnEscape={false}
 			aria-label={title}
+			size="auto"
+			radius={12}
+			padding={16}
+			shadow="xl"
+			// The site dimmed but visible behind it, as the change log modal dims it.
+			overlayProps={{
+				backgroundOpacity: 0.7,
+				color: "var(--bt-dark)",
+				onClick: () =>
+				{
+					if (!pressedInside.current) onClose();
+				},
+			}}
+			classNames={{
+				content: "bt-player-modal",
+			}}
 			transitionProps={{
 				transition: "pop",
 				duration: reduceMotion ? 0 : OPEN_MS,
 				onEntered: () => setEntered(true),
 			}}
 			styles={{
-				// The frames draw the page behind fully dimmed (Mantine's own overlay color can't take a CSS variable).
-				overlay: {
-					background: "var(--bt-dark)",
-					opacity: 1,
-				},
 				content: {
-					background: "transparent",
-					boxShadow: "none",
+					background: "var(--bt-raised)",
+					border: "1px solid var(--bt-hairline)",
 				},
 				body: {
-					height: "100%",
-					padding: 16,
 					display: "flex",
 					flexDirection: "column",
+					gap: 12,
 				},
 			}}
 		>
@@ -120,26 +184,7 @@ export function PlayerDialog({
 					Close ✕
 				</UnstyledButton>
 			</Group>
-			<Box
-				data-testid="player-backdrop"
-				onClick={(event) =>
-				{
-					if (event.target === event.currentTarget) onClose();
-				}}
-				style={{
-					flex: 1,
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-				}}
-			>
-				{/* `.bt-player-frame` (styles.css): as wide as the screen allows, up to 1280px, while the clip,
-				    its controls and the disclaimer still fit the screen's height (owner, 2026-11-12: "video
-				    player on desktop needs to play videos larger, taking more of the screen"). */}
-				<Box className="bt-player-frame">
-					<VideoPlayer video={video} title={title} autoPlay={entered} />
-				</Box>
-			</Box>
+			<VideoPlayer video={video} title={title} autoPlay={entered} titleAbove />
 		</Modal>
 	);
 }

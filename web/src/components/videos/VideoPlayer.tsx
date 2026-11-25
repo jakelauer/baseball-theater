@@ -129,13 +129,20 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
  * being played. Switching quality records it as the reader's choice (`setVideoQuality`; a fallback
  * never does), keeps the place in the clip, and plays on only if the
  * reader wants it playing (`wantsPlay`); only the first source autoplays.
+ *
+ * The title sits under the tools by default, as the stage draws it (standings-search-settings A10);
+ * `titleAbove` puts it above the clip, one size larger, for the dialog (S196; owner, 2026-11-23: "the
+ * title should be on top of the video … The title should be a little bit bigger than it is"). The
+ * disclaimer is last either way.
  */
 export function VideoPlayer({
-	video, title = video.title, autoPlay = false,
+	video, title = video.title, autoPlay = false, titleAbove = false,
 }: { video: Video;
-	/** The title under the clip; the game page passes `highlightTitle`'s (S75). */
+	/** The clip's title; the game page passes `highlightTitle`'s (S75). */
 	title?: string;
-	autoPlay?: boolean; })
+	autoPlay?: boolean;
+	/** Title above the clip at `md` (the dialog, S196) rather than under the tools at `sm` (the stage). */
+	titleAbove?: boolean; })
 {
 	const ref = useRef<HTMLVideoElement>(null);
 
@@ -259,6 +266,7 @@ export function VideoPlayer({
 
 	return (
 		<Stack gap={10} data-testid="video-player">
+			{titleAbove ? <Text size="md" fw={500}>{title}</Text> : null}
 			<Box
 				component="video"
 				ref={ref}
@@ -314,7 +322,7 @@ export function VideoPlayer({
 					<QualityPicker qualities={qualities} current={quality} onChange={switchTo} />
 				</Group>
 			) : null}
-			<Text size="sm" fw={500}>{title}</Text>
+			{titleAbove ? null : <Text size="sm" fw={500}>{title}</Text>}
 			<Stack gap={2}>
 				{/* `xs`, as the tools row's labels: 10px was too small to read (#589). */}
 				<Text size="xs" fw={700} tt="uppercase" c="var(--bt-muted)">Disclaimer:</Text>

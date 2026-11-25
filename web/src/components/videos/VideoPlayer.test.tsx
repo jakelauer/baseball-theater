@@ -210,7 +210,7 @@ describe("PlayerDialog", () =>
 		expect(onClose).toHaveBeenCalledTimes(2);
 	});
 
-	it("floats with no card: Close is a labeled button in the overlay, and a press on the empty overlay closes, but not one on the player", async () =>
+	it("Close is a labeled button inside the modal, and a press on the title or the player doesn't close it (S196)", async () =>
 	{
 		const user = userEvent.setup();
 		const onClose = vi.fn();
@@ -220,9 +220,8 @@ describe("PlayerDialog", () =>
 			name: "Close video",
 		})).toHaveTextContent("Close");
 		await user.click(within(dialog).getByText(VIDEO.title));
+		await user.click(within(dialog).getByTestId("video-player"));
 		expect(onClose).not.toHaveBeenCalled();
-		await user.click(within(dialog).getByTestId("player-backdrop"));
-		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 
 	it("game pill (S173; A10): shown when the clip carries its game and plays elsewhere (Search, the digest); absent from that game's own page or without a game", async () =>
@@ -252,12 +251,13 @@ describe("PlayerDialog", () =>
 		expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Direct link"]);
 	});
 
-	it("plays larger: as wide as the screen allows up to 1280px, held to what fits the screen's height (owner, 2026-11-12)", async () =>
+	it("plays larger: the modal is as wide as the screen allows up to a 1280px clip, held to 90% of the screen (owner, 2026-11-12; S196)", async () =>
 	{
 		wrap(<PlayerDialog video={VIDEO} onClose={() => undefined} />);
-		const frame = (await screen.findByTestId("video-player")).parentElement!;
+		await screen.findByTestId("video-player");
 		// The rule itself is pinned in styles.test.ts; jsdom drops `min()` from inline styles.
-		expect(frame).toHaveClass("bt-player-frame");
-		expect(frame.getAttribute("style") ?? "").not.toMatch(/max-width/);
+		const content = document.querySelector(".mantine-Modal-content")!;
+		expect(content).toHaveClass("bt-player-modal");
+		expect(content.getAttribute("style") ?? "").not.toMatch(/max-width/);
 	});
 });
