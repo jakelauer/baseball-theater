@@ -95,8 +95,12 @@ class AfterWrites
 	readonly purgeGames = new Map<number, GameSnapshot>();
 	/** Games a schedule write changed the state of, judged once their snapshots are known. */
 	readonly changedStates = new Map<number, SwitchOutcome>();
-	/** Each changed day's verdict, judged after the writes: its date when its URLs are to be purged, else null. */
-	readonly dayChecks: (() => Promise<string | null>)[] = [];
+	/**
+	 * Each changed day and its verdict, judged after the writes: whether its URLs are to be purged. A verdict that fails
+	 * purges the day anyway (S216 review: over-purging is cheap, under-purging isn't).
+	 */
+	readonly dayChecks: { date: string;
+		judge: () => Promise<boolean>; }[] = [];
 	/** Late playMetrics writes (S216 AC 5), each after the rest. */
 	readonly followUps: (() => Promise<void>)[] = [];
 
@@ -112,22 +116,69 @@ class AfterWrites
 /**
  * Runs what {@link AfterWrites} holds, in order: the projections in one write (a projection a newer stored version
  * refuses is logged and dropped, never written over it), the purge judgement and its one `purgeGameEdge` request for
- * every game and day the request stored, then the late playMetrics writes. Rejects when a write fails, so a caller that
- * runs it at once fails as its own write would; deferred, `BackgroundWork` logs it.
+ * every game and day the request stored, then the late playMetrics writes. Each step runs whether or not an earlier
+ * one failed (S216 review), so a failed projection write or day verdict never costs the purge or a follow-up; when the
+ * judgement's snapshot read or the purge's listing read fails, the candidates' own URLs are purged without it (or owed,
+ * `purgeGameAndDayEdge`). Then it rejects with every failure (`AggregateError`), so a caller that runs it at once fails
+ * as its own write would; deferred, `BackgroundWork` logs it.
  */
 async function runAfterWrites(deps: Pick<IngestDeps, "projections" | "games" | "gameStates" | "schedules" | "edgePurge">, after: AfterWrites): Promise<void>
 {
-	if (after.projections.length > 0) await writeProjections(deps, after.projections);
+	const errors: unknown[] = [];
+	const step = async (work: () => Promise<void>) =>
+	{
+		try
+		{
+			await work();
+		}
+		catch (error)
+		{
+			errors.push(error);
+		}
+	};
+	if (after.projections.length > 0) await step(() => writeProjections(deps, after.projections));
 	if (deps.edgePurge)
 	{
 		const days: string[] = [];
 		for (const check of after.dayChecks)
 		{
-			const date = await check();
-			if (date !== null) days.push(date);
+			await step(async () =>
+			{
+				let purge = true;
+				try
+				{
+					purge = await check.judge();
+				}
+				finally
+				{
+					if (purge) days.push(check.date);
+				}
+			});
 		}
 		const unheld = [...after.changedStates.keys()].filter((gamePk) => !after.held.has(gamePk) && !after.purgeGames.has(gamePk));
-		if (unheld.length > 0) for (const snapshot of await deps.games.getMany(unheld)) after.held.set(snapshot.gamePk, snapshot);
+		// Games whose snapshots couldn't be read: their URLs are purged unjudged, from the official date the switch knew.
+		const unjudged: { gamePk: number;
+			officialDate: string; }[] = [];
+		if (unheld.length > 0) await step(async () =>
+		{
+			try
+			{
+				for (const snapshot of await deps.games.getMany(unheld)) after.held.set(snapshot.gamePk, snapshot);
+			}
+			catch (error)
+			{
+				for (const gamePk of unheld)
+				{
+					const outcome = after.changedStates.get(gamePk)!;
+					// The row the switch stored, else the one it read: whichever there is names the game's official date.
+					unjudged.push(...[outcome.row, outcome.before].filter((row) => row !== null).slice(0, 1).map((row) => ({
+						gamePk,
+						officialDate: row.officialDate,
+					})));
+				}
+				throw error;
+			}
+		});
 		for (const [gamePk, outcome] of after.changedStates)
 		{
 			// A game with no stored snapshot has no game response at the edge to purge.
@@ -136,9 +187,24 @@ async function runAfterWrites(deps: Pick<IngestDeps, "projections" | "games" | "
 			const pastFinished = (row: GameStateRow | null) => isPastFinishedGame(servedGame(snapshot, row, after.at), after.at);
 			if (pastFinished(outcome.row) || pastFinished(outcome.before)) after.purgeGames.set(gamePk, snapshot);
 		}
-		if (after.purgeGames.size > 0 || days.length > 0) await purgeGameEdge(deps, [...after.purgeGames.values()], after.at, days);
+		const games = [...after.purgeGames.values()];
+		if (games.length > 0 || days.length > 0) await step(async () =>
+		{
+			try
+			{
+				await purgeGameEdge(deps, games, after.at, days);
+			}
+			catch (error)
+			{
+				// Its listing read failed: the games' own days at least, purged or owed.
+				await purgeGameAndDayEdge(deps, games, after.at, days);
+				throw error;
+			}
+		});
+		if (unjudged.length > 0) await purgeGameAndDayEdge(deps, unjudged, after.at);
 	}
-	for (const followUp of after.followUps) await followUp();
+	for (const followUp of after.followUps) await step(followUp);
+	if (errors.length > 0) throw new AggregateError(errors, `after-write steps failed: ${errors.map(String).join("; ")}`);
 }
 
 /**
@@ -393,9 +459,10 @@ async function storeScheduleDay(
 	if (deps.edgePurge && (dayChanged || changedGames.length > 0))
 	{
 		const formed = joined;
-		after.dayChecks.push(async () => isPastFinishedDay(formed.served, now, formed.moved) || (stored !== null && await wasPastFinishedDay(deps, stored, outcomes, now))
-			? fetched.date
-			: null);
+		after.dayChecks.push({
+			date: fetched.date,
+			judge: async () => isPastFinishedDay(formed.served, now, formed.moved) || (stored !== null && await wasPastFinishedDay(deps, stored, outcomes, now)),
+		});
 		for (const [gamePk, outcome] of changedGames) after.changedStates.set(gamePk, outcome);
 	}
 	return joined;
@@ -779,8 +846,9 @@ async function readGames(
 		const snapshot = stored.get(gamePk) ?? null;
 		if (answer === "failed" || answer === "cooldown")
 		{
-			// In the cooldown another request refreshed it just now; with nothing stored when this one read, it is read now.
-			answers.set(gamePk, snapshot ? servedGame(snapshot, rows.get(gamePk) ?? null, now) : answer === "cooldown" ? await readServedGame(deps, gamePk, now) : null);
+			// In the cooldown another request refreshed it just now; with nothing stored when this one read, it is read now
+			// (a failed read is that game's null, never the request's failure).
+			answers.set(gamePk, snapshot ? servedGame(snapshot, rows.get(gamePk) ?? null, now) : answer === "cooldown" ? await readServedGame(deps, gamePk, now).catch(() => null) : null);
 			continue;
 		}
 		writes.push({
@@ -798,15 +866,60 @@ async function readGames(
 			},
 		});
 	}
-	const written = await storeGames(deps, writes, at, after, rows);
+	const written = await storeBatchOrEach(deps, writes, at, after, rows);
 	for (const write of writes)
 	{
-		const result = written.get(write.fetched.gamePk)!;
+		const result = written.get(write.fetched.gamePk);
+		if (!result)
+		{
+			// Its store failed: answered as stored when this read began (stale, not an error), null with nothing stored.
+			answers.set(write.fetched.gamePk, write.stored ? servedGame(write.stored, rows.get(write.fetched.gamePk) ?? null, now) : null);
+			continue;
+		}
 		answers.set(write.fetched.gamePk, servedGame(result.snapshot, result.state, now));
 		const late = write.late;
-		if (late) after.followUps.push(() => storeLatePlayMetrics(deps, result.snapshot, late, at));
+		if (late) after.followUps.push(() => storeLatePlayMetrics(deps, result.snapshot, result.state, late, at));
 	}
 	return gamePks.map((gamePk) => answers.get(gamePk) ?? null);
+}
+
+/**
+ * {@link storeGames} for a read's batch, degrading per game (S216 review): the batch is one store; if it fails, each game
+ * is stored on its own, its rows read again (the batch may have written some), and a game whose store still fails is
+ * logged and left out of the result, so the caller answers it as it was stored (or null) and the rest of a digest
+ * stands.
+ */
+async function storeBatchOrEach(
+	deps: Pick<IngestDeps, "games" | "gameStates">,
+	writes: readonly GameWrite[],
+	at: Date,
+	after: AfterWrites,
+	known: ReadonlyMap<number, GameStateRow | null>,
+): Promise<Map<number, { snapshot: GameSnapshot;
+	state: GameStateRow | null; }>>
+{
+	try
+	{
+		return await storeGames(deps, writes, at, after, known);
+	}
+	catch (error)
+	{
+		console.warn(`storing ${writes.length} games in one batch failed; storing each on its own`, error);
+	}
+	const stored = new Map<number, { snapshot: GameSnapshot;
+		state: GameStateRow | null; }>();
+	for (const write of writes)
+	{
+		try
+		{
+			for (const [gamePk, result] of await storeGames(deps, [write], at, after)) stored.set(gamePk, result);
+		}
+		catch (error)
+		{
+			console.warn(`storing game ${write.fetched.gamePk} failed; answered as stored`, error);
+		}
+	}
+	return stored;
 }
 
 /**
@@ -815,11 +928,13 @@ async function readGames(
  * projection with it. If a newer stored version refuses that write, it retries once: it reads the newer stored snapshot
  * and, when that still lacks playMetrics, writes it with them (`withLatePlayMetrics`) as the next version; a second
  * refusal is logged and dropped, never written over. Once stored, a past, finished game's URL and its day's schedule and
- * digest URLs are purged (`purgeGameAndDayEdge`), since the answer without them may hold S212's long edge lifetime.
+ * digest URLs are purged (`purgeGameAndDayEdge`), since the answer without them may hold S212's long edge lifetime; past
+ * and finished is judged of the game as served, over `row`, the state row its read stored.
  */
 async function storeLatePlayMetrics(
 	deps: Pick<IngestDeps, "games" | "projections" | "edgePurge">,
 	answered: GameSnapshot,
+	row: GameStateRow | null,
 	late: NonNullable<FetchedGame["playMetricsLate"]>,
 	at: Date,
 ): Promise<void>
@@ -845,7 +960,8 @@ async function storeLatePlayMetrics(
 		if ((await deps.games.upsertMany([next])).includes(next.gamePk))
 		{
 			await writeProjections(deps, [projectGame(next)]);
-			if (isPastFinishedGame(next, at)) await purgeGameAndDayEdge(deps, next, at);
+			// Judged as served, its status from the game's stored state row (S150), as every other purge is.
+			if (isPastFinishedGame(servedGame(next, row, at), at)) await purgeGameAndDayEdge(deps, [next], at);
 			return;
 		}
 		if (attempt === 1)

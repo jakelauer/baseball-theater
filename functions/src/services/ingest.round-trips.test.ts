@@ -387,3 +387,153 @@ describe("S216 read paths' edges", () =>
 		expect(await getOrRefreshGame(stores, other)).toBeNull();
 	});
 });
+
+describe("S216 review: failures degrade, never cost the rest", () =>
+{
+	it("S216 review one game's store fails: the digest still answers the other 14, that game left out", async () =>
+	{
+		const { stores, background } = cold();
+		vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const upsertMany = stores.games.upsertMany.bind(stores.games);
+		stores.games.upsertMany = async (batch) =>
+		{
+			if (batch.some((game) => game.gamePk === PK)) throw new Error("document too large");
+			return upsertMany(batch);
+		};
+		const { digest, edgeLifetime } = await getDayDigest(stores, FIFTEEN_GAME_DATE);
+		await background.flush();
+		expect(edgeLifetime).toBe("partialPast");
+		expect(digest.items.length).toBeGreaterThan(0);
+		expect(await stores.games.getByPk(PK)).toBeNull();
+		expect(await stores.games.getByPk(FIFTEEN_GAME_PKS[1]!)).not.toBeNull();
+	});
+
+	it("S216 review a cooldown read that fails: that game is null, not the request's failure", async () =>
+	{
+		const { stores } = cold();
+		const other = FIFTEEN_GAME_PKS[2]!;
+		await stores.refresh!.run(`game:${other}`, async () => undefined);
+		stores.games.getByPk = async () =>
+		{
+			throw new Error("database down");
+		};
+		expect(await getOrRefreshGame(stores, other)).toBeNull();
+	});
+
+	it("S216 review a failed projection write: the purge and the rest still run, the failure reported", async () =>
+	{
+		const { stores, background } = cold();
+		const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		stores.projections.upsertMany = async () =>
+		{
+			throw new Error("database down");
+		};
+		await getOrRefreshGame(stores, PK);
+		await background.flush();
+		expect(stores.purger.purged).toContain(`${ORIGIN}/api/v1/games/${PK}`);
+		expect(error.mock.calls.some((args) => String(args[1]).includes("database down"))).toBe(true);
+	});
+
+	it("S216 review a failed judgement read: the changed games' own URLs are purged unjudged", async () =>
+	{
+		const { stores, background } = cold();
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		stores.games.getMany = async () =>
+		{
+			throw new Error("database down");
+		};
+		await getScheduleRead(stores, FIFTEEN_GAME_DATE);
+		await background.flush();
+		expect(stores.purger.purged).toContain(`${ORIGIN}/api/v1/games/${PK}`);
+		expect(stores.purger.purged).toContain(`${ORIGIN}/api/v1/digest?date=${FIFTEEN_GAME_DATE}`);
+	});
+
+	it("S216 review a failed day verdict: the day's schedule and digest URLs are purged anyway", async () =>
+	{
+		const full = await fifteenGameDay();
+		let listing = full;
+		const mlb = fifteenGameMlb();
+		mlb.fetchSchedule = async () => listing;
+		const { stores, background } = cold(mlb);
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		await getScheduleRead(stores, FIFTEEN_GAME_DATE);
+		await background.flush();
+		stores.purger.calls.length = 0;
+		// The refresh drops a game and lists another as live: the day is no longer past and finished, so its verdict asks
+		// whether it was before, which reads the dropped game's row, and that read fails.
+		listing = {
+			...full,
+			games: full.games.slice(1).map((game, i) => i === 0 ? {
+				...game,
+				status: {
+					abstractGameState: "Live",
+					codedGameState: "I",
+					detailedState: "In Progress",
+				},
+			} : game),
+		};
+		delete stores.refresh;
+		const getMany = stores.gameStates.getMany.bind(stores.gameStates);
+		let reads = 0;
+		stores.gameStates.getMany = async (gamePks) =>
+		{
+			if (++reads > 1) throw new Error("database down");
+			return getMany(gamePks);
+		};
+		await getScheduleRead(stores, FIFTEEN_GAME_DATE, {
+			force: true,
+		});
+		await background.flush();
+		expect(stores.purger.purged).toContain(`${ORIGIN}/api/v1/schedule?date=${FIFTEEN_GAME_DATE}`);
+		expect(stores.purger.purged).toContain(`${ORIGIN}/api/v1/digest?date=${FIFTEEN_GAME_DATE}`);
+	});
+
+	it("S216 review a failed listing read: the purged games' own days are purged without it", async () =>
+	{
+		const { stores, background } = cold();
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		stores.schedules.listGameListings = async () =>
+		{
+			throw new Error("database down");
+		};
+		await getOrRefreshGame(stores, PK);
+		await background.flush();
+		expect(stores.purger.purged).toContain(`${ORIGIN}/api/v1/games/${PK}`);
+		expect(stores.purger.purged).toContain(`${ORIGIN}/api/v1/schedule?date=${FIFTEEN_GAME_DATE}`);
+	});
+
+	it("S216 review a stored game whose refresh fails to store: answered as stored when the read began (stale, not an error)", async () =>
+	{
+		const { stores, background } = cold();
+		vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		await getOrRefreshGame(stores, PK);
+		await background.flush();
+		const before = await readServedGame(stores, PK, NOW);
+		delete stores.refresh;
+		stores.games.upsertMany = async () =>
+		{
+			throw new Error("document too large");
+		};
+		const mlb = fifteenGameMlb();
+		const fetchGame = mlb.fetchGame.bind(mlb);
+		stores.mlb = {
+			...mlb,
+			fetchSchedule: mlb.fetchSchedule,
+			fetchGame: async (gamePk) =>
+			{
+				const fetched = await fetchGame(gamePk);
+				return {
+					...fetched,
+					game: {
+						...fetched.game,
+						highlights: [],
+					},
+				};
+			},
+		};
+		expect(await getOrRefreshGame(stores, PK, {
+			force: true,
+		})).toEqual(before);
+	});
+});
+

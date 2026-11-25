@@ -95,14 +95,16 @@ export async function purgeGameEdge(deps: EdgePurgeDeps, games: readonly { gameP
 }
 
 /**
- * Purges one game's URL and its official date's schedule and digest URLs in one request, reading nothing (S216 AC 5):
- * what a late playMetrics write asks for once it is stored, since the answer it follows may have been given S212's long
- * edge lifetime without them.
+ * Purges each game's URL and its official date's schedule and digest URLs, plus `dates`' day URLs, in one request,
+ * reading nothing (S216): what a late playMetrics write asks for once it is stored (S216 AC 5), since the answer it
+ * follows may have been given S212's long edge lifetime without them, and the after-write step's fallback when the
+ * reads {@link purgeGameEdge} or its judgement need fail (S216 review: over-purging is cheap, under-purging isn't).
+ * Never rejects: a failed purge is logged and its URLs owed.
  */
-export function purgeGameAndDayEdge(deps: Pick<EdgePurgeDeps, "edgePurge">, game: { gamePk: number;
-	officialDate: string; }, at: Date): Promise<void>
+export function purgeGameAndDayEdge(deps: Pick<EdgePurgeDeps, "edgePurge">, games: readonly { gamePk: number;
+	officialDate: string; }[], at: Date, dates: readonly string[] = []): Promise<void>
 {
-	return purgePaths(deps.edgePurge, [gameEdgePath(game.gamePk), ...dayEdgePaths(game.officialDate)], at);
+	return purgePaths(deps.edgePurge, [...games.flatMap((game) => [gameEdgePath(game.gamePk), ...dayEdgePaths(game.officialDate)]), ...dates.flatMap(dayEdgePaths)], at);
 }
 
 /** How many owed URLs one retry sends: Cloudflare's per-request cap (`PURGE_URLS_PER_REQUEST`), so one request a tick. */

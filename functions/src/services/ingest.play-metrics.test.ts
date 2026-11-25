@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GameSnapshot } from "@bt/domain";
+import { gameStateFromGame } from "@bt/domain";
 import {
 	afterEach, beforeEach, describe, expect, it, vi,
 } from "vitest";
@@ -227,5 +228,39 @@ describe("S216 AC 5: playMetrics can't hold a cold game's answer", () =>
 		await background.flush();
 		expect(await deps.games.getByPk(PK)).toEqual(newer);
 		expect((await deps.games.getByPk(PK))?.version).toBe(answered!.version + 1);
+	});
+	it("S216 review late playMetrics purge judged as served: a final snapshot whose state row says suspended purges nothing", async () =>
+	{
+		const { deps, background } = setup(2000);
+		const fetching = client(0).fetchGame(PK);
+		await vi.advanceTimersByTimeAsync(10);
+		const { game } = await fetching;
+		const suspended = {
+			abstractGameState: "Live",
+			codedGameState: "U",
+			detailedState: "Suspended: Rain",
+		};
+		// A newer feed state already stored (the feed's own, later feed time), so this read's older copy is skipped.
+		await deps.gameStates.write([{
+			gamePk: PK,
+			source: "feed",
+			feedTime: "2026-11-01T00:00:00.000Z",
+			officialDate: DATE,
+			startTime: game.startTime ?? null,
+			state: {
+				...gameStateFromGame({
+					...game,
+					status: suspended,
+				}),
+				version: 5,
+				lastChangedAt: NOW.toISOString(),
+			},
+		}]);
+		const answered = await readWithin(deps, PLAY_METRICS_LIMIT_MS);
+		expect(answered?.status.codedGameState).toBe("U");
+		await vi.advanceTimersByTimeAsync(2000);
+		await background.flush();
+		expect((await deps.games.getByPk(PK))?.playMetrics).toBeDefined();
+		expect(deps.purger.calls).toEqual([]);
 	});
 });
