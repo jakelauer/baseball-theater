@@ -47,10 +47,12 @@ function teamLabel(team: Team, short: boolean): string
  * (`AL East`, the text the ratified frames show; S102), and otherwise the table's full `name` (a league
  * table before 1969 has no division, so it is `American League`).
  *
- * A7: on medium and desktop the table is only as wide as its content (the team column 166px, or
- * 192px in a table with a clinched team so a bold name with its letter fits, A9), scrolling inside
- * its own box when wider than the screen; on mobile it is full width (A9) and each team is its
- * abbreviation beside its swatch, with no abbreviation column. A clinched team's row is bold
+ * Every variant fills its column's width (owner, 2026-11-25, #587: "The standings should also not be
+ * floating mini columns on desktop; they should expand their widths."), the team column taking the
+ * spare room so the figures stay packed at the right. On medium and desktop that column is at least
+ * 166px, or 192px in a table with a clinched team so a bold name with its letter fits (A7, A9), and the
+ * table scrolls inside its own box when its column is narrower than that; on mobile each team is its
+ * abbreviation beside its swatch, with no abbreviation column (A9). A clinched team's row is bold
  * throughout (A9 "Clinched teams"); the other rows keep the regular figures.
  */
 export function DivisionTable({
@@ -81,7 +83,7 @@ export function DivisionTable({
 					horizontalSpacing={8}
 					borderColor="var(--bt-hairline)"
 					aria-label={`${heading} standings`}
-					w={short ? "100%" : "auto"}
+					w="100%"
 				>
 					<Table.Thead>
 						<Table.Tr>
@@ -99,8 +101,10 @@ export function DivisionTable({
 							const weight = team.clinched ? 700 : 400;
 							return (
 								<Table.Tr key={team.teamId} data-testid="standings-row" data-clinched={team.clinched || undefined}>
-									<Table.Td w={short ? "100%" : anyClinched ? 192 : 166}>
-										<Group gap={10} wrap="nowrap">
+									<Table.Td w="100%">
+										{/* The 166/192px minimum sits on the cell's content, less the cell's 8px padding each
+										side, since browsers don't reliably honour a table cell's own min-width. */}
+										<Group gap={10} wrap="nowrap" miw={short ? undefined : anyClinched ? 192 - 16 : 166 - 16}>
 											<TeamSwatch teamId={team.teamId} />
 											<Text fz={13} fw={team.clinched ? 700 : 500} style={{
 												whiteSpace: "nowrap",
