@@ -107,7 +107,12 @@
 			// Smart Placement (issue #532): run the fetch handler near Neon (us-east-2), not where the
 			// request landed, as each Postgres round trip from far away cost ~70 ms. Crons and Durable
 			// Objects are not moved. Per env, never top-level, so local dev and previews keep the default.
-			"placement": { "mode": "smart" },
+			// S220: staging alone adds a placement hint, Neon's own region. With mode "smart" a hint only
+			// seeds Smart Placement (pinning would be mode "targeted" with a region); it is expected to move
+			// the Worker, its per-minute cron included, near the database, and staging's `db-round-trips`
+			// log lines (kind `cron`) will show whether it does. Production takes it only through a later
+			// change the owner approves once those lines show it helps.
+			"placement": { "mode": "smart", "hint": "aws:us-east-2" },
 			"routes": [{ "pattern": "stage.baseball.theater", "custom_domain": true }],
 			"durable_objects": {
 				"bindings": [
@@ -131,7 +136,12 @@
 				// Worker honours it only beside the mock sign-in (`tierOverrideAllowed`), so production, which
 				// names a Logto tenant, refuses it on the server even if this line were copied there. It never
 				// changes a tester's real tier or touches Patreon.
-				"BT_TIER_OVERRIDE": "1"
+				"BT_TIER_OVERRIDE": "1",
+				// S220: each game's ingest Durable Object is created near Neon (us-east-2): `enam`, eastern North
+				// America, the nearest of Cloudflare's location hints. Staging only, beside the round-trip log lines
+				// (kind `ingest`); production gets it only through a later change the owner approves. A hint counts
+				// only when an object is first made, so games already in their window keep their place.
+				"BT_INGEST_LOCATION_HINT": "enam"
 			}
 		},
 		// Every published GitHub Release (S121), at next.baseball.theater until the owner's DNS cutover (S119; owner,

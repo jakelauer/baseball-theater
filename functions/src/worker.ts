@@ -51,15 +51,37 @@ export default {
 	 * `waitUntil` and its own database scope, so one that rejects (and is logged by the runtime)
 	 * doesn't stop the others. A preview's
 	 * `crons: []` (`wrangler.jsonc`) means previews never run either.
+	 *
+	 * S220: each job's scope logs one line of its database round trips (kind `cron`, `job` naming it),
+	 * one line per job rather than per tick, because Smart Placement alone doesn't move the cron near Neon
+	 * and every query may pay the distance. Staging's `placement.hint` (with mode "smart", a hint that seeds
+	 * Smart Placement, not a pin) is expected to move it there; these lines will show whether it does. The ingest objects it
+	 * ensures are created with `BT_INGEST_LOCATION_HINT` (`gameIngestStub`).
 	 */
 	async scheduled(_controller: unknown, env: WorkerEnv, ctx: WorkerContext): Promise<void>
 	{
 		if (!tickAllowed(env)) return;
 		const app = workerApp(env);
 		const namespace = env.GAME_INGEST;
-		if (namespace) ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => ensureIngestRunning(app.ingest, (gamePk) => ensureGameIngest(namespace, gamePk))));
-		ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => refreshDueScheduleMonth(app.ingest)));
-		ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => recheckDueGame(app.ingest)));
-		ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => retryOwedEdgePurges(app.ingest)));
+		if (namespace)
+		{
+			const ensure = (gamePk: number) => ensureGameIngest(namespace, gamePk, env.BT_INGEST_LOCATION_HINT);
+			ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => ensureIngestRunning(app.ingest, ensure), undefined, undefined, {
+				kind: "cron",
+				job: "ingest-start",
+			}));
+		}
+		ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => refreshDueScheduleMonth(app.ingest), undefined, undefined, {
+			kind: "cron",
+			job: "month-refresh",
+		}));
+		ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => recheckDueGame(app.ingest), undefined, undefined, {
+			kind: "cron",
+			job: "game-recheck",
+		}));
+		ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => retryOwedEdgePurges(app.ingest), undefined, undefined, {
+			kind: "cron",
+			job: "edge-purge-retry",
+		}));
 	},
 };

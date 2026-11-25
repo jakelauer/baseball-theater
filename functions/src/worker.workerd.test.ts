@@ -10,14 +10,17 @@
  * S132 AC 3: the releases API answers the release notes bundled into the build.
  * S215 AC 4: staging's backer tier override answers only under staging's config; production's
  * answers 404 and hands out the real tier even with an override stored, and preview's answers 404.
+ * S220 AC 1: a cron tick (`scheduled()`) writes one round-trip line per job, kind `cron`.
  * Run with `pnpm --filter @bt/functions test:workerd`.
  */
-import { env, SELF } from "cloudflare:test";
+import {
+	createExecutionContext, env, SELF, waitOnExecutionContext,
+} from "cloudflare:test";
 import {
 	DEFAULT_SETTINGS, entitlementsForTier, MOCK_SIGN_IN_CREDENTIAL,
 } from "@bt/domain";
 import {
-	describe, expect, it,
+	describe, expect, it, vi,
 } from "vitest";
 import type { WorkersCacheLike } from "./adapters/cached-season-calendars.js";
 import { seasonCalendarCacheKey } from "./adapters/cached-season-calendars.js";
@@ -30,6 +33,7 @@ import {
 } from "./test/logto-tokens.js";
 import { createWorkerApp } from "./worker-app.js";
 import type { WorkerEnv } from "./worker-app.js";
+import worker from "./worker.js";
 
 describe("the Worker on workerd (S45)", () =>
 {
@@ -471,6 +475,44 @@ describe("staging's backer tier override on deployed Workers (S215)", () =>
 		{
 			expect(res.status).toBe(404);
 			expect(res.headers.get("Cache-Control")).toBe("no-store");
+		}
+	});
+});
+
+describe("the cron's round-trip lines (S220)", () =>
+{
+	it("S220 AC 1 a scheduled() tick writes one line per job, kind cron, each naming its job", async () =>
+	{
+		const ctx = createExecutionContext();
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		try
+		{
+			// BT_LOCAL is set as in `pnpm dev`, so the tick runs only with BT_INGEST_TICK (`tickAllowed`). The tick runs
+			// inside one unlabelled scope, so its four jobs share one connection: the test PGlite's socket server
+			// multiplexes connections onto one database and can't interleave four at once. Each job's scope still
+			// measures and logs itself, as when it opens its own connection on Cloudflare.
+			const workerEnv = env as unknown as WorkerEnv;
+			await inDatabaseScope(workerEnv.HYPERDRIVE, async () =>
+			{
+				await worker.scheduled(undefined, {
+					...workerEnv,
+					BT_INGEST_TICK: "1",
+				}, ctx);
+				await waitOnExecutionContext(ctx);
+			});
+			const lines = log.mock.calls.map(([line]) => line as Record<string, unknown>).filter((line) => line?.event === "db-round-trips" && line.kind === "cron");
+			expect(lines.map((line) => line.job).sort()).toEqual(["edge-purge-retry", "game-recheck", "ingest-start", "month-refresh"]);
+			for (const line of lines)
+			{
+				expect(line.roundTrips).toEqual(expect.any(Number));
+				expect(line.totalMs).toBeGreaterThanOrEqual(0);
+			}
+			// Starting ingest reads the in-window games from Postgres.
+			expect(lines.find((line) => line.job === "ingest-start")!.roundTrips).toBeGreaterThan(0);
+		}
+		finally
+		{
+			log.mockRestore();
 		}
 	});
 });

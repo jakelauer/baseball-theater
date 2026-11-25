@@ -547,15 +547,23 @@ describe("issue #532: the deployed Workers run near their database", () =>
 	{
 		// Each Postgres round trip from a Worker far from Neon (us-east-2) cost ~70 ms; Smart Placement
 		// moves the fetch handler next to it. Checked in the config each deploy generates, which is
-		// what `wrangler deploy` reads.
+		// what `wrangler deploy` reads. S220: staging alone adds Neon's region as a placement hint, so its
+		// cron runs there too; production keeps Smart Placement alone until the owner approves the hint.
+		const expected = {
+			staging: {
+				mode: "smart",
+				hint: "aws:us-east-2",
+			},
+			production: {
+				mode: "smart",
+			},
+		};
 		for (const env of ["staging", "production"] as const)
 		{
 			const config = deployConfig(WRANGLER, env, {
 				hyperdriveId: "hd-1",
 			}, (path) => path);
-			expect(config.env![env]!.placement).toEqual({
-				mode: "smart",
-			});
+			expect(config.env![env]!.placement).toEqual(expected[env]);
 		}
 		// Wrangler lets an env inherit a top-level `placement`, so none sits there: local dev and
 		// previews stay where the request lands.

@@ -8,7 +8,7 @@ import {
 	env, runDurableObjectAlarm, runInDurableObject,
 } from "cloudflare:test";
 import {
-	describe, expect, it,
+	describe, expect, it, vi,
 } from "vitest";
 
 const ensure = (stub: ReturnType<typeof env.GAME_INGEST.get>) => stub.fetch("https://game-ingest/ensure?gamePk=745001", {
@@ -78,5 +78,31 @@ describe("GameIngestObject on workerd (S48)", () =>
 		expect(next.gamePk).toBe(745001);
 		expect(next.alarm).not.toBeNull();
 		expect(next.alarm!).toBeGreaterThan(first!);
+	});
+});
+
+describe("GameIngestObject's round-trip line on workerd (S220)", () =>
+{
+	it("S220 AC 1 the ingest object's alarm writes one line, kind ingest, with its round trips", async () =>
+	{
+		const stub = await freshStub("game-ingest:745001");
+		await ensure(stub);
+		// The first poll is due at once and may already have run; wait until an alarm is armed, then fire it.
+		expect(await armedAlarm(stub)).not.toBeNull();
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		try
+		{
+			expect(await runDurableObjectAlarm(stub)).toBe(true);
+			const lines = log.mock.calls.map(([line]) => line as Record<string, unknown>).filter((line) => line?.event === "db-round-trips");
+			const alarm = lines.find((line) => line.kind === "ingest" && line.job === "alarm");
+			expect(alarm).toBeDefined();
+			// The alarm reads and writes the game in Postgres (S51) through the Hyperdrive binding.
+			expect(alarm!.roundTrips).toBeGreaterThan(0);
+			expect(alarm!.totalMs).toBeGreaterThanOrEqual(0);
+		}
+		finally
+		{
+			log.mockRestore();
+		}
 	});
 });

@@ -4,6 +4,14 @@
  * through `ensureGameIngest`; a hub (S18) registers, renews and unregisters its lease
  * through `fetch`. It reads and writes Postgres through the isolate's composition
  * (`workerApp`), each call and alarm on its own connection (`inDatabaseScope`, S51).
+ *
+ * S220: each call and alarm logs one line of its database round trips (kind `ingest`, job `fetch` or
+ * `alarm`), because this object runs wherever it was first made, not beside Neon as Smart Placement
+ * puts the fetch handler, so each query may pay that distance. Both places that reach an ingest
+ * object (the cron's `ensureGameIngest`, the hubs' `ingestLease`) get it through `gameIngestStub`,
+ * which passes the location hint `BT_INGEST_LOCATION_HINT` names (staging's `enam`, near us-east-2):
+ * a hint counts only on the call that creates the object, so whichever caller came first would
+ * otherwise decide where it lives.
  */
 import type { GameSnapshot } from "@bt/domain";
 import { inDatabaseScope } from "./adapters/postgres/connect.js";
@@ -17,11 +25,25 @@ import { workerApp } from "./worker-app.js";
 /** The part of the Durable Object state this class uses. */
 export type GameIngestState = { storage: AlarmStore };
 
-/** The binding as `env.GAME_INGEST` exposes it (`wrangler.jsonc` `durable_objects`). */
+/** The binding as `env.GAME_INGEST` exposes it (`wrangler.jsonc` `durable_objects`); `get`'s options carry S220's hint. */
 export type GameIngestNamespace = {
 	idFromName(name: string): unknown;
-	get(id: never): { fetch(input: string, init?: RequestInit): Promise<Response> };
+	get(id: never, options?: { locationHint?: string }): { fetch(input: string, init?: RequestInit): Promise<Response> };
 };
+
+/**
+ * The one way to reach `game-ingest:<gamePk>` (S220 AC 2), so the object is placed the same however it is first made.
+ * With `locationHint` (`env.BT_INGEST_LOCATION_HINT`, set for staging only) it asks Cloudflare to create the object
+ * there; without one the call passes no options, as before S220, and Cloudflare places it near the first caller. A
+ * hint is ignored for an object that already exists.
+ */
+export function gameIngestStub(namespace: GameIngestNamespace, gamePk: number, locationHint: string | undefined)
+{
+	const id = namespace.idFromName(gameIngestName(gamePk)) as never;
+	return locationHint ? namespace.get(id, {
+		locationHint,
+	}) : namespace.get(id);
+}
 
 /**
  * Where there is no `GAME_HUB` binding (Node, tests) there is nowhere to deliver to:
@@ -50,7 +72,10 @@ export class GameIngestObject
 	 */
 	fetch(request: Request): Promise<Response>
 	{
-		return inDatabaseScope(this.hyperdrive, () => this.route(request));
+		return inDatabaseScope(this.hyperdrive, () => this.route(request), undefined, undefined, {
+			kind: "ingest",
+			job: "fetch",
+		});
 	}
 
 	private async route(request: Request): Promise<Response>
@@ -95,14 +120,17 @@ export class GameIngestObject
 
 	alarm(): Promise<void>
 	{
-		return inDatabaseScope(this.hyperdrive, () => this.ingest.alarm(new Date()));
+		return inDatabaseScope(this.hyperdrive, () => this.ingest.alarm(new Date()), undefined, undefined, {
+			kind: "ingest",
+			job: "alarm",
+		});
 	}
 }
 
-/** Asks `gamePk`'s ingest object to run (the cron's call, once per in-window game per run). */
-export async function ensureGameIngest(namespace: GameIngestNamespace, gamePk: number): Promise<void>
+/** Asks `gamePk`'s ingest object to run (the cron's call, once per in-window game per run), placed by `locationHint`. */
+export async function ensureGameIngest(namespace: GameIngestNamespace, gamePk: number, locationHint?: string): Promise<void>
 {
-	const stub = namespace.get(namespace.idFromName(gameIngestName(gamePk)) as never);
+	const stub = gameIngestStub(namespace, gamePk, locationHint);
 	const response = await stub.fetch(`https://game-ingest/ensure?gamePk=${gamePk}`, {
 		method: "POST",
 	});
