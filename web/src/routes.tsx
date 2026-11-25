@@ -105,7 +105,7 @@ export function AppRoutes({ variant, setFooter }: { variant: LayoutVariant;
 				<Route path="/game/:gamePk" element={<GamePage variant={variant} setFooter={setFooter} />} />
 				<Route path="/game/:gamePk/:tab" element={<GamePage variant={variant} setFooter={setFooter} />} />
 				<Route path="/standings" element={<StandingsPage variant={variant} setFooter={setFooter} />} />
-				<Route path="/search" element={<SearchPage />} />
+				<Route path="/search" element={<SearchPage variant={variant} />} />
 				{/* The change log is for everyone, signed in or not (A9, ratified 2026-11-19). */}
 				<Route path="/changelog" element={<ChangelogPage setFooter={setFooter} />} />
 				{/* The footer's pages of words (S154), for everyone, each its own route; static text, so no loading state of their own. */}

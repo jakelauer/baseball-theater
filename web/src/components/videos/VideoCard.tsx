@@ -1,9 +1,10 @@
 import {
-	Box, Image, Text, UnstyledButton,
+	Box, Group, Image, Text, UnstyledButton,
 } from "@mantine/core";
 import { Link } from "react-router-dom";
 import { clipDuration, highlightTitle } from "@bt/domain";
 import type { GamePayload } from "../../api/game.js";
+import { MatchupAbbr } from "../team/MatchupAbbr.js";
 import { PlayInningPill } from "./PlayInningPill.js";
 import type { PlayLink } from "./playLink.js";
 import { videoMeta } from "./videoMeta.js";
@@ -75,9 +76,13 @@ export function VideoStill({
  * unzoomed, since it isn't in the zoom host. The title is `highlightTitle`'s: the game page
  * passes `scoresHidden`, so there the recap clip reads "Recap (score hidden)" (S75).
  * `noDate` drops the date from the meta line (`videoMeta`'s option; the game's own room, #421).
+ * `matchup` starts the meta line with the clip's game as swatch + abbreviation (`MatchupAbbr`), for
+ * a list whose clips come from many games: only Search passes it (#588), keeping what its old rows
+ * showed. `testId` / `pillTestId` name the card link and the pill for a caller whose tests and design
+ * specs already look them up by another name (Search's `search-result` / `search-play-link`, #588).
  */
 export function VideoCard({
-	video, layout, href, scoresHidden = false, playLink, noDate = false,
+	video, layout, href, scoresHidden = false, playLink, noDate = false, matchup = null, testId = "video-card", pillTestId = "play-link",
 }: { video: Video;
 	layout: "grid" | "list";
 	/** This page with the clip open (`useOpenClip`'s `href`, #424). */
@@ -85,7 +90,12 @@ export function VideoCard({
 	scoresHidden?: boolean;
 	playLink?: PlayLink | null;
 	/** Leave the date out of the meta line: only the game's own Videos room passes it (#421). */
-	noDate?: boolean; })
+	noDate?: boolean;
+	/** The clip's game, drawn first on the meta line; null for none (a clip MLB ties to no game). */
+	matchup?: { awayId: number;
+		homeId: number; } | null;
+	testId?: string;
+	pillTestId?: string; })
 {
 	const title = highlightTitle(video, scoresHidden);
 	const meta = videoMeta(video, playLink, {
@@ -97,6 +107,16 @@ export function VideoCard({
 	// them; columns still (112px + the 12px gap), text, pill, rest. `text` is the text's column.
 	const text = grid ? 1 : 2;
 	const row = 3;
+	const cell = {
+		gridColumn: text,
+		gridRow: row,
+		minWidth: 0,
+	};
+	const metaText = meta?.text ? (
+		<Text size="sm" c="var(--bt-muted)" data-testid="video-meta" style={matchup ? undefined : cell}>
+			{meta.text}
+		</Text>
+	) : null;
 	return (
 		<div
 			data-layout={layout}
@@ -115,7 +135,7 @@ export function VideoCard({
 				component={Link}
 				to={href}
 				replace
-				data-testid="video-card"
+				data-testid={testId}
 				data-layout={layout}
 				className="bt-zoom-host"
 				aria-label={`Play ${title}`}
@@ -150,24 +170,22 @@ export function VideoCard({
 				>
 					{title}
 				</Text>
-				{meta?.text ? (
-					<Text size="sm" c="var(--bt-muted)" data-testid="video-meta" style={{
-						gridColumn: text,
-						gridRow: row,
-						minWidth: 0,
-					}}
-					>
-						{meta.text}
-					</Text>
-				) : null}
+				{/* The matchup line wraps (and its cell may shrink) so matchup · date and the pill fit a phone's two-column grid card. */}
+				{matchup ? (
+					<Group gap={6} wrap="wrap" data-testid="video-meta-line" style={cell}>
+						<MatchupAbbr awayId={matchup.awayId} homeId={matchup.homeId} />
+						{metaText ? <Text span size="sm" c="var(--bt-muted)" aria-hidden>·</Text> : null}
+						{metaText}
+					</Group>
+				) : metaText}
 			</UnstyledButton>
 			{meta?.pill ? (
-				<PlayInningPill link={meta.pill} testId="play-link" style={{
+				<PlayInningPill link={meta.pill} testId={pillTestId} style={{
 					gridColumn: text + 1,
 					gridRow: row,
 					alignSelf: "center",
 					justifySelf: "start",
-					marginLeft: meta.text ? 6 : 0,
+					marginLeft: meta.text || matchup ? 6 : 0,
 				}}
 				/>
 			) : null}

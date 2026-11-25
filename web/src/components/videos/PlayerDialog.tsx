@@ -51,7 +51,7 @@ export type PlayerGame = Parameters<typeof gameVideosLink>[0];
  * It opens with focus on Mantine's hidden `FocusTrap.InitialFocus`, not on its first control (#582):
  * a clip's link opened in a new tab (#424) opens the dialog on a page the reader hasn't touched,
  * where the browser counts focus placed on open as keyboard focus and rings that control, so the
- * player opened with a red box around "Go to game", the play pill or Close. Tab still reaches each
+ * player opened with a red box around the game pill, the inning pill or Close. Tab still reaches each
  * control in order, Esc still closes, and Space plays and pauses (`VideoPlayer`).
  */
 export function PlayerDialog({

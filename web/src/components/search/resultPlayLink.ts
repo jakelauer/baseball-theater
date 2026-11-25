@@ -7,7 +7,7 @@ import type { PlayLink } from "../videos/playLink.js";
  * half-inning and inning and the game's pk. Null unless all four are there: a clip with no play, or
  * one MLB ties to no game (`gamePk: -1`, so `game` is null), has no pill, and BT never loads the game
  * to find what MLB left out (owner, 2026-11-19: "Show no pill (Recommended)"). The one place a
- * result's play link is built: its row's pill and, through `SearchPage`, its player's (S173).
+ * result's play link is built: its card's pill and its player's, both in `SearchPage` (S173).
  */
 export function resultPlayLink({
 	highlight, game, halfInning, inning,
