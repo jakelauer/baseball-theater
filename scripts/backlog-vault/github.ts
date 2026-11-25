@@ -57,7 +57,7 @@ import { isRunDirectly } from "./run-directly.ts";
 import type { BacklogItem, BacklogSource } from "./search.ts";
 import type { TextRecord } from "./text-records.ts";
 import {
-	chains, FIELDS_HEADING, fragmentsDir, goalLine, lf, newestBody, parseFields, parseRecord, readRecords, recordStamp, sha256, withoutFields,
+	chains, FIELDS_HEADING, fragmentsDir, goalLine, lf, newestBody, parseFields, parseRecord, readRecords, recordStamp, sha256, withoutClientFooter, withoutFields,
 } from "./text-records.ts";
 
 /** Runs `gh` with these arguments and returns its stdout (with `-i`, the status line and headers first); injected so tests never reach GitHub. */
@@ -657,7 +657,8 @@ export function statusOf(issue: CachedIssue): string
  * its newest text record laid over its cached issue. A story's body is its newest record's, else its
  * issue's; a bug's is its issue's symptoms with its recorded fields block, and a bug with no record is
  * unaccepted (no fields) until its `create B<N>` merges, so an outsider's edit to its body never sets
- * a priority. CRLF (GitHub's web editor) reads as LF. INDEX, search, claim, bugs, item and goal all
+ * a priority. CRLF (GitHub's web editor) reads as LF, and an issue's body is read without a cloud
+ * session's footer ({@link withoutClientFooter}, #631); a record's never is. INDEX, search, claim, bugs, item and goal all
  * read an item through this, so they agree.
  */
 export function itemText(id: string, issue: CachedIssue | undefined, records: TextRecord[]): { body: string;
@@ -672,12 +673,12 @@ export function itemText(id: string, issue: CachedIssue | undefined, records: Te
 			record,
 			accepted: true,
 		} : {
-			body: lf(issue?.body ?? ""),
+			body: withoutClientFooter(issue?.body ?? ""),
 			accepted: false,
 		};
 	}
 	return {
-		body: lf(record?.body ?? issue?.body ?? ""),
+		body: record ? lf(record.body) : withoutClientFooter(issue?.body ?? ""),
 		...(record ? {
 			record,
 		} : {}),
@@ -1024,14 +1025,17 @@ export function appliedComment(record: TextRecord): string
 	return `Applied ${record.id} ${record.kind} ${appliedKey(record)}`;
 }
 
-/** The records ({@link appliedKey}) an issue's trusted `Applied` comments name (an outsider's comment never counts). */
+/**
+ * The records ({@link appliedKey}) an issue's trusted `Applied` comments name (an outsider's comment
+ * never counts; a cloud session's footer is ignored, {@link withoutClientFooter}, #631).
+ */
 export function appliedRecords(comments: { body: string;
 	user: { login: string } | null }[], id: string, trusted: string[]): Set<string>
 {
 	const out = new Set<string>();
 	for (const c of comments)
 	{
-		const m = /^Applied (\S+) (?:create|edit|migration) ([0-9a-f]{64}) (\d{8}T\d{6}Z)\s*$/.exec(lf(c.body));
+		const m = /^Applied (\S+) (?:create|edit|migration) ([0-9a-f]{64}) (\d{8}T\d{6}Z)\s*$/.exec(withoutClientFooter(c.body));
 		if (m && m[1] === id && c.user !== null && trusted.includes(c.user.login))
 		{
 			out.add(`${m[2]} ${m[3]}`);
@@ -1056,19 +1060,21 @@ function targetBody(record: TextRecord, current: string | null): string
 		return record.body;
 	}
 	parseFields(record.body, record.file);
-	// Trailing whitespace trimmed, as the migration writes it (migrate.ts desiredFor).
-	const symptoms = withoutFields(current ?? "").replace(/\s+$/, "");
+	// Trailing whitespace trimmed, as the migration writes it (migrate.ts desiredFor); a cloud session's
+	// footer (#631) dropped, so it never piles up above the fields block.
+	const symptoms = withoutFields(withoutClientFooter(current ?? "")).replace(/\s+$/, "");
 	return `${symptoms === "" ? "" : `${symptoms}\n\n`}${record.body}`;
 }
 
 /**
- * Whether the issue's body already is what `record` sets (a CRLF copy of it counts). A bug compares
+ * Whether the issue's body already is what `record` sets (a CRLF copy of it counts, and so does one
+ * ending in a cloud session's footer, {@link withoutClientFooter}, #631). A bug compares
  * its fields block alone ({@link bugFieldsText}), so its filer's symptoms, whitespace included, never
  * matter (S165: the live check, `apply` and `audit.sh edit --adopt` all read it this way).
  */
 export function isLive(record: TextRecord, body: string | null): boolean
 {
-	const text = lf(body ?? "");
+	const text = withoutClientFooter(body ?? "");
 	if (record.id.startsWith("B"))
 	{
 		// Both sides normalized the same way: a record written byte-exact from a body file (text-records.ts
@@ -1203,7 +1209,7 @@ export function bugFieldsText(body: string): string | undefined
 /**
  * What `audit.sh edit <ID> --adopt` records (S165 AC 2): the item's live body as GitHub returns it, a
  * story's whole body or a bug's fields block, so an edit the owner made on GitHub becomes a record
- * chained from the newest one. Refused when the live text already is the newest record (nothing to
+ * chained from the newest one, less a cloud session's footer ({@link withoutClientFooter}, #631). Refused when the live text already is the newest record (nothing to
  * adopt), when it has no record to chain from, or when a bug's body has no fields block that parses.
  */
 export function adoptBody(id: string, issue: CachedIssue, records: TextRecord[]): string
@@ -1219,7 +1225,7 @@ export function adoptBody(id: string, issue: CachedIssue, records: TextRecord[])
 	}
 	if (id.startsWith("B"))
 	{
-		const section = bugFieldsText(issue.body ?? "");
+		const section = bugFieldsText(withoutClientFooter(issue.body ?? ""));
 		if (section === undefined)
 		{
 			throw new Error(`issue #${issue.number} (${id}) has no ${FIELDS_HEADING} section to adopt`);
@@ -1227,7 +1233,7 @@ export function adoptBody(id: string, issue: CachedIssue, records: TextRecord[])
 		parseFields(section, `issue #${issue.number} (${id})`);
 		return section;
 	}
-	return lf(issue.body ?? "");
+	return withoutClientFooter(issue.body ?? "");
 }
 
 /** The labels an item gets for a status: its kind's label, `status:<status>`, and any other labels it had. */
