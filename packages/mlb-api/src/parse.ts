@@ -17,6 +17,7 @@ import type { PlayerOfTheGameResponse } from "./player-of-the-game.js";
 import type { ScheduleResponse } from "./schedule.js";
 import type { SeasonsResponse } from "./seasons.js";
 import type { StandingsResponse } from "./standings.js";
+import type { GameUniformsResponse } from "./uniforms.js";
 
 /**
  * Branches MLB has only ever returned `null` or empty in every recorded
@@ -1530,6 +1531,43 @@ const playerOfTheGameResponseSchema = z.object({
 export function parsePlayerOfTheGameResponse(input: unknown): PlayerOfTheGameResponse
 {
 	return playerOfTheGameResponseSchema.parse(input);
+}
+
+const uniformAssetTypeSchema = z.object({
+	uniformAssetTypeId: z.number().optional(),
+	uniformAssetTypeCode: z.string().optional(),
+	uniformAssetTypeText: z.string().optional(),
+	uniformAssetTypeDesc: z.string().optional(),
+});
+
+const uniformAssetSchema = z.object({
+	uniformAssetId: z.number().optional(),
+	uniformAssetCode: z.string().optional(),
+	uniformAssetText: z.string().optional(),
+	uniformAssetType: uniformAssetTypeSchema.optional(),
+	active: z.boolean().optional(),
+});
+
+const teamUniformsSchema = z.object({
+	id: z.number().optional(),
+	teamName: z.string().optional(),
+	link: z.string().optional(),
+	uniformAssets: z.array(uniformAssetSchema).optional(),
+});
+
+const gameUniformsResponseSchema = z.object({
+	copyright: z.string().optional(),
+	uniforms: z.array(z.object({
+		gamePk: z.number().optional(),
+		home: teamUniformsSchema.optional(),
+		away: teamUniformsSchema.optional(),
+	})).optional(),
+});
+
+/** `GET /api/v1/uniforms/game?gamePks={gamePk}` (S101). */
+export function parseGameUniformsResponse(input: unknown): GameUniformsResponse
+{
+	return gameUniformsResponseSchema.parse(input);
 }
 
 const graphContentTagSchema = z.object({

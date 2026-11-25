@@ -2,8 +2,9 @@ import {
 	describe, expect, it,
 } from "vitest";
 import type { PlayerOfTheGame } from "./types.js";
+import type { StoredExtras } from "./player-of-the-game.js";
 import {
-	keepPlayerOfTheGame, playerOfTheGameComplete, playerOfTheGameExpected,
+	keepPlayerOfTheGame, keepStoredExtras, playerOfTheGameComplete, playerOfTheGameExpected, uniformsDue,
 } from "./player-of-the-game.js";
 
 describe("playerOfTheGameExpected (S99)", () =>
@@ -150,5 +151,89 @@ describe("keepPlayerOfTheGame and playerOfTheGameComplete (S99 review)", () =>
 			media,
 			fan,
 		})).toBe(true);
+	});
+});
+
+describe("keepStoredExtras and uniformsDue (S101)", () =>
+{
+	const WORN = {
+		home: [{
+			code: "146_jersey_1_2026",
+			text: "Marlins Home White Jersey",
+			type: "Jersey",
+		}],
+	};
+	const MEDIA = {
+		playerId: 1,
+		teamId: 2,
+		summary: null,
+		winProbabilityAdded: null,
+	};
+
+	it("keeps the stored uniforms an incoming game lacks, takes an incoming one, and keeps the pick side by side as before", () =>
+	{
+		const refresh: { gamePk: number } & StoredExtras = {
+			gamePk: 1,
+		};
+		expect(keepStoredExtras({
+			uniforms: WORN,
+			playerOfTheGame: {
+				media: MEDIA,
+			},
+		}, refresh)).toEqual({
+			gamePk: 1,
+			uniforms: WORN,
+			playerOfTheGame: {
+				media: MEDIA,
+			},
+		});
+		const newer = {
+			away: WORN.home,
+		};
+		expect(keepStoredExtras({
+			uniforms: WORN,
+		}, {
+			uniforms: newer,
+		})).toEqual({
+			uniforms: newer,
+		});
+		const bare: { gamePk: number } & StoredExtras = {
+			gamePk: 1,
+		};
+		expect(keepStoredExtras(null, bare)).toBe(bare);
+	});
+
+	it("asks only while none is stored, and then for a new game, a changed status or a final game", () =>
+	{
+		expect(uniformsDue(null, "P")).toBe(true);
+		expect(uniformsDue(undefined, "P")).toBe(true);
+		expect(uniformsDue({
+			status: {
+				codedGameState: "P",
+			},
+		}, "P")).toBe(false);
+		expect(uniformsDue({
+			status: {
+				codedGameState: "P",
+			},
+		}, "I")).toBe(true);
+		expect(uniformsDue({
+			uniforms: WORN,
+			status: {
+				codedGameState: "P",
+			},
+		}, "I")).toBe(false);
+		// A final game still lacking them is asked on each write, its status unchanged (S101 review); one with them never.
+		expect(uniformsDue({
+			status: {
+				codedGameState: "F",
+			},
+		}, "F")).toBe(true);
+		expect(uniformsDue({
+			uniforms: WORN,
+			status: {
+				codedGameState: "F",
+			},
+		}, "F")).toBe(false);
 	});
 });

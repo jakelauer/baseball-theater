@@ -20,6 +20,7 @@ import plays823823 from "../../../../fixtures/plays-823823.json" with { type: "j
 import graphContent823823 from "../../../../fixtures/raw/graphql-content-823823.json" with { type: "json" };
 import playMetrics823823 from "../../../../fixtures/raw/playmetrics-823823.json" with { type: "json" };
 import playerOfTheGame823823 from "../../../../fixtures/raw/potg-823823.json" with { type: "json" };
+import uniforms823823 from "../../../../fixtures/raw/uniforms-823823.json" with { type: "json" };
 import seasons1950 from "../../../../fixtures/raw/seasons-1950.json" with { type: "json" };
 import seasons2025 from "../../../../fixtures/raw/seasons-2025.json" with { type: "json" };
 import seasons2026 from "../../../../fixtures/raw/seasons-2026.json" with { type: "json" };
@@ -59,6 +60,8 @@ export const BUNDLED_FIXTURES: Readonly<Record<string, unknown>> = {
 	"raw/graphql-content-823823.json": graphContent823823,
 	// MLB's recorded player of the game (S99).
 	"raw/potg-823823.json": playerOfTheGame823823,
+	// The recorded uniforms each team wore (S101).
+	"raw/uniforms-823823.json": uniforms823823,
 	// The recorded season calendars and World Series (S111), for the scoreboard's default day.
 	// 1950 (S155): a season before divisions, and before MLB gave spring dates.
 	"raw/seasons-1950.json": seasons1950,

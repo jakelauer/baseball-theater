@@ -517,6 +517,8 @@ export interface components {
                 away: components["schemas"]["AbstractTeam"];
                 home: components["schemas"]["AbstractTeam"];
             };
+            /** @description What each team wore (S101), asked by ingest off the game fetch (`withAskedUniforms`) while none is stored, when it first stores the game, sees its status change, or writes a final game (`uniformsDue`), so a live poll at an unchanged status never asks again for a value settled before first pitch. Once stored it is kept (`keepStoredExtras`): a later write that didn't ask, or whose ask failed or ran past its limit, never clears it. Absent until MLB lists one BT has asked for, and then the game is served as before. A final game BT no longer refreshes (past its re-check window, which the backfill skips as already stored) gets none here: #619's scope. */
+            uniforms?: components["schemas"]["GameUniforms"];
             venue: {
                 id: number;
                 name: string;
@@ -534,6 +536,11 @@ export interface components {
          * @enum {string}
          */
         GameStatusCode: "S" | "P" | "I" | "M" | "N" | "T" | "U" | "F" | "O" | "C" | "Q" | "R" | "D" | "X" | "W";
+        /** @description What each team wore in a game (S101): each side's assets, in MLB's order. A side MLB lists nothing for is absent, and a game with neither has no `uniforms`. */
+        GameUniforms: {
+            away?: components["schemas"]["UniformAssetWorn"][];
+            home?: components["schemas"]["UniformAssetWorn"][];
+        };
         /**
          * @description What a video is, from MLB's content keywords (S69): a play `highlight`, the game `recap`, the `condensed` game, or another `video` (interviews, lineups, analysis).
          * @enum {string}
@@ -1057,6 +1064,12 @@ export interface components {
             realTier: components["schemas"]["PatronTier"];
             tier: components["schemas"]["PatronTier"] | null;
             token: string;
+        };
+        /** @description One piece of a team's uniform in a game (S101): MLB's code (`146_jersey_1_2026`), its name and its kind ("Jersey", "Pants", "Cap"). */
+        UniformAssetWorn: {
+            code: string;
+            text: string;
+            type: string;
         };
         /** @description The pitch a video shows, by MLB's own link (S94; GraphQL `playIdRef`): `videoId` is the video's id in the content feed (`MediaHighlight.id`), `playId` the pitch's `PitchEvent.playId`. It covers clips the content feed links to no play, such as ABS challenges. */
         VideoPlayRef: {

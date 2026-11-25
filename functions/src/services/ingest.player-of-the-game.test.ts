@@ -15,7 +15,7 @@ import {
 import { RecordedBackgroundWork } from "../adapters/background-work.js";
 import { HttpMlbStatsClient, PLAY_METRICS_LIMIT_MS } from "../adapters/http/mlb.js";
 import { memoryDeps, NOW } from "../test/past-data.js";
-import { getOrRefreshGame } from "./ingest.js";
+import { getOrRefreshGame, ingestGame } from "./ingest.js";
 
 const RAW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../fixtures/raw");
 const PK = 823823;
@@ -77,7 +77,8 @@ function setup()
 {
 	const state: { potg: Potg;
 		metricsDelay: number;
-		asked: number; } = {
+		asked: number;
+		uniformsHang?: boolean; } = {
 		potg: {
 			kind: "answer",
 			body: answer({
@@ -102,6 +103,8 @@ function setup()
 				});
 				return new Response(state.potg.body);
 			}
+			// S101 review: the uniforms, answered from the recording or, with `uniformsHang`, never.
+			if (url.pathname === "/api/v1/uniforms/game") return state.uniformsHang ? new Promise<Response>(() => undefined) : file("uniforms-823823.json");
 			if (url.hostname === "data-graph.mlb.com") return file("graphql-content-823823.json");
 			if (url.pathname.endsWith(`/bdfed/playMetrics/${PK}`))
 			{
@@ -268,5 +271,32 @@ describe("S99 review: the player of the game through the cold game read", () =>
 		expect(first).not.toBeNull();
 		expect(first).not.toHaveProperty("playerOfTheGame");
 		expect(first?.playMetrics).toBeDefined();
+	});
+
+	it("S101 review parallel: a read that asks both the pick and the uniforms, both hanging, answers within one PLAY_METRICS_LIMIT_MS", async () =>
+	{
+		const {
+			deps, background, state,
+		} = setup();
+		// Stored live with neither, so the final read is due both: the pick (now final) and the uniforms (status changed).
+		const { game } = await deps.mlb.fetchGame(PK);
+		const { mlb: _mlb, ...noMlb } = deps;
+		await ingestGame(noMlb, {
+			...game,
+			status: {
+				...game.status,
+				codedGameState: "I",
+			},
+			fetchedAt: "2026-09-05T20:00:00.000Z",
+			windowMode: "active",
+		});
+		state.potg = {
+			kind: "hang",
+		};
+		state.uniformsHang = true;
+		const read = await readWithin(deps, PLAY_METRICS_LIMIT_MS, true);
+		await background.flush();
+		expect(read).not.toHaveProperty("playerOfTheGame");
+		expect(read).not.toHaveProperty("uniforms");
 	});
 });

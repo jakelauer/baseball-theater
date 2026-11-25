@@ -88,6 +88,12 @@ class CountingMlbClient implements MlbStatsClient
 		return null;
 	}
 
+	/** No uniforms here (S101): the field stays absent. */
+	async fetchGameUniforms(): Promise<null>
+	{
+		return null;
+	}
+
 	async fetchSeasonCalendar(): Promise<null>
 	{
 		return null;

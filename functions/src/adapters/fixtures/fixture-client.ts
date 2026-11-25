@@ -4,6 +4,7 @@ import type {
 	GamePlayMetrics,
 	GameSnapshot,
 	MediaHighlight,
+	GameUniforms,
 	PlayerOfTheGame,
 	PlayerProfile,
 	ScheduleDay,
@@ -19,7 +20,8 @@ import {
 } from "@bt/domain";
 import type { GameDiffPatchResponse, ReplayPatchEntry } from "@bt/mlb-api";
 import {
-	parseGameTimestamps, parseGraphContentResponse, parsePlayMetricsResponse, parsePlayerOfTheGameResponse, parseRecordedReplayWalk, parseScheduleResponse, parseSearchResponse,
+	parseGameTimestamps, parseGameUniformsResponse, parseGraphContentResponse, parsePlayMetricsResponse, parsePlayerOfTheGameResponse,
+	parseRecordedReplayWalk, parseScheduleResponse, parseSearchResponse,
 	parseSeasonsResponse, parseStandingsResponse,
 } from "@bt/mlb-api";
 import type {
@@ -29,6 +31,7 @@ import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
 import { mapPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
+import { mapGameUniforms } from "../../mappers/uniforms.js";
 import { mapSearchResults } from "../../mappers/search.js";
 import { mapSeasonCalendar } from "../../mappers/season-calendar.js";
 import { mapStandings } from "../../mappers/standings.js";
@@ -326,6 +329,22 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 		try
 		{
 			return mapPlayerOfTheGame(parsePlayerOfTheGameResponse(await this.readJson(`raw/potg-${gamePk}.json`)));
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/**
+	 * The recorded uniforms, `fixtures/raw/uniforms-<gamePk>.json` (S101), mapped; null for a game
+	 * with no recording, as the HTTP client answers when the call fails.
+	 */
+	async fetchGameUniforms(gamePk: number): Promise<GameUniforms | null>
+	{
+		try
+		{
+			return mapGameUniforms(parseGameUniformsResponse(await this.readJson(`raw/uniforms-${gamePk}.json`)), gamePk);
 		}
 		catch
 		{

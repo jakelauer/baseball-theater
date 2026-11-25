@@ -1,4 +1,4 @@
-import type { PlayerOfTheGame } from "./types.js";
+import type { GameSnapshot, PlayerOfTheGame } from "./types.js";
 import { isFinalStatus } from "./window.js";
 
 /**
@@ -59,4 +59,51 @@ export function keepPlayerOfTheGame<T extends { playerOfTheGame?: PlayerOfTheGam
 			},
 		},
 	};
+}
+
+/**
+ * The extras ingest asks off the game fetch and keeps across refreshes (S99, generalized for S101): the player of the
+ * game and the uniforms. A fetched game carries one only when its write asked for it, so every game write keeps the
+ * stored value its incoming game lacks ({@link keepStoredExtras}).
+ */
+export type StoredExtras = Pick<GameSnapshot, "playerOfTheGame" | "uniforms">;
+
+/**
+ * The extras kept whole (S101): a stored value stays until an incoming game names a new one. A new extra asked off the
+ * fetch path joins this list rather than getting its own keep (ADR-025). The player of the game is kept side by side
+ * instead ({@link keepPlayerOfTheGame}), since MLB names its two picks at different times.
+ */
+const KEPT_WHOLE = ["uniforms"] as const satisfies readonly (keyof StoredExtras)[];
+
+/**
+ * The incoming game with every extra the stored game has and the incoming one lacks kept (S99, S101): the one keep every
+ * game write calls before stamping the version (`storeGames`, the late playMetrics write), so a refresh that didn't ask,
+ * or whose ask failed or ran past its limit, neither drops a stored extra nor makes a new version for its absence.
+ */
+export function keepStoredExtras<T extends StoredExtras>(stored: StoredExtras | null | undefined, incoming: T): T
+{
+	let kept = keepPlayerOfTheGame(stored, incoming);
+	for (const key of KEPT_WHOLE)
+	{
+		if (kept[key] === undefined && stored?.[key] !== undefined) kept = {
+			...kept,
+			[key]: stored[key],
+		};
+	}
+	return kept;
+}
+
+/**
+ * Whether ingest should ask MLB for a game's uniforms (S101): only while none is stored, and then when it first stores
+ * the game, sees its status change (scheduled, warming up, live, final), or writes a game that is over
+ * (`isFinalStatus`, as S99 asks a final game still missing its pick, #621's review). So a live poll whose status stays
+ * the same never asks again; a final game stored without them (before S101, or whose ask found nothing) is asked once
+ * per write that refreshes it: its ingest object's final-trail polls, a cold read, a re-check. Clubs set them before
+ * first pitch.
+ */
+export function uniformsDue(stored: { uniforms?: GameSnapshot["uniforms"];
+	status: { codedGameState: string }; } | null | undefined, codedGameState: string): boolean
+{
+	if (stored?.uniforms !== undefined) return false;
+	return stored?.status.codedGameState !== codedGameState || isFinalStatus(codedGameState);
 }
