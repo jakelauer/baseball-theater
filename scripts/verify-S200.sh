@@ -50,8 +50,8 @@ grep -qE '^export function groupHighlightsByTeam\(' "$H" || bad 1 "$H does not e
 for name in "S200 AC 1 each team" "S200 AC 1 both" "S200 AC 1 neither" "S200 AC 1 no clips"; do
 	passed "$TMP/domain.json" "$name" || bad 1 "no passing domain test named '$name'"
 done
-reads="$(grep -rnE '\.teamIds\b' web/src/components/videos web/src/components/scoreboard --include='*.ts' --include='*.tsx' | grep -vE '\.test\.tsx?:')"
-[ -z "$reads" ] || bad 1 "a highlight's .teamIds is read outside classifyHighlight / groupHighlightsByTeam: $reads"
+reads="$(grep -rnE '\bteamIds\b' web/src/components/videos web/src/components/scoreboard --include='*.ts' --include='*.tsx' | grep -vE '\.test\.tsx?:')"
+[ -z "$reads" ] || bad 1 "a highlight's teamIds is read outside classifyHighlight / groupHighlightsByTeam: $reads"
 
 # --- Check 2: the switch ---
 R=web/src/components/videos/VideosRoom.tsx

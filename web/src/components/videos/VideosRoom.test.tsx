@@ -414,6 +414,12 @@ describe("Group by team and the list's Best of rows (S200)", () =>
 		name,
 	})).getAllByTestId("video-card").map((c) => c.getAttribute("aria-label")!.replace(/^Play /, ""));
 
+	// AC 4 stubs fetch to hydrate settings; undo it even when an assertion fails first.
+	afterEach(() =>
+	{
+		vi.unstubAllGlobals();
+	});
+
 	it("S200 AC 2 switch: Group by (Kind, Team) sits beside the Layout toggle; Team groups by away, home, then Other, and Kind brings the kinds back", async () =>
 	{
 		const user = userEvent.setup();
@@ -517,8 +523,10 @@ describe("Group by team and the list's Best of rows (S200)", () =>
 			expect(card).toHaveClass("bt-card");
 			expect(card.style.background).toBe("var(--bt-raised)");
 			expect(row.querySelector(".bt-zoom")).not.toBeNull();
+			// No rank number: the still comes first in the row, and nothing in the card is a bare number.
+			expect(row.firstElementChild!.querySelector(".bt-zoom")).not.toBeNull();
+			expect(within(card).queryAllByText(/^\d+$/)).toHaveLength(0);
 		}
-		expect(screen.queryByTestId("digest-rank")).toBeNull();
 		// The team grouping draws the same rows.
 		await user.click(screen.getByRole("radio", {
 			name: "Team",
@@ -622,14 +630,40 @@ describe("Group by team and the list's Best of rows (S200)", () =>
 			name: "Team",
 		}));
 		// The recap features both teams, so it shows in both groups, hidden in each.
-		const both = (recap.teamIds ?? []).filter((id) => id === 112 || id === 146).length || 1;
 		expect(screen.getAllByRole("link", {
 			name: "Play Recap (score hidden)",
-		})).toHaveLength(both);
+		})).toHaveLength(2);
 		expect(screen.queryByText(recap.title)).toBeNull();
 		// Every other title stays MLB's.
 		expect(cardTitles().filter((t) => t !== "Recap (score hidden)").every((t) => ALL.some((h) => h.title === t))).toBe(true);
-		vi.unstubAllGlobals();
+	});
+
+	it("S200 collapse: grouped by team, folding a team's group or Other hides its clips and unfolding shows them", async () =>
+	{
+		const user = userEvent.setup();
+		renderRoom();
+		await user.click(screen.getByRole("radio", {
+			name: "Team",
+		}));
+		const group = (key: string) => screen.getAllByTestId("videos-group").find((g) => g.dataset.group === key)!;
+		const others = ALL.filter((h) => !h.teamIds?.includes(112) && !h.teamIds?.includes(146)).map((h) => h.title);
+		for (const [key, name, titles] of [
+			["team-146", "Miami Marlins", featuring(146).map((h) => h.title)],
+			["other", "Other", others],
+		] as const)
+		{
+			expect(titles.length).toBeGreaterThan(0);
+			const toggle = within(group(key)).getByRole("button", {
+				expanded: true,
+			});
+			await user.click(toggle);
+			expect(toggle).toHaveAttribute("aria-expanded", "false");
+			expect(within(group(key)).queryAllByTestId("video-card")).toHaveLength(0);
+			// The other groups stay open.
+			expect(groupTitles("Chicago Cubs")).toEqual(featuring(112).map((h) => h.title));
+			await user.click(toggle);
+			expect(groupTitles(name)).toEqual(titles);
+		}
 	});
 });
 
