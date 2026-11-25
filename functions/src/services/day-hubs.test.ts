@@ -12,6 +12,7 @@ import {
 	beforeAll, describe, expect, it, vi,
 } from "vitest";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
+import { MemoryEdgeCachePurger } from "../adapters/memory/edge-cache-purger.js";
 import {
 	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "../adapters/memory/repos.js";
@@ -110,6 +111,51 @@ describe("day hub calls from schedule writes", () =>
 		const { calls, deps } = setup(mlb);
 		await fillScheduleMonth(deps, DATE.slice(0, 7), [DATE, FAR], NOON);
 		expect(calls).toEqual([[DATE]]);
+	});
+
+	it("S149 AC 2 month fill calls once: a fill that changes two in-window days calls both days' hubs in one call", async () =>
+	{
+		const mlb = new FixtureMlbStatsClient();
+		mlb.fetchScheduleRange = async () => [day(DATE, [inAnHour(DATE)]), day(NEXT, [{
+			...inAnHour(NEXT),
+			gamePk: 2,
+		}]), day(FAR, [farGame(3, FAR)])];
+		const { calls, deps } = setup(mlb);
+		await fillScheduleMonth(deps, DATE.slice(0, 7), [DATE, FAR], NOON);
+		expect(calls).toEqual([[DATE, NEXT]]);
+	});
+
+	it("the day as it was before a write is read once for both the edge purge's judge and the hub's, and a failed read reaches both", async () =>
+	{
+		const { calls, deps } = setup();
+		const withPurge: IngestDeps = {
+			...deps,
+			edgePurge: {
+				purger: new MemoryEdgeCachePurger(),
+				origin: "https://stage.baseball.theater",
+			},
+		};
+		await storeSchedule(withPurge, day(FAR, [farGame(3, FAR), farGame(4, FAR)]));
+		const getMany = vi.spyOn(deps.gameStates, "getMany");
+		// Game 4 dropped and game 3 moved: neither judge can decide from the day after the write alone.
+		await storeSchedule(withPurge, day(FAR, [game(3, FAR, {
+			startTime: `${FAR}T20:05:00Z`,
+		})], new Date(NOON.getTime() + 1000)));
+		expect(getMany.mock.calls.filter(([pks]) => pks.length === 1 && pks[0] === 4)).toHaveLength(1);
+		expect(calls).toEqual([]);
+		getMany.mockImplementation(async (pks) =>
+		{
+			if (pks.includes(3) && pks.length === 1) throw new Error("database gone");
+			return [];
+		});
+		const purger = withPurge.edgePurge!.purger as MemoryEdgeCachePurger;
+		purger.calls.length = 0;
+		await expect(storeSchedule(withPurge, day(FAR, [game(5, FAR, {
+			startTime: `${FAR}T20:05:00Z`,
+		})], new Date(NOON.getTime() + 2000)))).rejects.toThrow(AggregateError);
+		// The purge purges the day anyway; the hub check recorded its error and called nothing.
+		expect(purger.calls.flat().some((url) => String(url).includes(FAR))).toBe(true);
+		expect(calls).toEqual([]);
 	});
 
 	it("S149 AC 2 no game in its window calls no hub: a fill of far days and backfill's write of a past day call nothing", async () =>

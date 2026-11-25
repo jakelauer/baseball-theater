@@ -132,18 +132,65 @@ export class DayHubObject
 			await this.state.storage.put(DATE_KEY, date);
 			const { client, server } = openSocketPair();
 			this.state.acceptWebSocket(server);
-			const current = await this.hub.onConnect(since === null ? undefined : Number(since));
-			if (current) server.send(liveMessage(current));
-			if (this.state.getWebSockets().length === 1)
+			// Once the socket is accepted the upgrade is always answered: a failed lease sync or read must never leave
+			// an accepted socket with no answer, and the renewal alarm then retries what failed.
+			try
 			{
-				await this.syncLeases((await this.read())?.day ?? null);
-				await this.state.storage.setAlarm(Date.now() + HUB_LEASE_MS / 2);
+				await this.connect(server, since === null ? undefined : Number(since));
 			}
+			catch (error)
+			{
+				console.warn(`${dayHubName(date)}: connect incomplete; the renewal alarm retries`, error);
+			}
+			await this.armIfIdle();
 			return upgradeResponse(client);
 		}
 		return new Response("not found", {
 			status: 404,
 		});
+	}
+
+	/**
+	 * A new viewer's first send and, for the first viewer, the leases. The day is read afresh first and taken if newer
+	 * (a hub that had no viewers may hold a stale day), passed on to the viewers already there, then the new viewer gets
+	 * it unless its `since` already has it. A lease sync that fails is logged and the send still happens.
+	 */
+	private async connect(server: HubSocket, since: number | undefined): Promise<void>
+	{
+		// Judged before the read: two viewers connecting during it would both see two sockets, and neither would lease.
+		const first = this.state.getWebSockets().length === 1;
+		const read = await this.read();
+		if (first)
+		{
+			try
+			{
+				await this.syncLeases(read?.day ?? null);
+			}
+			catch (error)
+			{
+				console.warn("day hub: lease sync failed on connect; the renewal alarm retries", error);
+			}
+		}
+		if (read && await this.hub.accept(read.response))
+		{
+			const message = liveMessage(read.response);
+			for (const socket of this.state.getWebSockets()) if (socket !== server) socket.send(message);
+		}
+		const current = await this.hub.onConnect(since);
+		if (current) server.send(liveMessage(current));
+	}
+
+	/** Arms the renewal alarm when none is set (every connect asks, so a hub whose first connect failed still renews). */
+	private async armIfIdle(): Promise<void>
+	{
+		try
+		{
+			if (await this.state.storage.getAlarm() === null) await this.state.storage.setAlarm(Date.now() + HUB_LEASE_MS / 2);
+		}
+		catch (error)
+		{
+			console.warn("day hub: renewal alarm not armed", error);
+		}
 	}
 
 	/** One-way: a viewer has nothing to say to the hub (pings are answered by the runtime). */
@@ -163,27 +210,49 @@ export class DayHubObject
 	/**
 	 * While viewers remain: re-reads the day, renews (or re-registers, or takes, or lets go of) its games' leases to
 	 * match the games now in their window, and pushes the day if it moved on, so a call that never arrived is healed
-	 * within half a lease.
+	 * within half a lease. It never rethrows: a failure is logged and the next alarm is armed at the usual half lease
+	 * either way, so the hub keeps one renewal every 30 seconds rather than leaning on the runtime's alarm retries.
 	 */
-	alarm(): Promise<void>
+	async alarm(): Promise<void>
 	{
-		return this.scoped(async () =>
+		if (this.state.getWebSockets().length === 0) return;
+		try
 		{
-			if (this.state.getWebSockets().length === 0) return;
-			const read = await this.read();
-			if (read)
+			await this.scoped(async () =>
 			{
-				await this.syncLeases(read.day);
+				const read = await this.read();
+				if (!read) return;
+				try
+				{
+					await this.syncLeases(read.day);
+				}
+				catch (error)
+				{
+					console.warn("day hub: lease sync failed on renewal; retried at the next", error);
+				}
 				await this.push(read);
-			}
+			});
+		}
+		catch (error)
+		{
+			console.warn("day hub: renewal failed; retried at the next", error);
+		}
+		try
+		{
 			await this.state.storage.setAlarm(Date.now() + HUB_LEASE_MS / 2);
-		});
+		}
+		catch (error)
+		{
+			console.warn("day hub: renewal alarm not re-armed", error);
+		}
 	}
 
 	/**
 	 * Holds a lease with exactly the games of `day` in their live window (`isGameInActiveWindow`, a suspended game
 	 * judged from when BT saw it suspended, `withSuspendedAt`), none when `day` is null: registers the new ones, renews
-	 * the rest (registering again one that lapsed) and unregisters the ones that left.
+	 * the rest (registering again one that lapsed) and unregisters the ones that left. Each game's lease call stands
+	 * alone: one that fails (an ingest object reset by a deploy) is logged and left out of the stored list, so the next
+	 * renewal registers it again, and the others still go through.
 	 */
 	private async syncLeases(day: ScheduleDay | null): Promise<void>
 	{
@@ -195,11 +264,37 @@ export class DayHubObject
 		const wanted = new Set(day ? (await withSuspendedAt(this.deps, day.date, day.games, now))
 			.filter((game) => isGameInActiveWindow(game, now))
 			.map((game) => game.gamePk) : []);
+		const lease = this.lease;
+		const leased: number[] = [];
 		for (const gamePk of wanted)
 		{
-			if (!held.has(gamePk) || !(await this.lease("renew", gamePk, hubId)).ok) await this.lease("register", gamePk, hubId);
+			try
+			{
+				if (!held.has(gamePk) || !(await lease("renew", gamePk, hubId)).ok)
+				{
+					const registered = await lease("register", gamePk, hubId);
+					if (!registered.ok) throw new Error(`register answered ${registered.status}`);
+				}
+				leased.push(gamePk);
+			}
+			catch (error)
+			{
+				console.warn(`${hubId}: lease with game ${gamePk} not held; retried at the next renewal`, error);
+			}
 		}
-		for (const gamePk of held) if (!wanted.has(gamePk)) await this.lease("unregister", gamePk, hubId);
-		await this.state.storage.put(LEASED_KEY, [...wanted].sort((a, b) => a - b));
+		for (const gamePk of held)
+		{
+			if (wanted.has(gamePk)) continue;
+			try
+			{
+				await lease("unregister", gamePk, hubId);
+			}
+			catch (error)
+			{
+				// Its lease lapses on its own within a minute.
+				console.warn(`${hubId}: lease with game ${gamePk} not given up; it lapses`, error);
+			}
+		}
+		await this.state.storage.put(LEASED_KEY, leased.sort((a, b) => a - b));
 	}
 }

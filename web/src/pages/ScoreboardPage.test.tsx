@@ -521,7 +521,7 @@ class FakeWebSocket
  * The scoreboard inside the shell, which draws the site footer (S142): the page tells it through `setFooter` whether
  * its day's socket is open. Signed out: `/api/v1/me` answers 401; every other request as `serve` set it.
  */
-function renderScoreboardInShell()
+function renderScoreboardInShell(client: QueryClient = createQueryClient())
 {
 	setSessionToken(null);
 	const served = vi.mocked(fetch);
@@ -532,7 +532,7 @@ function renderScoreboardInShell()
 		: served(request)));
 	return render(
 		<MantineProvider>
-			<QueryClientProvider client={createQueryClient()}>
+			<QueryClientProvider client={client}>
 				<SessionProvider>
 					<MemoryRouter initialEntries={["/games/2026-09-05"]}>
 						<AppShellLayout>
@@ -570,6 +570,31 @@ describe("ScoreboardPage live marker (S149)", () =>
 		act(() => FakeWebSocket.last().onopen?.({}));
 		await waitFor(() => expect(strip()).not.toBeNull());
 		expect(within(strip()!).getByText("Live Data · Active")).toBeInTheDocument();
+	});
+
+	it("S149 AC 6 the day query starts no refetch interval while its day is in its window, open or waiting to reconnect", async () =>
+	{
+		serve();
+		const client = createQueryClient();
+		renderScoreboardInShell(client);
+		await modules();
+		await vi.waitFor(() => expect(FakeWebSocket.opened).toHaveLength(1));
+		const intervals = () =>
+		{
+			const query = client.getQueryCache().find({
+				queryKey: ["schedule", "2026-09-05"],
+			})!;
+			return query.observers.map((observer) =>
+			{
+				const option = observer.options.refetchInterval;
+				return typeof option === "function" ? option(query as never) : option;
+			});
+		};
+		await waitFor(() => expect(intervals()).toEqual([false]));
+		act(() => FakeWebSocket.last().onopen?.({}));
+		expect(intervals()).toEqual([false]);
+		act(() => FakeWebSocket.last().onclose?.({}));
+		expect(intervals()).toEqual([false]);
 	});
 
 	it("S149 AC 7 closed, reconnecting, polling and out-of-window show no marker: a dropped socket hides it, and a finished day never opens one", async () =>

@@ -371,6 +371,33 @@ describe("useLiveDay (S149)", () =>
 		expect(FakeWebSocket.last().url).toBe(liveDayUrl(DATE, 3));
 	});
 
+	it("a fetch that lands after a newer push keeps the pushed day; one of the same version takes the fetched copy", async () =>
+	{
+		const { client, cachedDay } = renderScoreboard(liveDay(1));
+		await sockets(1);
+		act(() => FakeWebSocket.last().push(liveDay(3, 5)));
+		served.set(DATE, liveDay(2, 1));
+		await act(async () =>
+		{
+			await client.refetchQueries({
+				queryKey: scheduleKey(DATE),
+			});
+		});
+		expect(cachedDay()?.version).toBe(3);
+		expect(cachedDay()?.games[0]?.linescore?.teams.home.runs).toBe(5);
+		served.set(DATE, {
+			...liveDay(3, 5),
+			fetchedAt: "2026-09-05T18:30:00.000Z",
+		});
+		await act(async () =>
+		{
+			await client.refetchQueries({
+				queryKey: scheduleKey(DATE),
+			});
+		});
+		expect(cachedDay()?.fetchedAt).toBe("2026-09-05T18:30:00.000Z");
+	});
+
 	it("liveDayUrl: the day's live route on the page's host, wss under https, with since when known", () =>
 	{
 		expect(liveDayUrl(DATE, undefined, {

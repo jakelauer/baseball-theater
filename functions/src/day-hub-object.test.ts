@@ -16,6 +16,7 @@ import {
 	InMemoryGameProjectionRepository, InMemoryGameRepository, memoryScheduleStores,
 } from "./adapters/memory/repos.js";
 import { DayHubObject } from "./day-hub-object.js";
+import { HUB_LEASE_MS } from "./services/hub-leases.js";
 import { dayHubName } from "./services/day-hubs.js";
 import { FakeDurableStorage } from "./services/fake-durable-storage.js";
 import type { IngestDeps } from "./services/ingest.js";
@@ -136,8 +137,12 @@ function ingestStub()
 {
 	const calls: string[] = [];
 	const registered = new Set<number>();
+	/** `<gamePk> <action>` calls that throw, as an ingest object reset by a deploy does. */
+	const failing = new Set<string>();
 	return {
 		calls,
+		registered,
+		failing,
 		namespace: {
 			idFromName: (name: string) => name,
 			get: (id: never) => ({
@@ -147,6 +152,7 @@ function ingestStub()
 					const gamePk = Number(String(id).split(":")[1]);
 					const action = pathname.split("/").at(-1)!;
 					calls.push(`${gamePk} ${action} ${searchParams.get("hub")}`);
+					if (failing.has(`${gamePk} ${action}`)) throw new Error(`game-ingest:${gamePk} reset`);
 					if (action === "register") registered.add(gamePk);
 					if (action === "unregister") registered.delete(gamePk);
 					return new Response(null, {
@@ -368,16 +374,20 @@ describe("DayHubObject", () =>
 
 	it("S149 AC 3 failed read pushes nothing: a read that throws sends no message; the hub writes nothing", async () =>
 	{
-		const { deps, write } = stores();
+		const {
+			deps, write, score,
+		} = stores();
 		await write(DATE, [game(1, DATE, {
 			startTime: `${DATE}T11:00:00Z`,
 			live: true,
 		})]);
 		const { state, object } = hub(deps);
 		await connect(object, DATE);
+		// A change the reads would carry, had they worked.
+		await score(1, DATE, `${DATE}T11:00:00Z`, 6);
 		const upsert = vi.spyOn(deps.schedules, "upsert");
 		const writeStates = vi.spyOn(deps.gameStates, "write");
-		vi.spyOn(deps.schedules, "getWithServedBase").mockRejectedValueOnce(new Error("database gone"));
+		vi.spyOn(deps.schedules, "getWithServedBase").mockRejectedValueOnce(new Error("database gone")).mockRejectedValueOnce(new Error("database gone"));
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 		await publish(object);
 		await object.alarm();
@@ -385,6 +395,124 @@ describe("DayHubObject", () =>
 		expect(upsert).not.toHaveBeenCalled();
 		expect(writeStates).not.toHaveBeenCalled();
 		warn.mockRestore();
+	});
+
+	it("S149 AC 2 a lease call that fails on connect: the viewer still gets the day, the other game is leased and the renewal alarm is armed; the next renewal registers the failed one", async () =>
+	{
+		const { deps, write } = stores();
+		await write(DATE, [game(1, DATE, {
+			startTime: `${DATE}T11:00:00Z`,
+			live: true,
+		}), game(2, DATE, {
+			startTime: `${DATE}T11:30:00Z`,
+			live: true,
+		})]);
+		const ingest = ingestStub();
+		ingest.failing.add("1 register");
+		const { state, object } = hub(deps, ingest);
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		expect((await connect(object, DATE)).status).toBe(200);
+		expect(pushes(state.sockets[0]).map((d) => d.date)).toEqual([DATE]);
+		expect([...ingest.registered]).toEqual([2]);
+		expect(state.storage.alarmAt).not.toBeNull();
+		ingest.failing.clear();
+		await object.alarm();
+		expect([...ingest.registered].sort()).toEqual([1, 2]);
+		warn.mockRestore();
+	});
+
+	it("S149 AC 2 a lease call that fails on renewal: the other game is still renewed, the push still goes out and the alarm is re-armed at half a lease", async () =>
+	{
+		const {
+			deps, write, score,
+		} = stores();
+		await write(DATE, [game(1, DATE, {
+			startTime: `${DATE}T11:00:00Z`,
+			live: true,
+		}), game(2, DATE, {
+			startTime: `${DATE}T11:30:00Z`,
+			live: true,
+		})]);
+		const ingest = ingestStub();
+		const { state, object } = hub(deps, ingest);
+		await connect(object, DATE);
+		ingest.failing.add("1 renew");
+		await score(2, DATE, `${DATE}T11:30:00Z`, 3);
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		state.storage.alarmAt = null;
+		const before = Date.now();
+		await object.alarm();
+		expect(ingest.calls.slice(-2)).toEqual([`1 renew day-hub:${DATE}`, `2 renew day-hub:${DATE}`]);
+		expect(homeRuns(pushes(state.sockets[0]).at(-1), 2)).toBe(3);
+		expect(state.storage.alarmAt).toBeGreaterThanOrEqual(before + HUB_LEASE_MS / 2);
+		expect(state.storage.alarmAt).toBeLessThanOrEqual(Date.now() + HUB_LEASE_MS / 2);
+		warn.mockRestore();
+	});
+
+	it("S149 AC 2 a lapsed lease is registered again at the next renewal", async () =>
+	{
+		const { deps, write } = stores();
+		await write(DATE, [game(1, DATE, {
+			startTime: `${DATE}T11:00:00Z`,
+			live: true,
+		})]);
+		const ingest = ingestStub();
+		const { object } = hub(deps, ingest);
+		await connect(object, DATE);
+		// The ingest object let the lease lapse (it answers the renewal 410).
+		ingest.registered.clear();
+		await object.alarm();
+		expect(ingest.calls.slice(-2)).toEqual([`1 renew day-hub:${DATE}`, `1 register day-hub:${DATE}`]);
+	});
+
+	it("S149 AC 2 two viewers connecting at once: the first still leases the day's in-window games", async () =>
+	{
+		const { deps, write } = stores();
+		await write(DATE, [game(1, DATE, {
+			startTime: `${DATE}T11:00:00Z`,
+			live: true,
+		})]);
+		const ingest = ingestStub();
+		const { object } = hub(deps, ingest);
+		await Promise.all([connect(object, DATE), connect(object, DATE)]);
+		expect(leasesOf(ingest.calls, "register")).toEqual([1]);
+	});
+
+	it("a connect re-arms the renewal only when no alarm is set", async () =>
+	{
+		const { deps, write } = stores();
+		await write(DATE, [game(1, DATE, {
+			startTime: `${DATE}T11:00:00Z`,
+			live: true,
+		})]);
+		const { state, object } = hub(deps);
+		await connect(object, DATE);
+		const armed = state.storage.alarmAt;
+		await connect(object, DATE);
+		expect(state.storage.alarmAt).toBe(armed);
+		state.storage.alarmAt = null;
+		await connect(object, DATE);
+		expect(state.storage.alarmAt).not.toBeNull();
+	});
+
+	it("a hub that had no viewers sends a new viewer the day as it is now, not the one it last held", async () =>
+	{
+		const {
+			deps, write, score,
+		} = stores();
+		await write(DATE, [game(1, DATE, {
+			startTime: `${DATE}T11:00:00Z`,
+			live: true,
+			homeRuns: 0,
+		})]);
+		const { state, object } = hub(deps);
+		await connect(object, DATE);
+		const [first] = state.sockets;
+		state.sockets.length = 0;
+		await object.webSocketClose(first!);
+		await score(1, DATE, `${DATE}T11:00:00Z`, 8);
+		await connect(object, DATE);
+		expect(homeRuns(pushes(state.sockets[0]).at(-1), 1)).toBe(8);
 	});
 
 	it("S149 AC 4 hub: a duplicate publish is dropped, a reconnect with ?since at the current version gets nothing and one behind gets the whole day", async () =>

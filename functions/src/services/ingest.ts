@@ -512,16 +512,20 @@ async function storeScheduleDay(
 		joined = await joinStoredScheduleDay(deps, day, servedBase, rows, now);
 	}
 	const changedGames = [...outcomes].filter(([, outcome]) => outcome.stateChanged);
+	// The day as served before the write, read at most once for both judges below (the purge's and the hub's), and only
+	// when one needs it; a failed read reaches both (the purge then purges anyway; the hub check records the error).
+	let beforeRead: Promise<JoinedScheduleDay> | undefined;
+	const before = stored === null ? null : () => beforeRead ??= joinedBefore(deps, stored, outcomes, now);
 	if (deps.edgePurge && (dayChanged || changedGames.length > 0))
 	{
 		const formed = joined;
 		after.dayChecks.push({
 			date: fetched.date,
-			judge: async () => isPastFinishedDay(formed.served, now, formed.moved) || (stored !== null && await wasPastFinishedDay(deps, stored, outcomes, now)),
+			judge: async () => isPastFinishedDay(formed.served, now, formed.moved) || (before !== null && wasPastFinishedDay(await before(), now)),
 		});
 		for (const [gamePk, outcome] of changedGames) after.changedStates.set(gamePk, outcome);
 	}
-	if (deps.dayHubs && (dayChanged || changedGames.length > 0)) addHubChecks(deps, fetched.date, joined, stored, outcomes, changedGames, now, after);
+	if (deps.dayHubs && (dayChanged || changedGames.length > 0)) addHubChecks(deps, fetched.date, joined, before, changedGames, now, after);
 	return joined;
 }
 
@@ -530,8 +534,7 @@ function addHubChecks(
 	deps: Pick<IngestDeps, "games" | "gameStates" | "schedules">,
 	date: string,
 	formed: JoinedScheduleDay,
-	stored: StoredScheduleDay | null,
-	outcomes: ReadonlyMap<number, SwitchOutcome>,
+	before: (() => Promise<JoinedScheduleDay>) | null,
 	changedGames: readonly [number, SwitchOutcome][],
 	now: Date,
 	after: AfterWrites,
@@ -539,7 +542,7 @@ function addHubChecks(
 {
 	after.hubChecks.push({
 		date,
-		judge: async () => formed.served.windowMode === "active" || (stored !== null && (await joinedBefore(deps, stored, outcomes, now)).served.windowMode === "active"),
+		judge: async () => formed.served.windowMode === "active" || (before !== null && (await before()).served.windowMode === "active"),
 	});
 	const others = new Map<string, GameStateRow | null>();
 	for (const [, outcome] of changedGames)
@@ -563,15 +566,12 @@ function addHubChecks(
 }
 
 /**
- * Whether `stored` was past and finished before a schedule write changed it (S212 review): the stored day as the
- * write read it, joined over each listed game's row as the switch read it (`SwitchOutcome.before`), a game the write
- * didn't list read as it stands (the write didn't touch it). Served base 0: the verdict reads no version. S216: judged
- * by `isPastFinishedDay` alone, with no hand-written date or settledness pre-filter (ADR-025); it runs only after a
- * write changed something, after the response on a read.
+ * Whether a day was past and finished before a schedule write changed it (S212 review), from {@link joinedBefore}'s
+ * day. S216: judged by `isPastFinishedDay` alone, with no hand-written date or settledness pre-filter (ADR-025); it
+ * runs only after a write changed something, after the response on a read.
  */
-async function wasPastFinishedDay(deps: Pick<IngestDeps, "games" | "gameStates">, stored: StoredScheduleDay, outcomes: ReadonlyMap<number, SwitchOutcome>, now: Date): Promise<boolean>
+function wasPastFinishedDay(before: JoinedScheduleDay, now: Date): boolean
 {
-	const before = await joinedBefore(deps, stored, outcomes, now);
 	return isPastFinishedDay(before.served, now, before.moved);
 }
 
@@ -1141,7 +1141,7 @@ export async function refreshTodaysWindow(
 		// Read without `withSuspendedAt`: a day listing a suspended game is settled only once the game has moved to another
 		// day (`held.moved`), whose own listing then carries its window, so its suspension time can't matter here.
 		const dayBeforeDone = held !== null && held.stored.windowMode === "cache" && isScheduleDaySettled(held.served, date, held.moved)
-		&& !held.served.games.some((g) => isGameInActiveWindow(g, now, params));
+			&& !held.served.games.some((g) => isGameInActiveWindow(g, now, params));
 		if (!dayBeforeDone)
 		{
 			try
@@ -1150,7 +1150,7 @@ export async function refreshTodaysWindow(
 			}
 			catch (error)
 			{
-			// Today is already in hand. A skipped day before is retried by the next cron run, a minute later.
+				// Today is already in hand. A skipped day before is retried by the next cron run, a minute later.
 				console.warn(`refreshTodaysWindow: day before ${dayBefore} not refreshed; retrying next run`, error);
 			}
 		}
