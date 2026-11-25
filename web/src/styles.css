@@ -329,6 +329,14 @@ a {
 		/* Nothing moves here, so no element keeps a layer for it (B413). */
 		will-change: auto;
 	}
+
+	/*
+	 * The loading skeleton's pulse (ViewState, #431), stopped from the first frame: Mantine draws it on
+	 * ::after, and useReducedMotion in ViewState reads the preference only after mounting.
+	 */
+	.mantine-Skeleton-root::after {
+		animation: none !important;
+	}
 }
 
 /*

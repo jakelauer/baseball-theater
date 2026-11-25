@@ -1,6 +1,7 @@
 import {
 	Button, SimpleGrid, Skeleton, Stack, Text, Title,
 } from "@mantine/core";
+import { useReducedMotion } from "@mantine/hooks";
 
 /**
  * The page and room states the frames draw (S31 `scoreboard-loading/empty/error-*`,
@@ -42,21 +43,24 @@ const SKELETON_ROWS = ["100%", "100%", "100%", "60%"];
 
 export function ViewState(props: ViewStateProps)
 {
+	// Under prefers-reduced-motion the skeleton holds still (VISUAL-DESIGN §7), as the Live dot does;
+	// `styles.css` stops the pulse from the first frame, before this hook reads the preference.
+	const reduceMotion = useReducedMotion();
 	if (props.kind === "loading")
 	{
 		return (
 			<Stack gap="lg">
 				{props.title ? <Title order={2}>{props.title}</Title> : null}
-				{/* Mantine's Skeleton pulses by default (`animate`); the label keeps "Loading" for screen readers. */}
+				{/* Mantine's Skeleton pulses (`animate`) unless motion is reduced; the label keeps "Loading" for screen readers. */}
 				{props.cards ? (
 					<SimpleGrid cols={props.cards} spacing="md" verticalSpacing="md" aria-label="Loading" role="status">
 						{Array.from({
 							length: SKELETON_CARDS,
-						}, (_, i) => <Skeleton key={i} data-testid="skeleton-card" h={120} radius="md" />)}
+						}, (_, i) => <Skeleton key={i} data-testid="skeleton-card" h={120} radius="md" animate={!reduceMotion} />)}
 					</SimpleGrid>
 				) : (
 					<Stack gap="sm" aria-label="Loading" role="status">
-						{SKELETON_ROWS.map((width, i) => <Skeleton key={i} h={48} w={width} radius="md" />)}
+						{SKELETON_ROWS.map((width, i) => <Skeleton key={i} h={48} w={width} radius="md" animate={!reduceMotion} />)}
 					</Stack>
 				)}
 			</Stack>

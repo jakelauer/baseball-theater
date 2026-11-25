@@ -53,6 +53,27 @@ describe("ViewState (S60)", () =>
 		expect(loading.querySelectorAll(".mantine-Skeleton-root[data-animate=true]").length).toBeGreaterThan(0);
 	});
 
+	it("loading holds the skeleton still under prefers-reduced-motion (#431)", async () =>
+	{
+		vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
+			matches: query.includes("prefers-reduced-motion: reduce"),
+			media: query,
+			onchange: null,
+			addListener: () => undefined,
+			removeListener: () => undefined,
+			addEventListener: () => undefined,
+			removeEventListener: () => undefined,
+			dispatchEvent: () => false,
+		}));
+		renderState({
+			kind: "loading",
+		});
+		const loading = screen.getByLabelText("Loading");
+		await vi.waitFor(() => expect(loading.querySelectorAll(".mantine-Skeleton-root[data-animate]")).toHaveLength(0));
+		expect(loading.querySelectorAll(".mantine-Skeleton-root").length).toBeGreaterThan(0);
+		vi.restoreAllMocks();
+	});
+
 	it("empty is one sentence", () =>
 	{
 		renderState({
