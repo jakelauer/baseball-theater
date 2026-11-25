@@ -11,7 +11,7 @@
  * this file by `drizzle-kit` (`drizzle.config.ts`) and committed under `migrations/`.
  */
 import type {
-	AccountSettings, GameProjection, GameSnapshot, GameState, PatronTier, StoredScheduleDay,
+	AccountSettings, GameProjection, GameSnapshot, GameState, PatronTier, ScoreboardWinProbability, StoredScheduleDay,
 } from "@bt/domain";
 import type { ReplayArtifact } from "@bt/ports";
 import { sql } from "drizzle-orm";
@@ -51,7 +51,7 @@ export const scheduleMonths = pgTable("schedule_months", {
 /**
  * One game's shared state per game (`GameStateRepository`, S150 AC 3): the source that wrote it (`feed` or
  * `schedule`, held to those two by a CHECK), the newest feed time it accepted (null until the feed writes), the
- * official date and first pitch the switch reads, and the `GameState`.
+ * official date and first pitch the switch reads, the `GameState`, and the game's win-probability line (S161).
  */
 export const gameStates = pgTable("game_states", {
 	gamePk: integer("game_pk").primaryKey(),
@@ -61,6 +61,9 @@ export const gameStates = pgTable("game_states", {
 	officialDate: text("official_date").notNull(),
 	startTime: text("start_time"),
 	document: jsonb("document").$type<GameState>().notNull(),
+	// S161: the game's scoreboard win-probability line (`ScoreboardWinProbability`), null until a feed write with play
+	// metrics sets one; kept outside the document, as feed-only data the switch never guards.
+	winProbability: jsonb("win_probability").$type<ScoreboardWinProbability>(),
 }, (table) => [check("game_states_source_check", sql`${table.source} IN ('feed', 'schedule')`)]);
 
 /**

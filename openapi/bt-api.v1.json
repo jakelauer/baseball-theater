@@ -1048,6 +1048,10 @@
 							},
 							{ "type": "null" }
 						]
+					},
+					"winProbability": {
+						"anyOf": [{ "$ref": "#/components/schemas/ScoreboardWinProbability" }, { "type": "null" }],
+						"description": "The home team's win-probability line so far (S161, `scoreboardWinProbability`): set on every game a served day carries, `null` for a pregame game or one with no measured at-bat; absent on a day as MLB's schedule is fetched, which carries no play metrics."
 					}
 				},
 				"required": ["gamePk", "gameDate", "officialDate", "status", "teams", "venue", "linescore"],
@@ -1133,6 +1137,16 @@
 				"description": "The day the scoreboard opens on (S111): today in season, the last final in the off-season.",
 				"properties": { "date": { "description": "The day, `YYYY-MM-DD`.", "type": "string" } },
 				"required": ["date"],
+				"type": "object"
+			},
+			"ScoreboardWinProbability": {
+				"additionalProperties": false,
+				"description": "A scoreboard row's win-probability line (S161): the home team's chance (percent, 0–100, unrounded) after each measured at-bat in game order, and where it stands now. Small enough to ride on every game the schedule serves (about one number per plate appearance), so the scoreboard's Win Probability slot (S108) draws it without a request per game.",
+				"properties": {
+					"current": { "type": "number" },
+					"points": { "items": { "type": "number" }, "type": "array" }
+				},
+				"required": ["points", "current"],
 				"type": "object"
 			},
 			"SearchClipGame": {

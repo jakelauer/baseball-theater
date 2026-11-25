@@ -823,6 +823,8 @@ export interface components {
                 id: number;
                 name: string;
             } | null;
+            /** @description The home team's win-probability line so far (S161, `scoreboardWinProbability`): set on every game a served day carries, `null` for a pregame game or one with no measured at-bat; absent on a day as MLB's schedule is fetched, which carries no play metrics. */
+            winProbability?: components["schemas"]["ScoreboardWinProbability"] | null;
         };
         /** @description The live moment on the scoreboard (S65): S63's runners and matchup, plus the count, and who is batting and pitching by name for the count slot's "AB / P" lines (S67). */
         ScheduleLive: {
@@ -867,6 +869,11 @@ export interface components {
         ScoreboardDefaultDateResponse: {
             /** @description The day, `YYYY-MM-DD`. */
             date: string;
+        };
+        /** @description A scoreboard row's win-probability line (S161): the home team's chance (percent, 0–100, unrounded) after each measured at-bat in game order, and where it stands now. Small enough to ride on every game the schedule serves (about one number per plate appearance), so the scoreboard's Win Probability slot (S108) draws it without a request per game. */
+        ScoreboardWinProbability: {
+            current: number;
+            points: number[];
         };
         /** @description The game a search result belongs to (S5): what the player's game link names (`NYY @ BOS, Sep 21`, as the digest's `DigestClipGame`) plus each club's id, which the row's `MatchupAbbr` draws its swatches from. `officialDate` is MLB's game date, `YYYY-MM-DD`. */
         SearchClipGame: {
