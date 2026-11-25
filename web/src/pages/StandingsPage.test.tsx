@@ -1215,6 +1215,19 @@ describe("StandingsPage: the two leagues side by side (#434)", () =>
 		expect(leagues()).toEqual([["AL East", "AL Central", "AL West"], ["NL East", "NL Central", "NL West"]]);
 	});
 
+	it("each table's scroll box can be reached and scrolled from the keyboard, named for its table (#434)", async () =>
+	{
+		serve(() => jsonResponse(STANDINGS));
+		renderPage("/standings?date=2026-09-05", "medium");
+		await screen.findAllByTestId("division-table");
+		const box = screen.getByRole("region", {
+			name: "AL East standings",
+		});
+		expect(box).toHaveAttribute("tabindex", "0");
+		expect(within(box).getByRole("table")).toBeInTheDocument();
+		expect(screen.getAllByRole("region").filter((r) => r.getAttribute("aria-label")?.endsWith(" standings"))).toHaveLength(6);
+	});
+
 	it("mobile: the leagues stack, the American League over the National (#434)", async () =>
 	{
 		serve(() => jsonResponse(STANDINGS));
