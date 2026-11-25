@@ -12,8 +12,8 @@
  * Runs in a throwaway repository under the OS temp directory holding a copy of today's frame notes and text records,
  * FEATURES/INTENT (rule 19's **Source:** check), the frozen AUDIT.md (which draws the pre-S156
  * line for records.ts) and changelog.d/, so it checks the real record formats rather than a
- * fixture's. The three stories are the first migrated open stories with no design and no dependencies,
- * so the test keeps working as the backlog moves. Child processes get an environment built
+ * fixture's. The three stories are the first migrated stories not yet done with no design and no dependencies,
+ * so the test keeps working as the backlog moves (a story that ships drops out of the picks, #618). Child processes get an environment built
  * from scratch (no user git config, hooks or signing), so the developer's setup can't change
  * the result.
  */
@@ -30,7 +30,7 @@ import {
 } from "vitest";
 import { FROZEN_AUDIT_SHA256, readLedger } from "./ledger.ts";
 import {
-	parseFields, readRecords, renderFields,
+	parseFields, readRecords, renderFields, renderRecord,
 } from "./text-records.ts";
 import { renderRunEntry, summarizeRun } from "./runs.ts";
 
@@ -78,11 +78,20 @@ function backlog(command: "check" | "build"): { status: number | null;
 	return run(process.execPath, [CLI, command, "--quiet", "--dir", join(repo, "docs/v3/backlog"), "--audit", join(repo, "docs/v3/AUDIT.md"), "--index", join(repo, "docs/v3/audit.jsonl")]);
 }
 
-/** The first three open stories (a migration record with a rewrite) with no design and no dependencies (no gate stops them going `done`). */
-function pickStories(): string[]
+/**
+ * The first three open stories (a migration record with a rewrite) with no design and no dependencies (no gate
+ * stops them going `done`), read from the copy at `root`. A story that has already shipped (a `done` snapshot or a
+ * completed entry) is left out: finishing it again would count it twice and fail the merges on a correct tree (#618).
+ */
+function pickStories(root = repo): string[]
 {
-	return readRecords(join(repo, "docs/v3/audit"))
-		.filter((r) => r.kind === "migration" && r.id.startsWith("S") && r.rewrites.length > 0)
+	const records = readRecords(join(root, "docs/v3/audit"));
+	const shipped = new Set([
+		...records.filter((r) => r.kind === "snapshot" && r.status === "done").map((r) => r.id),
+		...readLedger(join(root, "docs/v3/AUDIT.md")).flatMap((e) => (e.kind === "completed" && e.story ? [e.story] : [])),
+	]);
+	return records
+		.filter((r) => r.kind === "migration" && r.id.startsWith("S") && r.rewrites.length > 0 && !shipped.has(r.id))
 		.filter((r) =>
 		{
 			const fields = parseFields(r.body, r.id);
@@ -242,6 +251,34 @@ describe("the frozen AUDIT.md never changes (law L13)", () =>
 
 describe("story records merge in any order (law L13)", () =>
 {
+	it("never picks a story that is already done (#618)", () =>
+	{
+		// A copy of the backlog in which the first story the test would pick has shipped: its done
+		// snapshot and completed entry are committed, as S99's were when this test counted S99 twice.
+		const shipped = join(tmp, "shipped");
+		cpSync(join(ROOT, "docs/v3/audit"), join(shipped, "docs/v3/audit"), {
+			recursive: true,
+		});
+		cpSync(join(ROOT, "docs/v3/AUDIT.md"), join(shipped, "docs/v3/AUDIT.md"));
+		const first = pickStories(shipped)[0]!;
+		const newest = readRecords(join(shipped, "docs/v3/audit")).filter((r) => r.id === first).at(-1)!;
+		const day = join(shipped, "docs/v3/audit/2099-01-01");
+		mkdirSync(day);
+		writeFileSync(join(day, `20990101T000000Z-${first}-snapshot.md`), renderRecord({
+			kind: "snapshot",
+			id: first,
+			date: "2099-01-01",
+			stamp: "2099-01-01T00:00:00Z",
+			head: "test",
+			record: newest.file,
+			body: newest.body,
+			status: "done",
+		}));
+		writeFileSync(join(day, `20990101T000001Z-${first}-completed.md`), `## 2099-01-01 — ${first} completed\n\n| | |\n|---|---|\n| Entry | story completion |\n`);
+		expect(readLedger(join(shipped, "docs/v3/AUDIT.md")).some((e) => e.kind === "completed" && e.story === first)).toBe(true);
+		expect(pickStories(shipped)).not.toContain(first);
+	});
+
 	it("finishes three stories on three branches, each passing backlog:check on its own", () =>
 	{
 		expect(stories).toHaveLength(3);
