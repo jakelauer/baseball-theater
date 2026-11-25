@@ -142,9 +142,14 @@ describe("clips are links (#424)", () =>
 
 	it("loading a room's link with a clip opens the page with that clip playing (#424)", async () =>
 	{
+		const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
 		renderAt(`/game/823823/videos?clip=${CLIP.id}`);
+		// The room's data first, then the dialog it opens: each wait has its own time, so a slow run
+		// doesn't spend the dialog's on the data (#559).
+		expect((await screen.findAllByTestId("video-card")).length).toBeGreaterThan(0);
 		expect(await screen.findByRole("dialog")).toHaveTextContent(CLIP.title);
-		expect(screen.getAllByTestId("video-card").length).toBeGreaterThan(0);
+		// Playing: once the dialog has finished opening, the clip starts (#423).
+		await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
 	});
 
 	it("a play button in Plays is a link to the room with its clip open, keeping the room's other params (#424)", async () =>
@@ -165,6 +170,7 @@ describe("clips are links (#424)", () =>
 		expect(row).toHaveAttribute("href", "/search?q=walk-off&clip=ws-g4");
 		cleanup();
 		renderAt("/search?q=walk-off&clip=ws-g4");
+		await screen.findByTestId("search-result");
 		expect(await screen.findByRole("dialog")).toHaveTextContent("Ben Williamson's walk-off single to win Game 4");
 	});
 
@@ -177,6 +183,7 @@ describe("clips are links (#424)", () =>
 		expect(row).toHaveAttribute("href", `/games/2024-07-04?clip=${first.id}`);
 		cleanup();
 		renderAt(`/games/2024-07-04?clip=${first.id}`);
+		await screen.findAllByTestId("digest-item");
 		expect(within(await screen.findByRole("dialog")).getByText(first.title)).toBeInTheDocument();
 	});
 });

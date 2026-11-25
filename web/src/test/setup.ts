@@ -45,3 +45,10 @@ Element.prototype.matches = function (selector: string): boolean
 // null quietly; the catcher's view (S64) skips drawing then, and its own test supplies
 // a recording context to check what it draws.
 HTMLCanvasElement.prototype.getContext = (() => null) as typeof HTMLCanvasElement.prototype.getContext;
+
+// jsdom has no media playback either: `play` logs "Not implemented" and returns nothing, where
+// every browser returns a promise, which the player chains on (`VideoPlayer`'s `playWanted`). The
+// player dialog starts its clip once its opening transition ends (#423), so any test that opens it
+// and runs past that threw or not depending on how fast the machine ran (#559). Answer as a browser
+// that accepts the play; a test that checks plays spies on this.
+HTMLMediaElement.prototype.play = () => Promise.resolve();
