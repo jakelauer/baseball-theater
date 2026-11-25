@@ -657,7 +657,8 @@ export function statusOf(issue: CachedIssue): string
  * its newest text record laid over its cached issue. A story's body is its newest record's, else its
  * issue's; a bug's is its issue's symptoms with its recorded fields block, and a bug with no record is
  * unaccepted (no fields) until its `create B<N>` merges, so an outsider's edit to its body never sets
- * a priority. CRLF (GitHub's web editor) reads as LF. INDEX, search, claim, bugs, item and goal all
+ * a priority. CRLF (GitHub's web editor) reads as LF, and an issue's body is read without a cloud
+ * session's footer ({@link withoutClientFooter}, #631); a record's never is. INDEX, search, claim, bugs, item and goal all
  * read an item through this, so they agree.
  */
 export function itemText(id: string, issue: CachedIssue | undefined, records: TextRecord[]): { body: string;
@@ -672,12 +673,12 @@ export function itemText(id: string, issue: CachedIssue | undefined, records: Te
 			record,
 			accepted: true,
 		} : {
-			body: lf(issue?.body ?? ""),
+			body: withoutClientFooter(issue?.body ?? ""),
 			accepted: false,
 		};
 	}
 	return {
-		body: lf(record?.body ?? issue?.body ?? ""),
+		body: record ? lf(record.body) : withoutClientFooter(issue?.body ?? ""),
 		...(record ? {
 			record,
 		} : {}),
