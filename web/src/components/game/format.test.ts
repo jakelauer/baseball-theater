@@ -114,9 +114,23 @@ describe("gameInfoLines (S2)", () =>
 				value: "loanDepot park",
 			},
 			{
-				label: "Att",
+				label: "Attendance",
 				value: "26,141",
 			},
 		]);
+	});
+
+	it("writes MLB's T and Att out as Time and Attendance (#433)", () =>
+	{
+		expect(gameInfoLines([
+			{
+				label: "T",
+				value: "2:41.",
+			},
+			{
+				label: "Att",
+				value: "26,141.",
+			},
+		]).map((l) => l.label)).toEqual(["Time", "Attendance"]);
 	});
 });
