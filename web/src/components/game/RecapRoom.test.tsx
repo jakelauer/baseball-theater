@@ -21,6 +21,7 @@ import type { GamePayload } from "../../api/game.js";
 import { createQueryClient } from "../../api/queryClient.js";
 import { GamePage } from "../../pages/GamePage.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
+import { findLoadedTopBar } from "../../test/gameTopBar.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 
@@ -52,7 +53,7 @@ async function renderGame(game: GamePayload, path: string): Promise<void>
 			</QueryClientProvider>
 		</MantineProvider>,
 	);
-	await screen.findByTestId("game-topbar");
+	await findLoadedTopBar();
 }
 
 /** The room tab names, in order. */

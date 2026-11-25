@@ -1,6 +1,8 @@
 import {
-	Box, Group, Menu, SimpleGrid, Stack,
+	Box, Group, Menu, SimpleGrid, Skeleton, Stack,
 } from "@mantine/core";
+import { useReducedMotion } from "@mantine/hooks";
+import type { ReactNode } from "react";
 import { IconArrowsSort } from "@tabler/icons-react";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
@@ -16,7 +18,7 @@ import { FilterPill } from "../components/videos/QuickFilters.js";
 import { queryScreen } from "../components/queryScreen.js";
 import { CollapsedBar } from "../components/scoreboard/CollapsedBar.js";
 import { DayDigest } from "../components/scoreboard/DayDigest.js";
-import { DateControl } from "../components/scoreboard/DateControl.js";
+import { DateControl, DateControlSkeleton } from "../components/scoreboard/DateControl.js";
 import { ScoreboardModule } from "../components/scoreboard/ScoreboardModule.js";
 import { formatDate } from "../format/datetime.js";
 import type { SetFooterMode } from "../layout/footerMode.js";
@@ -44,7 +46,42 @@ const SORT_LABELS: Readonly<Record<ScoreboardSort, string>> = {
 };
 
 /**
- * The day's games under their `GAMES — SEP 21, 2026` label, or the empty sentence. They are in
+ * The games' `GAMES — SEP 21, 2026` label and, beside it, `control` (the sort control). Its words need
+ * only the day, so the loading skeleton draws it too and nothing above the games changes when they land
+ * (B584, #584; owner, 2026-11-25: "the header … change[s] after the content loads even though the text
+ * shows similar content that isn't dependent on the data").
+ */
+function GamesHeading({ date, control }: { date: string;
+	control: ReactNode; })
+{
+	return (
+		<Group justify="space-between" align="center" wrap="nowrap" gap={8}>
+			<SectionHeading>
+				Games — {formatDate(date)}
+			</SectionHeading>
+			{control}
+		</Group>
+	);
+}
+
+/**
+ * The day's games while they load (B584, #584): the games' own heading, a pill's place where the sort
+ * control goes (it is drawn only over games), and a skeleton of game cards in the page's columns.
+ */
+function GamesLoading({ date, variant }: { date: string;
+	variant: LayoutVariant; })
+{
+	const animate = !useReducedMotion();
+	return (
+		<Stack gap="sm">
+			<GamesHeading date={date} control={<Skeleton h={28} w={160} radius="xl" animate={animate} />} />
+			<ViewState kind="loading" shape="games" columns={scoreboardColumns(variant)} />
+		</Stack>
+	);
+}
+
+/**
+ * The day's games under their `GAMES — SEP 21, 2026` label (`GamesHeading`), or the empty sentence. They are in
  * the order the sort control beside the label picks (`sortScoreboardGames`; B430, #430): the
  * default, favorites then live games first, or start time. The choice is the page's own state, so
  * a new visit opens on the default (the issue: not remembered between visits). With
@@ -67,24 +104,24 @@ function Games({ day, variant }: { day: ScheduleDayPayload;
 	const wide = variant !== "mobile" && rows.some((row) => row.collapsed);
 	return (
 		<Stack gap="sm">
-			<Group justify="space-between" align="center" wrap="nowrap" gap={8}>
-				<SectionHeading>
-					Games — {formatDate(day.date)}
-				</SectionHeading>
-				{/* The Videos room's sort control, reused (S69): a pill naming the order, opening a menu of the choices. */}
-				<Menu position="bottom-end">
-					<Menu.Target>
-						<FilterPill leftSection={<IconArrowsSort size={14} />} aria-label={`Sort: ${SORT_LABELS[sort]}`}>
-							{SORT_LABELS[sort]}
-						</FilterPill>
-					</Menu.Target>
-					<Menu.Dropdown>
-						{(Object.keys(SORT_LABELS) as ScoreboardSort[]).map((value) => (
-							<Menu.Item key={value} onClick={() => setSort(value)}>{SORT_LABELS[value]}</Menu.Item>
-						))}
-					</Menu.Dropdown>
-				</Menu>
-			</Group>
+			<GamesHeading
+				date={day.date}
+				control={(
+					// The Videos room's sort control, reused (S69): a pill naming the order, opening a menu of the choices.
+					<Menu position="bottom-end">
+						<Menu.Target>
+							<FilterPill leftSection={<IconArrowsSort size={14} />} aria-label={`Sort: ${SORT_LABELS[sort]}`}>
+								{SORT_LABELS[sort]}
+							</FilterPill>
+						</Menu.Target>
+						<Menu.Dropdown>
+							{(Object.keys(SORT_LABELS) as ScoreboardSort[]).map((value) => (
+								<Menu.Item key={value} onClick={() => setSort(value)}>{SORT_LABELS[value]}</Menu.Item>
+							))}
+						</Menu.Dropdown>
+					</Menu>
+				)}
+			/>
 			<SimpleGrid cols={scoreboardColumns(variant)} spacing="md" verticalSpacing="md" data-testid="scoreboard-grid">
 				{rows.map(({ game, collapsed }) =>
 				{
@@ -108,8 +145,9 @@ function Games({ day, variant }: { day: ScheduleDayPayload;
 
 /**
  * The scoreboard (S31 frames; S66) for the URL's day, or, with none in the URL, the
- * server's default day (S111) — `ViewState`'s loading skeleton of game cards until it is known (#431).
- * `setFooter` holds the shell's footer back while the page loads (S142; `FooterMode`).
+ * server's default day (S111). Until that day is known the date bar's place and a skeleton of game cards
+ * stand in (#431, B584), so the bar is there from the start. `setFooter` holds the shell's footer back
+ * while the page loads (S142; `FooterMode`).
  */
 export function ScoreboardPage({ variant, setFooter }: { variant: LayoutVariant;
 	setFooter?: SetFooterMode; })
@@ -122,13 +160,19 @@ export function ScoreboardPage({ variant, setFooter }: { variant: LayoutVariant;
 	// No day in the URL and the default not known yet: hold the footer back (S142).
 	useFooterMode(setFooter, shown ? null : "none");
 	// No day in the URL: the default; it is MLB's today if the server can't say.
-	return shown ? <ScoreboardDay date={shown} variant={variant} today={today} setFooter={setFooter} /> : <ViewState kind="loading" cards={scoreboardColumns(variant)} />;
+	if (shown) return <ScoreboardDay date={shown} variant={variant} today={today} setFooter={setFooter} />;
+	return (
+		<Stack gap="md">
+			<DateControlSkeleton />
+			<ViewState kind="loading" shape="games" columns={scoreboardColumns(variant)} />
+		</Stack>
+	);
 }
 
 /**
  * One day's scoreboard: the date control, then the day's games as
  * `ScoreboardModule`s — one column on mobile, two on medium, three on desktop, from the
- * host's `variant` — and the day digest under them (S71), or the loading, empty or
+ * host's `variant` — and the day digest under them (S71), or the loading (`GamesLoading`), empty or
  * error state from `ViewState`. Offline (S74) it draws the day as last stored, and tells the
  * shell's offline marker its time (`useSavedCopy`). The
  * date control stays through every state so the reader can always move to another day; its
@@ -146,10 +190,11 @@ function ScoreboardDay({
 	const {
 		data: day, error, refetch, dataUpdatedAt,
 	} = useScheduleDay(date, live.inWindow);
-	// The digest draws under the games once it answers (or nothing, if it fails), so the footer waits
-	// for both: drawn earlier it would sit under the games and jump when the highlights arrive (S142).
 	// The same query `DayDigest` reads, so asking here adds no request; it only starts it with the day's.
-	const digestPending = useDayDigest(date).isPending;
+	// The footer no longer waits for it (#577): while it loads on a day with games, Best of's skeleton holds
+	// its place under them (#578). A day with no games expects none. A listed day whose digest fails or
+	// comes back empty collapses that skeleton and the footer moves up: a rare shift, accepted (`DayDigest`).
+	useDayDigest(date);
 	// Offline (S74): the shell's marker names this day's copy, "Scores as of …": a stored copy's own
 	// time, or when this page last got the day.
 	useSavedCopy(day ? {
@@ -165,21 +210,21 @@ function ScoreboardDay({
 		error,
 	});
 	// The footer opens with A13's Live strip exactly while the day's socket is open (S149 AC 7, S148's `LiveMarker`).
-	useFooterMode(setFooter, screen === "error" || (screen !== "loading" && day && !digestPending) ? live.open ? "live" : "plain" : "none");
+	useFooterMode(setFooter, screen === "error" || (screen !== "loading" && day) ? live.open ? "live" : "plain" : "none");
 	if (screen === "error")
 	{
 		body = <ViewState kind="error" title="Couldn't load games" onRetry={() => void refetch()} />;
 	}
 	else if (screen === "loading" || !day)
 	{
-		body = <ViewState kind="loading" title={`${formatDate(date)} Scoreboard`} cards={scoreboardColumns(variant)} />;
+		body = <GamesLoading date={date} variant={variant} />;
 	}
 	else
 	{
 		body = (
 			<>
 				<Games day={day} variant={variant} />
-				<DayDigest date={day.date} variant={variant} />
+				<DayDigest date={day.date} variant={variant} expected={day.games.length > 0} />
 				{/* The site footer is the shell's (S142); its Live strip follows `useLiveDay` through `useFooterMode` (S149). */}
 			</>
 		);

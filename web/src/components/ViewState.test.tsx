@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
-import type { ViewStateProps } from "./ViewState.js";
+import type { SkeletonShape, ViewStateProps } from "./ViewState.js";
 import { ViewState } from "./ViewState.js";
 
 function renderState(props: ViewStateProps)
@@ -43,6 +43,14 @@ describe("ViewState (S60)", () =>
 		expect(screen.getByLabelText("Loading")).toBeInTheDocument();
 	});
 
+	it("loading's status is marked busy (#584)", () =>
+	{
+		renderState({
+			kind: "loading",
+		});
+		expect(screen.getByLabelText("Loading")).toHaveAttribute("aria-busy", "true");
+	});
+
 	it("loading is an animated skeleton, never a spinner (#431)", () =>
 	{
 		renderState({
@@ -72,6 +80,45 @@ describe("ViewState (S60)", () =>
 		await vi.waitFor(() => expect(loading.querySelectorAll(".mantine-Skeleton-root[data-animate]")).toHaveLength(0));
 		expect(loading.querySelectorAll(".mantine-Skeleton-root").length).toBeGreaterThan(0);
 		vi.restoreAllMocks();
+	});
+
+	it("loading takes the shape of what it stands for, each block pulsing (#584)", () =>
+	{
+		const pieces: Record<SkeletonShape, string | null> = {
+			games: "skeleton-card",
+			videos: "skeleton-video",
+			table: "skeleton-table-row",
+			results: "skeleton-result",
+			text: null,
+			rows: null,
+		};
+		for (const [shape, piece] of Object.entries(pieces) as [SkeletonShape, string | null][])
+		{
+			renderState({
+				kind: "loading",
+				shape,
+				columns: 2,
+				variant: "desktop",
+			});
+			const loading = screen.getByLabelText("Loading");
+			expect(loading).toHaveAttribute("data-skeleton", shape);
+			if (piece) expect(loading.querySelectorAll(`[data-testid="${piece}"]`).length).toBeGreaterThan(1);
+			expect(loading.querySelectorAll(".mantine-Skeleton-root[data-animate=true]").length).toBeGreaterThan(0);
+			cleanup();
+		}
+	});
+
+	it("loading cards and videos without a column count or pairing draw one column and the phone's grid (#584)", () =>
+	{
+		for (const shape of ["games", "videos"] as const)
+		{
+			renderState({
+				kind: "loading",
+				shape,
+			});
+			expect(screen.getByLabelText("Loading")).toHaveAttribute("data-skeleton", shape);
+			cleanup();
+		}
 	});
 
 	it("empty is one sentence", () =>

@@ -30,6 +30,7 @@ import { jsonResponse } from "../../test/jsonResponse.js";
 import { LazyPlayerDialog } from "../videos/LazyPlayerDialog.js";
 import { VideoCard } from "../videos/VideoCard.js";
 import type { LayoutVariant } from "../../layout/variant.js";
+import { findLoadedTopBar } from "../../test/gameTopBar.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 const read = (file: string) => JSON.parse(readFileSync(join(FIXTURES, file), "utf8"));
@@ -89,6 +90,7 @@ async function room(tab: string, game: GamePayload, on: boolean, ready: string, 
 		</MemoryRouter>,
 	);
 	await screen.findAllByTestId(ready);
+	await findLoadedTopBar();
 	return screen.getByRole("tabpanel");
 }
 

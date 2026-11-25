@@ -23,6 +23,7 @@ import { createQueryClient } from "../../api/queryClient.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { GamePage } from "../../pages/GamePage.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
+import { findLoadedTopBar } from "../../test/gameTopBar.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 
@@ -53,7 +54,7 @@ async function livePanel(variant: LayoutVariant = "mobile", game: GamePayload = 
 			</QueryClientProvider>
 		</MantineProvider>,
 	);
-	await screen.findByTestId("game-topbar");
+	await findLoadedTopBar();
 	return screen.getByRole("tabpanel");
 }
 
