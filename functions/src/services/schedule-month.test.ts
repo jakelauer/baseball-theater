@@ -673,7 +673,7 @@ describe("S124 AC 2", () =>
 			upsert: async (day) =>
 			{
 				if (++writes === 3) throw new Error("database down");
-				await repos.schedules.upsert(day);
+				return repos.schedules.upsert(day);
 			},
 			listGameCounts: (from, to) => repos.schedules.listGameCounts(from, to),
 		};

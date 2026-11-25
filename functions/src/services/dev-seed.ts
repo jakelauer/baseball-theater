@@ -17,7 +17,9 @@ import { gunzip, gzip } from "node:zlib";
 import type {
 	GameSnapshot, ScheduleDay, SeasonCalendar, Unversioned,
 } from "@bt/domain";
-import { addDays, datesBetween } from "@bt/domain";
+import {
+	addDays, datesBetween, wholeFetchedGame,
+} from "@bt/domain";
 import type { MlbStatsClient } from "@bt/ports";
 import { inPool } from "../adapters/in-pool.js";
 import { overlayMlbClient } from "../adapters/overlay-mlb.js";
@@ -114,7 +116,7 @@ export async function recordDevSeed(
 		try
 		{
 			// The game alone: its feed time (S150 AC 2) is never written to the seed file.
-			return (await mlb.fetchGame(gamePk)).game;
+			return (await wholeFetchedGame(await mlb.fetchGame(gamePk))).game;
 		}
 		catch
 		{

@@ -1,8 +1,10 @@
 /**
  * Asking the edge to drop its copy of a past, finished day or game (S212 AC 4; ADR-021's 2026-11-24 amendment). The
- * writers call {@link purgeDayEdge} and {@link purgeGameEdge} (from `storeSchedule` and `storeGame` in `ingest.ts`, so
- * every path that writes a change reaches them); the URLs are built from the app's origin exactly as the web client
- * asks for them. A purge that fails never fails the write: its URLs are recorded as owed and the cron retries them
+ * writers reach {@link purgeGameEdge} through `ingest.ts`'s after-write step (`runAfterWrites`, after `storeGames` and
+ * `storeScheduleDay`, so every path that writes a change reaches it): one request for every game and day a request
+ * stored (S216), at once after the writes on the cron's and ingest's paths, after the response on a read's own refresh.
+ * A late playMetrics write purges its game's and day's URLs with {@link purgeGameAndDayEdge}. The URLs are built from
+ * the app's origin exactly as the web client asks for them. A purge that fails never fails the write: its URLs are recorded as owed and the cron retries them
  * ({@link retryOwedEdgePurges}, S212 review), so a Cloudflare outage delays a correction rather than pinning it at the
  * edge for its 30 days.
  */
@@ -66,12 +68,6 @@ async function purgePaths(edge: EdgePurge | undefined, paths: readonly string[],
 	}
 }
 
-/** Purges a changed (or newly stored) past, finished day's schedule and digest URLs. `at` is the write's time. */
-export function purgeDayEdge(deps: Pick<EdgePurgeDeps, "edgePurge">, date: string, at: Date): Promise<void>
-{
-	return purgePaths(deps.edgePurge, dayEdgePaths(date), at);
-}
-
 /**
  * Purges each changed (or newly stored) past, finished game's URL and the schedule and digest URLs of every day that
  * shows it (S212 review): its official date, and every stored day of its official date's calendar year that lists it
@@ -96,6 +92,17 @@ export async function purgeGameEdge(deps: EdgePurgeDeps, games: readonly { gameP
 		paths.push(gameEdgePath(game.gamePk), ...[game.officialDate, ...listed].flatMap(dayEdgePaths));
 	}
 	await purgePaths(deps.edgePurge, [...paths, ...dates.flatMap(dayEdgePaths)], at);
+}
+
+/**
+ * Purges one game's URL and its official date's schedule and digest URLs in one request, reading nothing (S216 AC 5):
+ * what a late playMetrics write asks for once it is stored, since the answer it follows may have been given S212's long
+ * edge lifetime without them.
+ */
+export function purgeGameAndDayEdge(deps: Pick<EdgePurgeDeps, "edgePurge">, game: { gamePk: number;
+	officialDate: string; }, at: Date): Promise<void>
+{
+	return purgePaths(deps.edgePurge, [gameEdgePath(game.gamePk), ...dayEdgePaths(game.officialDate)], at);
 }
 
 /** How many owed URLs one retry sends: Cloudflare's per-request cap (`PURGE_URLS_PER_REQUEST`), so one request a tick. */

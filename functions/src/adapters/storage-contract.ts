@@ -18,7 +18,8 @@ import {
 	personalDataStores, SETTINGS_STORE, USERS_STORE,
 } from "../services/personal-data.js";
 import {
-	describeGameStateFieldsContract, describeIdentityLinkContract, describePersonalDataStoreContract, describeRepositoryContract, describeScheduleCountsContract,
+	describeBatchedWritesContract, describeGameStateFieldsContract, describeIdentityLinkContract, describePersonalDataStoreContract, describeRepositoryContract,
+	describeScheduleCountsContract,
 } from "./repository-contract.js";
 
 /** A fresh, empty instance of each repository an adapter implements. */
@@ -74,7 +75,10 @@ export function describeStorageContract(prefix: string, stores: StoreFactories):
 		{
 			const repo = stores.schedules();
 			return {
-				upsert: (day) => repo.upsert(day),
+				upsert: async (day) =>
+				{
+					await repo.upsert(day);
+				},
 				get: (date) => repo.getByDate(date),
 			};
 		},
@@ -127,6 +131,10 @@ export function describeStorageContract(prefix: string, stores: StoreFactories):
 	});
 
 	describeGameStateFieldsContract(`${prefix}GameRepository`, () => stores.games(), (pk) => game(pk, 1));
+	describeBatchedWritesContract(`${prefix}GameRepository`, () => ({
+		games: stores.games(),
+		projections: stores.projections(),
+	}), (pk, version) => game(pk, version));
 
 	describeRepositoryContract<number, GameProjection>(`${prefix}GameProjectionRepository`, {
 		create: () =>
