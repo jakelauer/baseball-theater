@@ -46,13 +46,14 @@ export async function recheckDueGame(deps: IngestDeps): Promise<number | null>
 	{
 		// Another isolate may have claimed or re-checked it since the read: try the next due game.
 		if (!await deps.games.claimGameRecheck(game.gamePk, now.toISOString())) continue;
+		// S99: a due game's pick is asked (bounded) only while its stored pick lacks a side, so the stored game is read for
+		// it (one keyed read; the candidate carries no pick) and a game with both sides is never asked again. Read outside
+		// the MLB try: a database failure rejects as BT's own, like the store below, never held as an MLB failure.
+		const before = await deps.games.getByPk(game.gamePk);
 		let fetched;
 		try
 		{
 			// The whole game, its playMetrics waited for (S216 AC 5).
-			// S99: a due game's pick, asked (bounded) only while its stored pick lacks a side: the stored game is read for
-			// it (one keyed read; the candidate carries no pick), so a game with both sides is never asked again.
-			const before = await deps.games.getByPk(game.gamePk);
 			fetched = await withAskedPlayerOfTheGame(deps.mlb, await wholeFetchedGame(await deps.mlb.fetchGame(game.gamePk)), before?.playerOfTheGame);
 		}
 		catch (error)

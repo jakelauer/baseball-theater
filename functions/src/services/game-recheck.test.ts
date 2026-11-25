@@ -323,4 +323,19 @@ describe("recheckDueGame player of the game (S99, Claude's review of #621)", () 
 			fan: FAN,
 		});
 	});
+
+	it("S99 review recheck read fails: a failed read of the stored game rejects as BT's own, never held as an MLB failure", async () =>
+	{
+		const deps = memoryDeps();
+		const sent = await stored(deps, await game());
+		const calls = dueMlb(deps, sent);
+		deps.games.getByPk = async () =>
+		{
+			throw new Error("database down");
+		};
+		const hold = vi.spyOn(deps.games, "holdGameRecheck");
+		await expect(recheckDueGame(deps)).rejects.toThrow("database down");
+		expect(hold).not.toHaveBeenCalled();
+		expect(calls).toEqual([]);
+	});
 });
