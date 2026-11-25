@@ -339,6 +339,57 @@ describe("S196: the inset player modal", () =>
 		}
 	});
 
+	it("S196 AC 2: Escape in Safari's prefixed full screen (webkitFullscreenElement, before 16.4) only leaves full screen", async () =>
+	{
+		renderPills({});
+		await screen.findByRole("dialog");
+		let inFullscreen: Element | null = document.body;
+		Object.defineProperty(document, "webkitFullscreenElement", {
+			configurable: true,
+			get: () => inFullscreen,
+		});
+		try
+		{
+			await userEvent.keyboard("{Escape}");
+			expect(screen.queryByText("closed")).toBeNull();
+			inFullscreen = null;
+			await userEvent.keyboard("{Escape}");
+			expect(await screen.findByText("closed")).toBeInTheDocument();
+		}
+		finally
+		{
+			delete (document as { webkitFullscreenElement?: unknown }).webkitFullscreenElement;
+		}
+	});
+
+	it("S196 AC 2: Escape pressed inside another dialog opened over the player is that dialog's, not the player's", async () =>
+	{
+		renderPills({});
+		await screen.findByRole("dialog");
+		const other = document.createElement("div");
+		other.setAttribute("role", "dialog");
+		other.setAttribute("aria-modal", "true");
+		const button = document.createElement("button");
+		button.textContent = "Other";
+		other.append(button);
+		document.body.append(other);
+		try
+		{
+			// Sent straight to the other dialog's control: the player's own focus trap would pull a jsdom focus
+			// back, where a real modal opened over it traps focus itself.
+			fireEvent.keyDown(button, {
+				key: "Escape",
+			});
+			expect(screen.queryByText("closed")).toBeNull();
+		}
+		finally
+		{
+			other.remove();
+		}
+		await userEvent.keyboard("{Escape}");
+		expect(await screen.findByText("closed")).toBeInTheDocument();
+	});
+
 	it("S196 AC 2: a press inside, on the clip, a tool or the title, does not close it", async () =>
 	{
 		vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());

@@ -31,8 +31,9 @@ export type PlayerGame = Parameters<typeof gameVideosLink>[0];
  * closes too much: a press on the overlay closes only when it also started outside the border
  * (`pressedInside`), so a seek drag on the clip's built-in bar that ends on the dimmed site, which some
  * browsers report as a click on the overlay, keeps the player; and Esc closes only outside the browser's
- * full screen (`document.fullscreenElement`, compared loosely since it is undefined where the Fullscreen
- * API is missing), where that press is the browser's, to leave full screen. A press inside the border
+ * full screen (`document.fullscreenElement`, or Safari's prefixed one, compared loosely since it is
+ * undefined where the Fullscreen API is missing), where that press is the browser's, to leave full
+ * screen, and not while another dialog opened over the player holds focus. A press inside the border
  * never closes it. Full screen, mute and volume are the clip's built-in controls (B579), so it adds no
  * button for them. This replaces game-shell A4's floating player on a fully dimmed page under the
  * owner's design waiver (2026-11-25, in S196's text). The Videos room, Search (S5) and the day digest
@@ -97,11 +98,19 @@ export function PlayerDialog({
 			pressedInside.current = event.target instanceof Element && event.target.closest(".bt-player-modal") != null;
 		}
 		// Esc as Mantine handles it (window capture, never mid-composition, not a press a menu inside marked
-		// as its own), except in the browser's full screen.
+		// as its own), except in the browser's full screen (Safari before 16.4 sets only the prefixed
+		// `webkitFullscreenElement`) and except when another dialog or drawer opened over the player holds
+		// focus: Mantine closed only the topmost modal, so that press is the other one's. None stacks one
+		// today (the quality picker is a Menu, inside this dialog); the guard keeps a future one safe.
 		function onKey(event: KeyboardEvent): void
 		{
-			if (event.key !== "Escape" || event.isComposing || document.fullscreenElement != null) return;
-			if (event.target instanceof Element && event.target.getAttribute("data-mantine-stop-propagation") === "true") return;
+			if (event.key !== "Escape" || event.isComposing || event.defaultPrevented) return;
+			const page = document as Document & { webkitFullscreenElement?: Element | null };
+			if (page.fullscreenElement != null || page.webkitFullscreenElement != null) return;
+			const target = event.target instanceof Element ? event.target : null;
+			if (target?.getAttribute("data-mantine-stop-propagation") === "true") return;
+			const holder = target?.closest("[role=\"dialog\"], [aria-modal=\"true\"]");
+			if (holder && !holder.classList.contains("bt-player-modal")) return;
 			close.current();
 		}
 		document.addEventListener("pointerdown", onPress, true);
