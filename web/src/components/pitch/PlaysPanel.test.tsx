@@ -159,7 +159,8 @@ describe("the Plays room on 823823 (S41)", () =>
 		expect(within(open).getByTestId("catcher-view")).toBeInTheDocument();
 		const rows = within(open).getAllByTestId("pitch-row");
 		expect(rows).toHaveLength(last.pitches.length);
-		expect(rows[0]).toHaveAttribute("data-expanded", "true");
+		// Every pitch starts closed (#522).
+		expect(rows[0]).toHaveAttribute("data-expanded", "false");
 		expect(within(panel).getAllByTestId("catcher-view")).toHaveLength(1);
 	});
 
@@ -239,21 +240,22 @@ describe("the Plays room on 823823 (S41)", () =>
 	});
 });
 
-describe("parked on the owner (design)", () =>
+describe("an inning view and an opened play (owner's design waivers, 2026-11-25)", () =>
 {
-	// Parked: the ratified `plays-mobile` frame draws `9TH INNING` over `TOP 9TH · NYY`, and the
-	// issue records no design waiver; the fix that finishes #526 makes this a plain test.
-	it.fails("an inning chosen in the sidebar shows its half-inning headers but no inning header (#526)", async () =>
+	// The ratified `plays-mobile` frame draws `9TH INNING` over `TOP 9TH · NYY`; the owner waived
+	// it: "the inning view shows only \"Top 9th · CHC\" / \"Bottom 9th · MIA\"" (#526).
+	it("an inning chosen in the sidebar shows its half-inning headers but no inning header (#526)", async () =>
 	{
 		const panel = await playsPanel();
 		expect(within(panel).getByText("Top 9th · CHC")).toBeInTheDocument();
 		expect(within(panel).queryByText("9th inning")).toBeNull();
 	});
 
-	// Parked: the ratified `plays-mobile` frame and game-rooms DESIGN ("the pitch accordion
-	// newest-first with the last pitch open") draw an open at-bat with its newest pitch expanded,
-	// and the issue records no design waiver; the fix that finishes #522 makes this a plain test.
-	it.fails("opening a play shows all of its pitches collapsed (#522)", async () =>
+	// The ratified `plays-mobile` frame and game-rooms DESIGN ("the pitch accordion newest-first with
+	// the last pitch open") draw the newest pitch expanded; the owner waived it: "an opened play shows
+	// every pitch closed, its pitches still replay in the zone, and the zone shows the last pitch until
+	// you open one" (#522).
+	it("opening a play shows all of its pitches collapsed (#522)", async () =>
 	{
 		vi.stubGlobal("scrollBy", vi.fn());
 		const panel = await playsPanel();
@@ -269,13 +271,17 @@ describe("parked on the owner (design)", () =>
 
 describe("Plays headers are never smaller than body text (#527)", () =>
 {
-	it("the view's heading and each half's header draw at body size or larger", async () =>
+	it("each half's header, and the Runs view's heading, draw at body size or larger", async () =>
 	{
 		const panel = await playsPanel();
-		for (const header of ["9th inning", "Top 9th · CHC", "Bottom 9th · MIA"])
+		for (const header of ["Top 9th · CHC", "Bottom 9th · MIA"])
 		{
 			expect(mantineFontPx(within(panel).getByText(header)), header).toBeGreaterThanOrEqual(BODY_FONT_PX);
 		}
+		fireEvent.click(within(panel).getByRole("button", {
+			name: "Runs",
+		}));
+		expect(mantineFontPx(within(panel).getByText("Scoring plays"))).toBeGreaterThanOrEqual(BODY_FONT_PX);
 	});
 });
 
@@ -358,9 +364,9 @@ describe("opening an at-bat (S64 choreography, kept in S41)", () =>
 		// No pitch wears the "current pitch" ring while the at-bat replays.
 		expect(tapped.querySelector('circle[r="10"]')).toBeNull();
 		const located = second.pitches.filter((p) => p.pitchData);
-		// The last pitch is selected throughout (its sequence row open), not the replay's.
+		// The replay opens no pitch in the sequence (#522); the zone keeps the last pitch selected.
 		const lastPitch = located.at(-1)!;
-		expect(within(tapped).getAllByTestId("pitch-row")[second.pitches.length - lastPitch.pitchNumber]).toHaveAttribute("data-expanded", "true");
+		expect(within(tapped).getAllByTestId("pitch-row").map((row) => row.dataset.expanded)).toEqual(second.pitches.map(() => "false"));
 		// ...and the rest follow, overlapping in the air, until the last has landed
 		// (each step's effects run between acts).
 		let most = 0;
@@ -683,9 +689,24 @@ describe("AtBatViewer", () =>
 	{
 		const atBat = PLAYS.find((play) => play.pitches.length >= 2)!;
 		wrap(<AtBatViewer plays={PLAYS} atBat={atBat} />);
-		const open = screen.getAllByTestId("pitch-row").find((row) => row.dataset.expanded === "true")!;
+		const open = screen.getAllByTestId("pitch-row")[0]!;
+		fireEvent.click(within(open).getByRole("button"));
+		expect(open).toHaveAttribute("data-expanded", "true");
 		fireEvent.click(within(open).getByRole("button"));
 		expect(screen.getAllByTestId("pitch-row").map((row) => row.dataset.expanded)).toEqual(atBat.pitches.map(() => "false"));
+	});
+
+	// Claude's review of #567: the replay token lands up to `OPEN_MS + 400` ms after the at-bat
+	// mounts, and must not close a pitch the viewer opened before it.
+	it("a pitch opened before the opening replay starts stays open when it starts (#522)", () =>
+	{
+		const atBat = PLAYS.find((play) => play.pitches.length >= 2 && play.pitches.some((p) => p.pitchData))!;
+		const { rerender } = wrap(<AtBatViewer plays={PLAYS} atBat={atBat} />);
+		const second = screen.getAllByTestId("pitch-row").at(-2)!;
+		fireEvent.click(within(second).getByRole("button"));
+		// The same tree as `wrap`, so the viewer updates rather than remounting.
+		rerender(<MantineProvider><MemoryRouter><AtBatViewer plays={PLAYS} atBat={atBat} autoplay={1} /></MemoryRouter></MantineProvider>);
+		expect(screen.getAllByTestId("pitch-row").at(-2)).toHaveAttribute("data-expanded", "true");
 	});
 
 	it("an at-bat with no pitches has nothing to animate", () =>

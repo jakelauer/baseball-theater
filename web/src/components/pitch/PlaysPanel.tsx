@@ -225,7 +225,10 @@ export function PlaysPanel({ game }: { game: GamePayload })
 	const home = game.teams.home.abbreviation;
 	const { innings } = linescoreCells(game.linescore, game.linescore?.scheduledInnings ?? 9);
 
-	let heading: string;
+	// Only Runs has a heading: an inning's two half headers already name it, so its own `9th inning`
+	// heading is dropped (owner, 2026-11-25, waiving the `plays-mobile` frame's `9TH INNING`: "the
+	// inning view shows only \"Top 9th · CHC\" / \"Bottom 9th · MIA\"", #526).
+	let heading: string | null = null;
 	let sections: Section[];
 	let end: RowEnd;
 	if (shown === "runs")
@@ -240,7 +243,6 @@ export function PlaysPanel({ game }: { game: GamePayload })
 	else
 	{
 		const halves = inningHalves(plays, shown);
-		heading = `${ordinal(shown)} inning`;
 		sections = [{
 			label: `Top ${ordinal(shown)} · ${away}`,
 			plays: halves.top,
@@ -274,7 +276,7 @@ export function PlaysPanel({ game }: { game: GamePayload })
 					flex: 1,
 					minWidth: 0,
 				}}>
-					<SectionHeading>{heading}</SectionHeading>
+					{heading && <SectionHeading>{heading}</SectionHeading>}
 					{rows.length === 0 ? <Text c="dimmed">No scoring plays yet.</Text> : (
 						<PlaysAccordion
 							// A new view starts fresh with every row closed (owner, 2026-11-12: "the plays view shouldn't
