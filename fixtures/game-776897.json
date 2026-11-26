@@ -1,0 +1,3757 @@
+{
+  "gamePk": 776897,
+  "gameDate": "2025-08-02",
+  "officialDate": "2025-08-02",
+  "startTime": "2025-08-02T20:10:00Z",
+  "status": {
+    "abstractGameState": "Final",
+    "codedGameState": "F",
+    "detailedState": "Final"
+  },
+  "teams": {
+    "home": {
+      "id": 136,
+      "abbreviation": "SEA",
+      "name": "Seattle Mariners",
+      "teamName": "Mariners"
+    },
+    "away": {
+      "id": 140,
+      "abbreviation": "TEX",
+      "name": "Texas Rangers",
+      "teamName": "Rangers"
+    }
+  },
+  "venue": {
+    "id": 680,
+    "name": "T-Mobile Park"
+  },
+  "linescore": {
+    "currentInning": 11,
+    "inningState": "Bottom",
+    "isTopInning": false,
+    "outs": 3,
+    "balls": 2,
+    "strikes": 2,
+    "teams": {
+      "home": {
+        "runs": 4,
+        "hits": 7,
+        "errors": 0
+      },
+      "away": {
+        "runs": 6,
+        "hits": 11,
+        "errors": 1
+      }
+    },
+    "scheduledInnings": 9,
+    "innings": [
+      {
+        "num": 1,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 2,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 3,
+        "away": {
+          "runs": 2
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 4,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 5,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 6,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 2
+        }
+      },
+      {
+        "num": 7,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 8,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 9,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 10,
+        "away": {
+          "runs": 2
+        },
+        "home": {
+          "runs": 2
+        }
+      },
+      {
+        "num": 11,
+        "away": {
+          "runs": 2
+        },
+        "home": {
+          "runs": 0
+        }
+      }
+    ]
+  },
+  "highlights": [
+    {
+      "id": "randy-arozarena-homers-22-on-a-fly-ball-to-left-center-field-cole-young-s",
+      "playId": "e6b98316-41f7-35f4-ab2b-e59636e36999",
+      "title": "Randy Arozarena's game-tying two-run home run (22)",
+      "blurb": "Randy Arozarena's game-tying two-run home run (22)",
+      "duration": "00:00:29",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/ni078h8xelifk8bm1cpd.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/f81539d7-50595e44-7501194a-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/f81539d7-50595e44-7501194a-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/f81539d7-50595e44-7501194a-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/f81539d7-50595e44-7501194a-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T23:00:24.634Z",
+      "teamIds": [
+        136
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "home-run",
+        "extra-innings",
+        "style",
+        "imagen-feed",
+        "fan-duel",
+        "international-feed",
+        "eclat-feed",
+        "apple-news",
+        "alexa"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "matt-brash-in-play-run-s-to-kyle-higashioka",
+      "playId": "039ad2ba-a4a6-31e5-8193-552b59ac6b87",
+      "title": "Kyle Higashioka's RBI single",
+      "blurb": "Kyle Higashioka's RBI single",
+      "duration": "00:00:30",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/j8jw3nixegteu0ufcyc1.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/abf30975-36c79192-a6a48b92-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/abf30975-36c79192-a6a48b92-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/abf30975-36c79192-a6a48b92-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/abf30975-36c79192-a6a48b92-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T22:49:13.705Z",
+      "teamIds": [
+        140
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "extra-innings",
+        "fan-duel",
+        "international-feed",
+        "eclat-feed",
+        "imagen-feed"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "merrill-kelly-in-play-run-s-to-julio-rodriguez",
+      "playId": "aaa7e2de-bb13-345f-8b6e-67234a231342",
+      "title": "Julio Rodríguez's RBI double",
+      "blurb": "Julio Rodríguez's RBI double",
+      "duration": "00:00:20",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/w9tqkybue7exqvjurdb9.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/e1cd9fba-a24accf4-3d3d7c37-csvm-diamondgcp-asset-4000K.mp4",
+      "renditions": [
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/e1cd9fba-a24accf4-3d3d7c37-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/e1cd9fba-a24accf4-3d3d7c37-csvm-diamondgcp-asset-4000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T21:43:37.206Z",
+      "teamIds": [
+        136
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "2-yahoo-mlb-ads-feed",
+        "yahoo-in-game",
+        "send-to-news-mlb-feed",
+        "sporty-cc",
+        "imagen-feed",
+        "eclat-feed",
+        "fan-duel",
+        "international-feed"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "casey-legumina-in-play-run-s-to-wyatt-langford",
+      "playId": "d94f944e-127a-381a-a648-30a6290eaeca",
+      "title": "Wyatt Langford's go-ahead RBI single",
+      "blurb": "Wyatt Langford's go-ahead RBI single",
+      "duration": "00:00:17",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/e5fckpg3pflb039wohbh.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/941742f9-6c23db27-dfae9724-csvm-diamondgcp-asset-4000K.mp4",
+      "renditions": [
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/941742f9-6c23db27-dfae9724-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/941742f9-6c23db27-dfae9724-csvm-diamondgcp-asset-4000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T23:14:52.061Z",
+      "teamIds": [
+        140
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "extra-innings",
+        "sporty-cc",
+        "imagen-feed",
+        "eclat-feed",
+        "fan-duel",
+        "international-feed",
+        "apple-news",
+        "2-yahoo-mlb-ads-feed",
+        "yahoo-in-game",
+        "send-to-news-mlb-feed"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "kyle-higashioka-homers-7-on-a-fly-ball-to-left-center-field-rowdy-tellez",
+      "playId": "671b659a-798c-3774-8b65-02ed739fd803",
+      "title": "Kyle Higashioka's two-run home run (7)",
+      "blurb": "Kyle Higashioka's two-run home run (7)",
+      "duration": "00:00:29",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/cwgrhhxuueuqbaitdhuj.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/98dd7b55-c971954d-955dcd9d-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/98dd7b55-c971954d-955dcd9d-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/98dd7b55-c971954d-955dcd9d-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/98dd7b55-c971954d-955dcd9d-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T20:41:51.252Z",
+      "teamIds": [
+        140
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "home-run",
+        "2-yahoo-mlb-ads-feed",
+        "yahoo-in-game",
+        "send-to-news-mlb-feed",
+        "imagen-feed",
+        "fan-duel",
+        "eclat-feed",
+        "international-feed"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "casey-legumina-in-play-run-s-to-ezequiel-duran",
+      "playId": "201b4fff-b05f-353d-9ef5-ea9322810429",
+      "title": "Ezequiel Duran's RBI single",
+      "blurb": "Ezequiel Duran's RBI single",
+      "duration": "00:00:29",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/mlb8ekrcyez1ey3ipylx.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/e2a228ff-147f9bef-20e93099-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/e2a228ff-147f9bef-20e93099-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/e2a228ff-147f9bef-20e93099-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/e2a228ff-147f9bef-20e93099-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T23:16:13.252Z",
+      "teamIds": [
+        140
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "extra-innings",
+        "international-feed",
+        "imagen-feed",
+        "fan-duel",
+        "eclat-feed",
+        "apple-news"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "matt-brash-in-play-run-s-to-marcus-semien-czkvgb",
+      "playId": "1288ef9e-20fb-3096-91ab-2e8b0cc5d2fb",
+      "title": "Marcus Semien's RBI groundout",
+      "blurb": "Marcus Semien's RBI groundout",
+      "duration": "00:00:27",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/kj5b07qtijuk3ca0wwmd.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/79f85467-25a0274d-e0dd77aa-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/79f85467-25a0274d-e0dd77aa-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/79f85467-25a0274d-e0dd77aa-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/79f85467-25a0274d-e0dd77aa-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T22:54:28.529Z",
+      "teamIds": [
+        140
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "extra-innings",
+        "eclat-feed",
+        "international-feed",
+        "imagen-feed",
+        "fan-duel"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "j-p-crawford-flies-out-to-right-fielder-adolis-garcia-nujugj",
+      "playId": "f84ddf3c-80ee-3bd1-a359-d2ee6bce38f8",
+      "title": "Luis Curvelo induces final out for the win",
+      "blurb": "Luis Curvelo induces final out for the win",
+      "duration": "00:00:29",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/rexpctaoupnhfgwrzm5m.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/57e6ced2-c6fe9d2f-f4a1098e-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/57e6ced2-c6fe9d2f-f4a1098e-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/57e6ced2-c6fe9d2f-f4a1098e-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/57e6ced2-c6fe9d2f-f4a1098e-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T23:32:11.622Z",
+      "teamIds": [
+        140
+      ],
+      "tags": [
+        "pitching",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "extra-innings",
+        "fan-duel",
+        "international-feed",
+        "eclat-feed",
+        "imagen-feed"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "carlos-vargas-in-play-out-s-to-corey-seager",
+      "playId": "5c3b7e73-0826-38f0-aa04-50dc4df03872",
+      "title": "Mariners' tough double play",
+      "blurb": "Mariners' tough double play",
+      "duration": "00:00:26",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/dcllupe1ghwpfzb6r07m.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/7f6812d1-02ee1d87-71cd508d-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/7f6812d1-02ee1d87-71cd508d-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/7f6812d1-02ee1d87-71cd508d-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/7f6812d1-02ee1d87-71cd508d-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "video",
+      "date": "2025-08-02T21:24:59.883Z",
+      "teamIds": [
+        136
+      ],
+      "tags": [
+        "defense",
+        "game-story-highlight",
+        "send-to-news-mlb-feed",
+        "2-yahoo-mlb-ads-feed",
+        "yahoo-in-game",
+        "wow",
+        "imagen-feed",
+        "eclat-feed",
+        "international-feed",
+        "fan-duel"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "eduard-bazardo-in-play-out-s-to-wyatt-langford-c9nrha",
+      "playId": "a558c8da-0ee3-38d5-8c48-db049e9ce51f",
+      "title": "Julio Rodríguez's running catch",
+      "blurb": "Julio Rodríguez's running catch",
+      "duration": "00:00:28",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/dyswidbl2uteamursnm2.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/0303a926-9f59079c-f79cba4c-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/0303a926-9f59079c-f79cba4c-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/0303a926-9f59079c-f79cba4c-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/0303a926-9f59079c-f79cba4c-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T21:52:58.748Z",
+      "teamIds": [
+        136
+      ],
+      "tags": [
+        "defense",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "style",
+        "eclat-feed",
+        "international-feed",
+        "imagen-feed",
+        "fan-duel"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "danny-coulombe-ball-to-mitch-garver-mt04hz",
+      "playId": "30c00e4e-997b-3545-adaa-939e170db96e",
+      "title": "Dylan Moore steals second base",
+      "blurb": "Dylan Moore steals second base",
+      "duration": "00:00:17",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/bvopsjl2ahnoyzbwcmov.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/72fb1977-8f630b96-5726fdc9-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/72fb1977-8f630b96-5726fdc9-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/72fb1977-8f630b96-5726fdc9-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/72fb1977-8f630b96-5726fdc9-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T22:04:00.914Z",
+      "teamIds": [
+        136
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "stolen-base",
+        "international-feed",
+        "fan-duel",
+        "imagen-feed",
+        "eclat-feed"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "bruce-bochy-on-strong-pitching-piling-on-runs",
+      "playId": null,
+      "title": "Bruce Bochy on strong pitching, piling on runs",
+      "blurb": "Bruce Bochy on strong pitching, piling on runs",
+      "duration": "00:01:09",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/va0qdln1qqfaj8spiadl.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/9b41de8e-3657acac-9585e787-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/9b41de8e-3657acac-9585e787-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/9b41de8e-3657acac-9585e787-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/9b41de8e-3657acac-9585e787-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "video",
+      "date": "2025-08-03T00:53:28.319Z",
+      "teamIds": [
+        140
+      ],
+      "tags": [
+        "vod",
+        "send-to-news-mlb-feed",
+        "tune-in-daily",
+        "imagen-feed",
+        "manager-postgame",
+        "interview"
+      ]
+    },
+    {
+      "id": "condensed-game-tex-sea-8-2-25",
+      "playId": null,
+      "title": "Condensed Game: TEX@SEA - 8/2/25",
+      "blurb": "Condensed Game: TEX@SEA - 8/2/25",
+      "duration": "00:12:10",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/tegcwuxanwcxqg6deu7i.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/20a232d1-41a8403b-70c25f3f-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/20a232d1-41a8403b-70c25f3f-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/20a232d1-41a8403b-70c25f3f-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/20a232d1-41a8403b-70c25f3f-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "condensed",
+      "date": "2025-08-03T01:42:02.183Z",
+      "teamIds": [
+        140,
+        136
+      ],
+      "tags": [
+        "vod",
+        "international-feed",
+        "eclat-feed",
+        "imagen-feed",
+        "alexa",
+        "condensed-game",
+        "condensed_game"
+      ]
+    },
+    {
+      "id": "field-view-randy-arozarena-s-game-tying-homer",
+      "playId": null,
+      "title": "Field View: Randy Arozarena's game-tying homer",
+      "blurb": "Field View: Randy Arozarena's game-tying homer",
+      "duration": "00:00:51",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/zvrozz1jwmbazi3ct02m.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/f716c6ec-66e900ae-85b6d1f9-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/f716c6ec-66e900ae-85b6d1f9-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/f716c6ec-66e900ae-85b6d1f9-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/f716c6ec-66e900ae-85b6d1f9-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "video",
+      "date": "2025-08-02T23:30:00Z",
+      "teamIds": [
+        136
+      ],
+      "tags": [
+        "vod",
+        "exclusive-angle",
+        "send-to-news-mlb-feed",
+        "game-action-tracking",
+        "alexa",
+        "imagen-feed"
+      ]
+    },
+    {
+      "id": "luis-castillo-strikes-out-four-against-the-rangers",
+      "playId": null,
+      "title": "Luis Castillo strikes out four against the Rangers",
+      "blurb": "Luis Castillo strikes out four against the Rangers",
+      "duration": "00:00:51",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/unddi5dgbaggsojn0vez.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/2bcfed76-6dbfbb82-842435b8-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/2bcfed76-6dbfbb82-842435b8-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/2bcfed76-6dbfbb82-842435b8-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/2bcfed76-6dbfbb82-842435b8-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T21:37:38.023Z",
+      "teamIds": [
+        136
+      ],
+      "tags": [
+        "vod",
+        "pitching",
+        "highlight-reel-pitching",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "eclat-feed",
+        "imagen-feed",
+        "fan-duel",
+        "international-feed"
+      ]
+    },
+    {
+      "id": "merrill-kelly-on-his-rangers-debut",
+      "playId": null,
+      "title": "Merrill Kelly on his Rangers' debut",
+      "blurb": "Merrill Kelly on his Rangers' debut",
+      "duration": "00:00:46",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/ylit3glr6ggsguf72aqv.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/0f0dba43-c766492d-39e3ceb0-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/0f0dba43-c766492d-39e3ceb0-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/0f0dba43-c766492d-39e3ceb0-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/0f0dba43-c766492d-39e3ceb0-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "video",
+      "date": "2025-08-03T03:53:01.42Z",
+      "teamIds": [
+        140
+      ],
+      "tags": [
+        "vod",
+        "interview",
+        "team-featured",
+        "imagen-feed"
+      ]
+    },
+    {
+      "id": "merrill-kelly-strikes-out-six-against-mariners",
+      "playId": null,
+      "title": "Merrill Kelly strikes out six against Mariners",
+      "blurb": "Merrill Kelly strikes out six against Mariners",
+      "duration": "00:02:03",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/vshvsnsigno79kolw6kv.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/fcbd1ad0-7de55664-79bdfa69-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/fcbd1ad0-7de55664-79bdfa69-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/fcbd1ad0-7de55664-79bdfa69-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/fcbd1ad0-7de55664-79bdfa69-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T22:19:50.829Z",
+      "teamIds": [
+        140
+      ],
+      "tags": [
+        "vod",
+        "pitching",
+        "highlight-reel-pitching",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "imagen-feed",
+        "fan-duel",
+        "international-feed",
+        "eclat-feed"
+      ]
+    },
+    {
+      "id": "pickoff-attempt-1b-9jd99o",
+      "playId": null,
+      "title": "Mariners score on disengagement violation",
+      "blurb": "Mariners score on disengagement violation",
+      "duration": "00:00:29",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/ix4kt3sidqw2hyfzvxym.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/09795d42-37a59566-a9304ef7-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/09795d42-37a59566-a9304ef7-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/09795d42-37a59566-a9304ef7-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/09795d42-37a59566-a9304ef7-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T21:43:12.983Z",
+      "teamIds": [
+        136
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "imagen-feed",
+        "eclat-feed",
+        "fan-duel",
+        "international-feed"
+      ]
+    },
+    {
+      "id": "rangers-vs-mariners-highlights-x4416",
+      "playId": null,
+      "title": "Rangers vs. Mariners Highlights",
+      "blurb": "Rangers vs. Mariners Highlights",
+      "duration": "00:03:13",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/ygqvp6hqrzertbq3lzxs.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/9196d725-d03e531e-4ca77025-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/9196d725-d03e531e-4ca77025-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/9196d725-d03e531e-4ca77025-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/9196d725-d03e531e-4ca77025-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "recap",
+      "date": "2025-08-03T01:50:53.399Z",
+      "teamIds": [
+        140,
+        136
+      ],
+      "tags": [
+        "vod",
+        "international-feed",
+        "apple-news",
+        "eclat-feed",
+        "3-yahoo-ads-feed",
+        "tune-in-daily",
+        "game-recap",
+        "mlb_recap",
+        "alexa",
+        "roku-vod"
+      ]
+    },
+    {
+      "id": "ryan-bliss-on-his-recovery-in-the-minor-leagues",
+      "playId": null,
+      "title": "Ryan Bliss on his recovery in the Minor Leagues",
+      "blurb": "Ryan Bliss on his recovery in the Minor Leagues",
+      "duration": "00:02:56",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/b4foy4jlzw0sk3rsz6t8.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/de0ef511-626eb34e-83341b1f-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/de0ef511-626eb34e-83341b1f-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/de0ef511-626eb34e-83341b1f-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/02/de0ef511-626eb34e-83341b1f-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-08-02T21:06:15.557Z",
+      "teamIds": [
+        136
+      ],
+      "tags": [
+        "vod",
+        "in-game-highlight",
+        "game-action-tracking",
+        "send-to-news-mlb-feed",
+        "interview",
+        "imagen-feed",
+        "eclat-feed",
+        "international-feed",
+        "fan-duel"
+      ]
+    }
+  ],
+  "boxscore": {
+    "teams": {
+      "away": {
+        "batting": [
+          {
+            "id": 669701,
+            "fullName": "Josh Smith",
+            "position": "3B",
+            "battingOrder": "100",
+            "atBats": 5,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".266",
+            "lastName": "Smith",
+            "positions": [
+              "3B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".745"
+          },
+          {
+            "id": 608369,
+            "fullName": "Corey Seager",
+            "position": "SS",
+            "battingOrder": "200",
+            "atBats": 4,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 1,
+            "strikeOuts": 0,
+            "avg": ".265",
+            "lastName": "Seager",
+            "positions": [
+              "SS"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".841"
+          },
+          {
+            "id": 543760,
+            "fullName": "Marcus Semien",
+            "position": "2B",
+            "battingOrder": "300",
+            "atBats": 5,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".231",
+            "lastName": "Semien",
+            "positions": [
+              "2B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".673"
+          },
+          {
+            "id": 666969,
+            "fullName": "Adolis García",
+            "position": "RF",
+            "battingOrder": "400",
+            "atBats": 5,
+            "runs": 1,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 2,
+            "avg": ".222",
+            "lastName": "García",
+            "positions": [
+              "RF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".651"
+          },
+          {
+            "id": 592626,
+            "fullName": "Joc Pederson",
+            "position": "DH",
+            "battingOrder": "500",
+            "atBats": 5,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".129",
+            "lastName": "Pederson",
+            "positions": [
+              "DH"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".485"
+          },
+          {
+            "id": 664059,
+            "fullName": "Sam Haggerty",
+            "position": "LF",
+            "battingOrder": "501",
+            "atBats": 0,
+            "runs": 1,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".259",
+            "lastName": "Haggerty",
+            "positions": [
+              "PR",
+              "LF"
+            ],
+            "note": "2-",
+            "isSubstitute": true,
+            "ops": ".723"
+          },
+          {
+            "id": 694671,
+            "fullName": "Wyatt Langford",
+            "position": "CF",
+            "battingOrder": "600",
+            "atBats": 5,
+            "runs": 0,
+            "hits": 2,
+            "rbi": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".242",
+            "lastName": "Langford",
+            "positions": [
+              "CF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".738"
+          },
+          {
+            "id": 642133,
+            "fullName": "Rowdy Tellez",
+            "position": "1B",
+            "battingOrder": "700",
+            "atBats": 4,
+            "runs": 1,
+            "hits": 2,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".221",
+            "lastName": "Tellez",
+            "positions": [
+              "1B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".708"
+          },
+          {
+            "id": 677649,
+            "fullName": "Ezequiel Duran",
+            "position": "1B",
+            "battingOrder": "701",
+            "atBats": 1,
+            "runs": 1,
+            "hits": 1,
+            "rbi": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".156",
+            "lastName": "Duran",
+            "positions": [
+              "PR",
+              "1B"
+            ],
+            "note": "1-",
+            "isSubstitute": true,
+            "ops": ".444"
+          },
+          {
+            "id": 543309,
+            "fullName": "Kyle Higashioka",
+            "position": "C",
+            "battingOrder": "800",
+            "atBats": 4,
+            "runs": 2,
+            "hits": 2,
+            "rbi": 3,
+            "baseOnBalls": 1,
+            "strikeOuts": 1,
+            "avg": ".269",
+            "lastName": "Higashioka",
+            "positions": [
+              "C"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".747"
+          },
+          {
+            "id": 696030,
+            "fullName": "Alejandro Osuna",
+            "position": "LF",
+            "battingOrder": "900",
+            "atBats": 2,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 1,
+            "strikeOuts": 0,
+            "avg": ".174",
+            "lastName": "Osuna",
+            "positions": [
+              "LF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".546"
+          },
+          {
+            "id": 641680,
+            "fullName": "Jonah Heim",
+            "position": "PH",
+            "battingOrder": "901",
+            "atBats": 1,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".217",
+            "lastName": "Heim",
+            "positions": [
+              "PH"
+            ],
+            "note": "a-",
+            "isSubstitute": true,
+            "ops": ".611"
+          },
+          {
+            "id": 681168,
+            "fullName": "Luis Curvelo",
+            "position": "P",
+            "battingOrder": "902",
+            "atBats": 0,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".000",
+            "lastName": "Curvelo",
+            "positions": [
+              "P"
+            ],
+            "note": null,
+            "isSubstitute": true,
+            "ops": ".000"
+          }
+        ],
+        "pitching": [
+          {
+            "id": 518876,
+            "fullName": "Merrill Kelly",
+            "lastInitName": "Kelly, M",
+            "inningsPitched": "5.2",
+            "hits": 4,
+            "runs": 2,
+            "earnedRuns": 2,
+            "baseOnBalls": 0,
+            "strikeOuts": 6,
+            "homeRuns": 0,
+            "battersFaced": 22,
+            "era": "3.22",
+            "whip": "1.04"
+          },
+          {
+            "id": 542888,
+            "fullName": "Shawn Armstrong",
+            "lastInitName": "Armstrong, S",
+            "inningsPitched": "0.1",
+            "hits": 0,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "homeRuns": 0,
+            "battersFaced": 1,
+            "era": "2.92",
+            "whip": "0.85"
+          },
+          {
+            "id": 543056,
+            "fullName": "Danny Coulombe",
+            "lastInitName": "Coulombe, D",
+            "inningsPitched": "1.0",
+            "hits": 1,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 2,
+            "strikeOuts": 2,
+            "homeRuns": 0,
+            "battersFaced": 6,
+            "era": "1.09",
+            "whip": "1.00"
+          },
+          {
+            "id": 664208,
+            "fullName": "Phil Maton",
+            "lastInitName": "Maton, P",
+            "inningsPitched": "1.0",
+            "hits": 0,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "homeRuns": 0,
+            "battersFaced": 3,
+            "era": "2.23",
+            "whip": "1.09"
+          },
+          {
+            "id": 668390,
+            "fullName": "Cole Winn",
+            "lastInitName": "Winn, C",
+            "inningsPitched": "1.0",
+            "hits": 0,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 1,
+            "strikeOuts": 1,
+            "homeRuns": 0,
+            "battersFaced": 4,
+            "era": "1.29",
+            "whip": "1.10"
+          },
+          {
+            "id": 676395,
+            "fullName": "Robert Garcia",
+            "lastInitName": "Garcia, R",
+            "inningsPitched": "0.2",
+            "hits": 2,
+            "runs": 2,
+            "earnedRuns": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "homeRuns": 1,
+            "battersFaced": 4,
+            "era": "3.21",
+            "whip": "1.29"
+          },
+          {
+            "id": 681168,
+            "fullName": "Luis Curvelo",
+            "lastInitName": "Curvelo, L",
+            "inningsPitched": "1.1",
+            "hits": 0,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "homeRuns": 0,
+            "battersFaced": 4,
+            "era": "0.00",
+            "whip": "0.30"
+          }
+        ],
+        "details": [
+          {
+            "title": "BATTING",
+            "lines": [
+              {
+                "label": "2B",
+                "value": "Tellez (8, Castillo, L); Langford (16, Muñoz, A)."
+              },
+              {
+                "label": "HR",
+                "value": "Higashioka (7, 3rd inning off Castillo, L, 1 on, 0 out)."
+              },
+              {
+                "label": "TB",
+                "value": "Duran, E; Higashioka 5; Langford 3; Osuna, A; Pederson; Seager; Semien; Tellez 3."
+              },
+              {
+                "label": "RBI",
+                "value": "Duran, E (7); Higashioka 3 (30); Langford (44); Semien (55)."
+              },
+              {
+                "label": "Runners left in scoring position, 2 out",
+                "value": "García, Ad 3; Higashioka; Tellez; Smith 2."
+              },
+              {
+                "label": "SAC",
+                "value": "Smith."
+              },
+              {
+                "label": "GIDP",
+                "value": "Seager."
+              },
+              {
+                "label": "Team RISP",
+                "value": "4-for-13."
+              },
+              {
+                "label": "Team LOB",
+                "value": "9."
+              }
+            ]
+          },
+          {
+            "title": "BASERUNNING",
+            "lines": [
+              {
+                "label": "SB",
+                "value": "Duran, E (5, 2nd base off Ferguson, C/Garver)."
+              }
+            ]
+          },
+          {
+            "title": "FIELDING",
+            "lines": [
+              {
+                "label": "E",
+                "value": "Kelly, Me (3, throw)."
+              }
+            ]
+          }
+        ],
+        "notes": [
+          {
+            "label": "a",
+            "value": "Struck out for Osuna, A in the 11th."
+          },
+          {
+            "label": "1",
+            "value": "Ran for Tellez in the 10th."
+          },
+          {
+            "label": "2",
+            "value": "Ran for Pederson in the 11th."
+          }
+        ]
+      },
+      "home": {
+        "batting": [
+          {
+            "id": 668227,
+            "fullName": "Randy Arozarena",
+            "position": "LF",
+            "battingOrder": "100",
+            "atBats": 5,
+            "runs": 2,
+            "hits": 2,
+            "rbi": 2,
+            "baseOnBalls": 0,
+            "strikeOuts": 2,
+            "avg": ".249",
+            "lastName": "Arozarena",
+            "positions": [
+              "LF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".822"
+          },
+          {
+            "id": 663728,
+            "fullName": "Cal Raleigh",
+            "position": "DH",
+            "battingOrder": "200",
+            "atBats": 5,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 5,
+            "avg": ".254",
+            "lastName": "Raleigh",
+            "positions": [
+              "DH"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".962"
+          },
+          {
+            "id": 677594,
+            "fullName": "Julio Rodríguez",
+            "position": "CF",
+            "battingOrder": "300",
+            "atBats": 5,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".250",
+            "lastName": "Rodríguez",
+            "positions": [
+              "CF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".734"
+          },
+          {
+            "id": 647304,
+            "fullName": "Josh Naylor",
+            "position": "1B",
+            "battingOrder": "400",
+            "atBats": 5,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".287",
+            "lastName": "Naylor",
+            "positions": [
+              "1B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".793"
+          },
+          {
+            "id": 553993,
+            "fullName": "Eugenio Suárez",
+            "position": "3B",
+            "battingOrder": "500",
+            "atBats": 5,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 3,
+            "avg": ".245",
+            "lastName": "Suárez",
+            "positions": [
+              "3B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".881"
+          },
+          {
+            "id": 686527,
+            "fullName": "Dominic Canzone",
+            "position": "RF",
+            "battingOrder": "600",
+            "atBats": 3,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".292",
+            "lastName": "Canzone",
+            "positions": [
+              "RF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".814"
+          },
+          {
+            "id": 664238,
+            "fullName": "Dylan Moore",
+            "position": "RF",
+            "battingOrder": "601",
+            "atBats": 0,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".197",
+            "lastName": "Moore",
+            "positions": [
+              "PR",
+              "RF"
+            ],
+            "note": "1-",
+            "isSubstitute": true,
+            "ops": ".628"
+          },
+          {
+            "id": 593871,
+            "fullName": "Jorge Polanco",
+            "position": "PH",
+            "battingOrder": "602",
+            "atBats": 0,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 1,
+            "strikeOuts": 0,
+            "avg": ".253",
+            "lastName": "Polanco",
+            "positions": [
+              "PH"
+            ],
+            "note": "a-",
+            "isSubstitute": true,
+            "ops": ".782"
+          },
+          {
+            "id": 670156,
+            "fullName": "Miles Mastrobuoni",
+            "position": "RF",
+            "battingOrder": "603",
+            "atBats": 1,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".250",
+            "lastName": "Mastrobuoni",
+            "positions": [
+              "PR",
+              "RF"
+            ],
+            "note": "2-",
+            "isSubstitute": true,
+            "ops": ".616"
+          },
+          {
+            "id": 641598,
+            "fullName": "Mitch Garver",
+            "position": "C",
+            "battingOrder": "700",
+            "atBats": 4,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 1,
+            "strikeOuts": 2,
+            "avg": ".217",
+            "lastName": "Garver",
+            "positions": [
+              "C"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".644"
+          },
+          {
+            "id": 641487,
+            "fullName": "J.P. Crawford",
+            "position": "SS",
+            "battingOrder": "800",
+            "atBats": 4,
+            "runs": 1,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".265",
+            "lastName": "Crawford",
+            "positions": [
+              "SS"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".723"
+          },
+          {
+            "id": 702284,
+            "fullName": "Cole Young",
+            "position": "2B",
+            "battingOrder": "900",
+            "atBats": 3,
+            "runs": 1,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 1,
+            "strikeOuts": 0,
+            "avg": ".247",
+            "lastName": "Young",
+            "positions": [
+              "2B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".674"
+          }
+        ],
+        "pitching": [
+          {
+            "id": 622491,
+            "fullName": "Luis Castillo",
+            "lastInitName": "Castillo, L",
+            "inningsPitched": "4.1",
+            "hits": 4,
+            "runs": 2,
+            "earnedRuns": 2,
+            "baseOnBalls": 1,
+            "strikeOuts": 4,
+            "homeRuns": 1,
+            "battersFaced": 19,
+            "era": "3.22",
+            "whip": "1.21"
+          },
+          {
+            "id": 672841,
+            "fullName": "Carlos Vargas",
+            "lastInitName": "Vargas, C",
+            "inningsPitched": "1.2",
+            "hits": 1,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "homeRuns": 0,
+            "battersFaced": 4,
+            "era": "3.66",
+            "whip": "1.41"
+          },
+          {
+            "id": 660825,
+            "fullName": "Eduard Bazardo",
+            "lastInitName": "Bazardo, E",
+            "inningsPitched": "1.0",
+            "hits": 0,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 1,
+            "strikeOuts": 1,
+            "homeRuns": 0,
+            "battersFaced": 4,
+            "era": "2.56",
+            "whip": "1.05"
+          },
+          {
+            "id": 642100,
+            "fullName": "Gabe Speier",
+            "lastInitName": "Speier, G",
+            "inningsPitched": "1.0",
+            "hits": 0,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "homeRuns": 0,
+            "battersFaced": 3,
+            "era": "2.34",
+            "whip": "0.94"
+          },
+          {
+            "id": 662253,
+            "fullName": "Andrés Muñoz",
+            "lastInitName": "Muñoz, A",
+            "inningsPitched": "1.0",
+            "hits": 1,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "homeRuns": 0,
+            "battersFaced": 4,
+            "era": "1.29",
+            "whip": "0.93"
+          },
+          {
+            "id": 666374,
+            "fullName": "Matt Brash",
+            "lastInitName": "Brash, M",
+            "inningsPitched": "1.0",
+            "hits": 2,
+            "runs": 2,
+            "earnedRuns": 1,
+            "baseOnBalls": 1,
+            "strikeOuts": 1,
+            "homeRuns": 0,
+            "battersFaced": 6,
+            "era": "1.29",
+            "whip": "1.14"
+          },
+          {
+            "id": 668984,
+            "fullName": "Casey Legumina",
+            "lastInitName": "Legumina, C",
+            "inningsPitched": "0.1",
+            "hits": 3,
+            "runs": 2,
+            "earnedRuns": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "homeRuns": 0,
+            "battersFaced": 4,
+            "era": "5.44",
+            "whip": "1.38"
+          },
+          {
+            "id": 657571,
+            "fullName": "Caleb Ferguson",
+            "lastInitName": "Ferguson, C",
+            "inningsPitched": "0.2",
+            "hits": 0,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "homeRuns": 0,
+            "battersFaced": 2,
+            "era": "3.60",
+            "whip": "1.04"
+          }
+        ],
+        "details": [
+          {
+            "title": "BATTING",
+            "lines": [
+              {
+                "label": "2B",
+                "value": "Crawford, J (17, Kelly, Me); Rodríguez, J (19, Kelly, Me)."
+              },
+              {
+                "label": "HR",
+                "value": "Arozarena (22, 10th inning off Garcia, R, 1 on, 0 out)."
+              },
+              {
+                "label": "TB",
+                "value": "Arozarena 5; Canzone; Crawford, J 2; Naylor, J; Rodríguez, J 2; Young."
+              },
+              {
+                "label": "RBI",
+                "value": "Arozarena 2 (55); Rodríguez, J (57)."
+              },
+              {
+                "label": "2-out RBI",
+                "value": "Rodríguez, J."
+              },
+              {
+                "label": "Runners left in scoring position, 2 out",
+                "value": "Naylor, J; Suárez, E 2; Crawford, J; Raleigh 2."
+              },
+              {
+                "label": "SAC",
+                "value": "Crawford, J."
+              },
+              {
+                "label": "Team RISP",
+                "value": "3-for-12."
+              },
+              {
+                "label": "Team LOB",
+                "value": "9."
+              }
+            ]
+          },
+          {
+            "title": "BASERUNNING",
+            "lines": [
+              {
+                "label": "SB",
+                "value": "Naylor, J (17, 2nd base off Armstrong/Higashioka); Moore, D (12, 2nd base off Coulombe/Higashioka)."
+              }
+            ]
+          },
+          {
+            "title": "FIELDING",
+            "lines": [
+              {
+                "label": "Outfield assists",
+                "value": "Canzone (Semien at 2nd base)."
+              },
+              {
+                "label": "DP",
+                "value": "(Young-Crawford, J-Naylor, J)."
+              }
+            ]
+          }
+        ],
+        "notes": [
+          {
+            "label": "a",
+            "value": "Walked for Moore, D in the 9th."
+          },
+          {
+            "label": "1",
+            "value": "Ran for Canzone in the 7th."
+          },
+          {
+            "label": "2",
+            "value": "Ran for Polanco in the 9th."
+          }
+        ]
+      }
+    },
+    "info": [
+      {
+        "label": "Balk",
+        "value": "Kelly, Me."
+      },
+      {
+        "label": "Disengagement violations",
+        "value": "Kelly, Me."
+      },
+      {
+        "label": "IBB",
+        "value": "Seager (by Brash)."
+      },
+      {
+        "label": "HBP",
+        "value": "Osuna, A (by Castillo, L)."
+      },
+      {
+        "label": "Pitches-strikes",
+        "value": "Kelly, Me 69-48; Armstrong 6-4; Coulombe 23-11; Maton, P 15-8; Winn, C 17-11; Garcia, R 17-8; Curvelo 17-11; Castillo, L 87-51; Vargas 15-9; Bazardo 18-8; Speier 8-5; Muñoz, A 15-10; Brash 23-16; Legumina 12-9; Ferguson, C 7-4."
+      },
+      {
+        "label": "Groundouts-flyouts",
+        "value": "Kelly, Me 5-3; Armstrong 0-0; Coulombe 1-0; Maton, P 1-0; Winn, C 0-1; Garcia, R 1-0; Curvelo 0-2; Castillo, L 3-4; Vargas 1-2; Bazardo 0-0; Speier 1-1; Muñoz, A 2-1; Brash 2-0; Legumina 0-0; Ferguson, C 1-0."
+      },
+      {
+        "label": "Batters faced",
+        "value": "Kelly, Me 22; Armstrong 1; Coulombe 6; Maton, P 3; Winn, C 4; Garcia, R 4; Curvelo 4; Castillo, L 19; Vargas 4; Bazardo 4; Speier 3; Muñoz, A 4; Brash 6; Legumina 4; Ferguson, C 2."
+      },
+      {
+        "label": "Inherited runners-scored",
+        "value": "Armstrong 2-0; Curvelo 1-0; Vargas 1-0; Ferguson, C 2-0."
+      },
+      {
+        "label": "Umpires",
+        "value": "HP: James Jean. 1B: John Libka. 2B: Sean Barber. 3B: James Hoye. "
+      },
+      {
+        "label": "Weather",
+        "value": "67 degrees, Cloudy."
+      },
+      {
+        "label": "Wind",
+        "value": "3 mph, In From LF."
+      },
+      {
+        "label": "First pitch",
+        "value": "1:10 PM."
+      },
+      {
+        "label": "T",
+        "value": "3:21."
+      },
+      {
+        "label": "Att",
+        "value": "37,226."
+      },
+      {
+        "label": "Venue",
+        "value": "T-Mobile Park."
+      },
+      {
+        "label": "August 2, 2025",
+        "value": ""
+      }
+    ]
+  },
+  "live": null,
+  "recap": {
+    "headline": "Kelly's Rangers debut -- 'brain cramps' and all -- an overall success",
+    "text": "SEATTLE -- T-Mobile Park is the Rangers’ House of Horrors.\n\nComing into this weekend’s four-game set, the Rangers were 1-9 at the Mariners’ home stadium since the start of 2024. Texas was just 8-35 (.186) over its last 43 games at this venue (since the start of 2020), the lowest win percentage for any team at a single ballpark in that span (minimum of 20 games).\n\n“I said today, ‘Oh my goodness, what is going on here [in Seattle]?’” manager Bruce Bochy joked. “The guys found a way. They showed a lot of internal fortitude through some of the hits they've taken, and they did that today.”\n\nWhatever spell this ballpark has had on the Rangers has been never-ending, so much so that it’s even affected the newest member of the club, even as Texas finished off a back-and-forth affair to win its first game in Seattle this season, 6-4, in 11 innings.\n\nThe Rangers acquired Merrill Kelly from the Diamondbacks for a trio of pitching prospects at Thursday’s Trade Deadline. The right-hander had a 3.22 ERA through 22 starts with Arizona this season, with 121 strikeouts, 38 walks and a 1.06 WHIP over 128 2/3 innings.\n\nKelly arrived at T-Mobile Park just before game time on Friday night and left before the Mariners walked it off in the 10th in preparation for his Rangers debut on Saturday afternoon. He cruised through the first five innings, allowing just one infield hit, before Texas’ curse of T-Mobile Park came upon him.\n\n“He was really good,” Bochy said. “He was pitching very efficiently. The last inning, he made some mistakes there, I think he'll tell you that. But he had really good command, good stuff. I mean, just a solid job by him.”\n\nIn the bottom of the sixth, with Texas up 2-0, Kelly allowed a J.P. Crawford double and a Cole Young single to put runners at the corners with one out. Then, both runners advanced on a disengagement violation by Kelly, allowing the first run to score.\n\nJust seconds after he allowed the tying run to score on a Julio Rodríguez double, Kelly recorded a throwing error on a groundout that would have ended the inning. He threw to third, trying to catch the lead runner, instead of first to end the frame.\n\nThat error ended Kelly's afternoon with two outs in the sixth inning. Shawn Armstrong would get out of the jam by striking out Eugenio Suárez, keeping Kelly's earned-run count at two for his debut.\n\nBochy attributed Kelly’s struggles in the sixth to “brain cramps,” which the right-hander laughed at before agreeing.\n\n“That's a good way to put it,” Kelly said. “I would call it just a brain fart, a brain cramp, whatever you want to call it. I just think the game sped up on me a little bit. I'm not really sure why. I stepped off there to hear the pitch, and I didn't really realize that was [the] second disengagement. That was the first brain cramp. And then I literally just forgot how many outs there were. So that was the second brain cramp.”\n\nKelly credited catcher Kyle Higashioka -- who caught his bullpen sessions during the 2023 World Baseball Classic -- for his game-calling, which allowed him to be so efficient throughout the first five innings.\n\nAnd despite the struggles at the end, it was a solid debut for the newest Ranger, who joined a rotation that has an MLB-best 3.19 ERA.\n\nKelly had spent his entire big league career with the Diamondbacks and said he thought he would end his career there as well. Once Arizona didn’t get off to a great start this season, the writing was on the wall.\n\n“It's just the nature of the beast,” Kelly said. “I'm obviously happy to be here. I'm happy to be with a team who's in a good spot and making a playoff push and playing competitive baseball for the rest of the year. … It means a lot. So I'm honored to be a person who's wanted, right?\n\n\"It's always good to go to a team who wants you there, and just to be in the rotation. It is definitely an honor to be with names like Jacob deGrom and Nate Eovaldi and all those guys. It's pretty fun, and I'm looking forward to the rest of the year.”"
+  },
+  "playMetrics": {
+    "atBats": [
+      {
+        "atBatIndex": 0,
+        "homeWinProbability": 52.2,
+        "awayWinProbability": 47.8,
+        "homeWinProbabilityAdded": 2.200000000000003,
+        "awayWinProbabilityAdded": -2.200000000000003,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 1,
+        "homeWinProbability": 53.800000000000004,
+        "awayWinProbability": 46.199999999999996,
+        "homeWinProbabilityAdded": 1.6000000000000014,
+        "awayWinProbabilityAdded": -1.6000000000000014,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 83.2,
+          "launchAngle": 55,
+          "totalDistance": 214
+        }
+      },
+      {
+        "atBatIndex": 2,
+        "homeWinProbability": 54.800000000000004,
+        "awayWinProbability": 45.199999999999996,
+        "homeWinProbabilityAdded": 1,
+        "awayWinProbabilityAdded": -1,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 74.9,
+          "launchAngle": -39,
+          "totalDistance": 3
+        }
+      },
+      {
+        "atBatIndex": 3,
+        "homeWinProbability": 52.6,
+        "awayWinProbability": 47.4,
+        "homeWinProbabilityAdded": -2.200000000000003,
+        "awayWinProbabilityAdded": 2.200000000000003,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 4,
+        "homeWinProbability": 51,
+        "awayWinProbability": 49,
+        "homeWinProbabilityAdded": -1.6000000000000014,
+        "awayWinProbabilityAdded": 1.6000000000000014,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 5,
+        "homeWinProbability": 50,
+        "awayWinProbability": 50,
+        "homeWinProbabilityAdded": -1,
+        "awayWinProbabilityAdded": 1,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 90.5,
+          "launchAngle": 31,
+          "totalDistance": 314
+        }
+      },
+      {
+        "atBatIndex": 6,
+        "homeWinProbability": 52.300000000000004,
+        "awayWinProbability": 47.699999999999996,
+        "homeWinProbabilityAdded": 2.3000000000000043,
+        "awayWinProbabilityAdded": -2.3000000000000043,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 97.7,
+          "launchAngle": -6,
+          "totalDistance": 26
+        }
+      },
+      {
+        "atBatIndex": 7,
+        "homeWinProbability": 54,
+        "awayWinProbability": 46,
+        "homeWinProbabilityAdded": 1.6999999999999957,
+        "awayWinProbabilityAdded": -1.6999999999999957,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 8,
+        "homeWinProbability": 55.1,
+        "awayWinProbability": 44.9,
+        "homeWinProbabilityAdded": 1.1000000000000014,
+        "awayWinProbabilityAdded": -1.1000000000000014,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 9,
+        "homeWinProbability": 52.800000000000004,
+        "awayWinProbability": 47.199999999999996,
+        "homeWinProbabilityAdded": -2.299999999999997,
+        "awayWinProbabilityAdded": 2.299999999999997,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 99.8,
+          "launchAngle": 32,
+          "totalDistance": 372
+        }
+      },
+      {
+        "atBatIndex": 10,
+        "homeWinProbability": 51.1,
+        "awayWinProbability": 48.9,
+        "homeWinProbabilityAdded": -1.7000000000000028,
+        "awayWinProbabilityAdded": 1.7000000000000028,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 86.5,
+          "launchAngle": 64,
+          "totalDistance": 169
+        }
+      },
+      {
+        "atBatIndex": 11,
+        "homeWinProbability": 50,
+        "awayWinProbability": 50,
+        "homeWinProbabilityAdded": -1.1000000000000014,
+        "awayWinProbabilityAdded": 1.1000000000000014,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 99.8,
+          "launchAngle": 16,
+          "totalDistance": 284
+        }
+      },
+      {
+        "atBatIndex": 12,
+        "homeWinProbability": 45.9,
+        "awayWinProbability": 54.1,
+        "homeWinProbabilityAdded": -4.100000000000001,
+        "awayWinProbabilityAdded": 4.100000000000001,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 96.6,
+          "launchAngle": -10,
+          "totalDistance": 8
+        }
+      },
+      {
+        "atBatIndex": 13,
+        "homeWinProbability": 28.799999999999997,
+        "awayWinProbability": 71.2,
+        "homeWinProbabilityAdded": -17.1,
+        "awayWinProbabilityAdded": 17.1,
+        "keyMoment": true,
+        "leadChange": true,
+        "scoring": true,
+        "homeRun": true,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 99.5,
+          "launchAngle": 34,
+          "totalDistance": 381
+        }
+      },
+      {
+        "atBatIndex": 14,
+        "homeWinProbability": 26,
+        "awayWinProbability": 74,
+        "homeWinProbabilityAdded": -2.799999999999997,
+        "awayWinProbabilityAdded": 2.799999999999997,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 15,
+        "homeWinProbability": 28.7,
+        "awayWinProbability": 71.3,
+        "homeWinProbabilityAdded": 2.6999999999999993,
+        "awayWinProbabilityAdded": -2.6999999999999993,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 84,
+          "launchAngle": 58,
+          "totalDistance": 188
+        }
+      },
+      {
+        "atBatIndex": 16,
+        "homeWinProbability": 23.5,
+        "awayWinProbability": 76.5,
+        "homeWinProbabilityAdded": -5.199999999999999,
+        "awayWinProbabilityAdded": 5.199999999999999,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 87.2,
+          "launchAngle": 15,
+          "totalDistance": 205
+        }
+      },
+      {
+        "atBatIndex": 17,
+        "homeWinProbability": 28.799999999999997,
+        "awayWinProbability": 71.2,
+        "homeWinProbabilityAdded": 5.299999999999997,
+        "awayWinProbabilityAdded": -5.299999999999997,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 101.5,
+          "launchAngle": 7,
+          "totalDistance": 161
+        }
+      },
+      {
+        "atBatIndex": 18,
+        "homeWinProbability": 32.800000000000004,
+        "awayWinProbability": 67.19999999999999,
+        "homeWinProbabilityAdded": 4.000000000000007,
+        "awayWinProbabilityAdded": -4.000000000000007,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 19,
+        "homeWinProbability": 30.099999999999998,
+        "awayWinProbability": 69.9,
+        "homeWinProbabilityAdded": -2.7000000000000064,
+        "awayWinProbabilityAdded": 2.7000000000000064,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 20,
+        "homeWinProbability": 28.199999999999996,
+        "awayWinProbability": 71.80000000000001,
+        "homeWinProbabilityAdded": -1.9000000000000021,
+        "awayWinProbabilityAdded": 1.9000000000000021,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 99.5,
+          "launchAngle": 22,
+          "totalDistance": 373
+        }
+      },
+      {
+        "atBatIndex": 21,
+        "homeWinProbability": 29.7,
+        "awayWinProbability": 70.3,
+        "homeWinProbabilityAdded": 1.5000000000000036,
+        "awayWinProbabilityAdded": -1.5000000000000036,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 78.9,
+          "launchAngle": -34,
+          "totalDistance": 4
+        }
+      },
+      {
+        "atBatIndex": 22,
+        "homeWinProbability": 27.1,
+        "awayWinProbability": 72.9,
+        "homeWinProbabilityAdded": -2.599999999999998,
+        "awayWinProbabilityAdded": 2.599999999999998,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 92.2,
+          "launchAngle": -16,
+          "totalDistance": 8
+        }
+      },
+      {
+        "atBatIndex": 23,
+        "homeWinProbability": 28.9,
+        "awayWinProbability": 71.1,
+        "homeWinProbabilityAdded": 1.7999999999999972,
+        "awayWinProbabilityAdded": -1.7999999999999972,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 93.7,
+          "launchAngle": 71,
+          "totalDistance": 122
+        }
+      },
+      {
+        "atBatIndex": 24,
+        "homeWinProbability": 30.2,
+        "awayWinProbability": 69.8,
+        "homeWinProbabilityAdded": 1.3000000000000007,
+        "awayWinProbabilityAdded": -1.3000000000000007,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 107.8,
+          "launchAngle": 5,
+          "totalDistance": 112
+        }
+      },
+      {
+        "atBatIndex": 25,
+        "homeWinProbability": 28.299999999999997,
+        "awayWinProbability": 71.7,
+        "homeWinProbabilityAdded": -1.9000000000000021,
+        "awayWinProbabilityAdded": 1.9000000000000021,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 106.7,
+          "launchAngle": 20,
+          "totalDistance": 400
+        }
+      },
+      {
+        "atBatIndex": 26,
+        "homeWinProbability": 31.1,
+        "awayWinProbability": 68.9,
+        "homeWinProbabilityAdded": 2.8000000000000043,
+        "awayWinProbabilityAdded": -2.8000000000000043,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 92.6,
+          "launchAngle": 38,
+          "totalDistance": 304
+        }
+      },
+      {
+        "atBatIndex": 27,
+        "homeWinProbability": 28.199999999999996,
+        "awayWinProbability": 71.80000000000001,
+        "homeWinProbabilityAdded": -2.9000000000000057,
+        "awayWinProbabilityAdded": 2.9000000000000057,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 28,
+        "homeWinProbability": 26.200000000000003,
+        "awayWinProbability": 73.8,
+        "homeWinProbabilityAdded": -1.999999999999993,
+        "awayWinProbabilityAdded": 1.999999999999993,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 29,
+        "homeWinProbability": 24.9,
+        "awayWinProbability": 75.1,
+        "homeWinProbabilityAdded": -1.3000000000000043,
+        "awayWinProbabilityAdded": 1.3000000000000043,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 80.1,
+          "launchAngle": 2,
+          "totalDistance": 48
+        }
+      },
+      {
+        "atBatIndex": 30,
+        "homeWinProbability": 22.2,
+        "awayWinProbability": 77.8,
+        "homeWinProbabilityAdded": -2.6999999999999993,
+        "awayWinProbabilityAdded": 2.6999999999999993,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 31,
+        "homeWinProbability": 24.7,
+        "awayWinProbability": 75.3,
+        "homeWinProbabilityAdded": 2.5,
+        "awayWinProbabilityAdded": -2.5,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 94.1,
+          "launchAngle": 30,
+          "totalDistance": 361
+        }
+      },
+      {
+        "atBatIndex": 32,
+        "homeWinProbability": 28.9,
+        "awayWinProbability": 71.1,
+        "homeWinProbabilityAdded": 4.199999999999999,
+        "awayWinProbabilityAdded": -4.199999999999999,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 106.2,
+          "launchAngle": -12,
+          "totalDistance": 12
+        }
+      },
+      {
+        "atBatIndex": 33,
+        "homeWinProbability": 25.7,
+        "awayWinProbability": 74.3,
+        "homeWinProbabilityAdded": -3.1999999999999993,
+        "awayWinProbabilityAdded": 3.1999999999999993,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 34,
+        "homeWinProbability": 23.5,
+        "awayWinProbability": 76.5,
+        "homeWinProbabilityAdded": -2.1999999999999993,
+        "awayWinProbabilityAdded": 2.1999999999999993,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 73.1,
+          "launchAngle": -30,
+          "totalDistance": 4
+        }
+      },
+      {
+        "atBatIndex": 35,
+        "homeWinProbability": 22.1,
+        "awayWinProbability": 77.9,
+        "homeWinProbabilityAdded": -1.3999999999999986,
+        "awayWinProbabilityAdded": 1.3999999999999986,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 76.4,
+          "launchAngle": 30,
+          "totalDistance": 267
+        }
+      },
+      {
+        "atBatIndex": 36,
+        "homeWinProbability": 23.799999999999997,
+        "awayWinProbability": 76.2,
+        "homeWinProbabilityAdded": 1.6999999999999957,
+        "awayWinProbabilityAdded": -1.6999999999999957,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 86.3,
+          "launchAngle": 59,
+          "totalDistance": 188
+        }
+      },
+      {
+        "atBatIndex": 37,
+        "homeWinProbability": 25.1,
+        "awayWinProbability": 74.9,
+        "homeWinProbabilityAdded": 1.3000000000000043,
+        "awayWinProbabilityAdded": -1.3000000000000043,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 103.1,
+          "launchAngle": 44,
+          "totalDistance": 336
+        }
+      },
+      {
+        "atBatIndex": 38,
+        "homeWinProbability": 26,
+        "awayWinProbability": 74,
+        "homeWinProbabilityAdded": 0.8999999999999986,
+        "awayWinProbabilityAdded": -0.8999999999999986,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 60.4,
+          "launchAngle": 30,
+          "totalDistance": 188
+        }
+      },
+      {
+        "atBatIndex": 39,
+        "homeWinProbability": 35.199999999999996,
+        "awayWinProbability": 64.80000000000001,
+        "homeWinProbabilityAdded": 9.199999999999996,
+        "awayWinProbabilityAdded": -9.199999999999996,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 90.5,
+          "launchAngle": 29,
+          "totalDistance": 311
+        }
+      },
+      {
+        "atBatIndex": 40,
+        "homeWinProbability": 28.7,
+        "awayWinProbability": 71.3,
+        "homeWinProbabilityAdded": -6.4999999999999964,
+        "awayWinProbabilityAdded": 6.4999999999999964,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 92.3,
+          "launchAngle": 36,
+          "totalDistance": 336
+        }
+      },
+      {
+        "atBatIndex": 41,
+        "homeWinProbability": 36.199999999999996,
+        "awayWinProbability": 63.800000000000004,
+        "homeWinProbabilityAdded": 7.4999999999999964,
+        "awayWinProbabilityAdded": -7.4999999999999964,
+        "keyMoment": true,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 108.7,
+          "launchAngle": 7,
+          "totalDistance": 139
+        }
+      },
+      {
+        "atBatIndex": 42,
+        "homeWinProbability": 36.8,
+        "awayWinProbability": 63.2,
+        "homeWinProbabilityAdded": -6.400000000000006,
+        "awayWinProbabilityAdded": 6.400000000000006,
+        "keyMoment": true,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 43,
+        "homeWinProbability": 55.400000000000006,
+        "awayWinProbability": 44.599999999999994,
+        "homeWinProbabilityAdded": 18.60000000000001,
+        "awayWinProbabilityAdded": -18.60000000000001,
+        "keyMoment": true,
+        "leadChange": true,
+        "scoring": true,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 108.6,
+          "launchAngle": 10,
+          "totalDistance": 266
+        }
+      },
+      {
+        "atBatIndex": 44,
+        "homeWinProbability": 57.49999999999999,
+        "awayWinProbability": 42.50000000000001,
+        "homeWinProbabilityAdded": 2.099999999999987,
+        "awayWinProbabilityAdded": -2.099999999999987,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 58.8,
+          "launchAngle": -57,
+          "totalDistance": 3
+        }
+      },
+      {
+        "atBatIndex": 45,
+        "homeWinProbability": 50,
+        "awayWinProbability": 50,
+        "homeWinProbabilityAdded": -8.5,
+        "awayWinProbabilityAdded": 8.5,
+        "keyMoment": true,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 46,
+        "homeWinProbability": 53.900000000000006,
+        "awayWinProbability": 46.099999999999994,
+        "homeWinProbabilityAdded": 3.9000000000000057,
+        "awayWinProbabilityAdded": -3.9000000000000057,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 108.1,
+          "launchAngle": 21,
+          "totalDistance": 407
+        }
+      },
+      {
+        "atBatIndex": 47,
+        "homeWinProbability": 56.8,
+        "awayWinProbability": 43.2,
+        "homeWinProbabilityAdded": 2.8999999999999915,
+        "awayWinProbabilityAdded": -2.8999999999999915,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 48,
+        "homeWinProbability": 54.7,
+        "awayWinProbability": 45.3,
+        "homeWinProbabilityAdded": -2.0999999999999943,
+        "awayWinProbabilityAdded": 2.0999999999999943,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 49,
+        "homeWinProbability": 58.8,
+        "awayWinProbability": 41.2,
+        "homeWinProbabilityAdded": 4.099999999999994,
+        "awayWinProbabilityAdded": -4.099999999999994,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 107.4,
+          "launchAngle": 17,
+          "totalDistance": 349
+        }
+      },
+      {
+        "atBatIndex": 50,
+        "homeWinProbability": 64.4,
+        "awayWinProbability": 35.599999999999994,
+        "homeWinProbabilityAdded": 5.6000000000000085,
+        "awayWinProbabilityAdded": -5.6000000000000085,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 79.8,
+          "launchAngle": 23,
+          "totalDistance": 253
+        }
+      },
+      {
+        "atBatIndex": 51,
+        "homeWinProbability": 72.3,
+        "awayWinProbability": 27.700000000000003,
+        "homeWinProbabilityAdded": 2.799999999999997,
+        "awayWinProbabilityAdded": -2.799999999999997,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 52,
+        "homeWinProbability": 73.2,
+        "awayWinProbability": 26.799999999999997,
+        "homeWinProbabilityAdded": 0.9000000000000057,
+        "awayWinProbabilityAdded": -0.9000000000000057,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 38.4,
+          "launchAngle": -18,
+          "totalDistance": 7
+        }
+      },
+      {
+        "atBatIndex": 53,
+        "homeWinProbability": 73.8,
+        "awayWinProbability": 26.200000000000003,
+        "homeWinProbabilityAdded": 0.5999999999999943,
+        "awayWinProbabilityAdded": -0.5999999999999943,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 54,
+        "homeWinProbability": 62,
+        "awayWinProbability": 38,
+        "homeWinProbabilityAdded": -11.799999999999997,
+        "awayWinProbabilityAdded": 11.799999999999997,
+        "keyMoment": true,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 55,
+        "homeWinProbability": 50,
+        "awayWinProbability": 50,
+        "homeWinProbabilityAdded": -12,
+        "awayWinProbabilityAdded": 12,
+        "keyMoment": true,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 56,
+        "homeWinProbability": 54.6,
+        "awayWinProbability": 45.4,
+        "homeWinProbabilityAdded": 4.600000000000001,
+        "awayWinProbabilityAdded": -4.600000000000001,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 90.4,
+          "launchAngle": 28,
+          "totalDistance": 321
+        }
+      },
+      {
+        "atBatIndex": 57,
+        "homeWinProbability": 58.199999999999996,
+        "awayWinProbability": 41.800000000000004,
+        "homeWinProbabilityAdded": 3.5999999999999943,
+        "awayWinProbabilityAdded": -3.5999999999999943,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 93.9,
+          "launchAngle": -22,
+          "totalDistance": 7
+        }
+      },
+      {
+        "atBatIndex": 58,
+        "homeWinProbability": 60.8,
+        "awayWinProbability": 39.2,
+        "homeWinProbabilityAdded": 2.6000000000000014,
+        "awayWinProbabilityAdded": -2.6000000000000014,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 102.7,
+          "launchAngle": 16,
+          "totalDistance": 317
+        }
+      },
+      {
+        "atBatIndex": 59,
+        "homeWinProbability": 56.2,
+        "awayWinProbability": 43.8,
+        "homeWinProbabilityAdded": -4.599999999999994,
+        "awayWinProbabilityAdded": 4.599999999999994,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 60,
+        "homeWinProbability": 52.6,
+        "awayWinProbability": 47.4,
+        "homeWinProbabilityAdded": -3.6000000000000014,
+        "awayWinProbabilityAdded": 3.6000000000000014,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 91,
+          "launchAngle": -9,
+          "totalDistance": 16
+        }
+      },
+      {
+        "atBatIndex": 61,
+        "homeWinProbability": 50,
+        "awayWinProbability": 50,
+        "homeWinProbabilityAdded": -2.6000000000000014,
+        "awayWinProbabilityAdded": 2.6000000000000014,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 62,
+          "launchAngle": 22,
+          "totalDistance": 137
+        }
+      },
+      {
+        "atBatIndex": 62,
+        "homeWinProbability": 55.800000000000004,
+        "awayWinProbability": 44.199999999999996,
+        "homeWinProbabilityAdded": 5.800000000000004,
+        "awayWinProbabilityAdded": -5.800000000000004,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 98.4,
+          "launchAngle": -3,
+          "totalDistance": 36
+        }
+      },
+      {
+        "atBatIndex": 63,
+        "homeWinProbability": 60.5,
+        "awayWinProbability": 39.5,
+        "homeWinProbabilityAdded": 4.699999999999996,
+        "awayWinProbabilityAdded": -4.699999999999996,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 99.1,
+          "launchAngle": -14,
+          "totalDistance": 6
+        }
+      },
+      {
+        "atBatIndex": 64,
+        "homeWinProbability": 53.300000000000004,
+        "awayWinProbability": 46.699999999999996,
+        "homeWinProbabilityAdded": -7.199999999999996,
+        "awayWinProbabilityAdded": 7.199999999999996,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 100.9,
+          "launchAngle": 26,
+          "totalDistance": 343
+        }
+      },
+      {
+        "atBatIndex": 65,
+        "homeWinProbability": 63.9,
+        "awayWinProbability": 36.1,
+        "homeWinProbabilityAdded": 10.599999999999994,
+        "awayWinProbabilityAdded": -10.599999999999994,
+        "keyMoment": true,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 81.2,
+          "launchAngle": 53,
+          "totalDistance": 219
+        }
+      },
+      {
+        "atBatIndex": 66,
+        "homeWinProbability": 71,
+        "awayWinProbability": 29,
+        "homeWinProbabilityAdded": 7.100000000000001,
+        "awayWinProbabilityAdded": -7.100000000000001,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 67,
+        "homeWinProbability": 63.5,
+        "awayWinProbability": 36.5,
+        "homeWinProbabilityAdded": -7.5,
+        "awayWinProbabilityAdded": 7.5,
+        "keyMoment": true,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 68,
+        "homeWinProbability": 56.3,
+        "awayWinProbability": 43.7,
+        "homeWinProbabilityAdded": -7.200000000000003,
+        "awayWinProbabilityAdded": 7.200000000000003,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 93.9,
+          "launchAngle": 49,
+          "totalDistance": 279
+        }
+      },
+      {
+        "atBatIndex": 69,
+        "homeWinProbability": 50,
+        "awayWinProbability": 50,
+        "homeWinProbabilityAdded": -6.299999999999997,
+        "awayWinProbabilityAdded": 6.299999999999997,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 76.3,
+          "launchAngle": 81,
+          "totalDistance": 27
+        }
+      },
+      {
+        "atBatIndex": 70,
+        "homeWinProbability": 31.1,
+        "awayWinProbability": 68.9,
+        "homeWinProbabilityAdded": -18.9,
+        "awayWinProbabilityAdded": 18.9,
+        "keyMoment": true,
+        "leadChange": true,
+        "scoring": true,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 72.1,
+          "launchAngle": 26,
+          "totalDistance": 246
+        }
+      },
+      {
+        "atBatIndex": 71,
+        "homeWinProbability": 23.7,
+        "awayWinProbability": 76.3,
+        "homeWinProbabilityAdded": -7.400000000000002,
+        "awayWinProbabilityAdded": 7.400000000000002,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 66.6,
+          "launchAngle": 40,
+          "totalDistance": 212
+        }
+      },
+      {
+        "atBatIndex": 72,
+        "homeWinProbability": 22.7,
+        "awayWinProbability": 77.3,
+        "homeWinProbabilityAdded": -1,
+        "awayWinProbabilityAdded": 1,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 30.6,
+          "launchAngle": -16,
+          "totalDistance": 8
+        }
+      },
+      {
+        "atBatIndex": 73,
+        "homeWinProbability": 22.3,
+        "awayWinProbability": 77.7,
+        "homeWinProbabilityAdded": -0.3999999999999986,
+        "awayWinProbabilityAdded": 0.3999999999999986,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 74,
+        "homeWinProbability": 16.8,
+        "awayWinProbability": 83.2,
+        "homeWinProbabilityAdded": -5.5,
+        "awayWinProbabilityAdded": 5.5,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": true,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 55.2,
+          "launchAngle": -4,
+          "totalDistance": 19
+        }
+      },
+      {
+        "atBatIndex": 75,
+        "homeWinProbability": 21.099999999999998,
+        "awayWinProbability": 78.9,
+        "homeWinProbabilityAdded": 4.299999999999997,
+        "awayWinProbabilityAdded": -4.299999999999997,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 76,
+        "homeWinProbability": 63.9,
+        "awayWinProbability": 36.1,
+        "homeWinProbabilityAdded": 42.8,
+        "awayWinProbabilityAdded": -42.8,
+        "keyMoment": true,
+        "leadChange": true,
+        "scoring": true,
+        "homeRun": true,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 111.8,
+          "launchAngle": 28,
+          "totalDistance": 424
+        }
+      },
+      {
+        "atBatIndex": 77,
+        "homeWinProbability": 58.199999999999996,
+        "awayWinProbability": 41.800000000000004,
+        "homeWinProbabilityAdded": -5.700000000000003,
+        "awayWinProbabilityAdded": 5.700000000000003,
+        "keyMoment": true,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 78,
+        "homeWinProbability": 53.6,
+        "awayWinProbability": 46.4,
+        "homeWinProbabilityAdded": -4.599999999999994,
+        "awayWinProbabilityAdded": 4.599999999999994,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 88.4,
+          "launchAngle": -3,
+          "totalDistance": 28
+        }
+      },
+      {
+        "atBatIndex": 79,
+        "homeWinProbability": 56.3,
+        "awayWinProbability": 43.7,
+        "homeWinProbabilityAdded": 2.6999999999999957,
+        "awayWinProbabilityAdded": -2.6999999999999957,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 100.7,
+          "launchAngle": 10,
+          "totalDistance": 208
+        }
+      },
+      {
+        "atBatIndex": 80,
+        "homeWinProbability": 50,
+        "awayWinProbability": 50,
+        "homeWinProbabilityAdded": -6.299999999999997,
+        "awayWinProbabilityAdded": 6.299999999999997,
+        "keyMoment": true,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 81,
+        "homeWinProbability": 35.699999999999996,
+        "awayWinProbability": 64.30000000000001,
+        "homeWinProbabilityAdded": -14.300000000000004,
+        "awayWinProbabilityAdded": 14.300000000000004,
+        "keyMoment": true,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": true,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 105.3,
+          "launchAngle": 4,
+          "totalDistance": 112
+        }
+      },
+      {
+        "atBatIndex": 82,
+        "homeWinProbability": 17.8,
+        "awayWinProbability": 82.2,
+        "homeWinProbabilityAdded": -17.899999999999995,
+        "awayWinProbabilityAdded": 17.899999999999995,
+        "keyMoment": true,
+        "leadChange": true,
+        "scoring": true,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 84.9,
+          "launchAngle": 13,
+          "totalDistance": 187
+        }
+      },
+      {
+        "atBatIndex": 83,
+        "homeWinProbability": 8.4,
+        "awayWinProbability": 91.6,
+        "homeWinProbabilityAdded": -9.4,
+        "awayWinProbabilityAdded": 9.4,
+        "keyMoment": true,
+        "leadChange": false,
+        "scoring": true,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 65.5,
+          "launchAngle": 16,
+          "totalDistance": 138
+        }
+      },
+      {
+        "atBatIndex": 84,
+        "homeWinProbability": 11.899999999999999,
+        "awayWinProbability": 88.1,
+        "homeWinProbabilityAdded": 3.4999999999999982,
+        "awayWinProbabilityAdded": -3.4999999999999982,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 85,
+        "homeWinProbability": 16.8,
+        "awayWinProbability": 83.2,
+        "homeWinProbabilityAdded": 6.100000000000001,
+        "awayWinProbabilityAdded": -6.100000000000001,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": true,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": null,
+          "launchAngle": null,
+          "totalDistance": null
+        }
+      },
+      {
+        "atBatIndex": 86,
+        "homeWinProbability": 21.099999999999998,
+        "awayWinProbability": 78.9,
+        "homeWinProbabilityAdded": 4.299999999999997,
+        "awayWinProbabilityAdded": -4.299999999999997,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 70.5,
+          "launchAngle": -39,
+          "totalDistance": 4
+        }
+      },
+      {
+        "atBatIndex": 87,
+        "homeWinProbability": 12.4,
+        "awayWinProbability": 87.6,
+        "homeWinProbabilityAdded": -8.699999999999998,
+        "awayWinProbabilityAdded": 8.699999999999998,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 78.6,
+          "launchAngle": 57,
+          "totalDistance": 195
+        }
+      },
+      {
+        "atBatIndex": 88,
+        "homeWinProbability": 5,
+        "awayWinProbability": 95,
+        "homeWinProbabilityAdded": -7.4,
+        "awayWinProbabilityAdded": 7.4,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": true,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 78.2,
+          "launchAngle": 69,
+          "totalDistance": 117
+        }
+      },
+      {
+        "atBatIndex": 89,
+        "homeWinProbability": 0,
+        "awayWinProbability": 100,
+        "homeWinProbabilityAdded": -5,
+        "awayWinProbabilityAdded": 5,
+        "keyMoment": false,
+        "leadChange": false,
+        "scoring": false,
+        "homeRun": false,
+        "hardHit": false,
+        "strikeout": false,
+        "highLeverage": false,
+        "absChallenge": false,
+        "hitData": {
+          "launchSpeed": 70.3,
+          "launchAngle": 38,
+          "totalDistance": 232
+        }
+      }
+    ]
+  },
+  "relatedArticles": [
+    {
+      "slug": "luis-castillo-strikes-out-four-in-gritty-start-vs-rangers",
+      "headline": "Castillo grinding through first bump in the road at home this season",
+      "blurb": "SEATTLE -- The Mariners had one extra-inning comeback in them on Saturday afternoon, thanks to Randy Arozarena’s leadoff two-run home run in the bottom of the 10th inning against Texas closer Robert Garcia."
+    },
+    {
+      "slug": "bryce-miller-strikes-out-six-in-rehab-start",
+      "headline": "Miller has successful first rehab start, could return by end of August",
+      "blurb": "SEATTLE -- Bryce Miller’s rehab assignment began about as efficiently as the Mariners could have hoped for Friday night."
+    },
+    {
+      "slug": "evan-carter-heads-to-10-day-injured-list-with-back-spasms",
+      "headline": "Carter placed on 10-day IL with all-too-familiar back injury",
+      "blurb": "SEATTLE -- The Rangers didn’t add a bat ahead of Thursday's Trade Deadline. And unfortunately, they just lost another one as well."
+    }
+  ]
+}

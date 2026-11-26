@@ -391,16 +391,58 @@ export interface components {
             fullName: string;
             hits: number;
             id: number;
+            /** @description Whether he came into the game as a substitute (MLB's `gameStatus.isSubstitute`); v2 indents him. */
+            isSubstitute?: boolean;
+            /** @description The fields below came with S207, to draw the line as the live baseball.theater (v2) box score does; a game stored before it has none of them. The player's last name (`Crow-Armstrong`), MLB's `gameData.players[…].lastName`. */
+            lastName?: string;
+            /** @description MLB's note marker for a substitute (`a-`, `1-`), keyed to the team's `notes`; `null` for none. */
+            note?: string | null;
+            /** @description Season OPS after this game, as MLB formats it (`.943`). */
+            ops?: string | null;
             /** @description Fielding position abbreviation as MLB gives it (`CF`, `DH`, `P`). */
             position: string;
+            /** @description Every position he played, in order (`PH`, `DH`), MLB's `allPositions`; v2 joins them `PH-DH`. */
+            positions?: string[];
             rbi: number;
             runs: number;
             strikeOuts: number;
+        };
+        /** @description One of a team's titled groups of box score details (S207), as MLB groups them: `BATTING` (2B, HR, RBI…), `BASERUNNING` (SB, CS, PO) or `FIELDING` (E, DP…), each line as MLB wrote it. */
+        BoxscoreInfoGroup: {
+            lines: components["schemas"]["BoxscoreInfoLine"][];
+            title: string;
         };
         /** @description One `label: value` line of MLB's boxscore notes (Venue, Weather, Att…). */
         BoxscoreInfoLine: {
             label: string;
             value: string;
+        };
+        /** @description One pitcher's line in the box score (S207): MLB's own numbers for this game, and his season ERA and WHIP after it, as MLB formats them, so no view works a rate out itself (ADR-025). */
+        BoxscorePitcher: {
+            baseOnBalls: number;
+            battersFaced: number;
+            earnedRuns: number;
+            /** @description Season ERA after this game (`3.58`); `null` when MLB sent none. */
+            era: string | null;
+            fullName: string;
+            hits: number;
+            homeRuns: number;
+            id: number;
+            /** @description Innings pitched as MLB writes them, outs after the point (`4.2` is four and two thirds). */
+            inningsPitched: string;
+            /** @description MLB's `lastInitName` (`Assad, J`), the name v2's pitching table shows; `fullName` when MLB sent none. */
+            lastInitName: string;
+            runs: number;
+            strikeOuts: number;
+            /** @description Season WHIP after this game (`1.14`); `null` when MLB sent none. */
+            whip: string | null;
+        };
+        /** @description One team's side of the box score: its batters in batting order and, since S207, its pitchers in MLB's order (`pitchers`: the order they pitched), its detail groups and its lettered notes. The S207 fields are optional because a game stored before S207 has none of them. */
+        BoxscoreTeam: {
+            batting: components["schemas"]["BoxscoreBatter"][];
+            details?: components["schemas"]["BoxscoreInfoGroup"][];
+            notes?: components["schemas"]["BoxscoreInfoLine"][];
+            pitching?: components["schemas"]["BoxscorePitcher"][];
         };
         /** @description "Best of <date>" (S71): the day's top clips across its games, ranked by `dayDigest`. */
         DayDigestResponse: {
@@ -443,16 +485,12 @@ export interface components {
             savantLinks: boolean;
             tier: components["schemas"]["PatronTier"];
         };
-        /** @description The box score (S2): each team's batters in batting order, and MLB's game info lines. */
+        /** @description The box score (S2): each team's side (`BoxscoreTeam`) and MLB's game info lines, in MLB's order (a line MLB sends with no value, the game's date, is kept with an empty `value` since S207). */
         GameBoxscore: {
             info: components["schemas"]["BoxscoreInfoLine"][];
             teams: {
-                away: {
-                    batting: components["schemas"]["BoxscoreBatter"][];
-                };
-                home: {
-                    batting: components["schemas"]["BoxscoreBatter"][];
-                };
+                away: components["schemas"]["BoxscoreTeam"];
+                home: components["schemas"]["BoxscoreTeam"];
             };
         };
         /** @description The pitchers of record of a finished game (S65; W / L / S). */

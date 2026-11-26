@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
 	describe, expect, it,
 } from "vitest";
@@ -173,5 +174,60 @@ describe("projectGameBoxscore", () =>
 
 		expect(teams.away.batting).toEqual([]);
 		expect(teams.home.pitching).toEqual([]);
+	});
+
+	it("S207 AC 1: on the recorded game the pitching rows are MLB's lines in MLB's order: Javier Assad first, 4.2 IP 3 H 3 R 3 ER 5 BB 3 K 0 HR, ERA 3.58", () =>
+	{
+		// fixtures/game-823823.json is the recorded CHC @ MIA game as the recorder maps it (its plays live in plays-823823.json).
+		const recorded = {
+			...JSON.parse(readFileSync(new URL("../../../fixtures/game-823823.json", import.meta.url), "utf8")),
+			plays: [],
+		} as GameSnapshot;
+		const { teams } = projectGameBoxscore(recorded);
+
+		expect(teams.away.pitching[0]).toEqual({
+			playerId: 665871,
+			name: "Javier Assad",
+			battersFaced: 20,
+			inningsPitched: "4.2",
+			hits: 3,
+			runs: 3,
+			earnedRuns: 3,
+			baseOnBalls: 5,
+			strikeOuts: 3,
+			homeRuns: 0,
+			era: "3.58",
+			whip: "1.14",
+		});
+		expect(teams.away.pitching.map((p) => p.name)).toEqual(["Javier Assad", "Caleb Thielbar", "Trent Thornton", "Ryan Rolison", "Ryan Zeferjahn"]);
+		expect(teams.home.pitching).toHaveLength(5);
+	});
+
+	it("S207 AC 1: a snapshot whose box score has no pitchers (stored before S207) keeps the at-bat rows", () =>
+	{
+		const { teams } = projectGameBoxscore({
+			...snapshot,
+			boxscore: {
+				teams: {
+					away: {
+						batting: [],
+					},
+					home: {
+						batting: [],
+						pitching: [],
+					},
+				},
+				info: [],
+			},
+		});
+
+		expect(teams.home.pitching).toEqual([
+			{
+				playerId: 3,
+				name: "MacKenzie Gore",
+				battersFaced: 2,
+			},
+		]);
+		expect(teams.away.pitching).toHaveLength(1);
 	});
 });

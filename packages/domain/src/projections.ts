@@ -18,7 +18,9 @@ import type {
 	GamePlaysDoc,
 	GameProjection,
 } from "./store.js";
-import type { AbstractTeam, GameSnapshot } from "./types.js";
+import type {
+	AbstractTeam, BoxscorePitcher, GameSnapshot,
+} from "./types.js";
 
 function metaOf(snapshot: GameSnapshot): GameDocumentMeta
 {
@@ -59,16 +61,38 @@ export function projectGamePlays(snapshot: GameSnapshot): GamePlaysDoc
 	};
 }
 
+/** A pitcher's row from MLB's own box score line (S207): who he is, and the line as MLB wrote it. */
+function pitchingRowOf(pitcher: BoxscorePitcher): BoxscorePitchingRow
+{
+	return {
+		playerId: pitcher.id,
+		name: pitcher.fullName,
+		battersFaced: pitcher.battersFaced,
+		inningsPitched: pitcher.inningsPitched,
+		hits: pitcher.hits,
+		runs: pitcher.runs,
+		earnedRuns: pitcher.earnedRuns,
+		baseOnBalls: pitcher.baseOnBalls,
+		strikeOuts: pitcher.strikeOuts,
+		homeRuns: pitcher.homeRuns,
+		era: pitcher.era,
+		whip: pitcher.whip,
+	};
+}
+
 /**
- * The batting side of a half-inning is the away team on `top`. Until the store
- * carries upstream boxscore lines (S13 widens the client), the tables are
- * derived from the at-bats themselves: one row per batter faced, one per
- * pitcher who threw.
+ * The batting side of a half-inning is the away team on `top`. The batting rows
+ * are derived from the at-bats themselves, one per batter faced. The pitching
+ * rows are MLB's own lines in MLB's order when the snapshot carries MLB's box
+ * score with pitchers (S207: `pitching`, the order they pitched); a snapshot
+ * without them (stored before S207, or before MLB has a box score) falls back to
+ * one row per pitcher who threw, from the at-bats.
  */
 function tableFor(
 	team: AbstractTeam,
 	plays: AtBat[],
 	half: "top" | "bottom",
+	mlbPitching: readonly BoxscorePitcher[] | undefined,
 ): BoxscoreTeamTable
 {
 	const batters = new Map<number, BoxscoreBattingRow>();
@@ -105,17 +129,21 @@ function tableFor(
 		teamId: team.id,
 		abbreviation: team.abbreviation,
 		batting: [...batters.values()],
-		pitching: [...pitchers.values()],
+		pitching: mlbPitching?.length ? mlbPitching.map(pitchingRowOf) : [...pitchers.values()],
 	};
 }
 
+/**
+ * The box score document: each team's batting and pitching tables (`tableFor`), the
+ * pitching lines MLB's own when the snapshot carries them (S207).
+ */
 export function projectGameBoxscore(snapshot: GameSnapshot): GameBoxscoreDoc
 {
 	return {
 		...metaOf(snapshot),
 		teams: {
-			away: tableFor(snapshot.teams.away, snapshot.plays, "top"),
-			home: tableFor(snapshot.teams.home, snapshot.plays, "bottom"),
+			away: tableFor(snapshot.teams.away, snapshot.plays, "top", snapshot.boxscore?.teams.away.pitching),
+			home: tableFor(snapshot.teams.home, snapshot.plays, "bottom", snapshot.boxscore?.teams.home.pitching),
 		},
 	};
 }
