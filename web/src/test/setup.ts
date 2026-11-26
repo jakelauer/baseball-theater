@@ -1,4 +1,14 @@
 import "@testing-library/jest-dom/vitest";
+import { beforeAll } from "vitest";
+import { loadPlayer } from "../components/videos/PlayerProvider.js";
+
+// The video player is its own chunk, which `PlayerProvider` loads once the shell mounts (S198). A test
+// opens a clip in the same instant it renders, so the chunk is loaded first, as it would be long
+// before a fan chose a clip.
+beforeAll(async () =>
+{
+	await loadPlayer();
+});
 
 Object.defineProperty(window, "matchMedia", {
 	writable: true,

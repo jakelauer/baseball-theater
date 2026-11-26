@@ -7,6 +7,7 @@ import { useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { AfterUpdate } from "../pwa/afterUpdate.js";
 import { UpdatedNotice } from "../pwa/UpdatedNotice.js";
+import { CornerSpace, PlayerProvider } from "../components/videos/PlayerProvider.js";
 import { AppHeader } from "./AppHeader.js";
 import { NavRail } from "./NavRail.js";
 import type { Notice } from "./NoticeSlot.js";
@@ -104,6 +105,11 @@ class ChangelogLoadBoundary extends Component<{ onFail: () => void;
  * should be either a percentage of the viewport height or something similar to avoid a highwater
  * footer"). The shell's `.bt-shell` class (`styles.css`) makes it at least the window's height,
  * `100dvh` after a `100vh` fallback, which an inline style can't express.
+ *
+ * The shell holds the one video player (S198, `PlayerProvider`) around the header, the pages and the
+ * footer, so a route change never unmounts it and a playing clip carries on in the corner player
+ * while the fan browses. While the corner shows, `CornerSpace` after the footer leaves room for it, so
+ * the footer, its Live strip included, scrolls clear above it.
  */
 export function AppShellLayout({
 	children, notice = null, marker = null, pointer = null,
@@ -159,68 +165,71 @@ export function AppShellLayout({
 	const gameRoute = pathname.startsWith("/game/");
 
 	return (
-		<Box className="bt-shell">
-			{desktop ? (
-				<Box
-					component="nav"
-					aria-label="Main"
-					style={{
-						width: RAIL_WIDTH,
-						flexShrink: 0,
-						position: "sticky",
-						top: 0,
-						height: "100vh",
-						borderRight: "1px solid var(--mantine-color-dark-4)",
-					}}
-				>
-					<NavRail pointer={pointer} />
-				</Box>
-			) : (
-				<Drawer
-					opened={opened}
-					onClose={closeDrawer}
-					size={RAIL_WIDTH}
-					padding={0}
-					withCloseButton={false}
-					title={null}
-					aria-label="Navigation"
-					styles={{
-						body: {
+		<PlayerProvider variant={variant}>
+			<Box className="bt-shell">
+				{desktop ? (
+					<Box
+						component="nav"
+						aria-label="Main"
+						style={{
+							width: RAIL_WIDTH,
+							flexShrink: 0,
+							position: "sticky",
+							top: 0,
+							height: "100vh",
+							borderRight: "1px solid var(--mantine-color-dark-4)",
+						}}
+					>
+						<NavRail pointer={pointer} />
+					</Box>
+				) : (
+					<Drawer
+						opened={opened}
+						onClose={closeDrawer}
+						size={RAIL_WIDTH}
+						padding={0}
+						withCloseButton={false}
+						title={null}
+						aria-label="Navigation"
+						styles={{
+							body: {
+								height: "100%",
+							},
+						}}
+					>
+						<nav aria-label="Main" style={{
 							height: "100%",
-						},
-					}}
-				>
-					<nav aria-label="Main" style={{
-						height: "100%",
-					}}>
-						<NavRail onNavigate={closeDrawer} highlight={drawerHighlight} />
-					</nav>
-				</Drawer>
-			)}
-			<Box style={{
-				flex: 1,
-				minWidth: 0,
-				display: "flex",
-				flexDirection: "column",
-			}}>
-				{gameRoute ? null : <AppHeader burger={!desktop} wordmark={!desktop} drawerOpened={opened} onBurger={onBurger} pointer={desktop ? null : pointer} />}
-				<NoticeSlot notice={notice} />
-				{gameRoute ? null : <NoticeSlot notice={marker} />}
-				<Box component="main" px="md" pb="md" pt={gameRoute ? 0 : "md"} style={{
-					flexGrow: 1,
+						}}>
+							<NavRail onNavigate={closeDrawer} highlight={drawerHighlight} />
+						</nav>
+					</Drawer>
+				)}
+				<Box style={{
+					flex: 1,
+					minWidth: 0,
+					display: "flex",
+					flexDirection: "column",
 				}}>
-					{children(variant, setFooter)}
+					{gameRoute ? null : <AppHeader burger={!desktop} wordmark={!desktop} drawerOpened={opened} onBurger={onBurger} pointer={desktop ? null : pointer} />}
+					<NoticeSlot notice={notice} />
+					{gameRoute ? null : <NoticeSlot notice={marker} />}
+					<Box component="main" px="md" pb="md" pt={gameRoute ? 0 : "md"} style={{
+						flexGrow: 1,
+					}}>
+						{children(variant, setFooter)}
+					</Box>
+					{footer === "none" ? null : <SiteFooter live={footer === "live"} variant={variant} />}
+					{gameRoute && !desktop ? <UpdatedNotice pointer={pointer} variant={variant} onOpen={openChangelog} /> : null}
+					{changelogUsed ? (
+						<ChangelogLoadBoundary onFail={changelogFailed}>
+							<Suspense fallback={null}>
+								<ChangelogModal opened={changelogOpen} onClose={() => setChangelogOpen(false)} variant={variant} />
+							</Suspense>
+						</ChangelogLoadBoundary>
+					) : null}
+					<CornerSpace variant={variant} />
 				</Box>
-				{footer === "none" ? null : <SiteFooter live={footer === "live"} variant={variant} />}
-				{gameRoute && !desktop ? <UpdatedNotice pointer={pointer} variant={variant} onOpen={openChangelog} /> : null}
-				{changelogUsed ? (
-					<ChangelogLoadBoundary onFail={changelogFailed}>
-						<Suspense fallback={null}>
-							<ChangelogModal opened={changelogOpen} onClose={() => setChangelogOpen(false)} variant={variant} />
-						</Suspense>
-					</ChangelogLoadBoundary>
-				) : null}
 			</Box>
-		</Box>
+		</PlayerProvider>
 	);
 }

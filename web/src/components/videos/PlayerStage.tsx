@@ -2,8 +2,8 @@ import { Box, Stack } from "@mantine/core";
 import { highlightTitle } from "@bt/domain";
 import { useEffect, useRef } from "react";
 import { PlayInningPill } from "./PlayInningPill.js";
+import { usePlayerSlot } from "./PlayerProvider.js";
 import type { Video } from "./VideoCard.js";
-import { VideoPlayer } from "./VideoPlayer.js";
 import { videoPlayLink } from "./playLink.js";
 
 /** The game whose Videos room holds the stage: what `videoPlayLink` needs to find the clip's play. */
@@ -39,8 +39,12 @@ function escapeTaken(event: KeyboardEvent): boolean
  * The persistent player (S70; game-shell `video-player-stage-*`): the `VideoPlayer` fixed
  * at the top of the Videos room, above the list, for readers who choose Stage in
  * Settings → Game Detail → Video Player. It shows the chosen clip, playing, or until one
- * is chosen the room's first, waiting. Keyed by clip and by whether it was chosen, so a new
- * choice starts fresh and closing one goes back to waiting even when it was the first.
+ * is chosen the room's first, waiting. The clip is `PlayerProvider`'s one player (S198), moved into
+ * the stage's slot and keyed by the clip alone, so choosing the waiting clip plays the same element;
+ * closing a chosen clip stops it (`dismiss`), and the stage then asks again for its waiting first clip,
+ * which starts fresh even when it was the one just closed. Leaving the room while a clip plays sends it
+ * to the corner player; a waiting clip never takes the player back from the corner, so while the
+ * corner plays another clip the stage draws nothing.
  *
  * Above the video, for a clip with a play, sits S145's inning pill (`Top 6 →`) alone on a
  * row of its own, left-aligned with the video (S172; standings-search-settings A10: the stage
@@ -71,13 +75,35 @@ export function PlayerStage({
 	/** Closes the chosen clip; Esc calls it while one plays. */
 	onClose?: () => void; })
 {
+	const title = highlightTitle(video, scoresHidden);
+	const {
+		slot, holding, dismiss,
+	} = usePlayerSlot({
+		video,
+		title,
+		autoPlay,
+		chosen: autoPlay,
+		onClose,
+		// The room's game, whose Hide Scores rule titles the clip in the corner as the setting changes.
+		...game ? {
+			scoresGame: {
+				gamePk: game.gamePk,
+			},
+		} : {},
+	});
+	// Esc stops the chosen clip before closing it.
+	const stop = onClose ? () =>
+	{
+		dismiss();
+		onClose();
+	} : undefined;
 	// The latest `onClose`, read at the press: callers pass a fresh arrow each render, and
 	// re-running the effect on it would re-capture `opener` from wherever focus moved since.
-	const close = useRef(onClose);
+	const close = useRef(stop);
 	const stage = useRef<HTMLDivElement>(null); // Mantine types Stack's ref as a div even rendered as a section
 	useEffect(() =>
 	{
-		close.current = onClose;
+		close.current = stop;
 	});
 	useEffect(() =>
 	{
@@ -99,7 +125,10 @@ export function PlayerStage({
 
 	const link = game ? videoPlayLink(video, game) : null;
 	return (
-		<Stack ref={stage} component="section" aria-label="Video player" gap={2}>
+		<Stack ref={stage} component="section" aria-label="Video player" gap={2} style={holding ? undefined : {
+			display: "none",
+		}}
+		>
 			{link ? (
 				<Box data-testid="stage-play-row" style={{
 					display: "flex",
@@ -108,7 +137,7 @@ export function PlayerStage({
 					<PlayInningPill link={link} testId="stage-play-link" />
 				</Box>
 			) : null}
-			<VideoPlayer key={`${video.id}:${autoPlay}`} video={video} title={highlightTitle(video, scoresHidden)} autoPlay={autoPlay} />
+			<div ref={slot} />
 		</Stack>
 	);
 }

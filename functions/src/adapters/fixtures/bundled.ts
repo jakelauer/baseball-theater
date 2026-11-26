@@ -2,7 +2,7 @@
  * The committed fixtures bundled into the Worker (S45; ADR-017): a Worker has no
  * `node:fs`, so the files the API serves are static JSON imports, and the fixture
  * client reads them through the same `FixtureFiles` port Node uses. Only what
- * `FixtureClient` reads by name is here — schedules, games, plays, standings,
+ * `FixtureClient` reads by name is here — schedules, games (S207 adds the ones its box score comparison recorded), plays, standings,
  * players, play metrics, player of the game (S99), season calendars and each season's final and spring standings (S128; S139 adds 2027's
  * season table, which lists the new season's teams before its first game, and 2026-09-12's mapped table), and
  * MLB's recorded table for each dated day (S160: `fetchStandings` maps `raw/standings-<date>.json` first, so the
@@ -13,9 +13,17 @@
  */
 import game744834 from "../../../../fixtures/game-744834.json" with { type: "json" };
 import game745001 from "../../../../fixtures/game-745001.json" with { type: "json" };
+import game776836 from "../../../../fixtures/game-776836.json" with { type: "json" };
+import game776854 from "../../../../fixtures/game-776854.json" with { type: "json" };
+import game776897 from "../../../../fixtures/game-776897.json" with { type: "json" };
+import game777861 from "../../../../fixtures/game-777861.json" with { type: "json" };
 import game823823 from "../../../../fixtures/game-823823.json" with { type: "json" };
 import players823823 from "../../../../fixtures/players-823823.json" with { type: "json" };
 import plays744834 from "../../../../fixtures/plays-744834.json" with { type: "json" };
+import plays776836 from "../../../../fixtures/plays-776836.json" with { type: "json" };
+import plays776854 from "../../../../fixtures/plays-776854.json" with { type: "json" };
+import plays776897 from "../../../../fixtures/plays-776897.json" with { type: "json" };
+import plays777861 from "../../../../fixtures/plays-777861.json" with { type: "json" };
 import plays823823 from "../../../../fixtures/plays-823823.json" with { type: "json" };
 import graphContent823823 from "../../../../fixtures/raw/graphql-content-823823.json" with { type: "json" };
 import playMetrics823823 from "../../../../fixtures/raw/playmetrics-823823.json" with { type: "json" };
@@ -51,9 +59,20 @@ import type { FixtureFiles } from "./fixture-client.js";
 export const BUNDLED_FIXTURES: Readonly<Record<string, unknown>> = {
 	"game-744834.json": game744834,
 	"game-745001.json": game745001,
+	// The games S207 compared with the live baseball.theater's box score (a blowout, extra innings with
+	// fifteen pitchers, errors and stolen bases, a suspended and resumed game), recorded live and served
+	// so their Box rooms open in pnpm dev; only the game and its plays, to keep the Worker small.
+	"game-776836.json": game776836,
+	"game-776854.json": game776854,
+	"game-776897.json": game776897,
+	"game-777861.json": game777861,
 	"game-823823.json": game823823,
 	"players-823823.json": players823823,
 	"plays-744834.json": plays744834,
+	"plays-776836.json": plays776836,
+	"plays-776854.json": plays776854,
+	"plays-776897.json": plays776897,
+	"plays-777861.json": plays777861,
 	"plays-823823.json": plays823823,
 	// The recorded play-metrics feed (S93): pnpm dev reads only bundled fixtures.
 	"raw/playmetrics-823823.json": playMetrics823823,

@@ -9,6 +9,10 @@ import type {
 	AtBat,
 	AtBatChallenge,
 	BoxscoreBatter,
+	BoxscoreInfoGroup,
+	BoxscoreInfoLine,
+	BoxscorePitcher,
+	BoxscoreTeam,
 	GameBoxscore,
 	GameLive,
 	GameSnapshot,
@@ -19,10 +23,12 @@ import type {
 import { isLiveStatus } from "@bt/domain";
 import type {
 	LiveBoxscore,
+	LiveBoxscoreInfoLabel,
 	LiveBoxscoreTeam,
 	LiveFeedResponse,
 	LiveGamePlay,
 	LiveGamePlayEvent,
+	Person,
 	PitchData as UpstreamPitchData,
 } from "@bt/mlb-api";
 import {
@@ -169,18 +175,25 @@ export function mapAtBat(play: LiveGamePlay): AtBat
 	};
 }
 
+/** MLB's `gameData.players`, keyed `ID<personId>`: where a player's last name and `lastInitName` live. */
+type GamePlayers = Record<string, Person> | undefined;
+
 /**
  * A team's batting lines in batting order (S2): everyone MLB lists with a batting-order
  * slot, starters and substitutes alike; pitchers who never batted have none and are left
- * out. MLB's `batters` array is already in order of appearance.
+ * out. MLB's `batters` array is already in order of appearance. Since S207 each line also
+ * carries what the live baseball.theater (v2) draws: the last name from `gameData.players`
+ * (`players`), every position played, MLB's substitute note marker (`a-`), whether he came
+ * in as a substitute, and his season OPS.
  */
-export function mapBoxscoreBatting(team: LiveBoxscoreTeam | undefined): BoxscoreBatter[]
+export function mapBoxscoreBatting(team: LiveBoxscoreTeam | undefined, players?: GamePlayers): BoxscoreBatter[]
 {
 	return (team?.batters ?? []).flatMap((id) =>
 	{
 		const player = team?.players?.[`ID${id}`];
 		if (!player?.battingOrder) return [];
 		const line = player.stats?.batting;
+		const lastName = players?.[`ID${id}`]?.lastName;
 		return [{
 			id,
 			fullName: player.person?.fullName ?? "",
@@ -193,29 +206,95 @@ export function mapBoxscoreBatting(team: LiveBoxscoreTeam | undefined): Boxscore
 			baseOnBalls: line?.baseOnBalls ?? 0,
 			strikeOuts: line?.strikeOuts ?? 0,
 			avg: player.seasonStats?.batting?.avg ?? null,
+			...lastName && {
+				lastName,
+			},
+			positions: (player.allPositions ?? []).flatMap((p) => (p.abbreviation ? [p.abbreviation] : [])),
+			note: line?.note ?? null,
+			isSubstitute: player.gameStatus?.isSubstitute ?? false,
+			ops: player.seasonStats?.batting?.ops ?? null,
 		}];
 	});
 }
 
 /**
- * The box score (S2), or `undefined` before MLB has one. `info` keeps MLB's own
- * label/value lines, minus the bare date line that has no value.
+ * A team's pitching lines (S207) in MLB's order (`pitchers`: the order they pitched), each MLB's own
+ * numbers for this game and his season ERA / WHIP after it. A pitcher MLB lists with no pitching line
+ * for this game is left out, as v2 leaves him out.
  */
-export function mapBoxscore(boxscore: LiveBoxscore | undefined): GameBoxscore | undefined
+export function mapBoxscorePitching(team: LiveBoxscoreTeam | undefined, players?: GamePlayers): BoxscorePitcher[]
+{
+	return (team?.pitchers ?? []).flatMap((id) =>
+	{
+		const player = team?.players?.[`ID${id}`];
+		const line = player?.stats?.pitching;
+		if (!player || !line || Object.keys(line).length === 0) return [];
+		const fullName = player.person?.fullName ?? "";
+		return [{
+			id,
+			fullName,
+			lastInitName: players?.[`ID${id}`]?.lastInitName ?? fullName,
+			inningsPitched: line.inningsPitched ?? "0.0",
+			hits: line.hits ?? 0,
+			runs: line.runs ?? 0,
+			earnedRuns: line.earnedRuns ?? 0,
+			baseOnBalls: line.baseOnBalls ?? 0,
+			strikeOuts: line.strikeOuts ?? 0,
+			homeRuns: line.homeRuns ?? 0,
+			battersFaced: line.battersFaced ?? 0,
+			era: player.seasonStats?.pitching?.era ?? null,
+			whip: player.seasonStats?.pitching?.whip ?? null,
+		}];
+	});
+}
+
+/** MLB's `{ label, value }` lines with a label and a value, as sent. */
+function labelledLines(lines: readonly LiveBoxscoreInfoLabel[] | undefined): BoxscoreInfoLine[]
+{
+	return (lines ?? []).flatMap((line) => (line.label && line.value ? [{
+		label: line.label,
+		value: line.value,
+	}] : []));
+}
+
+/**
+ * One team's side (S207): batting, pitching, its detail groups as MLB groups them (`info`: a group
+ * with no lines is dropped, so a group MLB doesn't send is never drawn empty) and its lettered notes.
+ */
+function mapBoxscoreTeam(team: LiveBoxscoreTeam | undefined, players: GamePlayers): BoxscoreTeam
+{
+	return {
+		batting: mapBoxscoreBatting(team, players),
+		pitching: mapBoxscorePitching(team, players),
+		details: (team?.info ?? []).flatMap((group): BoxscoreInfoGroup[] =>
+		{
+			const lines = labelledLines(group.fieldList);
+			return group.title && lines.length > 0 ? [{
+				title: group.title,
+				lines,
+			}] : [];
+		}),
+		notes: labelledLines(team?.note),
+	};
+}
+
+/**
+ * The box score (S2), or `undefined` before MLB has one. `info` keeps MLB's own
+ * label/value lines in MLB's order; since S207 the line MLB sends with a label and no
+ * value (the game's date, which v2 prints last) is kept with an empty `value`.
+ * `players` is the feed's `gameData.players`, for the names v2 prints (S207).
+ */
+export function mapBoxscore(boxscore: LiveBoxscore | undefined, players?: GamePlayers): GameBoxscore | undefined
 {
 	if (!boxscore?.teams) return undefined;
 	return {
 		teams: {
-			away: {
-				batting: mapBoxscoreBatting(boxscore.teams.away),
-			},
-			home: {
-				batting: mapBoxscoreBatting(boxscore.teams.home),
-			},
+			away: mapBoxscoreTeam(boxscore.teams.away, players),
+			home: mapBoxscoreTeam(boxscore.teams.home, players),
 		},
-		info: (boxscore.info ?? []).flatMap((line) => (line.label && line.value ? [{
+		info: (boxscore.info ?? []).flatMap((line) => (line.label ? [{
 			label: line.label,
-			value: line.value,
+			value: line.value ?? "",
 		}] : [])),
 	};
 }
@@ -273,7 +352,7 @@ export function mapLiveFeed(
 		linescore: mapLinescore(liveData.linescore),
 		highlights: [],
 		plays: liveData.plays.allPlays.map(mapAtBat),
-		boxscore: mapBoxscore(liveData.boxscore),
+		boxscore: mapBoxscore(liveData.boxscore, gameData.players),
 		live: mapLive(feed),
 		fetchedAt,
 		windowMode,

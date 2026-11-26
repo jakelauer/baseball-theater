@@ -26,6 +26,7 @@ import { setSessionToken } from "../session/token.js";
 import { jsonResponse } from "../test/jsonResponse.js";
 import { createRenderCounter } from "../test/renderCount.js";
 import { GamePage } from "./GamePage.js";
+import { PlayerProvider } from "../components/videos/PlayerProvider.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../fixtures");
 const read = (name: string) => JSON.parse(readFileSync(join(FIXTURES, name), "utf8")) as GamePayload;
@@ -100,13 +101,13 @@ function renderGame(room: string, Wrap: (props: { children: React.ReactNode }) =
 	return render(
 		<MantineProvider>
 			<QueryClientProvider client={createQueryClient()}>
-				<MemoryRouter initialEntries={[`/game/823823/${room}`]}>
+				<MemoryRouter initialEntries={[`/game/823823/${room}`]}><PlayerProvider>
 					<Wrap>
 						<Routes>
 							<Route path="/game/:gamePk/:tab" element={<GamePage variant="mobile" />} />
 						</Routes>
 					</Wrap>
-				</MemoryRouter>
+				</PlayerProvider></MemoryRouter>
 			</QueryClientProvider>
 		</MantineProvider>,
 	);
@@ -129,7 +130,7 @@ function renderGameInShell(room: string)
 		<MantineProvider>
 			<QueryClientProvider client={createQueryClient()}>
 				<SessionProvider>
-					<MemoryRouter initialEntries={[`/game/823823/${room}`]}>
+					<MemoryRouter initialEntries={[`/game/823823/${room}`]}><PlayerProvider>
 						<AppShellLayout>
 							{(variant, setFooter) => (
 								<Routes>
@@ -137,7 +138,7 @@ function renderGameInShell(room: string)
 								</Routes>
 							)}
 						</AppShellLayout>
-					</MemoryRouter>
+					</PlayerProvider></MemoryRouter>
 				</SessionProvider>
 			</QueryClientProvider>
 		</MantineProvider>,

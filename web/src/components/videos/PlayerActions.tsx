@@ -2,7 +2,7 @@ import {
 	Button, Group, Menu,
 } from "@mantine/core";
 import {
-	IconCheck, IconCopy, IconExternalLink, IconSettings, IconShare, IconX,
+	IconCheck, IconCopy, IconExternalLink, IconPictureInPicture, IconSettings, IconShare, IconX,
 } from "@tabler/icons-react";
 import type { VideoQuality } from "@bt/domain";
 import type { ReactNode } from "react";
@@ -88,14 +88,18 @@ export function QualityPicker({
  *   browser has one (`navigator.share`) that takes this title and URL (`navigator.canShare`, where
  *   the browser has it); elsewhere Copy link already does what a fallback would (owner, 2026-11-23,
  *   #417: "I would prefer that we just don't show the share option if it isn't available").
+ * - **Mini player** (S198, YouTube's miniplayer button), when the player passes `onMiniPlayer`: sends
+ *   the clip to the corner player, playing on, and leaves the fan on the page beneath.
  */
 export function PlayerActions({
-	title, url, fileUrl,
+	title, url, fileUrl, onMiniPlayer,
 }: { title: string;
 	/** The URL being played. */
 	url: string;
 	/** The clip's MP4 (`fileQuality`), or null when MLB gave only a stream of this cut. */
-	fileUrl: string | null; })
+	fileUrl: string | null;
+	/** Sends the clip to the corner player (S198); without it there is no Mini player button. */
+	onMiniPlayer?: () => void; })
 {
 	const link = fileUrl ?? url;
 	const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
@@ -142,6 +146,11 @@ export function PlayerActions({
 			{canShare ? (
 				<ActionButton icon={<IconShare size={14} />} onClick={share}>
 					Share
+				</ActionButton>
+			) : null}
+			{onMiniPlayer ? (
+				<ActionButton icon={<IconPictureInPicture size={14} />} onClick={onMiniPlayer}>
+					Mini player
 				</ActionButton>
 			) : null}
 		</Group>

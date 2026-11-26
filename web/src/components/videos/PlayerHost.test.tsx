@@ -17,6 +17,7 @@ import { resetSettings, setVideoPlayer } from "../../settings/store.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
 import { PlayerHost } from "./PlayerHost.js";
 import type { Video } from "./VideoCard.js";
+import { PlayerProvider } from "./PlayerProvider.js";
 
 const clip = (id: string): Video => ({
 	id,
@@ -50,9 +51,9 @@ function renderHost(video: Video | null)
 {
 	return render(
 		<MantineProvider>
-			<MemoryRouter>
+			<MemoryRouter><PlayerProvider>
 				<PlayerHost video={video} first={clip("first")} onClose={() => undefined} />
-			</MemoryRouter>
+			</PlayerProvider></MemoryRouter>
 		</MantineProvider>,
 	);
 }
@@ -66,9 +67,9 @@ describe("PlayerHost", () =>
 		expect(screen.queryByTestId("video-player")).toBeNull();
 		rerender(
 			<MantineProvider>
-				<MemoryRouter>
+				<MemoryRouter><PlayerProvider>
 					<PlayerHost video={clip("chosen")} first={clip("first")} onClose={() => undefined} />
-				</MemoryRouter>
+				</PlayerProvider></MemoryRouter>
 			</MantineProvider>,
 		);
 		expect(await screen.findByRole("dialog")).toHaveTextContent("Clip chosen");
@@ -91,9 +92,9 @@ describe("PlayerHost", () =>
 		vi.stubGlobal("fetch", vi.fn(async (request: Request) => jsonResponse(await request.json() as AccountSettings)));
 		await act(() => setVideoPlayer("stage"));
 		render(
-			<MantineProvider>
+			<MantineProvider><MemoryRouter><PlayerProvider>
 				<PlayerHost video={null} first={undefined} onClose={() => undefined} />
-			</MantineProvider>,
+			</PlayerProvider></MemoryRouter></MantineProvider>,
 		);
 		expect(screen.queryByTestId("video-player")).toBeNull();
 	});
@@ -104,9 +105,9 @@ describe("PlayerHost", () =>
 		await act(() => setVideoPlayer("stage"));
 		const onClose = vi.fn();
 		const { rerender } = render(
-			<MantineProvider>
+			<MantineProvider><MemoryRouter><PlayerProvider>
 				<PlayerHost video={null} first={clip("first")} onClose={onClose} />
-			</MantineProvider>,
+			</PlayerProvider></MemoryRouter></MantineProvider>,
 		);
 		fireEvent.keyDown(document.body, {
 			key: "Escape",
@@ -117,9 +118,9 @@ describe("PlayerHost", () =>
 		document.body.append(card);
 		card.focus();
 		rerender(
-			<MantineProvider>
+			<MantineProvider><MemoryRouter><PlayerProvider>
 				<PlayerHost video={clip("chosen")} first={clip("first")} onClose={onClose} />
-			</MantineProvider>,
+			</PlayerProvider></MemoryRouter></MantineProvider>,
 		);
 		card.blur();
 		fireEvent.keyDown(document.body, {
@@ -150,9 +151,9 @@ describe("PlayerHost", () =>
 			);
 		}
 		render(
-			<MantineProvider>
+			<MantineProvider><MemoryRouter><PlayerProvider>
 				<WithDrawer />
-			</MantineProvider>,
+			</PlayerProvider></MemoryRouter></MantineProvider>,
 		);
 		const apply = await screen.findByRole("button", {
 			name: "Apply",
@@ -265,16 +266,16 @@ describe("PlayerHost", () =>
 		await act(() => setVideoPlayer("stage"));
 		const onClose = vi.fn();
 		const { rerender, unmount } = render(
-			<MantineProvider>
+			<MantineProvider><MemoryRouter><PlayerProvider>
 				<PlayerHost video={clip("chosen")} first={clip("first")} onClose={onClose} />
-			</MantineProvider>,
+			</PlayerProvider></MemoryRouter></MantineProvider>,
 		);
 		pressEscape(document.body);
 		expect(onClose).toHaveBeenCalledTimes(1);
 		rerender(
-			<MantineProvider>
+			<MantineProvider><MemoryRouter><PlayerProvider>
 				<PlayerHost video={null} first={clip("first")} onClose={onClose} />
-			</MantineProvider>,
+			</PlayerProvider></MemoryRouter></MantineProvider>,
 		);
 		pressEscape(document.body);
 		expect(onClose).toHaveBeenCalledTimes(1);
@@ -291,9 +292,9 @@ async function renderChosen()
 	await act(() => setVideoPlayer("stage"));
 	const onClose = vi.fn();
 	render(
-		<MantineProvider>
+		<MantineProvider><MemoryRouter><PlayerProvider>
 			<PlayerHost video={clip("chosen")} first={clip("first")} onClose={onClose} />
-		</MantineProvider>,
+		</PlayerProvider></MemoryRouter></MantineProvider>,
 	);
 	return onClose;
 }

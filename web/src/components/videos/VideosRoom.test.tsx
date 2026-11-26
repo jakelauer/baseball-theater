@@ -10,10 +10,12 @@ import {
 } from "@bt/domain";
 import { MantineProvider } from "@mantine/core";
 import {
-	cleanup, render, screen, within,
+	cleanup, fireEvent, render, screen, waitFor, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import {
+	Link, MemoryRouter, Route, Routes,
+} from "react-router-dom";
 import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
@@ -22,7 +24,9 @@ import type { LayoutVariant } from "../../layout/variant.js";
 import { hydrateSettings, resetSettings } from "../../settings/store.js";
 import { BODY_FONT_PX, mantineFontPx } from "../../test/fontSize.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
+import { expectInCorner, markPlaying } from "../../test/renderWithPlayer.js";
 import { VideosRoom } from "./VideosRoom.js";
+import { PlayerProvider } from "./PlayerProvider.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 
@@ -42,9 +46,9 @@ function renderRoom(variant: LayoutVariant = "mobile", g: GamePayload = game())
 	render(
 		<MantineProvider>
 			{/* The open clip lives in the URL (`?clip=`, #424). */}
-			<MemoryRouter initialEntries={["/game/823823/videos"]}>
+			<MemoryRouter initialEntries={["/game/823823/videos"]}><PlayerProvider>
 				<VideosRoom game={g} variant={variant} />
-			</MemoryRouter>
+			</PlayerProvider></MemoryRouter>
 		</MantineProvider>,
 	);
 }
@@ -271,6 +275,82 @@ describe("VideosRoom states and play (S69)", () =>
 		expect(cardTitles()).toEqual(marlinsViz);
 		widths.mockRestore();
 		room.mockRestore();
+	});
+
+	it("every game's Videos room shows the inline Featured team control, never a Filters drawer in its place, however wide it is (#583)", async () =>
+	{
+		// jsdom lays nothing out: the Featured team control (its text starts "All") 160px, every other pill and the
+		// Filters button 60px, and a row of 180px: room for Stat / viz and the button, not for the team control.
+		const widths = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement)
+		{
+			return this.textContent?.startsWith("All") ? 160 : 60;
+		});
+		const room = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(180);
+		try
+		{
+			const user = userEvent.setup();
+			renderRoom();
+			const row = within(screen.getByTestId("filter-row"));
+			expect(row.getByRole("radiogroup", {
+				name: "Featured team",
+			})).toBeInTheDocument();
+			// Stat / viz, which no longer fits beside it, stays reachable through the drawer.
+			expect(row.getAllByRole("button").map((b) => b.textContent)).toEqual(["Filters"]);
+			await user.click(row.getByRole("button", {
+				name: "Filters",
+			}));
+			const drawer = within(await screen.findByRole("dialog", {
+				name: "Filters",
+			}));
+			expect(drawer.getByRole("checkbox", {
+				name: "Stat / viz",
+			})).toBeInTheDocument();
+		}
+		finally
+		{
+			widths.mockRestore();
+			room.mockRestore();
+		}
+	});
+
+	it("only the Featured team control is pinned: grouped by team, a Kind pill wider than a 320px row falls back to Filters and holds no width wider than the row (#583)", async () =>
+	{
+		// jsdom lays nothing out: the Kind pill (its options name the kinds) 400px, wider than the row; the Featured
+		// team control (its text starts "All") 200px; every other pill and the Filters button 60px; a row of 320px.
+		const widths = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement)
+		{
+			const text = this.textContent ?? "";
+			if (text.includes("Pre-game")) return 400;
+			return text.startsWith("All") ? 200 : 60;
+		});
+		const room = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(320);
+		try
+		{
+			const user = userEvent.setup();
+			renderRoom();
+			const filterRow = screen.getByTestId("filter-row");
+			// The row's own box: its minimum width is what a wrapping toolbar can't narrow it below.
+			const minWidth = () => parseFloat(filterRow.parentElement!.style.minWidth || "0");
+			expect(within(filterRow).getByRole("radiogroup", {
+				name: "Featured team",
+			})).toBeInTheDocument();
+			expect(minWidth()).toBeLessThanOrEqual(320);
+			await user.click(screen.getByRole("radio", {
+				name: "Team",
+			}));
+			const row = within(screen.getByTestId("filter-row"));
+			expect(row.queryByRole("radiogroup", {
+				name: "Kind",
+			})).toBeNull();
+			// Stat / viz still fits beside the Filters button, which holds the Kind filter.
+			expect(row.getAllByRole("button").map((b) => b.textContent)).toEqual(["Stat / viz", "Filters"]);
+			expect(minWidth()).toBeLessThanOrEqual(320);
+		}
+		finally
+		{
+			widths.mockRestore();
+			room.mockRestore();
+		}
 	});
 
 	it("sort: Impact by default; Newest and Oldest reorder through sortHighlights, within each group", async () =>
@@ -674,3 +754,36 @@ const GROUP_NAMES = {
 	statcast: "Statcast",
 	postgame: "Post-game",
 } as const;
+
+describe("the corner mini-player from the Videos room (S198)", () =>
+{
+	it("S198 AC 1: a clip playing in the Videos room keeps playing in the corner after a route change, the same element", async () =>
+	{
+		const user = userEvent.setup();
+		render(
+			<MantineProvider>
+				<MemoryRouter initialEntries={["/game/823823/videos"]}><PlayerProvider>
+					<Routes>
+						<Route path="/game/823823/videos" element={<VideosRoom game={game()} variant="desktop" />} />
+						<Route path="*" element={<p>Box room</p>} />
+					</Routes>
+					{/* A header link, outside the page. */}
+					<Link to="/game/823823/box">Box</Link>
+				</PlayerProvider></MemoryRouter>
+			</MantineProvider>,
+		);
+		const first = game().highlights[0]!;
+		await user.click(screen.getByRole("link", {
+			name: `Play ${first.title}`,
+		}));
+		const dialog = await screen.findByRole("dialog");
+		const video = within(dialog).getByTestId("video-player").querySelector("video")!;
+		markPlaying(video, 7);
+		fireEvent.click(screen.getByRole("link", {
+			name: "Box",
+		}));
+		expect(await screen.findByText("Box room")).toBeInTheDocument();
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		expectInCorner(video, 7);
+	});
+});

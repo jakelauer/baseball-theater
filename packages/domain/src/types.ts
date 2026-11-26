@@ -76,12 +76,71 @@ export type BoxscoreBatter = {
 	strikeOuts: number;
 	/** Season batting average after this game, as MLB formats it (`.279`). */
 	avg: string | null;
+	/**
+	 * The fields below came with S207, to draw the line as the live baseball.theater (v2) box score
+	 * does; a game stored before it has none of them. The player's last name (`Crow-Armstrong`), MLB's
+	 * `gameData.players[…].lastName`.
+	 */
+	lastName?: string;
+	/** Every position he played, in order (`PH`, `DH`), MLB's `allPositions`; v2 joins them `PH-DH`. */
+	positions?: string[];
+	/** MLB's note marker for a substitute (`a-`, `1-`), keyed to the team's `notes`; `null` for none. */
+	note?: string | null;
+	/** Whether he came into the game as a substitute (MLB's `gameStatus.isSubstitute`); v2 indents him. */
+	isSubstitute?: boolean;
+	/** Season OPS after this game, as MLB formats it (`.943`). */
+	ops?: string | null;
+};
+
+/**
+ * One pitcher's line in the box score (S207): MLB's own numbers for this game, and his season ERA and
+ * WHIP after it, as MLB formats them, so no view works a rate out itself (ADR-025).
+ */
+export type BoxscorePitcher = {
+	id: number;
+	fullName: string;
+	/** MLB's `lastInitName` (`Assad, J`), the name v2's pitching table shows; `fullName` when MLB sent none. */
+	lastInitName: string;
+	/** Innings pitched as MLB writes them, outs after the point (`4.2` is four and two thirds). */
+	inningsPitched: string;
+	hits: number;
+	runs: number;
+	earnedRuns: number;
+	baseOnBalls: number;
+	strikeOuts: number;
+	homeRuns: number;
+	battersFaced: number;
+	/** Season ERA after this game (`3.58`); `null` when MLB sent none. */
+	era: string | null;
+	/** Season WHIP after this game (`1.14`); `null` when MLB sent none. */
+	whip: string | null;
 };
 
 /** One `label: value` line of MLB's boxscore notes (Venue, Weather, Att…). */
 export type BoxscoreInfoLine = {
 	label: string;
 	value: string;
+};
+
+/**
+ * One of a team's titled groups of box score details (S207), as MLB groups them: `BATTING` (2B, HR,
+ * RBI…), `BASERUNNING` (SB, CS, PO) or `FIELDING` (E, DP…), each line as MLB wrote it.
+ */
+export type BoxscoreInfoGroup = {
+	title: string;
+	lines: BoxscoreInfoLine[];
+};
+
+/**
+ * One team's side of the box score: its batters in batting order and, since S207, its pitchers in
+ * MLB's order (`pitchers`: the order they pitched), its detail groups and its lettered notes. The S207
+ * fields are optional because a game stored before S207 has none of them.
+ */
+export type BoxscoreTeam = {
+	batting: BoxscoreBatter[];
+	pitching?: BoxscorePitcher[];
+	details?: BoxscoreInfoGroup[];
+	notes?: BoxscoreInfoLine[];
 };
 
 /**
@@ -109,11 +168,14 @@ export type GameRecap = {
 	text: string;
 };
 
-/** The box score (S2): each team's batters in batting order, and MLB's game info lines. */
+/**
+ * The box score (S2): each team's side (`BoxscoreTeam`) and MLB's game info lines, in MLB's order
+ * (a line MLB sends with no value, the game's date, is kept with an empty `value` since S207).
+ */
 export type GameBoxscore = {
 	teams: {
-		away: { batting: BoxscoreBatter[] };
-		home: { batting: BoxscoreBatter[] };
+		away: BoxscoreTeam;
+		home: BoxscoreTeam;
 	};
 	info: BoxscoreInfoLine[];
 };

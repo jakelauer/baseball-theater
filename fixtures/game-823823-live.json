@@ -5451,7 +5451,14 @@
             "rbi": 0,
             "baseOnBalls": 1,
             "strikeOuts": 1,
-            "avg": ".279"
+            "avg": ".279",
+            "lastName": "Crow-Armstrong",
+            "positions": [
+              "CF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".944"
           },
           {
             "id": 673548,
@@ -5464,7 +5471,14 @@
             "rbi": 0,
             "baseOnBalls": 1,
             "strikeOuts": 0,
-            "avg": ".272"
+            "avg": ".272",
+            "lastName": "Suzuki",
+            "positions": [
+              "RF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".850"
           },
           {
             "id": 683737,
@@ -5477,7 +5491,14 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 1,
-            "avg": ".235"
+            "avg": ".235",
+            "lastName": "Busch",
+            "positions": [
+              "1B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".734"
           },
           {
             "id": 608324,
@@ -5490,7 +5511,14 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".261"
+            "avg": ".261",
+            "lastName": "Bregman",
+            "positions": [
+              "3B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".792"
           },
           {
             "id": 664023,
@@ -5503,7 +5531,14 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".221"
+            "avg": ".221",
+            "lastName": "Happ",
+            "positions": [
+              "LF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".742"
           },
           {
             "id": 663538,
@@ -5516,7 +5551,14 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".264"
+            "avg": ".264",
+            "lastName": "Hoerner",
+            "positions": [
+              "SS"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".680"
           },
           {
             "id": 699393,
@@ -5529,7 +5571,14 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".275"
+            "avg": ".275",
+            "lastName": "Ramírez",
+            "positions": [
+              "2B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".759"
           },
           {
             "id": 624424,
@@ -5542,7 +5591,14 @@
             "rbi": 1,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".237"
+            "avg": ".237",
+            "lastName": "Conforto",
+            "positions": [
+              "DH"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".820"
           },
           {
             "id": 665804,
@@ -5555,9 +5611,83 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".233"
+            "avg": ".233",
+            "lastName": "Amaya",
+            "positions": [
+              "C"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".700"
           }
-        ]
+        ],
+        "pitching": [
+          {
+            "id": 665871,
+            "fullName": "Javier Assad",
+            "lastInitName": "Assad, J",
+            "inningsPitched": "2.0",
+            "hits": 0,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 2,
+            "strikeOuts": 1,
+            "homeRuns": 0,
+            "battersFaced": 7,
+            "era": "3.38",
+            "whip": "1.10"
+          }
+        ],
+        "details": [
+          {
+            "title": "BATTING",
+            "lines": [
+              {
+                "label": "HR",
+                "value": "Conforto (14, 3rd inning off Gusto, 0 on, 0 out)."
+              },
+              {
+                "label": "TB",
+                "value": "Amaya; Conforto 4; Happ; Hoerner; Suzuki."
+              },
+              {
+                "label": "RBI",
+                "value": "Conforto (38)."
+              },
+              {
+                "label": "GIDP",
+                "value": "Bregman."
+              },
+              {
+                "label": "Team RISP",
+                "value": "0-for-4."
+              },
+              {
+                "label": "Team LOB",
+                "value": "1."
+              }
+            ]
+          },
+          {
+            "title": "BASERUNNING",
+            "lines": [
+              {
+                "label": "CS",
+                "value": "Hoerner (4, 3rd base by Gusto/Mack)."
+              }
+            ]
+          },
+          {
+            "title": "FIELDING",
+            "lines": [
+              {
+                "label": "DP",
+                "value": "(Bregman-Ramírez-Busch)."
+              }
+            ]
+          }
+        ],
+        "notes": []
       },
       "home": {
         "batting": [
@@ -5572,7 +5702,14 @@
             "rbi": 0,
             "baseOnBalls": 1,
             "strikeOuts": 0,
-            "avg": ".247"
+            "avg": ".247",
+            "lastName": "Stowers",
+            "positions": [
+              "DH"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".805"
           },
           {
             "id": 681715,
@@ -5585,7 +5722,14 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".229"
+            "avg": ".229",
+            "lastName": "Hernandez",
+            "positions": [
+              "LF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".778"
           },
           {
             "id": 665052,
@@ -5598,7 +5742,14 @@
             "rbi": 0,
             "baseOnBalls": 1,
             "strikeOuts": 0,
-            "avg": ".254"
+            "avg": ".254",
+            "lastName": "Conine",
+            "positions": [
+              "1B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".835"
           },
           {
             "id": 672640,
@@ -5611,7 +5762,14 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".300"
+            "avg": ".300",
+            "lastName": "Lopez",
+            "positions": [
+              "SS"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".772"
           },
           {
             "id": 805300,
@@ -5624,7 +5782,14 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".209"
+            "avg": ".209",
+            "lastName": "Marsee",
+            "positions": [
+              "CF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".661"
           },
           {
             "id": 683357,
@@ -5637,7 +5802,14 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 1,
-            "avg": ".222"
+            "avg": ".222",
+            "lastName": "Caissie",
+            "positions": [
+              "RF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".702"
           },
           {
             "id": 691788,
@@ -5650,7 +5822,14 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".233"
+            "avg": ".233",
+            "lastName": "Mack",
+            "positions": [
+              "C"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".687"
           },
           {
             "id": 688363,
@@ -5663,7 +5842,14 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".198"
+            "avg": ".198",
+            "lastName": "Pauley",
+            "positions": [
+              "3B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".575"
           },
           {
             "id": 691594,
@@ -5676,9 +5862,66 @@
             "rbi": 0,
             "baseOnBalls": 0,
             "strikeOuts": 0,
-            "avg": ".287"
+            "avg": ".287",
+            "lastName": "Sanoja",
+            "positions": [
+              "2B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".756"
           }
-        ]
+        ],
+        "pitching": [
+          {
+            "id": 687473,
+            "fullName": "Ryan Gusto",
+            "lastInitName": "Gusto, R",
+            "inningsPitched": "2.2",
+            "hits": 5,
+            "runs": 1,
+            "earnedRuns": 1,
+            "baseOnBalls": 2,
+            "strikeOuts": 2,
+            "homeRuns": 1,
+            "battersFaced": 12,
+            "era": "3.84",
+            "whip": "1.38"
+          }
+        ],
+        "details": [
+          {
+            "title": "BATTING",
+            "lines": [
+              {
+                "label": "GIDP",
+                "value": "Lopez, O."
+              },
+              {
+                "label": "Team RISP",
+                "value": "0-for-1."
+              },
+              {
+                "label": "Team LOB",
+                "value": "1."
+              }
+            ]
+          },
+          {
+            "title": "FIELDING",
+            "lines": [
+              {
+                "label": "Outfield assists",
+                "value": "Marsee (Happ at 3rd base)."
+              },
+              {
+                "label": "DP",
+                "value": "(Pauley-Sanoja-Conine)."
+              }
+            ]
+          }
+        ],
+        "notes": []
       }
     },
     "info": [
@@ -5725,6 +5968,10 @@
       {
         "label": "Venue",
         "value": "loanDepot park."
+      },
+      {
+        "label": "September 5, 2026",
+        "value": ""
       }
     ]
   },

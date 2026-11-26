@@ -26,6 +26,7 @@ import { createQueryClient } from "../../api/queryClient.js";
 import { GamePage } from "../../pages/GamePage.js";
 import { hydrateSettings, resetSettings } from "../../settings/store.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
+import { PlayerProvider } from "./PlayerProvider.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 const read = (file: string) => JSON.parse(readFileSync(join(FIXTURES, file), "utf8"));
@@ -73,11 +74,11 @@ async function openStage(hideScores = false): Promise<void>
 	render(
 		<MantineProvider>
 			<QueryClientProvider client={createQueryClient()}>
-				<MemoryRouter initialEntries={["/game/823823/videos"]}>
+				<MemoryRouter initialEntries={["/game/823823/videos"]}><PlayerProvider>
 					<Routes>
 						<Route path="/game/:gamePk/:tab" element={<><GamePage variant="mobile" /><Where /></>} />
 					</Routes>
-				</MemoryRouter>
+				</PlayerProvider></MemoryRouter>
 			</QueryClientProvider>
 		</MantineProvider>,
 	);

@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { MantineProvider } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
-	cleanup, render, screen, waitFor, within,
+	cleanup, fireEvent, render, screen, waitFor, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
@@ -29,6 +29,8 @@ import { ScoreboardPage } from "../../pages/ScoreboardPage.js";
 import { hydrateSettings, resetSettings } from "../../settings/store.js";
 import { expectInsetPlayer } from "../../test/insetPlayer.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
+import { PlayerProvider } from "../videos/PlayerProvider.js";
+import { expectInCorner, markPlaying } from "../../test/renderWithPlayer.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 
@@ -68,12 +70,12 @@ async function renderScoreboard(variant: LayoutVariant = "mobile"): Promise<HTML
 	render(
 		<MantineProvider>
 			<QueryClientProvider client={createQueryClient()}>
-				<MemoryRouter initialEntries={["/games/2024-07-04"]}>
+				<MemoryRouter initialEntries={["/games/2024-07-04"]}><PlayerProvider>
 					<Routes>
 						<Route path="/games/:date" element={<ScoreboardPage variant={variant} />} />
 						<Route path="/game/:gamePk" element={<p>game page</p>} />
 					</Routes>
-				</MemoryRouter>
+				</PlayerProvider></MemoryRouter>
 			</QueryClientProvider>
 		</MantineProvider>,
 	);
@@ -194,11 +196,11 @@ describe("the day digest (S71)", () =>
 		render(
 			<MantineProvider>
 				<QueryClientProvider client={createQueryClient()}>
-					<MemoryRouter initialEntries={["/games/2024-07-04"]}>
+					<MemoryRouter initialEntries={["/games/2024-07-04"]}><PlayerProvider>
 						<Routes>
 							<Route path="/games/:date" element={<ScoreboardPage variant="mobile" />} />
 						</Routes>
-					</MemoryRouter>
+					</PlayerProvider></MemoryRouter>
 				</QueryClientProvider>
 			</MantineProvider>,
 		);
@@ -294,5 +296,27 @@ describe("the digest's player is the inset modal (S196)", () =>
 		const { names, dialog } = await digestPills(title, DEFAULT_SETTINGS, playable);
 		expect(names).toEqual(["More from game: NYM @ WSH, Jul 4", "Bot 8: open play, bottom of 8th inning"]);
 		await expectInsetPlayer(dialog, title);
+	});
+});
+
+describe("the corner mini-player from the day digest (S198)", () =>
+{
+	it("S198 AC 1: a clip playing from the day digest keeps playing in the corner after a route change, the same element", async () =>
+	{
+		serve();
+		const user = userEvent.setup();
+		const digest = await renderScoreboard();
+		await user.click(within(digest).getByRole("link", {
+			name: "Play Judge hammers a two-run home run",
+		}));
+		const dialog = await screen.findByRole("dialog");
+		const video = within(dialog).getByTestId("video-player").querySelector("video")!;
+		markPlaying(video, 11);
+		fireEvent.click(within(dialog).getByRole("link", {
+			name: "More from game: NYY @ BOS, Jul 4",
+		}));
+		await waitFor(() => expect(screen.queryByTestId("day-digest")).toBeNull());
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		expectInCorner(video, 11);
 	});
 });

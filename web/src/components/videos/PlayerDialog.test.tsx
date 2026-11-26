@@ -22,6 +22,7 @@ import type { PlayerGame } from "./PlayerDialog.js";
 import type { Video } from "./VideoCard.js";
 import { playInningLink } from "./playLink.js";
 import type { PlayLink } from "./playLink.js";
+import { PlayerProvider } from "./PlayerProvider.js";
 
 const VIDEO: Video = {
 	id: "clip",
@@ -47,9 +48,9 @@ function renderDialog(game?: PlayerGame)
 {
 	render(
 		<MantineProvider>
-			<MemoryRouter>
+			<MemoryRouter><PlayerProvider>
 				<PlayerDialog video={VIDEO} onClose={() => undefined} game={game} />
-			</MemoryRouter>
+			</PlayerProvider></MemoryRouter>
 		</MantineProvider>,
 	);
 }
@@ -134,11 +135,11 @@ function renderPills(props: Parameters<typeof Host>[0])
 	reducedMotion(true);
 	render(
 		<MantineProvider>
-			<MemoryRouter initialEntries={["/search"]}>
+			<MemoryRouter initialEntries={["/search"]}><PlayerProvider>
 				<Routes>
 					<Route path="*" element={<><Host {...props} /><Where /></>} />
 				</Routes>
-			</MemoryRouter>
+			</PlayerProvider></MemoryRouter>
 		</MantineProvider>,
 	);
 }
