@@ -128,8 +128,8 @@ export function changedFiles(root: string): string[]
 		try { sh(`git rev-parse --verify --quiet ${ref}`); return true; }
 		catch { return false; }
 	};
-	const base = process.env.BT_VERIFY_BASE || (has("origin/stage") ? "origin/stage" : "stage");
-	const mergeBase = sh(`git merge-base HEAD ${base}`);
+	// The merge base with `stage` (origin's when fetched), or the base BT_VERIFY_BASE names (CI's pull-request base).
+	const mergeBase = sh(`git merge-base HEAD ${process.env.BT_VERIFY_BASE || (has("origin/stage") ? "origin/stage" : "stage")}`);
 	const tracked = sh(`git diff --name-only ${mergeBase}`);
 	const untracked = sh("git ls-files --others --exclude-standard");
 	return [...new Set(`${tracked}\n${untracked}`.split("\n").filter(Boolean))].sort();

@@ -56,7 +56,7 @@ story_snapshot S168 >"$TMP/story.md" 2>/dev/null || node scripts/backlog-vault/t
 # The workspace units, read once. The files: tracked and untracked alike (this grader runs before
 # the story's commit, so a new test file outside every unit must count before it is committed).
 pnpm ls -r --depth -1 --json >"$TMP/units.json" 2>/dev/null || echo "[]" >"$TMP/units.json"
-git ls-files --cached --others --exclude-standard | sort -u >"$TMP/files.txt"
+git -c core.quotePath=false ls-files --cached --others --exclude-standard | sort -u >"$TMP/files.txt"
 git show "$BASE:package.json" >/dev/null 2>&1 || bad 7 "base commit $BASE is not in this clone"
 mkdir -p "$TMP/base"
 git ls-tree -r --name-only "$BASE" | grep -E '(^|/)vitest\.config\.[^/]+$' | while IFS= read -r f; do
@@ -434,12 +434,17 @@ if [ -n "$LAWUNIT" ] && [ -d "$LAWUNIT" ]; then
     f="$(git ls-files -- "$LAWUNIT" | grep -E "/$t\.test\.ts$" | head -1)"
     [ -n "$f" ] && law_tests+=("${f#"$LAWUNIT"/}")
   done
+  # The unit's own Vitest config (scripts' sits in backlog-vault/): run without it, Vitest walks up
+  # and finds no project of the unit's, so a startup error would fail checks 7 and 8 for the wrong reason.
+  law_cfg="$(git ls-files -- "$LAWUNIT" | grep -E '/vitest\.config\.[cm]?[jt]s$' | head -1)"
+  law_cfg_args=()
+  [ -n "$law_cfg" ] && law_cfg_args=(--config "${law_cfg#"$LAWUNIT"/}")
   if [ "${#law_tests[@]}" -lt 3 ]; then
     bad 7 "the law-test unit lacks verify-chain, ci-law or laws tests"
-  elif ! (cd "$LAWUNIT" && pnpm exec vitest run "${law_tests[@]}" >"$TMP/law.log" 2>&1); then
+  elif ! (cd "$LAWUNIT" && pnpm exec vitest run "${law_cfg_args[@]}" "${law_tests[@]}" >"$TMP/law.log" 2>&1); then
     bad 7 "the law tests fail: $(grep -m1 -E 'FAIL|Error' "$TMP/law.log")"
   fi
-  if [ -n "$LEAFTEST" ] && ! (cd "$LAWUNIT" && pnpm exec vitest run "${LEAFTEST#"$LAWUNIT"/}" >"$TMP/leaf.log" 2>&1); then
+  if [ -n "$LEAFTEST" ] && ! (cd "$LAWUNIT" && pnpm exec vitest run "${law_cfg_args[@]}" "${LEAFTEST#"$LAWUNIT"/}" >"$TMP/leaf.log" 2>&1); then
     bad 8 "the leaf-unit test fails: $(grep -m1 -E 'FAIL|Error' "$TMP/leaf.log")"
   fi
 fi
@@ -454,13 +459,15 @@ pnpm ls -r --depth -1 --json 2>/dev/null | node -e 'const r=require("path").rela
 UNIT_DIRS="$(node -e 'console.log(Object.values(require(process.argv[1])).join(" "))' "$TMP/units.json")"
 GLOBJS='const glob=(p)=>new RegExp("^"+p.replace(/[.+^${}()|[\]\\]/g,"\\$&").replace(/\*\*/g,"\u0000").replace(/\*/g,"[^/]*").replace(/\u0000/g,".*")+"$");'
 # A full copy of the tracked and untracked (not ignored) files, pnpm's links kept, committed on `stage`.
+# The root node_modules is a symlink in a copy, which .gitignore's `node_modules/` doesn't match, so
+# .git/info/exclude keeps it out of the copy's commit, as the real tree's ignored directory is.
 full_copy()
 {
   local d="$1"; mkdir -p "$d"
   git ls-files -co --exclude-standard -z | tar --null -T - -cf - 2>/dev/null | tar -xf - -C "$d"
   ln -s "$ROOT/node_modules" "$d/node_modules"
   for u in $UNIT_DIRS; do [ -d "$ROOT/$u/node_modules" ] && cp -a "$ROOT/$u/node_modules" "$d/$u/"; done
-  (cd "$d" && git init -q -b stage && git add -A && git -c user.email=g@t -c user.name=g commit -qm base --no-verify)
+  (cd "$d" && git init -q -b stage && printf "/node_modules\n" >>.git/info/exclude && git add -A && git -c user.email=g@t -c user.name=g commit -qm base --no-verify)
 }
 # taskId<TAB>hash<TAB>dependents for one dry run of every task the entry point runs.
 dry_hashes()
@@ -476,7 +483,7 @@ if [ "${#TASKS[@]}" -gt 0 ] && [ -x "$TURBO" ]; then
   node -e "$GLOBJS"'
 const fs=require("fs"),cp=require("child_process");const C=process.argv[1];
 const t=JSON.parse(fs.readFileSync(C+"/turbo.json","utf8").replace(/^\s*\/\/.*$/gm,""));
-const files=cp.execSync("git ls-files",{cwd:C,encoding:"utf8"}).split("\n").filter(Boolean);
+const files=cp.execSync("git -c core.quotePath=false ls-files",{cwd:C,encoding:"utf8"}).split("\n").filter(Boolean);
 const seen=new Set();
 for(const task of Object.values(t.tasks))for(const i of task.inputs??[]){
  if(!i.startsWith("$TURBO_ROOT$/")||seen.has(i))continue;seen.add(i);
@@ -553,7 +560,8 @@ console.log([...h0].filter(([id,{h}])=>!hit.has(id)&&h1.get(id)?.h!==h).map(([id
     node -e "$GLOBJS"'
 const fs=require("fs"),cp=require("child_process");const [R,u,uj]=process.argv.slice(1);
 const t=JSON.parse(fs.readFileSync(R+"/turbo.json","utf8").replace(/^\s*\/\/.*$/gm,""));
-const files=cp.execSync("git ls-files -co --exclude-standard",{cwd:R,encoding:"utf8"}).split("\n").filter(Boolean);
+// quotePath off: a quoted name (a frame note with an em dash) would match no file and drop out of the copy.
+const files=cp.execSync("git -c core.quotePath=false ls-files -co --exclude-standard",{cwd:R,encoding:"utf8"}).split("\n").filter(Boolean);
 const pkg=JSON.parse(fs.readFileSync(R+"/"+u+"/package.json","utf8"));const dirOf=JSON.parse(fs.readFileSync(uj,"utf8"));
 const keep=new Set([...(t.globalDependencies??[]),"pnpm-workspace.yaml"]);
 const under=(d)=>files.filter((f)=>f.startsWith(d+"/"));
@@ -568,7 +576,7 @@ for(const f of keep)console.log(f);' "$ROOT" "$u" "$TMP/units.json" >"$TMP/iso.l
     (cd "$ROOT" && tar -cf - -T "$TMP/iso.list" 2>/dev/null) | tar -xf - -C "$I"
     ln -s "$ROOT/node_modules" "$I/node_modules"
     for d in $UNIT_DIRS; do [ -d "$I/$d" ] && [ -d "$ROOT/$d/node_modules" ] && cp -a "$ROOT/$d/node_modules" "$I/$d/"; done
-    (cd "$I" && git init -q -b stage && git add -A && git -c user.email=g@t -c user.name=g commit -qm iso --no-verify)
+    (cd "$I" && git init -q -b stage && printf "/node_modules\n" >>.git/info/exclude && git add -A && git -c user.email=g@t -c user.name=g commit -qm iso --no-verify)
     for task in lint test; do
       node -e 'process.exit(require(process.argv[1]).scripts?.[process.argv[2]]?0:1)' "$I/$u/package.json" "$task" || continue
       (cd "$I/$u" && BT_VERIFY_BASE=stage pnpm run "$task" >"$TMP/iso-$task.log" 2>&1) || bad 4 "$u's $task fails in a copy holding only its declared inputs: $(grep -m1 -E 'Error|FAIL|ENOENT|error' "$TMP/iso-$task.log" | head -c 300)"

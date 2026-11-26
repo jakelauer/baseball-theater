@@ -61,7 +61,8 @@
 			"outputs": []
 		},
 		// functions' tests read the fixtures, the API spec, wrangler.jsonc, the release notes, the
-		// workflows and the preview script, and (S146) web/vite.config.ts's text.
+		// workflows and the preview script, (S146) web/vite.config.ts's text and the root package.json's
+		// scripts, and .prettierrc (the committed spec is formatted with it).
 		"@bt/functions#test": {
 			"dependsOn": ["^typecheck"],
 			"inputs": [
@@ -72,13 +73,79 @@
 				"$TURBO_ROOT$/releases/**",
 				"$TURBO_ROOT$/.github/workflows/**",
 				"$TURBO_ROOT$/scripts/preview-pr-open.sh",
-				"$TURBO_ROOT$/web/vite.config.ts"
+				"$TURBO_ROOT$/web/vite.config.ts",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/.prettierrc"
 			],
 			"outputs": ["coverage/**", ".vitest-reports/**"],
 			"env": ["BT_FUNCTIONS_SHARDED", "BT_COVERAGE_SHARD"]
 		},
+		// The recorded MLB fixtures domain's, mlb-api's and web's tests read (web's also the API spec
+		// its generated client is checked against), each found by AC 4's isolated-copy runs.
+		"@bt/domain#test": {
+			"dependsOn": ["^typecheck"],
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/fixtures/**"],
+			"outputs": ["coverage/**"],
+			"env": ["BT_FUNCTIONS_SHARDED", "BT_COVERAGE_SHARD"]
+		},
+		"@bt/mlb-api#test": {
+			"dependsOn": ["^typecheck"],
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/fixtures/**"],
+			"outputs": ["coverage/**"],
+			"env": ["BT_FUNCTIONS_SHARDED", "BT_COVERAGE_SHARD"]
+		},
+		"@bt/web#test": {
+			"dependsOn": ["^typecheck"],
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/fixtures/**", "$TURBO_ROOT$/openapi/**"],
+			"outputs": ["coverage/**"],
+			"env": ["BT_FUNCTIONS_SHARDED", "BT_COVERAGE_SHARD"]
+		},
+		// tools' tests run jscpd and size-limit with the repository's own configs and the root
+		// package.json's size command.
+		"@bt/tools#test": {
+			"dependsOn": ["^typecheck"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/.jscpd.json",
+				"$TURBO_ROOT$/.size-limit.json",
+				"$TURBO_ROOT$/package.json"
+			],
+			"outputs": ["coverage/**"],
+			"env": ["BT_FUNCTIONS_SHARDED", "BT_COVERAGE_SHARD"]
+		},
+		// e2e's design-review helper imports scripts/backlog-vault/design-reference.ts (one pairing rule
+		// for the review folder and the ledger), and its spec selector reads each unit's manifest.
+		"@bt/e2e#lint": {
+			"dependsOn": ["^typecheck"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/tools/eslint-rules/**",
+				"$TURBO_ROOT$/scripts/backlog-vault/design-reference.ts"
+			],
+			"outputs": []
+		},
+		"@bt/e2e#typecheck": {
+			"dependsOn": ["^typecheck"],
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/scripts/backlog-vault/design-reference.ts"],
+			"outputs": []
+		},
+		"@bt/e2e#test": {
+			"dependsOn": ["^typecheck"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/scripts/backlog-vault/design-reference.ts",
+				"$TURBO_ROOT$/packages/domain/package.json",
+				"$TURBO_ROOT$/packages/mlb-api/package.json",
+				"$TURBO_ROOT$/packages/ports/package.json",
+				"$TURBO_ROOT$/functions/package.json",
+				"$TURBO_ROOT$/web/package.json"
+			],
+			"outputs": ["coverage/**"],
+			"env": ["BT_FUNCTIONS_SHARDED", "BT_COVERAGE_SHARD"]
+		},
 		// The law-test unit (rule 4): its tests read the whole repository's structure, so every file
-		// outside scripts/ they read is named here, each unit's manifest by name (law (c)).
+		// outside scripts/ they read is named here, each unit's manifest by name (law (c)), and the
+		// configs worktree-ports.test.ts imports with every file they import in turn.
 		"@bt/scripts#test": {
 			"dependsOn": ["^typecheck"],
 			"inputs": [
@@ -112,12 +179,21 @@
 				"$TURBO_ROOT$/CHANGELOG.md",
 				"$TURBO_ROOT$/.gitignore",
 				"$TURBO_ROOT$/.size-limit.json",
-				"$TURBO_ROOT$/.jscpd.json"
+				"$TURBO_ROOT$/.jscpd.json",
+				"$TURBO_ROOT$/web/vite.config.ts",
+				"$TURBO_ROOT$/web/src/layout/version.ts",
+				"$TURBO_ROOT$/web/src/pwa/**",
+				"$TURBO_ROOT$/packages/domain/src/release-notes.ts",
+				"$TURBO_ROOT$/packages/domain/src/calendar-date.ts",
+				"$TURBO_ROOT$/e2e/playwright.config.ts",
+				"$TURBO_ROOT$/functions/src/**",
+				"$TURBO_ROOT$/web/src/api/codegen.test.ts"
 			],
 			"outputs": ["coverage/**"]
 		},
 		// Repo-wide root tasks (rule 3): each reads files of every unit at once and runs no ESLint, tsc
-		// or Vitest. No edge joins them to a unit's task.
+		// or Vitest. No edge joins them to a unit's task. Each names the root package.json, which holds
+		// its command.
 		"//#backlog:check": {
 			"inputs": [
 				"$TURBO_ROOT$/docs/**",
@@ -131,6 +207,7 @@
 		},
 		"//#dup:check": {
 			"inputs": [
+				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/.jscpd.json",
 				"$TURBO_ROOT$/packages/**",
 				"$TURBO_ROOT$/functions/src/**",
@@ -141,6 +218,7 @@
 		// Prettier's Markdown check; .prettierignore leaves out docs/, so these are the places Markdown lives.
 		"//#format:md": {
 			"inputs": [
+				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/.prettierignore",
 				"$TURBO_ROOT$/.prettierrc",
 				"$TURBO_ROOT$/CLAUDE.md",
