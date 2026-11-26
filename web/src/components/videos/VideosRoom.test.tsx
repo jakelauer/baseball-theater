@@ -277,6 +277,82 @@ describe("VideosRoom states and play (S69)", () =>
 		room.mockRestore();
 	});
 
+	it("every game's Videos room shows the inline Featured team control, never a Filters drawer in its place, however wide it is (#583)", async () =>
+	{
+		// jsdom lays nothing out: the Featured team control (its text starts "All") 160px, every other pill and the
+		// Filters button 60px, and a row of 180px: room for Stat / viz and the button, not for the team control.
+		const widths = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement)
+		{
+			return this.textContent?.startsWith("All") ? 160 : 60;
+		});
+		const room = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(180);
+		try
+		{
+			const user = userEvent.setup();
+			renderRoom();
+			const row = within(screen.getByTestId("filter-row"));
+			expect(row.getByRole("radiogroup", {
+				name: "Featured team",
+			})).toBeInTheDocument();
+			// Stat / viz, which no longer fits beside it, stays reachable through the drawer.
+			expect(row.getAllByRole("button").map((b) => b.textContent)).toEqual(["Filters"]);
+			await user.click(row.getByRole("button", {
+				name: "Filters",
+			}));
+			const drawer = within(await screen.findByRole("dialog", {
+				name: "Filters",
+			}));
+			expect(drawer.getByRole("checkbox", {
+				name: "Stat / viz",
+			})).toBeInTheDocument();
+		}
+		finally
+		{
+			widths.mockRestore();
+			room.mockRestore();
+		}
+	});
+
+	it("only the Featured team control is pinned: grouped by team, a Kind pill wider than a 320px row falls back to Filters and holds no width wider than the row (#583)", async () =>
+	{
+		// jsdom lays nothing out: the Kind pill (its options name the kinds) 400px, wider than the row; the Featured
+		// team control (its text starts "All") 200px; every other pill and the Filters button 60px; a row of 320px.
+		const widths = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement)
+		{
+			const text = this.textContent ?? "";
+			if (text.includes("Pre-game")) return 400;
+			return text.startsWith("All") ? 200 : 60;
+		});
+		const room = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(320);
+		try
+		{
+			const user = userEvent.setup();
+			renderRoom();
+			const filterRow = screen.getByTestId("filter-row");
+			// The row's own box: its minimum width is what a wrapping toolbar can't narrow it below.
+			const minWidth = () => parseFloat(filterRow.parentElement!.style.minWidth || "0");
+			expect(within(filterRow).getByRole("radiogroup", {
+				name: "Featured team",
+			})).toBeInTheDocument();
+			expect(minWidth()).toBeLessThanOrEqual(320);
+			await user.click(screen.getByRole("radio", {
+				name: "Team",
+			}));
+			const row = within(screen.getByTestId("filter-row"));
+			expect(row.queryByRole("radiogroup", {
+				name: "Kind",
+			})).toBeNull();
+			// Stat / viz still fits beside the Filters button, which holds the Kind filter.
+			expect(row.getAllByRole("button").map((b) => b.textContent)).toEqual(["Stat / viz", "Filters"]);
+			expect(minWidth()).toBeLessThanOrEqual(320);
+		}
+		finally
+		{
+			widths.mockRestore();
+			room.mockRestore();
+		}
+	});
+
 	it("sort: Impact by default; Newest and Oldest reorder through sortHighlights, within each group", async () =>
 	{
 		const user = userEvent.setup();
