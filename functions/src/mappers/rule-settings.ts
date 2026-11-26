@@ -1,8 +1,9 @@
 /**
  * Pure upstream → BT mapper for the rules a game was played under (S100), from the live feed's `ruleSettings`
  * hydrate. Each setting keeps MLB's name, label and description, its value and the unit to read it in (from
- * `valueType`); MLB's numeric `settingId` stays upstream. A setting missing its name or value, or whose value type BT
- * doesn't know, is left out, and an answer with none left maps to null, so the game is served without the field.
+ * `valueType`); MLB's numeric `settingId` stays upstream. A setting missing its name, value or value type (absent or
+ * null), or whose value type BT doesn't know, is left out (a null label or description falls back), and an answer with
+ * none left maps to null, so the game is served without the field.
  */
 import type {
 	GameRuleSetting, GameRuleSettingUnit, GameSnapshot, Unversioned,
@@ -25,8 +26,8 @@ export function mapGameRuleSettings(response: GameRuleSettingsResponse): GameRul
 	{
 		const name = setting.settingName;
 		const value = setting.settingValue;
-		const unit = setting.valueType === undefined ? undefined : UNITS.get(setting.valueType);
-		if (!name || value === undefined || !unit) continue;
+		const unit = setting.valueType == null ? undefined : UNITS.get(setting.valueType);
+		if (!name || value == null || !unit) continue;
 		settings.push({
 			name,
 			label: setting.settingDisplayName ?? name,

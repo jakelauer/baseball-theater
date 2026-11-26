@@ -11,15 +11,15 @@
 /**
  * One rule a game was played under. `settingName` is its stable key (`strikeZoneTopFactor`), `valueType` says how to
  * read `settingValue`: `percentage` (53.5 means 53.5%), `numeric` (a count, or inches where the description says so),
- * `boolean` or `text`.
+ * `boolean` or `text`. Any field may come null as well as missing.
  */
 export interface RuleSetting {
-	settingId?: number;
-	settingName?: string;
-	settingDisplayName?: string;
-	settingDescription?: string;
-	valueType?: string;
-	settingValue?: number | boolean | string;
+	settingId?: number | null;
+	settingName?: string | null;
+	settingDisplayName?: string | null;
+	settingDescription?: string | null;
+	valueType?: string | null;
+	settingValue?: number | boolean | string | null;
 }
 
 /** The only part of `gameData` the `fields=gameData,ruleSettings` filter leaves. */

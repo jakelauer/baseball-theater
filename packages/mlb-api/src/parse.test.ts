@@ -300,6 +300,34 @@ describe("parseGameRuleSettingsResponse (S100)", () =>
 		expect(settings.length).toBeGreaterThan(20);
 	});
 
+	it("S100 AC 2: accepts null for any field of a setting, so one null never fails the others", () =>
+	{
+		const settings = parseGameRuleSettingsResponse({
+			gameData: {
+				ruleSettings: [{
+					settingName: "x",
+					settingDescription: null,
+					valueType: "numeric",
+					settingValue: 1,
+				}, {
+					settingId: null,
+					settingName: null,
+					settingDisplayName: null,
+					settingDescription: null,
+					valueType: null,
+					settingValue: null,
+				}, {
+					settingName: "baseSize",
+					valueType: "numeric",
+					settingValue: 18,
+				}],
+			},
+		}).gameData?.ruleSettings;
+		expect(settings).toHaveLength(3);
+		expect(settings?.[0]?.settingDescription).toBeNull();
+		expect(settings?.[2]?.settingValue).toBe(18);
+	});
+
 	it("S100 AC 2: refuses an answer that isn't the endpoint's shape", () =>
 	{
 		expect(() => parseGameRuleSettingsResponse({

@@ -90,7 +90,7 @@ describe("recheckDueGame (S212 AC 5)", () =>
 		const calls = withMlb(deps, answers);
 		expect(await recheckDueGame(deps)).toBe(744834);
 		expect(await recheckDueGame(deps)).toBeNull();
-		// S101 review: the fixture lists no uniforms for 744834, so each re-check of the final game asks them once (`uniformsDue`).
+		// S101 review: the fixture lists no uniforms for 744834, so each re-check of the final game asks them once (`askedExtraDue`).
 		expect(calls).toEqual(["fetchGame 744834", "fetchGameUniforms 744834", "fetchGameRuleSettings 744834"]);
 	});
 

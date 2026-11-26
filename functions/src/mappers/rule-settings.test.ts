@@ -89,6 +89,50 @@ describe("mapGameRuleSettings (S100)", () =>
 		}]);
 	});
 
+	it("S100 AC 4: a setting with null fields drops only itself (null value or type) or falls back (null label or description); the rest are kept", () =>
+	{
+		const parsed = parseGameRuleSettingsResponse({
+			gameData: {
+				ruleSettings: [{
+					settingName: "strikeZoneTopFactor",
+					settingDisplayName: "Strike Zone Top",
+					settingDescription: "Top of strike zone as a percentage of player height",
+					valueType: "percentage",
+					settingValue: 53.5,
+				}, {
+					settingName: "nullValue",
+					settingDescription: null,
+					valueType: "numeric",
+					settingValue: null,
+				}, {
+					settingName: "nullType",
+					valueType: null,
+					settingValue: 1,
+				}, {
+					settingId: null,
+					settingName: "baseSize",
+					settingDisplayName: null,
+					settingDescription: null,
+					valueType: "numeric",
+					settingValue: 18,
+				}],
+			},
+		});
+		expect(mapGameRuleSettings(parsed)).toEqual([{
+			name: "strikeZoneTopFactor",
+			label: "Strike Zone Top",
+			description: "Top of strike zone as a percentage of player height",
+			value: 53.5,
+			unit: "percent",
+		}, {
+			name: "baseSize",
+			label: "baseSize",
+			description: "",
+			value: 18,
+			unit: "number",
+		}]);
+	});
+
 	it("S100 AC 5: an answer listing nothing maps to null", () =>
 	{
 		expect(mapGameRuleSettings({})).toBeNull();

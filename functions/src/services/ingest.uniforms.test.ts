@@ -1,7 +1,7 @@
 /**
  * S101 AC 5: the uniforms through the game write every one-game ingest path shares (`ingestGame` → `storeGames`), on
  * the recorded 823823 game and its recorded uniforms. Ingest asks them off the game fetch only when it first stores the
- * game or sees its status change while none is stored (`uniformsDue`), and once stored they are kept (`keepStoredExtras`):
+ * game or sees its status change while none is stored (`askedExtraDue`), and once stored they are kept (`keepStoredExtras`):
  * a later write that didn't ask, or whose ask found nothing, neither drops them nor stamps a new version for their absence.
  */
 import type { GameSnapshot, Unversioned } from "@bt/domain";

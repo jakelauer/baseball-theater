@@ -124,7 +124,7 @@ describe("past, finished reads (S212 AC 2)", () =>
 		}]);
 		// The game first: the day's refresh may write the schedule's final state over the suspended one.
 		await getOrRefreshGame(deps, gamePks[0]!);
-		// S101 review: a final game stored without uniforms has them asked by each write that refreshes it (`uniformsDue`).
+		// S101 review: a final game stored without uniforms has them asked by each write that refreshes it (`askedExtraDue`).
 		expect(calls).toEqual([`fetchGame ${gamePks[0]!}`, `fetchGameUniforms ${gamePks[0]!}`, `fetchGameRuleSettings ${gamePks[0]!}`]);
 		await deps.gameStates.write([{
 			...row,

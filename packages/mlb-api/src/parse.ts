@@ -1571,13 +1571,15 @@ export function parseGameUniformsResponse(input: unknown): GameUniformsResponse
 	return gameUniformsResponseSchema.parse(input);
 }
 
+// Each field may be null as well as missing (MLB answers null for an unset field elsewhere, e.g. the fan pick of S99), so
+// one null in one setting never fails the whole answer: the mapper drops only a setting it can't use.
 const ruleSettingSchema = z.object({
-	settingId: z.number().optional(),
-	settingName: z.string().optional(),
-	settingDisplayName: z.string().optional(),
-	settingDescription: z.string().optional(),
-	valueType: z.string().optional(),
-	settingValue: z.union([z.number(), z.boolean(), z.string()]).optional(),
+	settingId: z.number().nullish(),
+	settingName: z.string().nullish(),
+	settingDisplayName: z.string().nullish(),
+	settingDescription: z.string().nullish(),
+	valueType: z.string().nullish(),
+	settingValue: z.union([z.number(), z.boolean(), z.string()]).nullish(),
 });
 
 const gameRuleSettingsResponseSchema = z.object({

@@ -617,10 +617,18 @@ describe("HttpMlbStatsClient game rule settings (S100)", () =>
 		expect(asked.some((url) => url.includes("ruleSettings"))).toBe(false);
 	});
 
+	// fetchGame doesn't ask the rule settings at all (ingest asks them beside it), so this proves both halves: the hung
+	// endpoint is never called (a fetchGame that started asking it fails here), and the game still answers in time.
 	it("S100 AC 5 hung: a rule-settings request that never resolves leaves fetchGame answering within PLAY_METRICS_LIMIT_MS, the field absent", async () =>
 	{
 		vi.useFakeTimers();
-		const { mlb } = recordedClient((url) => isRuleSettings(url) ? new Promise<Response>(() => undefined) as unknown as Response : undefined);
+		let hungAsks = 0;
+		const { mlb } = recordedClient((url) =>
+		{
+			if (!isRuleSettings(url)) return undefined;
+			hungAsks += 1;
+			return new Promise<Response>(() => undefined) as unknown as Response;
+		});
 		let answered: Awaited<ReturnType<typeof mlb.fetchGame>> | undefined;
 		void mlb.fetchGame(823823).then((fetched) =>
 		{
@@ -630,5 +638,6 @@ describe("HttpMlbStatsClient game rule settings (S100)", () =>
 		expect(answered).toBeDefined();
 		expect(answered?.game).not.toHaveProperty("ruleSettings");
 		expect(answered?.game.playMetrics?.atBats).toHaveLength(85);
+		expect(hungAsks).toBe(0);
 	});
 });
