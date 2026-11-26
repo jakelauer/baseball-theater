@@ -252,11 +252,25 @@ export async function migrateDatabaseAt(connectionString: string, options: Migra
  */
 export const PGLITE_SNAPSHOT_ENV = "BT_PGLITE_SNAPSHOT";
 
+let pgliteOpened: ((pglite: PGlite) => void) | undefined;
+
+/**
+ * Hands every PGlite `migratedPglite` opens from now on to `listener`, so the functions tests' setup file
+ * (`src/test/use-pglite-snapshot.ts`) can close each one when its test or file is done (#652): an instance holds
+ * ~259 MB of WebAssembly memory until it is closed, and tests open many. Nothing else sets it, so the local server's
+ * one long-lived database is left alone. Kept free of Vitest so this module stays a plain adapter.
+ */
+export function onMigratedPgliteOpened(listener: ((pglite: PGlite) => void) | undefined): void
+{
+	pgliteOpened = listener;
+}
+
 /**
  * A fresh in-process PGlite with the migrations applied, and the PGlite under it. With `PGLITE_SNAPSHOT_ENV` set it
  * loads that snapshot (each call its own copy, so every caller still gets an isolated database) and still runs the
  * migrator, which applies nothing to a current snapshot and anything newer to a stale one, so the result is fully
- * migrated either way.
+ * migrated either way. The caller owns the instance; under the functions tests the listener set by
+ * `onMigratedPgliteOpened` closes it for them.
  */
 export async function migratedPglite(): Promise<{ db: PostgresDb;
 	pglite: PGlite; }>
@@ -276,6 +290,8 @@ export async function migratedPglite(): Promise<{ db: PostgresDb;
 	await migratePglite(db, {
 		migrationsFolder: MIGRATIONS_FOLDER,
 	});
+	// Only once it has opened: closing one that failed to start throws, and its caller never received it.
+	pgliteOpened?.(pglite);
 	return {
 		db,
 		pglite,
