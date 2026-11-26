@@ -297,19 +297,39 @@ const FULLVAR = FULL.split("=")[0];
 if (!new RegExp(`merge-base[^\\n]*${BASE_BRANCH}|${BASE_BRANCH}[^\\n]*merge-base|TURBO_SCM_BASE`).test(entryAll)) bad(5, `the entry point (${ENTRY}) does not compare against the merge base with ${BASE_BRANCH}`);
 if (!/ls-files --others --exclude-standard/.test(entryAll)) bad(5, "the entry point does not count untracked files");
 if (!FULL || !entryAll.includes(FULLVAR)) bad(5, `the entry point does not honour the full-run switch (${FULL || "none named"})`);
-// The fresh-run flag must go with the switch: on a code line naming its variable, or inside the
-// if/case block such a line opens (R1's no-unit branch also passes a write-only cache, elsewhere).
+// The fresh-run flag must go with the switch, in the branch that runs when it is on: R1's no-unit
+// branch also passes a write-only cache, so a flag elsewhere proves nothing. A test of the switch is
+// positive (`= 1`, `== 1`, `-eq 1`, `-n`) or negated (`!= 1`, `-z`); the flag counts after `&&` (or
+// in an if's then-branch) for a positive test, after `||` (or in its else-branch) for a negated one,
+// or inside `${VAR:+…}`. A test of neither kind, or a case statement, proves nothing.
 const FRESH = /--force\b|--cache=(?:local|remote):w\b/;
 const switchForces = (text) =>
 {
 	const ls = text.split("\n");
+	const sense = (l) => (/!=\s*["']?1\b|-z\s/.test(l) ? "neg" : /(==?|-eq)\s*["']?1\b|-n\s/.test(l) ? "pos" : "");
 	return ls.some((l, i) =>
 	{
 		if (!FULLVAR || !l.includes(FULLVAR)) return false;
-		if (FRESH.test(l)) return true;
-		if (!/(^|[\s;])(if|case)\b/.test(l)) return false;
-		for (let j = i + 1; j < ls.length && !/^\s*(fi|esac)\b/.test(ls[j]); j++) if (FRESH.test(ls[j])) return true;
-		return false;
+		if (new RegExp(`\\$\\{${reEsc(FULLVAR)}:\\+[^}]*(--force\\b|--cache=(local|remote):w\\b)`).test(l)) return true;
+		const sn = sense(l);
+		if (!sn) return false;
+		if (/(^|[\s;])if\b/.test(l))
+		{
+			const then = [], other = [];
+			let inElse = false, depth = 0;
+			for (let j = i + 1; j < ls.length; j++)
+			{
+				const t = ls[j];
+				if (/^\s*if\b/.test(t)) depth++;
+				if (/^\s*fi\b/.test(t)) { if (depth === 0) break; depth--; }
+				if (depth === 0 && /^\s*(else|elif)\b/.test(t)) { inElse = true; continue; }
+				(inElse ? other : then).push(t);
+			}
+			return (sn === "pos" ? then : other).some((t) => FRESH.test(t));
+		}
+		const m = l.match(/&&(.*?)(\|\|(.*))?$/);
+		if (!m) return false;
+		return FRESH.test(sn === "pos" ? m[1] : (m[3] ?? ""));
 	});
 };
 if (!switchForces(entryAll)) bad(5, "the full-run switch does not force a fresh run (--force or a write-only --cache=local:w)");
