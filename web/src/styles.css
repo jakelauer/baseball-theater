@@ -359,6 +359,16 @@ a {
 	min-height: 0;
 }
 
+/* The slot the dialog draws and the provider's holder in it (S198): links of the same shrinking column,
+   so the clip still gives way on a short screen. */
+.bt-player-modal .bt-player-slot,
+.bt-player-modal .bt-player-holder {
+	display: flex;
+	flex-direction: column;
+	flex: 0 1 auto;
+	min-height: 0;
+}
+
 .bt-player-modal video {
 	flex: 0 1 auto;
 	min-height: 96px;

@@ -10,7 +10,7 @@ import type { Video } from "./VideoCard.js";
 import { PlayInningPill } from "./PlayInningPill.js";
 import { gameVideosLink } from "./playLink.js";
 import type { PlayLink } from "./playLink.js";
-import { VideoPlayer } from "./VideoPlayer.js";
+import { usePlayerSlot } from "./PlayerProvider.js";
 
 /** How long the dialog takes to open, in ms: brief enough to feel almost instant, long enough to read as opening (#423). */
 const OPEN_MS = 150;
@@ -62,6 +62,10 @@ export type PlayerGame = Parameters<typeof gameVideosLink>[0];
  * opens a frame later; the player's `autoPlay` turns on once it has opened, which starts the same
  * `<video>` (`VideoPlayer`), so the element isn't replaced and nothing reloads.
  *
+ * The clip itself is `PlayerProvider`'s one player (S198), moved into the slot under the title:
+ * Close, Esc and a press outside stop it (`dismiss`), while leaving the page another way (a pill, any
+ * link, Back) or the tool row's Mini player button sends a playing clip to the corner player.
+ *
  * It opens with focus on Mantine's hidden `FocusTrap.InitialFocus`, not on its first control (#582):
  * a clip's link opened in a new tab (#424) opens the dialog on a page the reader hasn't touched,
  * where the browser counts focus placed on open as keyboard focus and rings that control, so the
@@ -85,11 +89,25 @@ export function PlayerDialog({
 	const [entered, setEntered] = useState(false);
 	// Whether the latest press started inside the modal's border, read when a click reaches the overlay.
 	const pressedInside = useRef(false);
-	// The latest `onClose`, read at the press: callers pass a fresh arrow each render.
-	const close = useRef(onClose);
+	const { slot, dismiss } = usePlayerSlot({
+		video,
+		title,
+		autoPlay: entered,
+		titleAbove: true,
+		chosen: true,
+		onClose,
+	});
+	// Close, Esc and a press outside stop the clip, then close the dialog (a pill only closes it).
+	const stop = () =>
+	{
+		dismiss();
+		onClose();
+	};
+	// The latest `stop`, read at the press: callers pass a fresh `onClose` each render.
+	const close = useRef(stop);
 	useEffect(() =>
 	{
-		close.current = onClose;
+		close.current = stop;
 	});
 	useEffect(() =>
 	{
@@ -131,7 +149,7 @@ export function PlayerDialog({
 	return (
 		<Modal
 			opened={opened}
-			onClose={onClose}
+			onClose={stop}
 			centered
 			withCloseButton={false}
 			closeOnClickOutside={false}
@@ -147,7 +165,7 @@ export function PlayerDialog({
 				color: "var(--bt-dark)",
 				onClick: () =>
 				{
-					if (!pressedInside.current) onClose();
+					if (!pressedInside.current) stop();
 				},
 			}}
 			classNames={{
@@ -176,7 +194,7 @@ export function PlayerDialog({
 					{gameLink ? <PlayInningPill link={gameLink} testId="player-game-link" onClick={onClose} /> : null}
 					{playLink ? <PlayInningPill link={playLink} testId="player-play-link" onClick={onClose} /> : null}
 				</Group>
-				<UnstyledButton onClick={onClose} aria-label="Close video" c="var(--bt-light)" className="bt-hover" px={8} py={4} mx={-8} my={-4} style={{
+				<UnstyledButton onClick={stop} aria-label="Close video" c="var(--bt-light)" className="bt-hover" px={8} py={4} mx={-8} my={-4} style={{
 					flexShrink: 0,
 					borderRadius: 8,
 				}}
@@ -184,7 +202,7 @@ export function PlayerDialog({
 					Close ✕
 				</UnstyledButton>
 			</Group>
-			<VideoPlayer video={video} title={title} autoPlay={entered} titleAbove />
+			<div ref={slot} className="bt-player-slot" />
 		</Modal>
 	);
 }

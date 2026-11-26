@@ -10,10 +10,12 @@ import {
 } from "@bt/domain";
 import { MantineProvider } from "@mantine/core";
 import {
-	cleanup, render, screen, within,
+	cleanup, fireEvent, render, screen, waitFor, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import {
+	Link, MemoryRouter, Route, Routes,
+} from "react-router-dom";
 import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
@@ -22,7 +24,9 @@ import type { LayoutVariant } from "../../layout/variant.js";
 import { hydrateSettings, resetSettings } from "../../settings/store.js";
 import { BODY_FONT_PX, mantineFontPx } from "../../test/fontSize.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
+import { expectInCorner, markPlaying } from "../../test/renderWithPlayer.js";
 import { VideosRoom } from "./VideosRoom.js";
+import { PlayerProvider } from "./PlayerProvider.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 
@@ -42,9 +46,9 @@ function renderRoom(variant: LayoutVariant = "mobile", g: GamePayload = game())
 	render(
 		<MantineProvider>
 			{/* The open clip lives in the URL (`?clip=`, #424). */}
-			<MemoryRouter initialEntries={["/game/823823/videos"]}>
+			<MemoryRouter initialEntries={["/game/823823/videos"]}><PlayerProvider>
 				<VideosRoom game={g} variant={variant} />
-			</MemoryRouter>
+			</PlayerProvider></MemoryRouter>
 		</MantineProvider>,
 	);
 }
@@ -674,3 +678,36 @@ const GROUP_NAMES = {
 	statcast: "Statcast",
 	postgame: "Post-game",
 } as const;
+
+describe("the corner mini-player from the Videos room (S198)", () =>
+{
+	it("S198 AC 1: a clip playing in the Videos room keeps playing in the corner after a route change, the same element", async () =>
+	{
+		const user = userEvent.setup();
+		render(
+			<MantineProvider>
+				<MemoryRouter initialEntries={["/game/823823/videos"]}><PlayerProvider>
+					<Routes>
+						<Route path="/game/823823/videos" element={<VideosRoom game={game()} variant="desktop" />} />
+						<Route path="*" element={<p>Box room</p>} />
+					</Routes>
+					{/* A header link, outside the page. */}
+					<Link to="/game/823823/box">Box</Link>
+				</PlayerProvider></MemoryRouter>
+			</MantineProvider>,
+		);
+		const first = game().highlights[0]!;
+		await user.click(screen.getByRole("link", {
+			name: `Play ${first.title}`,
+		}));
+		const dialog = await screen.findByRole("dialog");
+		const video = within(dialog).getByTestId("video-player").querySelector("video")!;
+		markPlaying(video, 7);
+		fireEvent.click(screen.getByRole("link", {
+			name: "Box",
+		}));
+		expect(await screen.findByText("Box room")).toBeInTheDocument();
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		expectInCorner(video, 7);
+	});
+});

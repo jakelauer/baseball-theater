@@ -1,6 +1,7 @@
 import { Paper, Transition } from "@mantine/core";
 import { useReducedMotion } from "@mantine/hooks";
 import { useState } from "react";
+import { BOTTOM_FLOAT } from "../components/videos/CornerPlayer.js";
 import type { LayoutVariant } from "../layout/variant.js";
 import type { AfterUpdate } from "./afterUpdate.js";
 import { PointerBody } from "./afterUpdate.js";
@@ -19,7 +20,8 @@ const fadingOut = () => 0;
  * log over the game page (`onOpen`); its "Open the changelog" is part of that button, never a link to the
  * `/changelog` page. A live region around it announces it as A9's pointer is announced. A9's other rules come with `pointer`
  * (`useAfterUpdate`): never while A6's box is up, the 10 seconds it has left, once per release. It fades
- * as A9's pointer does, and under reduced motion neither fades nor draws the countdown line.
+ * as A9's pointer does, and under reduced motion neither fades nor draws the countdown line. Its
+ * `BOTTOM_FLOAT` class keeps the corner mini-player above it (S198).
  */
 export function UpdatedNotice({
 	pointer, variant, onOpen,
@@ -45,6 +47,7 @@ export function UpdatedNotice({
 			{(styles) => (release === null ? <></> : (
 				<div
 					data-testid="after-update-notice"
+					className={BOTTOM_FLOAT}
 					role="status"
 					style={{
 						...styles,

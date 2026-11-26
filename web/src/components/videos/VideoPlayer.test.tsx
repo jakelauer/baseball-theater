@@ -14,6 +14,7 @@ import {
 import { PlayerDialog } from "./PlayerDialog.js";
 import type { Video } from "./VideoCard.js";
 import { VideoPlayer } from "./VideoPlayer.js";
+import { PlayerProvider } from "./PlayerProvider.js";
 
 const VIDEO: Video = {
 	id: "conine-hr",
@@ -53,7 +54,7 @@ function wrap(node: React.ReactNode)
 {
 	return render(
 		<MantineProvider>
-			<MemoryRouter>{node}</MemoryRouter>
+			<MemoryRouter><PlayerProvider>{node}</PlayerProvider></MemoryRouter>
 		</MantineProvider>,
 	);
 }

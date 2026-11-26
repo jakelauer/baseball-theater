@@ -115,7 +115,7 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
  * own controls (seek, mute and volume, fullscreen, captions, AirPlay / picture-in-picture),
  * which replace the frames' custom play button, progress bar and clock (owner, 2026-11-25,
  * #579: "Yeah, let's use the default controls."), the title, and the MLBAM disclaimer.
- * `PlayerDialog` and `PlayerStage` host it; neither repeats any of it.
+ * `PlayerDialog` and `PlayerStage` host it (through `PlayerProvider`, below); neither repeats any of it.
  * Space plays and pauses (VISUAL-DESIGN §6) unless focus is on something Space already
  * means something to, such as the search box, a button or the clip. `autoPlay` starts the clip when
  * the reader chose it; the stage's first clip waits for a press. `autoPlay` turning on after mount
@@ -134,17 +134,33 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
  * `titleAbove` puts it above the clip, one size larger, for the dialog (S196; owner, 2026-11-23: "the
  * title should be on top of the video … The title should be a little bit bigger than it is"). The
  * disclaimer is last either way.
+ *
+ * `PlayerProvider` renders the only one (S198), moving it between the dialog, the stage and the corner
+ * player. `compact` is the corner's drawing: the clip alone, without the browser's controls (the
+ * corner draws its own), the title, the tools or the disclaimer, and Space left to the page, whose
+ * fan is browsing it. Each part comes and goes in its own place, so the `<video>` is never re-created.
+ * `onMiniPlayer` adds the tool row's Mini player button (`PlayerActions`).
  */
 export function VideoPlayer({
-	video, title = video.title, autoPlay = false, titleAbove = false,
+	video, title = video.title, autoPlay = false, titleAbove = false, compact = false, onMiniPlayer,
 }: { video: Video;
 	/** The clip's title; the game page passes `highlightTitle`'s (S75). */
 	title?: string;
 	autoPlay?: boolean;
 	/** Title above the clip at `md` (the dialog, S196) rather than under the tools at `sm` (the stage). */
-	titleAbove?: boolean; })
+	titleAbove?: boolean;
+	/** The corner player's drawing (S198): the clip alone, no built-in controls, Space not taken. */
+	compact?: boolean;
+	/** Sends the clip to the corner player (S198): the tool row's Mini player button. */
+	onMiniPlayer?: () => void; })
 {
 	const ref = useRef<HTMLVideoElement>(null);
+	// `compact` as last rendered, read by the page-wide Space handler.
+	const compactNow = useRef(compact);
+	useEffect(() =>
+	{
+		compactNow.current = compact;
+	});
 
 	const path = hlsPath();
 	// Set once hls.js fails on this clip (a fatal error, or its chunk wouldn't load): HLS leaves the picker.
@@ -195,7 +211,7 @@ export function VideoPlayer({
 	{
 		function onKey(event: KeyboardEvent): void
 		{
-			if (event.code !== "Space" || ownsSpace(event.target as HTMLElement)) return;
+			if (event.code !== "Space" || compactNow.current || ownsSpace(event.target as HTMLElement)) return;
 			event.preventDefault();
 			togglePlayer(ref.current, resume.current !== null, wantsPlay);
 		}
@@ -266,12 +282,13 @@ export function VideoPlayer({
 
 	return (
 		<Stack gap={10} data-testid="video-player">
-			{titleAbove ? <Text size="md" fw={500}>{title}</Text> : null}
+			{titleAbove && !compact ? <Text size="md" fw={500}>{title}</Text> : null}
 			<Box
 				component="video"
 				ref={ref}
 				// The browser's own controls (#579): a click or tap on the picture is theirs to handle.
-				controls
+				// The corner player draws its own (S198).
+				controls={!compact}
 				// No `src` while hls.js plays the quality: it attaches its own stream (the effect above).
 				src={libraryUrl ? undefined : quality?.url ?? video.playbackUrl ?? undefined}
 				poster={video.imageUrl ?? undefined}
@@ -312,22 +329,25 @@ export function VideoPlayer({
 					aspectRatio: "16 / 9",
 					// Contain, not cover: a portrait cut (`videoQualities`) shows whole, letterboxed on Raised.
 					objectFit: "contain",
-					borderRadius: 8,
+					// Square in the corner, whose own border rounds it.
+					borderRadius: compact ? 0 : 8,
 					background: "var(--bt-raised)",
 				}}
 			/>
-			{quality ? (
+			{quality && !compact ? (
 				<Group gap={4} justify="space-between" wrap="wrap">
-					<PlayerActions title={title} url={quality.url} fileUrl={fileUrl} />
+					<PlayerActions title={title} url={quality.url} fileUrl={fileUrl} onMiniPlayer={onMiniPlayer} />
 					<QualityPicker qualities={qualities} current={quality} onChange={switchTo} />
 				</Group>
 			) : null}
-			{titleAbove ? null : <Text size="sm" fw={500}>{title}</Text>}
-			<Stack gap={2}>
-				{/* `xs`, as the tools row's labels: 10px was too small to read (#589). */}
-				<Text size="xs" fw={700} tt="uppercase" c="var(--bt-muted)">Disclaimer:</Text>
-				<Text size="xs" lh={1.4} c="var(--bt-muted)">{DISCLAIMER}</Text>
-			</Stack>
+			{titleAbove || compact ? null : <Text size="sm" fw={500}>{title}</Text>}
+			{compact ? null : (
+				<Stack gap={2}>
+					{/* `xs`, as the tools row's labels: 10px was too small to read (#589). */}
+					<Text size="xs" fw={700} tt="uppercase" c="var(--bt-muted)">Disclaimer:</Text>
+					<Text size="xs" lh={1.4} c="var(--bt-muted)">{DISCLAIMER}</Text>
+				</Stack>
+			)}
 		</Stack>
 	);
 }
