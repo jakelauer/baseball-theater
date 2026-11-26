@@ -9,6 +9,7 @@ import {
 	parseLiveFeedResponse,
 	parsePlayMetricsResponse,
 	parseGameUniformsResponse,
+	parseGameRuleSettingsResponse,
 	parsePlayerOfTheGameResponse,
 	parseScheduleResponse,
 	parseSeasonsResponse,
@@ -276,6 +277,67 @@ describe("parseGameUniformsResponse (S101)", () =>
 					}],
 				},
 			}],
+		})).toThrow();
+	});
+});
+
+describe("parseGameRuleSettingsResponse (S100)", () =>
+{
+	it("S100 AC 2: parses the recorded 823823 answer: each setting's name, label, value type and value", () =>
+	{
+		const settings = parseGameRuleSettingsResponse(readRaw("rulesettings-823823.json")).gameData?.ruleSettings ?? [];
+
+		expect(settings.find((setting) => setting.settingName === "strikeZoneTopFactor")).toEqual({
+			settingId: 1,
+			settingName: "strikeZoneTopFactor",
+			settingDisplayName: "Strike Zone Top",
+			settingDescription: "Top of strike zone as a percentage of player height",
+			valueType: "percentage",
+			settingValue: 53.5,
+		});
+		expect(settings.find((setting) => setting.settingName === "strikeZoneFlat")?.settingValue).toBe(true);
+		expect(settings.find((setting) => setting.settingName === "absType")?.settingValue).toBe("challengeABS");
+		expect(settings.length).toBeGreaterThan(20);
+	});
+
+	it("S100 AC 2: accepts null for any field of a setting, so one null never fails the others", () =>
+	{
+		const settings = parseGameRuleSettingsResponse({
+			gameData: {
+				ruleSettings: [{
+					settingName: "x",
+					settingDescription: null,
+					valueType: "numeric",
+					settingValue: 1,
+				}, {
+					settingId: null,
+					settingName: null,
+					settingDisplayName: null,
+					settingDescription: null,
+					valueType: null,
+					settingValue: null,
+				}, {
+					settingName: "baseSize",
+					valueType: "numeric",
+					settingValue: 18,
+				}],
+			},
+		}).gameData?.ruleSettings;
+		expect(settings).toHaveLength(3);
+		expect(settings?.[0]?.settingDescription).toBeNull();
+		expect(settings?.[2]?.settingValue).toBe(18);
+	});
+
+	it("S100 AC 2: refuses an answer that isn't the endpoint's shape", () =>
+	{
+		expect(() => parseGameRuleSettingsResponse({
+			gameData: {
+				ruleSettings: [{
+					settingValue: {
+						nested: 1,
+					},
+				}],
+			},
 		})).toThrow();
 	});
 });

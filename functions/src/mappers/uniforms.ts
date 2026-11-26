@@ -47,7 +47,7 @@ export function mapGameUniforms(response: GameUniformsResponse, gamePk: number):
 
 /**
  * The game with its uniforms attached (S101), or as it is when there are none: the field is only ever present with a
- * value, so a game with no uniforms hashes as before. Ingest attaches an asked answer here (`withAskedUniforms`).
+ * value, so a game with no uniforms hashes as before. Ingest attaches an asked answer here (`withAskedExtras`).
  */
 export function withGameUniforms(game: Unversioned<GameSnapshot>, uniforms: GameUniforms | null): Unversioned<GameSnapshot>
 {

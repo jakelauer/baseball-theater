@@ -31,8 +31,8 @@ import type { StandingsResponse } from "@bt/mlb-api";
 import { parseSearchResponse, parseStandingsResponse } from "@bt/mlb-api";
 import type { MlbStatsClient } from "@bt/ports";
 import {
-	finalStandingsUrl, gameUniformsUrl, graphContentRequest, playMetricsUrl, playerOfTheGameUrl, searchHighlightsRequest, seasonsUrl, springStandingsUrl, standingsUrl,
-	worldSeriesUrl,
+	finalStandingsUrl, gameRuleSettingsUrl, gameUniformsUrl, graphContentRequest, playMetricsUrl, playerOfTheGameUrl, searchHighlightsRequest, seasonsUrl, springStandingsUrl,
+	standingsUrl, worldSeriesUrl,
 } from "../adapters/http/mlb.js";
 import { searchFixtureName } from "../adapters/fixtures/fixture-client.js";
 import { mapStandings } from "../mappers/standings.js";
@@ -105,6 +105,11 @@ export function rawEndpoints(
 			// The uniforms each team wore (S101): the URL the HTTP client asks.
 			name: `uniforms-${gamePk}`,
 			url: gameUniformsUrl(gamePk, baseUrl),
+		},
+		{
+			// The rules the game was played under (S100): the URL the HTTP client asks.
+			name: `rulesettings-${gamePk}`,
+			url: gameRuleSettingsUrl(gamePk, baseUrl),
 		},
 		{
 			// MLB's GraphQL game content (S94): the request the HTTP client makes, headers included.

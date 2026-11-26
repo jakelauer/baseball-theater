@@ -1,13 +1,13 @@
 /**
  * The uniforms each team wore (S101): the mapper on the recorded 823823 answer and on empty and partial
  * answers, the fixture client (Node files and the Worker's bundle) serving the recording, ingest attaching
- * it off the game fetch (`withAskedUniforms`), and the field staying absent when the call fails, lists
+ * it off the game fetch (`withAskedExtras`, S100's generalization), and the field staying absent when the call fails, lists
  * nothing or hangs.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { GameUniforms } from "@bt/domain";
+import type { GameRuleSetting, GameUniforms } from "@bt/domain";
 import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
@@ -16,7 +16,7 @@ import { createBundledFixtureClient } from "../adapters/fixtures/bundled.js";
 import { FixtureMlbStatsClient } from "../adapters/fixtures/mlb.js";
 import { PLAY_METRICS_LIMIT_MS } from "../adapters/http/mlb.js";
 import { recordedClient } from "../test/recorded-mlb.js";
-import { withAskedUniforms } from "../services/player-of-the-game.js";
+import { withAskedExtras } from "../services/player-of-the-game.js";
 import { mapGameUniforms } from "./uniforms.js";
 
 const RAW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../fixtures/raw");
@@ -125,12 +125,12 @@ describe("fetchGameUniforms (S101)", () =>
 		expect(await new FixtureMlbStatsClient().fetchGameUniforms(1)).toBeNull();
 	});
 
-	it("S101 AC 3: fetchGame never carries it; ingest attaches it (withAskedUniforms) for a game not stored yet", async () =>
+	it("S101 AC 3: fetchGame never carries it; ingest attaches it (withAskedExtras) for a game not stored yet", async () =>
 	{
 		const client = createBundledFixtureClient();
 		const { game } = await client.fetchGame(823823);
 		expect(game).not.toHaveProperty("uniforms");
-		expect((await withAskedUniforms(client, game, null)).uniforms).toEqual(WORN);
+		expect((await withAskedExtras(client, game, null)).uniforms).toEqual(WORN);
 	});
 
 	it("S101 AC 5: when the call fails, lists nothing or can't be parsed, the field is absent and the game is served as before", async () =>
@@ -144,7 +144,7 @@ describe("fetchGameUniforms (S101)", () =>
 			const { mlb } = recordedClient((url) => isUniforms(url) ? answer() : undefined);
 			expect(await mlb.fetchGameUniforms(823823)).toBeNull();
 			const { game } = await mlb.fetchGame(823823);
-			expect(await withAskedUniforms(mlb, game, null)).toEqual(game);
+			expect(await withAskedExtras(mlb, game, null)).not.toHaveProperty("uniforms");
 		}
 	});
 
@@ -155,9 +155,10 @@ describe("fetchGameUniforms (S101)", () =>
 		vi.useFakeTimers();
 		const hung = {
 			fetchGameUniforms: () => new Promise<GameUniforms | null>(() => undefined),
+			fetchGameRuleSettings: () => new Promise<GameRuleSetting[] | null>(() => undefined),
 		};
 		let answered: typeof game | undefined;
-		void withAskedUniforms(hung, game, null).then((value) =>
+		void withAskedExtras(hung, game, null).then((value) =>
 		{
 			answered = value;
 		});

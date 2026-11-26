@@ -8,17 +8,17 @@
  * Every ask is bounded by S216's {@link PLAY_METRICS_LIMIT_MS}: an answer that hasn't come by then counts as no pick,
  * so a hanging mlb.com request can hold neither a read nor a poll.
  *
- * S101 asks the uniforms the same way, through the same bounded ask ({@link askWithinLimit}) and the same keep
- * (`keepStoredExtras`), deciding with `uniformsDue` instead.
+ * S101 asks the uniforms the same way, and S100 the rule settings beside them, through the same bounded ask
+ * ({@link askWithinLimit}) and the same keep (`keepStoredExtras`), deciding each with `askedExtraDue` instead
+ * ({@link withAskedExtras}).
  */
 import type {
-	FetchedGame, GameSnapshot, GameUniforms, PlayerOfTheGame, StoredExtras, Unversioned,
+	AskedExtra, FetchedGame, GameRuleSetting, GameSnapshot, GameUniforms, PlayerOfTheGame, StoredExtras, Unversioned,
 } from "@bt/domain";
-import { playerOfTheGameComplete, uniformsDue } from "@bt/domain";
+import { askedExtraDue, playerOfTheGameComplete } from "@bt/domain";
 import type { MlbStatsClient } from "@bt/ports";
 import { PLAY_METRICS_LIMIT_MS } from "../adapters/http/mlb.js";
 import { withPlayerOfTheGame } from "../mappers/player-of-the-game.js";
-import { withGameUniforms } from "../mappers/uniforms.js";
 
 /**
  * One ask of an extra off the game fetch (S99, generalized for S101): its answer, or null when it fails or once
@@ -47,22 +47,75 @@ export function askGameUniforms(mlb: Pick<MlbStatsClient, "fetchGameUniforms">, 
 	return askWithinLimit(() => mlb.fetchGameUniforms(gamePk));
 }
 
+/** `fetchGameRuleSettings` through {@link askWithinLimit} (S100). */
+export function askGameRuleSettings(mlb: Pick<MlbStatsClient, "fetchGameRuleSettings">, gamePk: number): Promise<GameRuleSetting[] | null>
+{
+	return askWithinLimit(() => mlb.fetchGameRuleSettings(gamePk));
+}
+
+/** The client methods the extras kept whole are asked through. */
+export type ExtraAsker = Pick<MlbStatsClient, "fetchGameUniforms" | "fetchGameRuleSettings">;
+
+/** The extras kept whole, as an ingest path holds them: each one's answer, present only when MLB gave one. */
+export type AskedExtras = Partial<Pick<GameSnapshot, AskedExtra>>;
+
+/** Asks started before the game fetch (a cold read of a game not stored yet), one per extra kept whole. */
+export type EarlyExtraAsks = { [K in AskedExtra]: Promise<NonNullable<GameSnapshot[K]> | null> };
+
+/** Starts every extra's ask at once, for a caller that knows they are due before the fetch answers (a game not stored yet). */
+export function startExtraAsks(mlb: ExtraAsker, gamePk: number): EarlyExtraAsks
+{
+	return {
+		uniforms: askGameUniforms(mlb, gamePk),
+		ruleSettings: askGameRuleSettings(mlb, gamePk),
+	};
+}
+
 /**
- * The game with its uniforms attached (S101), when `uniformsDue` says to ask (none stored, and the game is new to the
- * store, its status changed, or it is final); otherwise the game as it is, asking nothing. `stored` is the stored game the caller
- * read (null when none). `asked`, when given, is an ask the caller started beside the fetch (a cold read of a game not
- * stored yet), used instead of a new one. An answer of none leaves the game as it is, and the write keeps a stored
- * value (`keepStoredExtras`).
+ * The extras kept whole the game is due (S101's uniforms, S100's rule settings), asked at once, so a write waits one
+ * bounded limit at most, never one per extra: each only when the game lacks it and `askedExtraDue` says to ask (none
+ * stored, and the game is new to the store, its status changed, or it is final); a game due none asks nothing. `stored`
+ * is the stored game the caller read (null when none). `early`, when given, holds asks the caller started beside the
+ * fetch ({@link startExtraAsks}), used instead of new ones. Only the answers MLB gave are returned, so an answer of none
+ * leaves the game as it is and the write keeps a stored value (`keepStoredExtras`).
  */
-export async function withAskedUniforms(
-	mlb: Pick<MlbStatsClient, "fetchGameUniforms">,
+export async function askDueExtras(
+	mlb: ExtraAsker,
 	game: Unversioned<GameSnapshot>,
 	stored: (StoredExtras & Pick<GameSnapshot, "status">) | null | undefined,
-	asked?: Promise<GameUniforms | null>,
+	early?: EarlyExtraAsks,
+): Promise<AskedExtras>
+{
+	const due = (extra: AskedExtra) => game[extra] === undefined && askedExtraDue(extra, stored, game.status.codedGameState);
+	const [uniforms, ruleSettings] = await Promise.all([
+		due("uniforms") ? early?.uniforms ?? askGameUniforms(mlb, game.gamePk) : null,
+		due("ruleSettings") ? early?.ruleSettings ?? askGameRuleSettings(mlb, game.gamePk) : null,
+	]);
+	return {
+		...uniforms && {
+			uniforms,
+		},
+		...ruleSettings && {
+			ruleSettings,
+		},
+	};
+}
+
+/** The game with every extra it is due attached ({@link askDueExtras}); the game as it is when it is due none. */
+export async function withAskedExtras(
+	mlb: ExtraAsker,
+	game: Unversioned<GameSnapshot>,
+	stored: (StoredExtras & Pick<GameSnapshot, "status">) | null | undefined,
+	early?: EarlyExtraAsks,
 ): Promise<Unversioned<GameSnapshot>>
 {
-	if (game.uniforms !== undefined || !uniformsDue(stored, game.status.codedGameState)) return game;
-	return withGameUniforms(game, await (asked ?? askGameUniforms(mlb, game.gamePk)));
+	const asked = await askDueExtras(mlb, game, stored, early);
+	return Object.keys(asked).length > 0
+		? {
+			...game,
+			...asked,
+		}
+		: game;
 }
 
 /**

@@ -26,7 +26,7 @@ const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
  */
 const SERVED = new RegExp(`^(${[
 	String.raw`schedule-\d{4}-\d{2}-\d{2}`, String.raw`game-\d+`, String.raw`plays-\d+`, String.raw`standings-\d{4}-\d{2}-\d{2}`, "players-.+",
-	String.raw`raw/playmetrics-\d+`, String.raw`raw/potg-\d+`, String.raw`raw/uniforms-\d+`, String.raw`raw/graphql-content-\d+`, String.raw`raw/seasons-\d{4}`, String.raw`raw/worldseries-\d{4}`,
+	String.raw`raw/playmetrics-\d+`, String.raw`raw/potg-\d+`, String.raw`raw/uniforms-\d+`, String.raw`raw/rulesettings-\d+`, String.raw`raw/graphql-content-\d+`, String.raw`raw/seasons-\d{4}`, String.raw`raw/worldseries-\d{4}`,
 	String.raw`raw/standings-\d{4}-(?:final|spring)`, String.raw`raw/standings-\d{4}-\d{2}-\d{2}`, "search-[a-z0-9-]+",
 ].join("|")})\\.json$`);
 

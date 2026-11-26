@@ -256,6 +256,25 @@ export type GameUniforms = {
 	away?: UniformAssetWorn[];
 };
 
+/**
+ * How a rule setting's value reads (S100), from MLB's `valueType`: `percent` (53.5 means 53.5%, of the batter's height
+ * for the strike zone's top and bottom), `number` (a count, or inches where the description says so, as the zone's
+ * width and depth), `boolean` (the rule is on) or `text` (a named mode, as `absType`'s `challengeABS`).
+ */
+export type GameRuleSettingUnit = "percent" | "number" | "boolean" | "text";
+
+/**
+ * One rule a game was played under (S100), from MLB's `ruleSettings`: its stable `name` (`strikeZoneTopFactor`), MLB's
+ * `label` ("Strike Zone Top") and description, its value and the unit to read the value in.
+ */
+export type GameRuleSetting = {
+	name: string;
+	label: string;
+	description: string;
+	value: number | boolean | string;
+	unit: GameRuleSettingUnit;
+};
+
 export type GameSnapshot = {
 	gamePk: number;
 	gameDate: string; // YYYY-MM-DD (schedule date)
@@ -312,14 +331,24 @@ export type GameSnapshot = {
 	 */
 	playerOfTheGame?: PlayerOfTheGame;
 	/**
-	 * What each team wore (S101), asked by ingest off the game fetch (`withAskedUniforms`) while none is stored, when it
-	 * first stores the game, sees its status change, or writes a final game (`uniformsDue`), so a live poll at an
+	 * What each team wore (S101), asked by ingest off the game fetch (`withAskedExtras`) while none is stored, when it
+	 * first stores the game, sees its status change, or writes a final game (`askedExtraDue`), so a live poll at an
 	 * unchanged status never asks again for a value settled before first pitch. Once stored it is kept
 	 * (`keepStoredExtras`): a later write that didn't ask, or whose ask failed or ran past its limit, never clears it.
 	 * Absent until MLB lists one BT has asked for, and then the game is served as before. A final game BT no longer
 	 * refreshes (past its re-check window, which the backfill skips as already stored) gets none here: #619's scope.
 	 */
 	uniforms?: GameUniforms;
+	/**
+	 * The rules the game was played under (S100), in MLB's order: the strike zone its ABS challenges were judged against
+	 * (`strikeZoneTopFactor` and `strikeZoneBottomFactor` as a share of the batter's height, `strikeZoneWidth` in inches)
+	 * and its other settings (designated hitter, pitch timer, challenges…). Asked and kept as the uniforms are: by ingest
+	 * off the game fetch (`withAskedExtras`) while none is stored, when it first stores the game, sees its status change,
+	 * or writes a final game (`askedExtraDue`), and kept once stored (`keepStoredExtras`). Absent until MLB lists any BT
+	 * has asked for, and then the game is served as before. A final game BT no longer refreshes (past its re-check
+	 * window, which the backfill skips as already stored) gets none here: #619's scope.
+	 */
+	ruleSettings?: GameRuleSetting[];
 	/** Who is on base and who is batting and pitching (S63); `null` unless in progress, absent on older recordings. */
 	live?: GameLive | null;
 	fetchedAt: string; // ISO

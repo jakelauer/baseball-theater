@@ -18,6 +18,7 @@ import type { ScheduleResponse } from "./schedule.js";
 import type { SeasonsResponse } from "./seasons.js";
 import type { StandingsResponse } from "./standings.js";
 import type { GameUniformsResponse } from "./uniforms.js";
+import type { GameRuleSettingsResponse } from "./rule-settings.js";
 
 /**
  * Branches MLB has only ever returned `null` or empty in every recorded
@@ -1568,6 +1569,29 @@ const gameUniformsResponseSchema = z.object({
 export function parseGameUniformsResponse(input: unknown): GameUniformsResponse
 {
 	return gameUniformsResponseSchema.parse(input);
+}
+
+// Each field may be null as well as missing (MLB answers null for an unset field elsewhere, e.g. the fan pick of S99), so
+// one null in one setting never fails the whole answer: the mapper drops only a setting it can't use.
+const ruleSettingSchema = z.object({
+	settingId: z.number().nullish(),
+	settingName: z.string().nullish(),
+	settingDisplayName: z.string().nullish(),
+	settingDescription: z.string().nullish(),
+	valueType: z.string().nullish(),
+	settingValue: z.union([z.number(), z.boolean(), z.string()]).nullish(),
+});
+
+const gameRuleSettingsResponseSchema = z.object({
+	gameData: z.object({
+		ruleSettings: z.array(ruleSettingSchema).optional(),
+	}).optional(),
+});
+
+/** `GET /api/v1.1/game/{gamePk}/feed/live?language=en&hydrate=ruleSettings&fields=gameData,ruleSettings` (S100). */
+export function parseGameRuleSettingsResponse(input: unknown): GameRuleSettingsResponse
+{
+	return gameRuleSettingsResponseSchema.parse(input);
 }
 
 const graphContentTagSchema = z.object({

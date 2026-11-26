@@ -48,12 +48,14 @@ const ACTIVE_KEY = "activeAt";
  */
 const POTG_COMPLETE_KEY = "potgComplete";
 /**
- * Set once this run has polled the game as final (S101 review), whatever the uniforms ask on that poll answered: later
- * polls of the final trail write without asking (`ingestGame` without `mlb`), so a final game MLB lists no uniforms for
- * is asked once per run, not on every poll of its trail; the week-long re-check (`recheckDueGame`) covers later tries.
- * Live polls before then ask only on a status change (`uniformsDue`). Cleared with the game's other keys when the run ends.
+ * Set once this run has polled the game as final (S101 review), whatever that poll's asks of the extras kept whole (the
+ * uniforms, and S100's rule settings) answered: later polls of the final trail write without asking (`ingestGame`
+ * without `mlb`), so a final game MLB lists neither for is asked once per run, not on every poll of its trail; the
+ * week-long re-check (`recheckDueGame`) covers later tries. Live polls before then ask only on a status change
+ * (`askedExtraDue`). Cleared with the game's other keys when the run ends. Its stored name predates S100, kept so an
+ * object mid-run across the deploy still finds (and clears) it.
  */
-const UNIFORMS_ASKED_KEY = "uniformsAsked";
+const EXTRAS_ASKED_KEY = "uniformsAsked";
 
 export class GameIngest
 {
@@ -124,17 +126,17 @@ export class GameIngest
 			...game,
 			suspendedAt,
 		}, now, this.params);
-		// S101 review: once this run has polled the game as final, its writes ask no uniforms (`UNIFORMS_ASKED_KEY`).
-		const { mlb: _noUniformsAsk, ...withoutAsk } = this.deps;
+		// S101 review: once this run has polled the game as final, its writes ask no extras (`EXTRAS_ASKED_KEY`).
+		const { mlb: _noExtrasAsk, ...withoutAsk } = this.deps;
 		const {
 			snapshot, state, changed, stateChanged,
-		} = await ingestGame(await this.storage.get<boolean>(UNIFORMS_ASKED_KEY) ? withoutAsk : this.deps, {
+		} = await ingestGame(await this.storage.get<boolean>(EXTRAS_ASKED_KEY) ? withoutAsk : this.deps, {
 			...game,
 			fetchedAt: now.toISOString(),
 			windowMode: inWindow ? "active" : "cache",
 		}, feedTime);
 		if (playerOfTheGameComplete(snapshot.playerOfTheGame)) await this.storage.put(POTG_COMPLETE_KEY, true);
-		if (isFinalStatus(game.status.codedGameState)) await this.storage.put(UNIFORMS_ASKED_KEY, true);
+		if (isFinalStatus(game.status.codedGameState)) await this.storage.put(EXTRAS_ASKED_KEY, true);
 		// S150 AC 6: the served game (status and linescore from its one stored state), as the HTTP read and the hub's first send serve it.
 		// S149 AC 2: a mend (the row changed under an unchanged snapshot) is published too, so a day hub pushes its day.
 		if (changed || stateChanged || !inWindow) await this.publishToHubs(servedGame(snapshot, state, now), now);
@@ -147,7 +149,7 @@ export class GameIngest
 		await this.storage.delete(GAME_KEY);
 		await this.storage.delete(ACTIVE_KEY);
 		await this.storage.delete(POTG_COMPLETE_KEY);
-		await this.storage.delete(UNIFORMS_ASKED_KEY);
+		await this.storage.delete(EXTRAS_ASKED_KEY);
 	}
 
 	private async publishToHubs(snapshot: GameSnapshot, now: Date): Promise<void>

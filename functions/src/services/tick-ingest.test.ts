@@ -94,6 +94,12 @@ class CountingMlbClient implements MlbStatsClient
 		return null;
 	}
 
+	/** No rule settings here (S100): the field stays absent. */
+	async fetchGameRuleSettings(): Promise<null>
+	{
+		return null;
+	}
+
 	async fetchSeasonCalendar(): Promise<null>
 	{
 		return null;

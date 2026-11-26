@@ -4,6 +4,7 @@ import type {
 	GamePlayMetrics,
 	GameSnapshot,
 	MediaHighlight,
+	GameRuleSetting,
 	GameUniforms,
 	PlayerOfTheGame,
 	PlayerProfile,
@@ -20,7 +21,7 @@ import {
 } from "@bt/domain";
 import type { GameDiffPatchResponse, ReplayPatchEntry } from "@bt/mlb-api";
 import {
-	parseGameTimestamps, parseGameUniformsResponse, parseGraphContentResponse, parsePlayMetricsResponse, parsePlayerOfTheGameResponse,
+	parseGameRuleSettingsResponse, parseGameTimestamps, parseGameUniformsResponse, parseGraphContentResponse, parsePlayMetricsResponse, parsePlayerOfTheGameResponse,
 	parseRecordedReplayWalk, parseScheduleResponse, parseSearchResponse,
 	parseSeasonsResponse, parseStandingsResponse,
 } from "@bt/mlb-api";
@@ -32,6 +33,7 @@ import { mapGraphContent } from "../../mappers/graph-content.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
 import { mapPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
 import { mapGameUniforms } from "../../mappers/uniforms.js";
+import { mapGameRuleSettings } from "../../mappers/rule-settings.js";
 import { mapSearchResults } from "../../mappers/search.js";
 import { mapSeasonCalendar } from "../../mappers/season-calendar.js";
 import { mapStandings } from "../../mappers/standings.js";
@@ -345,6 +347,22 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 		try
 		{
 			return mapGameUniforms(parseGameUniformsResponse(await this.readJson(`raw/uniforms-${gamePk}.json`)), gamePk);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/**
+	 * The recorded rule settings, `fixtures/raw/rulesettings-<gamePk>.json` (S100), mapped; null for a game with no
+	 * recording, as the HTTP client answers when the call fails.
+	 */
+	async fetchGameRuleSettings(gamePk: number): Promise<GameRuleSetting[] | null>
+	{
+		try
+		{
+			return mapGameRuleSettings(parseGameRuleSettingsResponse(await this.readJson(`raw/rulesettings-${gamePk}.json`)));
 		}
 		catch
 		{

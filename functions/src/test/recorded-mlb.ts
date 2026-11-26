@@ -45,6 +45,8 @@ function recorded(url: URL): string | null
 		if (url.searchParams.get("standingsTypes") === "springTraining") return `standings-${season}-spring.json`;
 		return url.searchParams.has("date") ? `standings-${url.searchParams.get("date")}.json` : `standings-${season}-final.json`;
 	}
+	// The rule settings (S100) are the live feed filtered to its `ruleSettings` hydrate: asked before the plain feed.
+	if (url.pathname === "/api/v1.1/game/823823/feed/live" && url.searchParams.get("hydrate") === "ruleSettings") return "rulesettings-823823.json";
 	if (url.pathname === "/api/v1.1/game/823823/feed/live") return "live-823823.json";
 	if (url.pathname === "/api/v1/game/823823/content") return "content-823823.json";
 	return null;

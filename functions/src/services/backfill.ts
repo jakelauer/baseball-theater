@@ -17,12 +17,13 @@
  * snapshot. The only state outside the database is each extra source's counted stretches
  * ({@link ResumeStore}, AC 8).
  *
- * The game's four extra sources — content (videos and recap), play metrics, the GraphQL
- * game content and the uniforms each team wore (S101) — exist only for recent games, so each is asked on its own and given up after
- * {@link GIVE_UP_AFTER_DAYS} consecutive failed days of games (`recordSourceDay`). The uniforms are asked only while
- * `uniformsDue` says so (none stored), bounded by `PLAY_METRICS_LIMIT_MS` (`askGameUniforms`), and the game is then written
- * through `ingestGame` without `mlb`, so the write asks nothing more: a day of games MLB lists no uniforms for costs one
- * request per game, until the source is given up. The live
+ * The game's five extra sources — content (videos and recap), play metrics, the GraphQL game content, the uniforms each
+ * team wore (S101) and the rules it was played under (S100) — exist only for recent games, so each is asked on its own
+ * and given up after {@link GIVE_UP_AFTER_DAYS} consecutive failed days of games (`recordSourceDay`). The uniforms and the
+ * rule settings are each asked only while `askedExtraDue` says so (none stored), bounded by `PLAY_METRICS_LIMIT_MS`
+ * (`askGameUniforms`, `askGameRuleSettings`), and the game is then written through `ingestGame` without `mlb`, so the
+ * write asks nothing more: a day of games MLB lists none for costs one request per game for each, until that source is
+ * given up. The live
  * feed is never given up: a game whose feed fails leaves its day incomplete for the next run, and
  * its reason is logged (#359).
  *
@@ -44,25 +45,28 @@
  * again without continuing an unrelated streak.
  */
 import type {
-	GameGraphContent, GamePlayMetrics, GameSnapshot, GameUniforms, ScheduleDay, SourceStreak, Unversioned,
+	GameGraphContent, GamePlayMetrics, GameRuleSetting, GameSnapshot, GameUniforms, ScheduleDay, SourceStreak, Unversioned,
 } from "@bt/domain";
 import {
-	backfillDays, GIVE_UP_AFTER_DAYS, isFinalStatus, isScheduleDaySettled, isSourceGivenUp, mlbToday, normalizeStatusCode, recordSourceDay, scheduleDayLacksGameType,
-	sourceGivenUpAt, uniformsDue,
+	askedExtraDue, backfillDays, GIVE_UP_AFTER_DAYS, isFinalStatus, isScheduleDaySettled, isSourceGivenUp, mlbToday, normalizeStatusCode, recordSourceDay, scheduleDayLacksGameType,
+	sourceGivenUpAt,
 } from "@bt/domain";
 import type {
 	GameEditorial, GameProjectionRepository, GameRepository, GameStateRepository, MlbGameSources, ScheduleRepository,
 } from "@bt/ports";
 import { assembleGame } from "../mappers/game-extras.js";
+import { withGameRuleSettings } from "../mappers/rule-settings.js";
 import { withGameUniforms } from "../mappers/uniforms.js";
 import { readJoinedScheduleDay, scheduleDayWindowMode } from "./game-state.js";
-import { askGameUniforms, withAskedPlayerOfTheGame } from "./player-of-the-game.js";
+import {
+	askGameRuleSettings, askGameUniforms, withAskedPlayerOfTheGame,
+} from "./player-of-the-game.js";
 import {
 	ingestGame, repairProjection, storeSchedule,
 } from "./ingest.js";
 
 /** The extra sources a game is hydrated from beside its live feed, each given up on its own. */
-export const EXTRA_SOURCES = ["content", "playMetrics", "graphContent", "uniforms"] as const;
+export const EXTRA_SOURCES = ["content", "playMetrics", "graphContent", "uniforms", "ruleSettings"] as const;
 /** One of {@link EXTRA_SOURCES}: the key each source's counted stretches are kept under in {@link BackfillState}. */
 export type ExtraSource = (typeof EXTRA_SOURCES)[number];
 
@@ -190,18 +194,21 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 			reason: failureReason(error),
 		};
 	}
-	// S101: decided first, so a game whose uniforms are already stored (stored in play) is neither asked nor counted.
-	const askUniforms = asking.uniforms && uniformsDue(stored, feed.game.status.codedGameState);
-	const [editorial, playMetrics, graph, uniforms] = await Promise.all([
+	// S101, S100: decided first, so a game whose uniforms or rule settings are already stored (stored in play) is neither
+	// asked that extra nor counted for it.
+	const askUniforms = asking.uniforms && askedExtraDue("uniforms", stored, feed.game.status.codedGameState);
+	const askRuleSettings = asking.ruleSettings && askedExtraDue("ruleSettings", stored, feed.game.status.codedGameState);
+	const [editorial, playMetrics, graph, uniforms, ruleSettings] = await Promise.all([
 		ask<GameEditorial>(asking.content, () => deps.mlb.fetchGameEditorial(gamePk)),
 		ask<GamePlayMetrics>(asking.playMetrics, () => deps.mlb.fetchPlayMetrics(gamePk)),
 		ask<GameGraphContent>(asking.graphContent, () => deps.mlb.fetchGameGraphContent(gamePk)),
 		ask<GameUniforms>(askUniforms, () => askGameUniforms(deps.mlb, gamePk)),
+		ask<GameRuleSetting[]>(askRuleSettings, () => askGameRuleSettings(deps.mlb, gamePk)),
 	]);
 	// S99: a game due a player of the game (the feed says so) is asked once, bounded. There is no stored pick to keep:
 	// only a game not already stored as final is fetched here (a final one stored before S99 is #619's).
 	const { game: picked } = await withAskedPlayerOfTheGame(deps.mlb, {
-		game: withGameUniforms(assembleGame(feed.game, editorial, playMetrics, graph), uniforms),
+		game: withGameRuleSettings(withGameUniforms(assembleGame(feed.game, editorial, playMetrics, graph), uniforms), ruleSettings),
 		...feed.playerOfTheGameDue && {
 			playerOfTheGameDue: true,
 		},
@@ -216,6 +223,7 @@ async function fetchGame(deps: BackfillDeps, gamePk: number, asking: Record<Extr
 	if (asking.playMetrics) answered.playMetrics = playMetrics !== null;
 	if (asking.graphContent) answered.graphContent = graph !== null;
 	if (askUniforms) answered.uniforms = uniforms !== null;
+	if (askRuleSettings) answered.ruleSettings = ruleSettings !== null;
 	return {
 		kind: "fetched",
 		game,
@@ -234,7 +242,8 @@ export async function runBackfill(deps: BackfillDeps, range: { from: string;
 	to: string; }): Promise<BackfillResult>
 {
 	const log = deps.log ?? (() => undefined);
-	// The game writes get no `mlb`: each game's uniforms were asked (or given up) in its fetch, so `ingestGame` asks none.
+	// The game writes get no `mlb`: each game's uniforms and rule settings were asked (or given up) in its fetch, so
+	// `ingestGame` asks none.
 	const { mlb: _askedInFetch, ...writes } = deps;
 	const state = await deps.state.load();
 	const result: BackfillResult = {

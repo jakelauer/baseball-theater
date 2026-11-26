@@ -119,6 +119,12 @@ class FakeMlbStatsClient implements MlbStatsClient
 		return null;
 	}
 
+	/** No rule settings here (S100): the field stays absent. */
+	async fetchGameRuleSettings(): Promise<null>
+	{
+		return null;
+	}
+
 	async fetchSeasonCalendar(): Promise<null>
 	{
 		return null;
@@ -204,8 +210,8 @@ describe("fixture recorder", () =>
 			},
 		);
 
-		// The ten names packages/mlb-api/src/coverage.test.ts consumes (play metrics since S93, GraphQL content since S94,
-		// player of the game since S99, uniforms since S101).
+		// The eleven names packages/mlb-api/src/coverage.test.ts consumes (play metrics since S93, GraphQL content since S94,
+		// player of the game since S99, uniforms since S101, rule settings since S100).
 		expect(written).toEqual([
 			`schedule-${DATE}.json`,
 			`live-${GAME_PK}.json`,
@@ -214,12 +220,13 @@ describe("fixture recorder", () =>
 			`playmetrics-${GAME_PK}.json`,
 			`potg-${GAME_PK}.json`,
 			`uniforms-${GAME_PK}.json`,
+			`rulesettings-${GAME_PK}.json`,
 			`graphql-content-${GAME_PK}.json`,
 			`standings-${DATE}.json`,
 			`people-${GAME_PK}.json`,
 		]);
-		expect(seen).toHaveLength(10);
-		expect(await readdir(path.join(out, "raw"))).toHaveLength(10);
+		expect(seen).toHaveLength(11);
+		expect(await readdir(path.join(out, "raw"))).toHaveLength(11);
 
 		// Byte-exact: not re-stringified through JSON.parse.
 		const onDisk = await readFile(path.join(out, "raw", `live-${GAME_PK}.json`), "utf8");

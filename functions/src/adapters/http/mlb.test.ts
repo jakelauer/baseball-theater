@@ -15,7 +15,7 @@ import { parseScheduleResponse } from "@bt/mlb-api";
 import { mapScheduleRange } from "../../mappers/schedule.js";
 import { recordedClient } from "../../test/recorded-mlb.js";
 import {
-	finalStandingsUrl, gameUniformsUrl, HttpMlbStatsClient, PLAY_METRICS_LIMIT_MS, playerOfTheGameUrl, springStandingsUrl,
+	finalStandingsUrl, gameRuleSettingsUrl, gameUniformsUrl, HttpMlbStatsClient, PLAY_METRICS_LIMIT_MS, playerOfTheGameUrl, springStandingsUrl,
 } from "./mlb.js";
 
 const RAW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/raw");
@@ -583,5 +583,61 @@ describe("HttpMlbStatsClient game uniforms (S101)", () =>
 		expect(answered).toBeDefined();
 		expect(answered?.game).not.toHaveProperty("uniforms");
 		expect(answered?.game.playMetrics?.atBats).toHaveLength(85);
+	});
+});
+
+describe("HttpMlbStatsClient game rule settings (S100)", () =>
+{
+	const RULE_SETTINGS_URL = "https://statsapi.mlb.com/api/v1.1/game/823823/feed/live?language=en&hydrate=ruleSettings&fields=gameData,ruleSettings";
+	const isRuleSettings = (url: URL) => url.pathname.endsWith("/feed/live") && url.searchParams.get("hydrate") === "ruleSettings";
+
+	afterEach(() =>
+	{
+		vi.useRealTimers();
+	});
+
+	it("S100 AC 3: fetchGameRuleSettings asks the live feed filtered to its ruleSettings hydrate and maps the recording", async () =>
+	{
+		const { mlb, asked } = recordedClient();
+		expect(gameRuleSettingsUrl(823823)).toBe(RULE_SETTINGS_URL);
+		const settings = await mlb.fetchGameRuleSettings(823823);
+		expect(settings?.find((setting) => setting.name === "strikeZoneTopFactor")).toMatchObject({
+			value: 53.5,
+			unit: "percent",
+		});
+		expect(settings?.find((setting) => setting.name === "strikeZoneBottomFactor")?.value).toBe(27);
+		expect(asked).toEqual([RULE_SETTINGS_URL]);
+	});
+
+	it("S100 AC 3: fetchGame never asks it, so no game read or live poll adds the request", async () =>
+	{
+		const { mlb, asked } = recordedClient();
+		const { game } = await mlb.fetchGame(823823);
+		expect(game).not.toHaveProperty("ruleSettings");
+		expect(asked.some((url) => url.includes("ruleSettings"))).toBe(false);
+	});
+
+	// fetchGame doesn't ask the rule settings at all (ingest asks them beside it), so this proves both halves: the hung
+	// endpoint is never called (a fetchGame that started asking it fails here), and the game still answers in time.
+	it("S100 AC 5 hung: a rule-settings request that never resolves leaves fetchGame answering within PLAY_METRICS_LIMIT_MS, the field absent", async () =>
+	{
+		vi.useFakeTimers();
+		let hungAsks = 0;
+		const { mlb } = recordedClient((url) =>
+		{
+			if (!isRuleSettings(url)) return undefined;
+			hungAsks += 1;
+			return new Promise<Response>(() => undefined) as unknown as Response;
+		});
+		let answered: Awaited<ReturnType<typeof mlb.fetchGame>> | undefined;
+		void mlb.fetchGame(823823).then((fetched) =>
+		{
+			answered = fetched;
+		});
+		await vi.advanceTimersByTimeAsync(PLAY_METRICS_LIMIT_MS);
+		expect(answered).toBeDefined();
+		expect(answered?.game).not.toHaveProperty("ruleSettings");
+		expect(answered?.game.playMetrics?.atBats).toHaveLength(85);
+		expect(hungAsks).toBe(0);
 	});
 });

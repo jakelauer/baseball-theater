@@ -4,7 +4,7 @@ import {
 import type { PlayerOfTheGame } from "./types.js";
 import type { StoredExtras } from "./player-of-the-game.js";
 import {
-	keepPlayerOfTheGame, keepStoredExtras, playerOfTheGameComplete, playerOfTheGameExpected, uniformsDue,
+	keepPlayerOfTheGame, keepStoredExtras, playerOfTheGameComplete, playerOfTheGameExpected, askedExtraDue,
 } from "./player-of-the-game.js";
 
 describe("playerOfTheGameExpected (S99)", () =>
@@ -154,7 +154,7 @@ describe("keepPlayerOfTheGame and playerOfTheGameComplete (S99 review)", () =>
 	});
 });
 
-describe("keepStoredExtras and uniformsDue (S101)", () =>
+describe("keepStoredExtras and askedExtraDue (S101, S100)", () =>
 {
 	const WORN = {
 		home: [{
@@ -205,35 +205,91 @@ describe("keepStoredExtras and uniformsDue (S101)", () =>
 
 	it("asks only while none is stored, and then for a new game, a changed status or a final game", () =>
 	{
-		expect(uniformsDue(null, "P")).toBe(true);
-		expect(uniformsDue(undefined, "P")).toBe(true);
-		expect(uniformsDue({
+		expect(askedExtraDue("uniforms", null, "P")).toBe(true);
+		expect(askedExtraDue("uniforms", undefined, "P")).toBe(true);
+		expect(askedExtraDue("uniforms", {
 			status: {
 				codedGameState: "P",
 			},
 		}, "P")).toBe(false);
-		expect(uniformsDue({
+		expect(askedExtraDue("uniforms", {
 			status: {
 				codedGameState: "P",
 			},
 		}, "I")).toBe(true);
-		expect(uniformsDue({
+		expect(askedExtraDue("uniforms", {
 			uniforms: WORN,
 			status: {
 				codedGameState: "P",
 			},
 		}, "I")).toBe(false);
 		// A final game still lacking them is asked on each write, its status unchanged (S101 review); one with them never.
-		expect(uniformsDue({
+		expect(askedExtraDue("uniforms", {
 			status: {
 				codedGameState: "F",
 			},
 		}, "F")).toBe(true);
-		expect(uniformsDue({
+		expect(askedExtraDue("uniforms", {
 			uniforms: WORN,
 			status: {
 				codedGameState: "F",
 			},
 		}, "F")).toBe(false);
+	});
+	const RULES = [{
+		name: "strikeZoneTopFactor",
+		label: "Strike Zone Top",
+		description: "Top of strike zone as a percentage of player height",
+		value: 53.5,
+		unit: "percent" as const,
+	}];
+
+	it("S100: keeps the stored rule settings an incoming game lacks beside the uniforms, and takes an incoming one", () =>
+	{
+		const refresh: { gamePk: number } & StoredExtras = {
+			gamePk: 1,
+		};
+		expect(keepStoredExtras({
+			uniforms: WORN,
+			ruleSettings: RULES,
+		}, refresh)).toEqual({
+			gamePk: 1,
+			uniforms: WORN,
+			ruleSettings: RULES,
+		});
+		const newer = [{
+			...RULES[0]!,
+			value: 54,
+		}];
+		expect(keepStoredExtras({
+			ruleSettings: RULES,
+		}, {
+			ruleSettings: newer,
+		})).toEqual({
+			ruleSettings: newer,
+		});
+	});
+
+	it("S100: decides each extra on its own: stored uniforms don't stop a rule-settings ask", () =>
+	{
+		const stored = {
+			uniforms: WORN,
+			status: {
+				codedGameState: "F",
+			},
+		};
+		expect(askedExtraDue("uniforms", stored, "F")).toBe(false);
+		expect(askedExtraDue("ruleSettings", stored, "F")).toBe(true);
+		expect(askedExtraDue("ruleSettings", {
+			ruleSettings: RULES,
+			status: {
+				codedGameState: "P",
+			},
+		}, "I")).toBe(false);
+		expect(askedExtraDue("ruleSettings", {
+			status: {
+				codedGameState: "I",
+			},
+		}, "I")).toBe(false);
 	});
 });

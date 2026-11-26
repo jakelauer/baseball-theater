@@ -78,7 +78,7 @@ function setup()
 	const state: { potg: Potg;
 		metricsDelay: number;
 		asked: number;
-		uniformsHang?: boolean; } = {
+		extrasHang?: boolean; } = {
 		potg: {
 			kind: "answer",
 			body: answer({
@@ -103,8 +103,12 @@ function setup()
 				});
 				return new Response(state.potg.body);
 			}
-			// S101 review: the uniforms, answered from the recording or, with `uniformsHang`, never.
-			if (url.pathname === "/api/v1/uniforms/game") return state.uniformsHang ? new Promise<Response>(() => undefined) : file("uniforms-823823.json");
+			// S101 review, S100: the uniforms and the rule settings, answered from the recordings or, with `extrasHang`, never.
+			if (url.pathname === "/api/v1/uniforms/game") return state.extrasHang ? new Promise<Response>(() => undefined) : file("uniforms-823823.json");
+			if (url.pathname === `/api/v1.1/game/${PK}/feed/live` && url.searchParams.get("hydrate") === "ruleSettings")
+			{
+				return state.extrasHang ? new Promise<Response>(() => undefined) : file("rulesettings-823823.json");
+			}
 			if (url.hostname === "data-graph.mlb.com") return file("graphql-content-823823.json");
 			if (url.pathname.endsWith(`/bdfed/playMetrics/${PK}`))
 			{
@@ -273,12 +277,13 @@ describe("S99 review: the player of the game through the cold game read", () =>
 		expect(first?.playMetrics).toBeDefined();
 	});
 
-	it("S101 review parallel: a read that asks both the pick and the uniforms, both hanging, answers within one PLAY_METRICS_LIMIT_MS", async () =>
+	it("S101 review parallel: a read that asks the pick, the uniforms and (S100) the rule settings, all hanging, answers within one PLAY_METRICS_LIMIT_MS", async () =>
 	{
 		const {
 			deps, background, state,
 		} = setup();
-		// Stored live with neither, so the final read is due both: the pick (now final) and the uniforms (status changed).
+		// Stored live with none, so the final read is due all three: the pick (now final), the uniforms and the rule settings
+		// (status changed).
 		const { game } = await deps.mlb.fetchGame(PK);
 		const { mlb: _mlb, ...noMlb } = deps;
 		await ingestGame(noMlb, {
@@ -293,10 +298,11 @@ describe("S99 review: the player of the game through the cold game read", () =>
 		state.potg = {
 			kind: "hang",
 		};
-		state.uniformsHang = true;
+		state.extrasHang = true;
 		const read = await readWithin(deps, PLAY_METRICS_LIMIT_MS, true);
 		await background.flush();
 		expect(read).not.toHaveProperty("playerOfTheGame");
 		expect(read).not.toHaveProperty("uniforms");
+		expect(read).not.toHaveProperty("ruleSettings");
 	});
 });
