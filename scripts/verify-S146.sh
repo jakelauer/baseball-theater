@@ -32,7 +32,7 @@ TESTS=functions/src/deploy/build-inputs.test.ts
 WF=.github/workflows/deploy.yml
 
 if [ -f "$TESTS" ]; then
-	(cd functions && pnpm exec vitest run src/deploy/build-inputs.test.ts src/deploy/deploy-workflow.test.ts \
+	(cd functions && pnpm exec vitest run src/deploy/build-inputs.test.ts src/deploy/deploy-workflow.test.ts src/deploy/vite-plugin.test.ts \
 		--reporter=json --outputFile="$TMP/fn.json" >"$TMP/fn.log" 2>&1)
 fi
 
@@ -59,7 +59,17 @@ job_text() {
 # --- Check 1: recording the inputs ---
 [ -f "$TOOL" ] || bad 1 "$TOOL is missing"
 grep -qE '"build:inputs": *"node functions/src/deploy/build-inputs\.ts"' package.json || bad 1 "package.json has no build:inputs script running node $TOOL"
-grep -qE 'getModuleIds|moduleIds' web/vite.config.ts || bad 1 "web/vite.config.ts has no plugin reading Vite's module graph"
+# The plugin lives in functions/src/deploy/vite-plugin.ts (unit-tested there); web/vite.config.ts places it in both builds.
+grep -qE 'getModuleIds' functions/src/deploy/vite-plugin.ts 2>/dev/null || bad 1 "functions/src/deploy/vite-plugin.ts has no plugin reading Vite's module graph"
+[ "$(grep -c 'buildInputsPlugin(' web/vite.config.ts)" -ge 2 ] || bad 1 "web/vite.config.ts doesn't place the build-inputs plugin in both builds"
+# A real build: the list must hold a module only the app's build reads and one only the service worker's build reads.
+if (cd web && BT_BUILD_INPUTS_VITE="$TMP/vite.json" pnpm exec vite build --outDir "$TMP/dist" --emptyOutDir >"$TMP/vite.log" 2>&1); then
+	for m in web/src/main.tsx web/src/pwa/sw.ts; do
+		grep -qF "/$m\"" "$TMP/vite.json" || bad 1 "a real web build's module list lacks $m"
+	done
+else
+	bad 1 "the web build failed: $(tail -3 "$TMP/vite.log")"
+fi
 grep -qF -- '--metafile' "$WF" || bad 1 "$WF never asks wrangler for --metafile"
 grep -qE 'build-inputs\.ts record|build:inputs record' "$WF" || bad 1 "$WF never records the build's inputs"
 for t in \
@@ -68,13 +78,20 @@ for t in \
 	"S146 AC 1: records a web/public file, a migration, web/index.html and a file a config imports" \
 	"S146 AC 1: leaves out node_modules paths and virtual modules without failing" \
 	"S146 AC 1: records a file only deploy-bootstrap.ts imports" \
-	"S146 AC 1: check fails given a different BT_RELEASE"; do
+	"S146 AC 1: check fails given a different BT_RELEASE" \
+	"S146 AC 1: record creates the folder it writes into" \
+	"S146 AC 1: records the configs Vite finds by lookup"; do
 	passed_in build-inputs.test.ts "$t" || bad 1 "no passing test named '$t'"
 done
+for t in "S146 AC 1: the Vite plugin runs only in builds" "S146 AC 1: web/vite.config.ts puts the plugin in both builds"; do
+	passed_in vite-plugin.test.ts "$t" || bad 1 "no passing test named '$t' in vite-plugin.test.ts"
+done
+passed_in deploy-workflow.test.ts "S146 AC 1: every script the staging and preview deploys run is an input" || bad 1 "no passing test tying deploy.yml's scripts to the recorded entries"
 
 # --- Check 2: checking the inputs ---
 if [ -f "$TOOL" ]; then
-	other="$(grep -E '^\s*(import|export) .* from ' "$TOOL" | grep -vE "from \"node:[a-z/_]+\"" || true)"
+	# Every static import or re-export, a multi-line one too (newlines folded first).
+	other="$(tr '\n' ' ' <"$TOOL" | grep -oE '(^|[;}/] *)(import|export) [^;]*from "[^"]+"' | grep -vE 'from "node:[a-z/_]+"$' || true)"
 	[ -z "$other" ] || bad 2 "$TOOL imports something besides node: modules: $other"
 	grep -qE 'import\(' "$TOOL" && grep -E 'import\(' "$TOOL" | grep -qvE 'import\("node:|createRequire' && bad 2 "$TOOL dynamically imports a non-node: module at the top level"
 	if out="$(cd "$TMP" && node "$OLDPWD/$TOOL" check "$TMP/missing.json" 2>&1)"; then
@@ -89,13 +106,18 @@ for t in \
 	"S146 AC 2: fails when a listed file was deleted" \
 	"S146 AC 2: fails on a record made by a different version" \
 	"S146 AC 2: adding an import to a recorded file fails check" \
-	"S146 AC 2: runs with plain node"; do
+	"S146 AC 2: runs with plain node" \
+	"S146 AC 2: a new file in a named folder, or a new named file, fails check" \
+	"S146 AC 2: a record that lists no files is never unchanged"; do
 	passed_in build-inputs.test.ts "$t" || bad 2 "no passing test named '$t'"
 done
 
 # --- Check 3: deploying from it ---
-for t in "S146 AC 3: staging" "S146 AC 3: preview " "S146 AC 3: preview-teardown" "S146 AC 3: force" "S146 AC 3: production"; do
+for t in "S146 AC 3: staging" "S146 AC 3: staging-inputs" "S146 AC 3: staging's served check" "S146 AC 3: preview " "S146 AC 3: preview-teardown" "S146 AC 3: force" "S146 AC 3: production"; do
 	passed_in deploy-workflow.test.ts "$t" || bad 3 "no passing test named '$t…' in deploy-workflow.test.ts"
+done
+for t in "S146 AC 3: trust" "S146 AC 3: runs" "S146 AC 3: cover" "S146 AC 3: stands"; do
+	passed_in build-inputs.test.ts "$t" || bad 3 "no passing test named '$t…' in build-inputs.test.ts"
 done
 grep -qE '^    workflow_dispatch:' "$WF" || bad 3 "$WF has no workflow_dispatch trigger"
 job_text staging >"$TMP/staging"

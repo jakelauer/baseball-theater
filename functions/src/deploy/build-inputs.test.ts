@@ -230,6 +230,39 @@ describe("build-inputs record (S146 AC 1)", () =>
 		rmSync(join(root, "web/src/untracked.ts"));
 	});
 
+	it("S146 AC 1: record creates the folder it writes into", async () =>
+	{
+		const path = join(out, "nested", "dir", "build-inputs.json");
+		const result = await run(["record", path, "--worker-meta", join(out, "worker-meta.json"), "--vite", join(out, "vite.json")]);
+		expect(result, result.line).toMatchObject({
+			code: 0,
+		});
+		expect(files(path)).toHaveProperty(["web/src/main.ts"]);
+	});
+
+	it("S146 AC 1: records the configs Vite finds by lookup (web/postcss.config.cjs), so an edit to one alone fails check", async () =>
+	{
+		put("web/postcss.config.cjs", "module.exports = { plugins: { \"postcss-preset-mantine\": {} } };\n");
+		commit("postcss config");
+		const path = await record("lookup.json");
+		expect(files(path)).toHaveProperty(["web/postcss.config.cjs"]);
+		put("web/postcss.config.cjs", "module.exports = { plugins: { \"postcss-preset-mantine\": { breakpoint: \"50em\" } } };\n");
+		commit("edit postcss config");
+		expect(await run(["check", path])).toEqual({
+			code: 1,
+			line: "web/postcss.config.cjs changed",
+		});
+		const again = await record("lookup-env.json");
+		put("web/.env.production", "VITE_X=1\n");
+		commit("a new env file");
+		expect(await run(["check", again])).toEqual({
+			code: 1,
+			line: "web/.env.production is new",
+		});
+		git("rm", "-q", "web/.env.production");
+		commit("drop the env file");
+	});
+
 	it("S146 AC 1: the named list follows pnpm-workspace.yaml's packages, one level under a star", () =>
 	{
 		const tree = new Map([["packages/a/package.json", "1"], ["packages/a/deep/package.json", "2"], ["e2e/package.json", "3"], ["web/tsconfig.node.json", "4"], ["web/package.json", "5"]]);
@@ -337,6 +370,44 @@ describe("build-inputs check (S146 AC 2)", () =>
 		});
 	});
 
+	it("S146 AC 2: a new file in a named folder, or a new named file, fails check", async () =>
+	{
+		const path = await record("named-new.json");
+		for (const added of ["web/public/robots.txt", "web/tsconfig.node.json", "packages/x/package.json"])
+		{
+			put(added, "{}\n");
+			commit(`add ${added}`);
+			expect(await run(["check", path]), added).toEqual({
+				code: 1,
+				line: `${added} is new`,
+			});
+			git("rm", "-q", added);
+			commit(`drop ${added}`);
+			expect((await run(["check", path])).line, added).toBe("unchanged");
+		}
+	});
+
+	it("S146 AC 2: a record that lists no files is never unchanged", async () =>
+	{
+		const empty = JSON.stringify({
+			format: BUILD_INPUTS_FORMAT,
+			commit: "c",
+			release: "v3.1.0",
+			origin: "",
+			covers: "",
+			files: {},
+		});
+		expect(checkBuildInputs(empty, new Map(), "v3.1.0")).toEqual({
+			ok: false,
+			reason: "the record lists no files",
+		});
+		writeFileSync(join(out, "empty.json"), empty);
+		expect(await run(["check", join(out, "empty.json")])).toEqual({
+			code: 1,
+			line: "the record lists no files",
+		});
+	});
+
 	it("S146 AC 2: runs with plain node and no installed dependencies, before pnpm install", async () =>
 	{
 		const path = await record("plain.json");
@@ -390,5 +461,236 @@ describe("build-inputs check (S146 AC 2)", () =>
 		expect((await run(["record", join(out, "x.json")])).code).toBe(2);
 		expect((await run(["nope", "x"])).code).toBe(2);
 		expect((await run([])).code).toBe(2);
+	});
+});
+
+describe("build-inputs trust, runs, cover and stands (S146 AC 3)", () =>
+{
+	const REPO = "owner/bt";
+	let stage = "";
+	let older = "";
+	let side = "";
+
+	/** An artifact as the Actions API lists it. */
+	function artifact(id: number, run: number, createdAt: string, extra: Record<string, unknown> = {}): Record<string, unknown>
+	{
+		return {
+			id,
+			name: "build-inputs-staging",
+			expired: false,
+			created_at: createdAt,
+			workflow_run: {
+				id: run,
+			},
+			...extra,
+		};
+	}
+
+	/** A run as `actions/runs/<id>` returns it: by default a push to stage of this repository's deploy.yml. */
+	function runOf(id: number, extra: Record<string, unknown> = {}): Record<string, unknown>
+	{
+		return {
+			id,
+			event: "push",
+			head_branch: "stage",
+			head_sha: stage,
+			path: ".github/workflows/deploy.yml",
+			repository: {
+				full_name: REPO,
+			},
+			head_repository: {
+				full_name: REPO,
+			},
+			...extra,
+		};
+	}
+
+	/** Writes the artifacts list and the runs folder, then runs `trust` with them. */
+	async function trust(artifacts: Record<string, unknown>[], runs: Record<string, unknown>[], args: string[] = ["--env", "staging", "--name", "build-inputs-staging"]): Promise<{ code: number;
+		line: string; }>
+	{
+		const dir = mkdtempSync(join(out, "trust-"));
+		mkdirSync(join(dir, "runs"));
+		writeFileSync(join(dir, "artifacts.json"), JSON.stringify({
+			total_count: artifacts.length,
+			artifacts,
+		}));
+		for (const r of runs) writeFileSync(join(dir, "runs", `${String(r.id)}.json`), JSON.stringify(r));
+		return run(["trust", "--stage-ref", "origin/stage", ...args, "--artifacts", join(dir, "artifacts.json"), "--runs-dir", join(dir, "runs"), "--repo", REPO]);
+	}
+
+	/** A staging record of `commit`, covering `covers`. */
+	function recordOf(name: string, commit: string, covers: string, format = BUILD_INPUTS_FORMAT): string
+	{
+		const path = join(out, name);
+		writeFileSync(path, JSON.stringify({
+			format,
+			commit,
+			release: "v3.1.0",
+			origin: "https://stage.example",
+			covers,
+			files: {
+				"web/src/main.ts": "0".repeat(40),
+			},
+		}));
+		return path;
+	}
+
+	beforeAll(() =>
+	{
+		for (const n of [1, 2, 3])
+		{
+			put(`notes/stage-${n}.txt`, `${n}\n`);
+			commit(`stage ${n}`);
+		}
+		stage = git("rev-parse", "HEAD").trim();
+		older = git("rev-parse", "HEAD~1").trim();
+		git("update-ref", "refs/remotes/origin/stage", stage);
+		// A commit that is not on stage, as one dispatched on a tag named `stage` would be.
+		side = git("commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "side").trim();
+		git("tag", "stage-side", side);
+	});
+
+	it("S146 AC 3: trust takes the newest record from this repository's own push or manual run on stage, skipping a fork's newer one", async () =>
+	{
+		const fork = runOf(2, {
+			event: "pull_request",
+			head_repository: {
+				full_name: "someone/bt",
+			},
+		});
+		expect(await trust([artifact(20, 2, "2026-11-26T10:00:00Z"), artifact(10, 1, "2026-11-25T10:00:00Z")], [runOf(1), fork])).toEqual({
+			code: 0,
+			line: "10",
+		});
+		expect((await trust([artifact(11, 3, "2026-11-25T10:00:00Z")], [runOf(3, {
+			event: "workflow_dispatch",
+			head_sha: older,
+		})])).line).toBe("11");
+	});
+
+	it("S146 AC 3: trust rejects a same-repository pull request run on a branch named stage, another workflow's run, and an expired record", async () =>
+	{
+		const pr = runOf(4, {
+			event: "pull_request",
+		});
+		const ci = runOf(5, {
+			path: ".github/workflows/ci.yml",
+		});
+		expect(await trust([artifact(40, 4, "2026-11-26T10:00:00Z"), artifact(50, 5, "2026-11-26T09:00:00Z"), artifact(60, 6, "2026-11-26T08:00:00Z", {
+			expired: true,
+		})], [pr, ci, runOf(6)])).toEqual({
+			code: 0,
+			line: "",
+		});
+	});
+
+	it("S146 AC 3: trust rejects a manual run whose commit is not on stage (a tag named stage) or that git doesn't have", async () =>
+	{
+		const tagged = runOf(7, {
+			event: "workflow_dispatch",
+			head_sha: side,
+		});
+		const unknown = runOf(8, {
+			head_sha: "f".repeat(40),
+		});
+		expect(await trust([artifact(70, 7, "2026-11-26T10:00:00Z"), artifact(80, 8, "2026-11-26T09:00:00Z"), artifact(90, 9, "2026-11-25T10:00:00Z")], [tagged, unknown, runOf(9)])).toEqual({
+			code: 0,
+			line: "90",
+		});
+	});
+
+	it("S146 AC 3: trust for a preview accepts only that pull request's own runs; bad usage exits 2", async () =>
+	{
+		const preview = (id: number, ref: string) => runOf(id, {
+			event: "pull_request",
+			head_branch: ref,
+			head_sha: side,
+		});
+		const art = (id: number, run: number, at: string) => artifact(id, run, at, {
+			name: "build-inputs-preview-7",
+		});
+		const args = ["--env", "preview", "--name", "build-inputs-preview-7", "--head-ref", "story/S1"];
+		expect(await trust([art(1, 1, "2026-11-26T10:00:00Z"), art(2, 2, "2026-11-25T10:00:00Z")], [preview(1, "story/S2"), preview(2, "story/S1")], args)).toEqual({
+			code: 0,
+			line: "2",
+		});
+		expect((await trust([], [], ["--env", "preview", "--name", "x"])).code).toBe(2);
+		expect((await run(["trust", "--env", "staging", "--name", "x", "--artifacts", "a", "--runs-dir", "d", "--repo", REPO])).code).toBe(2);
+		expect((await run(["trust", "--env", "other", "--name", "x", "--artifacts", "a", "--runs-dir", "d", "--repo", REPO])).code).toBe(2);
+	});
+
+	it("S146 AC 3: runs lists the runs of the newest 20 unexpired records of a name, newest first", async () =>
+	{
+		const list = Array.from({
+			length: 25,
+		}, (_, i) => artifact(100 + i, 1000 + i, `2026-11-${String(i + 1).padStart(2, "0")}T00:00:00Z`));
+		list.push(artifact(200, 1024, "2026-11-30T00:00:00Z"), artifact(201, 2001, "2026-11-30T01:00:00Z", {
+			expired: true,
+		}), artifact(202, 2002, "2026-11-30T02:00:00Z", {
+			name: "build-inputs-preview-1",
+		}));
+		writeFileSync(join(out, "runs-artifacts.json"), JSON.stringify({
+			artifacts: list,
+		}));
+		const result = await run(["runs", join(out, "runs-artifacts.json"), "--name", "build-inputs-staging"]);
+		expect(result.code).toBe(0);
+		const ids = result.line.split("\n");
+		// The newest 20 records, of 19 runs: run 1024 stored two of them (a re-run attempt), so it is listed once.
+		expect(ids).toHaveLength(19);
+		expect(ids.slice(0, 3)).toEqual(["1024", "1023", "1022"]);
+		expect(ids.at(-1)).toBe("1006");
+		expect((await run(["runs", join(out, "runs-artifacts.json")])).code).toBe(2);
+	});
+
+	it("S146 AC 3: cover records that staging stands for a newer commit too, and never moves back", async () =>
+	{
+		const path = recordOf("cover-base.json", older, "");
+		const first = join(out, "cover", "first.json");
+		expect((await run(["cover", path, stage, first])).code).toBe(0);
+		const covered = JSON.parse(readFileSync(first, "utf8")) as Record<string, unknown>;
+		expect(covered).toMatchObject({
+			commit: older,
+			covers: stage,
+			release: "v3.1.0",
+			files: {
+				"web/src/main.ts": "0".repeat(40),
+			},
+		});
+		const second = join(out, "cover", "second.json");
+		expect((await run(["cover", first, older, second])).code).toBe(0);
+		expect((JSON.parse(readFileSync(second, "utf8")) as { covers: string }).covers).toBe(stage);
+		expect(await run(["cover", join(out, "missing.json"), stage, second])).toEqual({
+			code: 1,
+			line: "no record",
+		});
+		expect((await run(["cover", path])).code).toBe(2);
+	});
+
+	it("S146 AC 3: stands prints the commit a skip covered, or else the served commit, always exiting 0", async () =>
+	{
+		const base = git("rev-parse", `${older}~1`).trim();
+		expect(await run(["stands", recordOf("stands.json", base, stage), "--served", base])).toEqual({
+			code: 0,
+			line: stage,
+		});
+		const cases: [string, string][] = [
+			[recordOf("stands-other.json", base, stage), older],
+			[recordOf("stands-none.json", base, ""), base],
+			[recordOf("stands-unknown.json", base, "f".repeat(40)), base],
+			[recordOf("stands-backward.json", stage, base), stage],
+			[recordOf("stands-v1.json", base, stage, "bt-build-inputs/1"), base],
+			[join(out, "missing.json"), base],
+		];
+		writeFileSync(join(out, "stands-bad.json"), "{not json");
+		cases.push([join(out, "stands-bad.json"), base]);
+		for (const [path, served] of cases)
+		{
+			expect(await run(["stands", path, "--served", served]), path).toEqual({
+				code: 0,
+				line: served,
+			});
+		}
+		expect((await run(["stands", join(out, "missing.json")])).code).toBe(2);
 	});
 });

@@ -19,7 +19,7 @@
  */
 import { execFileSync } from "node:child_process";
 import {
-	chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
+	chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -28,6 +28,7 @@ import {
 	afterEach, describe, expect, it,
 } from "vitest";
 import { MAY_BE_AHEAD_ENV } from "../adapters/postgres/migrate.js";
+import { GRAPH_ENTRIES, NAMED_FILES } from "./build-inputs.js";
 
 /** A workflow's text, or "" when the file is missing (so each pin fails on its own rather than the whole file). */
 function workflow(name: string): string
@@ -303,6 +304,24 @@ function stepIndex(list: string[], pattern: RegExp): number
 	return hits[0]!;
 }
 
+/** A job's text, or "" when deploy.yml has no such job (so each pin fails on its own rather than the whole file). */
+function jobOrEmpty(name: string): string
+{
+	return DEPLOY_YML.includes(`\n    ${name}:\n`) ? job(DEPLOY_YML, name) : "";
+}
+
+/** A step's own text, without the comment lines that open the next step (which {@link steps} leaves at its end). */
+function body(step: string): string
+{
+	return step.replace(/(?:\n *(?:#.*)?)+$/, "");
+}
+
+/** A job's text without its comment lines. */
+function code(jobText: string): string
+{
+	return jobText.split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+}
+
 /** Steps that install, build, migrate, record, deploy or store the record: every one S146 skips on `unchanged`. */
 const SKIPPED = [/name: Install\n/, /name: Build the web app\n/, /name: Bootstrap/, /run: pnpm db:migrate\n/, /run: pnpm db:reapply-deletions\n/, /name: Record the build's inputs/,
 	/wrangler deploy --config "\$\{\{ steps\.bootstrap/, /actions\/upload-artifact@v4/];
@@ -310,39 +329,112 @@ const SKIPPED = [/name: Install\n/, /name: Build the web app\n/, /name: Bootstra
 describe("deploy.yml build inputs (S146 AC 3)", () =>
 {
 	const staging = DEPLOY_YML && job(DEPLOY_YML, "staging");
+	const decide = jobOrEmpty("staging-inputs");
 	const preview = DEPLOY_YML && job(DEPLOY_YML, "preview");
 	const teardown = DEPLOY_YML && job(DEPLOY_YML, "preview-teardown");
 	const production = DEPLOY_YML && job(DEPLOY_YML, "production");
 
-	it("S146 AC 3: staging fetches its last record before installing, skips everything on unchanged, and stores a record only after deploying", () =>
+	it("S146 AC 3: staging-inputs decides the skip before staging, with no environment, under staging's lock, and stores a skip as covers", () =>
 	{
-		const list = steps(staging);
-		// Its own permissions keep build-release.sh merged's scopes and add the artifact read.
-		expect(permissions(staging)).toEqual(["actions: read", "contents: read", "issues: read", "pull-requests: read"]);
-		const served = stepIndex(list, /id: served\n/);
+		const list = steps(decide);
+		const head = header(decide);
+		// The staging job's own condition, then nothing else: it needs only changes and verify, and runs first.
+		expect(`${head}\n`).toContain(["\n        if: >-",
+			"            ${{ !cancelled() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/stage' &&",
+			"            needs.changes.result == 'success' && needs.changes.outputs.code == 'true' && needs.verify.result == 'success' }}",
+			"        needs: [changes, verify]\n"].join("\n"));
+		// The record fetch and build-release.sh merged's reads; no secrets, no environment, nothing installed or deployed.
+		expect(permissions(decide)).toEqual(["actions: read", "contents: read", "issues: read", "pull-requests: read"]);
+		expect(code(decide)).not.toMatch(/\n {8}environment:|secrets\.|wrangler deploy|pnpm install|pnpm\/action-setup/);
+		// One lock with staging, so a decision never falls inside another run's deploy.
+		for (const text of [head, header(staging)]) expect(text).toMatch(/\n {8}concurrency:\n {12}group: deploy-staging\n {12}cancel-in-progress: false\n/);
+		expect(`${head}\n`).toMatch(/\n {8}outputs:\n {12}deploy: \$\{\{ steps\.inputs\.outputs\.build == 'true' \}\}\n/);
+		const node = list.findIndex((step) => /actions\/setup-node@v4/.test(step));
 		const fetch = stepIndex(list, /name: Fetch the record of staging's last successful deploy \(build:inputs\)/);
+		const served = stepIndex(list, /id: served\n/);
+		const release = stepIndex(list, /id: release\n/);
 		const check = stepIndex(list, /id: inputs\n/);
-		const install = stepIndex(list, /name: Install\n/);
-		expect(served).toBeLessThan(fetch);
-		expect(fetch).toBeLessThan(check);
-		expect(check).toBeLessThan(install);
-		expect(list[fetch]).toMatch(/actions\/artifacts\?name=build-inputs-staging&/);
-		expect(list[fetch]).toMatch(/select\(\.expired \| not\)/);
-		// The check runs with plain node (setup-node, no pnpm), trusts only a record of the served commit, and is the only way to build=false.
-		expect(list.slice(0, check).some((step) => /actions\/setup-node@v4/.test(step) && !/cache: pnpm/.test(step))).toBe(true);
-		expect(list.slice(0, check).some((step) => /uses: pnpm\/action-setup|run: pnpm install/.test(step))).toBe(false);
+		const cover = stepIndex(list, /build-inputs\.ts cover /);
+		const store = stepIndex(list, /actions\/upload-artifact@v4/);
+		expect(list[node]).not.toMatch(/cache: pnpm/);
+		const order = [node < fetch, fetch < served, served < release, release < check, check < cover, cover < store, store === list.length - 1];
+		expect(order).toEqual(order.map(() => true));
+		expect(list[release]).toMatch(/\n {14}if: steps\.served\.outputs\.deploy == 'true'\n/);
+		expect(list[check]).toMatch(/\n {14}if: steps\.served\.outputs\.deploy == 'true'\n/);
+		// The check runs with plain node, trusts only a record of the served commit, and is the only way to build=false.
 		expect(list[check]).toMatch(/node functions\/src\/deploy\/build-inputs\.ts check "\$record" --served "\$SERVED"\)"; then\n[^\n]*\n\s+build=false\n/);
 		expect(list[check]).toMatch(/BT_RELEASE: \$\{\{ steps\.release\.outputs\.release \}\}/);
 		expect(list[check]!.match(/build=false/g)).toHaveLength(1);
-		expect(list[served]).toMatch(/echo "served=\$served_sha" >>"\$GITHUB_OUTPUT"/);
-		// The served-commit check still decides first: an older run never deploys over a newer one.
-		expect(list[served]).toMatch(/git merge-base --is-ancestor "\$\{\{ github\.sha \}\}" "\$served"/);
-		for (const pattern of SKIPPED) expect(list[stepIndex(list, pattern)], String(pattern)).toMatch(/\n {14}if: steps\.inputs\.outputs\.build == 'true'\n/);
+		// A skip stores the same record again, covering this commit, at the path the store step uploads.
+		const skipped = "if: steps.served.outputs.deploy == 'true' && steps.inputs.outputs.build == 'false'\n";
+		expect(list[cover]).toContain(`\n              ${skipped}`);
+		expect(list[cover]).toContain("run: node functions/src/deploy/build-inputs.ts cover \"$RUNNER_TEMP/last-deploy/build-inputs.json\" \"${{ github.sha }}\" \"$RUNNER_TEMP/build-inputs/build-inputs.json\"\n");
+		expect(list[store]).toContain(`\n              ${skipped}`);
+		expect(list[store]).toMatch(/name: build-inputs-staging\n {18}path: \$\{\{ runner\.temp \}\}\/build-inputs\/build-inputs\.json\n {18}if-no-files-found: error\n/);
+		expect(decide).not.toMatch(/always\(\)|failure\(\)|continue-on-error|\|\| true/);
+		expectTokenOnlyOnGhSteps(list, decide);
+	});
+
+	it("S146 AC 3: staging fetches only a trusted record, by artifact id, before deciding", () =>
+	{
+		for (const text of [decide, staging])
+		{
+			const list = steps(text);
+			const fetch = list[stepIndex(list, /name: Fetch the record of staging's last successful deploy \(build:inputs\)/)]!;
+			expect(fetch).toMatch(/gh api "repos\/\$GITHUB_REPOSITORY\/actions\/artifacts\?name=build-inputs-staging&per_page=100" >"\$dir\/artifacts\.json"\n/);
+			expect(fetch).toMatch(/for run in \$\(node functions\/src\/deploy\/build-inputs\.ts runs "\$dir\/artifacts\.json" --name build-inputs-staging\); do\n/);
+			expect(fetch).toMatch(/if gh api "repos\/\$GITHUB_REPOSITORY\/actions\/runs\/\$run" >"\$dir\/runs\/\$run\.json"; then :; else rm -f "\$dir\/runs\/\$run\.json"; fi\n/);
+			expect(fetch).toContain(["id=\"$(node functions/src/deploy/build-inputs.ts trust --stage-ref origin/stage --env staging --name build-inputs-staging",
+				"--artifacts \"$dir/artifacts.json\" --runs-dir \"$dir/runs\" --repo \"$GITHUB_REPOSITORY\")\"\n"].join(" "));
+			expect(fetch).toMatch(/gh api "repos\/\$GITHUB_REPOSITORY\/actions\/artifacts\/\$id\/zip" >"\$dir\/record\.zip"\n/);
+			expect(fetch).toContain("unzip -o -q \"$dir/record.zip\" -d \"$RUNNER_TEMP/last-deploy\"\n");
+			expect(fetch).not.toMatch(/sort_by\(\.created_at\) \| last|gh run download/);
+			// ci-law.test.ts reads the staging slice and forbids this text in it.
+			expect(text).not.toContain("origin/stage)");
+		}
+	});
+
+	it("S146 AC 3: staging deploys only what staging-inputs decided, or decides itself when that was cancelled, and stores a record only after deploying", () =>
+	{
+		const list = steps(staging);
+		const head = header(staging);
+		expect(permissions(staging)).toEqual(["actions: read", "contents: read", "issues: read", "pull-requests: read"]);
+		// Its own docs-only gate (law P11's clause, pinned here since ci-law.test.ts's slice also holds staging-inputs).
+		expect(head).toContain("needs.changes.result == 'success' && needs.changes.outputs.code == 'true' && needs.verify.result == 'success' &&\n");
+		expect(head).toContain("((needs.staging-inputs.result == 'success' && needs.staging-inputs.outputs.deploy == 'true') || needs.staging-inputs.result == 'cancelled') }}\n");
+		expect(head).toMatch(/\n {8}needs: \[changes, verify, staging-inputs\]\n/);
+		expect(head).toContain("\n        environment:\n            name: staging\n");
+		// The same fetch and served check as staging-inputs, character for character, repeated under this job's own hold of the lock.
+		const decided = steps(decide);
+		for (const pattern of [/name: Fetch the record of staging's last successful deploy/, /id: served\n/])
+		{
+			expect(body(list[stepIndex(list, pattern)]!), String(pattern)).toBe(body(decided[stepIndex(decided, pattern)]!));
+		}
+		const served = stepIndex(list, /id: served\n/);
+		const release = stepIndex(list, /id: release\n/);
+		const check = stepIndex(list, /id: inputs\n/);
+		const cover = stepIndex(list, /build-inputs\.ts cover /);
+		const go = stepIndex(list, /id: go\n/);
+		const install = stepIndex(list, /name: Install\n/);
+		expect([served < release, release < check, check < cover, cover < go, go < install]).toEqual([true, true, true, true, true]);
+		// The release lookup feeds the fallback's input check, so it runs whenever the served check says deploy.
+		expect(list[release]).toMatch(/\n {14}if: steps\.served\.outputs\.deploy == 'true'\n/);
+		// The fallback: staging-inputs's check and cover, apart from their if: lines.
+		const noIf = (step: string) => body(step).replace(/\n {14}if: .*\n/, "\n");
+		expect(noIf(list[check]!)).toBe(noIf(decided[stepIndex(decided, /id: inputs\n/)]!));
+		expect(noIf(list[cover]!)).toBe(noIf(decided[stepIndex(decided, /build-inputs\.ts cover /)]!));
+		expect(list[check]).toMatch(/\n {14}if: steps\.served\.outputs\.deploy == 'true' && needs\.staging-inputs\.result == 'cancelled'\n/);
+		expect(list[cover]).toContain("\n              if: steps.served.outputs.deploy == 'true' && needs.staging-inputs.result == 'cancelled' && steps.inputs.outputs.build == 'false'\n");
+		expect(list[go]).toMatch(/if \[ "\$SERVED" = true \] && \{ \[ "\$DECIDED" = success \] \|\| \[ "\$BUILD" = true \]; \}; then\n\s+echo "deploy=true" >>"\$GITHUB_OUTPUT"\n/);
+		expect(list[go]).toContain(["SERVED: ${{ steps.served.outputs.deploy }}", "DECIDED: ${{ needs.staging-inputs.result }}", "BUILD: ${{ steps.inputs.outputs.build }}\n"].join("\n                  "));
+		expect(list.slice(0, check).some((step) => /uses: pnpm\/action-setup|run: pnpm install/.test(step))).toBe(false);
+		for (const pattern of SKIPPED.slice(0, -1)) expect(list[stepIndex(list, pattern)], String(pattern)).toMatch(/\n {14}if: steps\.go\.outputs\.deploy == 'true'\n/);
 		const deploy = stepIndex(list, /wrangler deploy --config "\$\{\{ steps\.bootstrap/);
 		const store = stepIndex(list, /actions\/upload-artifact@v4/);
 		expect(store).toBe(list.length - 1);
 		expect(store).toBeGreaterThan(deploy);
-		expect(list[store]).toMatch(/name: build-inputs-staging\n/);
+		expect(list[store]).toMatch(/\n {14}if: steps\.go\.outputs\.deploy == 'true' \|\| steps\.inputs\.outputs\.build == 'false'\n/);
+		expect(list[store]).toMatch(/name: build-inputs-staging\n {18}path: \$\{\{ runner\.temp \}\}\/build-inputs\/build-inputs\.json\n {18}if-no-files-found: error\n/);
 		expect(list[store]).not.toMatch(/always\(\)|failure\(\)|cancelled\(\)|continue-on-error/);
 		const record = list[stepIndex(list, /name: Record the build's inputs/)]!;
 		expect(record).toMatch(/--dry-run --outdir "\$RUNNER_TEMP\/worker-dry-run" --metafile "\$RUNNER_TEMP\/worker-meta\.json"/);
@@ -350,6 +442,100 @@ describe("deploy.yml build inputs (S146 AC 3)", () =>
 		expect(record).toMatch(/--commit "\$\{\{ github\.sha \}\}"/);
 		expect(staging).not.toMatch(/\|\| true/);
 		expectTokenOnlyOnGhSteps(list, staging);
+	});
+
+	it("S146 AC 3: staging's served check compares with the commit staging stands for (a skip's covers), forced or not, under set -e", () =>
+	{
+		const list = steps(decide);
+		const step = list[stepIndex(list, /id: served\n/)]!;
+		expect(step).toMatch(/served="\$\(node functions\/src\/deploy\/build-inputs\.ts stands "\$RUNNER_TEMP\/last-deploy\/build-inputs\.json" --served "\$marker"\)"\n/);
+		// The served-commit check still decides first: an older run never deploys over a newer one.
+		expect(step).toMatch(/git merge-base --is-ancestor "\$\{\{ github\.sha \}\}" "\$served"/);
+		expect(step).toMatch(/echo "served=\$served_sha" >>"\$GITHUB_OUTPUT"/);
+		const script = step.slice(step.indexOf("run: |\n") + "run: |\n".length).split("\n").map((line) => line.replace(/^ {18}/, "")).join("\n");
+		const dir = mkdtempSync(join(tmpdir(), "served-step-"));
+		const sh = (cwd: string, ...args: string[]) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", ...args], {
+			cwd,
+			encoding: "utf8",
+		}).trim();
+		try
+		{
+			const repo = join(dir, "repo");
+			const bin = join(dir, "bin");
+			const temp = join(dir, "runner");
+			for (const d of [repo, bin, join(temp, "last-deploy"), join(repo, "functions/src/deploy")]) mkdirSync(d, {
+				recursive: true,
+			});
+			sh(dir, "init", "-q", "--bare", "origin.git");
+			sh(repo, "init", "-q", "-b", "stage");
+			const shas: string[] = [];
+			for (const name of ["A", "B", "C"])
+			{
+				writeFileSync(join(repo, "file.txt"), `${name}\n`);
+				sh(repo, "add", "file.txt");
+				sh(repo, "commit", "-q", "-m", name);
+				shas.push(sh(repo, "rev-parse", "HEAD"));
+			}
+			const [A, B, C] = shas as [string, string, string];
+			sh(repo, "remote", "add", "origin", join(dir, "origin.git"));
+			sh(repo, "push", "-q", "origin", "stage");
+			copyFileSync(fileURLToPath(new URL("./build-inputs.ts", import.meta.url)), join(repo, "functions/src/deploy/build-inputs.ts"));
+			writeFileSync(join(bin, "curl"), "#!/bin/sh\nout=\"\"\nwhile [ $# -gt 0 ]; do case \"$1\" in -o) out=\"$2\"; shift 2 ;; *) shift ;; esac; done\nprintf '%s\\n' \"$MARKER\" >\"$out\"\nprintf 200\n");
+			writeFileSync(join(bin, "sleep"), "#!/bin/sh\nexit 0\n");
+			chmodSync(join(bin, "curl"), 0o755);
+			chmodSync(join(bin, "sleep"), 0o755);
+			const recordPath = join(temp, "last-deploy", "build-inputs.json");
+			const recordText = (commit: string, covers: string, format = "bt-build-inputs/2") => JSON.stringify({
+				format,
+				commit,
+				release: "",
+				origin: "",
+				covers,
+				files: {
+					"file.txt": "0".repeat(40),
+				},
+			});
+			/** Runs the step for `sha` against a served marker and a record, returning its deploy output. */
+			const decideFor = (sha: string, marker: string, record: string | undefined, force: boolean) =>
+			{
+				rmSync(recordPath, {
+					force: true,
+				});
+				if (record !== undefined) writeFileSync(recordPath, record);
+				const output = join(temp, "output");
+				writeFileSync(output, "");
+				execFileSync("bash", ["-c", script.replaceAll("${{ github.sha }}", sha).replaceAll("${{ github.run_id }}", "1")], {
+					cwd: repo,
+					encoding: "utf8",
+					env: {
+						...process.env,
+						PATH: `${bin}:${process.env.PATH ?? ""}`,
+						FORCE: String(force),
+						MARKER: marker,
+						RUNNER_TEMP: temp,
+						GITHUB_OUTPUT: output,
+					},
+				});
+				return /deploy=(\w+)/.exec(readFileSync(output, "utf8"))?.[1];
+			};
+			// Staging serves A; a skip of C's run recorded that A builds as C.
+			const covered = recordText(A, C);
+			expect(decideFor(C, A, covered, true), "a forced run of the covered head redeploys it").toBe("true");
+			expect(decideFor(B, A, covered, true), "a forced run of an older commit never deploys over the covered head").toBe("false");
+			expect(decideFor(C, A, covered, false), "the covered head isn't deployed again").toBe("false");
+			expect(decideFor(B, A, covered, false), "an older run queued behind the skip doesn't deploy over it").toBe("false");
+			expect(decideFor(C, A, undefined, false), "no record: as before S146's covers").toBe("true");
+			expect(decideFor(C, A, recordText(A, C, "bt-build-inputs/1"), false), "a record of another format covers nothing").toBe("true");
+			expect(decideFor(C, B, covered, false), "a record of another commit than the served one covers nothing").toBe("true");
+			expect(decideFor(A, B, undefined, false), "an older run never deploys over a newer served commit").toBe("false");
+		}
+		finally
+		{
+			rmSync(dir, {
+				recursive: true,
+				force: true,
+			});
+		}
 	});
 
 	it("S146 AC 3: preview fetches its pull request's record before installing, skips on unchanged, still comments, and records the head commit", () =>
@@ -366,7 +552,17 @@ describe("deploy.yml build inputs (S146 AC 3)", () =>
 		expect(list[fetch]).toMatch(/if: steps\.open\.outputs\.open == 'true' && github\.event\.action != 'reopened'\n/);
 		expect(list[check]).toMatch(/REOPENED: \$\{\{ github\.event\.action == 'reopened' \}\}/);
 		expect(list[check]).toMatch(/if \[ "\$REOPENED" = true \]; then\n[^\n]*\n\s+build=true\n/);
-		expect(list[check]).toMatch(/node functions\/src\/deploy\/build-inputs\.ts check "\$record"\)"; then/);
+		// The record is trusted only while its Worker serves the commit it names (finding 8: a cancelled run may have deployed another).
+		expect(list[check]).toMatch(/node functions\/src\/deploy\/build-inputs\.ts check "\$record" --served "\$served"\)"; then/);
+		expect(list[check]).toContain("origin=\"$(node functions/src/deploy/build-inputs.ts get \"$record\" origin)\" && [[ \"$origin\" =~ ^https://[a-z0-9-]+(\\.[a-z0-9-]+)*\\.workers\\.dev$ ]]; then\n");
+		expect(list[check]).toMatch(/marker="\$\(curl -fsS --retry 3 --max-time 10 "\$origin\/bt-commit\.txt" \| head -c 100 \| tr -d '\[:space:\]'\)"/);
+		expect(list[stepIndex(list, /name: Build the web app\n/)]).toMatch(/run: \|\n\s+pnpm --filter @bt\/web run build\n\s+echo "\$BT_COMMIT" >web\/dist\/bt-commit\.txt\n/);
+		// Only that pull request's own runs' records are trusted, found by artifact id.
+		expect(list[fetch]).toMatch(/HEAD_REF: \$\{\{ github\.event\.pull_request\.head\.ref \}\}\n/);
+		expect(list[fetch]).toContain(["id=\"$(node functions/src/deploy/build-inputs.ts trust --env preview --head-ref \"$HEAD_REF\" --name \"$name\"",
+			"--artifacts \"$dir/artifacts.json\" --runs-dir \"$dir/runs\" --repo \"$GITHUB_REPOSITORY\")\"\n"].join(" "));
+		expect(list[fetch]).toMatch(/gh api "repos\/\$GITHUB_REPOSITORY\/actions\/artifacts\/\$id\/zip" >"\$dir\/record\.zip"\n/);
+		expect(list[fetch]).not.toMatch(/sort_by\(\.created_at\) \| last|gh run download/);
 		// Setup and install also run to tear down a closed pull request's preview.
 		expect(list[install]).toMatch(/if: steps\.open\.outputs\.open == 'false' \|\| steps\.inputs\.outputs\.build == 'true'\n/);
 		for (const pattern of SKIPPED.slice(1)) expect(list[stepIndex(list, pattern)], String(pattern)).toMatch(/steps\.inputs\.outputs\.build == 'true'\n/);
@@ -406,16 +602,48 @@ describe("deploy.yml build inputs (S146 AC 3)", () =>
 		expect(DEPLOY_YML).toMatch(/\n {4}workflow_dispatch:\n {8}inputs:\n {12}force:\n(?: {16}.*\n)* {16}type: boolean\n/);
 		// The changes job answers code=true for it (as for a release), so verify runs and staging isn't stopped by code=false.
 		expect(job(DEPLOY_YML, "changes")).toMatch(/elif \[ "\$\{\{ github\.event_name \}\}" = workflow_dispatch \]; then\n(?:\s+#.*\n)?\s+echo "code=true" >> "\$GITHUB_OUTPUT"/);
-		expect(header(staging)).toMatch(/\(github\.event_name == 'push' \|\| github\.event_name == 'workflow_dispatch'\) && github\.ref == 'refs\/heads\/stage'/);
-		const list = steps(staging);
+		for (const text of [staging, decide])
+		{
+			expect(header(text)).toContain("(github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/stage'");
+		}
+		const list = steps(decide);
 		const force = "FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}";
 		const check = list[stepIndex(list, /id: inputs\n/)]!;
 		expect(check).toContain(force);
 		expect(check).toMatch(/if \[ "\$FORCE" = true \]; then\n[^\n]*\n\s+build=true\n/);
-		// The served check lets a forced run redeploy only the commit staging already serves, never an older one.
+		// The served check lets a forced run redeploy only the commit staging stands for, never an older one.
 		const served = list[stepIndex(list, /id: served\n/)]!;
 		expect(served).toContain(force);
 		expect(served).toMatch(/if \[ "\$FORCE" = true \] && \[ "\$served" = "\$\{\{ github\.sha \}\}" \]; then/);
+	});
+
+	it("S146 AC 1: every script the staging and preview deploys run is an input", () =>
+	{
+		const scripts = (JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8")) as { scripts: Record<string, string> }).scripts;
+		// Run by name, each with why it needs no entry: the lockfile stands for install; the build is Vite's own graph;
+		// wrangler's bundle is its metafile; deploy:teardown only tears a closed preview down, never deploys.
+		const filtered = new Set(["@bt/web run build", "@bt/functions exec wrangler"]);
+		const named = new Set(["install", "deploy:teardown"]);
+		const text = [decide, staging, preview].join("\n").split("\n").filter((line) => !/^\s*(#|- name:|name:)/.test(line)).join("\n");
+		const read = new Set<string>();
+		for (const m of text.matchAll(/\bpnpm (--filter (\S+) (\S+ \S+)|(?:run )?([a-z][\w:-]*))/g))
+		{
+			if (m[2]) expect(filtered, m[0]).toContain(`${m[2]} ${m[3]}`);
+			else if (!named.has(m[4]!))
+			{
+				const script = scripts[m[4]!];
+				expect(script, `pnpm ${m[4]}`).toBeDefined();
+				const path = /^node (\S+\.ts)$/.exec(script!)?.[1] ?? /^pnpm --filter @bt\/functions exec tsx (src\/\S+\.ts)/.exec(script!)?.[1]?.replace(/^/, "functions/");
+				expect(path, `pnpm ${m[4]}: ${script}`).toBeDefined();
+				read.add(path!);
+			}
+		}
+		for (const m of text.matchAll(/\bnode (functions\/src\/\S+\.ts)/g)) read.add(m[1]!);
+		expect([...read].length).toBeGreaterThan(3);
+		for (const path of read) expect(GRAPH_ENTRIES, path).toContain(path);
+		const shells = [...new Set([...text.matchAll(/\b(scripts\/[\w-]+\.sh)\b/g)].map((m) => m[1]!))];
+		expect(shells.length).toBeGreaterThan(1);
+		for (const path of shells) expect(NAMED_FILES, path).toContain(path);
 	});
 
 	it("S146 AC 3: production always deploys: no input check, record or skip", () =>

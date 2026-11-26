@@ -245,7 +245,10 @@ automatically 2. Mirror"):
   nothing. A push whose build inputs are unchanged since the preview's last successful deploy (the
   same input check as staging's, against the `build-inputs-preview-<number>` artifact) skips install,
   build, migrations and deploy, and the comment says the preview from the recorded commit still serves
-  it; closing the pull request deletes that record too, and a reopened pull request always deploys.
+  it, as long as the preview still serves the recorded commit (its `bt-commit.txt`); closing the pull request
+  deletes that record too, and a reopened pull request always deploys. A preview has no **force**: a rotated
+  secret or variable reaches it with the next push that changes its build inputs, or by closing and reopening
+  the pull request.
   **Preview cleanup** (`.github/workflows/preview-cleanup.yml`, weekly and by hand from
   Actions) deletes any preview whose pull request is closed and leaves every open one alone. A preview
   copies staging, which never holds a fan's data, so it holds none either. Limits: Neon allows 10
@@ -258,13 +261,22 @@ automatically 2. Mirror"):
   Each staging and preview deploy records every file its build read (`pnpm build:inputs record`,
   `functions/src/deploy/build-inputs.ts`): the modules Vite's graph reported, the Worker bundle's
   esbuild metafile, the deploy scripts' imports, and a short named list (the lockfile, package and
-  TypeScript configs, `web/index.html`, `web/public/`, the migrations, the workflow), each with its git
-  blob hash, plus the release label `BT_RELEASE`. The record is kept as an Actions artifact,
-  `build-inputs-staging` (a preview's: `build-inputs-preview-<number>`), stored only after the deploy
-  step succeeds and trusted only when it names the commit staging serves (`bt-commit.txt`), so after a
-  `wrangler rollback` or an older run landing last staging deploys again. To deploy staging whatever
-  the record says (a rotated secret or variable changes no file), run **Deploy** by hand on `stage`
-  from Actions with **force** checked. Production always deploys.
+  TypeScript configs, the configs Vite finds by lookup such as `web/postcss.config.cjs`, `web/index.html`,
+  `web/public/`, the migrations, the workflow), each with its git blob hash, plus the release label
+  `BT_RELEASE`; a file new to that named list fails the check too. The record is kept as an Actions
+  artifact, `build-inputs-staging` (a preview's: `build-inputs-preview-<number>`), stored only after the
+  deploy step succeeds and trusted only when it names the commit staging serves (`bt-commit.txt`), so
+  after a `wrangler rollback` or an older run landing last staging deploys again, and only when this
+  repository's own Deploy runs stored it (`build-inputs.ts trust`: for staging a push or manual run of a
+  commit on `stage`, for a preview that pull request's own runs), so no other workflow or fork's artifact
+  of the same name can stop a deploy. The skip is decided in the `staging-inputs` job, which names no
+  environment, so a skipped run doesn't appear in GitHub's `staging` environment; it stores the record
+  again with `covers` naming the skipped commit, so an older run still queued sees staging standing for
+  that newer commit (`build-inputs.ts stands`) and doesn't deploy over it. Only when runs race does the
+  `staging` job start and then deploy nothing: it repeats the served-commit check, and decides itself
+  when `staging-inputs` was cancelled. To deploy staging whatever the record says (a rotated secret or
+  variable changes no file), run **Deploy** by hand on `stage` from Actions with **force** checked; it
+  redeploys the commit staging stands for, never an older one. Production always deploys.
   The branch is created schema-only from production the first time (production's tables, none of its
   rows) and filled only by `pnpm db:migrate`, so it never holds a fan's data. Copying production's
   baseball data into it is a separate step the owner runs by hand (S117, **Copy baseball data**
