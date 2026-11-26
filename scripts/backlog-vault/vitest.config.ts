@@ -2,6 +2,16 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	test: {
+		coverage: {
+			// Floors (law L6; S168 made this a unit): the measured value rounded down, ratchet only.
+			// Measured 2026-11-26: lines 76.53, branches 89.57, functions 88, statements 76.53.
+			thresholds: {
+				lines: 76,
+				branches: 89,
+				functions: 88,
+				statements: 76,
+			},
+		},
 		root: import.meta.dirname,
 		include: ["*.test.ts"],
 		// Each test yields to the event loop afterwards, so long synchronous git and script calls can't

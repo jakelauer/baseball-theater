@@ -444,6 +444,139 @@ if [ -n "$LAWUNIT" ] && [ -d "$LAWUNIT" ]; then
   fi
 fi
 
+# --- Checks 4 and 5, dynamic parts (added under rule 7 after ADR-030's acceptance, 2026-11-26; each
+# only adds failures). Every run happens in a copy under $TMP with its own .git, never in this tree.
+# AC 4's isolated runs execute every unit's lint and test, so this grader runs for minutes, past the
+# Verify-script contract's 60 s: the AC asks for those runs and the AC outranks the contract's budget.
+TURBO="$ROOT/node_modules/.bin/turbo"
+read -r -a TOOLCHAIN <<<"$(node -e 'const t=JSON.parse(require("fs").readFileSync("turbo.json","utf8").replace(/^\s*\/\/.*$/gm,""));console.log((t.globalDependencies||[]).join(" "))')"
+pnpm ls -r --depth -1 --json 2>/dev/null | node -e 'const r=require("path").relative;const j=JSON.parse(require("fs").readFileSync(0,"utf8"));const m={};for(const p of j){const d=r(process.argv[1],p.path);if(d)m[p.name]=d;}require("fs").writeFileSync(process.argv[2],JSON.stringify(m))' "$ROOT" "$TMP/units.json"
+UNIT_DIRS="$(node -e 'console.log(Object.values(require(process.argv[1])).join(" "))' "$TMP/units.json")"
+GLOBJS='const glob=(p)=>new RegExp("^"+p.replace(/[.+^${}()|[\]\\]/g,"\\$&").replace(/\*\*/g,"\u0000").replace(/\*/g,"[^/]*").replace(/\u0000/g,".*")+"$");'
+# A full copy of the tracked and untracked (not ignored) files, pnpm's links kept, committed on `stage`.
+full_copy()
+{
+  local d="$1"; mkdir -p "$d"
+  git ls-files -co --exclude-standard -z | tar --null -T - -cf - 2>/dev/null | tar -xf - -C "$d"
+  ln -s "$ROOT/node_modules" "$d/node_modules"
+  for u in $UNIT_DIRS; do [ -d "$ROOT/$u/node_modules" ] && cp -a "$ROOT/$u/node_modules" "$d/$u/"; done
+  (cd "$d" && git init -q -b stage && git add -A && git -c user.email=g@t -c user.name=g commit -qm base --no-verify)
+}
+# taskId<TAB>hash<TAB>dependents for one dry run of every task the entry point runs.
+dry_hashes()
+{
+  (cd "$1" && "$TURBO" run "${TASKS[@]}" --dry=json 2>/dev/null) | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));for(const t of j.tasks)if(t.command!=="<NONEXISTENT>")console.log([t.taskId,t.hash,(t.dependents||[]).join(",")].join("\t"))'
+}
+if [ "${#TASKS[@]}" -gt 0 ] && [ -x "$TURBO" ]; then
+  C="$TMP/copy"; full_copy "$C"
+  dry_hashes "$C" >"$TMP/h0.tsv"
+  [ -s "$TMP/h0.tsv" ] || bad 4 "the dry run in the copy gave no task hashes"
+  # The global list is narrow: one file under each named outside input; a task that neither declares
+  # it (among its inputs, or as its own unit's file) nor depends on one that does keeps its hash.
+  node -e "$GLOBJS"'
+const fs=require("fs"),cp=require("child_process");const C=process.argv[1];
+const t=JSON.parse(fs.readFileSync(C+"/turbo.json","utf8").replace(/^\s*\/\/.*$/gm,""));
+const files=cp.execSync("git ls-files",{cwd:C,encoding:"utf8"}).split("\n").filter(Boolean);
+const seen=new Set();
+for(const task of Object.values(t.tasks))for(const i of task.inputs??[]){
+ if(!i.startsWith("$TURBO_ROOT$/")||seen.has(i))continue;seen.add(i);
+ const re=glob(i.slice(13));const f=files.find((x)=>re.test(x)&&!(t.globalDependencies??[]).includes(x));if(f)console.log(f);}' "$C" | sort -u >"$TMP/probes.txt"
+  while IFS= read -r f; do
+    printf '\n' >>"$C/$f"
+    dry_hashes "$C" >"$TMP/h1.tsv"
+    (cd "$C" && git checkout -q -- "$f")
+    moved="$(node -e "$GLOBJS"'
+const fs=require("fs");const [C,f,a,b,uj]=process.argv.slice(1);
+const t=JSON.parse(fs.readFileSync(C+"/turbo.json","utf8").replace(/^\s*\/\/.*$/gm,""));
+const units=JSON.parse(fs.readFileSync(uj,"utf8"));
+const rows=(p)=>new Map(fs.readFileSync(p,"utf8").split("\n").filter(Boolean).map((l)=>{const [id,h,d]=l.split("\t");return [id,{h,d:d?d.split(","):[]}];}));
+const h0=rows(a),h1=rows(b);
+const declares=(id)=>{const k=id.lastIndexOf("#");const pkg=id.slice(0,k),name=id.slice(k+1);
+ const cfg=t.tasks[id]??t.tasks[name]??{};const dir=units[pkg];
+ if(dir&&f.startsWith(dir+"/"))return true;
+ return (cfg.inputs??[]).some((i)=>i.startsWith("$TURBO_ROOT$/")&&glob(i.slice(13)).test(f));};
+const hit=new Set([...h0.keys()].filter(declares));const q=[...hit];
+while(q.length){const id=q.pop();for(const d of h0.get(id)?.d??[])if(!hit.has(d)){hit.add(d);q.push(d);}}
+console.log([...h0].filter(([id,{h}])=>!hit.has(id)&&h1.get(id)?.h!==h).map(([id])=>id).join(" "));' "$C" "$f" "$TMP/h0.tsv" "$TMP/h1.tsv" "$TMP/units.json")"
+    [ -z "$moved" ] || bad 4 "an edit to $f changed the hash of tasks that neither declare it nor depend on one that does: $moved"
+  done <"$TMP/probes.txt"
+  [ -s "$TMP/probes.txt" ] || bad 4 "no named outside input matched a tracked file to probe"
+  # A toolchain edit changes every task's hash.
+  for f in "${TOOLCHAIN[@]}"; do
+    [ -f "$C/$f" ] || { bad 4 "the toolchain file $f is missing"; continue; }
+    printf '\n' >>"$C/$f"
+    dry_hashes "$C" >"$TMP/h1.tsv"
+    (cd "$C" && git checkout -q -- "$f")
+    same="$(join -t "$(printf '\t')" <(cut -f1,2 "$TMP/h0.tsv" | sort) <(cut -f1,2 "$TMP/h1.tsv" | sort) | awk -F'\t' '$2==$3 {print $1}' | head -3 | tr '\n' ' ')"
+    [ -z "$same" ] || bad 4 "an edit to the toolchain file $f left these tasks' hashes unchanged: $same"
+  done
+
+  # AC 5: the entry point's plan against a temporary base (the copy's `stage`), on a `work` branch.
+  (cd "$C" && git checkout -qb work)
+  vplan() { (cd "$C" && BT_VERIFY_BASE=stage node scripts/verify-plan.ts 2>/dev/null); }
+  [ "$(vplan | sed -n 's/^mode //p')" = "none" ] || bad 5 "with no change the entry point does not run nothing"
+  printf '\n' >>"$C/${TOOLCHAIN[0]}"
+  [ "$(vplan | sed -n 's/^mode //p')" = "all" ] || bad 5 "a toolchain change does not run everything"
+  (cd "$C" && git checkout -q -- "${TOOLCHAIN[0]}")
+  leaf_u="$(cut -d' ' -f1 <<<"$UNIT_DIRS")"
+  leaf_name="$(node -p "require('$C/$leaf_u/package.json').name")"
+  leaf_f="$(cd "$C" && git ls-files -- "$leaf_u" | grep -E '\.ts$' | grep -v '\.test\.' | head -1)"
+  plan_has_unit()
+  {
+    local out filters
+    out="$(vplan)"; [ "$(sed -n 's/^mode //p' <<<"$out")" = "narrow" ] || return 1
+    read -r -a filters <<<"$(sed -n 's/^filters //p' <<<"$out")"
+    (cd "$C" && "$TURBO" run "${TASKS[@]}" "${filters[@]}" --dry=json 2>/dev/null) | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));const n=process.argv[1];process.exit(j.tasks.some(t=>t.package===n&&t.command!=="<NONEXISTENT>")?0:1)' "$leaf_name"
+  }
+  printf '\n' >>"$C/$leaf_f"
+  plan_has_unit || bad 5 "an uncommitted change to $leaf_f does not run $leaf_name's tasks"
+  (cd "$C" && git checkout -q -- "$leaf_f")
+  printf 'export {};\n' >"$C/$leaf_u/zz-s168-untracked.ts"
+  plan_has_unit || bad 5 "an untracked file in $leaf_u does not run $leaf_name's tasks"
+  rm -f "${C:?}/${leaf_u:?}/zz-s168-untracked.ts"
+  # The ledger-writing step (scripts/verify-record.ts, which audit.sh story calls) writes the three
+  # lists from a fixture story's run summary: one task ran, one replayed, the rest not affected.
+  mkdir -p "$C/.turbo/runs"
+  (cd "$C" && "$TURBO" run "${TASKS[@]}" --dry=json 2>/dev/null) >"$TMP/graph.json"
+  node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const ts=j.tasks.filter(t=>t.command!=="<NONEXISTENT>");fs.writeFileSync(process.argv[2],JSON.stringify({tasks:[{...ts[0],execution:{exitCode:0},cache:{status:"MISS"}},{...ts[1],execution:{exitCode:0},cache:{status:"HIT"}}]}))' "$TMP/graph.json" "$C/.turbo/runs/fixture-S9999.json"
+  rows="$(cd "$C" && node scripts/verify-record.ts --root "$C" --graph "$TMP/graph.json" 2>&1)"
+  for l in "tasks that ran" "replayed from the cache" "not affected"; do
+    grep -qE "Gate: $l \| [^|]*[a-z]" <<<"$rows" || bad 5 "the ledger rows lack a filled '$l' list: $(head -c 300 <<<"$rows")"
+  done
+
+  # AC 4: an undeclared read fails. Each unit's test and lint, in a copy holding only that unit, its
+  # tasks' declared inputs, the toolchain files, each workspace dependency's package.json and what its
+  # typecheck reads (ADR-030: a source-only dependency's output is its source, reached via ^typecheck),
+  # the installed dependencies with pnpm's links, and a .git with those files committed.
+  for u in $UNIT_DIRS; do
+    I="$TMP/iso-${u//\//-}"; mkdir -p "$I"
+    node -e "$GLOBJS"'
+const fs=require("fs"),cp=require("child_process");const [R,u,uj]=process.argv.slice(1);
+const t=JSON.parse(fs.readFileSync(R+"/turbo.json","utf8").replace(/^\s*\/\/.*$/gm,""));
+const files=cp.execSync("git ls-files -co --exclude-standard",{cwd:R,encoding:"utf8"}).split("\n").filter(Boolean);
+const pkg=JSON.parse(fs.readFileSync(R+"/"+u+"/package.json","utf8"));const dirOf=JSON.parse(fs.readFileSync(uj,"utf8"));
+const keep=new Set([...(t.globalDependencies??[]),"pnpm-workspace.yaml"]);
+const under=(d)=>files.filter((f)=>f.startsWith(d+"/"));
+for(const f of under(u))keep.add(f);
+for(const name of ["test","lint"])for(const i of (t.tasks[pkg.name+"#"+name]??t.tasks[name]??{}).inputs??[])
+ if(i.startsWith("$TURBO_ROOT$/"))for(const f of files.filter((x)=>glob(i.slice(13)).test(x)))keep.add(f);
+const deps=[pkg.name];
+for(let k=0;k<deps.length;k++){const p=JSON.parse(fs.readFileSync(R+"/"+(dirOf[deps[k]]??u)+"/package.json","utf8"));
+ for(const [n,v] of Object.entries({...p.dependencies,...p.devDependencies}))if(String(v).startsWith("workspace:")&&!deps.includes(n))deps.push(n);}
+for(const n of deps.slice(1))for(const f of under(dirOf[n]))keep.add(f);
+for(const f of keep)console.log(f);' "$ROOT" "$u" "$TMP/units.json" >"$TMP/iso.list"
+    (cd "$ROOT" && tar -cf - -T "$TMP/iso.list" 2>/dev/null) | tar -xf - -C "$I"
+    ln -s "$ROOT/node_modules" "$I/node_modules"
+    for d in $UNIT_DIRS; do [ -d "$I/$d" ] && [ -d "$ROOT/$d/node_modules" ] && cp -a "$ROOT/$d/node_modules" "$I/$d/"; done
+    (cd "$I" && git init -q -b stage && git add -A && git -c user.email=g@t -c user.name=g commit -qm iso --no-verify)
+    for task in lint test; do
+      node -e 'process.exit(require(process.argv[1]).scripts?.[process.argv[2]]?0:1)' "$I/$u/package.json" "$task" || continue
+      (cd "$I/$u" && BT_VERIFY_BASE=stage pnpm run "$task" >"$TMP/iso-$task.log" 2>&1) || bad 4 "$u's $task fails in a copy holding only its declared inputs: $(grep -m1 -E 'Error|FAIL|ENOENT|error' "$TMP/iso-$task.log" | head -c 300)"
+    done
+    rm -rf "${I:?}"
+  done
+fi
+
 # --- Check 10: fence and status ---
 fence='^(package\.json|pnpm-workspace\.yaml|pnpm-lock\.yaml|turbo\.json|tsconfig\.base\.json|eslint\.config\.js|vitest\.config\.ts|\.jscpd\.json|\.size-limit\.json|lighthouserc\.json|\.gitignore|functions/package\.json|functions/tsconfig\.json|functions/vitest\.config\.ts|functions/vitest\.workers\.config\.ts|functions/src/deploy/deploy-workflow\.test\.ts|functions/src/scripts/copy-baseball-run\.test\.ts|web/package\.json|web/tsconfig\.json|web/vitest\.config\.ts|web/vite\.config\.ts|CLAUDE\.md|docs/v3/ARCHITECTURE\.md|docs/v3/LAWS\.md|docs/v3/LOOP\.md)$|^(\.husky/|packages/|tools/|e2e/|scripts/|\.github/workflows/|\.claude/skills/verify/|\.claude/skills/run-backlog/|docs/v3/backlog/|docs/v3/audit/|changelog\.d/)'
 while IFS= read -r f; do
