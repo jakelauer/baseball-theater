@@ -1,0 +1,408 @@
+/**
+ * The build's inputs (S146): what a staging or preview deploy's build read, so the next deploy can
+ * skip installing, building, migrating and deploying when none of it changed (owner, 2026-11-11:
+ * "check the inputs to the build at build time or prior to it (ideal)", then "yeah, I like your
+ * plan" to recording what the build reads and checking those files' hashes before the next build).
+ *
+ * `record <out>` runs after a build and writes a JSON record: every repository file the build read,
+ * each with its git blob hash at the checked-out commit, the release label (`BT_RELEASE`, which
+ * `web/vite.config.ts` builds into the version line) and the commit the deploy names. The files come
+ * from the bundlers' own graphs, never a hand list of folders:
+ * - the web build: the module ids Vite reported (the `bt-build-inputs` plugin in `web/vite.config.ts`);
+ * - the Worker: the inputs of the esbuild metafile `wrangler deploy --dry-run --metafile` writes;
+ * - the deploy steps' scripts and the configs' own imports: an esbuild graph of {@link GRAPH_ENTRIES};
+ * plus the short list {@link namedInputs} keeps of what no bundler sees (the lockfile, package and
+ * TypeScript configs, `web/index.html`, `web/public/`, the migrations, the workflow and its shell
+ * scripts). `node_modules/` and virtual modules have no blob and are left out: `pnpm-lock.yaml`
+ * stands for the dependencies.
+ *
+ * `check <record>` runs before anything is installed: this file imports only `node:` modules, so
+ * Node 24 runs it as it is (type stripping), and the esbuild that `record` needs is loaded only then.
+ * It prints `unchanged` and exits 0 only when the record parses, was made by this format, names the
+ * `BT_RELEASE` given, (with `--served`) names the commit staging serves, and every file it lists has
+ * the same blob at HEAD. A new source file can only join a build through an import added to a file
+ * already recorded, so that edit changes a recorded hash.
+ */
+import { execFileSync } from "node:child_process";
+import {
+	existsSync, readFileSync, writeFileSync,
+} from "node:fs";
+import { createRequire } from "node:module";
+import {
+	isAbsolute, relative, resolve,
+} from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+/** The record's format; a record of any other format is never trusted, so changing what is recorded changes this. */
+export const BUILD_INPUTS_FORMAT = "bt-build-inputs/1";
+
+/** One deploy's record of its build's inputs. */
+export interface BuildInputsRecord
+{
+	/** {@link BUILD_INPUTS_FORMAT} when it was made. */
+	format: string;
+	/** The commit the deploy names: staging's `GITHUB_SHA`, a preview's pull request head. */
+	commit: string;
+	/** The `BT_RELEASE` the build saw ("" when unset). */
+	release: string;
+	/** The address the deploy serves ("" when not given): a skipped preview's comment repeats it. */
+	origin: string;
+	/** Each input's repository path and its git blob hash, sorted by path. */
+	files: Record<string, string>;
+}
+
+/** What `check` found: unchanged, or the first difference in words. */
+export type CheckResult = { ok: true } | { ok: false;
+	reason: string; };
+
+/**
+ * The entries whose esbuild graph is recorded (AC 1): the scripts the deploy steps run
+ * (`pnpm deploy:bootstrap`, `db:migrate`, `db:reapply-deletions`, this recorder) and the Vite config,
+ * whose imports (`web/src/pwa/options.ts` among them) change the build. Their imports are followed
+ * into the workspace packages; any other bare import is a dependency, which the lockfile stands for.
+ */
+export const GRAPH_ENTRIES = [
+	"functions/src/scripts/deploy-bootstrap.ts",
+	"functions/src/scripts/db-migrate.ts",
+	"functions/src/scripts/db-reapply-deletions.ts",
+	"functions/src/deploy/build-inputs.ts",
+	"web/vite.config.ts",
+];
+
+/** Single files outside every graph (AC 1's named list), each recorded when the commit has it. */
+const NAMED_FILES = [
+	"pnpm-lock.yaml",
+	"pnpm-workspace.yaml",
+	"package.json",
+	".nvmrc",
+	"wrangler.jsonc",
+	"tsconfig.base.json",
+	"web/index.html",
+	"web/vite.config.ts",
+	".github/workflows/deploy.yml",
+	// The shell scripts deploy.yml's staging and preview steps run (neither sources another file).
+	"scripts/build-release.sh",
+	"scripts/preview-pr-open.sh",
+];
+
+/** Folders whose every file is an input: copied into the build (`web/public/`) or applied by the deploy (the migrations). */
+const NAMED_FOLDERS = ["web/public/", "functions/src/adapters/postgres/migrations/"];
+
+/** The workspace package folders `pnpm-workspace.yaml` lists (`packages/*` matches one level), as found in `tree`. */
+export function workspaceDirs(workspaceYaml: string, tree: Map<string, string>): string[]
+{
+	const globs = [...workspaceYaml.matchAll(/^\s*-\s*["']?([^"'\s#]+)["']?/gm)].map((m) => m[1]!.replace(/\/$/, ""));
+	const dirs = new Set<string>();
+	for (const path of tree.keys())
+	{
+		const m = /^(.*)\/package\.json$/.exec(path);
+		if (!m) continue;
+		const dir = m[1]!;
+		if (globs.some((glob) => new RegExp(`^${glob.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join("[^/]+")}$`).test(dir))) dirs.add(dir);
+	}
+	return [...dirs].sort();
+}
+
+/** AC 1's named list, as it stands in `tree`: the single files, each workspace's `package.json` and `tsconfig*.json`, and the named folders' files. */
+export function namedInputs(tree: Map<string, string>, workspaceYaml: string): string[]
+{
+	const dirs = workspaceDirs(workspaceYaml, tree);
+	const out: string[] = NAMED_FILES.filter((path) => tree.has(path));
+	for (const path of tree.keys())
+	{
+		if (NAMED_FOLDERS.some((folder) => path.startsWith(folder))) out.push(path);
+		const slash = path.lastIndexOf("/");
+		if (slash > 0 && dirs.includes(path.slice(0, slash)) && /^(package\.json|tsconfig[\w.-]*\.json)$/.test(path.slice(slash + 1))) out.push(path);
+	}
+	return [...new Set(out)].sort();
+}
+
+/**
+ * A bundler's module id as a repository path, or undefined when git can hold no blob for it: a
+ * virtual module (`\0…`, `virtual:…`, or any `<namespace>:` id esbuild gives, such as
+ * `node-built-in-modules:events`), a file under `node_modules/`, or one outside the repository.
+ * A query (`?worker`, `?url`) is dropped. Relative ids are read against `base` (the bundle's root).
+ */
+export function repoPath(root: string, base: string, id: string): string | undefined
+{
+	if (id.startsWith("\0") || id.includes("virtual:") || /^[a-z][\w-]*:/i.test(id)) return undefined;
+	const file = id.replace(/[?#].*$/, "");
+	if (!file) return undefined;
+	const rel = relative(root, isAbsolute(file) ? file : resolve(base, file)).split("\\").join("/");
+	if (!rel || rel.startsWith("../") || isAbsolute(rel) || rel.split("/").includes("node_modules")) return undefined;
+	return rel;
+}
+
+/** The paths an esbuild metafile's `inputs` name (relative to `base`, the directory the bundle ran from). */
+export function metafileInputs(root: string, base: string, meta: unknown): string[]
+{
+	const inputs = (meta as { inputs?: unknown } | null)?.inputs;
+	if (!inputs || typeof inputs !== "object") throw new Error("the Worker metafile has no inputs");
+	return Object.keys(inputs).flatMap((id) => repoPath(root, base, id) ?? []);
+}
+
+/** Runs git in `root` and returns its output. */
+function git(root: string, args: string[]): string
+{
+	return execFileSync("git", args, {
+		cwd: root,
+		encoding: "utf8",
+		maxBuffer: 256 * 1024 * 1024,
+	});
+}
+
+/** Every tracked file at `rev` with its blob hash (submodules and symlinks included as git lists them). */
+export function gitTree(root: string, rev = "HEAD"): Map<string, string>
+{
+	const tree = new Map<string, string>();
+	for (const entry of git(root, ["ls-tree", "-r", "-z", "--full-tree", rev]).split("\0"))
+	{
+		const m = /^\d+ \w+ ([0-9a-f]+)\t(.+)$/s.exec(entry);
+		if (m) tree.set(m[2]!, m[1]!);
+	}
+	return tree;
+}
+
+/**
+ * The repository files {@link GRAPH_ENTRIES} import, from esbuild's metafile of a bundle of them
+ * (never written). esbuild is the one wrangler bundles the Worker with, loaded through wrangler from
+ * this file's own install (so `check` never needs it); an entry the commit lacks is skipped.
+ */
+export async function graphInputs(root: string, entries: string[] = GRAPH_ENTRIES): Promise<string[]>
+{
+	const present = entries.filter((entry) => existsSync(resolve(root, entry)));
+	if (present.length === 0) return [];
+	const fromHere = createRequire(import.meta.url);
+	const esbuild = createRequire(fromHere.resolve("wrangler"))("esbuild") as {
+		build(options: Record<string, unknown>): Promise<{ metafile: unknown }>;
+	};
+	const result = await esbuild.build({
+		absWorkingDir: root,
+		entryPoints: present,
+		bundle: true,
+		write: false,
+		metafile: true,
+		outdir: "out",
+		platform: "node",
+		format: "esm",
+		logLevel: "silent",
+		plugins: [
+			{
+				name: "dependencies-external",
+				setup(build: { onResolve(options: { filter: RegExp }, callback: (args: { path: string }) => { external: boolean } | undefined): void })
+				{
+					// A bare import is a dependency (the lockfile records it) unless it names a workspace package.
+					build.onResolve({
+						filter: /^[^./]/,
+					}, (args) => (args.path.startsWith("@bt/") ? undefined : {
+						external: true,
+					}));
+				},
+			},
+		],
+	});
+	return metafileInputs(root, root, result.metafile);
+}
+
+/** What {@link recordBuildInputs} is given. */
+export interface RecordInput
+{
+	/** The checked-out commit's files and blobs ({@link gitTree}). */
+	tree: Map<string, string>;
+	commit: string;
+	release: string;
+	origin?: string;
+	/** Every input's repository path, from the graphs and {@link namedInputs}. */
+	paths: string[];
+}
+
+/**
+ * The record of one build. A path git doesn't track at the built commit fails it: the build read a
+ * file no later commit's check could compare, so a record without it would say `unchanged` wrongly.
+ */
+export function recordBuildInputs(input: RecordInput): BuildInputsRecord
+{
+	const files: Record<string, string> = {};
+	for (const path of [...new Set(input.paths)].sort())
+	{
+		const blob = input.tree.get(path);
+		if (!blob) throw new Error(`the build read ${path}, which git does not track at this commit`);
+		files[path] = blob;
+	}
+	return {
+		format: BUILD_INPUTS_FORMAT,
+		commit: input.commit,
+		release: input.release,
+		origin: input.origin ?? "",
+		files,
+	};
+}
+
+/** Parses a record's text, or says why it can't be trusted (unparseable, or another format). */
+export function parseRecord(text: string): BuildInputsRecord | string
+{
+	let value: unknown;
+	try
+	{
+		value = JSON.parse(text);
+	}
+	catch
+	{
+		return "the record can't be parsed (not JSON)";
+	}
+	const r = value as Partial<BuildInputsRecord> | null;
+	if (!r || typeof r !== "object") return "the record can't be parsed (not an object)";
+	if (r.format !== BUILD_INPUTS_FORMAT) return `the record was made by ${JSON.stringify(r.format ?? null)}, not ${BUILD_INPUTS_FORMAT}`;
+	const files = r.files as unknown;
+	if (typeof r.commit !== "string" || typeof r.release !== "string" || !files || typeof files !== "object" || Array.isArray(files)
+		|| Object.values(files).some((blob) => typeof blob !== "string"))
+	{
+		return "the record can't be parsed (missing commit, release or files)";
+	}
+	return {
+		format: r.format,
+		commit: r.commit,
+		release: r.release,
+		origin: typeof r.origin === "string" ? r.origin : "",
+		files: files as Record<string, string>,
+	};
+}
+
+/**
+ * Whether the record still describes a build of `tree` (HEAD) with `release`: the first difference
+ * found, or ok. `served`, when given, must be the record's commit (staging's served-commit rule, AC 3).
+ */
+export function checkBuildInputs(text: string | undefined, tree: Map<string, string>, release: string, served?: string): CheckResult
+{
+	if (text === undefined) return {
+		ok: false,
+		reason: "no record",
+	};
+	const record = parseRecord(text);
+	if (typeof record === "string") return {
+		ok: false,
+		reason: record,
+	};
+	if (record.release !== release) return {
+		ok: false,
+		reason: `BT_RELEASE differs: the record's is ${JSON.stringify(record.release)}, this build's ${JSON.stringify(release)}`,
+	};
+	if (served !== undefined && record.commit !== served) return {
+		ok: false,
+		reason: `the record names ${record.commit}, but ${served} is served`,
+	};
+	for (const path of Object.keys(record.files).sort())
+	{
+		const now = tree.get(path);
+		if (now === undefined) return {
+			ok: false,
+			reason: `${path} was deleted`,
+		};
+		if (now !== record.files[path]) return {
+			ok: false,
+			reason: `${path} changed`,
+		};
+	}
+	return {
+		ok: true,
+	};
+}
+
+/** `--name value` from argv, or undefined. */
+function flag(args: string[], name: string): string | undefined
+{
+	const at = args.indexOf(name);
+	return at >= 0 ? args[at + 1] : undefined;
+}
+
+const USAGE = `usage: build-inputs.ts record <out> --worker-meta <metafile> [--vite <modules.json>] [--commit <sha>] [--origin <url>]
+       build-inputs.ts check <record> [--served <sha>]
+       build-inputs.ts get <record> commit|release|origin
+BT_RELEASE (the build's release label) is read from the environment by record and check.`;
+
+/** Where the Vite plugin leaves its module list unless BT_BUILD_INPUTS_VITE says otherwise (web/vite.config.ts). */
+function defaultViteList(root: string, env: NodeJS.ProcessEnv): string
+{
+	return env.BT_BUILD_INPUTS_VITE || resolve(root, "node_modules/.cache/bt-build-inputs/vite.json");
+}
+
+/**
+ * The command line: returns the exit code (0 ok or unchanged, 1 a difference or a failed record, 2
+ * usage) and writes its one line of output through `print`. `root` is the repository's top level.
+ */
+export async function main(argv: string[], root: string, env: NodeJS.ProcessEnv, print: (line: string) => void): Promise<number>
+{
+	const [command, file, ...rest] = argv;
+	if (!file || !["record", "check", "get"].includes(command ?? ""))
+	{
+		print(USAGE);
+		return 2;
+	}
+	const release = env.BT_RELEASE ?? "";
+	if (command === "check")
+	{
+		const text = existsSync(file) ? readFileSync(file, "utf8") : undefined;
+		const result = checkBuildInputs(text, gitTree(root), release, flag(rest, "--served"));
+		print(result.ok ? "unchanged" : result.reason);
+		return result.ok ? 0 : 1;
+	}
+	if (command === "get")
+	{
+		const record = existsSync(file) ? parseRecord(readFileSync(file, "utf8")) : "no record";
+		const key = rest[0] as "commit" | "release" | "origin" | undefined;
+		if (typeof record === "string" || !key || !["commit", "release", "origin"].includes(key))
+		{
+			print(typeof record === "string" ? record : USAGE);
+			return typeof record === "string" ? 1 : 2;
+		}
+		print(record[key]);
+		return 0;
+	}
+	const workerMeta = flag(rest, "--worker-meta");
+	if (!workerMeta)
+	{
+		print(USAGE);
+		return 2;
+	}
+	try
+	{
+		const tree = gitTree(root);
+		const vite = JSON.parse(readFileSync(flag(rest, "--vite") ?? defaultViteList(root, env), "utf8")) as string[];
+		const paths = [
+			...vite.flatMap((id) => repoPath(root, root, id) ?? []),
+			// wrangler bundles from the directory holding wrangler.jsonc, the repository root.
+			...metafileInputs(root, root, JSON.parse(readFileSync(workerMeta, "utf8"))),
+			...await graphInputs(root),
+			...namedInputs(tree, existsSync(resolve(root, "pnpm-workspace.yaml")) ? readFileSync(resolve(root, "pnpm-workspace.yaml"), "utf8") : ""),
+		];
+		const record = recordBuildInputs({
+			tree,
+			commit: flag(rest, "--commit") ?? git(root, ["rev-parse", "HEAD"]).trim(),
+			release,
+			origin: flag(rest, "--origin"),
+			paths,
+		});
+		writeFileSync(file, `${JSON.stringify(record, null, "\t")}\n`);
+		print(`recorded ${Object.keys(record.files).length} inputs of ${record.commit} in ${file}`);
+		return 0;
+	}
+	catch (error)
+	{
+		print(`record failed: ${(error as Error).message}`);
+		return 1;
+	}
+}
+
+/* v8 ignore start -- the command line itself; main() is what the tests drive */
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href)
+{
+	const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+		encoding: "utf8",
+	}).trim();
+	const code = await main(process.argv.slice(2), root, process.env, (line) => console.log(line));
+	process.exit(code);
+}
+/* v8 ignore stop */
+
+/** This file's own path, for tests that run it with plain node. */
+export const BUILD_INPUTS_SCRIPT = fileURLToPath(import.meta.url);

@@ -99,8 +99,9 @@
 				"BT_USE_LIVE_MLB": "1"
 			}
 		},
-		// Every push to stage that changes code (a docs-only one deploys nothing), at stage.baseball.theater, on the Neon `staging` branch through
-		// `bt-staging`: a schema-only branch that never holds a fan's data (S114 AC 9).
+		// Every push to stage that changes code, at stage.baseball.theater, on the Neon `staging` branch through `bt-staging`: a
+		// schema-only branch that never holds a fan's data (S114 AC 9). A docs-only push deploys nothing, and so does a push whose
+		// build inputs `pnpm build:inputs check` finds unchanged since staging's last deploy (S146).
 		"staging": {
 			"name": "baseball-theater-staging",
 			"workers_dev": false,

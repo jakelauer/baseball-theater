@@ -11,6 +11,11 @@
  * Issue #48: every deploy's migrate step fails on a database whose migrations differ from the code's;
  * only production's lets a database ahead of the code through, since re-running an older release's
  * deploy is its rollback.
+ *
+ * S146: staging and previews skip install, build, migrations and deploy when `pnpm build:inputs check`
+ * finds the record of their last successful deploy unchanged; a record is stored only after the deploy
+ * step, preview-teardown deletes a pull request's, a `force` run deploys staging anyway, and production
+ * always deploys.
  */
 import { execFileSync } from "node:child_process";
 import {
@@ -64,8 +69,10 @@ function expectTokenOnlyOnGhSteps(list: string[], jobText: string): void
 	expect(header(jobText)).not.toMatch(/GH_TOKEN/);
 	for (const step of list)
 	{
-		// #47's release lookup (scripts/build-release.sh) reads the pull request's milestone from GitHub too.
-		if (/preview-pr-open\.sh|gh pr comment|scripts\/build-release\.sh/.test(step)) expect(step, step).toMatch(/\n {14}env:\n {18}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+		// #47's release lookup (scripts/build-release.sh) reads the pull request's milestone from GitHub too,
+		// and S146's record steps read or delete Actions artifacts.
+		const callsGitHub = /preview-pr-open\.sh|gh pr comment|scripts\/build-release\.sh|actions\/artifacts/.test(step);
+		if (callsGitHub) expect(step, step).toMatch(/\n {14}env:\n {18}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
 		else expect(step, step).not.toMatch(/GH_TOKEN/);
 	}
 }
@@ -85,7 +92,8 @@ describe("deploy.yml preview job (issue #42)", () =>
 	{
 		expect(list[0]).toMatch(/actions\/checkout/);
 		expect(list[1]).toMatch(/id: open\n[^]*scripts\/preview-pr-open\.sh \$\{\{ github\.event\.pull_request\.number \}\}/);
-		const deploy = list.findIndex((step) => step.includes("wrangler deploy"));
+		// The deploy itself, not S146's dry run for the Worker's metafile.
+		const deploy = list.findIndex((step) => step.includes("wrangler deploy --config \"${{ steps.bootstrap"));
 		const recheck = list.findIndex((step) => /id: still_open\n/.test(step));
 		const reapply = list.findIndex((step) => step.includes("db:reapply-deletions"));
 		expect(recheck).toBeGreaterThan(reapply);
@@ -130,7 +138,8 @@ describe("deploy.yml preview-teardown job (issue #42)", () =>
 		for (const line of API_ENV) expect(header(teardown)).toContain(line);
 		expectTokenOnlyOnGhSteps(list, teardown);
 		// It only reads the pull request; the workflow's write permission is for the preview's comment.
-		expect(header(teardown)).toMatch(/\n {8}permissions:\n {12}contents: read\n {12}pull-requests: read\n/);
+		// S146: and deletes its build-inputs records (actions: write).
+		expect(header(teardown)).toMatch(/\n {8}permissions:\n {12}actions: write\n {12}contents: read\n {12}pull-requests: read\n {8}concurrency:/);
 		expect(teardown).toMatch(/group: deploy-preview-\$\{\{ github\.event\.pull_request\.number \}\}\n\s+cancel-in-progress: true/);
 	});
 });
@@ -276,5 +285,146 @@ describe("deploy.yml edge purge secrets (issue #543)", () =>
 		// Mapped only in those two job envs, never workflow-wide or in a step anyone could echo from.
 		const settings = DEPLOY_YML.split("\n").filter((line) => !/^\s*#/.test(line) && PURGE.some((secret) => line.includes(secret)));
 		expect(settings).toHaveLength(4);
+	});
+});
+
+/** A job's `permissions:` block as `scope: level` lines, or [] when it has none. */
+function permissions(jobText: string): string[]
+{
+	const m = /\n {8}permissions:\n((?: {12}[\w-]+: \w+\n)+)/.exec(header(jobText));
+	return m ? m[1]!.trim().split(/\n\s*/) : [];
+}
+
+/** The index of the one step matching `pattern` (failing the test when none or several do). */
+function stepIndex(list: string[], pattern: RegExp): number
+{
+	const hits = list.flatMap((step, at) => (pattern.test(step) ? [at] : []));
+	expect(hits, String(pattern)).toHaveLength(1);
+	return hits[0]!;
+}
+
+/** Steps that install, build, migrate, record, deploy or store the record: every one S146 skips on `unchanged`. */
+const SKIPPED = [/name: Install\n/, /name: Build the web app\n/, /name: Bootstrap/, /run: pnpm db:migrate\n/, /run: pnpm db:reapply-deletions\n/, /name: Record the build's inputs/,
+	/wrangler deploy --config "\$\{\{ steps\.bootstrap/, /actions\/upload-artifact@v4/];
+
+describe("deploy.yml build inputs (S146 AC 3)", () =>
+{
+	const staging = DEPLOY_YML && job(DEPLOY_YML, "staging");
+	const preview = DEPLOY_YML && job(DEPLOY_YML, "preview");
+	const teardown = DEPLOY_YML && job(DEPLOY_YML, "preview-teardown");
+	const production = DEPLOY_YML && job(DEPLOY_YML, "production");
+
+	it("S146 AC 3: staging fetches its last record before installing, skips everything on unchanged, and stores a record only after deploying", () =>
+	{
+		const list = steps(staging);
+		// Its own permissions keep build-release.sh merged's scopes and add the artifact read.
+		expect(permissions(staging)).toEqual(["actions: read", "contents: read", "issues: read", "pull-requests: read"]);
+		const served = stepIndex(list, /id: served\n/);
+		const fetch = stepIndex(list, /name: Fetch the record of staging's last successful deploy \(build:inputs\)/);
+		const check = stepIndex(list, /id: inputs\n/);
+		const install = stepIndex(list, /name: Install\n/);
+		expect(served).toBeLessThan(fetch);
+		expect(fetch).toBeLessThan(check);
+		expect(check).toBeLessThan(install);
+		expect(list[fetch]).toMatch(/actions\/artifacts\?name=build-inputs-staging&/);
+		expect(list[fetch]).toMatch(/select\(\.expired \| not\)/);
+		// The check runs with plain node (setup-node, no pnpm), trusts only a record of the served commit, and is the only way to build=false.
+		expect(list.slice(0, check).some((step) => /actions\/setup-node@v4/.test(step) && !/cache: pnpm/.test(step))).toBe(true);
+		expect(list.slice(0, check).some((step) => /uses: pnpm\/action-setup|run: pnpm install/.test(step))).toBe(false);
+		expect(list[check]).toMatch(/node functions\/src\/deploy\/build-inputs\.ts check "\$record" --served "\$SERVED"\)"; then\n[^\n]*\n\s+build=false\n/);
+		expect(list[check]).toMatch(/BT_RELEASE: \$\{\{ steps\.release\.outputs\.release \}\}/);
+		expect(list[check]!.match(/build=false/g)).toHaveLength(1);
+		expect(list[served]).toMatch(/echo "served=\$served_sha" >>"\$GITHUB_OUTPUT"/);
+		// The served-commit check still decides first: an older run never deploys over a newer one.
+		expect(list[served]).toMatch(/git merge-base --is-ancestor "\$\{\{ github\.sha \}\}" "\$served"/);
+		for (const pattern of SKIPPED) expect(list[stepIndex(list, pattern)], String(pattern)).toMatch(/\n {14}if: steps\.inputs\.outputs\.build == 'true'\n/);
+		const deploy = stepIndex(list, /wrangler deploy --config "\$\{\{ steps\.bootstrap/);
+		const store = stepIndex(list, /actions\/upload-artifact@v4/);
+		expect(store).toBe(list.length - 1);
+		expect(store).toBeGreaterThan(deploy);
+		expect(list[store]).toMatch(/name: build-inputs-staging\n/);
+		expect(list[store]).not.toMatch(/always\(\)|failure\(\)|cancelled\(\)|continue-on-error/);
+		const record = list[stepIndex(list, /name: Record the build's inputs/)]!;
+		expect(record).toMatch(/--dry-run --outdir "\$RUNNER_TEMP\/worker-dry-run" --metafile "\$RUNNER_TEMP\/worker-meta\.json"/);
+		expect(record).toMatch(/pnpm build:inputs record "\$RUNNER_TEMP\/build-inputs\/build-inputs\.json" --worker-meta "\$RUNNER_TEMP\/worker-meta\.json"/);
+		expect(record).toMatch(/--commit "\$\{\{ github\.sha \}\}"/);
+		expect(staging).not.toMatch(/\|\| true/);
+		expectTokenOnlyOnGhSteps(list, staging);
+	});
+
+	it("S146 AC 3: preview fetches its pull request's record before installing, skips on unchanged, still comments, and records the head commit", () =>
+	{
+		const list = steps(preview);
+		expect(permissions(preview)).toEqual(["actions: read", "contents: read", "issues: read", "pull-requests: write"]);
+		const fetch = stepIndex(list, /name: Fetch the record of this preview's last successful deploy \(build:inputs\)/);
+		const check = stepIndex(list, /id: inputs\n/);
+		const install = stepIndex(list, /name: Install\n/);
+		expect(fetch).toBeLessThan(check);
+		expect(check).toBeLessThan(install);
+		expect(list[fetch]).toMatch(/name="build-inputs-preview-\$\{\{ github\.event\.pull_request\.number \}\}"/);
+		// A reopened pull request always deploys: its Worker and record were deleted when it closed.
+		expect(list[fetch]).toMatch(/if: steps\.open\.outputs\.open == 'true' && github\.event\.action != 'reopened'\n/);
+		expect(list[check]).toMatch(/REOPENED: \$\{\{ github\.event\.action == 'reopened' \}\}/);
+		expect(list[check]).toMatch(/if \[ "\$REOPENED" = true \]; then\n[^\n]*\n\s+build=true\n/);
+		expect(list[check]).toMatch(/node functions\/src\/deploy\/build-inputs\.ts check "\$record"\)"; then/);
+		// Setup and install also run to tear down a closed pull request's preview.
+		expect(list[install]).toMatch(/if: steps\.open\.outputs\.open == 'false' \|\| steps\.inputs\.outputs\.build == 'true'\n/);
+		for (const pattern of SKIPPED.slice(1)) expect(list[stepIndex(list, pattern)], String(pattern)).toMatch(/steps\.inputs\.outputs\.build == 'true'\n/);
+		const deploy = stepIndex(list, /wrangler deploy --config "\$\{\{ steps\.bootstrap/);
+		const store = stepIndex(list, /actions\/upload-artifact@v4/);
+		expect(store).toBe(deploy + 1);
+		expect(list[store]).toMatch(/name: build-inputs-preview-\$\{\{ github\.event\.pull_request\.number \}\}\n/);
+		expect(list[store]).not.toMatch(/always\(\)|failure\(\)|cancelled\(\)|continue-on-error/);
+		// The record names the pull request's head commit, never GITHUB_SHA (GitHub's test merge).
+		const record = list[stepIndex(list, /name: Record the build's inputs/)]!;
+		expect(record).toMatch(/--metafile "\$RUNNER_TEMP\/worker-meta\.json"\n/);
+		expect(record).toMatch(/--commit "\$\{\{ github\.event\.pull_request\.head\.sha \}\}"/);
+		expect(preview.split("\n").filter((line) => !/^\s*#/.test(line)).join("\n")).not.toMatch(/github\.sha|GITHUB_SHA/);
+		// A skipped preview still posts its comment, naming the recorded commit that still serves it.
+		const comment = list.at(-1)!;
+		expect(comment).toMatch(/if: steps\.still_open\.outputs\.open == 'true'\n/);
+		expect(comment).toMatch(/RECORDED: \$\{\{ steps\.inputs\.outputs\.recorded \}\}/);
+		expect(comment).toMatch(/so the preview from \$RECORDED still serves this one, at \$ORIGIN/);
+		expect(comment).toMatch(/ORIGIN: \$\{\{ steps\.bootstrap\.outputs\.origin \|\| steps\.inputs\.outputs\.origin \}\}/);
+		expect(list[check]).toMatch(/echo "recorded=\$\(node functions\/src\/deploy\/build-inputs\.ts get "\$record" commit\)"/);
+	});
+
+	it("S146 AC 3: preview-teardown deletes the pull request's records before its Worker, failing the job if it can't", () =>
+	{
+		const list = steps(teardown);
+		expect(permissions(teardown)).toEqual(["actions: write", "contents: read", "pull-requests: read"]);
+		const remove = stepIndex(list, /name: Delete the preview's build-inputs records/);
+		expect(remove).toBeLessThan(stepIndex(list, /deploy:teardown/));
+		expect(list[remove]).toMatch(/set -euo pipefail\n/);
+		expect(list[remove]).toMatch(/actions\/artifacts\?name=build-inputs-preview-\$\{\{ github\.event\.pull_request\.number \}\}&per_page=100" --paginate/);
+		expect(list[remove]).toMatch(/gh api -X DELETE "repos\/\$GITHUB_REPOSITORY\/actions\/artifacts\/\$id"/);
+		expect(list[remove]).not.toMatch(/\|\| true|continue-on-error/);
+	});
+
+	it("S146 AC 3: force: a manual run of Deploy on stage deploys staging whatever the record says, with verify, never over a newer commit", () =>
+	{
+		expect(DEPLOY_YML).toMatch(/\n {4}workflow_dispatch:\n {8}inputs:\n {12}force:\n(?: {16}.*\n)* {16}type: boolean\n/);
+		// The changes job answers code=true for it (as for a release), so verify runs and staging isn't stopped by code=false.
+		expect(job(DEPLOY_YML, "changes")).toMatch(/elif \[ "\$\{\{ github\.event_name \}\}" = workflow_dispatch \]; then\n(?:\s+#.*\n)?\s+echo "code=true" >> "\$GITHUB_OUTPUT"/);
+		expect(header(staging)).toMatch(/\(github\.event_name == 'push' \|\| github\.event_name == 'workflow_dispatch'\) && github\.ref == 'refs\/heads\/stage'/);
+		const list = steps(staging);
+		const force = "FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}";
+		const check = list[stepIndex(list, /id: inputs\n/)]!;
+		expect(check).toContain(force);
+		expect(check).toMatch(/if \[ "\$FORCE" = true \]; then\n[^\n]*\n\s+build=true\n/);
+		// The served check lets a forced run redeploy only the commit staging already serves, never an older one.
+		const served = list[stepIndex(list, /id: served\n/)]!;
+		expect(served).toContain(force);
+		expect(served).toMatch(/if \[ "\$FORCE" = true \] && \[ "\$served" = "\$\{\{ github\.sha \}\}" \]; then/);
+	});
+
+	it("S146 AC 3: production always deploys: no input check, record or skip", () =>
+	{
+		expect(production).not.toMatch(/build-inputs|build:inputs|upload-artifact|steps\.inputs/);
+		const list = steps(production);
+		for (const pattern of [/name: Install\n/, /name: Build the web app\n/, /run: pnpm db:migrate\n/, /name: Deploy production\n/])
+		{
+			expect(list[stepIndex(list, pattern)], String(pattern)).not.toMatch(/\n {14}if:/);
+		}
 	});
 });

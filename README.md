@@ -208,7 +208,7 @@ automatically 2. Mirror"):
 
 - Every story arrives as its own pull request from a `story/S<N>` branch into `stage`. The agent
   opens it, handles Claude's review, then turns on auto-merge, so it merges once `ci-passed` is green; each merge deploys
-  staging, `stage.baseball.theater`. Every pull request that changes code also gets a preview (below); a docs-only change runs only the docs checks, and a docs-only merge doesn't deploy staging at all.
+  staging, `stage.baseball.theater`, unless its build inputs are unchanged (**Staging**, below). Every pull request that changes code also gets a preview (below); a docs-only change runs only the docs checks, and a docs-only merge doesn't deploy staging at all.
 - Production, at `next.baseball.theater` until the owner's cutover (below), deploys only when a
   GitHub Release is published (by the coordinator, on the owner's word), and deploys exactly that release's tag, with no approval wait
   (S118). A push to `main` deploys nothing.
@@ -223,12 +223,13 @@ automatically 2. Mirror"):
   milestone of the pull request whose merge commit was built (`scripts/build-release.sh`), so staging
   and production read the same for the same code (#47). A deployed commit that no pull request merged
   reads `unreleased (…)`; a preview reads its own pull request's milestone and head commit; local and
-  CI builds read `dev (…)`. A release may target a docs-only `stage` commit newer than the one staging
-  serves, and then the commits differ between the two sites though the code is the same (owner,
+  CI builds read `dev (…)`. A release may target a `stage` commit newer than the one staging serves
+  when that commit is docs-only or its build inputs are unchanged (`pnpm build:inputs check`, S146), and then the commits differ between the two sites though the code is the same (owner,
   2026-11-13: releasing only the served commit "would prevent iterating on stage while waiting to
   push a release to prod"). The label is fixed when the build runs: if a merged pull request's
   milestone is changed after staging built it, staging keeps the old label until its next deploy. Both
-  sites serve `bt-commit.txt`, the full commit they run.
+  sites serve `bt-commit.txt`, the full commit they run. The commit is not a build input: a deploy
+  skipped because its inputs are unchanged keeps the older commit in staging's version line.
 
 - **Previews.** Every pull request that changes code gets its own Worker, `baseball-theater-pr-<number>` on workers.dev,
   once the web app builds and every env's Worker passes a dry run, and the workflow posts its address on the pull
@@ -241,7 +242,11 @@ automatically 2. Mirror"):
   ever runs `stage`'s migrations. Previews run no cron (they read MLB on request only). Closing the pull
   request deletes its Worker, config and branch (`pnpm deploy:teardown`); a run that finds its pull
   request closed tears it down instead of deploying, and a teardown that finds it reopened deletes
-  nothing. **Preview cleanup** (`.github/workflows/preview-cleanup.yml`, weekly and by hand from
+  nothing. A push whose build inputs are unchanged since the preview's last successful deploy (the
+  same input check as staging's, against the `build-inputs-preview-<number>` artifact) skips install,
+  build, migrations and deploy, and the comment says the preview from the recorded commit still serves
+  it; closing the pull request deletes that record too, and a reopened pull request always deploys.
+  **Preview cleanup** (`.github/workflows/preview-cleanup.yml`, weekly and by hand from
   Actions) deletes any preview whose pull request is closed and leaves every open one alone. A preview
   copies staging, which never holds a fan's data, so it holds none either. Limits: Neon allows 10
   branches per project on Free and Launch (25 on Scale; paid plans charge for more), counting
@@ -249,7 +254,17 @@ automatically 2. Mirror"):
   Cloudflare allows 25 Hyperdrive configs per account on Workers Paid (10 on Free), counting
   `bt-staging` and `bt-production`. A preview past either limit fails its bootstrap step, saying so;
   staging and production are unaffected.
-- **Staging.** Every push to `stage` that changes code deploys `stage.baseball.theater` (a docs-only push deploys nothing) on the Neon `staging` branch.
+- **Staging.** Every push to `stage` that changes code deploys `stage.baseball.theater` (a docs-only push deploys nothing) on the Neon `staging` branch, unless its build inputs are unchanged: `pnpm build:inputs check` (S146) skips install, build, migrations and deploy when the record of staging's last successful deploy still matches.
+  Each staging and preview deploy records every file its build read (`pnpm build:inputs record`,
+  `functions/src/deploy/build-inputs.ts`): the modules Vite's graph reported, the Worker bundle's
+  esbuild metafile, the deploy scripts' imports, and a short named list (the lockfile, package and
+  TypeScript configs, `web/index.html`, `web/public/`, the migrations, the workflow), each with its git
+  blob hash, plus the release label `BT_RELEASE`. The record is kept as an Actions artifact,
+  `build-inputs-staging` (a preview's: `build-inputs-preview-<number>`), stored only after the deploy
+  step succeeds and trusted only when it names the commit staging serves (`bt-commit.txt`), so after a
+  `wrangler rollback` or an older run landing last staging deploys again. To deploy staging whatever
+  the record says (a rotated secret or variable changes no file), run **Deploy** by hand on `stage`
+  from Actions with **force** checked. Production always deploys.
   The branch is created schema-only from production the first time (production's tables, none of its
   rows) and filled only by `pnpm db:migrate`, so it never holds a fan's data. Copying production's
   baseball data into it is a separate step the owner runs by hand (S117, **Copy baseball data**

@@ -19,6 +19,7 @@
 		"deploy:logto": "pnpm --filter @bt/functions exec tsx src/scripts/deploy-logto.ts",
 		"deploy:teardown": "pnpm --filter @bt/functions exec tsx src/scripts/deploy-teardown.ts",
 		"deploy:cleanup-previews": "pnpm --filter @bt/functions exec tsx src/scripts/deploy-cleanup-previews.ts",
+		"build:inputs": "node functions/src/deploy/build-inputs.ts",
 		"build": "pnpm lint && turbo run build --cache=local:${BT_TURBO_CACHE_READ:+r}${GITHUB_ACTIONS:+w}",
 		"typecheck": "turbo run typecheck --cache=local:${BT_TURBO_CACHE_READ:+r}${GITHUB_ACTIONS:+w}",
 		"lint": "pnpm backlog:check && eslint . ${GITHUB_ACTIONS:+--cache --cache-strategy content --cache-location .eslintcache}",
