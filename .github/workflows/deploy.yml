@@ -9,7 +9,19 @@ name: Deploy
 #   do that."). The Worker, config and branch are deleted when the pull request closes, and the weekly
 #   Preview cleanup workflow (preview-cleanup.yml) deletes any a closed pull request left behind.
 # - Every push to stage that changes code deploys staging at stage.baseball.theater (a docs-only push
-#   deploys nothing), on the Neon `staging` branch: a schema-only branch that never holds a fan's data.
+#   deploys nothing), on the Neon `staging` branch: a schema-only branch that never holds a fan's data,
+#   unless its build inputs are unchanged since staging's last successful deploy (`pnpm build:inputs
+#   check`, S146), which deploys nothing either. A manual run of Deploy on stage with `force` deploys
+#   staging whatever the inputs say (a rotated secret or variable changes no file).
+# - Build inputs (S146; owner, 2026-11-11: "check the inputs to the build at build time or prior to
+#   it (ideal)"): each staging and preview deploy records every file its build read, with its git blob
+#   hash and the release label (`pnpm build:inputs record`, functions/src/deploy/build-inputs.ts), and
+#   stores the record as an Actions artifact (`build-inputs-staging`, `build-inputs-preview-<N>`) only
+#   after its deploy step succeeds. The next run fetches that record before installing anything, trusting
+#   only one its own repository's Deploy runs stored (`build-inputs.ts trust`), and, when `build:inputs
+#   check` prints `unchanged`, skips install, build, migrations and deploy. Staging decides that in the
+#   staging-inputs job, which names no environment, and stores the record again with `covers` set to the
+#   skipped commit, so an older run queued behind the skip never deploys over it (`build-inputs.ts stands`).
 # - Production, at next.baseball.theater, deploys only when the owner publishes a GitHub Release
 #   (S121; owner, 2026-11-07: "I think releases to main probably should use GitHub releases, if
 #   that's actually possible. I want a release to be a set of PRs basically"). It checks out and
@@ -40,9 +52,11 @@ name: Deploy
 # up its release with scripts/build-release.sh, the milestone of the pull request whose merge commit it
 # builds (a preview: its own pull request's milestone and head commit), and prints it with the commit,
 # e.g. "v3.2.0 (40767e9)", so the same code reads the same on staging and production. A release can
-# target a docs-only stage commit newer than the one staging serves, so the commits can differ (owner,
-# 2026-11-13: releasing only the served commit "would prevent iterating on stage while waiting to push
-# a release to prod"). Staging and production both write bt-commit.txt, the commit they serve.
+# target a stage commit newer than the one staging serves when it is docs-only or its build inputs are
+# unchanged (`pnpm build:inputs check`, S146), so the commits can differ (owner, 2026-11-13: releasing
+# only the served commit "would prevent iterating on stage while waiting to push a release to prod").
+# The commit is not a build input: a skipped deploy keeps the older commit in staging's version line.
+# Staging and production both write bt-commit.txt, the commit they serve.
 # Sign-in (S116): only production has Logto's machine-to-machine app, so only the production jobs
 # read its secrets (LOGTO_S2S_APP_ID, LOGTO_S2S_SECRET; owner, 2026-11-07: "LOGTO_S2S_APP_ID and
 # LOGTO_S2S_SECRET, go ahead"): the production job pushes them as Worker secrets and, after it
@@ -57,6 +71,13 @@ on:
         branches: [stage]
     release:
         types: [published]
+    # S146: deploy staging even when its build inputs are unchanged (README, "Staging"). Run it on stage.
+    workflow_dispatch:
+        inputs:
+            force:
+                description: "Deploy staging even if its build inputs are unchanged (a rotated secret or variable changes no file)"
+                type: boolean
+                default: false
 
 permissions:
     contents: read
@@ -76,7 +97,8 @@ jobs:
     # run that failed or was cancelled: re-run that run (`gh run rerun <id>`), or the next code merge
     # deploys it. Any other push is compared with the last stage commit whose Deploy run passed, so code
     # not yet verified and deployed there (a run still going, cancelled or failed) is deployed with it.
-    # A release always runs everything. scripts/ci-changes.sh decides, the same script CI asks (CI keeps
+    # A release always runs everything, and so does a manual run (S146's `force`, which must reach the
+    # staging job and its pnpm verify). scripts/ci-changes.sh decides, the same script CI asks (CI keeps
     # its own last-passing comparison for every push, docs-only ones included).
     changes:
         if: github.event.action != 'closed'
@@ -97,6 +119,9 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: |
                   if [ "${{ github.event_name }}" = release ]; then
+                      echo "code=true" >> "$GITHUB_OUTPUT"
+                  elif [ "${{ github.event_name }}" = workflow_dispatch ]; then
+                      # A manual run (S146's force): verify runs, and staging reaches its own checks.
                       echo "code=true" >> "$GITHUB_OUTPUT"
                   elif [ "${{ github.event_name }}" = pull_request ]; then
                       scripts/ci-changes.sh pr "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}"
@@ -159,11 +184,24 @@ jobs:
     # cancel it), so it asks GitHub whether the pull request is still open first and again just before
     # deploying, and if it has closed it tears the preview down instead and stops: a closed pull
     # request's preview is never recreated.
+    # S146: before installing anything it fetches the record of this pull request's last successful
+    # preview deploy (the `build-inputs-preview-<N>` artifact) and runs `pnpm build:inputs check` on it;
+    # `unchanged` skips install, build, migrations and deploy, and the comment says the preview from the
+    # recorded commit still serves this one. A record is stored only after the deploy step succeeds and
+    # names the pull request's head commit (never GITHUB_SHA, GitHub's test merge), and preview-teardown
+    # deletes it with the Worker. A reopened pull request always deploys: its Worker was deleted.
     preview:
         if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository && needs.verify.result == 'success'
         needs: [verify]
         runs-on: ubuntu-latest
         timeout-minutes: 20
+        # Its own, so it keeps what its steps use: the comment (pull-requests: write), the release lookup
+        # (issues: read, scripts/build-release.sh pr) and the last record (actions: read).
+        permissions:
+            actions: read
+            contents: read
+            issues: read
+            pull-requests: write
         concurrency:
             group: deploy-preview-${{ github.event.pull_request.number }}
             cancel-in-progress: true
@@ -182,23 +220,8 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: scripts/preview-pr-open.sh ${{ github.event.pull_request.number }}
 
-            - uses: pnpm/action-setup@v4
-              with:
-                  version: 9.15.0
-
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: ".nvmrc"
-                  cache: pnpm
-
-            - name: Install
-              run: pnpm install --frozen-lockfile
-
-            - name: It closed, so delete its preview (Worker, Hyperdrive config, Neon branch)
-              if: steps.open.outputs.open == 'false'
-              run: pnpm run deploy:teardown preview --pr ${{ github.event.pull_request.number }}
-
-            # Its own pull request's milestone (#47), read live: it is assigned just after opening.
+            # Its own pull request's milestone (#47), read live: it is assigned just after opening. Before the
+            # input check, which compares it with the record's (it is built into the version line).
             - name: Which release is this build?
               if: steps.open.outputs.open == 'true'
               id: release
@@ -208,21 +231,113 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: scripts/build-release.sh pr ${{ github.event.pull_request.number }}
 
+            # Node 24 runs build-inputs.ts as it is (only node: imports), so the record steps need no pnpm install.
+            - uses: actions/setup-node@v4
+              if: steps.open.outputs.open == 'true'
+              with:
+                  node-version-file: ".nvmrc"
+
+            # The newest record of this pull request's preview that its own runs stored (`build-inputs.ts trust`:
+            # this repository's deploy.yml, a pull_request run of this head branch, never another pull request's
+            # or a fork's artifact of the same name); only a deploy that succeeded stores one.
+            - name: Fetch the record of this preview's last successful deploy (build:inputs)
+              if: steps.open.outputs.open == 'true' && github.event.action != 'reopened'
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  HEAD_REF: ${{ github.event.pull_request.head.ref }}
+              run: |
+                  set -euo pipefail
+                  name="build-inputs-preview-${{ github.event.pull_request.number }}"
+                  dir="$RUNNER_TEMP/trust"
+                  mkdir -p "$dir/runs"
+                  gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" >"$dir/artifacts.json"
+                  for run in $(node functions/src/deploy/build-inputs.ts runs "$dir/artifacts.json" --name "$name"); do
+                      if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" >"$dir/runs/$run.json"; then :; else rm -f "$dir/runs/$run.json"; fi
+                  done
+                  id="$(node functions/src/deploy/build-inputs.ts trust --env preview --head-ref "$HEAD_REF" --name "$name" --artifacts "$dir/artifacts.json" --runs-dir "$dir/runs" --repo "$GITHUB_REPOSITORY")"
+                  if [ -n "$id" ]; then
+                      gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"$dir/record.zip"
+                      unzip -o -q "$dir/record.zip" -d "$RUNNER_TEMP/last-deploy"
+                  else
+                      echo "no trusted record of a deploy of this preview"
+                  fi
+
+            - name: Did the build's inputs change since this preview's last deploy? (pnpm build:inputs check)
+              if: steps.open.outputs.open == 'true'
+              id: inputs
+              shell: bash
+              env:
+                  BT_RELEASE: ${{ steps.release.outputs.release }}
+                  REOPENED: ${{ github.event.action == 'reopened' }}
+              # The record is trusted only while its Worker serves the commit it names: a run cancelled after its
+              # deploy but before storing its record leaves the Worker on a newer commit than the record's. So
+              # read the preview's bt-commit.txt at the record's workers.dev origin; no marker deploys.
+              run: |
+                  set -uo pipefail
+                  record="$RUNNER_TEMP/last-deploy/build-inputs.json"
+                  served=""
+                  if [ "$REOPENED" != true ] && origin="$(node functions/src/deploy/build-inputs.ts get "$record" origin)" && [[ "$origin" =~ ^https://[a-z0-9-]+(\.[a-z0-9-]+)*\.workers\.dev$ ]]; then
+                      marker="$(curl -fsS --retry 3 --max-time 10 "$origin/bt-commit.txt" | head -c 100 | tr -d '[:space:]')"
+                      if [[ "$marker" =~ ^[0-9a-f]{40}$ ]]; then
+                          served="$marker"
+                      fi
+                  fi
+                  if [ "$REOPENED" = true ]; then
+                      echo "reopened: its preview was deleted when it closed, so deploy"
+                      build=true
+                  elif [ -z "$served" ]; then
+                      echo "no record, or the preview serves no commit marker, so deploy"
+                      build=true
+                  elif out="$(node functions/src/deploy/build-inputs.ts check "$record" --served "$served")"; then
+                      echo "$out: the preview's last deploy built from the same inputs"
+                      build=false
+                      echo "recorded=$(node functions/src/deploy/build-inputs.ts get "$record" commit)" >>"$GITHUB_OUTPUT"
+                      echo "origin=$(node functions/src/deploy/build-inputs.ts get "$record" origin)" >>"$GITHUB_OUTPUT"
+                  else
+                      echo "$out"
+                      build=true
+                  fi
+                  echo "build=$build" >>"$GITHUB_OUTPUT"
+
+            # Also to tear down a pull request that closed (setup and install run for that too).
+            - uses: pnpm/action-setup@v4
+              if: steps.open.outputs.open == 'false' || steps.inputs.outputs.build == 'true'
+              with:
+                  version: 9.15.0
+
+            - uses: actions/setup-node@v4
+              if: steps.open.outputs.open == 'false' || steps.inputs.outputs.build == 'true'
+              with:
+                  node-version-file: ".nvmrc"
+                  cache: pnpm
+
+            - name: Install
+              if: steps.open.outputs.open == 'false' || steps.inputs.outputs.build == 'true'
+              run: pnpm install --frozen-lockfile
+
+            - name: It closed, so delete its preview (Worker, Hyperdrive config, Neon branch)
+              if: steps.open.outputs.open == 'false'
+              run: pnpm run deploy:teardown preview --pr ${{ github.event.pull_request.number }}
+
             # The head commit, not GITHUB_SHA (GitHub's test merge, which no one can look up).
             - name: Build the web app
-              if: steps.open.outputs.open == 'true'
+              if: steps.open.outputs.open == 'true' && steps.inputs.outputs.build == 'true'
               env:
                   BT_RELEASE: ${{ steps.release.outputs.release }}
                   BT_COMMIT: ${{ github.event.pull_request.head.sha }}
-              run: pnpm --filter @bt/web run build
+              # bt-commit.txt is how the next run's input check learns what this preview serves.
+              run: |
+                  pnpm --filter @bt/web run build
+                  echo "$BT_COMMIT" >web/dist/bt-commit.txt
 
             - name: Bootstrap (the pull request's own Neon branch from staging, its Hyperdrive config, Worker config and secrets)
-              if: steps.open.outputs.open == 'true'
+              if: steps.open.outputs.open == 'true' && steps.inputs.outputs.build == 'true'
               id: bootstrap
               run: pnpm run deploy:bootstrap preview --pr ${{ github.event.pull_request.number }}
 
             - name: Migrate the preview's database
-              if: steps.open.outputs.open == 'true'
+              if: steps.open.outputs.open == 'true' && steps.inputs.outputs.build == 'true'
               # Its database is reset from staging, which is ahead of a pull request built before stage gained a newer
               # migration (a re-run, or no push since), so newer migrations
               # pass with a warning; the pull request's own migration older than staging's newest still fails (#48).
@@ -231,8 +346,18 @@ jobs:
               run: pnpm db:migrate
 
             - name: Re-apply deletions
-              if: steps.open.outputs.open == 'true'
+              if: steps.open.outputs.open == 'true' && steps.inputs.outputs.build == 'true'
               run: pnpm db:reapply-deletions
+
+            # What this build read: Vite's module list (written by the build above), the Worker bundle's
+            # esbuild metafile, the deploy scripts' graph and the named list, with the head commit and origin.
+            - name: Record the build's inputs (pnpm build:inputs record)
+              if: steps.open.outputs.open == 'true' && steps.inputs.outputs.build == 'true'
+              env:
+                  BT_RELEASE: ${{ steps.release.outputs.release }}
+              run: |
+                  pnpm --filter @bt/functions exec wrangler deploy --config ../wrangler.jsonc --env preview --dry-run --outdir "$RUNNER_TEMP/worker-dry-run" --metafile "$RUNNER_TEMP/worker-meta.json"
+                  pnpm build:inputs record "$RUNNER_TEMP/build-inputs/build-inputs.json" --worker-meta "$RUNNER_TEMP/worker-meta.json" --commit "${{ github.event.pull_request.head.sha }}" --origin "${{ steps.bootstrap.outputs.origin }}"
 
             - name: Is the pull request still open, just before deploying?
               if: steps.open.outputs.open == 'true'
@@ -242,30 +367,54 @@ jobs:
               run: scripts/preview-pr-open.sh ${{ github.event.pull_request.number }}
 
             - name: Deploy the preview Worker
-              if: steps.still_open.outputs.open == 'true'
+              if: steps.still_open.outputs.open == 'true' && steps.inputs.outputs.build == 'true'
               run: pnpm --filter @bt/functions exec wrangler deploy --config "${{ steps.bootstrap.outputs.config }}" --env preview --secrets-file "${{ steps.bootstrap.outputs.secrets_file }}"
 
+            # Only after the deploy step succeeded (a failed or cancelled deploy stores nothing).
+            - name: Store the record of this deploy (build:inputs)
+              if: steps.still_open.outputs.open == 'true' && steps.inputs.outputs.build == 'true'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-inputs-preview-${{ github.event.pull_request.number }}
+                  path: ${{ runner.temp }}/build-inputs/build-inputs.json
+                  if-no-files-found: error
+
+            # A skipped run built nothing, so there is nothing of its own to tear down; preview-teardown deletes the rest.
             - name: It closed meanwhile, so delete its preview
-              if: steps.still_open.outputs.open == 'false'
+              if: steps.still_open.outputs.open == 'false' && steps.inputs.outputs.build == 'true'
               run: pnpm run deploy:teardown preview --pr ${{ github.event.pull_request.number }}
 
             - name: Post the preview's address
               if: steps.still_open.outputs.open == 'true'
               env:
                   GH_TOKEN: ${{ github.token }}
-              run: gh pr comment ${{ github.event.pull_request.number }} --edit-last --create-if-none --body "Preview for ${{ github.event.pull_request.head.sha }}, on its own database (a copy of staging's), at ${{ steps.bootstrap.outputs.origin }}"
+                  BUILT: ${{ steps.inputs.outputs.build }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  RECORDED: ${{ steps.inputs.outputs.recorded }}
+                  ORIGIN: ${{ steps.bootstrap.outputs.origin || steps.inputs.outputs.origin }}
+              run: |
+                  if [ "$BUILT" = true ]; then
+                      body="Preview for $HEAD_SHA, on its own database (a copy of staging's), at $ORIGIN"
+                  else
+                      body="Preview for $HEAD_SHA: its build inputs are unchanged (pnpm build:inputs check), so the preview from $RECORDED still serves this one, at $ORIGIN"
+                  fi
+                  gh pr comment ${{ github.event.pull_request.number }} --edit-last --create-if-none --body "$body"
 
     # A closed pull request's preview goes away: its Worker, its Hyperdrive config and its Neon branch
     # (issue #42), through `pnpm deploy:teardown`. Whatever is already gone is skipped; any other
     # failure fails the job, so nothing is left behind quietly. It shares the pull request's
     # concurrency group, so closing cancels a preview deploy still running; and if the pull request
     # was reopened while this waited, it deletes nothing (the reopen's preview run owns it).
+    # S146: it deletes the pull request's build-inputs records first, since a record is only trusted
+    # while its Worker exists; a failed deletion fails the job.
     preview-teardown:
         if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
         runs-on: ubuntu-latest
         timeout-minutes: 10
-        # Reads the pull request's state, nothing more (the workflow's write is for the preview's comment).
+        # Reads the pull request's state (the workflow's write is for the preview's comment), and deletes
+        # its build-inputs records (actions: write, S146).
         permissions:
+            actions: write
             contents: read
             pull-requests: read
         concurrency:
@@ -300,20 +449,52 @@ jobs:
               if: steps.open.outputs.open == 'false'
               run: pnpm install --frozen-lockfile
 
+            # Every build-inputs-preview-<N> artifact, so a later preview of this number never reads one as
+            # `unchanged` for a Worker that no longer exists. set -e and pipefail: a failed call fails the job.
+            - name: Delete the preview's build-inputs records (build:inputs)
+              if: steps.open.outputs.open == 'false'
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+                  ids="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=build-inputs-preview-${{ github.event.pull_request.number }}&per_page=100" --paginate --jq '.artifacts[].id')"
+                  for id in $ids; do
+                      gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+                  done
+
             - name: Delete the preview (Worker, Hyperdrive config, Neon branch)
               if: steps.open.outputs.open == 'false'
               run: pnpm run deploy:teardown preview --pr ${{ github.event.pull_request.number }}
 
-    # Every push to stage that changes code: stage.baseball.theater on the Neon staging branch (bt-staging).
+    # Every push to stage that changes code: stage.baseball.theater on the Neon staging branch (bt-staging),
+    # unless its build inputs are unchanged since staging's last successful deploy (`pnpm build:inputs
+    # check`, S146): then install, build, migrations and deploy are skipped. A manual run (workflow_dispatch
+    # on stage with `force`) deploys whatever the record says. The skip is decided first, in the
+    # staging-inputs job below (it runs before this one: this job needs it), which names no environment,
+    # so a skipped run never appears in GitHub's staging environment (owner, 2026-11-26: "Only real
+    # deploys (Recommended)"). Two exceptions, both when runs race in the deploy-staging group: this job
+    # repeats the served-commit check, since another run may have deployed or skipped between the two
+    # jobs, and if staging-inputs was cancelled (the group keeps one pending job, and a newer queued one
+    # cancels it, whatever runs they belong to) this job decides itself. Either way it may then deploy,
+    # so it needs `environment: staging` before it knows, and a run it then skips still shows there.
     staging:
         # Only when something besides docs changed since the last passing run, and verify passed;
         # never after it failed or was cancelled. A docs-only push deploys nothing.
         if: >-
-            ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/stage' &&
-            needs.changes.result == 'success' && needs.changes.outputs.code == 'true' && needs.verify.result == 'success' }}
-        needs: [changes, verify]
+            ${{ !cancelled() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/stage' &&
+            needs.changes.result == 'success' && needs.changes.outputs.code == 'true' && needs.verify.result == 'success' &&
+            ((needs.staging-inputs.result == 'success' && needs.staging-inputs.outputs.deploy == 'true') || needs.staging-inputs.result == 'cancelled') }}
+        needs: [changes, verify, staging-inputs]
         runs-on: ubuntu-latest
         timeout-minutes: 20
+        # Its own, so it keeps what its steps use: the release lookup (pull-requests, issues:
+        # scripts/build-release.sh merged, #47) and the last record (actions: read, S146).
+        permissions:
+            actions: read
+            contents: read
+            issues: read
+            pull-requests: read
         concurrency:
             group: deploy-staging
             cancel-in-progress: false
@@ -333,25 +514,62 @@ jobs:
               with:
                   fetch-depth: 0
 
-            # The deploy-staging group runs one deploy at a time but doesn't keep push order, and a
+            # Node 24 runs build-inputs.ts as it is (only node: imports), so the record steps need no pnpm install.
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: ".nvmrc"
+
+            # Only a record this repository's own Deploy runs stored for stage is trusted (`build-inputs.ts
+            # trust`: a push or manual run of a commit on stage, never a fork's, another workflow's, or one
+            # dispatched on a tag named stage), looked up run by run among the newest 20 records; none deploys.
+            - name: Fetch the record of staging's last successful deploy (build:inputs)
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+                  git fetch --no-tags origin stage
+                  dir="$RUNNER_TEMP/trust"
+                  mkdir -p "$dir/runs"
+                  gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=build-inputs-staging&per_page=100" >"$dir/artifacts.json"
+                  for run in $(node functions/src/deploy/build-inputs.ts runs "$dir/artifacts.json" --name build-inputs-staging); do
+                      if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" >"$dir/runs/$run.json"; then :; else rm -f "$dir/runs/$run.json"; fi
+                  done
+                  id="$(node functions/src/deploy/build-inputs.ts trust --stage-ref origin/stage --env staging --name build-inputs-staging --artifacts "$dir/artifacts.json" --runs-dir "$dir/runs" --repo "$GITHUB_REPOSITORY")"
+                  if [ -n "$id" ]; then
+                      gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"$dir/record.zip"
+                      unzip -o -q "$dir/record.zip" -d "$RUNNER_TEMP/last-deploy"
+                  else
+                      echo "no trusted record of a staging deploy"
+                  fi
+
+            # The deploy-staging group runs one job at a time but doesn't keep push order, and a
             # docs-only push no longer redeploys the head to heal an older run landing last. So each run
             # reads the commit staging serves (bt-commit.txt, written into the build below) and deploys
-            # unless staging already serves this commit or one that contains it. Deciding from what is
+            # unless staging already stands for this commit or one that contains it. Deciding from what is
             # served, not from what is on stage, means a newer run that fails or is cancelled never
             # strands an older commit that passed, unless the newer run already migrated the database:
             # then the older run's migrate step finds it ahead and fails (#48), so re-run the newest run.
+            # What staging stands for (`build-inputs.ts stands`) is the served commit, or the newer commit
+            # a run skipped for unchanged inputs recorded as `covers` (S146): its record says the served
+            # build is that commit's build too, so an older run queued behind the skip never deploys over it.
             # - A 200 with a sha: compare. Read twice, a few seconds apart, so a deploy still spreading to
             #   the edge is seen; either read showing a commit containing this one skips.
             # - A 404, or a 200 without a sha (the SPA's index.html for a missing file): no marker yet
             #   (the first deploy, or a rollback to a build without it), so deploy.
             # - Anything else (no connection, a 5xx, a 408 or 429) after curl's retries: fail the step,
             #   so the run is re-run rather than deploying an older commit over a newer one blind.
+            # A forced run (S146) redeploys the commit staging stands for, never one older than it.
+            # The served sha is an output: the input check trusts only a record of that commit.
             - name: Does staging already serve this commit or a newer one?
               id: served
+              env:
+                  FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
               run: |
                   set -euo pipefail
                   git fetch --no-tags origin stage
                   contains=false
+                  served_sha=""
                   for attempt in 1 2; do
                       [ "$attempt" = 2 ] && sleep 10
                       status="$(curl -sS --retry 5 --max-time 10 -o "$RUNNER_TEMP/served" -w '%{http_code}' \
@@ -360,35 +578,31 @@ jobs:
                           200 | 404) ;;
                           *) echo "staging answered $status for bt-commit.txt; re-run this job" >&2; exit 1 ;;
                       esac
-                      served="$(head -c 100 "$RUNNER_TEMP/served" | tr -d '[:space:]')"
-                      if [ "$status" = 200 ] && [[ "$served" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "${served}^{commit}" 2>/dev/null &&
-                          git merge-base --is-ancestor "${{ github.sha }}" "$served"; then
-                          contains=true
-                          echo "staging serves $served, which already contains ${{ github.sha }}"
+                      marker="$(head -c 100 "$RUNNER_TEMP/served" | tr -d '[:space:]')"
+                      if [ "$status" = 200 ] && [[ "$marker" =~ ^[0-9a-f]{40}$ ]]; then
+                          served_sha="$marker"
+                      fi
+                      if [ "$status" = 200 ] && [[ "$marker" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "${marker}^{commit}" 2>/dev/null; then
+                          served="$(node functions/src/deploy/build-inputs.ts stands "$RUNNER_TEMP/last-deploy/build-inputs.json" --served "$marker")"
+                          if git merge-base --is-ancestor "${{ github.sha }}" "$served"; then
+                              if [ "$FORCE" = true ] && [ "$served" = "${{ github.sha }}" ]; then
+                                  echo "forced: redeploy ${{ github.sha }}, which staging stands for (it serves $marker)"
+                              else
+                                  contains=true
+                                  echo "staging stands for $served (it serves $marker), which already contains ${{ github.sha }}"
+                              fi
+                          fi
                       fi
                   done
+                  echo "served=$served_sha" >>"$GITHUB_OUTPUT"
                   if [ "$contains" = true ]; then
                       echo "deploy=false" >>"$GITHUB_OUTPUT"
                   else
                       echo "deploy=true" >>"$GITHUB_OUTPUT"
                   fi
 
-            - uses: pnpm/action-setup@v4
-              if: steps.served.outputs.deploy == 'true'
-              with:
-                  version: 9.15.0
-
-            - uses: actions/setup-node@v4
-              if: steps.served.outputs.deploy == 'true'
-              with:
-                  node-version-file: ".nvmrc"
-                  cache: pnpm
-
-            - name: Install
-              if: steps.served.outputs.deploy == 'true'
-              run: pnpm install --frozen-lockfile
-
-            # The milestone of the pull request this merge commit merged (#47).
+            # The milestone of the pull request this merge commit merged (#47). Before the input check,
+            # which compares it with the record's (it is built into the version line).
             - name: Which release is this build?
               if: steps.served.outputs.deploy == 'true'
               id: release
@@ -398,9 +612,76 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: scripts/build-release.sh merged "${{ github.sha }}"
 
+            # Unchanged only when the record names the commit staging serves (after a `wrangler rollback`, or
+            # an older run landing last, they differ and staging deploys), its BT_RELEASE is this build's,
+            # and every file it lists has the same blob here. A forced run deploys whatever it says.
+            - name: Did the build's inputs change since staging's last deploy? (pnpm build:inputs check)
+              if: steps.served.outputs.deploy == 'true' && needs.staging-inputs.result == 'cancelled'
+              id: inputs
+              shell: bash
+              env:
+                  BT_RELEASE: ${{ steps.release.outputs.release }}
+                  FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+                  SERVED: ${{ steps.served.outputs.served }}
+              run: |
+                  set -uo pipefail
+                  record="$RUNNER_TEMP/last-deploy/build-inputs.json"
+                  if [ "$FORCE" = true ]; then
+                      echo "forced: deploy whatever the record says"
+                      build=true
+                  elif [ -z "$SERVED" ]; then
+                      echo "staging serves no commit marker, so deploy"
+                      build=true
+                  elif out="$(node functions/src/deploy/build-inputs.ts check "$record" --served "$SERVED")"; then
+                      echo "$out: staging's last deploy, of $SERVED, built from the same inputs"
+                      build=false
+                  else
+                      echo "$out"
+                      build=true
+                  fi
+                  echo "build=$build" >>"$GITHUB_OUTPUT"
+
+            # Unchanged: store the same record again, covering this commit, so a run of an older commit
+            # still queued finds staging standing for this one and doesn't deploy over it. Same path as a
+            # deploy's record, which the store step uploads.
+            - name: Inputs unchanged, so record that staging stands for this commit too (build:inputs cover)
+              if: steps.served.outputs.deploy == 'true' && needs.staging-inputs.result == 'cancelled' && steps.inputs.outputs.build == 'false'
+              run: node functions/src/deploy/build-inputs.ts cover "$RUNNER_TEMP/last-deploy/build-inputs.json" "${{ github.sha }}" "$RUNNER_TEMP/build-inputs/build-inputs.json"
+
+            # Deploy when the served check (repeated here) still says so and either staging-inputs decided to,
+            # or it was cancelled and this job's own input check found a change.
+            - name: Deploy staging, after the checks?
+              id: go
+              env:
+                  SERVED: ${{ steps.served.outputs.deploy }}
+                  DECIDED: ${{ needs.staging-inputs.result }}
+                  BUILD: ${{ steps.inputs.outputs.build }}
+              run: |
+                  if [ "$SERVED" = true ] && { [ "$DECIDED" = success ] || [ "$BUILD" = true ]; }; then
+                      echo "deploy=true" >>"$GITHUB_OUTPUT"
+                  else
+                      echo "no deploy: staging already stands for this commit, or it builds from the same inputs"
+                      echo "deploy=false" >>"$GITHUB_OUTPUT"
+                  fi
+
+            - uses: pnpm/action-setup@v4
+              if: steps.go.outputs.deploy == 'true'
+              with:
+                  version: 9.15.0
+
+            - uses: actions/setup-node@v4
+              if: steps.go.outputs.deploy == 'true'
+              with:
+                  node-version-file: ".nvmrc"
+                  cache: pnpm
+
+            - name: Install
+              if: steps.go.outputs.deploy == 'true'
+              run: pnpm install --frozen-lockfile
+
             # bt-commit.txt is how the next run learns what staging serves (see above).
             - name: Build the web app
-              if: steps.served.outputs.deploy == 'true'
+              if: steps.go.outputs.deploy == 'true'
               env:
                   BT_RELEASE: ${{ steps.release.outputs.release }}
               run: |
@@ -408,21 +689,215 @@ jobs:
                   echo "${{ github.sha }}" >web/dist/bt-commit.txt
 
             - name: Bootstrap (schema-only staging branch, bt-staging, Worker config and secrets)
-              if: steps.served.outputs.deploy == 'true'
+              if: steps.go.outputs.deploy == 'true'
               id: bootstrap
               run: pnpm run deploy:bootstrap staging
 
             - name: Migrate the staging database
-              if: steps.served.outputs.deploy == 'true'
+              if: steps.go.outputs.deploy == 'true'
               run: pnpm db:migrate
 
             - name: Re-apply deletions
-              if: steps.served.outputs.deploy == 'true'
+              if: steps.go.outputs.deploy == 'true'
               run: pnpm db:reapply-deletions
 
+            # What this build read: Vite's module list (written by the build above), the Worker bundle's
+            # esbuild metafile, the deploy scripts' graph and the named list, with this commit.
+            - name: Record the build's inputs (pnpm build:inputs record)
+              if: steps.go.outputs.deploy == 'true'
+              env:
+                  BT_RELEASE: ${{ steps.release.outputs.release }}
+              run: |
+                  pnpm --filter @bt/functions exec wrangler deploy --config ../wrangler.jsonc --env staging --dry-run --outdir "$RUNNER_TEMP/worker-dry-run" --metafile "$RUNNER_TEMP/worker-meta.json"
+                  pnpm build:inputs record "$RUNNER_TEMP/build-inputs/build-inputs.json" --worker-meta "$RUNNER_TEMP/worker-meta.json" --commit "${{ github.sha }}" --origin https://stage.baseball.theater
+
             - name: Deploy staging
-              if: steps.served.outputs.deploy == 'true'
+              if: steps.go.outputs.deploy == 'true'
               run: pnpm --filter @bt/functions exec wrangler deploy --config "${{ steps.bootstrap.outputs.config }}" --env staging --secrets-file "${{ steps.bootstrap.outputs.secrets_file }}"
+
+            # Only after the deploy step succeeded (a failed or cancelled deploy stores nothing), or, when this
+            # job decided itself and skipped, the record the cover step wrote at the same path.
+            - name: Store the record of this deploy (build:inputs)
+              if: steps.go.outputs.deploy == 'true' || steps.inputs.outputs.build == 'false'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-inputs-staging
+                  path: ${{ runner.temp }}/build-inputs/build-inputs.json
+                  if-no-files-found: error
+
+    # Runs before staging (staging needs it) and decides whether staging deploys at all, so a run that
+    # skips never touches GitHub's staging environment (owner, 2026-11-26: "Only real deploys
+    # (Recommended)"): no environment, no secrets, nothing installed. It holds the same deploy-staging
+    # group as staging, so a decision never falls inside another run's deploy. It sits after staging in
+    # this file because the docs-only law's test (scripts/backlog-vault/ci-law.test.ts) reads the text
+    # from `staging:` to `production:` as the staging jobs; job order in the file changes nothing at run time.
+    # When the inputs are unchanged it stores staging's record again with `covers` set to this commit
+    # (build-inputs.ts cover), the one record store not after a deploy: the record still names the
+    # commit staging serves and its files, and says this commit builds the same.
+    staging-inputs:
+        if: >-
+            ${{ !cancelled() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/stage' &&
+            needs.changes.result == 'success' && needs.changes.outputs.code == 'true' && needs.verify.result == 'success' }}
+        needs: [changes, verify]
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        # The last record (actions: read) and the release lookup (scripts/build-release.sh merged, #47).
+        permissions:
+            actions: read
+            contents: read
+            issues: read
+            pull-requests: read
+        concurrency:
+            group: deploy-staging
+            cancel-in-progress: false
+        outputs:
+            deploy: ${{ steps.inputs.outputs.build == 'true' }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            # Node 24 runs build-inputs.ts as it is (only node: imports), so the record steps need no pnpm install.
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: ".nvmrc"
+
+            # Only a record this repository's own Deploy runs stored for stage is trusted (`build-inputs.ts
+            # trust`: a push or manual run of a commit on stage, never a fork's, another workflow's, or one
+            # dispatched on a tag named stage), looked up run by run among the newest 20 records; none deploys.
+            - name: Fetch the record of staging's last successful deploy (build:inputs)
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+                  git fetch --no-tags origin stage
+                  dir="$RUNNER_TEMP/trust"
+                  mkdir -p "$dir/runs"
+                  gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=build-inputs-staging&per_page=100" >"$dir/artifacts.json"
+                  for run in $(node functions/src/deploy/build-inputs.ts runs "$dir/artifacts.json" --name build-inputs-staging); do
+                      if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" >"$dir/runs/$run.json"; then :; else rm -f "$dir/runs/$run.json"; fi
+                  done
+                  id="$(node functions/src/deploy/build-inputs.ts trust --stage-ref origin/stage --env staging --name build-inputs-staging --artifacts "$dir/artifacts.json" --runs-dir "$dir/runs" --repo "$GITHUB_REPOSITORY")"
+                  if [ -n "$id" ]; then
+                      gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"$dir/record.zip"
+                      unzip -o -q "$dir/record.zip" -d "$RUNNER_TEMP/last-deploy"
+                  else
+                      echo "no trusted record of a staging deploy"
+                  fi
+
+            # The deploy-staging group runs one job at a time but doesn't keep push order, and a
+            # docs-only push no longer redeploys the head to heal an older run landing last. So each run
+            # reads the commit staging serves (bt-commit.txt, written into the build below) and deploys
+            # unless staging already stands for this commit or one that contains it. Deciding from what is
+            # served, not from what is on stage, means a newer run that fails or is cancelled never
+            # strands an older commit that passed, unless the newer run already migrated the database:
+            # then the older run's migrate step finds it ahead and fails (#48), so re-run the newest run.
+            # What staging stands for (`build-inputs.ts stands`) is the served commit, or the newer commit
+            # a run skipped for unchanged inputs recorded as `covers` (S146): its record says the served
+            # build is that commit's build too, so an older run queued behind the skip never deploys over it.
+            # - A 200 with a sha: compare. Read twice, a few seconds apart, so a deploy still spreading to
+            #   the edge is seen; either read showing a commit containing this one skips.
+            # - A 404, or a 200 without a sha (the SPA's index.html for a missing file): no marker yet
+            #   (the first deploy, or a rollback to a build without it), so deploy.
+            # - Anything else (no connection, a 5xx, a 408 or 429) after curl's retries: fail the step,
+            #   so the run is re-run rather than deploying an older commit over a newer one blind.
+            # A forced run (S146) redeploys the commit staging stands for, never one older than it.
+            # The served sha is an output: the input check trusts only a record of that commit.
+            - name: Does staging already serve this commit or a newer one?
+              id: served
+              env:
+                  FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+              run: |
+                  set -euo pipefail
+                  git fetch --no-tags origin stage
+                  contains=false
+                  served_sha=""
+                  for attempt in 1 2; do
+                      [ "$attempt" = 2 ] && sleep 10
+                      status="$(curl -sS --retry 5 --max-time 10 -o "$RUNNER_TEMP/served" -w '%{http_code}' \
+                          "https://stage.baseball.theater/bt-commit.txt?run=${{ github.run_id }}-$attempt")"
+                      case "$status" in
+                          200 | 404) ;;
+                          *) echo "staging answered $status for bt-commit.txt; re-run this job" >&2; exit 1 ;;
+                      esac
+                      marker="$(head -c 100 "$RUNNER_TEMP/served" | tr -d '[:space:]')"
+                      if [ "$status" = 200 ] && [[ "$marker" =~ ^[0-9a-f]{40}$ ]]; then
+                          served_sha="$marker"
+                      fi
+                      if [ "$status" = 200 ] && [[ "$marker" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "${marker}^{commit}" 2>/dev/null; then
+                          served="$(node functions/src/deploy/build-inputs.ts stands "$RUNNER_TEMP/last-deploy/build-inputs.json" --served "$marker")"
+                          if git merge-base --is-ancestor "${{ github.sha }}" "$served"; then
+                              if [ "$FORCE" = true ] && [ "$served" = "${{ github.sha }}" ]; then
+                                  echo "forced: redeploy ${{ github.sha }}, which staging stands for (it serves $marker)"
+                              else
+                                  contains=true
+                                  echo "staging stands for $served (it serves $marker), which already contains ${{ github.sha }}"
+                              fi
+                          fi
+                      fi
+                  done
+                  echo "served=$served_sha" >>"$GITHUB_OUTPUT"
+                  if [ "$contains" = true ]; then
+                      echo "deploy=false" >>"$GITHUB_OUTPUT"
+                  else
+                      echo "deploy=true" >>"$GITHUB_OUTPUT"
+                  fi
+
+            # The milestone of the pull request this merge commit merged (#47). Before the input check,
+            # which compares it with the record's (it is built into the version line).
+            - name: Which release is this build?
+              if: steps.served.outputs.deploy == 'true'
+              id: release
+              # Explicit, so pipefail is on too (GitHub's default shell runs bash -e only).
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: scripts/build-release.sh merged "${{ github.sha }}"
+
+            # Unchanged only when the record names the commit staging serves (after a `wrangler rollback`, or
+            # an older run landing last, they differ and staging deploys), its BT_RELEASE is this build's,
+            # and every file it lists has the same blob here. A forced run deploys whatever it says.
+            - name: Did the build's inputs change since staging's last deploy? (pnpm build:inputs check)
+              if: steps.served.outputs.deploy == 'true'
+              id: inputs
+              shell: bash
+              env:
+                  BT_RELEASE: ${{ steps.release.outputs.release }}
+                  FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+                  SERVED: ${{ steps.served.outputs.served }}
+              run: |
+                  set -uo pipefail
+                  record="$RUNNER_TEMP/last-deploy/build-inputs.json"
+                  if [ "$FORCE" = true ]; then
+                      echo "forced: deploy whatever the record says"
+                      build=true
+                  elif [ -z "$SERVED" ]; then
+                      echo "staging serves no commit marker, so deploy"
+                      build=true
+                  elif out="$(node functions/src/deploy/build-inputs.ts check "$record" --served "$SERVED")"; then
+                      echo "$out: staging's last deploy, of $SERVED, built from the same inputs"
+                      build=false
+                  else
+                      echo "$out"
+                      build=true
+                  fi
+                  echo "build=$build" >>"$GITHUB_OUTPUT"
+
+            # Unchanged: store the same record again, covering this commit, so a run of an older commit
+            # still queued finds staging standing for this one and doesn't deploy over it. Same path as a
+            # deploy's record, which the store step uploads.
+            - name: Inputs unchanged, so record that staging stands for this commit too (build:inputs cover)
+              if: steps.served.outputs.deploy == 'true' && steps.inputs.outputs.build == 'false'
+              run: node functions/src/deploy/build-inputs.ts cover "$RUNNER_TEMP/last-deploy/build-inputs.json" "${{ github.sha }}" "$RUNNER_TEMP/build-inputs/build-inputs.json"
+
+            - name: Store the record of this skip (build:inputs)
+              if: steps.served.outputs.deploy == 'true' && steps.inputs.outputs.build == 'false'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-inputs-staging
+                  path: ${{ runner.temp }}/build-inputs/build-inputs.json
+                  if-no-files-found: error
 
     # next.baseball.theater (until the owner's cutover, S119), when the owner publishes a GitHub Release,
     # once verify passes on its tag (S121). The release's tag is what deploys, never a branch head.
