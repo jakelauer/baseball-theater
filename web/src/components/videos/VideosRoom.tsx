@@ -271,7 +271,8 @@ function FilterDrawer({
  * full-width search with no "Videos" heading above it, since the tab already says so (#529;
  * owner, 2026-11-25, waiving the ratified frames' heading: "Drop the heading"), then one row: the quick filters on the
  * left (`QuickFilters`: the Featured team control always, #583, then as many as fit, then a Filters button opening
- * `FilterDrawer`; the row wraps when the team control leaves no room for the rest), and
+ * `FilterDrawer`; the row wraps when the team control leaves no room for the rest; the Kind pill in its place,
+ * grouped by team, is not pinned and falls back to the drawer), and
  * on the right the sort (`sortHighlights`; impact first, the server's
  * `rankHighlightsByImpact` order) and the Grid / List icons (`VideoLayoutToggle`, shared with Search, #588). The quick
  * filters are the Featured team control with each option's count and, only when some clip
@@ -401,7 +402,7 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 			/>
 			{/* Wraps only when the Featured team control, always shown (#583), leaves no room beside it. */}
 			<Group gap={8} wrap="wrap" align="center">
-				<QuickFilters pills={pills} onMore={() => setDrawer(true)} />
+				<QuickFilters pills={pills} pinned="team" onMore={() => setDrawer(true)} />
 				<Menu position="bottom-end">
 					<Menu.Target>
 						<FilterPill leftSection={<IconArrowsSort size={14} />} aria-label={`Sort: ${SORT_LABELS[sort]}`}>

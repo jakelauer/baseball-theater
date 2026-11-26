@@ -47,21 +47,27 @@ export function FilterPill({
  * The quick filters, as many as fit (S69; owner, 2026-10-30). Decided by the row's own
  * width, never by device size: when every pill fits they all show; when not, the ones
  * that fit (`fittingFilters`) show in order and a Filters button comes last, opening `onMore` (the drawer listing
- * every filter). The first pill, the Featured team control, always shows (#583), so the row
- * never narrows below it and the Filters button: its `minWidth`, which lets a wrapping parent
- * row move its other controls to the next line instead of drawing over them. A hidden copy of
- * the pills and the button is measured on every resize, so a pill whose label changes (a
- * team chosen) is re-measured too.
+ * every filter). The `pinned` pill (by key; the Videos room pins the Featured team control,
+ * #583) always shows, so the row never narrows below it and the Filters button: its
+ * `minWidth`, which lets a wrapping parent row move its other controls to the next line
+ * instead of drawing over them. No other pill is pinned, so with none shown (the Kind pill
+ * in its place) the row can narrow to nothing and every pill can fall back to Filters. A
+ * hidden copy of the pills and the button is measured on every resize, and again when the
+ * pinned pill comes or goes, so a pill whose label changes (a team chosen) is re-measured too.
  */
-export function QuickFilters({ pills, onMore }: { pills: { key: string;
+export function QuickFilters({
+	pills, pinned, onMore,
+}: { pills: { key: string;
 	node: ReactNode;
 	active: boolean; }[];
+pinned?: string;
 onMore: () => void; })
 {
 	const row = useRef<HTMLDivElement>(null);
 	const probe = useRef<HTMLDivElement>(null);
 	const [shown, setShown] = useState<readonly number[] | null>(null);
 	const [minWidth, setMinWidth] = useState(0);
+	const pinnedAt = pills.findIndex((pill) => pill.key === pinned);
 
 	useEffect(() =>
 	{
@@ -72,17 +78,17 @@ onMore: () => void; })
 		{
 			const items = [...probeBox.children] as HTMLElement[];
 			const more = items.pop()!.offsetWidth;
-			setShown(fittingFilters(items.map((item) => item.offsetWidth), more, rowBox.clientWidth, GAP));
-			// The pinned first pill, plus the Filters button whenever there is a pill it could hold; not
-			// whether it shows now, which depends on this width and would make the parent row flicker.
-			setMinWidth((items[0]?.offsetWidth ?? 0) + (items.length > 1 ? GAP + more : 0));
+			setShown(fittingFilters(items.map((item) => item.offsetWidth), more, rowBox.clientWidth, GAP, pinnedAt));
+			// The pinned pill, plus the Filters button whenever there is a pill it could hold; not whether
+			// it shows now, which depends on this width and would make the parent row flicker. None pinned, 0.
+			setMinWidth(pinnedAt < 0 ? 0 : items[pinnedAt]!.offsetWidth + (items.length > 1 ? GAP + more : 0));
 		};
 		measure();
 		const observer = new ResizeObserver(measure);
 		observer.observe(rowBox);
 		observer.observe(probeBox);
 		return () => observer.disconnect();
-	}, [pills.length]);
+	}, [pills.length, pinnedAt]);
 
 	const visible = shown ?? pills.map((_, index) => index);
 	const more = (
