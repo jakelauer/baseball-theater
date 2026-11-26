@@ -17,10 +17,10 @@
  *   runs all of `functions`' tests. A package's own package.json or vitest config runs its
  *   whole suite; the root lockfile, package.json, tsconfig or vitest config runs every suite.
  * - The repo-tooling suites outside the workspace packages run whole when a file they test is
- *   staged: the backlog tool's (`pnpm test:backlog`) for scripts/backlog-vault/, scripts/audit.sh,
+ *   staged: the backlog tool's (`pnpm --filter @bt/scripts test:fast`'s suite) for scripts/backlog-vault/, scripts/audit.sh,
  *   the debt scripts, the backlog notes, the ledger (one of its tests reads the real AUDIT.md),
  *   changelog.d/ and the other files its tests read (the triggers below), and the tools suite
- *   (`pnpm test:tools`) for tools/. Both take a few seconds.
+ *   (`pnpm --filter @bt/tools test:fast`'s suite) for tools/. Both take a few seconds.
  * - Coverage thresholds and the workerd suite (`functions/vitest.workers.config.ts`) are left to
  *   `pnpm verify` and CI, to keep a commit fast.
  * - It tests the working tree, so unstaged edits to a staged file are tested too.

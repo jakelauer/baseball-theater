@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 import {
 	describe, expect, it,
 } from "vitest";
-import { browserSteps, verifyChain } from "./verify-chain.ts";
+import {
+	browserSteps, browserTasks, graphTasks, verifyChain,
+} from "./verify-chain.ts";
 
 const scripts = (JSON.parse(readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8")) as { scripts: Record<string, string> }).scripts;
 
@@ -16,8 +18,23 @@ describe("pnpm verify starts no browser (law P8)", () =>
 {
 	it("no script in the verify chain runs playwright, design:capture or e2e/", () =>
 	{
-		expect(verifyChain(scripts).has("lint")).toBe(true);
+		expect(verifyChain(scripts).has("verify:run")).toBe(true);
 		expect(browserSteps(scripts)).toEqual([]);
+	});
+
+	it("no task in the graph pnpm verify runs starts Playwright or Lighthouse (ADR-030)", () =>
+	{
+		const tasks = graphTasks();
+		expect(tasks.some((t) => t.taskId === "@bt/e2e#test")).toBe(true);
+		expect(browserTasks(tasks)).toEqual([]);
+	}, 60_000);
+
+	it("catches a task that runs Playwright", () =>
+	{
+		expect(browserTasks([{
+			taskId: "@bt/e2e#test",
+			command: "playwright test",
+		}])).toEqual(["@bt/e2e#test"]);
 	});
 
 	it("catches a playwright step reached through the chain", () =>

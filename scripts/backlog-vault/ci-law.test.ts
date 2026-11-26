@@ -17,9 +17,17 @@
  * merge jobs didn't pass for code (or when `changes` gave no answer). Every child process gets
  * an environment built from scratch: CI exports GITHUB_ACTIONS, and a pull request's verify step
  * BT_TURBO_CACHE_READ and BT_FUNCTIONS_SHARDED, which would leak into the "unset" cases.
+ *
+ * Since S168 (ADR-030; owner, 2026-11-26: "Accept as written (Recommended)") CI calls the same entry
+ * point as the local check: a pull request's `pnpm verify` runs what the change reaches against its
+ * base with the restored cache, while every push and Deploy's verify job set the full-run switch
+ * (BT_VERIFY_FULL=1), which runs every task with a write-only cache, so none replays. The Markdown
+ * check is the graph's `//#format:md` task, and functions' shards run its own test task through
+ * `pnpm verify` (BT_VERIFY_ONLY, BT_COVERAGE_SHARD), never Vitest outside the graph.
  */
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { entryTasks } from "./build-graph.ts";
 import { fileURLToPath } from "node:url";
 import {
 	describe, expect, it,
@@ -28,7 +36,7 @@ import { parse as parseYaml } from "yaml";
 
 const CI_YML = fileURLToPath(new URL("../../.github/workflows/ci.yml", import.meta.url));
 const DEPLOY_YML = fileURLToPath(new URL("../../.github/workflows/deploy.yml", import.meta.url));
-const ROOT_PACKAGE = fileURLToPath(new URL("../../package.json", import.meta.url));
+const ENTRY_POINT = fileURLToPath(new URL("../verify.sh", import.meta.url));
 
 /** A ci.yml step, as far as these tests read it. */
 interface Step
@@ -49,7 +57,7 @@ function jobsOf(workflow: string): Record<string, { needs?: string[];
 		steps?: Step[] }> }).jobs ?? {};
 }
 
-const READ_SWITCH = "BT_TURBO_CACHE_READ";
+const FULL_SWITCH = "BT_VERIFY_FULL";
 const ONLY_ON_PULL_REQUESTS = "github.event_name == 'pull_request'";
 
 /** A child process environment from scratch: PATH and HOME, plus the case's own variables. */
@@ -75,45 +83,27 @@ export function pushCacheProblems(workflow: string): string[]
 		{
 			const restores = /^actions\/cache(\/restore)?@/.test(step.uses ?? "") && /\.turbo\/cache|eslintcache|tsbuildinfo/.test(step.with?.path ?? "");
 			if (restores && step.if !== ONLY_ON_PULL_REQUESTS) problems.push(`${job}: '${step.name}' restores a cache with if: ${step.if ?? "(none)"}`);
-			const setsSwitch = step.env?.[READ_SWITCH] !== undefined || (step.run ?? "").includes(READ_SWITCH);
-			if (setsSwitch && step.if !== ONLY_ON_PULL_REQUESTS) problems.push(`${job}: '${step.name}' sets ${READ_SWITCH} with if: ${step.if ?? "(none)"}`);
+			const verifies = /^pnpm verify$/m.test(step.run ?? "") && step.env?.BT_VERIFY_ONLY === undefined;
+			if (verifies && step.if !== ONLY_ON_PULL_REQUESTS && step.env?.[FULL_SWITCH] !== "1") problems.push(`${job}: '${step.name}' runs pnpm verify on a push without ${FULL_SWITCH}=1`);
 		}
 	}
 	const verify = jobsOf(workflow).verify?.steps ?? [];
-	const pushVerify = verify.filter((s) => /^pnpm verify$/m.test(s.run ?? "") && s.if !== ONLY_ON_PULL_REQUESTS && s.env?.[READ_SWITCH] === undefined);
-	if (pushVerify.length === 0) problems.push("no verify step runs pnpm verify on a push without the read switch");
+	const pushVerify = verify.filter((s) => /^pnpm verify$/m.test(s.run ?? "") && s.if !== ONLY_ON_PULL_REQUESTS && s.env?.[FULL_SWITCH] === "1");
+	if (pushVerify.length === 0) problems.push(`no verify step runs pnpm verify on a push with ${FULL_SWITCH}=1`);
 	return problems;
 }
 
-/** The problems that would let a root script read a cache outside CI's pull-request runs. */
-export function scriptCacheProblems(scripts: Record<string, string>): string[]
+/**
+ * The problems that would let the entry point's full run replay a cached pass (ADR-030 rule 7): the
+ * `turbo run` in the branch that runs when BT_VERIFY_FULL is 1 must write the cache only.
+ */
+export function entryPointProblems(script: string): string[]
 {
 	const problems: string[] = [];
-	const expand = (command: string, vars: Record<string, string>): string => execFileSync("sh", ["-c", `echo ${command}`], {
-		env: cleanEnv(vars),
-	}).toString().trim();
-	for (const name of ["build", "test:coverage"])
-	{
-		// The turbo command ends at a shell separator or, when a runner such as `concurrently` quotes it
-		// beside other commands, at its closing quote.
-		const turbo = /turbo run [^&|;"']+/.exec(scripts[name] ?? "")?.[0];
-		if (!turbo)
-		{
-			problems.push(`root ${name} doesn't call turbo run`);
-			continue;
-		}
-		for (const vars of [{}, {
-			GITHUB_ACTIONS: "true",
-		}] as Record<string, string>[])
-		{
-			const args = expand(turbo, vars);
-			const spec = /--cache=(\S*)/.exec(args)?.[1];
-			const local = spec === undefined ? "rw" : (/(?:^|,)local:(\w*)/.exec(spec)?.[1] ?? "");
-			if (!/--force\b/.test(args) && (local.includes("r") || /remote:\w*r/.test(spec ?? ""))) problems.push(`root ${name} reads a cache without ${READ_SWITCH}: ${args}`);
-		}
-	}
-	const eslint = /eslint \.[^&|;]*/.exec(scripts.lint ?? "")?.[0] ?? "";
-	if (/--cache\b/.test(expand(eslint, {}))) problems.push(`root lint reads ESLint's cache outside CI: ${expand(eslint, {})}`);
+	const full = /\nif \[ "\$\{BT_VERIFY_FULL:-\}" = 1 \]; then\n([^]*?)\nfi\n/.exec(script)?.[1];
+	if (full === undefined) problems.push("the entry point has no branch for BT_VERIFY_FULL=1");
+	else if (!/turbo run [^\n]*--cache=local:w\b/.test(full)) problems.push("the full-run branch's turbo run does not write the cache only (--cache=local:w)");
+	if (!/BT_VERIFY_FULL=1/.test(script.replace(/^#.*$/gm, ""))) problems.push("--full does not set BT_VERIFY_FULL=1");
 	return problems;
 }
 
@@ -173,8 +163,8 @@ export function runSteps(workflow: string): string[]
 	return [...workflow.matchAll(/^\s*run:\s*(.+?)\s*$/gm)].map((m) => m[1]!);
 }
 
-/** The docs job's Markdown format command, which the verify job runs too (Claude's review of PR #14). */
-const MARKDOWN_CHECK = 'pnpm exec prettier --check "**/*.md"';
+/** The docs job's Markdown format command; the verify job runs it as the graph's //#format:md task (ADR-030). */
+const MARKDOWN_CHECK = "pnpm format:md";
 
 /**
  * Asserts a job has a "Markdown format" step that runs `MARKDOWN_CHECK` on every run: its text,
@@ -220,18 +210,17 @@ describe("CI runs pnpm verify (law P11)", () =>
 	{
 		const ci = readFileSync(CI_YML, "utf8");
 		const docsJob = ci.slice(ci.indexOf("\n    docs:\n"), ci.indexOf("\n    verify:\n"));
-		const verifyJob = ci.slice(ci.indexOf("\n    verify:\n"), ci.indexOf("\n    flows:\n"));
 		expectUnconditionalMarkdownStep(docsJob);
-		expectUnconditionalMarkdownStep(verifyJob);
+		// The verify job's pnpm verify runs it as a root task of the graph, on every run of the entry point.
+		expect(entryTasks(readFileSync(ENTRY_POINT, "utf8"))).toContain("format:md");
 	});
 
 	it("catches a Markdown step in either job that is switched off or allowed to fail", () =>
 	{
 		const ci = readFileSync(CI_YML, "utf8");
 		const docsJob = ci.slice(ci.indexOf("\n    docs:\n"), ci.indexOf("\n    verify:\n"));
-		const verifyJob = ci.slice(ci.indexOf("\n    verify:\n"), ci.indexOf("\n    flows:\n"));
 		const named = "            - name: Markdown format\n";
-		for (const job of [docsJob, verifyJob])
+		for (const job of [docsJob])
 		{
 			for (const extra of ["              if: false\n", "              continue-on-error: true\n"])
 			{
@@ -262,8 +251,11 @@ describe("CI runs pnpm verify (law P11)", () =>
 		// Deploy's verify runs the full gate before staging and production. It may skip it only on a pull
 		// request, where ci.yml's verify runs it (owner, 2026-11-21: "Yes, drop the duplicate (Recommended)").
 		const verifyJob = deploy.slice(deploy.indexOf("\n    verify:\n"), deploy.indexOf("\n    # ", deploy.indexOf("\n    verify:\n") + 1));
-		const gate = /\n( +)- name: Verify\n((?:\1 {2}.*\n)*)/.exec(verifyJob)?.[2] ?? "";
+		const gate = /\n( +)- name: Verify[^\n]*\n((?:\1 {2}.*\n)*)/.exec(verifyJob)?.[2] ?? "";
 		expect(gate).toMatch(/run: pnpm verify\n/);
+		// Every event it runs the gate for (a push to stage, a release, a manual run) runs every task fresh (ADR-030 rule 10).
+		expect(gate).toMatch(/BT_VERIFY_FULL: "1"\n/);
+		expect(pushCacheProblems(deploy)).toEqual([]);
 		expect(gate.match(/^\s*if: (.*)$/m)?.[1] ?? "").toMatch(/^(github\.event_name != 'pull_request')?$/);
 		// Whether to deploy is decided from the commit staging serves, never from what else is on
 		// stage, so a newer run that fails can't strand an older commit that passed.
@@ -321,39 +313,34 @@ describe("CI runs pnpm verify (law P11)", () =>
 		const restore = "            - name: Restore Turborepo's cache (pull requests only)\n              if: github.event_name == 'pull_request'\n";
 		expect(ci).toContain(restore);
 		expect(pushCacheProblems(ci.replace(restore, "            - name: Restore Turborepo's cache (pull requests only)\n"))).not.toEqual([]);
-		const prVerify = "            - name: Verify (pull request, reusing unchanged packages)\n              if: github.event_name == 'pull_request'\n";
+		const prVerify = "            - name: Verify (pull request, what the change reaches)\n              if: github.event_name == 'pull_request'\n";
 		expect(ci).toContain(prVerify);
-		expect(pushCacheProblems(ci.replace(prVerify, "            - name: Verify (pull request, reusing unchanged packages)\n"))).not.toEqual([]);
-		const pushVerify = "            - name: Verify\n              if: github.event_name != 'pull_request'\n              run: pnpm verify\n";
-		expect(ci).toContain(pushVerify);
-		expect(pushCacheProblems(ci.replace(pushVerify, ""))).not.toEqual([]);
+		expect(pushCacheProblems(ci.replace(prVerify, "            - name: Verify (pull request, what the change reaches)\n"))).not.toEqual([]);
+		const fullSwitch = "                  BT_VERIFY_FULL: \"1\"\n";
+		expect(ci).toContain(fullSwitch);
+		expect(pushCacheProblems(ci.replace(fullSwitch, "                  BT_VERIFY_FULL: \"0\"\n"))).not.toEqual([]);
 	});
 
-	it("the root scripts read no Turborepo or ESLint cache without the pull-request switch (S152)", () =>
+	it("the entry point's full run executes every task, replaying none (ADR-030 rule 7)", () =>
 	{
-		const scripts = (JSON.parse(readFileSync(ROOT_PACKAGE, "utf8")) as { scripts: Record<string, string> }).scripts;
-		expect(scriptCacheProblems(scripts)).toEqual([]);
+		expect(entryPointProblems(readFileSync(ENTRY_POINT, "utf8"))).toEqual([]);
 	});
 
-	it("catches a root script that reads a cache without the switch", () =>
+	it("catches a full run that reads the cache", () =>
 	{
-		const scripts = (JSON.parse(readFileSync(ROOT_PACKAGE, "utf8")) as { scripts: Record<string, string> }).scripts;
-		for (const name of ["build", "test:coverage"])
-		{
-			const always = scripts[name]!.replace(/--cache=\S+/, "--cache=local:rw");
-			expect(scriptCacheProblems({
-				...scripts,
-				[name]: always,
-			}), name).not.toEqual([]);
-			expect(scriptCacheProblems({
-				...scripts,
-				[name]: scripts[name]!.replace(/ --cache=\S+/, ""),
-			}), `${name} with turbo's default cache`).not.toEqual([]);
-		}
-		expect(scriptCacheProblems({
-			...scripts,
-			lint: "pnpm backlog:check && eslint . --cache --cache-strategy content --cache-location .eslintcache",
-		})).not.toEqual([]);
+		const script = readFileSync(ENTRY_POINT, "utf8");
+		expect(script).toContain("--cache=local:w ");
+		expect(entryPointProblems(script.replace(/--cache=local:w /g, "--cache=local:rw "))).not.toEqual([]);
+	});
+
+	it("functions' shard jobs run its own test task through pnpm verify, never Vitest outside the graph (ADR-030 rule 10)", () =>
+	{
+		const shard = jobsOf(readFileSync(CI_YML, "utf8"))["functions-shard"]?.steps ?? [];
+		const tests = shard.filter((s) => /^pnpm verify$/m.test(s.run ?? ""));
+		expect(tests).toHaveLength(1);
+		expect(tests[0]!.env?.BT_VERIFY_ONLY).toBe("@bt/functions");
+		expect(tests[0]!.env?.BT_COVERAGE_SHARD).toMatch(/\/2$/);
+		for (const workflow of [CI_YML, DEPLOY_YML]) for (const run of runSteps(readFileSync(workflow, "utf8"))) if (/\bvitest\b/.test(run)) expect(run).toContain("--merge-reports");
 	});
 
 	it("ci-passed requires the functions shards and their merge for code, and fails without an answer from changes (S152)", () =>

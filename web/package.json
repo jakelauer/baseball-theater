@@ -5,12 +5,14 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
-		"build": "tsc -p tsconfig.json --noEmit --incremental --tsBuildInfoFile tsconfig.tsbuildinfo && vite build",
+		"build": "vite build",
 		"typecheck": "tsc -p tsconfig.json --noEmit --incremental --tsBuildInfoFile tsconfig.tsbuildinfo",
 		"preview": "vite preview",
-		"test": "vitest run",
-		"test:coverage": "vitest run --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary --reporter=dot --silent=passed-only",
-		"api:types": "node src/api/codegen.ts"
+		"test": "vitest run --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary --reporter=dot --silent=passed-only ${BT_VITEST_MAX_WORKERS:+--maxWorkers=$BT_VITEST_MAX_WORKERS}",
+		"api:types": "node src/api/codegen.ts",
+		"lint": "eslint .",
+		"test:fast": "vitest run",
+		"size": "pnpm -w run size"
 	},
 	"dependencies": {
 		"@bt/domain": "workspace:*",

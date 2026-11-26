@@ -11,9 +11,9 @@
 	},
 	"scripts": {
 		"typecheck": "tsc -p tsconfig.json --noEmit --incremental --tsBuildInfoFile tsconfig.tsbuildinfo",
-		"build": "tsc -p tsconfig.json --noEmit --incremental --tsBuildInfoFile tsconfig.tsbuildinfo",
-		"test": "vitest run",
-		"test:coverage": "vitest run --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary --reporter=dot --silent=passed-only"
+		"test": "vitest run --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary --reporter=dot --silent=passed-only ${BT_VITEST_MAX_WORKERS:+--maxWorkers=$BT_VITEST_MAX_WORKERS}",
+		"lint": "eslint .",
+		"test:fast": "vitest run"
 	},
 	"devDependencies": {
 		"typescript": "^5.8.2",

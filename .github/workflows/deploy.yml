@@ -165,8 +165,13 @@ jobs:
             - name: Install
               run: pnpm install --frozen-lockfile
 
-            - name: Verify
+            # Every task, fresh, reading no cache (ADR-030 rule 10): on a push to stage (staging's gate),
+            # a published release (production's) and a manual run alike, since a narrowed run here would
+            # compare the commit with itself, find nothing and let it deploy unchecked.
+            - name: Verify (every task, fresh)
               if: github.event_name != 'pull_request'
+              env:
+                  BT_VERIFY_FULL: "1"
               run: pnpm verify
 
             - name: Build the web app

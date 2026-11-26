@@ -1,0 +1,12 @@
+{
+	"name": "@bt/tools",
+	"private": true,
+	"type": "module",
+	"description": "Repo tooling: the custom ESLint rules, jscpd and size-limit helpers, comments-stale (ADR-030 rule 1).",
+	"scripts": {
+		"lint": "eslint . ../eslint.config.js",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"test": "vitest run --config vitest.config.js --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary --reporter=dot --silent=passed-only ${BT_VITEST_MAX_WORKERS:+--maxWorkers=$BT_VITEST_MAX_WORKERS}",
+		"test:fast": "vitest run --config vitest.config.js"
+	}
+}

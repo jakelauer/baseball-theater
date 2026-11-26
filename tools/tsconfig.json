@@ -1,0 +1,13 @@
+{
+	// The TypeScript under tools/ is the ESLint rules' test fixtures; type-checking them keeps them
+	// valid code, so a rule test fails on the rule, never on a broken fixture (ADR-030 rule 2).
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"jsx": "react-jsx",
+		"types": [],
+		"lib": ["ES2022", "DOM"],
+		"noUnusedLocals": false
+	},
+	"include": ["eslint-rules/fixtures/**/*.ts", "eslint-rules/fixtures/**/*.tsx"]
+}

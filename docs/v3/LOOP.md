@@ -38,6 +38,9 @@ pnpm verify
 
 Non-zero ⇒ not done. Details: `.claude/skills/verify/SKILL.md`.
 
+**What `pnpm verify` runs** (ADR-030, S168): the tasks a change reaches, each unit's `lint`, `typecheck`, `test` (with its coverage floors), `build` and `size`, and the root `backlog:check`, `dup:check` and `format:md` tasks, for the files that differ from the merge base with `stage` (committed, uncommitted and untracked alike), their units' dependents and the tasks that name them as inputs, replaying unchanged tasks from the local Turborepo cache, at half the cores. `pnpm verify --full` (or `BT_VERIFY_FULL=1`) executes every task again, reading no cache: `scripts/audit.sh story --reverify` and Deploy's `verify` job use it.
+**The finishing gate** (`scripts/audit.sh story`) runs the full graph with the local cache, replaying unchanged tasks (`pnpm verify --all`; owner, 2026-11-26: "Full suite, cached"), and its ledger entry lists the tasks that ran, were replayed and were not affected. Every push to `stage` or `main` runs everything: CI sets `BT_VERIFY_FULL=1` there, so a wrong narrowing or an undeclared input shows on `stage` before it ships.
+
 **Capture it.** `pnpm verify` prints and forgets. Every finished story and every backlog review gets an entry in the ledger, written by `scripts/audit.sh` — never by hand — as its own new file, `docs/v3/audit/<YYYY-MM-DD>/<stamp>-<ID>-<kind>.md`, so two branches' entries never conflict (S156; `docs/v3/AUDIT.md` holds the entries before it, frozen; `scripts/backlog-vault/ledger.ts` reads both):
 
 ```bash

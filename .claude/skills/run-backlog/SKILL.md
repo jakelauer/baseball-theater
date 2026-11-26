@@ -104,6 +104,9 @@ When a worker returns, check rather than trust, in its worktree: `git status` is
 
 Give the owner a one-line progress note when each item starts, parks, opens its pull request and merges.
 
+**What `pnpm verify` runs** (ADR-030, S168): the tasks a change reaches, each unit's `lint`, `typecheck`, `test` (with its coverage floors), `build` and `size`, and the root `backlog:check`, `dup:check` and `format:md` tasks, for the files that differ from the merge base with `stage` (committed, uncommitted and untracked alike), their units' dependents and the tasks that name them as inputs, replaying unchanged tasks from the local Turborepo cache, at half the cores. `pnpm verify --full` (or `BT_VERIFY_FULL=1`) executes every task again, reading no cache: `scripts/audit.sh story --reverify` and Deploy's `verify` job use it.
+**The finishing gate** (`scripts/audit.sh story`) runs the full graph with the local cache, replaying unchanged tasks (`pnpm verify --all`; owner, 2026-11-26: "Full suite, cached"), and its ledger entry lists the tasks that ran, were replayed and were not affected. Every push to `stage` or `main` runs everything: CI sets `BT_VERIFY_FULL=1` there, so a wrong narrowing or an undeclared input shows on `stage` before it ships.
+
 ## 4. Blocked → park and move on
 
 An item is **blocked** when it needs something only the owner can give, or the rules forbid going further:

@@ -2,3 +2,7 @@ packages:
     - "packages/*"
     - "functions"
     - "web"
+    # ADR-030 rule 1: every area with its own code and tests is a unit.
+    - "scripts"
+    - "tools"
+    - "e2e"

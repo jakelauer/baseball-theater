@@ -58,12 +58,15 @@ Do **not** put Cloudflare, Postgres, Logto, or other platform SDKs (or Express) 
 - Web tests: jsdom + `web/src/test/setup.ts` (mocks `matchMedia` for Mantine)
 - Functions tests run in Node against fixtures, with memory repos as doubles or PGlite where they compose the app, and `*.workerd.test.ts` run the real Worker inside workerd via `@cloudflare/vitest-pool-workers` (`functions/vitest.workers.config.ts`, S45) — its `HYPERDRIVE` binding pointed at a migrated PGlite served over a socket (`functions/src/test/pglite-server.ts`, S51), so no Docker is needed in CI
 - Coverage floors are enforced in each package’s `vitest.config.ts`
-- **Truth gate:** `pnpm verify` (see `.claude/skills/verify/SKILL.md`)
+- **Truth gate:** `pnpm verify` (see `.claude/skills/verify/SKILL.md`). Every area with code and tests is a workspace unit (`packages/*`, `functions`, `web`, `scripts`, `tools`, `e2e`) with its own `lint`, `typecheck`, `test` and `build` tasks in Turborepo's graph (`turbo.json`, ADR-030); to watch one unit's tests run `pnpm --filter <unit> exec vitest`.
+- **What `pnpm verify` runs** (ADR-030, S168): the tasks a change reaches, each unit's `lint`, `typecheck`, `test` (with its coverage floors), `build` and `size`, and the root `backlog:check`, `dup:check` and `format:md` tasks, for the files that differ from the merge base with `stage` (committed, uncommitted and untracked alike), their units' dependents and the tasks that name them as inputs, replaying unchanged tasks from the local Turborepo cache, at half the cores. `pnpm verify --full` (or `BT_VERIFY_FULL=1`) executes every task again, reading no cache: `scripts/audit.sh story --reverify` and Deploy's `verify` job use it.
+- **The finishing gate** (`scripts/audit.sh story`) runs the full graph with the local cache, replaying unchanged tasks (`pnpm verify --all`; owner, 2026-11-26: "Full suite, cached"), and its ledger entry lists the tasks that ran, were replayed and were not affected.
+- Every push to `stage` or `main` runs everything: CI sets `BT_VERIFY_FULL=1` there, so a wrong narrowing or an undeclared input shows on `stage` before it ships.
 
 ## Quality automation
 
 - Husky + lint-staged on commit (ESLint --fix + Prettier)
-- CI (`.github/workflows/ci.yml`): lint → test:coverage → build
+- CI (`.github/workflows/ci.yml`): `pnpm verify`, the same task graph (a pull request runs what it reaches; a push to `stage` or `main` every task, fresh)
 - `pnpm build` fails on lint
 
 ## Product boundaries (do not reintroduce)
@@ -125,7 +128,7 @@ This composes with the Agent / loop rules above — the grader, `scripts/audit.s
 ```bash
 pnpm install
 pnpm dev          # API :8787 + web :5173
-pnpm verify       # lint + coverage tests + build (single exit code); one at a time across worktrees (BT_VERIFY_LOCK=0 skips the lock)
-pnpm test         # vitest without coverage thresholds path used by CI
+pnpm verify       # the tasks the change reaches against stage (single exit code); --all every task, cached; --full (BT_VERIFY_FULL=1) every task, fresh; one at a time across worktrees (BT_VERIFY_LOCK=0 skips the lock)
+pnpm test         # every unit's test task (turbo run test)
 pnpm lint
 ```
