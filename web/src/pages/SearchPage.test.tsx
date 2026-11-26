@@ -452,6 +452,38 @@ describe("Search's results draw as the shared video cards, in a grid or a list (
 	});
 });
 
+describe("Search's list mode draws the Videos room's Best of rows (S200)", () =>
+{
+	it("S200 AC 3 search: in list mode each result is the shared VideoCard's Best of row, with no rank number", async () =>
+	{
+		const user = userEvent.setup();
+		serve(() => ({
+			...WALK_OFF,
+			highlights: [MESA, WORLD_SERIES],
+		}));
+		renderSearch("/search?q=walk-off");
+		await screen.findByTestId("videos-grid");
+		await user.click(screen.getByRole("radio", {
+			name: "List",
+		}));
+		const list = screen.getByTestId("videos-list");
+		// Desktop lists the rows in three columns, as the Videos room's list does (S200 AC 3).
+		expect(getComputedStyle(list).getPropertyValue("--sg-cols")).toBe("3");
+		const rows = within(list).getAllByTestId("search-result");
+		expect(rows).toHaveLength(2);
+		for (const row of rows)
+		{
+			expect(row.dataset.layout).toBe("list");
+			// The row's raised card is VideoCard's list layout, the one row markup (S200).
+			expect(row.parentElement).toHaveClass("bt-card");
+			expect(row.parentElement!.style.background).toBe("var(--bt-raised)");
+			// No rank number: the still comes first in the row, and nothing in the card is a bare number.
+			expect(row.firstElementChild!.querySelector(".bt-zoom")).not.toBeNull();
+			expect(within(row.parentElement!).queryAllByText(/^\d+$/)).toHaveLength(0);
+		}
+	});
+});
+
 describe("Search's active filter chips (S72)", () =>
 {
 	/** Every search asked, as its query string; answered by `answer` from the request's parameters. */

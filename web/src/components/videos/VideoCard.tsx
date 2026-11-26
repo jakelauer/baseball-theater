@@ -18,7 +18,7 @@ const OVERLAY = "rgb(16 16 15 / 50%)";
  * A clip's 16:9 still (6px radius) with the duration at the bottom right. No play mark on any
  * thumbnail (game-shell A5; owner, 2026-11-04: "No thumbnails should have a play icon").
  * `bare` drops the duration too, for a row that writes it beside the still instead (the day
- * digest, S71). The frame is a `.bt-zoom`: inside a `.bt-zoom-host` (the card that plays it)
+ * digest's row, S71). The frame is a `.bt-zoom`: inside a `.bt-zoom-host` (the card that plays it)
  * the still zooms on hover while the frame keeps its size (owner, 2026-11-12: "hover effects
  * that zoom an image inside its container").
  */
@@ -64,7 +64,12 @@ export function VideoStill({
 /**
  * One video (S69; game-shell Videos frames): the still with its duration, the title and the
  * meta line (`videoMeta`). One component for both modes — a grid cell (still above the text)
- * and a list row (a small still beside it). The card is one link, its still zooming on hover
+ * and a list row. The list row is the Best of row as shell-scoreboard A10 drew it (S200; owner,
+ * 2026-11-23: list items "should look like the ones that are on the best of except for the
+ * numbers"): a raised card (`.bt-card`, lifting on hover) holding a small still (its duration
+ * still on it, S97), the title and the meta line, with no rank number. It is the only row
+ * markup: the Videos room's list and Search's list both draw it through `VideoGrid`.
+ * The card is one link, its still zooming on hover
  * (`.bt-zoom-host`): `href` is this page with the clip open (`useOpenClip`, #424), so a click opens
  * S70's player in place and a middle-click opens the page with the clip in a new tab.
  *
@@ -104,7 +109,7 @@ export function VideoCard({
 	const grid = layout === "grid";
 	// Grid: rows still, title, meta; the meta row's columns are the text, the pill and the rest.
 	// List: the still beside the title and meta rows (2 and 3), centred by the two 1fr rows around
-	// them; columns still (112px + the 12px gap), text, pill, rest. `text` is the text's column.
+	// them; columns still (96px + the 12px gap), text, pill, rest. `text` is the text's column.
 	const text = grid ? 1 : 2;
 	const row = 3;
 	const cell = {
@@ -120,15 +125,24 @@ export function VideoCard({
 	return (
 		<div
 			data-layout={layout}
+			className={grid ? undefined : "bt-card"}
 			style={{
 				display: "grid",
-				gridTemplateColumns: grid ? "auto auto 1fr" : "124px auto auto 1fr",
+				gridTemplateColumns: grid ? "auto auto 1fr" : "108px auto auto 1fr",
 				gridTemplateRows: grid ? "auto auto auto" : "1fr auto auto 1fr",
 				rowGap: 2,
 				position: "relative",
 				minWidth: 0,
-				// In the room's grid, pin the card to the top so a one-line title's still lines up with its row.
-				alignSelf: "start",
+				// In the room's grid, pin the card to the top so a one-line title's still lines up with its row;
+				// a list row fills its row instead, so rows side by side are one height.
+				alignSelf: grid ? "start" : "stretch",
+				// The Best of row's raised card (A10), as the scoreboard's game cards are.
+				...(grid ? {} : {
+					padding: 12,
+					borderRadius: 8,
+					border: "1px solid var(--bt-hairline)",
+					background: "var(--bt-raised)",
+				}),
 			}}
 		>
 			<UnstyledButton
@@ -160,9 +174,9 @@ export function VideoCard({
 					alignSelf: "center",
 				}}
 				>
-					<VideoStill video={video} width={grid ? "100%" : 112} />
+					<VideoStill video={video} width={grid ? "100%" : 96} />
 				</Box>
-				<Text fw={700} lh={1.3} lineClamp={2} style={{
+				<Text fw={grid ? 700 : 500} lh={1.3} lineClamp={2} style={{
 					gridColumn: `${text} / -1`,
 					gridRow: 2,
 					minWidth: 0,

@@ -33,6 +33,11 @@ export type HighlightFilter = {
 	teamId?: number | null;
 	/** Stat / viz: keep only stat and visualization clips. */
 	statViz?: boolean;
+	/**
+	 * Kind: keep clips in this group (`highlightGroup`'s). The Videos room offers it in place of the
+	 * team filter while its clips are grouped by team (S200).
+	 */
+	group?: HighlightGroup | null;
 };
 
 /** The clips that match every part of `filter`, in the order given (impact order stays). */
@@ -45,6 +50,7 @@ export function filterHighlights(highlights: readonly MediaHighlight[], filter: 
 		const facets = classifyHighlight(highlight);
 		if (filter.teamId != null && !facets.teamIds.includes(filter.teamId)) return false;
 		if (filter.statViz && !facets.statViz) return false;
+		if (filter.group != null && highlightGroup(highlight) !== filter.group) return false;
 		return true;
 	});
 }
@@ -85,6 +91,8 @@ export type HighlightFacetCounts = {
 	byTeam: Readonly<Record<number, number>>;
 	/** Stat / viz clips (`classifyHighlight`'s `statViz`). */
 	statViz: number;
+	/** Clips in each kind group (`highlightGroup`'s), for the kind filter (S200); a kind with none is absent. */
+	byGroup: Readonly<Partial<Record<HighlightGroup, number>>>;
 };
 
 /**
@@ -98,17 +106,21 @@ export type HighlightFacetCounts = {
 export function countHighlightFacets(highlights: readonly MediaHighlight[]): HighlightFacetCounts
 {
 	const byTeam: Record<number, number> = {};
+	const byGroup: Partial<Record<HighlightGroup, number>> = {};
 	let statViz = 0;
 	for (const highlight of highlights)
 	{
 		const facets = classifyHighlight(highlight);
 		for (const teamId of new Set(facets.teamIds)) byTeam[teamId] = (byTeam[teamId] ?? 0) + 1;
 		if (facets.statViz) statViz += 1;
+		const group = highlightGroup(highlight);
+		byGroup[group] = (byGroup[group] ?? 0) + 1;
 	}
 	return {
 		all: highlights.length,
 		byTeam,
 		statViz,
+		byGroup,
 	};
 }
 
@@ -187,6 +199,47 @@ export function groupHighlights(highlights: readonly MediaHighlight[]): { group:
 		group,
 		highlights: highlights.filter((highlight) => highlightGroup(highlight) === group),
 	})).filter((entry) => entry.highlights.length > 0);
+}
+
+/** One team's group in the Videos room's team grouping (S200); `teamId` null is the last group, `Other`. */
+export type HighlightTeamGroup = {
+	/** The team the group's clips feature, or null for clips featuring neither of the game's teams. */
+	teamId: number | null;
+	highlights: MediaHighlight[];
+};
+
+/**
+ * The clips split by the team they feature (S200; owner, 2026-11-23: "group the highlights by the
+ * featured team instead of by like type"): the away team first, then the home team (the
+ * scoreboard's order), each keeping the order given (the chosen sort). A team comes from
+ * `classifyHighlight`'s `teamIds`, the one reading of MLB's team tags, so a clip featuring both
+ * teams sits in both groups, and a clip featuring neither sits in a last group (`teamId` null, the
+ * room's `Other`). A group with no clips is left out, as `groupHighlights` leaves out an empty kind.
+ */
+export function groupHighlightsByTeam(highlights: readonly MediaHighlight[], game: { teams: { away: { id: number };
+	home: { id: number }; }; }): HighlightTeamGroup[]
+{
+	const away = game.teams.away.id;
+	const home = game.teams.home.id;
+	const teamsOf = highlights.map((highlight) => ({
+		highlight,
+		teamIds: classifyHighlight(highlight).teamIds,
+	}));
+	const groups: HighlightTeamGroup[] = [
+		{
+			teamId: away,
+			highlights: teamsOf.filter(({ teamIds }) => teamIds.includes(away)).map(({ highlight }) => highlight),
+		},
+		{
+			teamId: home,
+			highlights: teamsOf.filter(({ teamIds }) => teamIds.includes(home)).map(({ highlight }) => highlight),
+		},
+		{
+			teamId: null,
+			highlights: teamsOf.filter(({ teamIds }) => !teamIds.includes(away) && !teamIds.includes(home)).map(({ highlight }) => highlight),
+		},
+	];
+	return groups.filter((group) => group.highlights.length > 0);
 }
 
 /**
