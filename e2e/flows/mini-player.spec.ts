@@ -46,17 +46,44 @@ async function marked(video: Locator): Promise<boolean>
 	return video.evaluate((element) => (element as HTMLVideoElement & { btMark?: string }).btMark === "S198");
 }
 
-/** Opens the first of `cards` (a clip's card or link) and returns the dialog's `<video>`, marked and playing. */
+/** The marked element's restarts: a reload through `load()` (`emptied`, `loadstart`), or its time going back. */
+type Watched = HTMLVideoElement & { btMark?: string;
+	btRestarts?: number; };
+
+/**
+ * Opens the first of `cards` (a clip's card or link) and returns the dialog's `<video>`, marked and playing,
+ * and watched from then on for a restart (`restarts`): the same element reloaded through `load()` would
+ * still carry its mark and play past an earlier time, so the mark alone can't tell a move from a restart.
+ */
 async function playFirst(page: Page, cards: Locator): Promise<Locator>
 {
 	await cards.first().click();
 	const video = page.getByRole("dialog").locator("video");
 	await playingPast(video, 0);
-	await video.evaluate((element) =>
+	await video.evaluate((element: Watched) =>
 	{
-		(element as HTMLVideoElement & { btMark?: string }).btMark = "S198";
+		element.btMark = "S198";
+		element.btRestarts = 0;
+		let last = element.currentTime;
+		const restarted = () =>
+		{
+			element.btRestarts = (element.btRestarts ?? 0) + 1;
+		};
+		element.addEventListener("emptied", restarted);
+		element.addEventListener("loadstart", restarted);
+		element.addEventListener("timeupdate", () =>
+		{
+			if (element.currentTime < last) restarted();
+			last = element.currentTime;
+		});
 	});
 	return video;
+}
+
+/** How many times the marked element restarted since it was marked (`playFirst`): 0 for a move. */
+async function restarts(video: Locator): Promise<number>
+{
+	return video.evaluate((element: Watched) => element.btRestarts ?? -1);
 }
 
 /** The tool row's Mini player button: the clip to the corner, the fan staying on the page. */
@@ -124,6 +151,7 @@ test("S198 AC 1: a clip playing in the Videos room keeps playing, the same eleme
 	const mini = corner.locator("video");
 	expect(await marked(mini)).toBe(true);
 	const inBox = await playingPast(mini, before);
+	expect(await restarts(mini)).toBe(0);
 
 	// The scoreboard, through the game top bar's link: still the same element, still playing.
 	await page.getByRole("link", {
@@ -134,6 +162,7 @@ test("S198 AC 1: a clip playing in the Videos room keeps playing, the same eleme
 	await expect(corner).toBeVisible();
 	expect(await marked(mini)).toBe(true);
 	await playingPast(mini, inBox);
+	expect(await restarts(mini)).toBe(0);
 	expect(await page.locator("video").count()).toBe(1);
 });
 
@@ -153,6 +182,7 @@ test("S198 AC 1: a link in the player (its inning pill) leaves for the Plays roo
 	const mini = corner.locator("video");
 	expect(await marked(mini)).toBe(true);
 	await playingPast(mini, before);
+	expect(await restarts(mini)).toBe(0);
 });
 
 test("S198 AC 4: the corner player sits above the update notice (notice-float), clear of it", async ({ page }, testInfo) =>

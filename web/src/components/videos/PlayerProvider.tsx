@@ -5,6 +5,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
+import { highlightTitle } from "@bt/domain";
+import { useScoresHidden } from "../../settings/useScoresHidden.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { CornerPlayer, cornerSpace } from "./CornerPlayer.js";
 import type { Video } from "./VideoCard.js";
@@ -41,6 +43,13 @@ export interface SlotProps
 	video: Video;
 	/** The clip's title (`highlightTitle` on the game page, S75). */
 	title: string;
+	/**
+	 * The game whose Hide Scores rule titles the clip, for a host that follows it (the game page's): in the
+	 * corner, with no host to re-title it, the provider titles it from the current setting
+	 * (`useScoresHidden`, `highlightTitle`), so turning Hide Scores on there hides a recap's score. Absent
+	 * (Search, the digest), the clip keeps `title`, MLB's.
+	 */
+	scoresGame?: { gamePk: number };
 	/** Start the clip: the dialog once its opening ends (#423), the stage once the fan chose a clip. */
 	autoPlay: boolean;
 	/** The dialog's title above the clip (S196); the stage's under the tools. */
@@ -60,17 +69,20 @@ interface HeldClip
 {
 	video: Video;
 	title: string;
+	scoresGame: { gamePk: number } | undefined;
 	autoPlay: boolean;
 	titleAbove: boolean;
 	/** The page the clip plays on, `?clip=` included: where the corner's expand control goes. */
 	href: string;
 }
 
-/** What the provider renders from: the clip and whether it sits in the corner. */
+/** What the provider renders from: the clip, whether it sits in the corner, and the corner's focus asks. */
 interface View
 {
 	clip: HeldClip | null;
 	inCorner: boolean;
+	/** Bumped each time the Mini player button sends the clip to the corner: the corner takes focus (`CornerPlayer`). */
+	focusCorner: number;
 }
 
 /** The host that let the clip go (closed it or sent it to the corner), until it asks for something else. */
@@ -88,8 +100,12 @@ interface Controller
 	claim: (slot: HTMLElement, props: SlotProps, href: string) => void;
 	/** A host's slot is going away: a playing clip goes to the corner, any other closes. */
 	release: (slot: HTMLElement) => void;
-	/** Stops the clip and drops it (the close control, Esc, a press outside the dialog). */
-	dismiss: () => void;
+	/**
+	 * Stops the clip and drops it (the close control, Esc, a press outside the dialog). Given a clip's id
+	 * (a host's own), only while the player holds that clip: a dialog closed before its slot took the
+	 * player leaves the corner's clip playing.
+	 */
+	dismiss: (id?: string) => void;
 	/** Sends the clip to the corner and closes its host, the fan staying on the page (the mini-player button). */
 	minimize: () => void;
 }
@@ -131,6 +147,7 @@ function makeController(live: { current: View & { active: HTMLElement | null;
 	const publish = () => setView({
 		clip: live.current.clip,
 		inCorner: live.current.inCorner,
+		focusCorner: live.current.focusCorner,
 	});
 	// Moves the holder into `slot`, the `<video>` with it: the same element, never a new one (S198 AC 3).
 	const dock = (slot: HTMLElement) =>
@@ -163,6 +180,7 @@ function makeController(live: { current: View & { active: HTMLElement | null;
 			const next: HeldClip = {
 				video: props.video,
 				title: props.title,
+				scoresGame: props.scoresGame,
 				autoPlay: props.autoPlay,
 				titleAbove: props.titleAbove ?? false,
 				href,
@@ -174,7 +192,8 @@ function makeController(live: { current: View & { active: HTMLElement | null;
 				pauseIn(holder);
 			}
 			const moved = state.active !== slot || state.inCorner;
-			const changed = !held || !same || held.title !== next.title || held.autoPlay !== next.autoPlay || held.titleAbove !== next.titleAbove || held.href !== next.href;
+			const changed = !held || !same || held.title !== next.title || held.scoresGame?.gamePk !== next.scoresGame?.gamePk
+				|| held.autoPlay !== next.autoPlay || held.titleAbove !== next.titleAbove || held.href !== next.href;
 			if (!moved && !changed) return;
 			dock(slot);
 			state.active = slot;
@@ -198,9 +217,10 @@ function makeController(live: { current: View & { active: HTMLElement | null;
 			}
 			drop();
 		},
-		dismiss()
+		dismiss(id)
 		{
 			const state = live.current;
+			if (id !== undefined && state.clip?.video.id !== id) return;
 			if (state.active && state.clip) state.letGo = {
 				slot: state.active,
 				id: state.clip.video.id,
@@ -221,6 +241,7 @@ function makeController(live: { current: View & { active: HTMLElement | null;
 			dock(corner.current!);
 			state.active = null;
 			state.inCorner = true;
+			state.focusCorner += 1;
 			publish();
 			state.onClose?.();
 		},
@@ -263,6 +284,7 @@ export function PlayerProvider({ children, variant = "desktop" }: { children: Re
 	const [view, setView] = useState<View>({
 		clip: null,
 		inCorner: false,
+		focusCorner: 0,
 	});
 	const [holder] = useState(() =>
 	{
@@ -276,6 +298,7 @@ export function PlayerProvider({ children, variant = "desktop" }: { children: Re
 		onClose: (() => void) | undefined; }>({
 		clip: null,
 		inCorner: false,
+		focusCorner: 0,
 		active: null,
 		letGo: null,
 		onClose: undefined,
@@ -299,6 +322,9 @@ export function PlayerProvider({ children, variant = "desktop" }: { children: Re
 		// `wanted`: a clip chosen after a failed load tries again.
 	}, [VideoPlayer, wanted]);
 	const clip = view.clip;
+	// The clip's title now: a host's, or in the corner, re-titled as Hide Scores changes (`scoresGame`).
+	const scoresHidden = useScoresHidden(clip?.scoresGame);
+	const title = clip?.scoresGame ? highlightTitle(clip.video, scoresHidden) : clip?.title ?? "";
 	return (
 		<PlayerContext.Provider value={{
 			...controller,
@@ -308,21 +334,22 @@ export function PlayerProvider({ children, variant = "desktop" }: { children: Re
 			{children}
 			<CornerPlayer
 				shown={view.inCorner && clip !== null}
-				title={clip?.title ?? ""}
+				title={title}
 				slot={corner}
 				holder={holder}
 				variant={variant}
+				focusRequest={view.focusCorner}
 				onExpand={() =>
 				{
 					if (clip) void navigate(clip.href);
 				}}
-				onClose={controller.dismiss}
+				onClose={() => controller.dismiss()}
 			/>
 			{clip && VideoPlayer ? createPortal(
 				<VideoPlayer
 					key={clip.video.id}
 					video={clip.video}
-					title={clip.title}
+					title={title}
 					autoPlay={clip.autoPlay}
 					titleAbove={clip.titleAbove}
 					compact={view.inCorner}
@@ -352,7 +379,7 @@ export function CornerSpace({ variant }: { variant: LayoutVariant })
 /**
  * A host's place for the one player (S198 AC 3): returns the callback ref of the empty element it draws
  * where the clip goes, whether it holds the player now, and `dismiss`, which stops and drops the clip
- * (its close control and Esc call it before the host's own close). The slot asks for the player as it
+ * if it is the host's own (its close control and Esc call it before the host's own close). The slot asks for the player as it
  * attaches, in the layout phase of the commit that mounts it, so a slot that mounts late (the dialog's,
  * a frame after it opens) asks as it appears, and hands it back as it detaches, before its DOM goes;
  * a layout effect passes the host's later changes (`autoPlay` turning on, a new clip). Needs a
@@ -403,6 +430,7 @@ export function usePlayerSlot(props: SlotProps): {
 	return {
 		slot,
 		holding: held !== null && held.video.id === props.video.id && !player.view.inCorner,
-		dismiss: player.dismiss,
+		// Only this host's clip: an Esc before its slot took the player leaves the corner's playing.
+		dismiss: () => player.dismiss(props.video.id),
 	};
 }

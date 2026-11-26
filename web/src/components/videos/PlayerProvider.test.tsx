@@ -7,18 +7,21 @@
  */
 import { MantineProvider } from "@mantine/core";
 import {
-	cleanup, fireEvent, render, screen, waitFor, within,
+	act, cleanup, fireEvent, render, screen, waitFor, within,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 import {
 	Link, MemoryRouter, Route, Routes, useLocation, useNavigate,
 } from "react-router-dom";
+import { useState } from "react";
 import {
 	afterEach, describe, expect, it, vi,
 } from "vitest";
 import type { Notice } from "../../layout/NoticeSlot.js";
 import { NoticeSlot } from "../../layout/NoticeSlot.js";
 import type { LayoutVariant } from "../../layout/variant.js";
+import { resetSettings, setHideScores } from "../../settings/store.js";
+import { useScoresHidden } from "../../settings/useScoresHidden.js";
 import {
 	corner, cornerShown, expectInCorner, markPlaying,
 } from "../../test/renderWithPlayer.js";
@@ -40,19 +43,36 @@ const clip = (id: string, title: string): Video => ({
 
 const JUDGE = clip("judge", "Judge homers");
 const SOTO = clip("soto", "Soto doubles");
+/** A game's recap, whose MLB title gives the result: "Recap (score hidden)" with Hide Scores on (S75). */
+const RECAP: Video = {
+	...clip("recap", "Yankees beat Red Sox 7-2"),
+	tags: ["game-recap"],
+};
 
-/** A page that plays its clips in the dialog, as Search and the digest do: a link per clip, `?clip=` open. */
-function ClipsPage({ name, clips }: { name: string;
-	clips: readonly Video[]; })
+/**
+ * A page that plays its clips in the dialog, as Search and the digest do: a link per clip, `?clip=` open.
+ * With `gamePk` it is that game's page, as the Videos room is: its dialog follows Hide Scores.
+ */
+function ClipsPage({
+	name, clips, gamePk,
+}: { name: string;
+	clips: readonly Video[];
+	gamePk?: number; })
 {
 	const {
 		playing, href, close,
 	} = useOpenClip(clips, (video) => video.id);
+	const scoresHidden = useScoresHidden(gamePk === undefined ? undefined : {
+		gamePk,
+	});
 	return (
 		<>
 			<h1>{name}</h1>
 			{clips.map((video) => <Link key={video.id} to={href(video)} replace>{`Play ${video.title}`}</Link>)}
-			{playing ? <PlayerDialog video={playing} onClose={close} /> : null}
+			{playing ? <PlayerDialog video={playing} onClose={close} {...gamePk === undefined ? {} : {
+				fromGamePk: gamePk,
+				scoresHidden,
+			}} /> : null}
 		</>
 	);
 }
@@ -69,6 +89,7 @@ function Chrome()
 			<Link to="/search">Search</Link>
 			<Link to="/stage">Stage</Link>
 			<Link to="/both">Both</Link>
+			<Link to="/game">Game</Link>
 			<button type="button" onClick={() => void navigate(-1)}>Back</button>
 		</>
 	);
@@ -84,6 +105,7 @@ function renderApp(variant: LayoutVariant = "desktop", extra: ReactNode = null)
 					<Routes>
 						<Route path="/videos" element={<ClipsPage name="Videos" clips={[JUDGE]} />} />
 						<Route path="/search" element={<ClipsPage name="Search" clips={[SOTO]} />} />
+						<Route path="/game" element={<ClipsPage name="Game" clips={[RECAP]} gamePk={823823} />} />
 						{/* A stage waiting on its first clip, as the Videos room's is before a choice. */}
 						<Route path="/stage" element={<PlayerStage video={JUDGE} autoPlay={false} />} />
 						{/* A waiting stage beside a page that opens its clip in the dialog. */}
@@ -127,6 +149,7 @@ afterEach(() =>
 {
 	cleanup();
 	vi.restoreAllMocks();
+	resetSettings();
 });
 
 describe("S198: leaving a playing clip (AC 1)", () =>
@@ -421,5 +444,161 @@ describe("S198: one player above the routes (AC 3)", () =>
 		expect(soto).not.toBe(waiting);
 		expect(within(dialog).getByTestId("video-player")).toHaveTextContent(SOTO.title);
 		expect(stage.style.display).toBe("none");
+	});
+});
+
+describe("S198: the pre-PR review's nits", () =>
+{
+	it("S198 AC 2: the Mini player button moves focus to the corner's first control, so a keyboard is never stranded", async () =>
+	{
+		renderApp();
+		await play(JUDGE.title, 3);
+		const button = within(screen.getByRole("toolbar", {
+			name: "Video actions",
+		})).getByRole("button", {
+			name: "Mini player",
+		});
+		button.focus();
+		fireEvent.click(button);
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		await waitFor(() => expect(document.activeElement).toBe(within(corner()).getByRole("button", {
+			name: "Pause",
+		})));
+	});
+
+	it("S198 AC 2: leaving the page by a link leaves focus to the page, not the corner", async () =>
+	{
+		renderApp();
+		await play(JUDGE.title, 3);
+		const link = screen.getByRole("link", {
+			name: "Standings",
+		});
+		link.focus();
+		fireEvent.click(link);
+		await waitFor(() => expect(cornerShown()).toBe(true));
+		expect(corner().contains(document.activeElement)).toBe(false);
+	});
+
+	it("S198 AC 2: a game's recap in the corner follows Hide Scores as it changes (`highlightTitle`)", async () =>
+	{
+		vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
+		renderApp();
+		fireEvent.click(screen.getByRole("link", {
+			name: "Game",
+		}));
+		const video = await play(RECAP.title, 4);
+		fireEvent.click(screen.getByRole("link", {
+			name: "Standings",
+		}));
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		expectInCorner(video, 4);
+		expect(corner()).toHaveAccessibleName(RECAP.title);
+		await act(() => setHideScores(true));
+		expect(corner()).toHaveAccessibleName("Recap (score hidden)");
+		expect(corner()).not.toHaveTextContent(RECAP.title);
+		await act(() => setHideScores(false));
+		expect(corner()).toHaveAccessibleName(RECAP.title);
+	});
+
+	it("S198 AC 2: a clip from Search keeps MLB's title in the corner whatever Hide Scores says", async () =>
+	{
+		vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
+		renderApp();
+		fireEvent.click(screen.getByRole("link", {
+			name: "Search",
+		}));
+		await screen.findByRole("heading", {
+			name: "Search",
+		});
+		await play(SOTO.title, 2);
+		fireEvent.click(screen.getByRole("link", {
+			name: "Standings",
+		}));
+		await waitFor(() => expect(cornerShown()).toBe(true));
+		await act(() => setHideScores(true));
+		expect(corner()).toHaveAccessibleName(SOTO.title);
+	});
+
+	it("S198 AC 2: Esc in the first frame of another clip's dialog closes only that dialog, the corner's clip playing on", async () =>
+	{
+		renderApp();
+		const judge = await judgeInCorner();
+		fireEvent.click(screen.getByRole("link", {
+			name: "Search",
+		}));
+		await screen.findByRole("heading", {
+			name: "Search",
+		});
+		// Opened, and Esc pressed before the dialog's slot has attached (it opens a frame later).
+		fireEvent.click(screen.getByRole("link", {
+			name: `Play ${SOTO.title}`,
+		}));
+		fireEvent.keyDown(window, {
+			key: "Escape",
+		});
+		expect(where()).toBe("/search");
+		expectInCorner(judge, 5);
+	});
+});
+
+describe("S198: measured only when a notice comes or goes (AC 4)", () =>
+{
+	const UPDATE: Notice = {
+		id: "update",
+		message: "An update to Baseball Theater is ready.",
+		update: {
+			onUpdate: () => undefined,
+			onSnooze: () => undefined,
+		},
+	};
+
+	/** The update notice, shown once its button is pressed. */
+	function LateNotice()
+	{
+		const [shown, setShown] = useState(false);
+		return (
+			<>
+				<button type="button" onClick={() => setShown(true)}>Show the notice</button>
+				<NoticeSlot notice={shown ? UPDATE : null} />
+			</>
+		);
+	}
+
+	it("S198 AC 4: a notice arriving under the corner lifts it, and other changes to the page never re-measure", async () =>
+	{
+		vi.spyOn(window, "innerHeight", "get").mockReturnValue(844);
+		const original = HTMLElement.prototype.getBoundingClientRect;
+		let reads = 0;
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement)
+		{
+			if (this.dataset.testid !== "notice-float") return original.call(this);
+			reads += 1;
+			return {
+				top: 844 - 16 - 120,
+				bottom: 844 - 16,
+				height: 120,
+				left: 0,
+				right: 0,
+				width: 0,
+				x: 0,
+				y: 0,
+				toJSON: () => ({}),
+			};
+		});
+		renderApp("desktop", <LateNotice />);
+		await judgeInCorner();
+		expect(corner().style.bottom).not.toBe("140px");
+		fireEvent.click(screen.getByRole("button", {
+			name: "Show the notice",
+		}));
+		await waitFor(() => expect(corner().style.bottom).toBe(`${16 + 120 + 12}px`));
+		const before = reads;
+		// A change elsewhere on the page: nothing to measure.
+		const elsewhere = document.createElement("div");
+		document.body.appendChild(elsewhere);
+		elsewhere.textContent = "changed";
+		await new Promise((done) => setTimeout(done, 0));
+		expect(reads).toBe(before);
+		elsewhere.remove();
 	});
 });

@@ -75,8 +75,6 @@ export function PlayerStage({
 	/** Closes the chosen clip; Esc calls it while one plays. */
 	onClose?: () => void; })
 {
-	// The latest `onClose`, read at the press: callers pass a fresh arrow each render, and
-	// re-running the effect on it would re-capture `opener` from wherever focus moved since.
 	const title = highlightTitle(video, scoresHidden);
 	const {
 		slot, holding, dismiss,
@@ -86,6 +84,12 @@ export function PlayerStage({
 		autoPlay,
 		chosen: autoPlay,
 		onClose,
+		// The room's game, whose Hide Scores rule titles the clip in the corner as the setting changes.
+		...game ? {
+			scoresGame: {
+				gamePk: game.gamePk,
+			},
+		} : {},
 	});
 	// Esc stops the chosen clip before closing it.
 	const stop = onClose ? () =>
@@ -93,6 +97,8 @@ export function PlayerStage({
 		dismiss();
 		onClose();
 	} : undefined;
+	// The latest `onClose`, read at the press: callers pass a fresh arrow each render, and
+	// re-running the effect on it would re-capture `opener` from wherever focus moved since.
 	const close = useRef(stop);
 	const stage = useRef<HTMLDivElement>(null); // Mantine types Stack's ref as a div even rendered as a section
 	useEffect(() =>

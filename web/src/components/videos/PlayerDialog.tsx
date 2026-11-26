@@ -50,7 +50,9 @@ export type PlayerGame = Parameters<typeof gameVideosLink>[0];
  * player as it navigates. With neither, only "Close ✕" shows, at top right.
  *
  * With scores hidden the recap clip is titled "Recap (score hidden)" (`highlightTitle`,
- * S75); only the game page passes `scoresHidden`, so Search and the digest keep MLB's title.
+ * S75); only the game page passes `scoresHidden` (with `fromGamePk`), so Search and the digest keep
+ * MLB's title. That game goes to the player as `scoresGame`, so in the corner the title follows Hide
+ * Scores as it changes.
  *
  * The Close row and the player sit in the one content box, so they share one focus trap.
  *
@@ -96,8 +98,14 @@ export function PlayerDialog({
 		titleAbove: true,
 		chosen: true,
 		onClose,
+		...fromGamePk === undefined ? {} : {
+			scoresGame: {
+				gamePk: fromGamePk,
+			},
+		},
 	});
-	// Close, Esc and a press outside stop the clip, then close the dialog (a pill only closes it).
+	// Close, Esc and a press outside stop the clip, then close the dialog (a pill only closes it). Only
+	// this dialog's clip (`dismiss`): an Esc before its slot took the player leaves the corner's playing.
 	const stop = () =>
 	{
 		dismiss();
