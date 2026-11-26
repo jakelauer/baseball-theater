@@ -34,9 +34,25 @@ export function graphTasks(root: string = ROOT): { taskId: string;
 	}));
 }
 
-/** Law P8 over the graph: the tasks whose command starts a browser. */
+/**
+ * Law P8 over the graph: the tasks whose command starts a browser. A task whose command runs a root
+ * script (`pnpm -w run size`, as web's `size` does) is judged by that script's text and every root
+ * script it runs in turn (`rootScripts`: the root package.json's scripts), each read once.
+ */
 export function browserTasks(tasks: { taskId: string;
-	command: string }[]): string[]
+	command: string }[], rootScripts: Record<string, string>): string[]
 {
-	return tasks.filter((t) => /playwright|design:capture|lhci/.test(t.command)).map((t) => t.taskId);
+	const expand = (command: string, seen: Set<string>): string =>
+	{
+		let text = command;
+		for (const m of command.matchAll(/pnpm (?:-w |--workspace-root )?(?:-s )?(?:run )?([a-z][\w:-]*)/g))
+		{
+			const name = m[1]!;
+			if (seen.has(name) || !(name in rootScripts)) continue;
+			seen.add(name);
+			text += `\n${expand(rootScripts[name]!, seen)}`;
+		}
+		return text;
+	};
+	return tasks.filter((t) => /playwright|design:capture|lhci/.test(expand(t.command, new Set()))).map((t) => t.taskId);
 }

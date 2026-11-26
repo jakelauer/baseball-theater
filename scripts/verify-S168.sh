@@ -25,6 +25,12 @@
 # only edges; inputs are an allowlist; the toolchain list and the finishing gate's mode come from the
 # ADR; the full-run switch must force a fresh run, --reverify must set it, and the entry point must run
 # the law-test unit; comment lines never satisfy a check; check 2 counts untracked files.
+#
+# Pre-PR review fixes (2026-11-26, rule 7, each a tightening, each shown red against a mutant first):
+# check 5's ledger rows must name the fixture's MISS, HIT and untouched tasks (the old pattern passed a
+# `none` cell), and a change to a unit others depend on must run each dependent's tasks (AC 5's "plus
+# their dependents"); check 7 holds P11 to ADR-030 rule 11's quoted head; check 9 requires a bug's
+# finishing run to be the finishing gate's `pnpm verify --all` wherever the rules name it.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -386,6 +392,13 @@ for (const f of existsSync(join(TMP, "base")) ? walkBase(join(TMP, "base")) : []
 	for (const [k, v] of Object.entries(before)) if (!(k in now) || now[k] < v) bad(7, `${rel}'s ${k} floor fell from ${v} to ${now[k] ?? "none"}`);
 }
 if (!LAWUNIT || !units.some((u) => u.dir === LAWUNIT)) bad(7, `the law-test unit (${LAWUNIT || "none named"}) is not a workspace unit`);
+// P11 holds the head ADR-030 rule 11 quotes, the wording the owner accepted (pre-PR review, rule 7):
+// its whole sentences, since the quote's last one is cut short by its ellipsis.
+const p11Quote = /^\s*- \*\*P11:\*\* \*"(.+?) …"\*/m.exec(tryRead("docs/v3/ARCHITECTURE.md"))?.[1];
+const p11Head = p11Quote?.slice(0, p11Quote.lastIndexOf(". ") + 1);
+const p11Law = laws.find((r) => r[1] === "P11")?.[2] ?? "";
+if (!p11Head) bad(7, "ADR-030 rule 11 quotes no P11 wording");
+else if (!p11Law.includes(p11Head)) bad(7, "LAWS.md P11 does not hold the wording ADR-030 rule 11 quotes");
 console.log(`LAWUNIT ${LAWUNIT}`);
 
 // --- Check 8: the leaf-unit test ---
@@ -406,6 +419,11 @@ for (const f of ["CLAUDE.md", ".claude/skills/verify/SKILL.md", ".claude/skills/
 	const phrase = MODES[MODE];
 	if (!phrase || !lines.some((l) => /finishing gate/i.test(l) && phrase.need.every((re) => re.test(l)) && !phrase.not.some((re) => re.test(l)))) bad(9, `${f} does not say the finishing gate runs ${MODE || "the recorded mode"}`);
 	if (!lines.some((l) => /\bstage\b/.test(l) && /runs everything|every task|full graph/i.test(l))) bad(9, `${f} does not say stage runs everything`);
+	// A bug's one finishing run is the finishing gate too (ADR-030 rule 8's question named it), so where
+	// these rules name it, it is `pnpm verify --all`; plain `pnpm verify` stays for a parked checkpoint.
+	const clauses = t.split(/;\s|\.\s+(?=[A-Z(*])|\n/).filter((c) => /\bbug\b/.test(c));
+	if (f !== ".claude/skills/verify/SKILL.md" && !clauses.some((c) => c.includes("`pnpm verify --all`"))) bad(9, `${f} does not say a bug's finishing run is \`pnpm verify --all\``);
+	for (const c of clauses) if (c.includes("`pnpm verify`") && !/checkpoint/i.test(c)) bad(9, `${f} names plain \`pnpm verify\` for a bug: ${c.slice(0, 120)}`);
 }
 JS
 echo "{}" >"$TMP/dry.json"
@@ -528,12 +546,13 @@ console.log([...h0].filter(([id,{h}])=>!hit.has(id)&&h1.get(id)?.h!==h).map(([id
   leaf_u="$(cut -d' ' -f1 <<<"$UNIT_DIRS")"
   leaf_name="$(node -p "require('$C/$leaf_u/package.json').name")"
   leaf_f="$(cd "$C" && git ls-files -- "$leaf_u" | grep -E '\.ts$' | grep -v '\.test\.' | head -1)"
+  # plan_has_unit [name]: the narrowed plan for the copy's current change runs that unit's tasks (default the leaf's).
   plan_has_unit()
   {
     local out filters
     out="$(vplan)"; [ "$(sed -n 's/^mode //p' <<<"$out")" = "narrow" ] || return 1
     read -r -a filters <<<"$(sed -n 's/^filters //p' <<<"$out")"
-    (cd "$C" && "$TURBO" run "${TASKS[@]}" "${filters[@]}" --dry=json 2>/dev/null) | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));const n=process.argv[1];process.exit(j.tasks.some(t=>t.package===n&&t.command!=="<NONEXISTENT>")?0:1)' "$leaf_name"
+    (cd "$C" && "$TURBO" run "${TASKS[@]}" "${filters[@]}" --dry=json 2>/dev/null) | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));const n=process.argv[1];process.exit(j.tasks.some(t=>t.package===n&&t.command!=="<NONEXISTENT>")?0:1)' "${1:-$leaf_name}"
   }
   printf '\n' >>"$C/$leaf_f"
   plan_has_unit || bad 5 "an uncommitted change to $leaf_f does not run $leaf_name's tasks"
@@ -541,15 +560,37 @@ console.log([...h0].filter(([id,{h}])=>!hit.has(id)&&h1.get(id)?.h!==h).map(([id
   printf 'export {};\n' >"$C/$leaf_u/zz-s168-untracked.ts"
   plan_has_unit || bad 5 "an untracked file in $leaf_u does not run $leaf_name's tasks"
   rm -f "${C:?}/${leaf_u:?}/zz-s168-untracked.ts"
+  # "plus their dependents": the unit the most others name as a workspace dependency (read from their
+  # manifests), changed alone, runs each of those units' tasks too.
+  read -r dep_u dependents <<<"$(node -e 'const fs=require("fs");const [C,uj]=process.argv.slice(1);const m=JSON.parse(fs.readFileSync(uj,"utf8"));
+const deps=(d)=>{const p=JSON.parse(fs.readFileSync(C+"/"+d+"/package.json","utf8"));return Object.entries({...p.dependencies,...p.devDependencies}).filter(([,v])=>String(v).startsWith("workspace:")).map(([n])=>n);};
+const of=(n)=>Object.keys(m).filter((o)=>deps(m[o]).includes(n));
+const best=Object.keys(m).sort((a,b)=>of(b).length-of(a).length)[0];
+if(best&&of(best).length)console.log(m[best],of(best).join(" "));' "$C" "$TMP/units.json")"
+  if [ -z "${dependents:-}" ]; then
+    bad 5 "no unit is another unit's workspace dependency, so the dependents rule can't be shown"
+  else
+    dep_f="$(cd "$C" && git ls-files -- "$dep_u" | grep -E '\.ts$' | grep -v '\.test\.' | head -1)"
+    printf '\n' >>"$C/$dep_f"
+    for d in $dependents; do
+      plan_has_unit "$d" || bad 5 "an uncommitted change to $dep_f (in $dep_u) does not run its dependent $d's tasks"
+    done
+    (cd "$C" && git checkout -q -- "$dep_f")
+  fi
   # The ledger-writing step (scripts/verify-record.ts, which audit.sh story calls) writes the three
   # lists from a fixture story's run summary: one task ran, one replayed, the rest not affected.
   mkdir -p "$C/.turbo/runs"
   (cd "$C" && "$TURBO" run "${TASKS[@]}" --dry=json 2>/dev/null) >"$TMP/graph.json"
-  node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const ts=j.tasks.filter(t=>t.command!=="<NONEXISTENT>");fs.writeFileSync(process.argv[2],JSON.stringify({tasks:[{...ts[0],execution:{exitCode:0},cache:{status:"MISS"}},{...ts[1],execution:{exitCode:0},cache:{status:"HIT"}}]}))' "$TMP/graph.json" "$C/.turbo/runs/fixture-S9999.json"
+  # It prints the fixture's MISS task, its HIT task and a third graph task, so each row is checked by name.
+  read -r ran_id hit_id other_id <<<"$(node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const ts=j.tasks.filter(t=>t.command!=="<NONEXISTENT>");fs.writeFileSync(process.argv[2],JSON.stringify({tasks:[{...ts[0],execution:{exitCode:0},cache:{status:"MISS"}},{...ts[1],execution:{exitCode:0},cache:{status:"HIT"}}]}));console.log(ts[0].taskId,ts[1].taskId,ts[2].taskId)' "$TMP/graph.json" "$C/.turbo/runs/fixture-S9999.json")"
   rows="$(cd "$C" && node scripts/verify-record.ts --root "$C" --graph "$TMP/graph.json" 2>&1)"
-  for l in "tasks that ran" "replayed from the cache" "not affected"; do
-    grep -qE "Gate: $l \| [^|]*[a-z]" <<<"$rows" || bad 5 "the ledger rows lack a filled '$l' list: $(head -c 300 <<<"$rows")"
-  done
+  # Rule 7 (pre-PR review, 2026-11-26): a filled list, never `none`, holding exactly the right task.
+  grep -qF "| Gate: tasks that ran | 1: \`$ran_id\` |" <<<"$rows" || bad 5 "the ledger's ran row is not the fixture's one MISS task ($ran_id): $(head -c 300 <<<"$rows")"
+  grep -qF "| Gate: replayed from the cache | 1: \`$hit_id\` |" <<<"$rows" || bad 5 "the ledger's replayed row is not the fixture's one HIT task ($hit_id): $(head -c 300 <<<"$rows")"
+  na="$(grep -E '^\| Gate: not affected \| [1-9][0-9]*: ' <<<"$rows")"
+  if [ -z "$na" ] || ! grep -qF "\`$other_id\`" <<<"$na" || grep -qF -e "\`$ran_id\`" -e "\`$hit_id\`" <<<"$na"; then
+    bad 5 "the ledger's not-affected row does not list the untouched tasks alone: $(head -c 300 <<<"$na")"
+  fi
 
   # AC 4: an undeclared read fails. Each unit's test and lint, in a copy holding only that unit, its
   # tasks' declared inputs, the toolchain files, each workspace dependency's package.json and what its

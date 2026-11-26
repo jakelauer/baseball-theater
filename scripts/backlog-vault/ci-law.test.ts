@@ -4,16 +4,16 @@
  * including `pnpm dup:check` (L7) and `pnpm size` (L5) — also holds on every change to
  * code, not only where someone runs it locally. A docs-only change runs only the docs
  * checks (owner, 2026-11-07: "Things like this shouldn't trigger CI."), as
- * `scripts/ci-changes.sh` decides; nothing else may skip the gate. A code change also runs
- * the docs job's Markdown format check (Claude's review of PR #14), so unformatted Markdown
- * can't merge with code and then fail the next docs-only change.
+ * `scripts/ci-changes.sh` decides; nothing else may skip the gate. A code change also checks
+ * Markdown format (Claude's review of PR #14; since S168 the graph's `//#format:md` task), so
+ * unformatted Markdown can't merge with code and then fail the next docs-only change.
  *
  * Since S152 (owner, 2026-11-19: "Reword P11 (Recommended)"; "Stage reruns everything
  * (Recommended)") a pull request reuses what unchanged packages already passed and may run
  * functions' tests in shard jobs, while every push runs all of `pnpm verify` fresh. So these
  * tests also hold that: a push reads no cache (Turborepo's and the lint/tsc caches are restored
- * only on pull requests, and the read switch is set only in a pull-request step), the root scripts
- * read no Turborepo or ESLint cache outside those runs, and `ci-passed` fails when the shard and
+ * only on pull requests, and the read switch is set only in a pull-request step), the entry point
+ * reads no Turborepo cache outside those runs, and `ci-passed` fails when the shard and
  * merge jobs didn't pass for code (or when `changes` gave no answer). Every child process gets
  * an environment built from scratch: CI exports GITHUB_ACTIONS, and a pull request's verify step
  * BT_TURBO_CACHE_READ and BT_FUNCTIONS_SHARDED, which would leak into the "unset" cases.
@@ -204,8 +204,8 @@ describe("CI runs pnpm verify (law P11)", () =>
 
 	// Claude's review of PR #14: Markdown format was checked only in the docs job, so a code
 	// change could merge unformatted Markdown and the next docs-only pull request failed on a file
-	// it never touched. The verify job runs the docs job's exact check too (owner, 2026-11-13,
-	// asked "May I add a Markdown formatting check to CI's main verify job?": "yes").
+	// it never touched. The verify job checks it too (owner, 2026-11-13, asked "May I add a Markdown
+	// formatting check to CI's main verify job?": "yes"), since S168 through the graph's `//#format:md` task.
 	it("the Markdown format check runs for code changes too, the same command as the docs job", () =>
 	{
 		const ci = readFileSync(CI_YML, "utf8");
@@ -215,7 +215,7 @@ describe("CI runs pnpm verify (law P11)", () =>
 		expect(entryTasks(readFileSync(ENTRY_POINT, "utf8"))).toContain("format:md");
 	});
 
-	it("catches a Markdown step in either job that is switched off or allowed to fail", () =>
+	it("catches a docs job Markdown step that is switched off or allowed to fail", () =>
 	{
 		const ci = readFileSync(CI_YML, "utf8");
 		const docsJob = ci.slice(ci.indexOf("\n    docs:\n"), ci.indexOf("\n    verify:\n"));

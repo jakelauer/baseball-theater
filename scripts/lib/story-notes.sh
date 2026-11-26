@@ -127,12 +127,41 @@ json_report() {
     "$1" "$(json_string "$2")" "$(json_list "$3")" "$(json_list "$4")" "$joined"
 }
 
-# verify_changed <base> — true when the `verify` or `verify:run` script line in package.json differs between
-# <base> and HEAD: the gate moved. `verify` runs the gate through the one-at-a-time lock
-# (scripts/with-verify-lock.sh) and `verify:run` is the gate itself, so a change to either is the gate changing.
+# verify_changed <base> — prints each part of the gate (`pnpm verify`) that differs between <base> and HEAD, one
+# path a line, and is true when any did: the `verify` or `verify:run` line of package.json (`verify` runs the gate
+# through the one-at-a-time lock, scripts/with-verify-lock.sh, and `verify:run` was the gate itself before S168);
+# since ADR-030, the entry point and its narrowing (scripts/verify.sh, scripts/verify-plan.ts) and the lock; and
+# turbo.json when what it runs changes: its globalDependencies, the set of task keys or any task's dependsOn.
+# A task's inputs never count, since ADR-030 rule 6 has stories add them as they find new reads.
 verify_changed()
 {
-  [ "$(git show "$1:package.json" 2>/dev/null | grep -E '"verify(:run)?":')" != "$(git show HEAD:package.json | grep -E '"verify(:run)?":')" ]
+  local changed=0 path
+  if [ "$(git show "$1:package.json" 2>/dev/null | grep -E '"verify(:run)?":')" != "$(git show HEAD:package.json | grep -E '"verify(:run)?":')" ]; then
+    echo package.json
+    changed=1
+  fi
+  while IFS= read -r path; do
+    [ -n "$path" ] && echo "$path" && changed=1
+  done < <(git diff --name-only "$1" HEAD -- scripts/verify.sh scripts/verify-plan.ts scripts/with-verify-lock.sh)
+  if [ "$(turbo_gate_shape "$1")" != "$(turbo_gate_shape HEAD)" ]; then
+    echo turbo.json
+    changed=1
+  fi
+  [ "$changed" = 1 ]
+}
+
+# turbo_gate_shape <rev> — the parts of <rev>'s turbo.json that decide what the gate runs (its whole-line `//`
+# comments stripped, as scripts/verify-plan.ts readTurbo does), as one JSON line; empty when it has none.
+turbo_gate_shape()
+{
+  git show "$1:turbo.json" 2>/dev/null | node -e '
+    let s = "";
+    process.stdin.on("data", (d) => { s += d; }).on("end", () => {
+      if (!s) return;
+      const j = JSON.parse(s.split("\n").filter((l) => !/^\s*\/\//.test(l)).join("\n"));
+      const t = j.tasks ?? {};
+      console.log(JSON.stringify([j.globalDependencies ?? [], Object.keys(t).sort().map((k) => [k, t[k].dependsOn ?? []])]));
+    });'
 }
 
 # The rule files whose change forces a review inside a /run-backlog run, whatever the review tracker scored
@@ -148,7 +177,7 @@ CEILING_RULE_PATHS=(CLAUDE.md docs/v3/LOOP.md docs/v3/LAWS.md 'docs/v3/backlog/f
 ceiling_changes()
 {
   git diff --name-only "$1" HEAD -- "${CEILING_RULE_PATHS[@]}" docs/v3/ARCHITECTURE.md
-  verify_changed "$1" && echo "package.json (pnpm verify itself)"
+  verify_changed "$1" | sed 's/$/ (pnpm verify itself)/'
   return 0
 }
 

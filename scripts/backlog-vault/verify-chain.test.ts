@@ -26,7 +26,7 @@ describe("pnpm verify starts no browser (law P8)", () =>
 	{
 		const tasks = graphTasks();
 		expect(tasks.some((t) => t.taskId === "@bt/e2e#test")).toBe(true);
-		expect(browserTasks(tasks)).toEqual([]);
+		expect(browserTasks(tasks, scripts)).toEqual([]);
 	}, 60_000);
 
 	it("catches a task that runs Playwright", () =>
@@ -34,7 +34,25 @@ describe("pnpm verify starts no browser (law P8)", () =>
 		expect(browserTasks([{
 			taskId: "@bt/e2e#test",
 			command: "playwright test",
-		}])).toEqual(["@bt/e2e#test"]);
+		}], {})).toEqual(["@bt/e2e#test"]);
+	});
+
+	it("catches a task whose command runs a root script that starts a browser (S168's pre-PR review)", () =>
+	{
+		// web's `size` task is `pnpm -w run size`: the command that runs is the root script's.
+		expect(browserTasks([{
+			taskId: "@bt/web#size",
+			command: "pnpm -w run size",
+		}], {
+			size: "pnpm run measure",
+			measure: "lhci autorun",
+		})).toEqual(["@bt/web#size"]);
+		expect(browserTasks([{
+			taskId: "@bt/web#size",
+			command: "pnpm -w run size",
+		}], {
+			size: "pnpm -w run size",
+		})).toEqual([]);
 	});
 
 	it("catches a playwright step reached through the chain", () =>

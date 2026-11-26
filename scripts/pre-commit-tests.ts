@@ -48,9 +48,11 @@ const toolingSuites = [
 		// The tool itself, the ledger writer, the debt scripts, the backlog notes and docs it builds from, the ledger and its
 		// fragments, the changelog fragments a finished story needs (records.ts), everything under .github/ (laws P11 and
 		// L12) and what else its tests run or read since S156: plan-review.py and its tests, worktree-for.sh, the review
-		// gate, turbo.json (L12) and the three configs reading a worktree's ports (worktree-ports.test.ts).
+		// gate, turbo.json (L12) and the three configs reading a worktree's ports (worktree-ports.test.ts); since S168 the
+		// local check's narrowing and ledger record (verify-plan.ts, verify-record.ts), whose tests live here.
 		triggers: [
 			/^scripts\/(backlog-vault\/|audit\.sh$|review-debt\.sh$|parity-debt\.sh$|goal\.sh$|worktree-for\.sh$|review-gate\.sh$|lib\/|claude-review\/)/,
+			/^scripts\/(verify-plan|verify-record)\.ts$/,
 			/^docs\/v3\/(backlog\/|audit\/|AUDIT\.md$|FEATURES\.md$|INTENT\.md$|LAWS\.md$)/,
 			/^changelog\.d\//,
 			/^\.github\//,

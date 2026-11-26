@@ -34,9 +34,10 @@
 			"inputs": ["$TURBO_DEFAULT$"],
 			"outputs": ["dist/**"]
 		},
+		// The size budget lives in .size-limit.json and the command that applies it in the root package.json.
 		"size": {
 			"dependsOn": ["build"],
-			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.size-limit.json"],
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.size-limit.json", "$TURBO_ROOT$/package.json"],
 			"outputs": []
 		},
 		// Cross-unit read (S146): web/vite.config.ts imports functions/src/deploy/vite-plugin.ts, with no
@@ -189,7 +190,8 @@
 				"$TURBO_ROOT$/functions/src/**",
 				"$TURBO_ROOT$/web/src/api/codegen.test.ts"
 			],
-			"outputs": ["coverage/**"]
+			// Its Vitest root is backlog-vault/, where the coverage summary lands.
+			"outputs": ["backlog-vault/coverage/**"]
 		},
 		// Repo-wide root tasks (rule 3): each reads files of every unit at once and runs no ESLint, tsc
 		// or Vitest. No edge joins them to a unit's task. Each names the root package.json, which holds
@@ -216,6 +218,9 @@
 			"outputs": []
 		},
 		// Prettier's Markdown check; .prettierignore leaves out docs/, so these are the places Markdown lives.
+		// Each unit's whole directory is named because a note can sit anywhere in one, and law (c) allows
+		// only a named file or `dir/**`, never `dir/**/*.md`: so a unit change reruns this one Prettier
+		// check rather than replaying it, which costs seconds and never misses a file.
 		"//#format:md": {
 			"inputs": [
 				"$TURBO_ROOT$/package.json",
@@ -228,8 +233,12 @@
 				"$TURBO_ROOT$/releases/**",
 				"$TURBO_ROOT$/.claude/**",
 				"$TURBO_ROOT$/.github/**",
-				"$TURBO_ROOT$/web/src/pages/legal/**",
-				"$TURBO_ROOT$/scripts/backlog-vault/fixtures/**"
+				"$TURBO_ROOT$/packages/**",
+				"$TURBO_ROOT$/functions/**",
+				"$TURBO_ROOT$/web/**",
+				"$TURBO_ROOT$/scripts/**",
+				"$TURBO_ROOT$/tools/**",
+				"$TURBO_ROOT$/e2e/**"
 			],
 			"outputs": []
 		}

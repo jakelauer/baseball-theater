@@ -38,7 +38,7 @@ export interface Spec
 	targets: string[] | null;
 }
 
-/** The package directories, as `pnpm-workspace.yaml` lists them (`packages/*`, `functions`, `web`). */
+/** The app's package directories, which browser specs exercise (`pnpm-workspace.yaml` also lists the tooling units scripts, tools and e2e, ADR-030, which no spec runs). */
 const WORKSPACE_DIRS = ["packages/*", "functions", "web"];
 
 /** A spec target names a package by its directory's last segment (`web`, `functions`). */

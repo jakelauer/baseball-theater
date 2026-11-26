@@ -5,9 +5,13 @@
  *
  * The change is every file that differs from the merge base with the base branch (`stage`, or
  * BT_VERIFY_BASE when CI or a test names another): committed, uncommitted and untracked alike, the
- * untracked ones listed by git itself, since Turborepo's own affected filter misses them. From it:
+ * untracked ones listed by git itself, since Turborepo's own affected filter misses them. A move lists
+ * both its old and new path (`--no-renames`), so the units that imported the old path run too, and
+ * paths come NUL-separated (`-z`), so git never quotes one (a non-ASCII or `"` name would otherwise
+ * come back quoted and match no unit). From it:
  *  - nothing changed → nothing runs;
- *  - a toolchain file (turbo.json's globalDependencies) changed, or `--all` → every task, cache read;
+ *  - a toolchain file (turbo.json's globalDependencies) changed, or `--all` → every task, cache read
+ *    (`--all` needs no merge base, so it still runs where the base branch is missing);
  *  - otherwise the units the files lie in and their dependents (`...<unit>`), the units whose tasks
  *    name a changed file as an outside input (a cross-unit read, ADR-030 rule 6), and the root tasks,
  *    which replay unless their own inputs changed;
@@ -123,6 +127,12 @@ export function changedFiles(root: string): string[]
 		encoding: "utf8",
 		stdio: ["ignore", "pipe", "ignore"],
 	}).trim();
+	// NUL-separated, so a path is never quoted or split, whatever characters it holds.
+	const paths = (cmd: string): string[] => execSync(cmd, {
+		cwd: root,
+		encoding: "utf8",
+		stdio: ["ignore", "pipe", "ignore"],
+	}).split("\0").filter(Boolean);
 	const has = (ref: string): boolean =>
 	{
 		try { sh(`git rev-parse --verify --quiet ${ref}`); return true; }
@@ -130,16 +140,24 @@ export function changedFiles(root: string): string[]
 	};
 	// The merge base with `stage` (origin's when fetched), or the base BT_VERIFY_BASE names (CI's pull-request base).
 	const mergeBase = sh(`git merge-base HEAD ${process.env.BT_VERIFY_BASE || (has("origin/stage") ? "origin/stage" : "stage")}`);
-	const tracked = sh(`git diff --name-only ${mergeBase}`);
-	const untracked = sh("git ls-files --others --exclude-standard");
-	return [...new Set(`${tracked}\n${untracked}`.split("\n").filter(Boolean))].sort();
+	const tracked = paths(`git diff -z --name-only --no-renames ${mergeBase}`);
+	const untracked = paths("git ls-files -z --others --exclude-standard");
+	return [...new Set([...tracked, ...untracked])].sort();
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url))
 {
 	const root = fileURLToPath(new URL("..", import.meta.url));
-	const changed = changedFiles(root);
-	const p = plan(readTurbo(root), readUnits(root), changed, process.argv.includes("--all"));
+	const all = process.argv.includes("--all");
+	let changed: string[];
+	try { changed = changedFiles(root); }
+	catch (error)
+	{
+		// `--all` runs every task whatever changed, so a missing base branch only costs the file list.
+		if (!all) throw error;
+		changed = [];
+	}
+	const p = plan(readTurbo(root), readUnits(root), changed, all);
 	console.log(`mode ${p.mode}`);
 	console.log(`filters ${p.filters.map((f) => `--filter=${f}`).join(" ")}`);
 	console.log(`orphan ${p.orphan ? 1 : 0}`);

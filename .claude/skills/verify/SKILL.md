@@ -13,9 +13,9 @@ pnpm verify
 
 This is the truth signal. Exit code **0** means:
 
-1. ESLint passes for the whole repo (`pnpm build` runs `pnpm lint` first, so it runs once)
-2. Typecheck + package builds succeed (each package's `build` runs `tsc --noEmit`)
-3. Vitest passes in all packages **with coverage thresholds**
+1. ESLint passes in every unit the change reaches (each unit's `lint` task)
+2. Type checks and builds succeed (each unit's `typecheck` and `build` tasks)
+3. Vitest passes in every unit the change reaches **with its coverage thresholds** (each unit's `test` task)
 
 Exit code **non-zero** means the change is not done. Do not claim success.
 
@@ -30,10 +30,10 @@ The output is kept short to save context (owner, 2026-11-04): tests print a dot 
 
 | Check                    | How                                                                     |
 | ------------------------ | ----------------------------------------------------------------------- |
-| Lint                     | `pnpm lint` (first step of `pnpm build`)                                |
+| Lint                     | each unit's `lint` task (`pnpm lint` runs them all)                     |
 | Unit / integration tests | each unit's `test` task (coverage and its floors), in Turborepo's graph |
 | Coverage floors          | Per-package Vitest thresholds                                           |
-| Types + production build | `pnpm build`                                                            |
+| Types + production build | each unit's `typecheck` and `build` tasks                               |
 | HTTP schedule/game smoke | Covered by `functions/src/handlers/api.test.ts` (fixture API)           |
 
 ### What this does **not** cover yet

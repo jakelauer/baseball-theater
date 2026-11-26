@@ -80,10 +80,10 @@ jobs:
                       *) echo "::error::e2e/select-specs.ts answered '$functions', not true or false"; exit 1 ;;
                   esac
 
-    # What a docs-only change can break: the generated backlog (pnpm backlog:check, also the first
-    # step of pnpm lint), the backlog vault's own tests (ledger, laws, index) and the format of the
-    # Markdown Prettier checks (outside docs/, which .prettierignore leaves out). The verify job runs
-    # the same Markdown check for code changes, since they can change Markdown too.
+    # What a docs-only change can break: the generated backlog (pnpm backlog:check, the graph's
+    # //#backlog:check task in a code run), the law-test unit's own tests (ledger, laws, index) and the
+    # format of the Markdown Prettier checks (outside docs/, which .prettierignore leaves out). The
+    # verify job checks the same Markdown for code changes, as the graph's //#format:md task.
     docs:
         needs: changes
         if: needs.changes.outputs.code == 'false'
@@ -162,14 +162,13 @@ jobs:
                       turbo-${{ runner.os }}-stage-
 
             # S152 AC 6: ESLint's cache (content strategy, since a checkout resets every file's time)
-            # and each package's tsc build info, kept between pull-request runs like Turborepo's.
-            # `pnpm lint` uses ESLint's cache only under GitHub Actions; a push restores none, so it
-            # lints fresh and saves the cache for later pull requests. The key hashes ESLint's config,
-            # its own rules, the lockfile (its plugins) and every tsconfig in the repository (its
-            # type-aware rules read each file's own, scripts/ and scripts/backlog-vault/ included),
-            # so a change to any of them starts afresh. A pull request can still replay a file's
-            # pass whose type-aware result another file's change altered; the next push's fresh lint
-            # is the backstop (owner, 2026-11-19: "Keep it on pull requests (Recommended)").
+            # and each package's tsc build info, kept between pull-request runs like Turborepo's; a push
+            # restores none. Since ADR-030 (S168) the units' `lint` tasks run ESLint without `--cache`
+            # (Turborepo replays an unchanged unit's lint instead), so the .eslintcache entry is no longer
+            # read; the step stays as S152 set it up until a later change removes it. The key hashes
+            # ESLint's config, its own rules, the lockfile and every tsconfig in the repository, so a
+            # change to any of them starts afresh. S152 kept the ESLint cache on pull requests, the next
+            # push's fresh run being the backstop (owner, 2026-11-19: "Keep it on pull requests (Recommended)").
             - name: Restore the ESLint and tsc caches (pull requests only)
               if: github.event_name == 'pull_request'
               uses: actions/cache/restore@v4

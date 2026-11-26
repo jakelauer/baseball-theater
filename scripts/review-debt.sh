@@ -191,10 +191,10 @@ while IFS= read -r path; do
   [ -n "$path" ] && reasons+=("new workspace package: $(dirname "$path")") && json_event package-added path "$(dirname "$path")"
 done < <(git diff --name-only --diff-filter=A "$base" HEAD -- 'packages/*/package.json')
 
-# scripts/lib/story-notes.sh verify_changed: the `verify` or `verify:run` line moved.
-if verify_changed "$base"; then
+# scripts/lib/story-notes.sh verify_changed: a part of the gate changed; the event names the first.
+if gate="$(verify_changed "$base")"; then
   reasons+=("pnpm verify itself changed")
-  json_event verify-changed path package.json
+  json_event verify-changed path "$(head -n 1 <<<"$gate")"
 fi
 
 # Notes are matched by story ID, not path (scripts/lib/story-notes.sh): a note moving to its new

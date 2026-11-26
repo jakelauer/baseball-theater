@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-// Tests for repo tooling (custom ESLint rules). Run by `pnpm test:tools`, part of `pnpm verify`.
+// Tests for repo tooling (custom ESLint rules): tools' `test` task in `pnpm verify` (ADR-030).
 export default defineConfig({
 	test: {
 		coverage: {

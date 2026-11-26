@@ -155,6 +155,14 @@ describe("the build and check graph (laws L14–L17, ADR-030)", () =>
 		expect(inputProblems(wide, toolchain, units, `${lawPkg}#test`)).toEqual(expect.arrayContaining(["globalDependencies holds fixtures/**", "x's input $TURBO_ROOT$/** is wider than a named path", "y declares no inputs"]));
 	});
 
+	it("L16: Markdown anywhere in a unit is an input of the Markdown format check", () =>
+	{
+		// Prettier's check reads every *.md it isn't told to ignore, so a unit's Markdown must reach its
+		// hash, or a badly formatted note in a unit replays a cached pass (S168's pre-PR review).
+		const md = turbo.tasks["//#format:md"]?.inputs ?? [];
+		expect(units.filter((u) => !md.some((i) => inputCovers(i, `${u.dir}/NOTES.md`))).map((u) => u.dir)).toEqual([]);
+	});
+
 	describe("L17: a change in one leaf unit executes only what reads it", () =>
 	{
 		const copy = copyTree();
@@ -205,7 +213,6 @@ describe("the build and check graph (laws L14–L17, ADR-030)", () =>
 				}
 				finally
 				{
-					appendFileSync(join(copy, ".s168-restore"), "");
 					execSync(`git checkout -q -- ${JSON.stringify(source)}`, {
 						cwd: copy,
 					});

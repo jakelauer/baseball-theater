@@ -6,7 +6,7 @@
  */
 import { execFileSync, execSync } from "node:child_process";
 import {
-	cpSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, existsSync,
+	appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -57,15 +57,17 @@ export function dryRun(root: string, args: string[] = []): GraphTask[]
 /**
  * A copy of the working tree (tracked and untracked files, as `git ls-files` lists them) in a new
  * temporary folder, committed as one commit, with the real `node_modules` linked in. Edits there never
- * touch the working tree (S168 AC 4, AC 8).
+ * touch the working tree (S168 AC 4, AC 8). Paths come NUL-separated, so a name git would quote (a
+ * frame note's em dash) is copied too; the linked `node_modules` are symlinks, which .gitignore's
+ * `node_modules/` doesn't match, so .git/info/exclude keeps them out of the commit, as the grader does.
  */
 export function copyTree(root: string = ROOT): string
 {
 	const dir = mkdtempSync(join(tmpdir(), "bt-graph-"));
-	const files = execSync("git ls-files --cached --others --exclude-standard", {
+	const files = execSync("git ls-files -z --cached --others --exclude-standard", {
 		cwd: root,
 		encoding: "utf8",
-	}).split("\n").filter(Boolean);
+	}).split("\0").filter(Boolean);
 	for (const f of files)
 	{
 		if (!existsSync(join(root, f))) continue;
@@ -90,6 +92,7 @@ export function copyTree(root: string = ROOT): string
 		});
 	};
 	git("init", "-q", "-b", "stage");
+	appendFileSync(join(dir, ".git/info/exclude"), "node_modules\n");
 	git("add", "-A");
 	git("-c", "user.name=bt", "-c", "user.email=bt@example.invalid", "commit", "-q", "--no-verify", "-m", "base");
 	return dir;
