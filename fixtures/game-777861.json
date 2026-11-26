@@ -1,0 +1,1947 @@
+{
+  "gamePk": 777861,
+  "gameDate": "2025-05-19",
+  "officialDate": "2025-05-19",
+  "startTime": "2025-05-21T17:10:00Z",
+  "status": {
+    "abstractGameState": "Final",
+    "codedGameState": "F",
+    "detailedState": "Final"
+  },
+  "teams": {
+    "home": {
+      "id": 142,
+      "abbreviation": "MIN",
+      "name": "Minnesota Twins",
+      "teamName": "Twins"
+    },
+    "away": {
+      "id": 114,
+      "abbreviation": "CLE",
+      "name": "Cleveland Guardians",
+      "teamName": "Guardians"
+    }
+  },
+  "venue": {
+    "id": 3312,
+    "name": "Target Field"
+  },
+  "linescore": {
+    "currentInning": 9,
+    "inningState": "Bottom",
+    "isTopInning": false,
+    "outs": 2,
+    "balls": 3,
+    "strikes": 1,
+    "teams": {
+      "home": {
+        "runs": 6,
+        "hits": 12,
+        "errors": 0
+      },
+      "away": {
+        "runs": 5,
+        "hits": 8,
+        "errors": 0
+      }
+    },
+    "scheduledInnings": 9,
+    "innings": [
+      {
+        "num": 1,
+        "away": {
+          "runs": 1
+        },
+        "home": {
+          "runs": 1
+        }
+      },
+      {
+        "num": 2,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 1
+        }
+      },
+      {
+        "num": 3,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 4,
+        "away": {
+          "runs": 1
+        },
+        "home": {
+          "runs": 2
+        }
+      },
+      {
+        "num": 5,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 6,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 7,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 0
+        }
+      },
+      {
+        "num": 8,
+        "away": {
+          "runs": 0
+        },
+        "home": {
+          "runs": 1
+        }
+      },
+      {
+        "num": 9,
+        "away": {
+          "runs": 3
+        },
+        "home": {
+          "runs": 1
+        }
+      }
+    ]
+  },
+  "highlights": [
+    {
+      "id": "carlos-santana-s-solo-home-run-5",
+      "playId": null,
+      "title": "Carlos Santana's solo home run (5) ",
+      "blurb": "Carlos Santana's solo home run (5)",
+      "duration": "00:00:22",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/e2ct17esn8hiuioqba4s.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/208156ad-a16c320d-b6f7be19-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/208156ad-a16c320d-b6f7be19-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/208156ad-a16c320d-b6f7be19-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/208156ad-a16c320d-b6f7be19-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T17:28:12.365Z",
+      "teamIds": [
+        114
+      ],
+      "tags": [
+        "vod",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "game-story-highlight",
+        "hitting",
+        "home-run",
+        "yahoo-in-game",
+        "2-yahoo-mlb-ads-feed",
+        "send-to-news-mlb-feed",
+        "imagen-feed",
+        "international-feed",
+        "fan-duel",
+        "eclat-feed",
+        "apple-news"
+      ]
+    },
+    {
+      "id": "kody-clemens-doubles-4-on-a-sharp-line-drive-to-center-fielder-angel-mart",
+      "playId": "498cd6dc-ec0c-38aa-baa5-b69c1d9aaa18",
+      "title": "Kody Clemens' walk-off double",
+      "blurb": "Kody Clemens' walk-off double",
+      "duration": "00:00:23",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/v1747859484/mlb/btxsx9iijwomo2vhwwra.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/f2c4869f-8958a18b-1a929ee4-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/f2c4869f-8958a18b-1a929ee4-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/f2c4869f-8958a18b-1a929ee4-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/f2c4869f-8958a18b-1a929ee4-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T19:17:05.073Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "walk-off",
+        "imagen-feed",
+        "eclat-feed",
+        "fan-duel",
+        "international-feed",
+        "apple-news",
+        "japanese-language",
+        "star-of-the-game",
+        "alexa"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "kody-clemens-on-his-walk-off-double-twins-6-5-win",
+      "playId": null,
+      "title": "Kody Clemens on his walk-off double, Twins' 6-5 win",
+      "blurb": "Kody Clemens on his walk-off double, Twins' 6-5 win",
+      "duration": "00:01:10",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/ztjghaorxwlpwiuknsxj.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/a1f5d3a6-263df946-a11a074e-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/a1f5d3a6-263df946-a11a074e-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/a1f5d3a6-263df946-a11a074e-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/a1f5d3a6-263df946-a11a074e-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T19:39:45.852Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "vod",
+        "highlight",
+        "in-game-highlight",
+        "interview",
+        "imagen-feed",
+        "team-featured",
+        "send-to-news-mlb-feed",
+        "apple-news",
+        "fan-duel",
+        "eclat-feed",
+        "international-feed"
+      ]
+    },
+    {
+      "id": "bailey-ober-in-play-run-s-to-kyle-manzardo",
+      "playId": "c7d2d1c1-b7d6-3e76-ace9-d5b12d3ac144",
+      "title": "Kyle Manzardo's RBI double",
+      "blurb": "Kyle Manzardo's RBI double",
+      "duration": "00:00:29",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/wj86nrvv6nkok4wlfwdx.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/387ad374-6f065046-7603f106-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/387ad374-6f065046-7603f106-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/387ad374-6f065046-7603f106-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/387ad374-6f065046-7603f106-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-19T23:46:17.182Z",
+      "teamIds": [
+        114
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "send-to-news-mlb-feed",
+        "2-yahoo-mlb-ads-feed",
+        "yahoo-in-game",
+        "imagen-feed",
+        "eclat-feed",
+        "international-feed",
+        "fan-duel"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "brooks-lee-strikes-out-swinging-3pkdid",
+      "playId": "740e3d72-c83b-36e9-9b90-9e255c1d07a1",
+      "title": "Logan Allen strikes out Brooks Lee",
+      "blurb": "Logan Allen strikes out Brooks Lee",
+      "duration": "00:00:06",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/sub7c8atxt5qus6inyo7.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/57e91246-e4ed6629-66fd2838-csvm-diamondgcp-asset-4000K.mp4",
+      "renditions": [
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/57e91246-e4ed6629-66fd2838-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/57e91246-e4ed6629-66fd2838-csvm-diamondgcp-asset-4000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-19T23:54:24.395Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "pitching",
+        "sporty-cc",
+        "game-story-highlight",
+        "international-feed",
+        "fan-duel",
+        "eclat-feed",
+        "imagen-feed"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "carlos-santana-strikes-out-swinging-8e88fd",
+      "playId": "3869b20a-cd1e-34ec-8815-1052d2f9045b",
+      "title": "Bailey Ober strikes out Carlos Santana",
+      "blurb": "Bailey Ober strikes out Carlos Santana",
+      "duration": "00:00:06",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/q5h8b4d4whrpfszqgefu.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/ee9a80fd-035c654d-064e6156-csvm-diamondgcp-asset-4000K.mp4",
+      "renditions": [
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/ee9a80fd-035c654d-064e6156-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/ee9a80fd-035c654d-064e6156-csvm-diamondgcp-asset-4000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-19T23:47:34.765Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "pitching",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "sporty-cc",
+        "international-feed",
+        "imagen-feed",
+        "eclat-feed",
+        "fan-duel"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "condensed-game-cle-min-5-19-25",
+      "playId": null,
+      "title": "Condensed Game: CLE@MIN - 5/19/25",
+      "blurb": "Condensed Game: CLE@MIN - 5/19/25",
+      "duration": "00:11:09",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/rp93qy0tre31gfhcd0dv.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/7d36fff4-be5bb876-b2e10170-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/7d36fff4-be5bb876-b2e10170-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/7d36fff4-be5bb876-b2e10170-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/7d36fff4-be5bb876-b2e10170-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "condensed",
+      "date": "2025-05-21T21:15:32.541Z",
+      "teamIds": [
+        114,
+        142
+      ],
+      "tags": [
+        "vod",
+        "condensed-game",
+        "condensed_game",
+        "eclat-feed",
+        "international-feed",
+        "alexa",
+        "imagen-feed"
+      ]
+    },
+    {
+      "id": "guardians-and-twins-enter-second-rain-delay",
+      "playId": null,
+      "title": "Guardians and Twins enter second rain delay",
+      "blurb": "Guardians and Twins enter second rain delay",
+      "duration": "00:00:41",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/pebmcs7kcf9imhzplb8m.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/f7b058ba-2b67fe56-26b0cbd9-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/f7b058ba-2b67fe56-26b0cbd9-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/f7b058ba-2b67fe56-26b0cbd9-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/f7b058ba-2b67fe56-26b0cbd9-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-20T01:41:50.98Z",
+      "teamIds": [
+        114,
+        142
+      ],
+      "tags": [
+        "vod",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "weather",
+        "game-story-highlight",
+        "eclat-feed",
+        "international-feed",
+        "fan-duel",
+        "imagen-feed"
+      ]
+    },
+    {
+      "id": "guardians-and-twins-is-officially-suspended",
+      "playId": null,
+      "title": "Guardians and Twins is officially suspended",
+      "blurb": "Guardians and Twins is officially suspended",
+      "duration": "00:00:29",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/dadtnivey9tanin3gzm1.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/6fa25d9b-178dd327-b502af8a-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/6fa25d9b-178dd327-b502af8a-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/6fa25d9b-178dd327-b502af8a-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/6fa25d9b-178dd327-b502af8a-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-20T02:24:58.918Z",
+      "teamIds": [
+        114,
+        142
+      ],
+      "tags": [
+        "vod",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "game-story-highlight",
+        "weather",
+        "eclat-feed",
+        "fan-duel",
+        "imagen-feed",
+        "international-feed"
+      ]
+    },
+    {
+      "id": "guardians-vs-twins-enters-a-rain-delay",
+      "playId": null,
+      "title": "Guardians and Twins enter a rain delay",
+      "blurb": "Guardians and Twins enter a rain delay",
+      "duration": "00:00:30",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/wudd0t9xhxfg07wwexb3.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/bd69424b-f0eefb76-74c2abc0-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/bd69424b-f0eefb76-74c2abc0-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/bd69424b-f0eefb76-74c2abc0-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/bd69424b-f0eefb76-74c2abc0-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-20T00:30:05.108Z",
+      "teamIds": [
+        114,
+        142
+      ],
+      "tags": [
+        "vod",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "weather",
+        "game-story-highlight",
+        "eclat-feed",
+        "international-feed",
+        "fan-duel",
+        "imagen-feed"
+      ]
+    },
+    {
+      "id": "guardians-vs-twins-highlights-x1297",
+      "playId": null,
+      "title": "Guardians vs. Twins Highlights",
+      "blurb": "Guardians vs. Twins Highlights",
+      "duration": "00:03:15",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/drtwtyjjgtzttlwmxf7m.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/32ea648c-af151967-4074e494-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/32ea648c-af151967-4074e494-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/32ea648c-af151967-4074e494-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/32ea648c-af151967-4074e494-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "recap",
+      "date": "2025-05-21T21:51:12.178Z",
+      "teamIds": [
+        114,
+        142
+      ],
+      "tags": [
+        "vod",
+        "game-recap",
+        "mlb_recap",
+        "international-feed",
+        "eclat-feed",
+        "apple-news",
+        "3-yahoo-ads-feed",
+        "tune-in-daily",
+        "alexa",
+        "roku-vod"
+      ]
+    },
+    {
+      "id": "harrison-bader-s-sacrifice-fly-x2469",
+      "playId": null,
+      "title": "Harrison Bader's sacrifice fly",
+      "blurb": "Harrison Bader's sacrifice fly",
+      "duration": "00:00:27",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/xvhio89kijgzn0zbdpzh.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/2d2b42bd-f0de16f4-db6cdfc6-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/2d2b42bd-f0de16f4-db6cdfc6-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/2d2b42bd-f0de16f4-db6cdfc6-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/2d2b42bd-f0de16f4-db6cdfc6-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T17:41:38.574Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "vod",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "game-story-highlight",
+        "hitting",
+        "fan-duel",
+        "eclat-feed",
+        "imagen-feed",
+        "international-feed"
+      ]
+    },
+    {
+      "id": "jakob-junis-in-play-out-s-to-ty-france",
+      "playId": "c28b88ea-7ba0-38f6-ac5b-6aeb6b40d6ee",
+      "title": "José Ramírez's double play",
+      "blurb": "José Ramírez's double play",
+      "duration": "00:00:20",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/pzgoxg3kffyvgaedyq2y.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/1caa5840-ab15f6e4-6d79ed75-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/1caa5840-ab15f6e4-6d79ed75-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/1caa5840-ab15f6e4-6d79ed75-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/1caa5840-ab15f6e4-6d79ed75-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T17:55:41.759Z",
+      "teamIds": [
+        114
+      ],
+      "tags": [
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "game-story-highlight",
+        "defense",
+        "double-play",
+        "imagen-feed",
+        "international-feed",
+        "eclat-feed",
+        "fan-duel"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "jhoan-duran-in-play-run-s-to-bo-naylor",
+      "playId": "96341cc0-982f-379f-b078-40581ed3c38a",
+      "title": "Bo Naylor's game-tying two-run double",
+      "blurb": "Bo Naylor's game-tying two-run double",
+      "duration": "00:00:23",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/bepxscnjjrab9fkrv672.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/4a983e51-600d3602-5f25603a-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/4a983e51-600d3602-5f25603a-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/4a983e51-600d3602-5f25603a-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/4a983e51-600d3602-5f25603a-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T19:06:46.425Z",
+      "teamIds": [
+        114
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "fan-duel",
+        "international-feed",
+        "imagen-feed",
+        "eclat-feed",
+        "apple-news"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "jhoan-duran-in-play-run-s-to-nolan-jones",
+      "playId": "025b4e75-9496-3ca0-87b6-4a4ef3987f93",
+      "title": "Nolan Jones' RBI single",
+      "blurb": "Nolan Jones' RBI single",
+      "duration": "00:00:13",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/nuqdoernn8r9dzizwwpe.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/24f86e7c-b6013821-f9b88f2f-csvm-diamondgcp-asset-4000K.mp4",
+      "renditions": [
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/24f86e7c-b6013821-f9b88f2f-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/24f86e7c-b6013821-f9b88f2f-csvm-diamondgcp-asset-4000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T19:01:17.576Z",
+      "teamIds": [
+        114
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "sporty-cc",
+        "imagen-feed",
+        "international-feed",
+        "eclat-feed",
+        "fan-duel"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "joe-ryan-ball-to-steven-kwan-e4hk3y",
+      "playId": "47a99a39-ab6d-3c27-8e86-28c9fa7c5799",
+      "title": "Ryan Jeffers throws out Will Brennan",
+      "blurb": "Ryan Jeffers throws out Will Brennan",
+      "duration": "00:00:13",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/avbopyngrpdzjl2lotoz.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/285c843c-8ba6d104-ab416045-csvm-diamondgcp-asset-4000K.mp4",
+      "renditions": [
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/285c843c-8ba6d104-ab416045-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/285c843c-8ba6d104-ab416045-csvm-diamondgcp-asset-4000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T18:30:48.947Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "defense",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "sporty-cc",
+        "international-feed",
+        "fan-duel",
+        "eclat-feed",
+        "imagen-feed"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "joe-ryan-strikes-out-four-over-five-plus-innings",
+      "playId": null,
+      "title": "Joe Ryan strikes out four over five-plus innings",
+      "blurb": "Joe Ryan strikes out four over five-plus innings",
+      "duration": "00:00:26",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/tspa3obmvngvuk5r9hsa.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/d3ff9d31-76d7a54c-72248f9c-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/d3ff9d31-76d7a54c-72248f9c-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/d3ff9d31-76d7a54c-72248f9c-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/d3ff9d31-76d7a54c-72248f9c-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T19:12:38.953Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "vod",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "pitching",
+        "highlight-reel-starting-pitching",
+        "fan-duel",
+        "imagen-feed",
+        "international-feed",
+        "eclat-feed"
+      ]
+    },
+    {
+      "id": "joe-ryan-swinging-strike-to-bo-naylor-v8faep",
+      "playId": "3e6a9693-757e-3064-9b27-1ed4dca7a471",
+      "title": "Ryan Jeffers holds on to foul tip for strikeout",
+      "blurb": "Ryan Jeffers holds on to foul tip for strikeout",
+      "duration": "00:00:11",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/wouwanycwdujoikzildu.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/12ffc586-3146cf5c-0221bfd7-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/12ffc586-3146cf5c-0221bfd7-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/12ffc586-3146cf5c-0221bfd7-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/12ffc586-3146cf5c-0221bfd7-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T18:20:39.208Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "game-story-highlight",
+        "defense",
+        "fan-duel",
+        "eclat-feed",
+        "international-feed",
+        "imagen-feed"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "kody-clemens-rbi-triple",
+      "playId": null,
+      "title": "Kody Clemens' RBI triple",
+      "blurb": "Kody Clemens' RBI triple",
+      "duration": "00:00:19",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/xpuq3rk4556zytkvfhjy.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/12a5800a-b4a91cb0-c56bac59-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/12a5800a-b4a91cb0-c56bac59-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/12a5800a-b4a91cb0-c56bac59-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/12a5800a-b4a91cb0-c56bac59-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T17:35:17.83Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "vod",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "game-story-highlight",
+        "hitting",
+        "yahoo-in-game",
+        "2-yahoo-mlb-ads-feed",
+        "send-to-news-mlb-feed",
+        "imagen-feed",
+        "hot-streak",
+        "international-feed",
+        "eclat-feed",
+        "fan-duel",
+        "apple-news"
+      ]
+    },
+    {
+      "id": "kolby-allard-in-play-run-s-to-harrison-bader",
+      "playId": "1925c817-7d51-3722-bfe6-b85dd1675676",
+      "title": "Harrison Bader's RBI single",
+      "blurb": "Harrison Bader's RBI single",
+      "duration": "00:00:14",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/nmqdmhfm3cdchgty6syi.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/aa832210-cc99e12d-bd44b815-csvm-diamondgcp-asset-4000K.mp4",
+      "renditions": [
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/aa832210-cc99e12d-bd44b815-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/aa832210-cc99e12d-bd44b815-csvm-diamondgcp-asset-4000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-21T18:42:43.354Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "sporty-cc",
+        "fan-duel",
+        "eclat-feed",
+        "imagen-feed",
+        "international-feed"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "logan-allen-in-play-run-s-to-ty-france",
+      "playId": "25d29616-6244-3ab0-ae9b-5d0c52a4d2d4",
+      "title": "Ty France's RBI single",
+      "blurb": "Ty France's RBI single",
+      "duration": "00:00:14",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/dngrroribyssxdsujben.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/1294d511-48bfd45a-4a312bd4-csvm-diamondgcp-asset-4000K.mp4",
+      "renditions": [
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/1294d511-48bfd45a-4a312bd4-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/1294d511-48bfd45a-4a312bd4-csvm-diamondgcp-asset-4000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-19T23:56:58.901Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "sporty-cc",
+        "eclat-feed",
+        "imagen-feed",
+        "international-feed",
+        "fan-duel"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "logan-allen-in-play-run-s-to-willi-castro-wtvfm4",
+      "playId": "ed0b0332-1472-3971-afd7-d8bde2adacca",
+      "title": "Willi Castro's RBI double",
+      "blurb": "Willi Castro's RBI double",
+      "duration": "00:00:29",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/ivgktryx4ko9vgnjamu7.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/886fdf99-74471b9e-56535b88-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/886fdf99-74471b9e-56535b88-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/886fdf99-74471b9e-56535b88-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/886fdf99-74471b9e-56535b88-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-20T00:13:41.937Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "hitting",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "vod",
+        "game-story-highlight",
+        "send-to-news-mlb-feed",
+        "2-yahoo-mlb-ads-feed",
+        "yahoo-in-game",
+        "imagen-feed",
+        "fan-duel",
+        "international-feed",
+        "eclat-feed"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "logan-allen-swinging-strike-to-carson-mccusker",
+      "playId": "0ca80cd5-35a0-3040-bcba-ffd3d52af615",
+      "title": "Carson McCusker swings and loses his bat ",
+      "blurb": "Carson McCusker swings and loses his bat ",
+      "duration": "00:00:33",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/k23jinwixrukrn3reaol.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/b65e3220-0cc50592-20c1136b-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/b65e3220-0cc50592-20c1136b-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/b65e3220-0cc50592-20c1136b-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/b65e3220-0cc50592-20c1136b-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-20T00:09:16.204Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "cut-4",
+        "apple-news",
+        "game-story-highlight",
+        "eclat-feed",
+        "imagen-feed",
+        "international-feed",
+        "fan-duel"
+      ],
+      "playLink": "mlb"
+    },
+    {
+      "id": "stephen-vogt-talks-about-the-close-loss-to-twins",
+      "playId": null,
+      "title": "Stephen Vogt talks about the close loss to Twins",
+      "blurb": "Stephen Vogt talks about the close loss to Twins",
+      "duration": "00:00:37",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/q1bibvimnyghlnfz2qhr.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/a8db5efd-2b7b3b91-9cc11f1c-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/a8db5efd-2b7b3b91-9cc11f1c-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/a8db5efd-2b7b3b91-9cc11f1c-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/21/a8db5efd-2b7b3b91-9cc11f1c-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "video",
+      "date": "2025-05-21T20:07:57.391Z",
+      "teamIds": [
+        114
+      ],
+      "tags": [
+        "vod",
+        "press-conference",
+        "imagen-feed",
+        "send-to-news-mlb-feed",
+        "manager-postgame",
+        "tune-in-daily"
+      ]
+    },
+    {
+      "id": "twins-host-bark-at-the-park-at-target-field",
+      "playId": null,
+      "title": "Twins host Bark at the Park at Target Field",
+      "blurb": "Twins host Bark at the Park at Target Field",
+      "duration": "00:01:14",
+      "imageUrl": "https://img.mlbstatic.com/mlb-images/image/upload/w_1920,h_1080,f_jpg,c_fill,g_auto/mlb/b3wyphdixbmbomhd2oyx.jpg",
+      "playbackUrl": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/7d29880a-acb36d09-b3562326-csvm-diamondgcp-asset_1280x720_59_4000K.mp4",
+      "renditions": [
+        {
+          "name": "mp4Avc",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/7d29880a-acb36d09-b3562326-csvm-diamondgcp-asset_1280x720_59_4000K.mp4"
+        },
+        {
+          "name": "hlsCloud",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/7d29880a-acb36d09-b3562326-csvm-diamondgcp-asset.m3u8"
+        },
+        {
+          "name": "highBit",
+          "url": "https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-05/19/7d29880a-acb36d09-b3562326-csvm-diamondgcp-asset_1280x720_59_16000K.mp4"
+        }
+      ],
+      "kind": "highlight",
+      "date": "2025-05-19T23:40:00.827Z",
+      "teamIds": [
+        142
+      ],
+      "tags": [
+        "vod",
+        "cut-4",
+        "apple-news",
+        "dogs",
+        "animals",
+        "highlight",
+        "in-game-highlight",
+        "game-action-tracking",
+        "international-feed",
+        "fan-duel",
+        "eclat-feed",
+        "imagen-feed"
+      ]
+    }
+  ],
+  "boxscore": {
+    "teams": {
+      "away": {
+        "batting": [
+          {
+            "id": 680757,
+            "fullName": "Steven Kwan",
+            "position": "LF",
+            "battingOrder": "100",
+            "atBats": 4,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".310",
+            "lastName": "Kwan",
+            "positions": [
+              "LF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".795"
+          },
+          {
+            "id": 682657,
+            "fullName": "Angel Martínez",
+            "position": "CF",
+            "battingOrder": "200",
+            "atBats": 4,
+            "runs": 1,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".292",
+            "lastName": "Martínez",
+            "positions": [
+              "2B",
+              "CF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".708"
+          },
+          {
+            "id": 608070,
+            "fullName": "José Ramírez",
+            "position": "3B",
+            "battingOrder": "300",
+            "atBats": 4,
+            "runs": 1,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".295",
+            "lastName": "Ramírez",
+            "positions": [
+              "3B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".874"
+          },
+          {
+            "id": 700932,
+            "fullName": "Kyle Manzardo",
+            "position": "DH",
+            "battingOrder": "400",
+            "atBats": 3,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 1,
+            "baseOnBalls": 1,
+            "strikeOuts": 0,
+            "avg": ".224",
+            "lastName": "Manzardo",
+            "positions": [
+              "DH"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".810"
+          },
+          {
+            "id": 467793,
+            "fullName": "Carlos Santana",
+            "position": "1B",
+            "battingOrder": "500",
+            "atBats": 4,
+            "runs": 2,
+            "hits": 1,
+            "rbi": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 2,
+            "avg": ".223",
+            "lastName": "Santana",
+            "positions": [
+              "1B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".666"
+          },
+          {
+            "id": 666134,
+            "fullName": "Nolan Jones",
+            "position": "RF",
+            "battingOrder": "600",
+            "atBats": 4,
+            "runs": 1,
+            "hits": 1,
+            "rbi": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".183",
+            "lastName": "Jones",
+            "positions": [
+              "CF",
+              "RF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".576"
+          },
+          {
+            "id": 672356,
+            "fullName": "Gabriel Arias",
+            "position": "SS",
+            "battingOrder": "700",
+            "atBats": 4,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".248",
+            "lastName": "Arias",
+            "positions": [
+              "SS"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".688"
+          },
+          {
+            "id": 666310,
+            "fullName": "Bo Naylor",
+            "position": "C",
+            "battingOrder": "800",
+            "atBats": 4,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 2,
+            "baseOnBalls": 0,
+            "strikeOuts": 3,
+            "avg": ".193",
+            "lastName": "Naylor",
+            "positions": [
+              "C"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".698"
+          },
+          {
+            "id": 686823,
+            "fullName": "Will Brennan",
+            "position": "RF",
+            "battingOrder": "900",
+            "atBats": 2,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 1,
+            "strikeOuts": 0,
+            "avg": ".091",
+            "lastName": "Brennan",
+            "positions": [
+              "RF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".322"
+          },
+          {
+            "id": 682177,
+            "fullName": "Daniel Schneemann",
+            "position": "2B",
+            "battingOrder": "901",
+            "atBats": 1,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".263",
+            "lastName": "Schneemann",
+            "positions": [
+              "PH",
+              "2B"
+            ],
+            "note": "a-",
+            "isSubstitute": true,
+            "ops": ".831"
+          }
+        ],
+        "pitching": [
+          {
+            "id": 671106,
+            "fullName": "Logan Allen",
+            "lastInitName": "Allen, L",
+            "inningsPitched": "3.0",
+            "hits": 4,
+            "runs": 2,
+            "earnedRuns": 2,
+            "baseOnBalls": 1,
+            "strikeOuts": 3,
+            "homeRuns": 0,
+            "battersFaced": 13,
+            "era": "3.86",
+            "whip": "1.53"
+          },
+          {
+            "id": 596001,
+            "fullName": "Jakob Junis",
+            "lastInitName": "Junis, J",
+            "inningsPitched": "1.2",
+            "hits": 3,
+            "runs": 2,
+            "earnedRuns": 2,
+            "baseOnBalls": 2,
+            "strikeOuts": 0,
+            "homeRuns": 0,
+            "battersFaced": 9,
+            "era": "4.84",
+            "whip": "1.52"
+          },
+          {
+            "id": 676282,
+            "fullName": "Joey Cantillo",
+            "lastInitName": "Cantillo, J",
+            "inningsPitched": "2.1",
+            "hits": 0,
+            "runs": 0,
+            "earnedRuns": 0,
+            "baseOnBalls": 2,
+            "strikeOuts": 4,
+            "homeRuns": 0,
+            "battersFaced": 9,
+            "era": "4.07",
+            "whip": "1.52"
+          },
+          {
+            "id": 663465,
+            "fullName": "Kolby Allard",
+            "lastInitName": "Allard, K",
+            "inningsPitched": "1.0",
+            "hits": 3,
+            "runs": 1,
+            "earnedRuns": 1,
+            "baseOnBalls": 1,
+            "strikeOuts": 1,
+            "homeRuns": 0,
+            "battersFaced": 7,
+            "era": "1.50",
+            "whip": "1.00"
+          },
+          {
+            "id": 671922,
+            "fullName": "Cade Smith",
+            "lastInitName": "Smith, C",
+            "inningsPitched": "0.2",
+            "hits": 2,
+            "runs": 1,
+            "earnedRuns": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "homeRuns": 0,
+            "battersFaced": 5,
+            "era": "2.95",
+            "whip": "1.36"
+          }
+        ],
+        "details": [
+          {
+            "title": "BATTING",
+            "lines": [
+              {
+                "label": "2B",
+                "value": "Manzardo (5, Ober); Ramírez, Jo (10, Ryan); Naylor, B (5, Duran, J)."
+              },
+              {
+                "label": "HR",
+                "value": "Santana, C (5, 4th inning off Ryan, 0 on, 1 out)."
+              },
+              {
+                "label": "TB",
+                "value": "Brennan; Jones, N; Kwan; Manzardo 2; Martínez, A; Naylor, B 2; Ramírez, Jo 2; Santana, C 4."
+              },
+              {
+                "label": "RBI",
+                "value": "Jones, N (8); Manzardo (26); Naylor, B 2 (14); Santana, C (23)."
+              },
+              {
+                "label": "2-out RBI",
+                "value": "Naylor, B 2; Manzardo."
+              },
+              {
+                "label": "Runners left in scoring position, 2 out",
+                "value": "Santana, C; Martínez, A; Schneemann."
+              },
+              {
+                "label": "Team RISP",
+                "value": "2-for-7."
+              },
+              {
+                "label": "Team LOB",
+                "value": "4."
+              }
+            ]
+          },
+          {
+            "title": "BASERUNNING",
+            "lines": [
+              {
+                "label": "CS",
+                "value": "Brennan (1, 2nd base by Ryan/Jeffers)."
+              }
+            ]
+          },
+          {
+            "title": "FIELDING",
+            "lines": [
+              {
+                "label": "DP",
+                "value": "2 (Martínez, A-Arias, G-Santana, C; Ramírez, Jo-Martínez, A)."
+              }
+            ]
+          }
+        ],
+        "notes": [
+          {
+            "label": "a",
+            "value": "Grounded out for Brennan in the 9th."
+          }
+        ]
+      },
+      "home": {
+        "batting": [
+          {
+            "id": 680777,
+            "fullName": "Ryan Jeffers",
+            "position": "C",
+            "battingOrder": "100",
+            "atBats": 2,
+            "runs": 1,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 3,
+            "strikeOuts": 1,
+            "avg": ".271",
+            "lastName": "Jeffers",
+            "positions": [
+              "C"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".772"
+          },
+          {
+            "id": 686797,
+            "fullName": "Brooks Lee",
+            "position": "SS",
+            "battingOrder": "200",
+            "atBats": 4,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 1,
+            "strikeOuts": 2,
+            "avg": ".241",
+            "lastName": "Lee",
+            "positions": [
+              "SS"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".667"
+          },
+          {
+            "id": 668904,
+            "fullName": "Royce Lewis",
+            "position": "DH",
+            "battingOrder": "300",
+            "atBats": 4,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 0,
+            "baseOnBalls": 1,
+            "strikeOuts": 1,
+            "avg": ".209",
+            "lastName": "Lewis",
+            "positions": [
+              "DH"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".603"
+          },
+          {
+            "id": 664034,
+            "fullName": "Ty France",
+            "position": "1B",
+            "battingOrder": "400",
+            "atBats": 4,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".253",
+            "lastName": "France",
+            "positions": [
+              "1B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".672"
+          },
+          {
+            "id": 680837,
+            "fullName": "Ryan Fitzgerald",
+            "position": "PR",
+            "battingOrder": "401",
+            "atBats": 0,
+            "runs": 1,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".000",
+            "lastName": "Fitzgerald",
+            "positions": [
+              "PR"
+            ],
+            "note": "2-",
+            "isSubstitute": true,
+            "ops": ".000"
+          },
+          {
+            "id": 663616,
+            "fullName": "Trevor Larnach",
+            "position": "RF",
+            "battingOrder": "500",
+            "atBats": 4,
+            "runs": 1,
+            "hits": 2,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".250",
+            "lastName": "Larnach",
+            "positions": [
+              "LF",
+              "RF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".743"
+          },
+          {
+            "id": 680577,
+            "fullName": "DaShawn Keirsey Jr.",
+            "position": "LF",
+            "battingOrder": "501",
+            "atBats": 1,
+            "runs": 1,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".118",
+            "lastName": "Keirsey",
+            "positions": [
+              "PR",
+              "LF"
+            ],
+            "note": "1-",
+            "isSubstitute": true,
+            "ops": ".311"
+          },
+          {
+            "id": 681146,
+            "fullName": "Jonah Bride",
+            "position": "3B",
+            "battingOrder": "600",
+            "atBats": 5,
+            "runs": 0,
+            "hits": 3,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".215",
+            "lastName": "Bride",
+            "positions": [
+              "3B"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".525"
+          },
+          {
+            "id": 676812,
+            "fullName": "Carson McCusker",
+            "position": "RF",
+            "battingOrder": "700",
+            "atBats": 1,
+            "runs": 0,
+            "hits": 0,
+            "rbi": 0,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".000",
+            "lastName": "McCusker",
+            "positions": [
+              "RF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".000"
+          },
+          {
+            "id": 665019,
+            "fullName": "Kody Clemens",
+            "position": "2B",
+            "battingOrder": "701",
+            "atBats": 3,
+            "runs": 1,
+            "hits": 2,
+            "rbi": 2,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "avg": ".283",
+            "lastName": "Clemens",
+            "positions": [
+              "PH",
+              "2B"
+            ],
+            "note": "a-",
+            "isSubstitute": true,
+            "ops": ".974"
+          },
+          {
+            "id": 664056,
+            "fullName": "Harrison Bader",
+            "position": "CF",
+            "battingOrder": "800",
+            "atBats": 3,
+            "runs": 1,
+            "hits": 1,
+            "rbi": 2,
+            "baseOnBalls": 0,
+            "strikeOuts": 0,
+            "avg": ".281",
+            "lastName": "Bader",
+            "positions": [
+              "CF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".792"
+          },
+          {
+            "id": 650489,
+            "fullName": "Willi Castro",
+            "position": "RF",
+            "battingOrder": "900",
+            "atBats": 3,
+            "runs": 0,
+            "hits": 1,
+            "rbi": 1,
+            "baseOnBalls": 1,
+            "strikeOuts": 0,
+            "avg": ".238",
+            "lastName": "Castro",
+            "positions": [
+              "2B",
+              "LF",
+              "RF"
+            ],
+            "note": null,
+            "isSubstitute": false,
+            "ops": ".689"
+          }
+        ],
+        "pitching": [
+          {
+            "id": 641927,
+            "fullName": "Bailey Ober",
+            "lastInitName": "Ober, B",
+            "inningsPitched": "3.0",
+            "hits": 3,
+            "runs": 1,
+            "earnedRuns": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 3,
+            "homeRuns": 0,
+            "battersFaced": 12,
+            "era": "3.68",
+            "whip": "1.34"
+          },
+          {
+            "id": 657746,
+            "fullName": "Joe Ryan",
+            "lastInitName": "Ryan, J",
+            "inningsPitched": "5.0",
+            "hits": 3,
+            "runs": 3,
+            "earnedRuns": 3,
+            "baseOnBalls": 2,
+            "strikeOuts": 4,
+            "homeRuns": 1,
+            "battersFaced": 19,
+            "era": "2.68",
+            "whip": "0.81"
+          },
+          {
+            "id": 661395,
+            "fullName": "Jhoan Duran",
+            "lastInitName": "Duran, J",
+            "inningsPitched": "1.0",
+            "hits": 2,
+            "runs": 1,
+            "earnedRuns": 1,
+            "baseOnBalls": 0,
+            "strikeOuts": 1,
+            "homeRuns": 0,
+            "battersFaced": 5,
+            "era": "1.21",
+            "whip": "1.07"
+          }
+        ],
+        "details": [
+          {
+            "title": "BATTING",
+            "lines": [
+              {
+                "label": "2B",
+                "value": "Castro, W (8, Allen, L.T.); Lewis, R (2, Junis); Clemens (4, Smith, C)."
+              },
+              {
+                "label": "3B",
+                "value": "Clemens (1, Junis)."
+              },
+              {
+                "label": "TB",
+                "value": "Bader; Bride 3; Castro, W 2; Clemens 5; France, T; Jeffers; Larnach 2; Lewis, R 2."
+              },
+              {
+                "label": "RBI",
+                "value": "Bader 2 (20); Castro, W (7); Clemens 2 (10); France, T (24)."
+              },
+              {
+                "label": "2-out RBI",
+                "value": "Castro, W; Clemens."
+              },
+              {
+                "label": "Runners left in scoring position, 2 out",
+                "value": "Jeffers; Lee, B 3; France, T."
+              },
+              {
+                "label": "SAC",
+                "value": "Clemens."
+              },
+              {
+                "label": "SF",
+                "value": "Bader."
+              },
+              {
+                "label": "GIDP",
+                "value": "Larnach."
+              },
+              {
+                "label": "Team RISP",
+                "value": "3-for-11."
+              },
+              {
+                "label": "Team LOB",
+                "value": "11."
+              }
+            ]
+          },
+          {
+            "title": "BASERUNNING",
+            "lines": [
+              {
+                "label": "SB",
+                "value": "Bader (5, 2nd base off Allard/Naylor, B)."
+              }
+            ]
+          }
+        ],
+        "notes": [
+          {
+            "label": "a",
+            "value": "Tripled for McCusker in the 4th."
+          },
+          {
+            "label": "1",
+            "value": "Ran for Larnach in the 8th."
+          },
+          {
+            "label": "2",
+            "value": "Ran for France, T in the 9th."
+          }
+        ]
+      }
+    },
+    "info": [
+      {
+        "label": "WP",
+        "value": "Duran, J."
+      },
+      {
+        "label": "IBB",
+        "value": "Jeffers (by Allard)."
+      },
+      {
+        "label": "HBP",
+        "value": "France, T (by Smith, C)."
+      },
+      {
+        "label": "Pitches-strikes",
+        "value": "Allen, L.T. 53-31; Junis 41-25; Cantillo 43-28; Allard 22-14; Smith, C 15-7; Ober 42-35; Ryan 89-51; Duran, J 23-14."
+      },
+      {
+        "label": "Groundouts-flyouts",
+        "value": "Allen, L.T. 4-1; Junis 0-2; Cantillo 2-1; Allard 1-0; Smith, C 0-1; Ober 0-2; Ryan 4-3; Duran, J 2-0."
+      },
+      {
+        "label": "Batters faced",
+        "value": "Allen, L.T. 13; Junis 9; Cantillo 9; Allard 7; Smith, C 5; Ober 12; Ryan 19; Duran, J 5."
+      },
+      {
+        "label": "Inherited runners-scored",
+        "value": "Duran, J 2-2."
+      },
+      {
+        "label": "Umpires",
+        "value": "HP: Bruce Dreckman. 1B: Shane Livensparger. 2B: Nate Tomlinson. 3B: Mark Wegner. "
+      },
+      {
+        "label": "Weather",
+        "value": "57 degrees, Overcast."
+      },
+      {
+        "label": "Wind",
+        "value": "18 mph, In From LF."
+      },
+      {
+        "label": "First pitch",
+        "value": "6:40 PM."
+      },
+      {
+        "label": "T",
+        "value": "2:49 (1:42 delay)."
+      },
+      {
+        "label": "Venue",
+        "value": "Target Field."
+      },
+      {
+        "label": "May 19, 2025",
+        "value": ""
+      }
+    ]
+  },
+  "live": null,
+  "recap": {
+    "headline": "An instant fit with Twins, Clemens continues hot streak with walk-off double",
+    "text": "MINNEAPOLIS -- It took quite a string of events for Kody Clemens to wind up on the Twins’ roster. But now that he’s here, it’s awfully hard to see him going anywhere, anytime soon.\n\nThe veteran utility man has produced remarkably since joining Minnesota as an emergency acquisition in a trade on April 26. He’s also been an instant fit in the Twins clubhouse. If you didn’t know he’d only been with the club for less than four weeks, you’d never guess it.\n\nClemens continued his torrid run with two big hits in the Twins’ 6-5 win Wednesday at Target Field, the resumption of a game suspended Monday night. He didn’t start the game, but was instead inserted as a pinch-hitter when it resumed, and Cleveland brought in a right-handed reliever. He tripled in his first at-bat, then added a walk-off double. For good measure, he doubled in the regularly scheduled game that afternoon, a 5-1 loss.\n\nThat gives him nine extra-base hits in 44 at-bats with the Twins, and a lot of them have been big hits, too.\n\n“It’s so fun,” said Joe Ryan, who pitched the bulk of the innings in the suspended-game win. “He has great energy. On the field or off. I think just the consistency of that, he hits the ball so hard, has great at-bats. Just good to see him out there doing his thing.”\n\nClemens can’t really explain where the power surge comes from. He does credit the expanded opportunities he’s had on an injury-depleted Twins team. He was acquired on the night that top prospect Luke Keaschall suffered a forearm injury. As one injury after another has hit the team, his versatility and offensive output have made him a fixture in the lineup.\n\n“I'm seeing the ball really well,” he said, “starting my load on my swing a lot earlier than I typically did in the past or have in the past. Then just sticking to my plan and approach and being disciplined and swinging at the right pitches.”\n\nHe’s also proved to be an athletic defender and more versatile than the back of his baseball card might suggest.\n\n“He's doing more than just taking advantage of opportunities,” said manager Rocco Baldelli. “He's just producing in a big way, just a lot of barrels. He's hunting pitches, and when he gets them, he's not missing them. He's really squaring them up right now. We knew he could barrel some balls up, that's what he does well.”\n\nAnd then there’s the fit. Clemens knew starter Chris Paddack from when they played youth travel ball together, and he was familiar to some in the clubhouse from his time with Detroit. But it’s not just assumed that when a player joins a club in-season, he’ll step right in and become a valuable clubhouse cog.\n\nPerhaps based on his lifetime being around big league clubhouses, perhaps because of those familiar faces, and maybe just because it’s how he is, Clemens has been a natural with the Twins. Someone visiting the clubhouse for the first time would have no idea he’s been there less than half the season.\n\n“It just shows a lot about him,” said Paddack. “He brings some energy. He brings that positive energy. It feels like he’s been here for years. He’s been here for, what, [a month]? That shows a lot of his character, his personality. When you get over to a new team, especially middle of the season, it’s not always easy.”"
+  },
+  "relatedArticles": [
+    {
+      "slug": "carlos-correa-byron-buxton-concussion-il-progressing-after-collision",
+      "headline": "Correa resumes baseball activities, Buxton progressing well following collision",
+      "blurb": "MINNEAPOLIS -- Carlos Correa is progressing well in his recovery from a concussion and has begun a variety of baseball activities, Twins head athletic trainer Nick Paparesta said Wednesday. Byron Buxton, who collided with Correa last week, is a little behind Correa in his concussion recovery, but is also progressing."
+    },
+    {
+      "slug": "matt-wallner-nearing-rehab-assignment",
+      "headline": "'It's encouraging': Wallner nearing rehab assignment, return to Twins",
+      "blurb": "MINNEAPOLIS -- The Twins are getting closer to having one of their biggest bats back in the lineup. Outfielder Matt Wallner could begin a Minor League rehab assignment as early as Wednesday."
+    }
+  ]
+}

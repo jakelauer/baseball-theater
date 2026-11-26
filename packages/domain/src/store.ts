@@ -9,6 +9,7 @@
 import type { AtBat } from "./plays.js";
 import type {
 	AbstractTeam,
+	BoxscorePitcher,
 	GameSnapshot,
 	LinescoreSummary,
 	MediaHighlight,
@@ -52,12 +53,17 @@ export type BoxscoreBattingRow = {
 	plateAppearances: number;
 };
 
-/** One line in a team's pitching table. */
+/**
+ * One line in a team's pitching table. A snapshot carrying MLB's box score (S207) fills in the
+ * pitcher's line as MLB wrote it (innings, hits, runs, earned runs, walks, strikeouts, home runs and
+ * his season ERA / WHIP after the game); one projected from the at-bats alone has only who pitched
+ * and how many batters he faced.
+ */
 export type BoxscorePitchingRow = {
 	playerId: number;
 	name: string;
 	battersFaced: number;
-};
+} & Partial<Pick<BoxscorePitcher, "inningsPitched" | "hits" | "runs" | "earnedRuns" | "baseOnBalls" | "strikeOuts" | "homeRuns" | "era" | "whip">>;
 
 export type BoxscoreTeamTable = {
 	teamId: number;
