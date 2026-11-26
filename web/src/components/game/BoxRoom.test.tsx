@@ -273,7 +273,7 @@ describe("the Box room (S2)", () =>
 
 describe("the Box room's pitching and details, as the live site shows them (S207)", () =>
 {
-	it("S207 AC 1: under each batting table its pitchers render in MLB's order; Assad's row is 4.2 IP 3 H 3 R 3 ER 5 BB 3 K 0 HR, ERA 3.58", async () =>
+	it("S207 AC 1: under each batting table its pitchers render in MLB's order; Assad's row is 4.2 IP 3 H 3 R 3 ER 5 BB 3 SO 0 HR, ERA 3.58", async () =>
 	{
 		const panel = await boxPanel(fixture(823823), "desktop");
 		const chc = within(panel).getByRole("table", {

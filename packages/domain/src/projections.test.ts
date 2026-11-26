@@ -176,7 +176,7 @@ describe("projectGameBoxscore", () =>
 		expect(teams.home.pitching).toEqual([]);
 	});
 
-	it("S207 AC 1: on the recorded game the pitching rows are MLB's lines in MLB's order: Javier Assad first, 4.2 IP 3 H 3 R 3 ER 5 BB 3 K 0 HR, ERA 3.58", () =>
+	it("S207 AC 1: on the recorded game the pitching rows are MLB's lines in MLB's order: Javier Assad first, 4.2 IP 3 H 3 R 3 ER 5 BB 3 SO 0 HR, ERA 3.58", () =>
 	{
 		// fixtures/game-823823.json is the recorded CHC @ MIA game as the recorder maps it (its plays live in plays-823823.json).
 		const recorded = {
