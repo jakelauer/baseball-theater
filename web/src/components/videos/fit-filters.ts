@@ -6,9 +6,12 @@
  *
  * `widths` are the pills in order, `more` the Filters button, `available` the row's width
  * and `gap` the space between items. Returns the indexes to show, in order: all of them
- * when they fit on their own; else, walking in order, every pill that still fits with
- * the Filters button reserved at the end — so a short pill after a long one can still
- * show. A row not laid out yet (`available` 0, as in jsdom) shows all.
+ * when they fit on their own; else the first pill, always, then, walking in order, every
+ * other pill that still fits with the Filters button reserved at the end — so a short pill
+ * after a long one can still show. The first pill is the Featured team control (or Kind,
+ * grouped by team), which every game shows inline however wide it is, never behind the
+ * Filters button (#583; owner, 2026-11-26: "Always Featured team control"). A row not laid
+ * out yet (`available` 0, as in jsdom) shows all.
  */
 export function fittingFilters(widths: readonly number[], more: number, available: number, gap: number): number[]
 {
@@ -19,7 +22,7 @@ export function fittingFilters(widths: readonly number[], more: number, availabl
 	return all.filter((index) =>
 	{
 		const width = widths[index]!;
-		if (used + gap + width > available) return false;
+		if (index > 0 && used + gap + width > available) return false;
 		used += gap + width;
 		return true;
 	});

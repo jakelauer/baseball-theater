@@ -277,6 +277,42 @@ describe("VideosRoom states and play (S69)", () =>
 		room.mockRestore();
 	});
 
+	it("every game's Videos room shows the inline Featured team control, never a Filters drawer in its place, however wide it is (#583)", async () =>
+	{
+		// jsdom lays nothing out: the Featured team control (its text starts "All") 160px, every other pill and the
+		// Filters button 60px, and a row of 180px: room for Stat / viz and the button, not for the team control.
+		const widths = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement)
+		{
+			return this.textContent?.startsWith("All") ? 160 : 60;
+		});
+		const room = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(180);
+		try
+		{
+			const user = userEvent.setup();
+			renderRoom();
+			const row = within(screen.getByTestId("filter-row"));
+			expect(row.getByRole("radiogroup", {
+				name: "Featured team",
+			})).toBeInTheDocument();
+			// Stat / viz, which no longer fits beside it, stays reachable through the drawer.
+			expect(row.getAllByRole("button").map((b) => b.textContent)).toEqual(["Filters"]);
+			await user.click(row.getByRole("button", {
+				name: "Filters",
+			}));
+			const drawer = within(await screen.findByRole("dialog", {
+				name: "Filters",
+			}));
+			expect(drawer.getByRole("checkbox", {
+				name: "Stat / viz",
+			})).toBeInTheDocument();
+		}
+		finally
+		{
+			widths.mockRestore();
+			room.mockRestore();
+		}
+	});
+
 	it("sort: Impact by default; Newest and Oldest reorder through sortHighlights, within each group", async () =>
 	{
 		const user = userEvent.setup();

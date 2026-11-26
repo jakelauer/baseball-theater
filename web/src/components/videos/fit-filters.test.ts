@@ -14,8 +14,14 @@ describe("fittingFilters (S69)", () =>
 	{
 		expect(fittingFilters([100, 80, 90], 70, 266, 8)).toEqual([0, 1]);
 		expect(fittingFilters([100, 80, 90], 70, 180, 8)).toEqual([0]);
-		expect(fittingFilters([120, 60], 70, 160, 8)).toEqual([1]);
-		expect(fittingFilters([100, 80], 70, 120, 8)).toEqual([]);
+	});
+
+	it("the first pill (the Featured team control) always shows, however wide, never behind the Filters button (#583)", () =>
+	{
+		expect(fittingFilters([120, 60], 70, 160, 8)).toEqual([0]);
+		expect(fittingFilters([160, 60], 70, 180, 8)).toEqual([0]);
+		expect(fittingFilters([100, 80], 70, 120, 8)).toEqual([0]);
+		expect(fittingFilters([100, 40], 30, 140, 8)).toEqual([0]);
 	});
 
 	it("a row not laid out yet shows all", () =>
