@@ -87,6 +87,8 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
 
+  e2e: {}
+
   functions:
     dependencies:
       '@bt/domain':
@@ -185,6 +187,10 @@ importers:
       vitest:
         specifier: ^3.0.8
         version: 3.2.7(@types/node@25.9.6)(jsdom@26.1.0)(sugarss@5.0.1(postcss@8.5.26))(terser@5.51.2)(tsx@4.23.12)(yaml@2.9.0)
+
+  scripts: {}
+
+  tools: {}
 
   web:
     dependencies:

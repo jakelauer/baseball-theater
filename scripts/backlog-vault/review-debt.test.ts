@@ -743,6 +743,43 @@ describe("review-debt.sh and parity-debt.sh --json: the events behind a review's
 		]));
 	}, TIMEOUT);
 
+	it("review-debt.sh: a change to the gate's own script alone is verify-changed, naming that path", () =>
+	{
+		// Since ADR-030 the gate lives in scripts/verify.sh and verify-plan.ts, not in package.json's line.
+		reviewed({
+			"scripts/verify.sh": "turbo run lint test\n",
+		});
+		write("scripts/verify.sh", "turbo run lint\n");
+		commit("the gate drops a task");
+		expect(report("review-debt.sh").events).toEqual(expect.arrayContaining([
+			{
+				kind: "verify-changed",
+				path: "scripts/verify.sh",
+			},
+		]));
+	}, TIMEOUT);
+
+	it("review-debt.sh: turbo.json is the gate changing only when its tasks, edges or global inputs change, never a task's inputs", () =>
+	{
+		const turboJson = (tasks: string, inputs: string) => `{\n// tasks\n"globalDependencies": ["pnpm-lock.yaml"],\n"tasks": {${tasks}"test": {"dependsOn": ["^typecheck"], "inputs": [${inputs}]}}}\n`;
+		reviewed({
+			"turbo.json": turboJson("", "\"$TURBO_DEFAULT$\""),
+		});
+		// A story adds a task input (ADR-030 rule 6): not drift.
+		write("turbo.json", turboJson("", "\"$TURBO_DEFAULT$\", \"$TURBO_ROOT$/fixtures/**\""));
+		commit("an input");
+		expect(report("review-debt.sh").events.filter((e: { kind: string }) => e.kind === "verify-changed")).toEqual([]);
+		// A new task changes what the gate runs: drift.
+		write("turbo.json", turboJson("\"size\": {\"dependsOn\": [\"build\"]}, ", "\"$TURBO_DEFAULT$\", \"$TURBO_ROOT$/fixtures/**\""));
+		commit("a task");
+		expect(report("review-debt.sh").events).toEqual(expect.arrayContaining([
+			{
+				kind: "verify-changed",
+				path: "turbo.json",
+			},
+		]));
+	}, TIMEOUT);
+
 	it("review-debt.sh and parity-debt.sh: count carries the done IDs", () =>
 	{
 		reviewed();

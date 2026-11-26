@@ -523,10 +523,19 @@ if [ "$MODE" = "story" ]; then
     grader_exit=$?
   fi
 
+  # ADR-030 rules 7–9 (S168): the finishing gate runs every task with the local cache (`pnpm verify
+  # --all`; owner, 2026-11-26: "Full suite, cached"); --reverify runs every task fresh, reading no
+  # cache (BT_VERIFY_FULL=1), since it judges the repository as a whole. Turborepo's run summary
+  # (--summarize, .turbo/runs/*.json) gives the entry the tasks that ran, were replayed from the cache
+  # and were not affected (scripts/verify-record.ts), so a replay is never recorded as a fresh run.
+  gate_rows=""
   if [ "$RUN_VERIFY" -eq 1 ]; then
-    echo "audit ${ID}: running pnpm verify…"
-    pnpm verify >"$verify_log" 2>&1
+    gate_since="$(node -e 'console.log(Date.now())')"
+    if [ "$LABEL" = "reverify" ]; then gate=(env BT_VERIFY_FULL=1 BT_VERIFY_SUMMARIZE=1 pnpm verify); else gate=(env BT_VERIFY_SUMMARIZE=1 pnpm verify --all); fi
+    echo "audit ${ID}: running ${gate[*]:1}…"
+    "${gate[@]}" >"$verify_log" 2>&1
     verify_exit=$?
+    gate_rows="$(node scripts/verify-record.ts --since "$gate_since" 2>/dev/null || echo "| Gate: tasks that ran, replayed, not affected | not recorded (scripts/verify-record.ts read no .turbo/runs/*.json summary) |")"
   else
     verify_exit="skipped"
   fi
@@ -588,7 +597,8 @@ if [ "$MODE" = "story" ]; then
       fi
     fi
     if [ "$RUN_VERIFY" -eq 1 ]; then
-      echo "| \`pnpm verify\` | exit \`${verify_exit}\` |"
+      echo "| \`pnpm verify\` | exit \`${verify_exit}\` (\`${gate[*]:1}\`) |"
+      [ -n "$gate_rows" ] && echo "$gate_rows"
     else
       echo "| \`pnpm verify\` | not re-run for this entry — one repo-wide run covers the tree, recorded in the newest completion entry |"
     fi

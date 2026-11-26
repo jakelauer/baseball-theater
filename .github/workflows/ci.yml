@@ -80,10 +80,10 @@ jobs:
                       *) echo "::error::e2e/select-specs.ts answered '$functions', not true or false"; exit 1 ;;
                   esac
 
-    # What a docs-only change can break: the generated backlog (pnpm backlog:check, also the first
-    # step of pnpm lint), the backlog vault's own tests (ledger, laws, index) and the format of the
-    # Markdown Prettier checks (outside docs/, which .prettierignore leaves out). The verify job runs
-    # the same Markdown check for code changes, since they can change Markdown too.
+    # What a docs-only change can break: the generated backlog (pnpm backlog:check, the graph's
+    # //#backlog:check task in a code run), the law-test unit's own tests (ledger, laws, index) and the
+    # format of the Markdown Prettier checks (outside docs/, which .prettierignore leaves out). The
+    # verify job checks the same Markdown for code changes, as the graph's //#format:md task.
     docs:
         needs: changes
         if: needs.changes.outputs.code == 'false'
@@ -115,11 +115,11 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: pnpm backlog:sync && pnpm backlog:check --live
 
-            - name: Backlog vault tests
-              run: pnpm test:backlog
+            - name: Backlog vault and law tests (the law-test unit's test task, ADR-030)
+              run: pnpm --filter @bt/scripts test
 
             - name: Markdown format
-              run: pnpm exec prettier --check "**/*.md"
+              run: pnpm format:md
 
     verify:
         needs: changes
@@ -130,7 +130,10 @@ jobs:
             contents: read
             issues: read
         steps:
+            # Full history, so pnpm verify can find the merge base with the pull request's base (ADR-030 rule 7).
             - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
               with:
@@ -159,14 +162,13 @@ jobs:
                       turbo-${{ runner.os }}-stage-
 
             # S152 AC 6: ESLint's cache (content strategy, since a checkout resets every file's time)
-            # and each package's tsc build info, kept between pull-request runs like Turborepo's.
-            # `pnpm lint` uses ESLint's cache only under GitHub Actions; a push restores none, so it
-            # lints fresh and saves the cache for later pull requests. The key hashes ESLint's config,
-            # its own rules, the lockfile (its plugins) and every tsconfig in the repository (its
-            # type-aware rules read each file's own, scripts/ and scripts/backlog-vault/ included),
-            # so a change to any of them starts afresh. A pull request can still replay a file's
-            # pass whose type-aware result another file's change altered; the next push's fresh lint
-            # is the backstop (owner, 2026-11-19: "Keep it on pull requests (Recommended)").
+            # and each package's tsc build info, kept between pull-request runs like Turborepo's; a push
+            # restores none. Since ADR-030 (S168) the units' `lint` tasks run ESLint without `--cache`
+            # (Turborepo replays an unchanged unit's lint instead), so the .eslintcache entry is no longer
+            # read; the step stays as S152 set it up until a later change removes it. The key hashes
+            # ESLint's config, its own rules, the lockfile and every tsconfig in the repository, so a
+            # change to any of them starts afresh. S152 kept the ESLint cache on pull requests, the next
+            # push's fresh run being the backstop (owner, 2026-11-19: "Keep it on pull requests (Recommended)").
             - name: Restore the ESLint and tsc caches (pull requests only)
               if: github.event_name == 'pull_request'
               uses: actions/cache/restore@v4
@@ -181,26 +183,24 @@ jobs:
                       lint-tsc-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'tools/eslint-rules/**', 'pnpm-lock.yaml', '**/tsconfig*.json', '!**/node_modules/**') }}-pr-${{ github.event.pull_request.number }}-
                       lint-tsc-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'tools/eslint-rules/**', 'pnpm-lock.yaml', '**/tsconfig*.json', '!**/node_modules/**') }}-stage-
 
-            # The docs job's Markdown check, run for code changes too (Claude's review of PR #14):
-            # pnpm verify runs no Prettier, so without it a code change could merge unformatted
-            # Markdown and the next docs-only change would fail on a file it never touched.
-            - name: Markdown format
-              run: pnpm exec prettier --check "**/*.md"
-
-            # The one gate (S62; law P11): build (lint, then each package's typecheck
-            # and build), dup:check, test:coverage and size — every law pnpm verify
-            # holds also holds here. A push to stage or main runs it all fresh (S152).
-            - name: Verify
+            # The one gate (S62; law P11; ADR-030): pnpm verify, the same entry point and task graph as
+            # the local check (each unit's lint, typecheck, test, build and size, and the root
+            # backlog:check, dup:check and format:md tasks). A push to stage or main runs every task
+            # fresh, reading no cache (BT_VERIFY_FULL=1; S152, owner 2026-11-19: "Stage reruns
+            # everything (Recommended)"), so a wrong narrowing or a missing input shows there.
+            - name: Verify (every task, fresh)
               if: github.event_name != 'pull_request'
+              env:
+                  BT_VERIFY_FULL: "1"
               run: pnpm verify
 
-            # On a pull request the same gate reads Turborepo's cache (BT_TURBO_CACHE_READ, set
-            # nowhere else), so an unchanged package replays its passing result; when the change
-            # reaches functions, its tests are left to the functions-shard jobs (S152 AC 3, AC 4).
-            - name: Verify (pull request, reusing unchanged packages)
+            # On a pull request it runs the tasks the change reaches against the pull request's base
+            # and replays the rest from the restored cache; when the change reaches functions, its
+            # tests are left to the functions-shard jobs (S152 AC 4).
+            - name: Verify (pull request, what the change reaches)
               if: github.event_name == 'pull_request'
               env:
-                  BT_TURBO_CACHE_READ: "1"
+                  BT_VERIFY_BASE: origin/${{ github.base_ref }}
                   FUNCTIONS: ${{ needs.changes.outputs.functions }}
               run: |
                   if [ "$FUNCTIONS" = true ]; then export BT_FUNCTIONS_SHARDED=1; fi
@@ -318,8 +318,8 @@ jobs:
               run: pnpm exec playwright test --config e2e/playwright.config.ts --workers=4 --repeat-each=2 ${{ steps.specs.outputs.list }}
 
     # S152 AC 4: on a pull request whose change reaches functions, its Node tests run here in two
-    # shards (verify skips them), with the coverage floors off for each shard's partial coverage;
-    # the workerd tests run once, in shard 1. Otherwise every step skips and the job still passes,
+    # shards (verify skips them) through functions' own test task, with the coverage floors off for
+    # each shard's partial coverage; the workerd tests run once, in shard 1. Otherwise every step skips and the job still passes,
     # since ci-passed needs success. Docs-only changes skip the job like the others.
     functions-shard:
         needs: changes
@@ -349,17 +349,14 @@ jobs:
               if: needs.changes.outputs.functions == 'true'
               run: pnpm install --frozen-lockfile
 
+            # functions' own test task through the entry point (ADR-030 rule 10): BT_COVERAGE_SHARD makes
+            # it run its shard with a blob report and no floors, and the workerd tests in shard 1.
             - name: Functions tests, shard ${{ matrix.shard }} of 2
               if: needs.changes.outputs.functions == 'true'
-              working-directory: functions
               env:
-                  BT_COVERAGE_SHARD: "1"
-              run: pnpm exec vitest run --shard=${{ matrix.shard }}/2 --reporter=blob --reporter=dot --silent=passed-only --coverage
-
-            - name: Functions workerd tests (once, in shard 1)
-              if: needs.changes.outputs.functions == 'true' && matrix.shard == 1
-              working-directory: functions
-              run: pnpm exec vitest run --config vitest.workers.config.ts --reporter=dot --silent=passed-only
+                  BT_COVERAGE_SHARD: ${{ matrix.shard }}/2
+                  BT_VERIFY_ONLY: "@bt/functions"
+              run: pnpm verify
 
             - name: Upload the shard's report
               if: needs.changes.outputs.functions == 'true'

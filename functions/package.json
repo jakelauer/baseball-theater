@@ -7,11 +7,11 @@
 		"dev": "mkdir -p ../web/dist && wrangler dev --config ../wrangler.jsonc --port ${BT_API_PORT:-8787} --var BT_LOCAL:1",
 		"start": "tsx src/local-server.ts",
 		"typecheck": "tsc -p tsconfig.json --noEmit --incremental --tsBuildInfoFile tsconfig.tsbuildinfo",
-		"build": "tsc -p tsconfig.json --noEmit --incremental --tsBuildInfoFile tsconfig.tsbuildinfo",
-		"test": "vitest run && vitest run --config vitest.workers.config.ts",
-		"test:coverage": "if [ -n \"$BT_FUNCTIONS_SHARDED\" ]; then echo \"@bt/functions: tests skipped here, CI runs them in its shard jobs (BT_FUNCTIONS_SHARDED)\"; else vitest run --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary --reporter=dot --silent=passed-only && vitest run --config vitest.workers.config.ts --reporter=dot --silent=passed-only; fi",
+		"test": "if [ -n \"$BT_COVERAGE_SHARD\" ]; then vitest run --shard=$BT_COVERAGE_SHARD --reporter=blob --reporter=dot --silent=passed-only --coverage ${BT_VITEST_MAX_WORKERS:+--maxWorkers=$BT_VITEST_MAX_WORKERS} && { [ \"${BT_COVERAGE_SHARD%%/*}\" != 1 ] || vitest run --config vitest.workers.config.ts --reporter=dot --silent=passed-only; }; elif [ -n \"$BT_FUNCTIONS_SHARDED\" ]; then echo \"@bt/functions: tests skipped here, CI runs them in its shard jobs (BT_FUNCTIONS_SHARDED)\"; else vitest run --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary --reporter=dot --silent=passed-only ${BT_VITEST_MAX_WORKERS:+--maxWorkers=$BT_VITEST_MAX_WORKERS} && vitest run --config vitest.workers.config.ts --reporter=dot --silent=passed-only; fi",
 		"record-fixtures": "tsx src/scripts/record-fixtures.ts",
 		"capture-replay": "tsx src/scripts/capture-replay.ts",
+		"lint": "eslint .",
+		"test:fast": "vitest run && vitest run --config vitest.workers.config.ts",
 		"test:workerd": "vitest run --config vitest.workers.config.ts"
 	},
 	"dependencies": {

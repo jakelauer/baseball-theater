@@ -1,7 +1,7 @@
 {
 	"ci": {
 		"collect": {
-			"startServerCommand": "pnpm lighthouse:serve",
+			"startServerCommand": "pnpm -w run lighthouse:serve",
 			"startServerReadyPattern": "Local(\\u001b\\[\\d+m)*:",
 			"startServerReadyTimeout": 60000,
 			"url": ["http://localhost:4173/games/2024-07-04", "http://localhost:4173/game/745001"],

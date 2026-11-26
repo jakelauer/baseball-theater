@@ -13,9 +13,9 @@ pnpm verify
 
 This is the truth signal. Exit code **0** means:
 
-1. ESLint passes for the whole repo (`pnpm build` runs `pnpm lint` first, so it runs once)
-2. Typecheck + package builds succeed (each package's `build` runs `tsc --noEmit`)
-3. Vitest passes in all packages **with coverage thresholds**
+1. ESLint passes in every unit the change reaches (each unit's `lint` task)
+2. Type checks and builds succeed (each unit's `typecheck` and `build` tasks)
+3. Vitest passes in every unit the change reaches **with its coverage thresholds** (each unit's `test` task)
 
 Exit code **non-zero** means the change is not done. Do not claim success.
 
@@ -23,15 +23,18 @@ Exit code **non-zero** means the change is not done. Do not claim success.
 
 The output is kept short to save context (owner, 2026-11-04): tests print a dot each, logs only from failing tests, and coverage as totals per package; a failure still prints in full, and a missed floor names the metric. For the per-file coverage table, run `pnpm --filter <package> exec vitest run --coverage`.
 
+**What `pnpm verify` runs** (ADR-030, S168): the tasks a change reaches, each unit's `lint`, `typecheck`, `test` (with its coverage floors), `build` and `size`, and the root `backlog:check`, `dup:check` and `format:md` tasks, for the files that differ from the merge base with `stage` (committed, uncommitted and untracked alike), their units' dependents and the tasks that name them as inputs, replaying unchanged tasks from the local Turborepo cache, at half the cores. `pnpm verify --full` (or `BT_VERIFY_FULL=1`) executes every task again, reading no cache: `scripts/audit.sh story --reverify` and Deploy's `verify` job use it.
+**The finishing gate** (`scripts/audit.sh story`) runs the full graph with the local cache, replaying unchanged tasks (`pnpm verify --all`; owner, 2026-11-26: "Full suite, cached"), and its ledger entry lists the tasks that ran, were replayed and were not affected. Every push to `stage` or `main` runs everything: CI sets `BT_VERIFY_FULL=1` there, so a wrong narrowing or an undeclared input shows on `stage` before it ships.
+
 ### What this covers
 
-| Check                    | How                                                           |
-| ------------------------ | ------------------------------------------------------------- |
-| Lint                     | `pnpm lint` (first step of `pnpm build`)                      |
-| Unit / integration tests | `pnpm test:coverage` (domain, functions, web projects)        |
-| Coverage floors          | Per-package Vitest thresholds                                 |
-| Types + production build | `pnpm build`                                                  |
-| HTTP schedule/game smoke | Covered by `functions/src/handlers/api.test.ts` (fixture API) |
+| Check                    | How                                                                     |
+| ------------------------ | ----------------------------------------------------------------------- |
+| Lint                     | each unit's `lint` task (`pnpm lint` runs them all)                     |
+| Unit / integration tests | each unit's `test` task (coverage and its floors), in Turborepo's graph |
+| Coverage floors          | Per-package Vitest thresholds                                           |
+| Types + production build | each unit's `typecheck` and `build` tasks                               |
+| HTTP schedule/game smoke | Covered by `functions/src/handlers/api.test.ts` (fixture API)           |
 
 ### What this does **not** cover yet
 

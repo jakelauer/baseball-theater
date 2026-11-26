@@ -1,0 +1,12 @@
+{
+	"name": "@bt/scripts",
+	"private": true,
+	"type": "module",
+	"description": "The repository's own tooling (the backlog vault, audit, graders' helpers) and the law tests that read the whole repository (ADR-030 rule 4).",
+	"scripts": {
+		"lint": "eslint .",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"test": "vitest run --config backlog-vault/vitest.config.ts --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary --reporter=dot --silent=passed-only ${BT_VITEST_MAX_WORKERS:+--maxWorkers=$BT_VITEST_MAX_WORKERS}",
+		"test:fast": "vitest run --config backlog-vault/vitest.config.ts"
+	}
+}

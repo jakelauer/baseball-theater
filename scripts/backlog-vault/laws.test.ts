@@ -1,7 +1,9 @@
 /**
  * `docs/v3/LAWS.md` (S84): every law marked **enforced** names a file that exists and a
  * step that `pnpm verify` actually runs, so the registry can't claim a guard that has
- * quietly gone away. Proposed laws are skipped — nothing enforces them yet.
+ * quietly gone away. Proposed laws are skipped — nothing enforces them yet. Since ADR-030 (S168)
+ * a step is a task of the graph: `<unit>#<task>`, `//#<task>`, or "each unit's `<task>`", and it
+ * must be in the full dry run of the entry point's task list.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -9,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import {
 	describe, expect, it,
 } from "vitest";
-import { verifyChain } from "./verify-chain.ts";
+import { graphTasks } from "./verify-chain.ts";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -40,7 +42,16 @@ export function parseLaws(markdown: string): Law[]
 }
 
 const laws = parseLaws(readFileSync(join(ROOT, "docs/v3/LAWS.md"), "utf8"));
-const chain = verifyChain((JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { scripts: Record<string, string> }).scripts);
+const graph = new Set(graphTasks().map((t) => t.taskId));
+
+/** Whether a law's step names tasks that are all in the graph (at least one task for "each unit's"). */
+export function stepInGraph(step: string, ids: Set<string>): boolean
+{
+	const each = /each unit's `?([\w:-]+)`?/.exec(step)?.[1];
+	if (each) return [...ids].some((id) => id.endsWith(`#${each}`) && !id.startsWith("//#"));
+	const named = [...step.matchAll(/`?((?:@[\w/-]+|\/\/)#[\w:-]+)`?/g)].map((m) => m[1]!);
+	return named.length > 0 && named.every((n) => ids.has(n));
+}
 
 describe("docs/v3/LAWS.md (S84)", () =>
 {
@@ -52,10 +63,10 @@ describe("docs/v3/LAWS.md (S84)", () =>
 
 	for (const law of laws.filter((l) => l.status === "enforced"))
 	{
-		it(`${law.id}: ${law.enforcedBy} exists and its step "${law.step}" is in the pnpm verify chain`, () =>
+		it(`${law.id}: ${law.enforcedBy} exists and its step "${law.step}" is a task of the graph pnpm verify runs`, () =>
 		{
 			expect(existsSync(join(ROOT, law.enforcedBy)), law.enforcedBy).toBe(true);
-			expect(chain.has(law.step), `verify chain: ${[...chain].join(", ")}`).toBe(true);
+			expect(stepInGraph(law.step, graph), `graph: ${[...graph].join(", ")}`).toBe(true);
 		});
 	}
 
@@ -63,9 +74,8 @@ describe("docs/v3/LAWS.md (S84)", () =>
 	{
 		const fake = parseLaws("## The laws\n\n| ID | Law | Source | Enforced by | Step | Status |\n| L9 | x | y | `no/such/file.ts` | deploy | enforced |\n");
 		expect(existsSync(join(ROOT, fake[0]!.enforcedBy))).toBe(false);
-		expect(verifyChain({
-			verify: "pnpm lint",
-			lint: "eslint .",
-		}).has("deploy")).toBe(false);
+		expect(stepInGraph("deploy", graph)).toBe(false);
+		expect(stepInGraph("`@bt/web#deploy`", graph)).toBe(false);
+		expect(stepInGraph("each unit's `deploy`", graph)).toBe(false);
 	});
 });

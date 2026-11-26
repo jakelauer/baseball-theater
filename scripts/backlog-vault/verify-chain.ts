@@ -1,8 +1,9 @@
+import { dryRun, ROOT } from "./build-graph.ts";
+
 /**
  * The scripts `pnpm verify` reaches (S84, S85): `verify` and every `pnpm <script>` it
- * calls, followed transitively. One implementation for the laws registry test
- * (`laws.test.ts`: an enforced law's step must be in the chain) and law P8
- * (`verify-chain.test.ts`: nothing in the chain starts a browser).
+ * calls, followed transitively. Since ADR-030 (S168) the checks themselves are tasks of the graph
+ * the entry point runs (scripts/verify.sh); `graphTasks` lists them for law P8 and the laws registry.
  */
 export function verifyChain(scripts: Record<string, string>): Set<string>
 {
@@ -21,4 +22,37 @@ export function verifyChain(scripts: Record<string, string>): Set<string>
 export function browserSteps(scripts: Record<string, string>): string[]
 {
 	return [...verifyChain(scripts)].filter((name) => /playwright|design:capture|e2e\/|lhci/.test(scripts[name]!));
+}
+
+/** Every task of the full graph `pnpm verify --full` runs, with its command (ADR-030 rule 11). */
+export function graphTasks(root: string = ROOT): { taskId: string;
+	command: string }[]
+{
+	return dryRun(root).map((t) => ({
+		taskId: t.taskId,
+		command: t.command,
+	}));
+}
+
+/**
+ * Law P8 over the graph: the tasks whose command starts a browser. A task whose command runs a root
+ * script (`pnpm -w run size`, as web's `size` does) is judged by that script's text and every root
+ * script it runs in turn (`rootScripts`: the root package.json's scripts), each read once.
+ */
+export function browserTasks(tasks: { taskId: string;
+	command: string }[], rootScripts: Record<string, string>): string[]
+{
+	const expand = (command: string, seen: Set<string>): string =>
+	{
+		let text = command;
+		for (const m of command.matchAll(/pnpm (?:-w |--workspace-root )?(?:-s )?(?:run )?([a-z][\w:-]*)/g))
+		{
+			const name = m[1]!;
+			if (seen.has(name) || !(name in rootScripts)) continue;
+			seen.add(name);
+			text += `\n${expand(rootScripts[name]!, seen)}`;
+		}
+		return text;
+	};
+	return tasks.filter((t) => /playwright|design:capture|lhci/.test(expand(t.command, new Set()))).map((t) => t.taskId);
 }

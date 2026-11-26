@@ -17,10 +17,10 @@
  *   runs all of `functions`' tests. A package's own package.json or vitest config runs its
  *   whole suite; the root lockfile, package.json, tsconfig or vitest config runs every suite.
  * - The repo-tooling suites outside the workspace packages run whole when a file they test is
- *   staged: the backlog tool's (`pnpm test:backlog`) for scripts/backlog-vault/, scripts/audit.sh,
+ *   staged: the backlog tool's (`pnpm --filter @bt/scripts test:fast`'s suite) for scripts/backlog-vault/, scripts/audit.sh,
  *   the debt scripts, the backlog notes, the ledger (one of its tests reads the real AUDIT.md),
  *   changelog.d/ and the other files its tests read (the triggers below), and the tools suite
- *   (`pnpm test:tools`) for tools/. Both take a few seconds.
+ *   (`pnpm --filter @bt/tools test:fast`'s suite) for tools/. Both take a few seconds.
  * - Coverage thresholds and the workerd suite (`functions/vitest.workers.config.ts`) are left to
  *   `pnpm verify` and CI, to keep a commit fast.
  * - It tests the working tree, so unstaged edits to a staged file are tested too.
@@ -48,9 +48,11 @@ const toolingSuites = [
 		// The tool itself, the ledger writer, the debt scripts, the backlog notes and docs it builds from, the ledger and its
 		// fragments, the changelog fragments a finished story needs (records.ts), everything under .github/ (laws P11 and
 		// L12) and what else its tests run or read since S156: plan-review.py and its tests, worktree-for.sh, the review
-		// gate, turbo.json (L12) and the three configs reading a worktree's ports (worktree-ports.test.ts).
+		// gate, turbo.json (L12) and the three configs reading a worktree's ports (worktree-ports.test.ts); since S168 the
+		// local check's narrowing and ledger record (verify-plan.ts, verify-record.ts), whose tests live here.
 		triggers: [
 			/^scripts\/(backlog-vault\/|audit\.sh$|review-debt\.sh$|parity-debt\.sh$|goal\.sh$|worktree-for\.sh$|review-gate\.sh$|lib\/|claude-review\/)/,
+			/^scripts\/(verify-plan|verify-record)\.ts$/,
 			/^docs\/v3\/(backlog\/|audit\/|AUDIT\.md$|FEATURES\.md$|INTENT\.md$|LAWS\.md$)/,
 			/^changelog\.d\//,
 			/^\.github\//,
