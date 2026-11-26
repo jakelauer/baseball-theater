@@ -13,7 +13,7 @@ import { pitcherLine } from "@bt/domain";
 import { MantineProvider } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
-	act, cleanup, fireEvent, render, screen, within,
+	act, cleanup, fireEvent, render, screen, waitFor, within,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 import {
@@ -29,6 +29,8 @@ import { BODY_FONT_PX, mantineFontPx } from "../../test/fontSize.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
 import { AtBatViewer } from "./AtBatViewer.js";
 import { PlaysPanel } from "./PlaysPanel.js";
+import { PlayerProvider } from "../videos/PlayerProvider.js";
+import { expectInCorner, markPlaying } from "../../test/renderWithPlayer.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 const PLAYS: AtBat[] = JSON.parse(readFileSync(join(FIXTURES, "plays-823823.json"), "utf8"));
@@ -48,7 +50,7 @@ function game(plays: AtBat[] = PLAYS): GamePayload
 function wrap(node: ReactNode)
 {
 	// The room reads `?play=` (S97), so it renders inside a router as the app does.
-	return render(<MantineProvider><MemoryRouter>{node}</MemoryRouter></MantineProvider>);
+	return render(<MantineProvider><MemoryRouter><PlayerProvider>{node}</PlayerProvider></MemoryRouter></MantineProvider>);
 }
 
 /** Renders `/game/823823/plays` and returns the Plays tab panel. */
@@ -58,11 +60,11 @@ async function playsPanel(): Promise<HTMLElement>
 	render(
 		<MantineProvider>
 			<QueryClientProvider client={createQueryClient()}>
-				<MemoryRouter initialEntries={["/game/823823/plays"]}>
+				<MemoryRouter initialEntries={["/game/823823/plays"]}><PlayerProvider>
 					<Routes>
 						<Route path="/game/:gamePk/:tab" element={<GamePage variant="mobile" />} />
 					</Routes>
-				</MemoryRouter>
+				</PlayerProvider></MemoryRouter>
 			</QueryClientProvider>
 		</MantineProvider>,
 	);
@@ -705,7 +707,7 @@ describe("AtBatViewer", () =>
 		const second = screen.getAllByTestId("pitch-row").at(-2)!;
 		fireEvent.click(within(second).getByRole("button"));
 		// The same tree as `wrap`, so the viewer updates rather than remounting.
-		rerender(<MantineProvider><MemoryRouter><AtBatViewer plays={PLAYS} atBat={atBat} autoplay={1} /></MemoryRouter></MantineProvider>);
+		rerender(<MantineProvider><MemoryRouter><PlayerProvider><AtBatViewer plays={PLAYS} atBat={atBat} autoplay={1} /></PlayerProvider></MemoryRouter></MantineProvider>);
 		expect(screen.getAllByTestId("pitch-row").at(-2)).toHaveAttribute("data-expanded", "true");
 	});
 
@@ -718,5 +720,37 @@ describe("AtBatViewer", () =>
 		expect(screen.getByRole("button", {
 			name: "Animate pitch",
 		})).toBeDisabled();
+	});
+});
+
+describe("the corner mini-player from a play row (S198)", () =>
+{
+	it("S198 AC 1: a clip started from a play row's play button keeps playing in the corner after a route change, the same element", async () =>
+	{
+		vi.stubGlobal("scrollBy", vi.fn());
+		// Frames on real timers, as this file's other tests stub them: the dialog opens a frame after it mounts.
+		vi.stubGlobal("requestAnimationFrame", (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now()), 16));
+		vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
+		const panel = await playsPanel();
+		// A clip whose play is in the game: its row carries the play button (#422).
+		const clip = game().highlights.find((h) => h.playId && PLAYS.some((a) => a.pitches.some((p) => p.playId === h.playId)))!;
+		const atBat = PLAYS.find((a) => a.pitches.some((p) => p.playId === clip.playId))!;
+		fireEvent.click(within(within(panel).getByRole("navigation", {
+			name: "Inning sidebar",
+		})).getByRole("button", {
+			name: String(atBat.about.inning),
+		}));
+		fireEvent.click(within(document.getElementById(`at-bat-${atBat.about.atBatIndex}`)!).getByRole("link", {
+			name: clip.title,
+		}));
+		const dialog = await screen.findByRole("dialog");
+		const video = within(dialog).getByTestId("video-player").querySelector("video")!;
+		markPlaying(video, 9);
+		// Off to the Box room: a route change, the Plays room and its dialog unmounted.
+		fireEvent.click(screen.getByRole("tab", {
+			name: "Box",
+		}));
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		expectInCorner(video, 9);
 	});
 });

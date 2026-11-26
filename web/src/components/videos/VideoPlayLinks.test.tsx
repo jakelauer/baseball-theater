@@ -26,6 +26,7 @@ import { hydrateSettings, resetSettings } from "../../settings/store.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
 import { PlayerDialog } from "./PlayerDialog.js";
 import { playInningLink } from "./playLink.js";
+import { PlayerProvider } from "./PlayerProvider.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 const read = (file: string) => JSON.parse(readFileSync(join(FIXTURES, file), "utf8"));
@@ -73,11 +74,11 @@ async function open(path: string, ready: string, game: GamePayload = GAME): Prom
 	render(
 		<MantineProvider>
 			<QueryClientProvider client={createQueryClient()}>
-				<MemoryRouter initialEntries={[path]}>
+				<MemoryRouter initialEntries={[path]}><PlayerProvider>
 					<Routes>
 						<Route path="/game/:gamePk/:tab" element={<><GamePage variant="mobile" /><Where /></>} />
 					</Routes>
-				</MemoryRouter>
+				</PlayerProvider></MemoryRouter>
 			</QueryClientProvider>
 		</MantineProvider>,
 	);
@@ -383,7 +384,7 @@ describe("the inning pill in the player and on the game page's cards (S145)", ()
 	{
 		render(
 			<MantineProvider>
-				<MemoryRouter>
+				<MemoryRouter><PlayerProvider>
 					<PlayerDialog video={BUSCH} onClose={() => undefined} fromGamePk={823823} playLink={playInningLink({
 						gamePk: 823823,
 						playId: "p",
@@ -391,7 +392,7 @@ describe("the inning pill in the player and on the game page's cards (S145)", ()
 						inning: 3,
 					})}
 					/>
-				</MemoryRouter>
+				</PlayerProvider></MemoryRouter>
 			</MantineProvider>,
 		);
 		// The dialog opens a frame after it mounts, so its transition runs (#423).

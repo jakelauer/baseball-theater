@@ -31,6 +31,7 @@ import { LazyPlayerDialog } from "../videos/LazyPlayerDialog.js";
 import { VideoCard } from "../videos/VideoCard.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { findLoadedTopBar } from "../../test/gameTopBar.js";
+import { PlayerProvider } from "../videos/PlayerProvider.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 const read = (file: string) => JSON.parse(readFileSync(join(FIXTURES, file), "utf8"));
@@ -83,11 +84,11 @@ async function room(tab: string, game: GamePayload, on: boolean, ready: string, 
 	await hideScores(on);
 	vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(game))));
 	wrap(
-		<MemoryRouter initialEntries={[`/game/823823/${tab}`]}>
+		<MemoryRouter initialEntries={[`/game/823823/${tab}`]}><PlayerProvider>
 			<Routes>
 				<Route path="/game/:gamePk/:tab" element={<GamePage variant={variant} />} />
 			</Routes>
-		</MemoryRouter>,
+		</PlayerProvider></MemoryRouter>,
 	);
 	await screen.findAllByTestId(ready);
 	await findLoadedTopBar();
@@ -265,13 +266,15 @@ describe("Hide Scores in the rooms (S75)", () =>
 		// Off the game page (Search, the day digest) the card and the dialog keep MLB's title.
 		await hideScores(true);
 		wrap(
-			<MemoryRouter>
+			<MemoryRouter><PlayerProvider>
 				<VideoCard video={recapClip} layout="grid" href="/search" />
 				<LazyPlayerDialog video={recapClip} onClose={() => undefined} />
-			</MemoryRouter>,
+			</PlayerProvider></MemoryRouter>,
 		);
 		expect(screen.getByTestId("video-card")).toHaveAccessibleName(`Play ${recapClip.title}`);
 		expect(within(await screen.findByRole("dialog")).getByTestId("video-player")).toHaveTextContent(recapClip.title);
 		expect(document.querySelector("[aria-label=\"Recap (score hidden)\"]")).toBeNull();
-	});
+		// Four renders of the game page and Search, each now under the one player's provider (S198): under a
+		// loaded coverage run this outlasted Vitest's 5-second default.
+	}, 15_000);
 });

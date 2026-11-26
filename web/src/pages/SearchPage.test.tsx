@@ -6,7 +6,7 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
-	cleanup, render, screen, waitFor, within,
+	cleanup, fireEvent, render, screen, waitFor, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
@@ -22,6 +22,8 @@ import { hydrateSettings, resetSettings } from "../settings/store.js";
 import { expectInsetPlayer } from "../test/insetPlayer.js";
 import { jsonResponse } from "../test/jsonResponse.js";
 import { SearchPage } from "./SearchPage.js";
+import { PlayerProvider } from "../components/videos/PlayerProvider.js";
+import { expectInCorner, markPlaying } from "../test/renderWithPlayer.js";
 
 const WORLD_SERIES: SearchHighlightsPayload["highlights"][number] = {
 	highlight: {
@@ -116,14 +118,14 @@ function renderSearch(entry = "/search")
 	render(
 		<MantineProvider>
 			<QueryClientProvider client={createQueryClient()}>
-				<MemoryRouter initialEntries={[entry]}>
+				<MemoryRouter initialEntries={[entry]}><PlayerProvider>
 					<Routes>
 						<Route path="/search" element={<><SearchPage variant="desktop" /><Where /></>} />
 						<Route path="/game/:gamePk" element={<p>game page</p>} />
 						<Route path="/game/:gamePk/videos" element={<p>game videos</p>} />
 						<Route path="/game/:gamePk/plays" element={<><p>plays room</p><Where /></>} />
 					</Routes>
-				</MemoryRouter>
+				</PlayerProvider></MemoryRouter>
 			</QueryClientProvider>
 		</MantineProvider>,
 	);
@@ -917,5 +919,28 @@ describe("Search's player is the inset modal (S196)", () =>
 	{
 		expect(await searchPills(WS_PLAY.highlight.title)).toEqual(["More from game: MIL @ TB, Oct 27", "Bot 12: open play, bottom of 12th inning"]);
 		await expectInsetPlayer(screen.getByRole("dialog"), WS_PLAY.highlight.title);
+	});
+});
+
+describe("the corner mini-player from Search (S198)", () =>
+{
+	it("S198 AC 1: a clip playing from Search keeps playing in the corner after its game pill leaves for the game, the same element", async () =>
+	{
+		serve(() => WALK_OFF);
+		renderSearch();
+		await searchFor("walk-off");
+		await userEvent.click(await screen.findByRole("link", {
+			name: "Play Ben Williamson's walk-off single to win Game 4",
+		}));
+		const dialog = await screen.findByRole("dialog");
+		const video = within(dialog).getByTestId("video-player").querySelector("video")!;
+		markPlaying(video, 4);
+		// A link in the player: the game pill, to the game's Videos room.
+		fireEvent.click(within(dialog).getByRole("link", {
+			name: "More from game: MIL @ TB, Oct 27",
+		}));
+		expect(await screen.findByText("game videos")).toBeInTheDocument();
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		expectInCorner(video, 4);
 	});
 });

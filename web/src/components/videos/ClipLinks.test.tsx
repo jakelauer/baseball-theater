@@ -32,6 +32,7 @@ import { ScoreboardPage } from "../../pages/ScoreboardPage.js";
 import { SearchPage } from "../../pages/SearchPage.js";
 import { resetSettings } from "../../settings/store.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
+import { PlayerProvider } from "./PlayerProvider.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 function read<T>(file: string): T
@@ -102,13 +103,13 @@ function renderAt(path: string)
 	render(
 		<MantineProvider>
 			<QueryClientProvider client={createQueryClient()}>
-				<MemoryRouter initialEntries={[path]}>
+				<MemoryRouter initialEntries={[path]}><PlayerProvider>
 					<Routes>
 						<Route path="/game/:gamePk/:tab" element={<><GamePage variant="mobile" /><Where /></>} />
 						<Route path="/games/:date" element={<><ScoreboardPage variant="mobile" /><Where /></>} />
 						<Route path="/search" element={<><SearchPage variant="mobile" /><Where /></>} />
 					</Routes>
-				</MemoryRouter>
+				</PlayerProvider></MemoryRouter>
 			</QueryClientProvider>
 		</MantineProvider>,
 	);
