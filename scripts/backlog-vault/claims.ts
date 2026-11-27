@@ -52,6 +52,7 @@
  *
  *   node scripts/backlog-vault/claims.ts run start --n <N> --c <2|3> | run start --resume
  *   node scripts/backlog-vault/claims.ts run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier] [--count <n>]
+ *   node scripts/backlog-vault/claims.ts run event plan --items <ID>,<ID>…
  *   node scripts/backlog-vault/claims.ts run event review-score [<ID>] --review backlog|parity --score <0-10> --threshold <0-10> --reason "<text>"
  *   node scripts/backlog-vault/claims.ts run event review-start --review backlog|parity [--reason "<focus>"] [--base <sha>]
  *   node scripts/backlog-vault/claims.ts run end <run id> [--abandoned]
@@ -67,6 +68,8 @@
  *       tracker's score for one review after a merge (the merged item's ID when there is one; a backlog pull request
  *       has none), and a review of that type starting in the run, with `base`, the `origin/stage` commit it starts from
  *       (`git fetch origin stage` first, unless `--base` names it), from which the ceiling counts again; runs.ts reads them back.
+ *       `plan` (S221) names items the run plans to finish, each checked by `ITEM_ID`: logged at `run start` and again whenever the
+ *       plan grows (a bug accepted mid-run), so runs.ts `runProgress` can tell what is still to come from what is finished.
  *
  * `claim`, `release` and every journal write run under a lock, the directory `.run/claims.lock` holding the holder's pid, so two
  * claims made at once can't both be admitted against an empty in-flight set. A command that can't take it
@@ -171,7 +174,7 @@ export interface RunJournal
 
 /**
  * One journal event; `id` for an item's events, `pr` for `pr-open`, `path` for `conflict`, `barrier` on a barrier's
- * `item-start`, `count` on `findings`, and `review` (with `score`, `threshold`, `due` and `reason` on a `review-score`) on the review tracker's events.
+ * `item-start`, `count` on `findings`, `items` on `plan`, and `review` (with `score`, `threshold`, `due` and `reason` on a `review-score`) on the review tracker's events.
  */
 export interface RunEvent
 {
@@ -185,6 +188,8 @@ export interface RunEvent
 	 * merged its reviewers' reports (runs.ts prePrFindingsByPr sums them onto the item's pull request).
 	 */
 	count?: number;
+	/** A `plan` event's items (S221): the IDs the run plans to finish, in the order it will start them (runs.ts runProgress). */
+	items?: string[];
 	review?: TrackedReview;
 	/** The tracker's 0–10 judgment of how much this review is needed now (`review-score`). */
 	score?: number;
@@ -201,8 +206,11 @@ export interface RunEvent
 
 /** The item events `run event` takes, each needing an item ID (run-backlog steps 2–5 say where each is logged). */
 export const RUN_ITEM_KINDS = ["item-start", "needs-lead", "park", "resume", "held", "pr-open", "ready", "merged", "conflict", "duplicate", "turn-cap", "findings"];
-/** The run events `run event` takes, which name no item. `run-resume`, `claim` and `claim-refused` are written only by `run start --resume` and `claim`. */
-export const RUN_KINDS = ["gate-open", "gate-close", "interrupted"];
+/**
+ * The run events `run event` takes, which name no item. `run-resume`, `claim` and `claim-refused` are written only by `run start --resume` and `claim`.
+ * `plan` (S221) carries `items` instead of an ID: it names several, and naming one is no item event, so it never sets an item's state.
+ */
+export const RUN_KINDS = ["gate-open", "gate-close", "interrupted", "plan"];
 /**
  * The review tracker's events (run-backlog step 2, "Reviews inside a run"; owner, 2026-11-24: "a super light agent
  * simply tracks how important each review type is over the lifetime of the run"). The ID is optional: a score
@@ -237,6 +245,7 @@ export function makeRunEvent(kind: string, input: { id?: string;
 	path?: string;
 	barrier?: boolean;
 	count?: string;
+	items?: string;
 	review?: string;
 	score?: string;
 	threshold?: string;
@@ -257,6 +266,11 @@ export function makeRunEvent(kind: string, input: { id?: string;
 	{
 		throw new RunError(`${kind} is a run event and takes no ID`);
 	}
+	// Only a plan names items: on any other kind the list would be dropped silently.
+	if (kind !== "plan" && input.items !== undefined)
+	{
+		throw new RunError(`${kind} takes no --items (only plan does)`);
+	}
 	// The tracker's flags belong to its events alone, and are checked before the others so the message names them.
 	if (!tracker && [input.review, input.score, input.threshold, input.reason, input.base].some((v) => v !== undefined))
 	{
@@ -265,6 +279,10 @@ export function makeRunEvent(kind: string, input: { id?: string;
 	if (tracker)
 	{
 		return trackerEvent(kind, input, at);
+	}
+	if (kind === "plan")
+	{
+		return planEvent(input, at);
 	}
 	if (input.id && !ITEM_ID.test(input.id))
 	{
@@ -314,6 +332,33 @@ export function makeRunEvent(kind: string, input: { id?: string;
 		...(kind === "findings" ? {
 			count: Number(input.count),
 		} : {}),
+		at,
+	};
+}
+
+/**
+ * A `plan` event (S221): the items `--items` names, comma- or space-separated, each an item ID ({@link ITEM_ID}), repeats
+ * dropped in the order given, or a {@link RunError}. It takes no other flag.
+ */
+function planEvent(input: Parameters<typeof makeRunEvent>[1], at: string): RunEvent
+{
+	const items = [...new Set((input.items ?? "").split(/[\s,]+/).filter(Boolean))];
+	if (items.length === 0)
+	{
+		throw new RunError("plan needs --items <ID>,<ID>…, the items the run plans to finish");
+	}
+	const wrong = items.filter((i) => !ITEM_ID.test(i));
+	if (wrong.length > 0)
+	{
+		throw new RunError(`not an item ID: ${wrong.map((w) => `'${w}'`).join(", ")} (S<N>, B<N>, F<N> or V<N>)`);
+	}
+	if (input.pr !== undefined || input.path !== undefined || input.barrier || input.count !== undefined)
+	{
+		throw new RunError("plan takes no --pr, --path, --barrier or --count");
+	}
+	return {
+		kind: "plan",
+		items,
 		at,
 	};
 }
@@ -1110,6 +1155,7 @@ function runCommand(root: string, sub: string, rest: string[], values: { n?: str
 	path?: string;
 	barrier?: boolean;
 	count?: string;
+	items?: string;
 	abandoned?: boolean;
 	review?: string;
 	score?: string;
@@ -1169,6 +1215,7 @@ function runCommand(root: string, sub: string, rest: string[], values: { n?: str
 			path: values.path,
 			barrier: values.barrier,
 			count: values.count,
+			items: values.items,
 			review: values.review,
 			score: values.score,
 			threshold: values.threshold,
@@ -1218,7 +1265,7 @@ function runCommand(root: string, sub: string, rest: string[], values: { n?: str
 		return 0;
 	}
 	throw new RunError("usage: claims.ts run start --n <N> --c <C> | run start --resume | run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier] [--count <n>] "
-		+ "| run event review-score [<ID>] --review backlog|parity --score <0-10> --threshold <0-10> --reason <text> | run event review-start --review backlog|parity [--reason <focus>] [--base <sha>] | run end <run id>");
+		+ "| run event plan --items <ID>,<ID>… | run event review-score [<ID>] --review backlog|parity --score <0-10> --threshold <0-10> --reason <text> | run event review-start --review backlog|parity [--reason <focus>] [--base <sha>] | run end <run id>");
 }
 
 function main(argv: string[]): number
@@ -1270,6 +1317,9 @@ function main(argv: string[]): number
 				type: "boolean",
 			},
 			"count": {
+				type: "string",
+			},
+			"items": {
 				type: "string",
 			},
 			"abandoned": {

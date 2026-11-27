@@ -104,6 +104,8 @@ When a worker returns, check rather than trust, in its worktree: `git status` is
 
 Give the owner a one-line progress note when each item starts, parks, opens its pull request and merges.
 
+**The progress bar** (S221; owner, 2026-11-25: "During run-backlog runs, can you print out an ASCII-style progress bar (or any equivalent which works for both the CLI and the app) which makes it easy for me to see progress % based on the number of things finished so far? It just has to be visually distinct enough that I can easily notice it while scrolling"). Log the run's plan right after `run start`, naming the items it means to start in order: `node scripts/backlog-vault/claims.ts run event plan --items <ID>,<ID>… --root <main checkout>`; and log another `plan` event naming each item whenever the plan grows (a bug accepted mid-run, or the next eligible item picked in place of one held). Then print `node scripts/backlog-vault/runs.ts progress --journal <main checkout>/.run/run.json`'s output unchanged, inside a fenced code block so it reads the same in the terminal and the Claude app, each time an item merges or parks, each time the plan grows, and at the start of step 6's summary. `runProgress` in `runs.ts` is the one computation: what counts as planned, finished, in flight, parked, set aside and next is said there.
+
 **What `pnpm verify` runs** (ADR-030, S168): the tasks a change reaches, each unit's `lint`, `typecheck`, `test` (with its coverage floors), `build` and `size`, and the root `backlog:check`, `dup:check` and `format:md` tasks, for the files that differ from the merge base with `stage` (committed, uncommitted and untracked alike), their units' dependents and the tasks that name them as inputs, replaying unchanged tasks from the local Turborepo cache, at half the cores. `pnpm verify --full` (or `BT_VERIFY_FULL=1`) executes every task again, reading no cache: `scripts/audit.sh story --reverify` and Deploy's `verify` job use it.
 **The finishing gate** (`scripts/audit.sh story`) runs the full graph with the local cache, replaying unchanged tasks (`pnpm verify --all`; owner, 2026-11-26: "Full suite, cached"), and its ledger entry lists the tasks that ran, were replayed and were not affected. Every push to `stage` or `main` runs everything: CI sets `BT_VERIFY_FULL=1` there, so a wrong narrowing or an undeclared input shows on `stage` before it ships.
 
@@ -139,7 +141,7 @@ Stop starting items when `N` have been started, nothing is eligible, a review re
 
 Each pull request is assigned to the next release's milestone when it's opened, and an item counts as complete only once that release is published; the summary says which release each item waits for. A run never pushes directly to `stage` or `main`, never merges into `main`, and never prepares or publishes a release on its own (`.claude/skills/release/SKILL.md`; owner, 2026-11-07: "Release when I say so. PRs must be assigned a release to be considered complete, and PRs cannot be merged to main with no release. Roll back on your own. v3.0.0. I keep DNS cutover."). Never deploy by hand.
 
-End with one summary:
+End with one summary, starting with the progress bar (`runs.ts progress` in a fenced code block, as step 3 says; once `scripts/audit.sh run` has moved the journal, `--journal <main checkout>/.run/ended/<id>.json`):
 
 - **Done:** each story and bug with its commit, pull request and a one-line impact.
 - **Parked:** each `blocked` story or bug, what it waits on.

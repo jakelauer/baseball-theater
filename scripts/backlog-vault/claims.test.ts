@@ -450,6 +450,30 @@ describe("CLI in a temp root", () =>
 		expect(cli(["run", "event", "park", "../x"]).status).toBe(1);
 	});
 
+	it("S221 AC 1: run event plan --items logs a run-level plan event, each ID checked by ITEM_ID, and only plan takes --items", () =>
+	{
+		started();
+		expect(cli(["run", "event", "plan"]).status).toBe(1);
+		expect(cli(["run", "event", "plan", "--items", ","]).status).toBe(1);
+		expect(cli(["run", "event", "plan", "--items", "S1,s2"]).status).toBe(1);
+		expect(cli(["run", "event", "plan", "--items", "S1,../x"]).status).toBe(1);
+		expect(cli(["run", "event", "plan", "S1", "--items", "S1"]).status).toBe(1);
+		expect(cli(["run", "event", "plan", "--items", "S1", "--pr", "3"]).status).toBe(1);
+		expect(cli(["run", "event", "plan", "--items", "S1", "--review", "backlog"]).status).toBe(1);
+		expect(cli(["run", "event", "gate-open", "--items", "S1"]).status).toBe(1);
+		expect(cli(["run", "event", "park", "S1", "--items", "S1"]).status).toBe(1);
+		expect(cli(["run", "event", "review-start", "--review", "backlog", "--base", "abc1234", "--items", "S1"]).status).toBe(1);
+		expect(journal().events).toEqual([]);
+		// Comma- or space-separated; a repeat is dropped, the order kept.
+		expect(cli(["run", "event", "plan", "--items", "S1,B9 F2,S1,V3"]).status).toBe(0);
+		const [event] = journal().events;
+		expect(event).toMatchObject({
+			kind: "plan",
+			items: ["S1", "B9", "F2", "V3"],
+		});
+		expect(event).not.toHaveProperty("id");
+	});
+
 	it("run event refuses pr-open without --pr", () =>
 	{
 		started();
