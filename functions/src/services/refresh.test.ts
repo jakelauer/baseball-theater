@@ -1,5 +1,5 @@
 import {
-	describe, expect, it, vi,
+	afterEach, beforeEach, describe, expect, it, vi,
 } from "vitest";
 import type { GameSnapshot } from "@bt/domain";
 import { mlbToday } from "@bt/domain";
@@ -81,8 +81,28 @@ function deps(overrides: Partial<IngestDeps> = {}): IngestDeps
 	};
 }
 
-const STALE = new Date(Date.now() - CACHE_TTL_MS - 1_000).toISOString();
-const FRESH = new Date().toISOString();
+/**
+ * The one wall clock every case reads (#642). `cached` and `spyClient` date their game to MLB's today at the wall
+ * clock, and the read judges it against the clock again, so a real clock crossing US Eastern midnight (04:00–05:00 UTC)
+ * between the two made the game past and finished and skipped the refresh a case expects (#564 fixed one case; #642
+ * the rest). Midday Eastern, frozen for each case by the `beforeEach` below, keeps every date on one day at any hour.
+ */
+const NOW = new Date("2026-07-15T16:00:00Z");
+const STALE = new Date(NOW.getTime() - CACHE_TTL_MS - 1_000).toISOString();
+const FRESH = NOW.toISOString();
+
+beforeEach(() =>
+{
+	vi.useFakeTimers({
+		toFake: ["Date"],
+	});
+	vi.setSystemTime(NOW);
+});
+
+afterEach(() =>
+{
+	vi.useRealTimers();
+});
 
 /**
  * A final game played on MLB's today, so it is not past and finished (S212, `isPastFinishedGame`) and its read still
@@ -129,6 +149,17 @@ function cached(fetchedAt: string): GameSnapshot
 		windowMode: "cache",
 	} as unknown as GameSnapshot;
 }
+
+describe("the file's clock (#642)", () =>
+{
+	it("pins one clock for every case, so STALE, FRESH and the helpers' MLB day never cross US Eastern midnight (#642)", () =>
+	{
+		expect(new Date().toISOString()).toBe(NOW.toISOString());
+		expect(FRESH).toBe(NOW.toISOString());
+		expect(Date.parse(STALE)).toBe(NOW.getTime() - CACHE_TTL_MS - 1_000);
+		expect(cached(FRESH).officialDate).toBe(mlbToday(NOW));
+	});
+});
 
 describe("isStale", () =>
 {
@@ -248,46 +279,33 @@ describe("refresh cooldown", () =>
 
 	it("counts an unchanged refresh as checked, so reads past the TTL don't re-pull until the TTL lapses again", async () =>
 	{
-		// The clock below runs ~7 minutes past its start, and the game is dated MLB's today at the wall clock (`cached`,
-		// `spyClient`). Started from the real wall clock, a run just before midnight US Eastern (04:00–05:00 UTC) crossed
-		// into MLB's next day, so the game read as past and finished and the last read never refreshed (#564). Pinning
-		// the wall clock to midday Eastern keeps the game's date and the test's clock on the same day at any hour.
-		vi.useFakeTimers({
-			toFake: ["Date"],
+		// The clock below runs ~7 minutes past `NOW`, the game dated MLB's today at the pinned wall clock (`cached`,
+		// `spyClient`); from the real clock, a run just before US Eastern midnight crossed into MLB's next day and the
+		// last read never refreshed (#564). The file's pinned midday clock keeps them on one day.
+		const spy = spyClient();
+		spy.release();
+		const games = new InMemoryGameRepository();
+		await games.upsert(cached(STALE));
+		let clock = new Date(Date.parse(STALE) + CACHE_TTL_MS + 1_000);
+		const d = deps({
+			mlb: spy.client,
+			games,
+			refresh: new RefreshCoordinator(() => clock, 60_000),
+			now: () => clock,
 		});
-		vi.setSystemTime(new Date("2026-07-15T16:00:00Z"));
-		try
-		{
-			const spy = spyClient();
-			spy.release();
-			const games = new InMemoryGameRepository();
-			const stale = new Date(Date.now() - CACHE_TTL_MS - 1_000).toISOString();
-			await games.upsert(cached(stale));
-			let clock = new Date(Date.parse(stale) + CACHE_TTL_MS + 1_000);
-			const d = deps({
-				mlb: spy.client,
-				games,
-				refresh: new RefreshCoordinator(() => clock, 60_000),
-				now: () => clock,
-			});
 
-			await getOrRefreshGame(d, 744834);
-			expect(spy.calls()).toBe(1);
+		await getOrRefreshGame(d, 744834);
+		expect(spy.calls()).toBe(1);
 
-			// Past the cooldown but inside the TTL since that check: served from the store.
-			clock = new Date(clock.getTime() + 2 * 60_000);
-			await getOrRefreshGame(d, 744834);
-			expect(spy.calls()).toBe(1);
+		// Past the cooldown but inside the TTL since that check: served from the store.
+		clock = new Date(clock.getTime() + 2 * 60_000);
+		await getOrRefreshGame(d, 744834);
+		expect(spy.calls()).toBe(1);
 
-			// A full TTL after the check, the next read refreshes again.
-			clock = new Date(clock.getTime() + CACHE_TTL_MS);
-			await getOrRefreshGame(d, 744834);
-			expect(spy.calls()).toBe(2);
-		}
-		finally
-		{
-			vi.useRealTimers();
-		}
+		// A full TTL after the check, the next read refreshes again.
+		clock = new Date(clock.getTime() + CACHE_TTL_MS);
+		await getOrRefreshGame(d, 744834);
+		expect(spy.calls()).toBe(2);
 	});
 });
 
