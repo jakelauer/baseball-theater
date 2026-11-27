@@ -45,6 +45,11 @@
  *   node scripts/backlog-vault/runs.ts review-base --review backlog|parity --journal <run.json> [--audit <ledger>]
  *       `<base>\t<logged>` for the review's newest `review-start` that recorded a base ({@link reviewBase}), or nothing
  *       before its first start in the run (the debt scripts then count rule changes from its newest ledger entry)
+ *   node scripts/backlog-vault/runs.ts progress --journal <run.json>
+ *       the run's progress bar (S221), as plain text for a fenced code block ({@link renderProgress}). Planned is every item
+ *       a `plan` event names plus every item with an item event, less those whose newest item event is `held` (set aside,
+ *       never to be finished); finished is an item whose newest item event is `merged`, so the bar shows the share of what
+ *       the run means to finish that has merged ({@link runProgress}); a `review-score` or `claim` after a merge never moves it back
  */
 
 import {
@@ -57,7 +62,7 @@ import { parseArgs } from "node:util";
 import type {
 	RunEvent, RunJournal, TrackedReview,
 } from "./claims.ts";
-import { TRACKED_REVIEWS } from "./claims.ts";
+import { RUN_ITEM_KINDS, TRACKED_REVIEWS } from "./claims.ts";
 import type { LedgerEntry, TurnCapHit } from "./ledger.ts";
 import { formatHits, readLedger } from "./ledger.ts";
 
@@ -399,7 +404,7 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 				break;
 			default:
 				// claim, claim-refused (the admission check working: never a duplicate), needs-lead,
-				// interrupted, run-resume, the review tracker's review-score and review-start, and findings
+				// interrupted, run-resume, plan (runProgress reads it), the review tracker's review-score and review-start, and findings
 				// (read by prePrFindingsByPr, whose result comes in as findingsByPr) move no figure here.
 				break;
 		}
@@ -614,6 +619,113 @@ export function formatReviewState(journalId: string, s: ReviewState): string
 		`  - ${score}`,
 		`  - ceiling: ${s.merged.length} of ${REVIEW_CEILING_ITEMS} stories merged since it last ran in this run${s.merged.length > 0 ? ` (${s.merged.join(", ")})` : ""}`,
 		...s.ceiling.map((c) => `  - ceiling reached: ${c}`),
+	].join("\n");
+}
+
+/**
+ * How far a run has got through its plan (S221; owner, 2026-11-25: "During run-backlog runs, can you print out an
+ * ASCII-style progress bar … which makes it easy for me to see progress % based on the number of things finished so far").
+ * Every list keeps planned order: the order the `plan` events named the items, then any item never planned in the order
+ * its first item event came.
+ */
+export interface RunProgress
+{
+	/** Every item the run plans to finish, set-aside ones included: each a `plan` event named, and each with any item event. */
+	planned: string[];
+	/** Newest item event `merged`. */
+	finished: string[];
+	/** Newest item event any other than `merged`, `park` or `held` (`item-start`, `resume`, `pr-open`, `ready`, `turn-cap`, …). */
+	inFlight: string[];
+	/** Newest item event `park`: still in the total, since a parked item is still the run's to finish once the owner answers. */
+	parked: string[];
+	/** Newest item event `held` (an arbiter's hold, or a bug found closed): out of the total, since the run won't finish it. */
+	setAside: string[];
+	/** Planned, with no item event yet, in the order the `plan` events named them. */
+	next: string[];
+	/** The percentage's denominator: planned less set aside. */
+	total: number;
+	/** finished ÷ total, rounded down to a whole number; 0 when the total is 0. */
+	percent: number;
+}
+
+/**
+ * The run's progress from its journal (S221 AC 1; ADR-025: the one computation, which `runs.ts progress` only prints).
+ * **Planned** is every ID a `plan` event names (logged at `run start` and whenever the plan grows) plus every ID with an
+ * item event (a kind in claims.ts `RUN_ITEM_KINDS`), so a `merged` for an item never planned (a pull request carried over
+ * from an earlier run) still counts once on both sides of the fraction, and finished can never exceed planned.
+ * **Finished** is an item whose newest item event is `merged`. Only item events set an item's state: `claim`,
+ * `claim-refused` and the review tracker's `review-score` and `review-start` also carry an item's ID, but the journal logs a
+ * `review-score` for an item right after its `merged` (and a `claim` can follow a `resume`), so reading them as the item's
+ * newest event would move a finished item back to in flight. A `resume` after a `park` moves the item back to in flight;
+ * a `held` item leaves the total, so a run whose other items all merge reaches 100%.
+ */
+export function runProgress(journal: RunJournal): RunProgress
+{
+	const planned: string[] = [];
+	const plan = (id: string) =>
+	{
+		if (!planned.includes(id))
+		{
+			planned.push(id);
+		}
+	};
+	const newest = new Map<string, string>();
+	for (const e of journal.events)
+	{
+		if (e.kind === "plan")
+		{
+			(e.items ?? []).forEach(plan);
+		}
+		else if (e.id && RUN_ITEM_KINDS.includes(e.kind))
+		{
+			plan(e.id);
+			newest.set(e.id, e.kind);
+		}
+	}
+	const inState = (...kinds: (string | undefined)[]) => planned.filter((id) => kinds.includes(newest.get(id)));
+	const finished = inState("merged");
+	const parked = inState("park");
+	const setAside = inState("held");
+	const next = inState(undefined);
+	const inFlight = planned.filter((id) => newest.has(id) && !["merged", "park", "held"].includes(newest.get(id)!));
+	const total = planned.length - setAside.length;
+	return {
+		planned,
+		finished,
+		inFlight,
+		parked,
+		setAside,
+		next,
+		total,
+		percent: total === 0 ? 0 : Math.floor((finished.length * 100) / total),
+	};
+}
+
+/** The progress bar's width in cells: one cell per 5%, so the bar fills a cell only when the percentage reaches it. */
+const BAR_CELLS = 20;
+
+/**
+ * {@link runProgress} as `runs.ts progress` prints it (S221 AC 2): plain text the coordinator puts in a fenced code block,
+ * so it reads the same in a terminal and in the Claude app. The look is the owner's for this run (2026-11-25: "Use ▶, a █/░
+ * bar, merged/total and %, then ✅ done, 🔨 now, ⏸ parked and ⏳ next"): a ▶ marker line, the 20-cell bar with finished /
+ * total and the percentage, a line each for done, in flight, parked and set aside only when it has items, the next items
+ * (`none` when nothing is left to start), and a closing rule line that sets it apart while scrolling. No ANSI colour codes,
+ * which the Claude app shows as text.
+ */
+export function renderProgress(runId: string, p: RunProgress): string
+{
+	const full = Math.floor(p.percent / (100 / BAR_CELLS));
+	const list = (label: string, ids: string[]) => (ids.length > 0 ? [`${label}: ${ids.join(", ")}`] : []);
+	return [
+		`▶ run ${runId}`,
+		`${"█".repeat(full)}${"░".repeat(BAR_CELLS - full)}  ${p.finished.length} / ${p.total} merged  ${p.percent}%`,
+		...list("✅ done", p.finished),
+		...list("🔨 now", p.inFlight),
+		...list("⏸ parked", p.parked),
+		...list("➖ set aside", p.setAside),
+		`⏳ next: ${p.next.length > 0 ? p.next.join(", ") : "none"}`,
+		"─".repeat(40),
+		"",
 	].join("\n");
 }
 
@@ -877,6 +989,12 @@ function main(argv: string[]): number
 			}
 			return 0;
 		}
+		case "progress":
+		{
+			const journal = readJournal();
+			process.stdout.write(renderProgress(journal.id, runProgress(journal)));
+			return 0;
+		}
 		case "review-state":
 		{
 			if (!(TRACKED_REVIEWS as readonly string[]).includes(values.review ?? ""))
@@ -889,7 +1007,7 @@ function main(argv: string[]): number
 			return state.due ? 1 : 0;
 		}
 		default:
-			console.error("usage: runs.ts concurrency|id|check-end|fragment|turn-caps|debt-hits|review-state|review-base … (see the file's header)");
+			console.error("usage: runs.ts concurrency|id|check-end|fragment|turn-caps|debt-hits|review-state|review-base|progress … (see the file's header)");
 			return 2;
 	}
 }

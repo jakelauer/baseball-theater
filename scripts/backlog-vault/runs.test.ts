@@ -17,7 +17,8 @@ import type { RunEvent, RunJournal } from "./claims.ts";
 import type { LedgerEntry } from "./ledger.ts";
 import type { RunRecord } from "./runs.ts";
 import {
-	concurrencyFromRuns, endReviewProblems, formatReviewState, prePrFindingsByPr, renderRunEntry, REVIEW_CEILING_ITEMS, reviewBase, reviewState, summarizeRun, unlistedTurnCaps,
+	concurrencyFromRuns, endReviewProblems, formatReviewState, prePrFindingsByPr, renderProgress, renderRunEntry, REVIEW_CEILING_ITEMS, reviewBase, reviewState,
+	runProgress, summarizeRun, unlistedTurnCaps,
 } from "./runs.ts";
 
 const T0 = Date.parse("2026-11-21T00:00:00.000Z");
@@ -655,6 +656,231 @@ describe("reviewBase and endReviewProblems: the ceiling's baseline and the end-o
 		expect(problems).toHaveLength(2);
 		expect(problems.join("\n")).toContain("backlog review started");
 		expect(problems.join("\n")).toContain("doc parity review started");
+	});
+});
+
+/** A `plan` event `m` minutes into the run, naming `items`. */
+const plan = (m: number, ...items: string[]) => ev("plan", m, {
+	items,
+});
+/** runProgress on a journal of `events`, its lists and figures only. */
+const progress = (events: RunEvent[]) => runProgress(journal(events));
+
+describe("runProgress (S221 AC 1): how far a run has got through its plan", () =>
+{
+	it("S221 AC 1: an empty run has nothing planned, finished or next, and is at 0%", () =>
+	{
+		expect(progress([])).toEqual({
+			planned: [],
+			finished: [],
+			inFlight: [],
+			parked: [],
+			setAside: [],
+			next: [],
+			total: 0,
+			percent: 0,
+		});
+	});
+
+	it("S221 AC 1: a run part-way through splits its plan into done, in flight and next, in planned order", () =>
+	{
+		const p = progress([plan(0, "S1", "S2", "S3", "S4"), item("item-start", "S2", 1), item("item-start", "S1", 2), item("pr-open", "S1", 3, {
+			pr: 7,
+		}), item("ready", "S1", 4), item("merged", "S1", 5), item("needs-lead", "S2", 6)]);
+		expect(p).toMatchObject({
+			planned: ["S1", "S2", "S3", "S4"],
+			finished: ["S1"],
+			inFlight: ["S2"],
+			parked: [],
+			next: ["S3", "S4"],
+			total: 4,
+			percent: 25,
+		});
+	});
+
+	it("S221 AC 1: a park then resume moves the item back to in flight, and a parked item stays in the total", () =>
+	{
+		const parked = [plan(0, "S1", "S2"), item("item-start", "S1", 1), item("park", "S1", 2), item("item-start", "S2", 3), item("merged", "S2", 4)];
+		expect(progress(parked)).toMatchObject({
+			finished: ["S2"],
+			inFlight: [],
+			parked: ["S1"],
+			total: 2,
+			percent: 50,
+		});
+		expect(progress([...parked, item("resume", "S1", 5)])).toMatchObject({
+			inFlight: ["S1"],
+			parked: [],
+			total: 2,
+			percent: 50,
+		});
+	});
+
+	it("S221 AC 1: a held item is set aside and leaves the total, so the run reaches 100% once the rest merge", () =>
+	{
+		const p = progress([plan(0, "S1", "B9", "S2"), item("item-start", "B9", 1), item("held", "B9", 2), item("item-start", "S1", 3), item("merged", "S1", 4),
+			item("item-start", "S2", 5), item("merged", "S2", 6)]);
+		expect(p).toMatchObject({
+			planned: ["S1", "B9", "S2"],
+			finished: ["S1", "S2"],
+			setAside: ["B9"],
+			inFlight: [],
+			total: 2,
+			percent: 100,
+		});
+	});
+
+	it("S221 AC 1: a turn-cap as the newest event is in flight, and a park logged after it parks the item", () =>
+	{
+		const capped = [plan(0, "S1", "S2"), item("item-start", "S1", 1), item("turn-cap", "S1", 2)];
+		expect(progress(capped)).toMatchObject({
+			inFlight: ["S1"],
+			next: ["S2"],
+		});
+		expect(progress([...capped, item("park", "S1", 3)])).toMatchObject({
+			inFlight: [],
+			parked: ["S1"],
+		});
+	});
+
+	it("S221 AC 1: a merged for an unplanned ID counts once in both planned and finished, so finished never exceeds planned", () =>
+	{
+		const p = progress([plan(0, "S1"), item("pr-open", "S9", 1, {
+			pr: 9,
+		}), item("ready", "S9", 2), item("merged", "S9", 3), item("merged", "S9", 4)]);
+		expect(p).toMatchObject({
+			planned: ["S1", "S9"],
+			finished: ["S9"],
+			next: ["S1"],
+			total: 2,
+			percent: 50,
+		});
+		expect(progress([item("merged", "S9", 1)])).toMatchObject({
+			planned: ["S9"],
+			finished: ["S9"],
+			total: 1,
+			percent: 100,
+		});
+	});
+
+	it("S221 AC 1: an item added mid-run by a second plan event joins the total and the next list after the first plan's items", () =>
+	{
+		const p = progress([plan(0, "S1", "S2"), item("item-start", "S1", 1), item("merged", "S1", 2), plan(3, "B5", "S2"), item("item-start", "S2", 4)]);
+		expect(p).toMatchObject({
+			planned: ["S1", "S2", "B5"],
+			finished: ["S1"],
+			inFlight: ["S2"],
+			next: ["B5"],
+			total: 3,
+			percent: 33,
+		});
+	});
+
+	it("S221 AC 1: a review-score and a claim after an item's merged leave it finished (only item events set its state)", () =>
+	{
+		const p = progress([plan(0, "S1", "S2"), item("item-start", "S1", 1), item("resume", "S1", 2), item("claim", "S1", 3), item("merged", "S1", 4),
+			item("review-score", "S1", 5, {
+				review: "backlog",
+				score: 3,
+				threshold: 7,
+				due: false,
+				reason: "x",
+			}), item("review-score", "S1", 6, {
+				review: "parity",
+				score: 1,
+				threshold: 7,
+				due: false,
+				reason: "x",
+			}), item("claim", "S1", 7), item("claim-refused", "S1", 8), item("review-start", "S1", 9, {
+				review: "backlog",
+				base: "abc1234",
+			})]);
+		expect(p).toMatchObject({
+			planned: ["S1", "S2"],
+			finished: ["S1"],
+			inFlight: [],
+			next: ["S2"],
+			percent: 50,
+		});
+		// A claim alone names no planned item and starts nothing.
+		expect(progress([plan(0, "S2"), item("claim", "S3", 1)])).toMatchObject({
+			planned: ["S2"],
+			next: ["S2"],
+		});
+	});
+
+	it("S221 AC 1: a finished run, every planned item merged, is at 100% with nothing next", () =>
+	{
+		const p = progress([plan(0, "S1", "S2", "S3"), ...life("S1", 1, 1, 2, 3), ...life("S2", 2, 4, 5, 6), ...life("S3", 3, 7, 8, 9)]);
+		expect(p).toMatchObject({
+			finished: ["S1", "S2", "S3"],
+			inFlight: [],
+			next: [],
+			total: 3,
+			percent: 100,
+		});
+	});
+});
+
+describe("renderProgress and runs.ts progress (S221 AC 2): one bar for the terminal and the app", () =>
+{
+	const CLI = join(dirname(fileURLToPath(import.meta.url)), "runs.ts");
+	const fixed = [plan(0, "S1", "S2", "S3", "S4", "B9", "S5", "S6"), item("item-start", "S1", 1), item("merged", "S1", 2), item("review-score", "S1", 3, {
+		review: "backlog",
+		score: 2,
+		threshold: 7,
+		due: false,
+		reason: "x",
+	}), item("item-start", "S2", 4), item("merged", "S2", 5), item("item-start", "S3", 6), item("item-start", "S4", 7), item("park", "S4", 8),
+	item("item-start", "B9", 9), item("held", "B9", 10)];
+
+	it("S221 AC 2: runs.ts progress prints the exact bar for a fixed journal, with no ANSI codes", () =>
+	{
+		const dir = mkdtempSync(join(tmpdir(), "s221-progress-"));
+		try
+		{
+			const path = join(dir, "run.json");
+			writeFileSync(path, JSON.stringify(journal(fixed)));
+			const r = spawnSync(process.execPath, [CLI, "progress", "--journal", path], {
+				encoding: "utf8",
+			});
+			expect(r.status).toBe(0);
+			// 7 planned less B9 set aside = 6; S1 and S2 merged: 2 / 6 is 33%, 6 of 20 cells.
+			expect(r.stdout).toBe([
+				"▶ run R20261121T000000Z",
+				"██████░░░░░░░░░░░░░░  2 / 6 merged  33%",
+				"✅ done: S1, S2",
+				"🔨 now: S3",
+				"⏸ parked: S4",
+				"➖ set aside: B9",
+				"⏳ next: S5, S6",
+				"─".repeat(40),
+				"",
+			].join("\n"));
+			expect(r.stdout).not.toContain("\x1b");
+		}
+		finally
+		{
+			rmSync(dir, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	it("S221 AC 2: a line for done, in flight, parked or set aside appears only when it has items; next says none when nothing is left", () =>
+	{
+		expect(renderProgress("R1", progress([plan(0, "S1", "S2")]))).toBe(["▶ run R1", `${"░".repeat(20)}  0 / 2 merged  0%`, "⏳ next: S1, S2", "─".repeat(40), ""].join("\n"));
+		expect(renderProgress("R1", progress([item("merged", "S1", 1)]))).toBe(["▶ run R1", `${"█".repeat(20)}  1 / 1 merged  100%`, "✅ done: S1", "⏳ next: none", "─".repeat(40), ""].join("\n"));
+		expect(renderProgress("R1", progress([]))).toBe(["▶ run R1", `${"░".repeat(20)}  0 / 0 merged  0%`, "⏳ next: none", "─".repeat(40), ""].join("\n"));
+	});
+
+	it("S221 AC 2: runs.ts progress with no readable journal exits 2", () =>
+	{
+		const r = spawnSync(process.execPath, [CLI, "progress", "--journal", join(tmpdir(), "s221-no-such-journal.json")], {
+			encoding: "utf8",
+		});
+		expect(r.status).toBe(2);
 	});
 });
 
