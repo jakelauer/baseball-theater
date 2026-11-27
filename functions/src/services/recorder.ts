@@ -132,6 +132,12 @@ export function rawEndpoints(
 			name: `people-${gamePk}`,
 			url: `${baseUrl}/api/v1/people?personIds=${ids.join(",")}`,
 		});
+		endpoints.push({
+			// The players' cross-references to other sites (S209): MLB's `xrefId` hydrate, recorded so the
+			// story could check which outside ids MLB carries (FanGraphs yes, Baseball-Reference no).
+			name: `people-xref-${gamePk}`,
+			url: `${baseUrl}/api/v1/people?personIds=${ids.join(",")}&hydrate=xrefId`,
+		});
 	}
 	return endpoints;
 }

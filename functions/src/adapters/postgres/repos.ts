@@ -16,7 +16,8 @@ import type {
 	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, GAME_RECHECK_CLAIM_LEASE_MS, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
+	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, entitlementsForTier, GAME_RECHECK_CLAIM_LEASE_MS, PERSON_ID_MAX,
+	SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
 } from "@bt/domain";
 import type {
 	DeletionLog,
@@ -26,6 +27,10 @@ import type {
 	GameStateRepository,
 	OwedEdgePurge,
 	OwedEdgePurgeRepository,
+	PlayerIdRepository,
+	PlayerIdRow,
+	RegisterFileState,
+	RegisterFileWrite,
 	ReplayArtifact,
 	ReplayArtifactRepository,
 	ScheduleRepository,
@@ -39,8 +44,8 @@ import {
 import type { SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
-	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, replayArtifacts, scheduleDays, scheduleMonths,
-	tierOverrides, users,
+	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, playerIds, playerRegisterFiles, replayArtifacts,
+	scheduleDays, scheduleMonths, tierOverrides, users,
 } from "./schema.js";
 
 /** Any Drizzle Postgres database: PGlite in tests, node-postgres behind Hyperdrive in the Worker (S51). */
@@ -746,6 +751,9 @@ export class PostgresUserRepository implements UserRepository
 				fasterLiveRefresh: granted.fasterLiveRefresh,
 				cloudSyncedSettings: granted.cloudSyncedSettings,
 				savantLinks: granted.savantLinks,
+				// S209 AC 9: derived from the stored tier, never a column, so a row stored before S209 reads it and a
+				// deploy's migrate-before-Worker gap or a rollback can't leave it out of step with the tier.
+				statsProviderChoice: entitlementsForTier(granted.tier as PatronTier).statsProviderChoice,
 			},
 			createdAt: user.createdAt,
 			updatedAt: user.updatedAt,
@@ -886,6 +894,7 @@ export class PostgresSettingsRepository implements SettingsRepository
 			collapseNonFavorites: row.collapseNonFavorites,
 			hideScores: row.hideScores,
 			videoPlayer: row.videoPlayer,
+			statsProvider: row.statsProvider,
 			version: row.version,
 		};
 	}
@@ -900,6 +909,7 @@ export class PostgresSettingsRepository implements SettingsRepository
 			collapseNonFavorites: settings.collapseNonFavorites,
 			hideScores: settings.hideScores,
 			videoPlayer: settings.videoPlayer,
+			statsProvider: settings.statsProvider,
 			version: settings.version,
 		};
 		await this.db.insert(accountSettings).values(row).onConflictDoUpdate({
@@ -911,6 +921,7 @@ export class PostgresSettingsRepository implements SettingsRepository
 				collapseNonFavorites: sql`excluded.collapse_non_favorites`,
 				hideScores: sql`excluded.hide_scores`,
 				videoPlayer: sql`excluded.video_player`,
+				statsProvider: sql`excluded.stats_provider`,
 				version: sql`excluded.version`,
 			},
 			setWhere: sql`excluded.version > ${accountSettings.version}`,
@@ -925,6 +936,105 @@ export class PostgresSettingsRepository implements SettingsRepository
 	async deleteFor(uid: string): Promise<void>
 	{
 		await this.db.delete(accountSettings).where(eq(accountSettings.uid, uid));
+	}
+}
+
+/**
+ * MLB's players and their outside ids (S209, `PlayerIdRepository`), written only by the cron's register sync: each
+ * register file's rows replaced in one statement, and the file's sync state beside them in `player_register_files`.
+ * An id past `PERSON_ID_MAX` is never sent to the database (it can't be stored, so it has no row).
+ */
+export class PostgresPlayerIdRepository implements PlayerIdRepository
+{
+	constructor(private readonly db: PostgresDb) {}
+
+	async getMany(personIds: readonly number[]): Promise<PlayerIdRow[]>
+	{
+		const wanted = [...new Set(personIds)].filter((id) => Number.isInteger(id) && id > 0 && id <= PERSON_ID_MAX);
+		if (wanted.length === 0) return [];
+		return this.db.select({
+			personId: playerIds.personId,
+			fangraphsId: playerIds.fangraphsId,
+			bbrefId: playerIds.bbrefId,
+		}).from(playerIds).where(inArray(playerIds.personId, wanted)).orderBy(asc(playerIds.personId));
+	}
+
+	async registerFiles(): Promise<RegisterFileState[]>
+	{
+		return this.db.select().from(playerRegisterFiles);
+	}
+
+	/**
+	 * One conditional statement, `claimScheduleMonth`'s pattern: insert the file's record claimed, or take an existing
+	 * record's claim only while the file is still due (never synced, or last synced before `dueBefore`) and not tried
+	 * since `retryBefore`. A returned row means this caller holds it; the second of two racing claims re-checks the
+	 * first's committed `tried_at` and is refused.
+	 */
+	async claimRegisterFile(file: string, at: string, dueBefore: string, retryBefore: string): Promise<boolean>
+	{
+		const claimed = await this.db.insert(playerRegisterFiles).values({
+			file,
+			triedAt: at,
+		}).onConflictDoUpdate({
+			target: playerRegisterFiles.file,
+			set: {
+				triedAt: sql`excluded.tried_at`,
+			},
+			setWhere: sql`(${playerRegisterFiles.syncedAt} IS NULL OR ${playerRegisterFiles.syncedAt}::timestamptz < ${dueBefore}::timestamptz)
+				AND (${playerRegisterFiles.triedAt} IS NULL OR ${playerRegisterFiles.triedAt}::timestamptz < ${retryBefore}::timestamptz)`,
+		}).returning({
+			file: playerRegisterFiles.file,
+		});
+		return claimed.length > 0;
+	}
+
+	async markRegisterFileUnchanged(file: string, at: string): Promise<void>
+	{
+		await this.db.update(playerRegisterFiles).set({
+			syncedAt: at,
+		}).where(eq(playerRegisterFiles.file, file));
+	}
+
+	/**
+	 * One statement, so it all lands or none of it does: the file's rows from one JSON parameter, inserted or updated
+	 * only where a stored row's ids or file differ (`IS DISTINCT FROM`, so a re-sync of an unchanged row writes
+	 * nothing), the rows this file wrote before and no longer has deleted, and the file's ETag and sync time stored.
+	 * `xmax = 0` tells an inserted row from an updated one in `RETURNING`.
+	 */
+	async replaceRegisterFile(file: string, rows: readonly PlayerIdRow[], etag: string | null, at: string): Promise<RegisterFileWrite>
+	{
+		// One row per person id, the last given (the port's rule): `ON CONFLICT` can't touch one row twice (SQLSTATE 21000).
+		const unique = new Map(rows.filter((row) => row.personId > 0 && row.personId <= PERSON_ID_MAX).map((row) => [row.personId, row]));
+		const incoming = JSON.stringify([...unique.values()].map((row) => ({
+			person_id: row.personId,
+			fangraphs_id: row.fangraphsId,
+			bbref_id: row.bbrefId,
+		})));
+		const result = await this.db.execute(sql`WITH incoming AS (
+			SELECT * FROM json_to_recordset(${incoming}::json) AS r(person_id integer, fangraphs_id text, bbref_id text)
+		), written AS (
+			INSERT INTO player_ids (person_id, fangraphs_id, bbref_id, register_file)
+			SELECT person_id, fangraphs_id, bbref_id, ${file} FROM incoming
+			ON CONFLICT (person_id) DO UPDATE SET fangraphs_id = excluded.fangraphs_id, bbref_id = excluded.bbref_id, register_file = excluded.register_file
+			WHERE (player_ids.fangraphs_id, player_ids.bbref_id, player_ids.register_file) IS DISTINCT FROM (excluded.fangraphs_id, excluded.bbref_id, excluded.register_file)
+			RETURNING (xmax = 0) AS inserted
+		), removed AS (
+			-- A row is owned by the last file that wrote it. If two files name one MLB id, the later one owns it, and
+			-- when that one drops the id the row goes though the other still holds it, until the other next changes
+			-- (it answers 304 meanwhile). The register keys each person to one file, so only a duplicate does this.
+			DELETE FROM player_ids p WHERE p.register_file = ${file} AND NOT EXISTS (SELECT 1 FROM incoming i WHERE i.person_id = p.person_id) RETURNING 1
+		), state AS (
+			INSERT INTO player_register_files (file, etag, synced_at, tried_at) VALUES (${file}, ${etag}, ${at}, ${at})
+			ON CONFLICT (file) DO UPDATE SET etag = excluded.etag, synced_at = excluded.synced_at, tried_at = excluded.tried_at RETURNING 1
+		)
+		SELECT (SELECT count(*) FROM written WHERE inserted)::integer AS inserted, (SELECT count(*) FROM written WHERE NOT inserted)::integer AS updated,
+			(SELECT count(*) FROM removed)::integer AS deleted, (SELECT count(*) FROM state)::integer AS state`) as unknown as { rows: RegisterFileWrite[] };
+		const [row] = result.rows;
+		return {
+			inserted: Number(row?.inserted ?? 0),
+			updated: Number(row?.updated ?? 0),
+			deleted: Number(row?.deleted ?? 0),
+		};
 	}
 }
 

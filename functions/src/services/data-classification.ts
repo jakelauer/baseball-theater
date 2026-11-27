@@ -69,6 +69,10 @@ export const DATA_CLASSIFICATION = {
 			kind: "none",
 			why: "MLB live-feed replay patches; no user data",
 		},
+		InMemoryPlayerIdRepository: {
+			kind: "none",
+			why: "MLB person ids and their FanGraphs and Baseball-Reference ids (S209), public facts about players; no user data",
+		},
 		InMemoryUserRepository: {
 			kind: "personal",
 			deletedBy: USERS_STORE,
@@ -113,6 +117,10 @@ export const DATA_CLASSIFICATION = {
 		PostgresReplayArtifactRepository: {
 			kind: "none",
 			why: "MLB live-feed replay patches; no user data",
+		},
+		PostgresPlayerIdRepository: {
+			kind: "none",
+			why: "MLB person ids and their FanGraphs and Baseball-Reference ids (S209), public facts about players; no user data",
 		},
 		PostgresUserRepository: {
 			kind: "personal",
@@ -163,6 +171,14 @@ export const DATA_CLASSIFICATION = {
 		replay_artifacts: {
 			kind: "none",
 			why: "MLB live-feed replay patches; no user data",
+		},
+		player_ids: {
+			kind: "none",
+			why: "per MLB player (person_id), their FanGraphs and Baseball-Reference ids (fangraphs_id, bbref_id) and the Chadwick register file the row came from (register_file), S209; public facts about players, no user data",
+		},
+		player_register_files: {
+			kind: "none",
+			why: "per Chadwick register file, the ETag of the copy last synced and when it was synced and tried (S209); no user data",
 		},
 		users: {
 			kind: "personal",

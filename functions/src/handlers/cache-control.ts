@@ -122,3 +122,9 @@ export const PAST_CACHE_CONTROL = `public, max-age=${PAST_BROWSER_MAX_AGE_S}, s-
  * never the long lifetime, so the next read after about ten minutes tries that game again rather than waiting on a purge.
  */
 export const PARTIAL_PAST_DIGEST_CACHE_CONTROL = `public, s-maxage=${CACHE_LIFETIME_FLOOR_MS / 1000}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`;
+
+/**
+ * Players' profile links (S209, `GET /api/v1/players/profiles`): the ids come from the Chadwick register, synced at
+ * most once a day a file, so the edge and the browser may keep any answer (a player with no row included) for a day.
+ */
+export const PLAYER_PROFILES_CACHE_CONTROL = "public, max-age=86400, s-maxage=86400";

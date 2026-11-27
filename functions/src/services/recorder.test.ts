@@ -216,8 +216,9 @@ describe("fixture recorder", () =>
 			},
 		);
 
-		// The twelve names packages/mlb-api/src/coverage.test.ts consumes (play metrics since S93, GraphQL content since S94,
-		// player of the game since S99, uniforms since S101, rule settings since S100, Savant's game feed since S103).
+		// The thirteen names packages/mlb-api/src/coverage.test.ts consumes (play metrics since S93, GraphQL content since S94,
+		// player of the game since S99, uniforms since S101, rule settings since S100, Savant's game feed since S103, the
+		// players' cross-references, people-xref, since S209).
 		expect(written).toEqual([
 			`schedule-${DATE}.json`,
 			`live-${GAME_PK}.json`,
@@ -231,9 +232,10 @@ describe("fixture recorder", () =>
 			`graphql-content-${GAME_PK}.json`,
 			`standings-${DATE}.json`,
 			`people-${GAME_PK}.json`,
+			`people-xref-${GAME_PK}.json`,
 		]);
-		expect(seen).toHaveLength(12);
-		expect(await readdir(path.join(out, "raw"))).toHaveLength(12);
+		expect(seen).toHaveLength(13);
+		expect(await readdir(path.join(out, "raw"))).toHaveLength(13);
 
 		// Byte-exact: not re-stringified through JSON.parse.
 		const onDisk = await readFile(path.join(out, "raw", `live-${GAME_PK}.json`), "utf8");

@@ -61,4 +61,15 @@ describe("effectiveEntitlements (S215)", () =>
 		for (const tier of PATRON_TIERS) expect(isPatronTier(tier)).toBe(true);
 		for (const other of ["Gold", "backer", "", null, 3, "toString"]) expect(isPatronTier(other)).toBe(false);
 	});
+
+	it("S209 AC 9: statsProviderChoice from Backer up, for every tier", () =>
+	{
+		expect(PATRON_TIERS.map((tier) => [tier, entitlementsForTier(tier).statsProviderChoice])).toEqual([
+			["none", false],
+			["Backer", true],
+			["Pro Backer", true],
+			["Star Backer", true],
+			["Premium Sponsor", true],
+		]);
+	});
 });

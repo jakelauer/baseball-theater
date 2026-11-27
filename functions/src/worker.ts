@@ -7,7 +7,8 @@
  * own the ADR-002 cadence, refreshes at most one due schedule month of the fill window
  * (S194, `refreshDueScheduleMonth`), so every month is checked against MLB about every six
  * hours with no second cron expression, and re-checks at most one recently finished game's full
- * detail (S212, `recheckDueGame`). Composition lives in `worker-app.ts`.
+ * detail (S212, `recheckDueGame`), and syncs at most one Chadwick register file into the players' outside ids
+ * (S209, `syncPlayerRegister`). Composition lives in `worker-app.ts`.
  */
 import { DeferredWorkQueue, withDeferredWork } from "./adapters/background-work.js";
 import { inDatabaseScope } from "./adapters/postgres/connect.js";
@@ -16,6 +17,7 @@ import { handleApiRequest } from "./handlers/api.js";
 import { ensureIngestRunning } from "./services/game-ingest.js";
 import { retryOwedEdgePurges } from "./services/edge-purge.js";
 import { recheckDueGame } from "./services/game-recheck.js";
+import { syncPlayerRegister } from "./services/player-ids.js";
 import { refreshDueScheduleMonth } from "./services/schedule-refresh.js";
 import { tickAllowed, workerApp } from "./worker-app.js";
 import type { WorkerEnv } from "./worker-app.js";
@@ -47,7 +49,9 @@ export default {
 	 * refreshes at most one due schedule month (S194, `refreshDueScheduleMonth`), which needs no
 	 * binding but the database, and re-checks at most one due recently finished game (S212,
 	 * `recheckDueGame`), whose writes purge the edge copy of what they change, and retries the purges a failure left owed
-	 * (S212 review, `retryOwedEdgePurges`; one database read a tick, and only with purge credentials). Each runs in its own
+	 * (S212 review, `retryOwedEdgePurges`; one database read a tick, and only with purge credentials), and runs the
+	 * player-id job (S209, `syncPlayerRegister`: at most one register file a tick, a conditional request on its stored
+	 * ETag, none when no file is due; live MLB data only). Each runs in its own
 	 * `waitUntil` and its own database scope, so one that rejects (and is logged by the runtime)
 	 * doesn't stop the others. A preview's
 	 * `crons: []` (`wrangler.jsonc`) means previews never run either.
@@ -83,5 +87,20 @@ export default {
 			kind: "cron",
 			job: "edge-purge-retry",
 		}));
+		// S209 AC 3: one register file's sync, in a scope of its own so its database waits show in their own round-trip line.
+		const {
+			playerIds, playerRegister, playerXrefs,
+		} = app.ingest;
+		if (playerIds && playerRegister && playerXrefs)
+		{
+			ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => syncPlayerRegister({
+				playerIds,
+				register: playerRegister,
+				xrefs: playerXrefs,
+			}), undefined, undefined, {
+				kind: "cron",
+				job: "player-ids",
+			}));
+		}
 	},
 };

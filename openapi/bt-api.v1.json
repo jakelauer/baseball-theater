@@ -31,6 +31,10 @@
 						"type": "boolean"
 					},
 					"opensFirst": { "$ref": "#/components/schemas/OpensFirst" },
+					"statsProvider": {
+						"$ref": "#/components/schemas/StatsProvider",
+						"description": "The stats site a player's name opens (S209). Read it through `effectiveStatsProvider`, never directly: only a patron's choice counts, and a lapsed pledge links to MLB.com."
+					},
 					"version": { "type": "number" },
 					"videoPlayer": {
 						"$ref": "#/components/schemas/VideoPlayerMode",
@@ -44,6 +48,7 @@
 					"collapseNonFavorites",
 					"hideScores",
 					"videoPlayer",
+					"statsProvider",
 					"version"
 				],
 				"type": "object"
@@ -395,9 +400,13 @@
 					"cloudSyncedSettings": { "type": "boolean" },
 					"fasterLiveRefresh": { "type": "boolean" },
 					"savantLinks": { "type": "boolean" },
+					"statsProviderChoice": {
+						"description": "May pick a stats site other than MLB.com for player links (S209; owner, 2026-11-24: \"Every patron, Backer and up (Recommended)\"). Never stored: `entitlementsForTier` derives it from the tier wherever entitlements are read, so a row or a session signed before S209 can't lack it where it matters.",
+						"type": "boolean"
+					},
 					"tier": { "$ref": "#/components/schemas/PatronTier" }
 				},
-				"required": ["tier", "fasterLiveRefresh", "cloudSyncedSettings", "savantLinks"],
+				"required": ["tier", "fasterLiveRefresh", "cloudSyncedSettings", "savantLinks", "statsProviderChoice"],
 				"type": "object"
 			},
 			"GameBoxscore": {
@@ -939,6 +948,17 @@
 				"required": ["pX", "pZ", "x0", "y0", "z0", "vx0", "vy0", "vz0", "ax", "ay", "az", "pfxX", "pfxZ"],
 				"type": "object"
 			},
+			"PlayerIds": {
+				"additionalProperties": false,
+				"description": "A player's ids on the sites BT links to: MLB's own (MLBAM, which MLB.com and Baseball Savant key their pages by), and FanGraphs' and Baseball-Reference's, each null when BT doesn't know it (neither the Chadwick register nor MLB's cross-references has it for this player).",
+				"properties": {
+					"bbref": { "type": ["string", "null"] },
+					"fangraphs": { "type": ["string", "null"] },
+					"mlbam": { "type": "number" }
+				},
+				"required": ["mlbam", "fangraphs", "bbref"],
+				"type": "object"
+			},
 			"PlayerOfTheGame": {
 				"additionalProperties": false,
 				"description": "MLB's player of the game (S99): the media's pick and the fans' pick, each absent until MLB names a player for it. Never an object with neither: a game with no pick has no `playerOfTheGame`.",
@@ -958,6 +978,35 @@
 					"winProbabilityAdded": { "type": ["number", "null"] }
 				},
 				"required": ["playerId", "teamId", "summary", "winProbabilityAdded"],
+				"type": "object"
+			},
+			"PlayerPages": {
+				"additionalProperties": false,
+				"description": "One player's pages on each stats site (S209): the ids BT holds for them and the URL `playerProfileUrl` builds for each site, null for a site whose id BT doesn't know (neither the Chadwick register nor MLB's cross-references has it). The web builds its link from `ids` through the same function.",
+				"properties": {
+					"ids": { "$ref": "#/components/schemas/PlayerIds" },
+					"profiles": {
+						"additionalProperties": false,
+						"properties": {
+							"bbref": { "type": ["string", "null"] },
+							"fangraphs": { "type": ["string", "null"] },
+							"mlb": { "type": ["string", "null"] },
+							"savant": { "type": ["string", "null"] }
+						},
+						"required": ["mlb", "fangraphs", "bbref", "savant"],
+						"type": "object"
+					}
+				},
+				"required": ["ids", "profiles"],
+				"type": "object"
+			},
+			"PlayerProfilesResponse": {
+				"additionalProperties": false,
+				"description": "The answer of `GET /api/v1/players/profiles?personIds=…` (S209 AC 3): the pages of each asked player BT has a row for, by ascending MLB id; a player with no row is left out.",
+				"properties": {
+					"players": { "items": { "$ref": "#/components/schemas/PlayerPages" }, "type": "array" }
+				},
+				"required": ["players"],
 				"type": "object"
 			},
 			"PlayerRef": {
@@ -1406,7 +1455,7 @@
 			},
 			"SettingsRequest": {
 				"additionalProperties": false,
-				"description": "A settings write: the whole document with a bumped `version`; an older version is ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70) may be left out — each reads as its default — so a page loaded before they shipped can still save.",
+				"description": "A settings write: the whole document with a bumped `version`; an older version is ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70), `statsProvider` (S209) may be left out — each reads as its default — so a page loaded before they shipped can still save.",
 				"properties": {
 					"collapseNonFavorites": {
 						"description": "Fold games without a favorite team into slim bars (S68).",
@@ -1423,6 +1472,10 @@
 						"type": "boolean"
 					},
 					"opensFirst": { "$ref": "#/components/schemas/OpensFirst" },
+					"statsProvider": {
+						"$ref": "#/components/schemas/StatsProvider",
+						"description": "The stats site a player's name opens (S209). Read it through `effectiveStatsProvider`, never directly: only a patron's choice counts, and a lapsed pledge links to MLB.com."
+					},
 					"version": { "type": "number" },
 					"videoPlayer": {
 						"$ref": "#/components/schemas/VideoPlayerMode",
@@ -1637,6 +1690,7 @@
 				],
 				"type": "object"
 			},
+			"StatsProvider": { "enum": ["mlb", "fangraphs", "bbref", "savant"], "type": "string" },
 			"TeamRecord": {
 				"additionalProperties": false,
 				"description": "A team's season record (S65; the scoreboard module's `81-62`).",
@@ -2003,7 +2057,7 @@
 						"content": {
 							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
 						},
-						"description": "The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a whole non-negative version)."
+						"description": "The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a known stats site or none, a whole non-negative version), or it changes `statsProvider` to a site other than `mlb` for an account without a patron tier (S209: Backer and up)."
 					},
 					"401": {
 						"content": {
@@ -2095,6 +2149,41 @@
 					}
 				},
 				"summary": "Staging only, for testing: chooses the backer tier to see BT as (`\"none\"` is not a patron; null goes back to the real tier), and answers as the GET does plus a new session token whose entitlements are the chosen tier's, so every check that reads the session uses it at once. Never changes the real tier or calls Patreon. Exists only where the server's deploy-time config allows the override (staging); everywhere else it answers 404. Never cached (`no-store`)."
+			}
+		},
+		"/api/v1/players/profiles": {
+			"get": {
+				"operationId": "getPlayerProfiles",
+				"parameters": [
+					{
+						"description": "1 to 100 MLB person ids (MLBAM), comma-separated; repeats count once.",
+						"in": "query",
+						"name": "personIds",
+						"required": true,
+						"schema": { "pattern": "^\\d{1,16}(,\\d{1,16})*$", "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/PlayerProfilesResponse" } }
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`personIds` is missing, malformed, or names more than 100 players."
+					},
+					"426": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`version_unsupported`: this API version has been retired (ADR-015); the client should reload to update."
+					}
+				},
+				"summary": "Players' pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from, for each asked player BT has a row for (a player with none is left out); a site whose id BT doesn't know is null. Cacheable for a day: the ids are synced from the Chadwick register at most daily."
 			}
 		},
 		"/api/v1/releases": {

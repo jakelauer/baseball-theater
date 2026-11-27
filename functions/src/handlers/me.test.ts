@@ -90,6 +90,7 @@ describe("GET /api/v1/me", () =>
 					fasterLiveRefresh: false,
 					cloudSyncedSettings: false,
 					savantLinks: false,
+					statsProviderChoice: false,
 				},
 			});
 		});

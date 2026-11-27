@@ -5,7 +5,7 @@
  * survive a remount, and Opens First's three rooms.
  */
 import type { AccountSettings } from "@bt/domain";
-import { DEFAULT_SETTINGS } from "@bt/domain";
+import { DEFAULT_SETTINGS, entitlementsForTier } from "@bt/domain";
 import { MantineProvider } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -28,13 +28,17 @@ import { DEV_ACCOUNT } from "../test/meApi.js";
 import { SettingsPage } from "./SettingsPage.js";
 
 /** The API as the server answers the dev session: `/me`, and one settings document with apply-if-newer. */
-function stubAccountApi(stored: AccountSettings = DEFAULT_SETTINGS)
+/** Every settings document the page saved, in order (S209's tests read the last). */
+const saves: AccountSettings[] = [];
+
+function stubAccountApi(stored: AccountSettings = DEFAULT_SETTINGS, account: typeof DEV_ACCOUNT = DEV_ACCOUNT)
 {
 	let doc = stored;
+	saves.length = 0;
 	vi.stubGlobal("fetch", vi.fn(async (request: Request) =>
 	{
 		const { pathname } = new URL(request.url);
-		if (pathname === "/api/v1/me") return jsonResponse(DEV_ACCOUNT);
+		if (pathname === "/api/v1/me") return jsonResponse(account);
 		// No data download yet (S79's Account rows read it); no tier override, as production answers (S215).
 		if (pathname.startsWith("/api/v1/me/download") || pathname === "/api/v1/me/tier-override") return jsonResponse({
 			error: "not_found",
@@ -42,6 +46,7 @@ function stubAccountApi(stored: AccountSettings = DEFAULT_SETTINGS)
 		if (request.method === "PUT")
 		{
 			const body = await request.json() as AccountSettings;
+			saves.push(body);
 			if (body.version > doc.version) doc = body;
 		}
 		return jsonResponse(doc);
@@ -247,3 +252,57 @@ describe("SettingsPage Video Player (S70)", () =>
 		})).toBeChecked();
 	});
 });
+
+describe("Stats Site (S209 AC 8)", () =>
+{
+	const SITES = ["MLB.com", "FanGraphs", "Baseball-Reference", "Baseball Savant"];
+
+	async function statsSite(): Promise<HTMLElement>
+	{
+		return screen.findByRole("radiogroup", {
+			name: /Stats Site/,
+		});
+	}
+
+	it("S209 AC 8: offers the four sites with MLB.com selected by default; without a patron tier only MLB.com is enabled, the others marked as a patron option", async () =>
+	{
+		stubAccountApi();
+		renderSettings();
+		const group = await statsSite();
+		for (const site of SITES)
+		{
+			const radio = within(group).getByRole("radio", {
+				name: site,
+			});
+			if (site === "MLB.com")
+			{
+				expect(radio).toBeChecked();
+				expect(radio).toBeEnabled();
+			}
+			else expect(radio).toBeDisabled();
+		}
+		expect(within(group).getAllByText("Patron option")).toHaveLength(3);
+	});
+
+	it("S209 AC 8: a patron may pick another site, and the choice saves", async () =>
+	{
+		stubAccountApi(DEFAULT_SETTINGS, {
+			...DEV_ACCOUNT,
+			entitlements: entitlementsForTier("Backer"),
+		});
+		renderSettings();
+		const group = await statsSite();
+		await waitFor(() => expect(within(group).getByRole("radio", {
+			name: "FanGraphs",
+		})).toBeEnabled());
+		expect(within(group).queryByText("Patron option")).toBeNull();
+		await userEvent.click(within(group).getByRole("radio", {
+			name: "FanGraphs",
+		}));
+		await waitFor(() => expect(within(group).getByRole("radio", {
+			name: "FanGraphs",
+		})).toBeChecked());
+		expect(saves.at(-1)?.statsProvider).toBe("fangraphs");
+	});
+});
+

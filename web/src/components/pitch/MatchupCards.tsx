@@ -1,8 +1,11 @@
 import type { AtBat } from "@bt/domain";
-import { batterLine, pitcherLine } from "@bt/domain";
+import {
+	batterLine, gamePersonIds, pitcherLine,
+} from "@bt/domain";
 import {
 	Group, Paper, Text,
 } from "@mantine/core";
+import { PlayerLink } from "../PlayerLink.js";
 
 /** "R" → "RHP", "L" → "LHB": the hand as the frames write it, or nothing when MLB didn't say. */
 function hand(side: string | null, role: "P" | "B"): string | null
@@ -12,11 +15,15 @@ function hand(side: string | null, role: "P" | "B"): string | null
 
 /**
  * One player card: role over name, then hand and the game line. Bordered in Light as
- * the frames draw it; no headshot (S41's Plays cards have none either).
+ * the frames draw it; no headshot (S41's Plays cards have none either). The name opens the
+ * player's stats page (S209, `PlayerLink`).
  */
 function Card({
-	role, name, detail,
+	role, personId, roster, name, detail,
 }: { role: string;
+	personId: number;
+	/** Every player the plays name (`gamePersonIds`): the cards' one profiles request (S209 AC 10). */
+	roster: readonly number[];
 	name: string;
 	detail: string; })
 {
@@ -33,7 +40,7 @@ function Card({
 			}}
 		>
 			<Text fz={11} fw={700} c="var(--bt-accent)" tt="uppercase">{role}</Text>
-			<Text fz={15} fw={700}>{name}</Text>
+			<Text fz={15} fw={700}><PlayerLink personId={personId} roster={roster} inherit>{name}</PlayerLink></Text>
 			<Text fz={12} c="var(--bt-muted)">{detail}</Text>
 		</Paper>
 	);
@@ -60,15 +67,22 @@ export function MatchupCards({ plays, atBat }: { plays: readonly AtBat[];
 		b.homeRuns > 0 ? (b.homeRuns === 1 ? "HR" : `${b.homeRuns} HR`) : null,
 		b.rbi > 0 ? `${b.rbi} RBI` : null,
 	].filter(Boolean).join(", ");
+	const roster = gamePersonIds({
+		plays,
+	});
 	return (
 		<Group gap={10} wrap="nowrap" align="stretch" data-testid="matchup-cards">
 			<Card
 				role="Pitcher"
+				personId={pitcher.id}
+				roster={roster}
 				name={pitcher.fullName}
 				detail={[hand(pitchHand, "P"), `${p.pitches} Pitches (${p.strikes} S)`].filter(Boolean).join(" · ")}
 			/>
 			<Card
 				role="Batter"
+				personId={batter.id}
+				roster={roster}
 				name={batter.fullName}
 				detail={[hand(batSide, "B"), batting].filter(Boolean).join(" · ")}
 			/>

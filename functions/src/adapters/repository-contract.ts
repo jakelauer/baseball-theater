@@ -16,7 +16,7 @@
  * Case (j) is the schedule repository's month read (S124, `listGameCounts`).
  * Case (k) is the game-state repository's write rule (S150), and case (l) the schedule repository's `served_base`
  * raise, read from the game-state store of the same database (S150). Case (m) is the game repository's state-field
- * read (S150).
+ * read (S150). Case (p) is the player-id repository's register sync and batched read (S209).
  */
 import {
 	beforeEach, describe, expect, it,
@@ -28,7 +28,8 @@ import {
 	entitlementsForTier, GAME_RECHECK_CLAIM_LEASE_MS, projectGame, SCHEDULE_MONTH_REFRESH_INTERVAL_MS,
 } from "@bt/domain";
 import type {
-	GameProjectionRepository, GameRepository, GameStateRepository, OwedEdgePurge, OwedEdgePurgeRepository, PersonalDataStore, ScheduleRepository, UserRepository,
+	GameProjectionRepository, GameRepository, GameStateRepository, OwedEdgePurge, OwedEdgePurgeRepository, PersonalDataStore, PlayerIdRepository, PlayerIdRow,
+	ScheduleRepository, UserRepository,
 } from "@bt/ports";
 
 /** The reads and writes every keyed repository shares. */
@@ -1046,6 +1047,104 @@ export function describeOwedEdgePurgeContract(label: string, create: () => OwedE
 			expect((await owed.listDue(later(60_000), 10))[0]?.failures).toBe(1);
 			await owed.owe(["https://a/x"], later(1000));
 			expect(urlsAndFailures(await owed.listDue(later(1000), 10))).toEqual([["https://a/x", later(1000), 0]]);
+		});
+	});
+}
+
+/**
+ * Case (p): MLB's players' outside ids (S209 AC 3), for any `PlayerIdRepository` adapter. A register file's rows are
+ * replaced at once, writing only what changed and deleting what the file dropped; the read takes many ids and leaves
+ * out what has no row, an id past Postgres's integer range included, never failing; a file's claim holds it for one run.
+ */
+export function describePlayerIdContract(label: string, create: () => PlayerIdRepository): void
+{
+	describe(`${label} — player id contract (S209)`, () =>
+	{
+		const T = "2026-11-27T12:00:00.000Z";
+		const later = (ms: number) => new Date(Date.parse(T) + ms).toISOString();
+		const row = (personId: number, fangraphsId: string | null, bbrefId: string | null): PlayerIdRow => ({
+			personId,
+			fangraphsId,
+			bbrefId,
+		});
+
+		it("S209 AC 3: getMany answers the rows it holds, leaving out repeats, unknown ids, 0 and an id past 2147483647", async () =>
+		{
+			const ids = create();
+			await ids.replaceRegisterFile("people-0.csv", [row(665871, "21741", "assadja01"), row(691788, "29780", "mackjo02")], "\"e1\"", T);
+			expect(await ids.getMany([691788, 665871, 665871, 1, 0, 99999999999, 2147483648])).toEqual([row(665871, "21741", "assadja01"), row(691788, "29780", "mackjo02")]);
+			expect(await ids.getMany([99999999999])).toEqual([]);
+			expect(await ids.getMany([])).toEqual([]);
+		});
+
+		it("S209 AC 3: a file's re-sync writes only changed rows, deletes the rows it dropped, and keeps other files' rows", async () =>
+		{
+			const ids = create();
+			expect(await ids.replaceRegisterFile("people-0.csv", [row(1, "f1", "b1"), row(2, "f2", null), row(3, null, "b3")], "\"e1\"", T)).toEqual({
+				inserted: 3,
+				updated: 0,
+				deleted: 0,
+			});
+			await ids.replaceRegisterFile("people-1.csv", [row(9, "f9", "b9")], "\"x1\"", T);
+			// The same rows again: nothing written.
+			expect(await ids.replaceRegisterFile("people-0.csv", [row(1, "f1", "b1"), row(2, "f2", null), row(3, null, "b3")], "\"e2\"", later(1))).toEqual({
+				inserted: 0,
+				updated: 0,
+				deleted: 0,
+			});
+			// One id changed, one row dropped, one new.
+			expect(await ids.replaceRegisterFile("people-0.csv", [row(1, "f1", "b1"), row(2, "f2", "b2"), row(4, "f4", null)], "\"e3\"", later(2))).toEqual({
+				inserted: 1,
+				updated: 1,
+				deleted: 1,
+			});
+			expect(await ids.getMany([1, 2, 3, 4, 9])).toEqual([row(1, "f1", "b1"), row(2, "f2", "b2"), row(4, "f4", null), row(9, "f9", "b9")]);
+			expect((await ids.registerFiles()).find((state) => state.file === "people-0.csv")).toEqual({
+				file: "people-0.csv",
+				etag: "\"e3\"",
+				syncedAt: later(2),
+				triedAt: later(2),
+			});
+		});
+
+		it("S209 AC 3: a row whose MLB id is past 2147483647 is skipped, and the file's other rows are still written", async () =>
+		{
+			const ids = create();
+			expect((await ids.replaceRegisterFile("people-0.csv", [row(99999999999, "f", "b"), row(5, "f5", "b5")], null, T)).inserted).toBe(1);
+			expect(await ids.getMany([5])).toEqual([row(5, "f5", "b5")]);
+		});
+
+		it("S209 AC 3: a person id given twice counts once and its last row wins", async () =>
+		{
+			const ids = create();
+			expect(await ids.replaceRegisterFile("people-0.csv", [row(1, "f1", null), row(2, "f2", "b2"), row(1, "f1", "b1")], "\"e1\"", T)).toEqual({
+				inserted: 2,
+				updated: 0,
+				deleted: 0,
+			});
+			expect(await ids.getMany([1, 2])).toEqual([row(1, "f1", "b1"), row(2, "f2", "b2")]);
+		});
+
+		it("S209 AC 3: a claim takes a never-tried file once, then holds it until the retry time; a synced file waits until it is due", async () =>
+		{
+			const ids = create();
+			const hour = 3_600_000;
+			expect(await ids.claimRegisterFile("people-0.csv", T, T, T)).toBe(true);
+			// Tried at T and not synced: refused within the retry window, taken after it.
+			expect(await ids.claimRegisterFile("people-0.csv", later(1000), later(1000), T)).toBe(false);
+			expect(await ids.claimRegisterFile("people-0.csv", later(hour + 1), later(hour + 1), later(1))).toBe(true);
+			// Synced (written) at later(2 h): not due until the sync interval has passed.
+			await ids.replaceRegisterFile("people-0.csv", [row(1, "f1", null)], "\"e\"", later(2 * hour));
+			expect(await ids.claimRegisterFile("people-0.csv", later(3 * hour), later(2 * hour - 1), later(3 * hour - hour))).toBe(false);
+			expect(await ids.claimRegisterFile("people-0.csv", later(30 * hour), later(2 * hour + 1), later(29 * hour))).toBe(true);
+			// An unchanged answer moves the sync time on, keeping the ETag.
+			await ids.markRegisterFileUnchanged("people-0.csv", later(30 * hour));
+			expect((await ids.registerFiles())[0]).toEqual({
+				file: "people-0.csv",
+				etag: "\"e\"",
+				syncedAt: later(30 * hour),
+				triedAt: later(30 * hour),
+			});
 		});
 	});
 }
