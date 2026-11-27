@@ -2,7 +2,7 @@
 
 Baseball Savant (`baseballsavant.mlb.com`) feeds the owner found, what each holds, and where BT stands on it. Two kinds:
 
-- **Game data** BT ingests through stories under FEATURES' _More MLB game data_: the per-pitch game feed (**S103**), pitcher season averages (**S104**) and ballpark field drawings (**S105**).
+- **Game data** BT ingests through stories under FEATURES' _More MLB game data_: the per-pitch game feed (**S103**) and ballpark field drawings (**S105**). Pitcher season averages, once **S104**'s, are now one row of S104's [player data catalogue](./SAVANT-CATALOGUE.md), ingested only if the owner chooses them there.
 - **Player-season data**, recorded here for future ideas only (owner, 2026-10-30: _"Just record the example URLS for the seasonal data and describe what they contain in a document we can use for future ideas."_). No feature uses it and no story ingests it. A feature that wants it starts in FEATURES, in the owner's words.
 
 None of these are documented APIs. They are the endpoints Savant's own pages call; they can change or vanish without notice. Every sample below was fetched on 2026-10-30, after the 2026 season.
@@ -25,7 +25,7 @@ Checked 2026-11-27 by S103 (AC 7). No Savant terms of its own were found: its pa
 | Feed | Example | What it holds | Story |
 | ---- | ------- | ------------- | ----- |
 | Game feed | `https://baseballsavant.mlb.com/gf?game_pk=823823` | Every pitch of a game keyed by the live feed's `playId`. Most of it repeats MLB's live feed; BT keeps only what MLB's feeds lack (xBA, barrels, spray position, home-run ballpark count, bat speed, swords, Savant's in-zone call, times through the order, the challenged pitch, the front-of-plate location) | S103 |
-| Pitcher yearly averages | `https://baseballsavant.mlb.com/gamefeed/pitcher-yearly-averages?pitchers=[668909,681870,…]` | Each listed pitcher's season averages per pitch type: usage, average and range of speed, spin, horizontal / vertical / induced break, spin axis and release point (397 fields a pitcher). Any number of pitchers in one call. Savant's game page uses it to set each pitch beside the pitcher's norm. The owner's sample listed 19 pitchers and returned 3 rows. | S104 |
+| Pitcher yearly averages | `https://baseballsavant.mlb.com/gamefeed/pitcher-yearly-averages?pitchers=[668909,681870,…]` | Each listed pitcher's season averages per pitch type: usage, average and range of speed, spin, horizontal / vertical / induced break, spin axis and release point (397 fields a pitcher). Any number of pitchers in one call. Savant's game page uses it to set each pitch beside the pitcher's norm. The owner's sample listed 19 pitchers and returned 3 rows. | Not ingested yet: a row of [SAVANT-CATALOGUE](./SAVANT-CATALOGUE.md) (S104), awaiting the owner's choice |
 | Field drawing | `https://baseballsavant.mlb.com/site-core/images/fields/3313.svg` | A 250×250 SVG outline of a ballpark. The number is MLB's venue id: 3313 is Yankee Stadium, 4169 (loanDepot park, `gameData.venue.id` of 823823) returns that park. MLB-made artwork | S105 |
 | Date schedule | `https://baseballsavant.mlb.com/schedule?date=2026-10-15` | Every game on a date with its win probability after each at-bat (`wpa[].wpaValues`). The values match MLB's play metrics (S93) at-bat for at-bat (85 of 85 on 823823) | Not ingested: S93's play metrics already give the same values |
 | Date scoreboard | `https://baseballsavant.mlb.com/scoreboard-data?date=2026-10-15` | The same win probabilities per game (`stats.wpa.gameWpa`), the top players by win probability added, and for the current play a **leverage index** and a **drama index**, which no MLB feed BT reads carries | Not ingested; a future idea (below) |
@@ -33,6 +33,8 @@ Checked 2026-11-27 by S103 (AC 7). No Savant terms of its own were found: its pa
 ## Player-season data (future ideas)
 
 All about a player over a season, not a game. BT has no place that shows a player yet (no player card, no comparison view). Ideas raised on 2026-10-30, none chosen: a player card opened from Live, Plays or Box; matchup context in Live (the batter's zones against the pitcher's locations); season context on a play ("his hardest-hit ball this year", "a top-5% sprint"). It changes at most once a day.
+
+S104 catalogues these seven with every other player data set Savant publishes, batters and pitchers alike, in [SAVANT-CATALOGUE](./SAVANT-CATALOGUE.md), and asks the owner which to ingest.
 
 ### Leverage and drama index
 
