@@ -77,6 +77,10 @@ export const DATA_CLASSIFICATION = {
 			kind: "none",
 			why: "each ballpark's field drawing from Baseball Savant, by MLB venue id (S105); no user data",
 		},
+		InMemoryClipEngagementRepository: {
+			kind: "none",
+			why: "anonymous daily counts per clip; nothing about who watched (S174): how many times each clip of a game was started and finished, by UTC day and its place in the game's ranked Videos list; no user, session, address, device or browser",
+		},
 		InMemoryUserRepository: {
 			kind: "personal",
 			deletedBy: USERS_STORE,
@@ -129,6 +133,10 @@ export const DATA_CLASSIFICATION = {
 		PostgresVenueFieldRepository: {
 			kind: "none",
 			why: "each ballpark's field drawing from Baseball Savant, by MLB venue id (S105); no user data",
+		},
+		PostgresClipEngagementRepository: {
+			kind: "none",
+			why: "anonymous daily counts per clip; nothing about who watched (S174): how many times each clip of a game was started and finished, by UTC day and its place in the game's ranked Videos list; no user, session, address, device or browser",
 		},
 		PostgresUserRepository: {
 			kind: "personal",
@@ -187,6 +195,10 @@ export const DATA_CLASSIFICATION = {
 		player_register_files: {
 			kind: "none",
 			why: "per Chadwick register file, the ETag of the copy last synced and when it was synced and tried (S209); no user data",
+		},
+		clip_engagement: {
+			kind: "none",
+			why: "anonymous daily counts per clip; nothing about who watched (S174): the clip (media_id), its game (game_pk), the UTC day (view_day), the event (start or complete), its place in the game's ranked Videos list (shown_position) and the count; no column for a user, session, address, device, browser or time finer than the day",
 		},
 		venue_fields: {
 			kind: "none",

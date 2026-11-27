@@ -9,7 +9,7 @@ import type { GameSnapshot, ScheduleDay } from "./types.js";
 
 describe("ApiRoutes", () =>
 {
-	it("is a runtime-enumerable table covering the schedule, schedule month, schedule month versions (S194), game, venue field drawing (S105), digest, highlight search, standings, scoreboard default-date, account, tier override (S215), sign-in, releases and player profiles (S209) routes", () =>
+	it("is a runtime-enumerable table covering the schedule, schedule month, schedule month versions (S194), game, venue field drawing (S105), digest, highlight search, standings, scoreboard default-date, account, tier override (S215), sign-in, releases, player profiles (S209) and clip views (S174) routes", () =>
 	{
 		expect(Object.keys(ApiRoutes)).toEqual([
 			"GET /api/v1/schedule",
@@ -34,7 +34,10 @@ describe("ApiRoutes", () =>
 			"POST /api/v1/sign-in",
 			"GET /api/v1/releases",
 			"GET /api/v1/players/profiles",
+			"POST /api/v1/clips/:mediaId/views",
 		]);
+		// S174: a clip view answers 204 with no body.
+		expect(ApiRoutes["POST /api/v1/clips/:mediaId/views"]).toBe("NoContentResponse");
 		expect(ApiRoutes["GET /api/v1/players/profiles"]).toBe("PlayerProfilesResponse");
 		expect(ApiRoutes["GET /api/v1/releases"]).toBe("ReleasesResponse");
 		expect(ApiRoutes["GET /api/v1/venues/:venueId/field.svg"]).toBe("VenueFieldSvgResponse");
@@ -61,6 +64,7 @@ describe("ApiRoutes", () =>
 			"PUT /api/v1/me/settings": "SettingsRequest",
 			"POST /api/v1/sign-in": "SignInRequest",
 			"PUT /api/v1/me/tier-override": "TierOverrideRequest",
+			"POST /api/v1/clips/:mediaId/views": "ClipViewRequest",
 		});
 	});
 });

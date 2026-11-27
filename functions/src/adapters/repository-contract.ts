@@ -17,7 +17,8 @@
  * Case (k) is the game-state repository's write rule (S150), and case (l) the schedule repository's `served_base`
  * raise, read from the game-state store of the same database (S150). Case (m) is the game repository's state-field
  * read (S150). Case (p) is the player-id repository's register sync and batched read (S209). Case (q) is the venue
- * field repository's keep rule (S105): a later ask that got no drawing never replaces a kept one.
+ * field repository's keep rule (S105): a later ask that got no drawing never replaces a kept one. Case (r) is the clip
+ * engagement repository's counting (S174): one row per key, raised by one per record, two at once ending at 2.
  */
 import {
 	beforeEach, describe, expect, it,
@@ -29,6 +30,7 @@ import {
 	entitlementsForTier, GAME_RECHECK_CLAIM_LEASE_MS, projectGame, SCHEDULE_MONTH_REFRESH_INTERVAL_MS,
 } from "@bt/domain";
 import type {
+	ClipEngagementRepository, ClipEngagementRow,
 	GameProjectionRepository, GameRepository, GameStateRepository, OwedEdgePurge, OwedEdgePurgeRepository, PersonalDataStore, PlayerIdRepository, PlayerIdRow,
 	ScheduleRepository, UserRepository, VenueField, VenueFieldRepository,
 } from "@bt/ports";
@@ -1187,6 +1189,114 @@ export function describeVenueFieldContract(label: string, create: () => VenueFie
 			// Newer only still holds: an older drawing never replaces a newer one.
 			await none.upsert(field(2, true));
 			expect(await none.get(4169)).toEqual(field(3, true));
+		});
+	});
+}
+
+/**
+ * Case (r), the clip engagement repository (S174 AC 3): `record` adds one to the row its five values key, making it at 1;
+ * two records of one key at once end at 2 (the Postgres adapter's one atomic upsert); a different day, event, place or
+ * clip is its own row. `countsFor` reads one game's rows over every day; `exportRange` the rows of an inclusive range of
+ * days, across games. Both answer in day, game, media id, event, shown-position order.
+ */
+export function describeClipEngagementContract(label: string, create: () => ClipEngagementRepository): void
+{
+	describe(`${label} — clip engagement contract (r)`, () =>
+	{
+		/** A row as the port answers it. */
+		const row = (mediaId: string, gamePk: number, viewDay: string, event: ClipEngagementRow["event"], shownPosition: number, count: number): ClipEngagementRow => ({
+			mediaId,
+			gamePk,
+			viewDay,
+			event,
+			shownPosition,
+			count,
+		});
+
+		it("(r) two records of one key at once end at 2, and each other key is its own row", async () =>
+		{
+			const counts = create();
+			await Promise.all([counts.record("hl-1", 823823, "2026-11-22", "start", 3), counts.record("hl-1", 823823, "2026-11-22", "start", 3)]);
+			await counts.record("hl-1", 823823, "2026-11-22", "complete", 3);
+			await counts.record("hl-1", 823823, "2026-11-23", "start", 3);
+			await counts.record("hl-1", 823823, "2026-11-22", "start", 0);
+			await counts.record("hl-2", 823823, "2026-11-22", "start", 1);
+			await counts.record("hl-1", 744834, "2026-11-22", "start", 3);
+			expect(await counts.countsFor(823823)).toEqual([
+				row("hl-1", 823823, "2026-11-22", "complete", 3, 1),
+				row("hl-1", 823823, "2026-11-22", "start", 0, 1),
+				row("hl-1", 823823, "2026-11-22", "start", 3, 2),
+				row("hl-2", 823823, "2026-11-22", "start", 1, 1),
+				row("hl-1", 823823, "2026-11-23", "start", 3, 1),
+			]);
+			expect(await counts.countsFor(1)).toEqual([]);
+		});
+
+		it("(r) many records of one key at once are each counted", async () =>
+		{
+			const counts = create();
+			await Promise.all(Array.from({
+				length: 10,
+			}, () => counts.record("hl-1", 823823, "2026-11-22", "complete", 2)));
+			expect(await counts.countsFor(823823)).toEqual([row("hl-1", 823823, "2026-11-22", "complete", 2, 10)]);
+		});
+
+		it("(r) exportRange reads an inclusive range of days across games, and nothing outside it", async () =>
+		{
+			const counts = create();
+			await counts.record("hl-a", 2, "2026-11-21", "start", 1);
+			await counts.record("hl-b", 2, "2026-11-22", "start", 1);
+			await counts.record("hl-c", 1, "2026-11-23", "complete", 4);
+			await counts.record("hl-d", 1, "2026-11-24", "start", 0);
+			expect(await counts.exportRange("2026-11-22", "2026-11-23")).toEqual([
+				row("hl-b", 2, "2026-11-22", "start", 1, 1),
+				row("hl-c", 1, "2026-11-23", "complete", 4, 1),
+			]);
+			expect(await counts.exportRange("2026-11-23", "2026-11-23")).toEqual([row("hl-c", 1, "2026-11-23", "complete", 4, 1)]);
+			expect(await counts.exportRange("2026-12-01", "2026-12-31")).toEqual([]);
+			// A reversed range holds no day.
+			expect(await counts.exportRange("2026-11-24", "2026-11-21")).toEqual([]);
+		});
+
+		it("(r) answers copies: changing a row it answered changes nothing stored", async () =>
+		{
+			const counts = create();
+			await counts.record("hl-1", 823823, "2026-11-22", "start", 1);
+			const [first] = await counts.countsFor(823823);
+			first!.count = 99;
+			expect(await counts.countsFor(823823)).toEqual([row("hl-1", 823823, "2026-11-22", "start", 1, 1)]);
+		});
+	});
+}
+
+/**
+ * Case (s), a game repository's clip check (S174 AC 4, `hasHighlight`), for any `GameRepository` adapter: whether a
+ * media id is the `id` of one of a stored game's highlights, answered without the game's document. Only an exact `id`
+ * of that game's own highlights is true: another id, a highlight's play id or title, another game's clip or a game not
+ * stored is false, and an id holding JSON's quote, bracket and backslash is data, never part of the query.
+ */
+export function describeGameHighlightContract(label: string, create: () => GameRepository, make: (gamePk: number, date: string) => Promise<GameSnapshot>): void
+{
+	describe(`${label} — game highlight contract`, () =>
+	{
+		it("S174 AC 4 hasHighlight: true only for an id of the stored game's own highlights", async () =>
+		{
+			const games = create();
+			const one = await make(1, "2024-07-04");
+			const [clip] = one.highlights;
+			expect(clip).toBeDefined();
+			await games.upsert(one);
+			await games.upsert({
+				...await make(2, "2024-07-04"),
+				highlights: [],
+			});
+			expect(await games.hasHighlight(1, clip!.id)).toBe(true);
+			expect(await games.hasHighlight(1, "hl-404")).toBe(false);
+			if (clip!.playId) expect(await games.hasHighlight(1, clip!.playId)).toBe(false);
+			expect(await games.hasHighlight(1, clip!.title)).toBe(false);
+			expect(await games.hasHighlight(2, clip!.id)).toBe(false);
+			expect(await games.hasHighlight(3, clip!.id)).toBe(false);
+			expect(await games.hasHighlight(1, "\"}]\\")).toBe(false);
 		});
 	});
 }

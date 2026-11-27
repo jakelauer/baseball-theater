@@ -1,13 +1,15 @@
 import {
 	Box, Group, Stack, Text,
 } from "@mantine/core";
-import type { VideoQuality } from "@bt/domain";
+import type { ClipViewEvent, VideoQuality } from "@bt/domain";
 import {
-	defaultVideoQuality, fileQuality, rememberedVideoQuality, videoQualities,
+	clipCompleted, defaultVideoQuality, fileQuality, rememberedVideoQuality, videoQualities,
 } from "@bt/domain";
 import {
 	useEffect, useRef, useState,
 } from "react";
+import type { ClipViewSource } from "../../api/clipViews.js";
+import { sendClipView } from "../../api/clipViews.js";
 import { setVideoQuality, useVideoQuality } from "../../settings/store.js";
 import { loadHls } from "./hls-loader.js";
 import { PlayerActions, QualityPicker } from "./PlayerActions.js";
@@ -140,9 +142,18 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
  * corner draws its own), the title, the tools or the disclaimer, and Space left to the page, whose
  * fan is browsing it. Each part comes and goes in its own place, so the `<video>` is never re-created.
  * `onMiniPlayer` adds the tool row's Mini player button (`PlayerActions`).
+ *
+ * `countViews` (S174 AC 6), which only the Videos room's dialog passes, counts this opening of the clip anonymously
+ * (`sendClipView`): `start` the first time it plays, and `complete` once, when the element fires `ended` or 90% of a
+ * known length has played (`clipCompleted`; a clip whose length is 0 or `NaN` completes only by `ended`). `complete`
+ * needs this opening's counted start, so a clip already playing when counting began (Search's player taken to the
+ * Videos room through the corner) finishes uncounted, and it carries the start's game and shown position, so the room
+ * drawing the clip again at another place (the corner's expand reopens it by its link, at 0) doesn't move it; a host
+ * that doesn't count still sends nothing. An opening is this mount: the provider keys the player by the clip, so a new clip, or the same one opened again after it
+ * closed, starts afresh, while pausing, a quality switch or a move to the corner does not. Nothing on screen changes.
  */
 export function VideoPlayer({
-	video, title = video.title, autoPlay = false, titleAbove = false, compact = false, onMiniPlayer,
+	video, title = video.title, autoPlay = false, titleAbove = false, compact = false, onMiniPlayer, countViews,
 }: { video: Video;
 	/** The clip's title; the game page passes `highlightTitle`'s (S75). */
 	title?: string;
@@ -152,7 +163,9 @@ export function VideoPlayer({
 	/** The corner player's drawing (S198): the clip alone, no built-in controls, Space not taken. */
 	compact?: boolean;
 	/** Sends the clip to the corner player (S198): the tool row's Mini player button. */
-	onMiniPlayer?: () => void; })
+	onMiniPlayer?: () => void;
+	/** Where this opening's start and finish are counted from (S174): the Videos room's game and the clip's place; none counts nothing. */
+	countViews?: ClipViewSource; })
 {
 	const ref = useRef<HTMLVideoElement>(null);
 	// `compact` as last rendered, read by the page-wide Space handler.
@@ -180,6 +193,29 @@ export function VideoPlayer({
 	const wantsPlay = useRef(autoPlay);
 	// `autoPlay` as last rendered, so only its turning on after mount plays the clip here (#423).
 	const autoPlayed = useRef(autoPlay);
+	// This opening's counted views (S174): the source its start was counted with, and whether its finish was.
+	const counted = useRef<{ start: ClipViewSource | null;
+		complete: boolean; }>({
+		start: null,
+		complete: false,
+	});
+	// Counts `event` for this opening, once, while the host asks for counting. A finish counts only after a counted
+	// start, and from the start's source: the place the clip started from stays its place.
+	const countView = (event: ClipViewEvent) =>
+	{
+		const views = counted.current;
+		if (!countViews) return;
+		if (event === "start")
+		{
+			if (views.start) return;
+			views.start = countViews;
+			sendClipView(video.id, "start", countViews);
+			return;
+		}
+		if (!views.start || views.complete) return;
+		views.complete = true;
+		sendClipView(video.id, "complete", views.start);
+	};
 
 	const switchTo = (next: VideoQuality) =>
 	{
@@ -303,6 +339,7 @@ export function VideoPlayer({
 				onPlay={() =>
 				{
 					wantsPlay.current = true;
+					countView("start");
 				}}
 				onPause={() =>
 				{
@@ -312,7 +349,14 @@ export function VideoPlayer({
 				// blank, and the next play starts the clip again on every browser.
 				onEnded={(event) =>
 				{
+					countView("complete");
 					event.currentTarget.currentTime = 0;
+				}}
+				// 90% of a known length played also finishes it (S174); `countView` counts it only after a counted start.
+				onTimeUpdate={(event) =>
+				{
+					const element = event.currentTarget;
+					if (clipCompleted(element.currentTime, element.duration)) countView("complete");
 				}}
 				onLoadedMetadata={(event) =>
 				{

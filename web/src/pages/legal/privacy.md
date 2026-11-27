@@ -27,6 +27,10 @@ In Settings, under Your data, you can download everything BT keeps about you, an
 
 After a deletion, BT keeps only a record that an account with its internal ID was deleted, and when, so that a restored database backup can't bring your data back. Database backups age out on their own schedule, and the email and sign-in services keep their own logs for as long as their own policies say.
 
+## Video counts
+
+BT counts, for each video, how many times a day it is started and how many times it is watched to the end. These counts are anonymous: they record nothing about who watched.
+
 ## Questions
 
 Ask on r/BaseballTheater, linked as Support & Community at the foot of every page.

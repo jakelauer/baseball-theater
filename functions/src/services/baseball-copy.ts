@@ -137,10 +137,11 @@ export type CopyRule = "changedLater" | "stateChangedLater" | "rebuiltFromGames"
  * keeps: production's ETags would mark files current that the target never wrote, and the rows carry no version.
  * `venue_fields` (S105) holds the field drawings the target's own ingest asked Savant for. It asks only when it first
  * stores a game at a park, so a park whose games all came by copy, or were stored before S105, has no drawing until
- * the target's ingest first stores a new game there.
+ * the target's ingest first stores a new game there. `clip_engagement` (S174) holds the anonymous clip counts the
+ * target's own visitors made; production's fans' counts are production's, for S185's training, and never staging's.
  */
 export const NEVER_COPIED_WHY = "never copied: it records the target's own cron work (refresh and re-check records, owed edge purges, "
-	+ "its copy of the player register and its sync state, the field drawings its ingest asked for), never production's";
+	+ "its copy of the player register and its sync state, the field drawings its ingest asked for, the clip counts its own visitors made), never production's";
 
 export const COPY_RULES: Readonly<Record<string, CopyRule>> = {
 	schedule_days: "changedLater",
@@ -160,6 +161,8 @@ export const COPY_RULES: Readonly<Record<string, CopyRule>> = {
 	replay_artifacts: "patchCount",
 	// S105: the field drawings the target's own ingest asks Savant for, as it stores games.
 	venue_fields: "neverCopied",
+	// S174: the anonymous clip counts of the target's own visitors; production's stay production's.
+	clip_engagement: "neverCopied",
 };
 
 /**

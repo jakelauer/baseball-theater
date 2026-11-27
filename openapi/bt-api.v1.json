@@ -337,6 +337,32 @@
 				"required": ["batting"],
 				"type": "object"
 			},
+			"ClipViewEvent": {
+				"description": "What a fan did with a clip: began playing it (`start`) or watched it to the end (`complete`).",
+				"enum": ["start", "complete"],
+				"type": "string"
+			},
+			"ClipViewRequest": {
+				"additionalProperties": false,
+				"description": "The body of `POST /api/v1/clips/:mediaId/views` (S174 AC 4): the game the clip belongs to, what happened, and where the clip sat in the game's ranked Videos list. Nothing about the viewer. `parseClipViewRequest` checks it.",
+				"properties": {
+					"event": { "$ref": "#/components/schemas/ClipViewEvent" },
+					"gamePk": {
+						"description": "The MLB game the clip is one of the stored highlights of.",
+						"maximum": 2147483647,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"shownPosition": {
+						"description": "The clip's 1-based place in the game's ranked Videos list (`rankHighlightsByImpact`), or 0 when it was opened directly; 0 to 100.",
+						"maximum": 100,
+						"minimum": 0,
+						"type": "integer"
+					}
+				},
+				"required": ["gamePk", "event", "shownPosition"],
+				"type": "object"
+			},
 			"DayDigestResponse": {
 				"additionalProperties": false,
 				"description": "\"Best of <date>\" (S71): the day's top clips across its games, ranked by `dayDigest`.",
@@ -1767,6 +1793,52 @@
 	},
 	"openapi": "3.1.0",
 	"paths": {
+		"/api/v1/clips/{mediaId}/views": {
+			"post": {
+				"operationId": "countClipView",
+				"parameters": [
+					{
+						"description": "The clip's MLB media id, as the game's `highlights` list it (`id`).",
+						"in": "path",
+						"name": "mediaId",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"content": { "application/json": { "schema": { "$ref": "#/components/schemas/ClipViewRequest" } } },
+					"required": true
+				},
+				"responses": {
+					"204": { "description": "No Content" },
+					"400": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`invalid_body`: the body is not JSON with a positive whole `gamePk`, an `event` of `start` or `complete`, and a whole `shownPosition` from 0 to 100, and no other keys. Nothing is counted."
+					},
+					"403": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`cross_site`: the request didn't come from one of BT's own pages (`Sec-Fetch-Site` other than `same-origin`, or, without it, an `Origin` other than BT's own, or neither header). Nothing is counted."
+					},
+					"404": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`not_found`: `mediaId` is not one of the stored highlights of game `gamePk` (or BT holds no such game). Nothing is counted."
+					},
+					"426": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`version_unsupported`: this API version has been retired (ADR-015); the client should reload to update."
+					}
+				},
+				"summary": "Counts one view of a clip played from its game's Videos room (S174): `start` the first time it plays after it is opened, `complete` once it has been watched to the end. BT keeps only an anonymous count per clip, UTC day, event and the clip's place in the game's ranked Videos list (`shownPosition`, 1 to 100, or 0 when it was opened directly); nothing about who watched. It counts only from BT's own pages: the browser's `Sec-Fetch-Site` must be `same-origin`, or, where a browser sends none, its `Origin` must be BT's own; it reads no cookie and no session, and its answers carry no CORS headers. Answers 204 with no body."
+			}
+		},
 		"/api/v1/digest": {
 			"get": {
 				"operationId": "getDayDigest",

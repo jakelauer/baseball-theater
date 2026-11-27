@@ -3,6 +3,23 @@
 // Regenerate after `pnpm api:spec`; src/api/codegen.test.ts fails while this file is stale.
 
 export interface paths {
+    "/api/v1/clips/{mediaId}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Counts one view of a clip played from its game's Videos room (S174): `start` the first time it plays after it is opened, `complete` once it has been watched to the end. BT keeps only an anonymous count per clip, UTC day, event and the clip's place in the game's ranked Videos list (`shownPosition`, 1 to 100, or 0 when it was opened directly); nothing about who watched. It counts only from BT's own pages: the browser's `Sec-Fetch-Site` must be `same-origin`, or, where a browser sends none, its `Origin` must be BT's own; it reads no cookie and no session, and its answers carry no CORS headers. Answers 204 with no body. */
+        post: operations["countClipView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/digest": {
         parameters: {
             query?: never;
@@ -479,6 +496,19 @@ export interface components {
             details?: components["schemas"]["BoxscoreInfoGroup"][];
             notes?: components["schemas"]["BoxscoreInfoLine"][];
             pitching?: components["schemas"]["BoxscorePitcher"][];
+        };
+        /**
+         * @description What a fan did with a clip: began playing it (`start`) or watched it to the end (`complete`).
+         * @enum {string}
+         */
+        ClipViewEvent: "start" | "complete";
+        /** @description The body of `POST /api/v1/clips/:mediaId/views` (S174 AC 4): the game the clip belongs to, what happened, and where the clip sat in the game's ranked Videos list. Nothing about the viewer. `parseClipViewRequest` checks it. */
+        ClipViewRequest: {
+            event: components["schemas"]["ClipViewEvent"];
+            /** @description The MLB game the clip is one of the stored highlights of. */
+            gamePk: number;
+            /** @description The clip's 1-based place in the game's ranked Videos list (`rankHighlightsByImpact`), or 0 when it was opened directly; 0 to 100. */
+            shownPosition: number;
         };
         /** @description "Best of <date>" (S71): the day's top clips across its games, ranked by `dayDigest`. */
         DayDigestResponse: {
@@ -1263,6 +1293,67 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    countClipView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The clip's MLB media id, as the game's `highlights` list it (`id`). */
+                mediaId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClipViewRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `invalid_body`: the body is not JSON with a positive whole `gamePk`, an `event` of `start` or `complete`, and a whole `shownPosition` from 0 to 100, and no other keys. Nothing is counted. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `cross_site`: the request didn't come from one of BT's own pages (`Sec-Fetch-Site` other than `same-origin`, or, without it, an `Origin` other than BT's own, or neither header). Nothing is counted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `not_found`: `mediaId` is not one of the stored highlights of game `gamePk` (or BT holds no such game). Nothing is counted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     getDayDigest: {
         parameters: {
             query: {

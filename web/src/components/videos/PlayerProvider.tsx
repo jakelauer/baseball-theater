@@ -6,6 +6,7 @@ import {
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { highlightTitle } from "@bt/domain";
+import type { ClipViewSource } from "../../api/clipViews.js";
 import { useScoresHidden } from "../../settings/useScoresHidden.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { CornerPlayer, cornerSpace } from "./CornerPlayer.js";
@@ -62,6 +63,11 @@ export interface SlotProps
 	chosen: boolean;
 	/** The host's close (drops `?clip=`, #424), which the tool row's mini-player button calls as it leaves. */
 	onClose?: () => void;
+	/**
+	 * Where the clip's start and finish are counted from (S174): only the Videos room's dialog passes its game and the
+	 * clip's place in the ranked list; absent (Search, the digest, the stage, the Plays room), nothing is counted.
+	 */
+	countViews?: ClipViewSource;
 }
 
 /** The clip the player holds: what its host asked for, and the page it was opened on (its link, B424). */
@@ -74,6 +80,8 @@ interface HeldClip
 	titleAbove: boolean;
 	/** The page the clip plays on, `?clip=` included: where the corner's expand control goes. */
 	href: string;
+	/** Where its views are counted from (S174), if they are. */
+	countViews: ClipViewSource | undefined;
 }
 
 /** What the provider renders from: the clip, whether it sits in the corner, and the corner's focus asks. */
@@ -184,6 +192,7 @@ function makeController(live: { current: View & { active: HTMLElement | null;
 				autoPlay: props.autoPlay,
 				titleAbove: props.titleAbove ?? false,
 				href,
+				countViews: props.countViews,
 			};
 			state.onClose = props.onClose;
 			if (held && !same)
@@ -193,7 +202,8 @@ function makeController(live: { current: View & { active: HTMLElement | null;
 			}
 			const moved = state.active !== slot || state.inCorner;
 			const changed = !held || !same || held.title !== next.title || held.scoresGame?.gamePk !== next.scoresGame?.gamePk
-				|| held.autoPlay !== next.autoPlay || held.titleAbove !== next.titleAbove || held.href !== next.href;
+				|| held.autoPlay !== next.autoPlay || held.titleAbove !== next.titleAbove || held.href !== next.href
+			|| held.countViews?.gamePk !== next.countViews?.gamePk || held.countViews?.shownPosition !== next.countViews?.shownPosition;
 			if (!moved && !changed) return;
 			dock(slot);
 			state.active = slot;
@@ -354,6 +364,7 @@ export function PlayerProvider({ children, variant = "desktop" }: { children: Re
 					titleAbove={clip.titleAbove}
 					compact={view.inCorner}
 					onMiniPlayer={view.inCorner ? undefined : controller.minimize}
+					countViews={clip.countViews}
 				/>,
 				holder,
 			) : null}
