@@ -100,6 +100,12 @@ class CountingMlbClient implements MlbStatsClient
 		return null;
 	}
 
+	/** No Savant figures here (S103): the field stays absent. */
+	async fetchSavantGameFeed(): Promise<null>
+	{
+		return null;
+	}
+
 	async fetchSeasonCalendar(): Promise<null>
 	{
 		return null;

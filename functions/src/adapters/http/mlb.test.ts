@@ -146,7 +146,7 @@ describe("HttpMlbStatsClient (S2)", () =>
 					status: 500,
 				}) : new Response(readFileSync(path.join(RAW, "schedule-2026-09-05.json"))),
 		});
-		await expect(failing.fetchScheduleRange("2026-09-01", "2026-09-30")).rejects.toThrow(/MLB Stats API 500/);
+		await expect(failing.fetchScheduleRange("2026-09-01", "2026-09-30")).rejects.toThrow(/^HTTP 500 for /);
 		expect(await mlb.fetchScheduleRange("2026-09-01", "2026-09-07")).toHaveLength(7);
 	});
 
@@ -249,7 +249,7 @@ describe("HttpMlbStatsClient (S2)", () =>
 	{
 		const { mlb } = client();
 		expect(await mlb.fetchGameContent(823823)).toEqual([]);
-		await expect(mlb.fetchGame(823823)).rejects.toThrow(/MLB Stats API 404 for .*\/feed\/live/);
+		await expect(mlb.fetchGame(823823)).rejects.toThrow(/^HTTP 404 for .*\/feed\/live/);
 	});
 
 	it("fetchPlayMetrics asks MLB's bdfed feed with every category and maps the recording (S93)", async () =>

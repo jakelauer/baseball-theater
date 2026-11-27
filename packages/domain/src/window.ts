@@ -9,6 +9,11 @@ export type CadenceParams = {
 	intervalMs: number;
 	/** Hours to keep polling a suspended game (`T`/`U`, #79) after BT saw it turn suspended (`suspendedAt`), or, with no such time, after first pitch. */
 	suspendedHours: number;
+	/**
+	 * At most one Baseball Savant pull per this many milliseconds while a game is live (S103, `savantPullDue`): Savant's
+	 * figures trail the pitch, so twice the live poll's interval by default.
+	 */
+	savantIntervalMs: number;
 };
 
 /**
@@ -34,6 +39,7 @@ export const DEFAULT_CADENCE: CadenceParams = {
 	trailHours: 3,
 	intervalMs: 30_000,
 	suspendedHours: 6,
+	savantIntervalMs: 60_000,
 };
 
 /**

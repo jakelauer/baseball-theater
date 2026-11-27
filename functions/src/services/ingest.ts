@@ -254,7 +254,7 @@ async function runAfterWrites(deps: Pick<IngestDeps, "projections" | "games" | "
  * Writes `projections` in one `upsertMany`; one a newer stored version refuses is logged and dropped, never written over
  * it (S216 AC 3: another writer stored a newer snapshot and its own projection).
  */
-async function writeProjections(deps: Pick<IngestDeps, "projections">, projections: readonly GameProjection[]): Promise<void>
+export async function writeProjections(deps: Pick<IngestDeps, "projections">, projections: readonly GameProjection[]): Promise<void>
 {
 	const taken = new Set(await deps.projections.upsertMany(projections));
 	const refused = projections.filter((projection) => !taken.has(projection.header.gamePk));
@@ -1134,7 +1134,7 @@ async function storeLatePlayMetrics(
 }
 
 /** A stored snapshot without its version stamps: the content a re-stamp starts from. */
-function unversionedGame(snapshot: GameSnapshot): Unversioned<GameSnapshot>
+export function unversionedGame(snapshot: GameSnapshot): Unversioned<GameSnapshot>
 {
 	const {
 		version: _version, lastChangedAt: _changed, ...content

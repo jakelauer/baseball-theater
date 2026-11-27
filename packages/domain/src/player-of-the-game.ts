@@ -63,10 +63,11 @@ export function keepPlayerOfTheGame<T extends { playerOfTheGame?: PlayerOfTheGam
 
 /**
  * The extras ingest asks off the game fetch and keeps across refreshes (S99, generalized for S101 and S100): the player
- * of the game, the uniforms and the rule settings. A fetched game carries one only when its write asked for it, so every
- * game write keeps the stored value its incoming game lacks ({@link keepStoredExtras}).
+ * of the game, the uniforms and the rule settings, and Savant's figures (S103), which the game's ingest object pulls on
+ * its own cadence. A fetched game carries one only when its write asked for it, so every game write keeps the stored
+ * value its incoming game lacks ({@link keepStoredExtras}).
  */
-export type StoredExtras = Pick<GameSnapshot, "playerOfTheGame" | "uniforms" | "ruleSettings">;
+export type StoredExtras = Pick<GameSnapshot, "playerOfTheGame" | "uniforms" | "ruleSettings" | "savant">;
 
 /**
  * The extras kept whole (S101, S100): a stored value stays until an incoming game names a new one. A new extra asked off
@@ -79,14 +80,16 @@ const KEPT_WHOLE = ["uniforms", "ruleSettings"] as const satisfies readonly (key
 export type AskedExtra = (typeof KEPT_WHOLE)[number];
 
 /**
- * The incoming game with every extra the stored game has and the incoming one lacks kept (S99, S101, S100): the one keep
- * every game write calls before stamping the version (`storeGames`, the late playMetrics write), so a refresh that didn't
- * ask, or whose ask failed or ran past its limit, neither drops a stored extra nor makes a new version for its absence.
+ * The incoming game with every extra the stored game has and the incoming one lacks kept (S99, S101, S100, S103): the one
+ * keep every game write calls before stamping the version (`storeGames`, the late playMetrics write), so a refresh that
+ * didn't ask, or whose ask failed or ran past its limit, neither drops a stored extra nor makes a new version for its
+ * absence. Savant's figures are kept whole too: only the Savant write carries them, already merged with the stored ones
+ * (`mergeSavantPitches`), and every other write lacks them.
  */
 export function keepStoredExtras<T extends StoredExtras>(stored: StoredExtras | null | undefined, incoming: T): T
 {
 	let kept = keepPlayerOfTheGame(stored, incoming);
-	for (const key of KEPT_WHOLE)
+	for (const key of [...KEPT_WHOLE, "savant"] as const)
 	{
 		if (kept[key] === undefined && stored?.[key] !== undefined) kept = {
 			...kept,

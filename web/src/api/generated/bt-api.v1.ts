@@ -557,6 +557,8 @@ export interface components {
             relatedArticles?: components["schemas"]["RelatedArticle"][];
             /** @description The rules the game was played under (S100), in MLB's order: the strike zone its ABS challenges were judged against (`strikeZoneTopFactor` and `strikeZoneBottomFactor` as a share of the batter's height, `strikeZoneWidth` in inches) and its other settings (designated hitter, pitch timer, challenges…). Asked and kept as the uniforms are: by ingest off the game fetch (`withAskedExtras`) while none is stored, when it first stores the game, sees its status change, or writes a final game (`askedExtraDue`), and kept once stored (`keepStoredExtras`). Absent until MLB lists any BT has asked for, and then the game is served as before. A final game BT no longer refreshes (past its re-check window, which the backfill skips as already stored) gets none here: #619's scope. */
             ruleSettings?: components["schemas"]["GameRuleSetting"][];
+            /** @description Baseball Savant's figures for each pitch (S103), only those MLB's own feeds lack, joined to the live feed's pitches by `playId`. Pulled by the game's ingest object on its own cadence (`savantPullDue`), never with the live feed, and merged in as Savant publishes them (`mergeSavantPitches`): a figure is absent until it arrives, and every game write keeps the stored ones (`keepStoredExtras`). Absent when Savant failed or had nothing: the game is served as before. */
+            savant?: components["schemas"]["SavantPitch"][];
             /** @description First pitch as an ISO instant, from the live feed's `gameData.datetime.dateTime`. The active window is measured from it (`isGameInActiveWindow`, #71); absent on snapshots stored before it existed, which fall back to a mid-afternoon assumption. */
             startTime?: string;
             status: {
@@ -742,6 +744,8 @@ export interface components {
                 type: string | null;
                 typeDescription: string | null;
             };
+            /** @description When the live feed says the pitch ended (its play event's `endTime`); Savant's arrival times are read beside it (S103). Absent where MLB sent none, and on older recordings. */
+            endTime?: string;
             hitData: components["schemas"]["HitData"] | null;
             pitchData: components["schemas"]["PitchData"] | null;
             pitchNumber: number;
@@ -837,6 +841,56 @@ export interface components {
          * @enum {string}
          */
         Role: "member" | "admin";
+        /** @description One pitch's Savant figures, joined to the live feed's pitch by `playId`. A figure Savant hasn't published (or never will, such as `xba` on a pitch nobody hit) is absent: read it with  {@link  readSavantField } , which says "not yet" rather than giving a zero. */
+        SavantPitch: {
+            /** @description When BT first saw each figure (ISO), one entry per figure that has arrived. */
+            arrivedAt?: {
+                batSpeed?: string;
+                homeRunBallparks?: string;
+                isAbsChallenge?: string;
+                isBarrel?: string;
+                isSword?: string;
+                plateXPoly?: string;
+                plateZPoly?: string;
+                savantInZone?: string;
+                timesThroughOrder?: string;
+                x?: string;
+                xba?: string;
+                y?: string;
+            };
+            /** @description The live feed's `atBatIndex` of the pitch's at-bat (Savant's own at-bat number is one higher). */
+            atBatIndex: number;
+            /** @description Bat speed in mph, on a swing Savant tracked. */
+            batSpeed?: number;
+            /** @description In how many of the 30 ballparks the batted ball would have been a home run. */
+            homeRunBallparks?: number;
+            /** @description Whether this is the pitch an ABS challenge was made on. */
+            isAbsChallenge?: boolean;
+            /** @description Whether Savant calls the batted ball a barrel. */
+            isBarrel?: boolean;
+            /** @description A "sword": a swing Savant calls non-competitive. */
+            isSword?: boolean;
+            /** @description Where the pitch crossed the front of the plate, in feet from its center (Savant's polynomial fit). */
+            plateXPoly?: number;
+            /** @description The height at which the pitch crossed the front of the plate, in feet. */
+            plateZPoly?: number;
+            /** @description The live feed's end time for the pitch (its play event's `endTime`), beside which `arrivedAt` is read. */
+            playEndTime?: string;
+            /** @description The live feed's `playId` for the pitch. */
+            playId: string;
+            /** @description Savant's own in-zone call. */
+            savantInZone?: boolean;
+            /** @description How many times the pitcher had faced the batting order, this plate appearance included. */
+            timesThroughOrder?: number;
+            /** @description The pull that last changed this pitch: the time BT fetched it, in epoch milliseconds. A pull replaces a stored figure only when it is newer (ADR-022), so a slow pull that lands after a later one changes nothing. */
+            version: number;
+            /** @description Spray position in feet from home plate, toward right field. */
+            x?: number;
+            /** @description Expected batting average of the batted ball (0–1). */
+            xba?: number;
+            /** @description Spray position in feet from home plate, toward center field. */
+            y?: number;
+        };
         ScheduleDay: {
             date: string;
             fetchedAt: string;

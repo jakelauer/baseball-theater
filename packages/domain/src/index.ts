@@ -8,6 +8,7 @@ export * from "./coordinates.js";
 export * from "./field-chart.js";
 export * from "./catcher-view.js";
 export * from "./window.js";
+export * from "./savant.js";
 export * from "./entitlements.js";
 export * from "./impact.js";
 export * from "./digest.js";
