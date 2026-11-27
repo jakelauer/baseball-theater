@@ -99,9 +99,19 @@ beforeEach(() =>
 	vi.setSystemTime(NOW);
 });
 
+/**
+ * Every case proves it ran on the pinned clock before the clock is restored. The `#642` case below checks only its own
+ * run, so a later case that called `vi.useRealTimers()` (or set another system time) would read the real clock again
+ * and bring back the midnight flake unnoticed; failing here names that case. No case advances the faked `Date` (the
+ * cooldown cases move their own `clock` through `now`), so the wall clock still reads exactly `NOW` at the end.
+ */
 afterEach(() =>
 {
+	const pinned = vi.isFakeTimers();
+	const at = new Date().toISOString();
 	vi.useRealTimers();
+	expect(pinned, "this case switched back to the real clock (#642)").toBe(true);
+	expect(at, "this case moved the pinned clock (#642)").toBe(NOW.toISOString());
 });
 
 /**
