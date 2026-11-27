@@ -150,7 +150,43 @@ function isPortrait(quality: VideoQuality): boolean
 }
 
 /**
- * The clip as a file, for the player's Copy link, Direct link and Share, and Download once S151 adds it (owner,
+ * The hosts MLB serves its clip MP4s from, as the recorded content shows (`fixtures/raw/content-*.json`,
+ * `fixtures/search-*.json`): `mlb-cuts-diamond` (game clips, the `MP4_SHAPE` names),
+ * `bdata-producedclips` and `darkroom-clips` (produced clips, a bare `<uuid>.mp4`). The search
+ * fixtures' `fastball-clips` is left out: it answers with a redirect (checked 2026-11-27), which
+ * the download route refuses to follow (S151).
+ */
+export const MLB_CLIP_HOSTS: readonly string[] = ["mlb-cuts-diamond.mlb.com", "bdata-producedclips.mlb.com", "darkroom-clips.mlb.com"];
+
+/**
+ * Whether `url` is one of MLB's clip MP4s (S151), the one test both the service worker's download
+ * route and the player's Download button ask (ADR-025), so the route can never be used to fetch
+ * anything else (it is not an open proxy) and the button never offers what the route would refuse.
+ * Decided on the parsed URL, never the raw string, so `…mlb.com.evil.example`, `…mlb.com@evil.example`
+ * or `?x=.mp4` can't pass: `https:` only, no port and no user or password, the host exactly one of
+ * {@link MLB_CLIP_HOSTS}, and the path ending `.mp4`. A malformed URL is not one.
+ */
+export function isMlbClipMp4(url: string): boolean
+{
+	let parsed: URL;
+	try
+	{
+		parsed = new URL(url);
+	}
+	catch
+	{
+		return false;
+	}
+	return parsed.protocol === "https:"
+		&& parsed.port === ""
+		&& parsed.username === ""
+		&& parsed.password === ""
+		&& MLB_CLIP_HOSTS.includes(parsed.hostname)
+		&& parsed.pathname.endsWith(".mp4");
+}
+
+/**
+ * The clip as a file, for the player's Copy link, Direct link, Share and Download (S151; owner,
  * 2026-11-12: "copy link, direct link, download, share"): the quality playing when it is an
  * MP4, else the sharpest MP4 of the same cut (portrait for a portrait stream, landscape
  * otherwise), since an HLS playlist is not a file anyone can save or open on its own.

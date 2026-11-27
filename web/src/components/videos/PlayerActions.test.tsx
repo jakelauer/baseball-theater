@@ -13,6 +13,9 @@ import { MemoryRouter } from "react-router-dom";
 import {
 	afterEach, beforeEach, describe, expect, it, vi,
 } from "vitest";
+import {
+	answerDownloadPing, DOWNLOAD_PING_TIMEOUT_MS, downloadHref,
+} from "../../pwa/download.js";
 import { setVideoQuality } from "../../settings/store.js";
 import type { Video } from "./VideoCard.js";
 import { loadHls } from "./hls-loader.js";
@@ -144,6 +147,45 @@ function renderPlayer(video: Video = VIDEO, autoPlay = false)
 		</MantineProvider>,
 	);
 	return screen.getByTestId("video-player").querySelector("video")!;
+}
+
+/** A worker in control that answers the download route's ping (S151's worker). */
+function answeringWorker(): ServiceWorker
+{
+	return {
+		postMessage: (message: unknown, transfer: MessagePort[]) => answerDownloadPing(message, transfer, () => true),
+	} as unknown as ServiceWorker;
+}
+
+/** A worker in control from before S151: it ignores the ping. */
+function silentWorker(): ServiceWorker
+{
+	return {
+		postMessage: vi.fn(),
+	} as unknown as ServiceWorker;
+}
+
+/** Gives the page a service worker container whose controller is `controller` (plus any other navigator stubs); returns it so a test can swap the controller. */
+function stubWorkers(controller: ServiceWorker | null, extra: Record<string, unknown> = {}): EventTarget & { controller: ServiceWorker | null }
+{
+	const container = Object.assign(new EventTarget(), {
+		controller,
+	});
+	vi.stubGlobal("navigator", {
+		...navigator,
+		...extra,
+		serviceWorker: container,
+	});
+	return container;
+}
+
+/** Lets the ping's answer (a message on a channel) arrive. */
+async function settle(): Promise<void>
+{
+	await act(async () =>
+	{
+		await new Promise((resolve) => setTimeout(resolve, 20));
+	});
 }
 
 /** Stubs whether this browser can play HLS in a plain `<video>`. */
@@ -681,7 +723,7 @@ describe("action palette", () =>
 		})).toBeInTheDocument();
 	});
 
-	it("Direct link opens the file in a new tab; there is no Download yet (owner, 2026-11-12: \"Remove the download button for now\")", () =>
+	it("Direct link opens the file in a new tab; with no service worker in control there is no Download (S151 AC 4)", () =>
 	{
 		renderPlayer();
 		const palette = within(screen.getByRole("toolbar", {
@@ -697,6 +739,138 @@ describe("action palette", () =>
 			name: "Download",
 		})).toBeNull();
 		expect(palette.queryByRole("button", {
+			name: "Download",
+		})).toBeNull();
+	});
+
+	it("S151 AC 4: with a worker in control that answers the download route, Download links to it for the clip's MP4, beside Copy link, Direct link and Share", async () =>
+	{
+		const share = vi.fn(() => Promise.resolve());
+		stubWorkers(answeringWorker(), {
+			share,
+		});
+		renderPlayer();
+		const palette = within(screen.getByRole("toolbar", {
+			name: "Video actions",
+		}));
+		const download = await palette.findByRole("link", {
+			name: "Download",
+		});
+		expect(download).toHaveAttribute("href", downloadHref(MP4, VIDEO.title));
+		expect(download).toHaveAttribute("download");
+		expect(download).not.toHaveAttribute("target");
+		expect(palette.getByRole("link", {
+			name: "Direct link",
+		})).toHaveAttribute("href", MP4);
+		expect(palette.getByRole("button", {
+			name: "Copy link",
+		})).toBeInTheDocument();
+		expect(palette.getByRole("button", {
+			name: "Share",
+		})).toBeInTheDocument();
+	});
+
+	it("S151 AC 4: playing the HLS stream, Download saves the same cut's MP4; a stream-only clip or an MP4 off MLB's clip hosts has none", async () =>
+	{
+		hlsSupport(true);
+		stubWorkers(answeringWorker());
+		renderPlayer({
+			...VIDEO,
+			playbackUrl: HLS,
+			renditions: [{
+				name: "hlsCloud",
+				url: HLS,
+			}, {
+				name: "mp4Avc",
+				url: MP4,
+			}],
+		});
+		expect(await screen.findByRole("link", {
+			name: "Download",
+		})).toHaveAttribute("href", downloadHref(MP4, VIDEO.title));
+		cleanup();
+		renderPlayer({
+			...VIDEO,
+			playbackUrl: HLS,
+			renditions: [{
+				name: "hlsCloud",
+				url: HLS,
+			}],
+		});
+		await settle();
+		expect(screen.queryByRole("link", {
+			name: "Download",
+		})).toBeNull();
+		cleanup();
+		const elsewhere = "https://fastball-clips.mlb.com/849838/network/4f687124-5ec9-337b-a32b-2dedc930bcee.mp4";
+		renderPlayer({
+			...VIDEO,
+			playbackUrl: elsewhere,
+			renditions: [],
+		});
+		await settle();
+		expect(screen.getByRole("link", {
+			name: "Direct link",
+		})).toHaveAttribute("href", elsewhere);
+		expect(screen.queryByRole("link", {
+			name: "Download",
+		})).toBeNull();
+	});
+
+	it("S151 AC 4: no worker in control (a first visit, a private window) shows no Download", async () =>
+	{
+		stubWorkers(null);
+		renderPlayer();
+		await settle();
+		expect(screen.queryByRole("link", {
+			name: "Download",
+		})).toBeNull();
+		expect(screen.getByRole("link", {
+			name: "Direct link",
+		})).toHaveAttribute("href", MP4);
+	});
+
+	it("S151 AC 4: an older worker that never answers shows no Download; once the new one takes control (controllerchange) it is asked again and Download appears", async () =>
+	{
+		const container = stubWorkers(silentWorker());
+		vi.useFakeTimers();
+		renderPlayer();
+		await act(async () =>
+		{
+			vi.advanceTimersByTime(DOWNLOAD_PING_TIMEOUT_MS);
+		});
+		expect(screen.queryByRole("link", {
+			name: "Download",
+		})).toBeNull();
+		vi.useRealTimers();
+		container.controller = answeringWorker();
+		act(() =>
+		{
+			container.dispatchEvent(new Event("controllerchange"));
+		});
+		expect(await screen.findByRole("link", {
+			name: "Download",
+		})).toHaveAttribute("href", downloadHref(MP4, VIDEO.title));
+		// And back: an older worker in control again (another tab rolled back) hides it.
+		container.controller = silentWorker();
+		vi.useFakeTimers();
+		await act(async () =>
+		{
+			container.dispatchEvent(new Event("controllerchange"));
+			vi.advanceTimersByTime(DOWNLOAD_PING_TIMEOUT_MS);
+		});
+		expect(screen.queryByRole("link", {
+			name: "Download",
+		})).toBeNull();
+	});
+
+	it("S151 AC 4: an answer that comes after the player is gone changes nothing", async () =>
+	{
+		stubWorkers(answeringWorker());
+		renderPlayer();
+		cleanup();
+		await settle();
+		expect(screen.queryByRole("link", {
 			name: "Download",
 		})).toBeNull();
 	});
