@@ -71,6 +71,10 @@ describe("FixtureClient dated standings (S160)", () =>
 {
 	/** A fixture source holding only `files`; any other name rejects, like a missing file. */
 	const only = (files: Record<string, unknown>) => new FixtureClient({
+		readText: async (name) =>
+		{
+			throw new Error(`no fixture ${name}`);
+		},
 		read: async (name) =>
 		{
 			if (!(name in files)) throw new Error(`no fixture ${name}`);
@@ -131,6 +135,10 @@ describe("FixtureClient fetchGameEditorial (S122)", () =>
 	it("a game with no videos and no recap is null, a missing game is null, a recorded one is its videos and recap", async () =>
 	{
 		const empty = new FixtureClient({
+			readText: async (name) =>
+			{
+				throw new Error(`no fixture ${name}`);
+			},
 			read: async (name) =>
 			{
 				if (name !== "game-1.json") throw new Error(`no fixture ${name}`);

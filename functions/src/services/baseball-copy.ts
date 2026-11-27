@@ -135,9 +135,12 @@ export type CopyRule = "changedLater" | "stateChangedLater" | "rebuiltFromGames"
  * this database's own deployment still owes its edge, which production's rows don't. `player_ids` and
  * `player_register_files` (S209) are the target's own copy of the player register and its sync state, which its cron
  * keeps: production's ETags would mark files current that the target never wrote, and the rows carry no version.
+ * `venue_fields` (S105) holds the field drawings the target's own ingest asked Savant for. It asks only when it first
+ * stores a game at a park, so a park whose games all came by copy, or were stored before S105, has no drawing until
+ * the target's ingest first stores a new game there.
  */
 export const NEVER_COPIED_WHY = "never copied: it records the target's own cron work (refresh and re-check records, owed edge purges, "
-	+ "its copy of the player register and its sync state), never production's";
+	+ "its copy of the player register and its sync state, the field drawings its ingest asked for), never production's";
 
 export const COPY_RULES: Readonly<Record<string, CopyRule>> = {
 	schedule_days: "changedLater",
@@ -155,6 +158,8 @@ export const COPY_RULES: Readonly<Record<string, CopyRule>> = {
 	games: "changedLater",
 	game_projections: "rebuiltFromGames",
 	replay_artifacts: "patchCount",
+	// S105: the field drawings the target's own ingest asks Savant for, as it stores games.
+	venue_fields: "neverCopied",
 };
 
 /**

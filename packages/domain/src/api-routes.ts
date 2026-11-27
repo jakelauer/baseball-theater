@@ -32,6 +32,13 @@ export type ScheduleDayResponse = ScheduleDay;
 export type GameSnapshotResponse = GameSnapshot;
 
 /**
+ * A ballpark's field outline (S105): Baseball Savant's SVG drawing of the park BT keeps for an MLB venue id
+ * (`GameSnapshot.venue.id`), sanitized before it was stored. Not JSON: its route answers it as `image/svg+xml`
+ * (`ApiMediaTypes`).
+ */
+export type VenueFieldSvgResponse = string;
+
+/**
  * One season phase in a standings answer (S139): the first and last day the phase runs in the
  * season the answer is for, and its table when the request included the phase (`includePhases`).
  * The dates are always there, so a caller can choose which phases to ask for without their
@@ -330,6 +337,7 @@ export interface ApiResponseTypes {
 	ScheduleMonthResponse: ScheduleMonthResponse;
 	ScheduleMonthVersionsResponse: ScheduleMonthVersionsResponse;
 	GameSnapshotResponse: GameSnapshotResponse;
+	VenueFieldSvgResponse: VenueFieldSvgResponse;
 	DayDigestResponse: DayDigestResponse;
 	SearchHighlightsResponse: SearchHighlightsResponse;
 	StandingsResponse: StandingsResponse;
@@ -358,6 +366,7 @@ export const ApiRoutes = {
 	"GET /api/v1/schedule/month/:month": "ScheduleMonthResponse",
 	"GET /api/v1/schedule/month-versions/:year": "ScheduleMonthVersionsResponse",
 	"GET /api/v1/games/:gamePk": "GameSnapshotResponse",
+	"GET /api/v1/venues/:venueId/field.svg": "VenueFieldSvgResponse",
 	"GET /api/v1/digest": "DayDigestResponse",
 	"GET /api/v1/search/highlights": "SearchHighlightsResponse",
 	"GET /api/v1/standings": "StandingsResponse",
@@ -381,6 +390,14 @@ export type ApiRoute = keyof typeof ApiRoutes;
 
 /** The response type a given route resolves to, via the registry above. */
 export type ApiResponseFor<R extends ApiRoute> = ApiResponseTypes[(typeof ApiRoutes)[R]];
+
+/**
+ * The routes whose 200 isn't JSON → its media type (S105: a field drawing is `image/svg+xml`). A runtime value, so the
+ * spec generator emits each one's content type; a route absent here answers `application/json` through `sendJson`.
+ */
+export const ApiMediaTypes = {
+	"GET /api/v1/venues/:venueId/field.svg": "image/svg+xml",
+} as const satisfies Partial<Record<ApiRoute, string>>;
 
 /** Registry a route's request-body type name is checked against, like {@link ApiResponseTypes}. */
 export interface ApiRequestTypes {

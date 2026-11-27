@@ -7,7 +7,8 @@
  * season table, which lists the new season's teams before its first game, and 2026-09-12's mapped table), and
  * MLB's recorded table for each dated day (S160: `fetchStandings` maps `raw/standings-<date>.json` first, so the
  * Worker serves what the mapper adds, the clinch letter among it; the mapped `standings-<date>.json` stays as the
- * fallback it reads when a day has no recording). The recorded replay walk (`raw/`, 5+ MB) is for the Node capture tool,
+ * fallback it reads when a day has no recording), and Savant's field drawings as text (S105, `BUNDLED_TEXT_FIXTURES`).
+ * The recorded replay walk (`raw/`, 5+ MB) is for the Node capture tool,
  * which the Worker never runs. `bundled.test.ts` fails when a fixture the client
  * would read is missing from this list.
  */
@@ -52,6 +53,7 @@ import searchWalkOff from "../../../../fixtures/search-walk-off.json" with { typ
 import standings19500704 from "../../../../fixtures/standings-1950-07-04.json" with { type: "json" };
 import standings20260905 from "../../../../fixtures/standings-2026-09-05.json" with { type: "json" };
 import standings20260912 from "../../../../fixtures/standings-2026-09-12.json" with { type: "json" };
+import savantFields from "../../../../fixtures/savant-fields.json" with { type: "json" };
 import { FixtureClient } from "./fixture-client.js";
 import type { FixtureFiles } from "./fixture-client.js";
 
@@ -113,12 +115,26 @@ export const BUNDLED_FIXTURES: Readonly<Record<string, unknown>> = {
 	"standings-2026-09-12.json": standings20260912,
 };
 
+/**
+ * The recordings the fixture client reads as text (S105: Savant's field drawings, `raw/savant-field-<venueId>.svg`), by
+ * name. A Worker can import JSON but not an `.svg` without a bundler rule, so `fixtures/savant-fields.json` holds each
+ * recording's text under its name; `bundled.test.ts` fails unless it holds exactly the committed `.svg` files, byte for
+ * byte, so `pnpm dev` serves what Node's tests read.
+ */
+export const BUNDLED_TEXT_FIXTURES: Readonly<Record<string, string>> = savantFields;
+
 /** The bundled fixtures as a fixture source; an unknown name rejects, like a missing file. */
 export const bundledFixtureFiles: FixtureFiles = {
 	read: async (name) =>
 	{
 		if (!(name in BUNDLED_FIXTURES)) throw new Error(`no bundled fixture ${name}`);
 		return BUNDLED_FIXTURES[name];
+	},
+	readText: async (name) =>
+	{
+		const text = BUNDLED_TEXT_FIXTURES[name];
+		if (text === undefined) throw new Error(`no bundled fixture ${name}`);
+		return text;
 	},
 	list: async () => Object.keys(BUNDLED_FIXTURES),
 };

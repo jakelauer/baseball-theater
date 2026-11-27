@@ -18,6 +18,7 @@ export function nodeFixtureFiles(root: string): FixtureFiles
 {
 	return {
 		read: async (name) => JSON.parse(await readFile(path.join(root, name), "utf8")) as unknown,
+		readText: (name) => readFile(path.join(root, name), "utf8"),
 		list: () => readdir(root),
 	};
 }

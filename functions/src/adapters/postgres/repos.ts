@@ -37,6 +37,8 @@ import type {
 	SettingsRepository,
 	UserDataExport,
 	UserRepository,
+	VenueField,
+	VenueFieldRepository,
 } from "@bt/ports";
 import {
 	and, asc, between, eq, inArray, sql,
@@ -45,7 +47,7 @@ import type { SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
 	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, playerIds, playerRegisterFiles, replayArtifacts,
-	scheduleDays, scheduleMonths, tierOverrides, users,
+	scheduleDays, scheduleMonths, tierOverrides, users, venueFields,
 } from "./schema.js";
 
 /** Any Drizzle Postgres database: PGlite in tests, node-postgres behind Hyperdrive in the Worker (S51). */
@@ -709,6 +711,38 @@ export class PostgresReplayArtifactRepository implements ReplayArtifactRepositor
 				document: sql`excluded.document`,
 			},
 			setWhere: sql`excluded.version > ${replayArtifacts.version}`,
+		});
+	}
+}
+
+/**
+ * Each venue's field drawing (S105): one row per venue id, replaced only by a later ask (`fetched_at`, ADR-022), and a
+ * kept drawing never by a later ask that got none (`VenueFieldRepository.upsert`).
+ */
+export class PostgresVenueFieldRepository implements VenueFieldRepository
+{
+	constructor(private readonly db: PostgresDb) {}
+
+	async get(venueId: number): Promise<VenueField | null>
+	{
+		const [row] = await this.db.select().from(venueFields).where(eq(venueFields.venueId, venueId));
+		return row ? {
+			venueId: row.venueId,
+			svg: row.svg,
+			fetchedAt: row.fetchedAt,
+		} : null;
+	}
+
+	async upsert(field: VenueField): Promise<void>
+	{
+		await this.db.insert(venueFields).values(field).onConflictDoUpdate({
+			target: venueFields.venueId,
+			set: {
+				svg: sql`excluded.svg`,
+				fetchedAt: sql`excluded.fetched_at`,
+			},
+			setWhere: sql`(${venueFields.svg} IS NULL OR excluded.svg IS NOT NULL)
+				AND excluded.fetched_at::timestamptz > ${venueFields.fetchedAt}::timestamptz`,
 		});
 	}
 }

@@ -9,13 +9,14 @@ import type { GameSnapshot, ScheduleDay } from "./types.js";
 
 describe("ApiRoutes", () =>
 {
-	it("is a runtime-enumerable table covering the schedule, schedule month, schedule month versions (S194), game, digest, highlight search, standings, scoreboard default-date, account, tier override (S215), sign-in, releases and player profiles (S209) routes", () =>
+	it("is a runtime-enumerable table covering the schedule, schedule month, schedule month versions (S194), game, venue field drawing (S105), digest, highlight search, standings, scoreboard default-date, account, tier override (S215), sign-in, releases and player profiles (S209) routes", () =>
 	{
 		expect(Object.keys(ApiRoutes)).toEqual([
 			"GET /api/v1/schedule",
 			"GET /api/v1/schedule/month/:month",
 			"GET /api/v1/schedule/month-versions/:year",
 			"GET /api/v1/games/:gamePk",
+			"GET /api/v1/venues/:venueId/field.svg",
 			"GET /api/v1/digest",
 			"GET /api/v1/search/highlights",
 			"GET /api/v1/standings",
@@ -36,6 +37,7 @@ describe("ApiRoutes", () =>
 		]);
 		expect(ApiRoutes["GET /api/v1/players/profiles"]).toBe("PlayerProfilesResponse");
 		expect(ApiRoutes["GET /api/v1/releases"]).toBe("ReleasesResponse");
+		expect(ApiRoutes["GET /api/v1/venues/:venueId/field.svg"]).toBe("VenueFieldSvgResponse");
 		expect(ApiRoutes["GET /api/v1/schedule"]).toBe("ScheduleDayResponse");
 		expect(ApiRoutes["GET /api/v1/schedule/month/:month"]).toBe("ScheduleMonthResponse");
 		expect(ApiRoutes["GET /api/v1/games/:gamePk"]).toBe("GameSnapshotResponse");

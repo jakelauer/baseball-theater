@@ -80,6 +80,8 @@ export interface FixtureFiles
 {
 	/** The parsed JSON of `name`; rejects when there is no such fixture. */
 	read(name: string): Promise<unknown>;
+	/** The text of `name` as recorded (S105: Savant's field drawings, `raw/savant-field-<venueId>.svg`); rejects when there is none. */
+	readText(name: string): Promise<string>;
 	/** The top-level fixture names (`fixtures/*`, not `raw/`). */
 	list(): Promise<string[]>;
 }
@@ -349,6 +351,22 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 		try
 		{
 			return mapGameUniforms(parseGameUniformsResponse(await this.readJson(`raw/uniforms-${gamePk}.json`)), gamePk);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/**
+	 * A ballpark's field drawing (S105), Savant's answer as recorded in `fixtures/raw/savant-field-<venueId>.svg`
+	 * (4169, 823823's park, and 3313); null for a venue with no recording, as Savant answers an unknown venue.
+	 */
+	async fetchVenueField(venueId: number): Promise<string | null>
+	{
+		try
+		{
+			return await this.files.readText(`raw/savant-field-${venueId}.svg`);
 		}
 		catch
 		{

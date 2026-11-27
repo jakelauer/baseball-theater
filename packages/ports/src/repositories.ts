@@ -181,6 +181,30 @@ export interface ReplayArtifactRepository {
 }
 
 /**
+ * A ballpark's field drawing as BT keeps it (S105), one per MLB venue id: Baseball Savant's SVG after
+ * `sanitizeFieldSvg`, or null when Savant had none for the venue (or the call failed, or its answer was
+ * refused), so a venue is asked once rather than on every game there (`keepVenueFields`).
+ */
+export interface VenueField {
+	venueId: number;
+	/** The sanitized SVG; null when BT asked and got no drawing. */
+	svg: string | null;
+	/** ISO time BT asked Savant: the row's version (ADR-022), and when a missing drawing may be asked again. */
+	fetchedAt: string;
+}
+
+/** The field drawings BT keeps by venue (S105). */
+export interface VenueFieldRepository {
+	get(venueId: number): Promise<VenueField | null>;
+	/**
+	 * Stores `field` unless the stored row was fetched at the same time or later (ADR-022: newer only), or the stored row
+	 * holds a drawing and `field` holds none: a later ask that failed never takes a kept drawing away. A later null
+	 * still replaces a null, so the retry clock moves on.
+	 */
+	upsert(field: VenueField): Promise<void>;
+}
+
+/**
  * Each user's settings document (ADR-027), keyed by BT `uid`. Apply-if-newer
  * on `version` like every other store (ADR-022). Personal data (ADR-028's
  * `BT database: settings`): it also exports and deletes one user's document.

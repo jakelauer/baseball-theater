@@ -131,6 +131,12 @@ class FakeMlbStatsClient implements MlbStatsClient
 		return null;
 	}
 
+	/** No field drawings here (S105). */
+	async fetchVenueField(): Promise<null>
+	{
+		return null;
+	}
+
 	async fetchSeasonCalendar(): Promise<null>
 	{
 		return null;

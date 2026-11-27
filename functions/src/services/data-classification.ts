@@ -73,6 +73,10 @@ export const DATA_CLASSIFICATION = {
 			kind: "none",
 			why: "MLB person ids and their FanGraphs and Baseball-Reference ids (S209), public facts about players; no user data",
 		},
+		InMemoryVenueFieldRepository: {
+			kind: "none",
+			why: "each ballpark's field drawing from Baseball Savant, by MLB venue id (S105); no user data",
+		},
 		InMemoryUserRepository: {
 			kind: "personal",
 			deletedBy: USERS_STORE,
@@ -121,6 +125,10 @@ export const DATA_CLASSIFICATION = {
 		PostgresPlayerIdRepository: {
 			kind: "none",
 			why: "MLB person ids and their FanGraphs and Baseball-Reference ids (S209), public facts about players; no user data",
+		},
+		PostgresVenueFieldRepository: {
+			kind: "none",
+			why: "each ballpark's field drawing from Baseball Savant, by MLB venue id (S105); no user data",
 		},
 		PostgresUserRepository: {
 			kind: "personal",
@@ -179,6 +187,10 @@ export const DATA_CLASSIFICATION = {
 		player_register_files: {
 			kind: "none",
 			why: "per Chadwick register file, the ETag of the copy last synced and when it was synced and tried (S209); no user data",
+		},
+		venue_fields: {
+			kind: "none",
+			why: "each ballpark's field drawing from Baseball Savant (svg), by MLB venue id (venue_id), and when BT asked for it (fetched_at), S105; no user data",
 		},
 		users: {
 			kind: "personal",
