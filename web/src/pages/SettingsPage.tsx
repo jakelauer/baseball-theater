@@ -1,8 +1,8 @@
 import type {
-	GameRowSlot, OpensFirst, VideoPlayerMode,
+	GameRowSlot, OpensFirst, StatsProvider, VideoPlayerMode,
 } from "@bt/domain";
 import {
-	GAME_ROW_SLOTS, MLB_TEAMS, OPENS_FIRST_ROOMS, VIDEO_PLAYERS,
+	effectiveStatsProvider, GAME_ROW_SLOTS, MLB_TEAMS, OPENS_FIRST_ROOMS, STATS_PROVIDERS, VIDEO_PLAYERS,
 } from "@bt/domain";
 import type { OptionsFilter } from "@mantine/core";
 import {
@@ -18,7 +18,7 @@ import { AccountData } from "./settings/AccountData.js";
 import { InstallApp } from "./settings/InstallApp.js";
 import { TierOverrideControl } from "./settings/TierOverrideControl.js";
 import {
-	setCollapseNonFavorites, setFavoriteTeams, setGameRowSlot, setHideScores, setOpensFirst, setVideoPlayer, useSettings,
+	setCollapseNonFavorites, setFavoriteTeams, setGameRowSlot, setHideScores, setOpensFirst, setStatsProvider, setVideoPlayer, useSettings,
 } from "../settings/store.js";
 
 /**
@@ -53,6 +53,14 @@ const SLOT_LABELS: Readonly<Record<GameRowSlot, string>> = {
 const PLAYER_LABELS: Readonly<Record<VideoPlayerMode, string>> = {
 	dialog: "Dialog",
 	stage: "Stage",
+};
+
+/** The stats sites a player's name can open (S209), MLB.com first, the default. */
+const PROVIDER_LABELS: Readonly<Record<StatsProvider, string>> = {
+	mlb: "MLB.com",
+	fangraphs: "FanGraphs",
+	bbref: "Baseball-Reference",
+	savant: "Baseball Savant",
 };
 
 /** One titled section inside a frame (Game List, Game Detail): a smaller heading than the frame's, so the two read as distinct parts of Settings (A8). */
@@ -104,6 +112,7 @@ export function SettingsPage({ variant }: { variant: LayoutVariant })
 {
 	const settings = useSettings();
 	const session = useSession();
+	const entitlements = session.status === "signedIn" ? session.account.entitlements : null;
 	// The install tip shows only while there is an install offer (S55 A1, S73) and it isn't dismissed (A8).
 	const install = useInstallOffer();
 	const [tipDismissed, dismissTip] = useInstallTipDismissed();
@@ -183,6 +192,35 @@ export function SettingsPage({ variant }: { variant: LayoutVariant })
 						>
 							<Stack gap="xs" mt="xs">
 								{VIDEO_PLAYERS.map((mode) => <Radio key={mode} value={mode} label={PLAYER_LABELS[mode]} />)}
+							</Stack>
+						</Radio.Group>
+						{/*
+						  The stats site a player's name opens (S209), built from the page's existing radio
+						  control (the owner waived a design, 2026-11-25). Without a patron tier only MLB.com
+						  can be chosen; the others show, disabled and marked as a patron option. The radio
+						  shows the site the links use (`effectiveStatsProvider`), so a lapsed pledge's saved
+						  choice reads as MLB.com, which is where its links go.
+						*/}
+						<Radio.Group
+							label="Stats Site"
+							description="Where a player's name opens"
+							value={effectiveStatsProvider(settings, entitlements)}
+							onChange={(provider) => void setStatsProvider(provider as StatsProvider)}
+						>
+							<Stack gap="xs" mt="xs">
+								{STATS_PROVIDERS.map((provider) =>
+								{
+									const locked = provider !== "mlb" && !entitlements?.statsProviderChoice;
+									return (
+										<Radio
+											key={provider}
+											value={provider}
+											label={PROVIDER_LABELS[provider]}
+											disabled={locked}
+											description={locked ? "Patron option" : undefined}
+										/>
+									);
+								})}
 							</Stack>
 						</Radio.Group>
 					</SettingsGroup>

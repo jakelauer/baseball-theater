@@ -1,4 +1,6 @@
 import type { Room } from "./game-phase.js";
+import type { StatsProvider } from "./player-links.js";
+import { STATS_PROVIDERS } from "./player-links.js";
 import { MLB_TEAMS } from "./teams.js";
 
 /** The rooms a user may pick to open first (the ratified Settings frame's Opens First: Videos / Live / Box). */
@@ -45,6 +47,11 @@ export type AccountSettings = {
 	hideScores: boolean;
 	/** Where videos play (S70): a dialog over the page, or a stage in the Videos room. */
 	videoPlayer: VideoPlayerMode;
+	/**
+	 * The stats site a player's name opens (S209). Read it through `effectiveStatsProvider`, never
+	 * directly: only a patron's choice counts, and a lapsed pledge links to MLB.com.
+	 */
+	statsProvider: StatsProvider;
 	version: number;
 };
 
@@ -56,6 +63,7 @@ export const DEFAULT_SETTINGS: AccountSettings = {
 	collapseNonFavorites: false,
 	hideScores: false,
 	videoPlayer: "dialog",
+	statsProvider: "mlb",
 	version: 0,
 };
 
@@ -64,8 +72,8 @@ const TEAM_IDS = new Set(MLB_TEAMS.map((t) => t.id));
 /**
  * `value` as settings when it is a well-formed document (every field present,
  * known team ids without repeats, an offered room, a whole non-negative
- * version), else null. A missing `gameRowSlot`, `collapseNonFavorites`, `hideScores` or
- * `videoPlayer` reads as the default: a page loaded before S67 / S68 / S70 saves documents without them,
+ * version), else null. A missing `gameRowSlot`, `collapseNonFavorites`, `hideScores`,
+ * `videoPlayer` or `statsProvider` reads as the default: a page loaded before S67 / S68 / S70 / S209 saves documents without them,
  * and must not get a 400 for that. The server uses it on every write, so nothing malformed
  * is stored.
  */
@@ -78,6 +86,7 @@ export function parseAccountSettings(value: unknown): AccountSettings | null
 		collapseNonFavorites = DEFAULT_SETTINGS.collapseNonFavorites,
 		hideScores = DEFAULT_SETTINGS.hideScores,
 		videoPlayer = DEFAULT_SETTINGS.videoPlayer,
+		statsProvider = DEFAULT_SETTINGS.statsProvider,
 	} = value as Record<string, unknown>;
 	if (!Array.isArray(favoriteTeamIds) || !favoriteTeamIds.every((id) => typeof id === "number" && TEAM_IDS.has(id))) return null;
 	if (new Set(favoriteTeamIds).size !== favoriteTeamIds.length) return null;
@@ -85,6 +94,7 @@ export function parseAccountSettings(value: unknown): AccountSettings | null
 	if (!GAME_ROW_SLOTS.some((slot) => slot === gameRowSlot)) return null;
 	if (typeof collapseNonFavorites !== "boolean" || typeof hideScores !== "boolean") return null;
 	if (!VIDEO_PLAYERS.some((mode) => mode === videoPlayer)) return null;
+	if (!STATS_PROVIDERS.some((provider) => provider === statsProvider)) return null;
 	if (typeof version !== "number" || !Number.isInteger(version) || version < 0) return null;
 	return {
 		favoriteTeamIds: favoriteTeamIds as number[],
@@ -93,6 +103,7 @@ export function parseAccountSettings(value: unknown): AccountSettings | null
 		collapseNonFavorites,
 		hideScores,
 		videoPlayer: videoPlayer as VideoPlayerMode,
+		statsProvider: statsProvider as StatsProvider,
 		version,
 	};
 }

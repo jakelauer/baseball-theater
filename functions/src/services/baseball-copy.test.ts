@@ -269,7 +269,7 @@ describe("copyBaseballData (S117)", () =>
 		const { db: target } = await openDb();
 		await forbid(target, PERSONAL_TABLES, ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]);
 		const copies = await copy(source, target);
-		expect(copies.map((entry) => entry.table)).toEqual(["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts"]);
+		expect(copies.map((entry) => entry.table)).toEqual(["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts", "player_ids", "player_register_files"]);
 		expect(PERSONAL_TABLES.sort()).toEqual(["account_settings", "deletion_log", "entitlements", "identity_links", "tier_overrides", "users"]);
 		for (const table of COPIED_TABLES) expect(await dump(target, table)).toEqual(await dump(source, table));
 		for (const table of PERSONAL_TABLES) expect(await dump(target, table)).toEqual([]);
@@ -296,6 +296,22 @@ describe("copyBaseballData (S117)", () =>
 			claimed_at: null,
 		}]);
 		expect(COPY_RULES.schedule_months).toBe("neverCopied");
+	});
+
+	it("S209: the player register tables are skipped with a reason that names them, not only refresh checks and edge purges", async () =>
+	{
+		const source = await production();
+		const { db: target } = await openDb();
+		const copies = await copy(source, target);
+		for (const table of ["player_ids", "player_register_files"])
+		{
+			expect(copies.find((entry) => entry.table === table)).toMatchObject({
+				read: 0,
+				written: 0,
+				skipped: NEVER_COPIED_WHY,
+			});
+		}
+		expect(NEVER_COPIED_WHY).toMatch(/player register/);
 	});
 
 	it("AC 1 personal: pages through a table larger than one batch", async () =>
@@ -345,8 +361,9 @@ describe("copyBaseballData (S117)", () =>
 		const { db: target } = await openDb();
 		const copies = await copy(source, target);
 		await source.execute(sql`RESET ROLE`);
-		// schedule_months (S194), game_rechecks and owed_edge_purges (S212) are never copied, so they are never read.
-		expect(copies.map((entry) => entry.read)).toEqual([2, 0, 0, 0, 0, 3, 0, 1]);
+		// schedule_months (S194), game_rechecks and owed_edge_purges (S212), player_ids and player_register_files (S209)
+		// are never copied, so they are never read.
+		expect(copies.map((entry) => entry.read)).toEqual([2, 0, 0, 0, 0, 3, 0, 1, 0, 0]);
 		for (const table of COPIED_TABLES) expect(await dump(target, table)).toEqual(await dump(source, table));
 	});
 
@@ -357,8 +374,8 @@ describe("copyBaseballData (S117)", () =>
 		await copy(source, target);
 		const before = await Promise.all(baseballTables().map((table) => dump(target, table)));
 		const again = await copy(source, target);
-		expect(again.map((entry) => entry.written)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
-		expect(again.map((entry) => entry.read)).toEqual([2, 0, 0, 0, 0, 3, 0, 1]);
+		expect(again.map((entry) => entry.written)).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+		expect(again.map((entry) => entry.read)).toEqual([2, 0, 0, 0, 0, 3, 0, 1, 0, 0]);
 		expect(await Promise.all(baseballTables().map((table) => dump(target, table)))).toEqual(before);
 	});
 

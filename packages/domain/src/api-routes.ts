@@ -21,6 +21,7 @@ import type { DigestItem } from "./digest.js";
 import type { SearchHighlight } from "./search.js";
 import type { ReleaseNotes } from "./release-notes.js";
 import type { ScheduleDayCount } from "./schedule-month.js";
+import type { PlayerIds, StatsProvider } from "./player-links.js";
 import type { AccountSettings } from "./settings.js";
 import type { StandingsChampion } from "./standings-phase.js";
 import type {
@@ -181,13 +182,31 @@ export type SettingsResponse = AccountSettings;
 
 /**
  * A settings write: the whole document with a bumped `version`; an older version is
- * ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70)
+ * ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70), `statsProvider` (S209)
  * may be left out — each reads as its default — so a page loaded before they shipped can still save.
  */
 export type SettingsRequest = Omit<AccountSettings, OptionalSettings> & Partial<Pick<AccountSettings, OptionalSettings>>;
 
-/** Settings added after launch of the document, which a write may leave out (S67, S68, S70). */
-type OptionalSettings = "gameRowSlot" | "collapseNonFavorites" | "hideScores" | "videoPlayer";
+/** Settings added after launch of the document, which a write may leave out (S67, S68, S70, S209). */
+type OptionalSettings = "gameRowSlot" | "collapseNonFavorites" | "hideScores" | "videoPlayer" | "statsProvider";
+
+/**
+ * One player's pages on each stats site (S209): the ids BT holds for them and the URL `playerProfileUrl` builds for
+ * each site, null for a site whose id BT doesn't know (neither the Chadwick register nor MLB's cross-references has
+ * it). The web builds its link from `ids` through the same function.
+ */
+export interface PlayerPages {
+	ids: PlayerIds;
+	profiles: Record<StatsProvider, string | null>;
+}
+
+/**
+ * The answer of `GET /api/v1/players/profiles?personIds=…` (S209 AC 3): the pages of each asked player BT has a row
+ * for, by ascending MLB id; a player with no row is left out.
+ */
+export interface PlayerProfilesResponse {
+	players: PlayerPages[];
+}
 
 /** The one error-body shape every 4xx path returns. */
 export interface ApiErrorResponse {
@@ -323,6 +342,7 @@ export interface ApiResponseTypes {
 	SignInConfigResponse: SignInConfigResponse;
 	SignInResponse: SignInResponse;
 	ReleasesResponse: ReleasesResponse;
+	PlayerProfilesResponse: PlayerProfilesResponse;
 	TierOverrideResponse: TierOverrideResponse;
 	TierOverrideSetResponse: TierOverrideSetResponse;
 	ApiErrorResponse: ApiErrorResponse;
@@ -354,6 +374,7 @@ export const ApiRoutes = {
 	"GET /api/v1/sign-in": "SignInConfigResponse",
 	"POST /api/v1/sign-in": "SignInResponse",
 	"GET /api/v1/releases": "ReleasesResponse",
+	"GET /api/v1/players/profiles": "PlayerProfilesResponse",
 } as const satisfies Record<string, keyof ApiResponseTypes>;
 
 export type ApiRoute = keyof typeof ApiRoutes;

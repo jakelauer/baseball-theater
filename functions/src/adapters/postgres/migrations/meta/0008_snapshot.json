@@ -1,0 +1,750 @@
+{
+	"id": "060b9cdd-05dc-457e-915f-0e0d48887eb9",
+	"prevId": "d1853b2c-d4b0-491f-b95a-34d96aa1edbe",
+	"version": "7",
+	"dialect": "postgresql",
+	"tables": {
+		"public.account_settings": {
+			"name": "account_settings",
+			"schema": "",
+			"columns": {
+				"uid": {
+					"name": "uid",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"favorite_team_ids": {
+					"name": "favorite_team_ids",
+					"type": "integer[]",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"opens_first": {
+					"name": "opens_first",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"game_row_slot": {
+					"name": "game_row_slot",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"collapse_non_favorites": {
+					"name": "collapse_non_favorites",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"hide_scores": {
+					"name": "hide_scores",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"video_player": {
+					"name": "video_player",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"stats_provider": {
+					"name": "stats_provider",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'mlb'"
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.deletion_log": {
+			"name": "deletion_log",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "serial",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"uid": {
+					"name": "uid",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.entitlements": {
+			"name": "entitlements",
+			"schema": "",
+			"columns": {
+				"uid": {
+					"name": "uid",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"tier": {
+					"name": "tier",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"faster_live_refresh": {
+					"name": "faster_live_refresh",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"cloud_synced_settings": {
+					"name": "cloud_synced_settings",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"savant_links": {
+					"name": "savant_links",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"entitlements_uid_users_uid_fk": {
+					"name": "entitlements_uid_users_uid_fk",
+					"tableFrom": "entitlements",
+					"tableTo": "users",
+					"columnsFrom": ["uid"],
+					"columnsTo": ["uid"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.game_projections": {
+			"name": "game_projections",
+			"schema": "",
+			"columns": {
+				"game_pk": {
+					"name": "game_pk",
+					"type": "integer",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"document": {
+					"name": "document",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.game_rechecks": {
+			"name": "game_rechecks",
+			"schema": "",
+			"columns": {
+				"game_pk": {
+					"name": "game_pk",
+					"type": "integer",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"checked_at": {
+					"name": "checked_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"claimed_at": {
+					"name": "claimed_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.game_states": {
+			"name": "game_states",
+			"schema": "",
+			"columns": {
+				"game_pk": {
+					"name": "game_pk",
+					"type": "integer",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"source": {
+					"name": "source",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"feed_time": {
+					"name": "feed_time",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"official_date": {
+					"name": "official_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"start_time": {
+					"name": "start_time",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"document": {
+					"name": "document",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"win_probability": {
+					"name": "win_probability",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"game_states_source_check": {
+					"name": "game_states_source_check",
+					"value": "\"game_states\".\"source\" IN ('feed', 'schedule')"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.games": {
+			"name": "games",
+			"schema": "",
+			"columns": {
+				"game_pk": {
+					"name": "game_pk",
+					"type": "integer",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"official_date": {
+					"name": "official_date",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"document": {
+					"name": "document",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {
+				"games_official_date": {
+					"name": "games_official_date",
+					"columns": [
+						{
+							"expression": "official_date",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"games_document_gin": {
+					"name": "games_document_gin",
+					"columns": [
+						{
+							"expression": "document",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "gin",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.identity_links": {
+			"name": "identity_links",
+			"schema": "",
+			"columns": {
+				"provider": {
+					"name": "provider",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"subject": {
+					"name": "subject",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"uid": {
+					"name": "uid",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {
+				"identity_links_uid": {
+					"name": "identity_links_uid",
+					"columns": [
+						{
+							"expression": "uid",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {
+				"identity_links_provider_subject_pk": {
+					"name": "identity_links_provider_subject_pk",
+					"columns": ["provider", "subject"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.owed_edge_purges": {
+			"name": "owed_edge_purges",
+			"schema": "",
+			"columns": {
+				"url": {
+					"name": "url",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"owed_at": {
+					"name": "owed_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"version": {
+					"name": "version",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "nextval('owed_edge_purges_version_seq')"
+				},
+				"failures": {
+					"name": "failures",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
+				"retry_at": {
+					"name": "retry_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"path_retry_at": {
+					"name": "path_retry_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.player_ids": {
+			"name": "player_ids",
+			"schema": "",
+			"columns": {
+				"person_id": {
+					"name": "person_id",
+					"type": "integer",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"fangraphs_id": {
+					"name": "fangraphs_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"bbref_id": {
+					"name": "bbref_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"register_file": {
+					"name": "register_file",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.player_register_files": {
+			"name": "player_register_files",
+			"schema": "",
+			"columns": {
+				"file": {
+					"name": "file",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"etag": {
+					"name": "etag",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"synced_at": {
+					"name": "synced_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"tried_at": {
+					"name": "tried_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.replay_artifacts": {
+			"name": "replay_artifacts",
+			"schema": "",
+			"columns": {
+				"game_pk": {
+					"name": "game_pk",
+					"type": "integer",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"document": {
+					"name": "document",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.schedule_days": {
+			"name": "schedule_days",
+			"schema": "",
+			"columns": {
+				"date": {
+					"name": "date",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"version": {
+					"name": "version",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"served_base": {
+					"name": "served_base",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
+				"document": {
+					"name": "document",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.schedule_months": {
+			"name": "schedule_months",
+			"schema": "",
+			"columns": {
+				"month": {
+					"name": "month",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"checked_at": {
+					"name": "checked_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"claimed_at": {
+					"name": "claimed_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"schedule_months_month_format": {
+					"name": "schedule_months_month_format",
+					"value": "\"schedule_months\".\"month\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"public.tier_overrides": {
+			"name": "tier_overrides",
+			"schema": "",
+			"columns": {
+				"uid": {
+					"name": "uid",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"tier": {
+					"name": "tier",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"tier_overrides_uid_users_uid_fk": {
+					"name": "tier_overrides_uid_users_uid_fk",
+					"tableFrom": "tier_overrides",
+					"tableTo": "users",
+					"columnsFrom": ["uid"],
+					"columnsTo": ["uid"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.users": {
+			"name": "users",
+			"schema": "",
+			"columns": {
+				"uid": {
+					"name": "uid",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"email": {
+					"name": "email",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"display_name": {
+					"name": "display_name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"patreon_user_id": {
+					"name": "patreon_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"role": {
+					"name": "role",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		}
+	},
+	"enums": {},
+	"schemas": {},
+	"sequences": {
+		"public.owed_edge_purges_version_seq": {
+			"name": "owed_edge_purges_version_seq",
+			"schema": "public",
+			"increment": "1",
+			"startWith": "1",
+			"minValue": "1",
+			"maxValue": "9223372036854775807",
+			"cache": "1",
+			"cycle": false
+		}
+	},
+	"roles": {},
+	"policies": {},
+	"views": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	}
+}

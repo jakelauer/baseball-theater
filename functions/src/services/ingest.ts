@@ -8,7 +8,8 @@ import {
 	wholeFetchedGame,
 } from "@bt/domain";
 import type {
-	BackgroundWork, GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, ScheduleRepository,
+	BackgroundWork, GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, PlayerIdRepository, PlayerRegister, PlayerXrefSource,
+	ScheduleRepository,
 } from "@bt/ports";
 import { withLatePlayMetrics } from "../mappers/game-extras.js";
 import type { ExtraAsker } from "./player-of-the-game.js";
@@ -65,6 +66,17 @@ export type IngestDeps = {
 	 * tests), nothing is called.
 	 */
 	dayHubs?: DayHubNotifier;
+	/**
+	 * MLB's players and their outside ids (S209): the profiles route reads it, and the cron's player-id job keeps it in
+	 * step with the register (`syncPlayerRegister`). Absent (most tests), the route answers no player.
+	 */
+	playerIds?: PlayerIdRepository;
+	/**
+	 * The player-id job's sources (S209 AC 1): the Chadwick register and MLB's cross-references, both set with live MLB
+	 * data only (`createWorkerApp`), so local fixture runs and tests never fetch the register; absent, the job never runs.
+	 */
+	playerRegister?: PlayerRegister;
+	playerXrefs?: PlayerXrefSource;
 };
 
 /** The one MLB read the standings' calendar cache wraps (S139). */

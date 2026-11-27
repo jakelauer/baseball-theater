@@ -534,7 +534,7 @@ describe("the Box room against the live baseball.theater (S207 AC 3)", () =>
 		});
 		expect(batter).toHaveAttribute("href", "https://www.mlb.com/player/691718");
 		expect(batter).toHaveAttribute("target", "_blank");
-		expect(batter).toHaveAttribute("rel", "noreferrer nofollow");
+		expect(batter).toHaveAttribute("rel", "noopener noreferrer");
 		expect(within(within(panel).getByRole("table", {
 			name: "CHC pitching",
 		})).getByRole("link", {
@@ -574,6 +574,33 @@ describe("the Box room against the live baseball.theater (S207 AC 3)", () =>
 		expect(within(away!).getByRole("rowheader")).toHaveTextContent("TEX");
 		expect(within(home!).getByRole("rowheader")).toHaveTextContent("SEA");
 		expect(within(away!).getAllByTestId("inning-cell")).toHaveLength(11);
+	});
+
+	it("S209 AC 4: a box score row's batter and pitcher link to their MLB.com pages in a new tab, with no setting (823823)", async () =>
+	{
+		const panel = await boxPanel(fixture(823823), "desktop");
+		for (const [table, name, id] of [["CHC batting", "Crow-Armstrong (CF)", 691718], ["CHC pitching", "Assad, J", 665871]] as const)
+		{
+			const link = within(within(panel).getByRole("table", {
+				name: table,
+			})).getByRole("link", {
+				name,
+			});
+			expect(link).toHaveAttribute("href", `https://www.mlb.com/player/${id}`);
+			expect(link).toHaveAttribute("target", "_blank");
+			expect(link).toHaveAttribute("rel", "noopener noreferrer");
+		}
+	});
+
+	it("S209 AC 6: Hide Scores changes nothing about the players' links (823823)", async () =>
+	{
+		const hrefs = (panel: HTMLElement) => within(panel).getAllByRole("link").filter((a) => a.getAttribute("href")?.includes("/player/")).map((a) => [a.textContent, a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]);
+		const shown = hrefs(await boxPanel(fixture(823823), "desktop"));
+		cleanup();
+		await hideScores(true);
+		const hidden = hrefs(await boxPanel(fixture(823823), "desktop"));
+		expect(shown.length).toBeGreaterThan(10);
+		expect(hidden).toEqual(shown);
 	});
 });
 

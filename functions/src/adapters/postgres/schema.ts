@@ -117,6 +117,32 @@ export const games = pgTable("games", {
 	index("games_document_gin").using("gin", t.document),
 ]);
 
+/**
+ * MLB's players and their ids on FanGraphs and Baseball-Reference (`PlayerIdRepository`, S209), keyed by MLB's
+ * person id: a row for each Chadwick register row with an MLB id and at least one of the two ids, MLB's
+ * cross-references filling an id the register lacks. `register_file` names the register file the row came from,
+ * so a file's sync deletes exactly the rows that file dropped. Public facts about players; no user data. No index
+ * beyond the key: the only other read is that delete, a scan of about 24,000 rows at most once a day a file.
+ */
+export const playerIds = pgTable("player_ids", {
+	personId: integer("person_id").primaryKey(),
+	fangraphsId: text("fangraphs_id"),
+	bbrefId: text("bbref_id"),
+	registerFile: text("register_file").notNull(),
+});
+
+/**
+ * The register sync's state per file (S209): the ETag of the copy last written (null when the register sent
+ * none), when it was last synced (written, or answered unchanged) and when a run last claimed it (ISO instants,
+ * compared as `timestamptz`, as `schedule_months`' are). Sixteen rows at most.
+ */
+export const playerRegisterFiles = pgTable("player_register_files", {
+	file: text("file").primaryKey(),
+	etag: text("etag"),
+	syncedAt: text("synced_at"),
+	triedAt: text("tried_at"),
+});
+
 /** The five projected documents per game (`GameProjectionRepository`), versioned by `header.version`. */
 export const gameProjections = pgTable("game_projections", {
 	gamePk: integer("game_pk").primaryKey(),
@@ -188,6 +214,8 @@ export const accountSettings = pgTable("account_settings", {
 	collapseNonFavorites: boolean("collapse_non_favorites").notNull(),
 	hideScores: boolean("hide_scores").notNull(),
 	videoPlayer: text("video_player").$type<AccountSettings["videoPlayer"]>().notNull(),
+	// S209: a row written before the column existed reads MLB.com, the house default.
+	statsProvider: text("stats_provider").$type<AccountSettings["statsProvider"]>().notNull().default("mlb"),
 	version: integer("version").notNull(),
 });
 

@@ -44,6 +44,7 @@ export * from "./highlights.js";
 export * from "./hide-scores.js";
 export * from "./scoreboard-rows.js";
 export * from "./settings.js";
+export * from "./player-links.js";
 export * from "./win-probability.js";
 export * from "./sign-in.js";
 export * from "./backfill.js";

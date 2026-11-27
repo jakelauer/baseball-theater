@@ -5,7 +5,10 @@
  */
 import { createServer } from "node:http";
 import type { AccountSettings } from "@bt/domain";
-import { ACCOUNT_DELETION_PHRASE, DEFAULT_SETTINGS } from "@bt/domain";
+import {
+	ACCOUNT_DELETION_PHRASE, DEFAULT_SETTINGS, entitlementsForTier,
+} from "@bt/domain";
+import type { Entitlements, PatronTier } from "@bt/domain";
 import {
 	describe, expect, it,
 } from "vitest";
@@ -83,6 +86,7 @@ const saved: AccountSettings = {
 	collapseNonFavorites: false,
 	hideScores: false,
 	videoPlayer: "dialog",
+	statsProvider: "mlb",
 	version: 2,
 };
 
@@ -167,6 +171,99 @@ describe("/api/v1/me/settings", () =>
 				version: 3,
 			}, bearer)).status).toBe(401);
 			expect(await ctx.settings.get("fan-1")).toBeNull();
+		});
+	});
+});
+
+describe("the stats site is a patron's choice (S209 AC 9)", () =>
+{
+	/** Signs `uid` in, gives the account `tier`, and answers a bearer for a session carrying `entitlements` (default: the tier's). */
+	async function account(ctx: ApiContext, uid: string, tier: PatronTier, entitlements?: Entitlements): Promise<string>
+	{
+		await signIn(ctx.auth, {
+			provider: "dev",
+			subject: uid,
+			email: `${uid}@example.test`,
+			emailVerified: true,
+			authTime: Math.floor(Date.now() / 1000),
+		}, () => uid);
+		await ctx.auth.users.setEntitlements(uid, entitlementsForTier(tier));
+		const token = await ctx.auth.sessions.issue({
+			uid,
+			role: "member",
+			entitlements: entitlements ?? entitlementsForTier(tier),
+		});
+		return `Bearer ${token}`;
+	}
+
+	it("S209 AC 9: a member choosing FanGraphs is refused with the settings route's error, and nothing is stored", async () =>
+	{
+		await withServer(async (base, ctx) =>
+		{
+			const bearer = await account(ctx, "member-1", "none");
+			const refused = await put(base, {
+				...DEFAULT_SETTINGS,
+				statsProvider: "fangraphs",
+				version: 1,
+			}, bearer);
+			expect(refused.status).toBe(400);
+			expect(await refused.json()).toMatchObject({
+				error: "invalid_settings",
+			});
+			expect(await ctx.settings.get("member-1")).toBeNull();
+			// MLB.com stays open to everyone.
+			expect((await put(base, {
+				...DEFAULT_SETTINGS,
+				hideScores: true,
+				version: 1,
+			}, bearer)).status).toBe(200);
+		});
+	});
+
+	it("S209 AC 9: a token signed with pre-S209 entitlements for a Backer choosing FanGraphs is answered 200", async () =>
+	{
+		await withServer(async (base, ctx) =>
+		{
+			const { statsProviderChoice: _new, ...before } = entitlementsForTier("Backer");
+			const bearer = await account(ctx, "backer-1", "Backer", before as Entitlements);
+			const saved = await put(base, {
+				...DEFAULT_SETTINGS,
+				statsProvider: "fangraphs",
+				version: 1,
+			}, bearer);
+			expect(saved.status).toBe(200);
+			expect((await saved.json() as AccountSettings).statsProvider).toBe("fangraphs");
+		});
+	});
+
+	it("S209 AC 9: a lapsed patron whose stored value is FanGraphs saves a Hide Scores change and keeps FanGraphs", async () =>
+	{
+		await withServer(async (base, ctx) =>
+		{
+			const bearer = await account(ctx, "lapsed-1", "Backer");
+			expect((await put(base, {
+				...DEFAULT_SETTINGS,
+				statsProvider: "fangraphs",
+				version: 1,
+			}, bearer)).status).toBe(200);
+			await ctx.auth.users.setEntitlements("lapsed-1", entitlementsForTier("none"));
+			const saved = await put(base, {
+				...DEFAULT_SETTINGS,
+				statsProvider: "fangraphs",
+				hideScores: true,
+				version: 2,
+			}, bearer);
+			expect(saved.status).toBe(200);
+			expect(await ctx.settings.get("lapsed-1")).toMatchObject({
+				statsProvider: "fangraphs",
+				hideScores: true,
+			});
+			// Changing it to another patron site is a change, and refused.
+			expect((await put(base, {
+				...DEFAULT_SETTINGS,
+				statsProvider: "bbref",
+				version: 3,
+			}, bearer)).status).toBe(400);
 		});
 	});
 });
