@@ -15,6 +15,9 @@ export default defineConfig({
 		},
 		name: "tools",
 		environment: "node",
+		// B669 (#669): the type-aware rule tests build a TypeScript program on their first case, which took past
+		// the default 5 s on a push's full fresh run and turned `stage` red; functions gives its tests 20 s too.
+		testTimeout: 20_000,
 		root: import.meta.dirname,
 		include: ["**/*.test.js"],
 		exclude: ["**/node_modules/**", "**/fixtures/**"],
