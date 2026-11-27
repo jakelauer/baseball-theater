@@ -45,22 +45,23 @@ function pitchEndTimes(game: GameSnapshot): Map<string, string>
 
 /**
  * Pulls Savant for `gamePk` and stores what changed ({@link storeSavant}); null when Savant failed, ran past
- * {@link SAVANT_LIMIT_MS}, listed no pitch, or changed nothing.
+ * {@link SAVANT_LIMIT_MS}, listed no pitch, or changed nothing. The clock (`deps.now`) is read once the answer is back,
+ * so each figure's first sighting is when Savant's answer arrived, not when the poll that asked began.
  */
 export async function pullSavant(
-	deps: Pick<IngestDeps, "mlb" | "games" | "projections" | "gameStates" | "edgePurge">,
+	deps: Pick<IngestDeps, "mlb" | "games" | "projections" | "gameStates" | "edgePurge" | "now">,
 	gamePk: number,
-	at: Date,
 	limitMs: number = SAVANT_LIMIT_MS,
 ): Promise<SavantWrite | null>
 {
 	const pulled = await askWithinLimit(() => deps.mlb.fetchSavantGameFeed(gamePk), limitMs);
-	return pulled ? storeSavant(deps, gamePk, pulled, at) : null;
+	return pulled ? storeSavant(deps, gamePk, pulled, deps.now?.() ?? new Date()) : null;
 }
 
 /**
  * Merges `pulled` into the stored game and writes it as the next version, its projection with it; null when no game is
- * stored or nothing changed. A newer stored version that refuses the write (another writer stored the game meanwhile) is
+ * stored or nothing changed. `at` is when Savant's answer arrived: each newly seen figure's `arrivedAt`, and the write's
+ * time. A newer stored version that refuses the write (another writer stored the game meanwhile) is
  * read and merged again, once; a second refusal is logged and dropped, never written over. A past, finished game's edge
  * copy is purged after the write, as the late playMetrics write does, since the edge may hold the game without them.
  */

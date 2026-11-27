@@ -396,12 +396,45 @@ describe("parseSavantGameFeedResponse (S103)", () =>
 		expect(pitches.filter((p) => p.abs_challenge).map((p) => p.abs_challenge?.is_overturned)).toHaveLength(5);
 	});
 
-	it("S103 AC 2: refuses a pitch row without its playId", () =>
+	it("S103 AC 2: a null figure reads as absent and keeps the row's others; a row without its playId or at-bat is dropped alone", () =>
 	{
-		expect(() => parseSavantGameFeedResponse({
+		const feed = parseSavantGameFeedResponse({
+			cacheKey: null,
 			team_home: [{
+				play_id: "kept",
+				ab_number: 3,
+				xba: null,
+				hit_distance: null,
+				batSpeed: 70,
+				contextMetrics: {
+					homeRunBallparks: null,
+				},
+			}, {
 				ab_number: 1,
+			}, {
+				play_id: null,
+				ab_number: 2,
+			}, "garbled"],
+			team_away: [{
+				play_id: "no-at-bat",
 			}],
+		});
+		expect(feed.cacheKey).toBeUndefined();
+		expect(feed.team_home).toEqual([{
+			play_id: "kept",
+			ab_number: 3,
+			batSpeed: 70,
+			contextMetrics: {},
+		}]);
+		expect(feed.team_away).toEqual([]);
+	});
+
+	it("S103 AC 2: refuses an answer that isn't a feed at all", () =>
+	{
+		expect(() => parseSavantGameFeedResponse("garbled")).toThrow();
+		expect(() => parseSavantGameFeedResponse(null)).toThrow();
+		expect(() => parseSavantGameFeedResponse({
+			team_home: "garbled",
 		})).toThrow();
 	});
 });

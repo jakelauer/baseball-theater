@@ -247,7 +247,8 @@ export async function recordEndpoints(
 		});
 		if (!response.ok)
 		{
-			throw new Error(`MLB Stats API ${response.status} for ${endpoint.url}`);
+			// The URL names the service asked: S103 records Savant's own host here too.
+			throw new Error(`HTTP ${response.status} for ${endpoint.url}`);
 		}
 		// Verbatim bytes — `fixtures/raw` is in .prettierignore and must stay exact.
 		const text = await response.text();

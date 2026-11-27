@@ -649,7 +649,8 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		});
 		if (!response.ok)
 		{
-			throw new Error(`MLB Stats API ${response.status} for ${url}`);
+			// The URL names the service asked (the Stats API, mlb.com or Savant's own host), so the message claims no other.
+			throw new Error(`HTTP ${response.status} for ${url}`);
 		}
 		return await response.json();
 	}

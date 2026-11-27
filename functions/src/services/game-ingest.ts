@@ -13,7 +13,8 @@
  * S103: after a poll has written and published (and armed the next alarm), the object pulls Baseball Savant on its own
  * cadence (`savantPullDue`: at most once per `savantIntervalMs` while the game is live, then once more on the run's last
  * poll after the final), merges what arrived into the stored game and publishes that version too. Savant is never asked
- * inside the poll's fetch, so a slow or failing Savant never delays a pitch.
+ * inside the poll's fetch, so a slow or failing Savant never delays a pitch, and a pull that fails to store is logged,
+ * never thrown, so the poll's own work (arming the next alarm, or ending the run) always happens.
  */
 import type { CadenceParams, GameSnapshot } from "@bt/domain";
 import {
@@ -179,14 +180,23 @@ export class GameIngest
 
 	/**
 	 * One Savant pull (S103): noted first (so a pull that hangs still counts toward the interval), then merged into the
-	 * stored game and, when that changed it, published as its next version.
+	 * stored game and, when that changed it, published as its next version. A store or publish that rejects is logged and
+	 * dropped: the next due pull tries again, and the alarm goes on to arm its next poll or end the run (whose keys would
+	 * otherwise outlive it into a later run of the same game).
 	 */
 	private async pullSavant(gamePk: number, final: boolean, now: Date): Promise<void>
 	{
 		await this.storage.put(SAVANT_AT_KEY, now.getTime());
 		if (final) await this.storage.put(SAVANT_FINAL_KEY, true);
-		const written = await pullSavant(this.deps, gamePk, now, this.savantLimitMs);
-		if (written) await this.publishToHubs(servedGame(written.snapshot, written.row, now), now);
+		try
+		{
+			const written = await pullSavant(this.deps, gamePk, this.savantLimitMs);
+			if (written) await this.publishToHubs(servedGame(written.snapshot, written.row, now), now);
+		}
+		catch (error)
+		{
+			console.warn(`savant: game ${gamePk} pull not stored: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	private async publishToHubs(snapshot: GameSnapshot, now: Date): Promise<void>

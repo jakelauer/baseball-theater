@@ -37,10 +37,14 @@ afterEach(() =>
 
 /**
  * One game's ingest over the fixtures (745001 is in progress, so always in its window), its live fetch optionally
- * rewritten, Savant answered by `savant`, and every write and publish recorded in order.
+ * rewritten, Savant answered by `savant`, and every write and publish recorded in order. `arrival.at` is the clock
+ * (`deps.now`) a Savant answer is stamped with when it comes back; T0 until a test moves it.
  */
 function setup(savant: (gamePk: number) => Promise<SavantPitch[] | null>, rewrite: (game: GameSnapshot) => GameSnapshot = (game) => game)
 {
+	const arrival = {
+		at: T0,
+	};
 	const real = new FixtureMlbStatsClient();
 	const mlb = new FixtureMlbStatsClient();
 	const order: string[] = [];
@@ -69,6 +73,7 @@ function setup(savant: (gamePk: number) => Promise<SavantPitch[] | null>, rewrit
 		...memoryScheduleStores(),
 		games,
 		projections: new InMemoryGameProjectionRepository(),
+		now: () => arrival.at,
 	};
 	const published: GameSnapshot[] = [];
 	const storage = new FakeDurableStorage();
@@ -78,6 +83,7 @@ function setup(savant: (gamePk: number) => Promise<SavantPitch[] | null>, rewrit
 		published.push(snapshot);
 	});
 	return {
+		arrival,
 		deps,
 		fetchSavantGameFeed,
 		games,
@@ -221,7 +227,7 @@ describe("the ingest object's Savant pull (S103 AC 5)", () =>
 		await ingest.ensureRunning(745001, T0);
 		await ingest.alarm(T0);
 		expect((await games.getByPk(745001))?.version).toBe(1);
-		expect(await pullSavant(deps, 745001, T0, 20)).toBeNull();
+		expect(await pullSavant(deps, 745001, 20)).toBeNull();
 	});
 
 	it("S103 AC 5: over two polls each figure is logged when it first arrived, beside the live feed's time for the pitch, and each change is a new published version", async () =>
@@ -246,7 +252,7 @@ describe("the ingest object's Savant pull (S103 AC 5)", () =>
 			}],
 		];
 		const {
-			games, ingest, published,
+			arrival, games, ingest, published,
 		} = setup(async () => pulls.shift() ?? null, await withPitch(endTime));
 		await ingest.hubs.register("hub-a", T0);
 		await ingest.ensureRunning(745001, T0);
@@ -267,6 +273,7 @@ describe("the ingest object's Savant pull (S103 AC 5)", () =>
 		const T1 = new Date(T0.getTime() + SAVANT_EVERY);
 		// A hub renews its lease while it listens.
 		await ingest.hubs.register("hub-a", T1);
+		arrival.at = T1;
 		await ingest.alarm(T1);
 		const second = (await games.getByPk(745001))?.savant?.[0];
 		expect(second?.xba).toBe(0.31);
@@ -379,18 +386,80 @@ describe("the ingest object's Savant pull (S103 AC 5)", () =>
 		const OUT = new Date("2026-09-07T12:00:00Z");
 		const real = new FixtureMlbStatsClient();
 		const {
-			games, ingest, published,
+			arrival, games, ingest, published,
 		} = setup((pk) => real.fetchSavantGameFeed(pk));
 		await ingest.hubs.register("hub-a", IN);
 		await ingest.ensureRunning(823823, IN);
 		await ingest.alarm(IN);
 		await ingest.hubs.register("hub-a", OUT);
+		arrival.at = OUT;
 		await ingest.alarm(OUT);
 		const savant = (await games.getByPk(823823))?.savant ?? [];
 		expect(savant).toHaveLength(340);
 		expect(savant.filter((p) => p.playEndTime !== undefined)).toHaveLength(339);
 		expect(savant.every((p) => Object.values(p.arrivedAt ?? {}).every((at) => at === OUT.toISOString()))).toBe(true);
 		expect(published.at(-1)?.savant).toHaveLength(340);
+	});
+});
+
+describe("a Savant pull's arrival and failures (S103 AC 5)", () =>
+{
+	it("S103 AC 5: a figure's first sighting is when Savant's answer came back, not when the poll began", async () =>
+	{
+		const answered = new Date(T0.getTime() + 4_000);
+		const box = setup(async () =>
+		{
+			box.arrival.at = answered;
+			return [{
+				playId: PLAY_ID,
+				atBatIndex: 0,
+				version: T0.getTime(),
+				batSpeed: 71,
+			}];
+		}, await withPitch("2026-10-30T11:59:58.000Z"));
+		await box.ingest.ensureRunning(745001, T0);
+		await box.ingest.alarm(T0);
+		expect((await box.games.getByPk(745001))?.savant?.[0]?.arrivedAt).toEqual({
+			batSpeed: answered.toISOString(),
+		});
+	});
+
+	it("S103 AC 5: a Savant pull whose store rejects is logged, not thrown: a live poll keeps its next alarm, and the last poll still ends the run", async () =>
+	{
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const failing = (box: ReturnType<typeof setup>) =>
+		{
+			const getByPk = box.games.getByPk.bind(box.games);
+			box.games.getByPk = async (pk) =>
+			{
+				if (box.order.includes("savant")) throw new Error("database gone");
+				return getByPk(pk);
+			};
+			return box;
+		};
+		const real = new FixtureMlbStatsClient();
+
+		const live = failing(setup(async () => [{
+			playId: PLAY_ID,
+			atBatIndex: 0,
+			version: T0.getTime(),
+			batSpeed: 71,
+		}], await withPitch("2026-10-30T11:59:58.000Z")));
+		await live.ingest.ensureRunning(745001, T0);
+		await live.ingest.alarm(T0);
+		expect(live.fetchSavantGameFeed).toHaveBeenCalledTimes(1);
+		expect(live.storage.alarmAt).toBe(T0.getTime() + INTERVAL);
+
+		const IN = new Date("2026-09-05T23:30:00Z");
+		const OUT = new Date("2026-09-07T12:00:00Z");
+		const last = failing(setup((pk) => real.fetchSavantGameFeed(pk)));
+		await last.ingest.ensureRunning(823823, IN);
+		await last.ingest.alarm(IN);
+		await last.ingest.alarm(OUT);
+		expect(last.fetchSavantGameFeed).toHaveBeenCalledTimes(1);
+		expect(last.storage.alarmAt).toBeNull();
+		for (const key of ["gamePk", "activeAt", "potgComplete", "uniformsAsked", "savantAt", "savantFinal"]) expect(await last.storage.get(key)).toBeUndefined();
+		expect(warn).toHaveBeenCalledWith("savant: game 823823 pull not stored: database gone");
 	});
 });
 

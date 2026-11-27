@@ -421,6 +421,19 @@ describe("fixture recorder", () =>
 		expect(mapped).toEqual(await readFixture("standings-1950-07-04.json"));
 	});
 
+	it("S103: a failed recording names the status and the URL asked, not the Stats API, so a Savant failure says Savant", async () =>
+	{
+		const out = await mkdtemp(path.join(tmpdir(), "bt-savant-down-"));
+		await expect(recordEndpoints([{
+			name: "savant-gf-1",
+			url: "https://baseballsavant.mlb.com/gf?game_pk=1",
+		}], out, {
+			fetchImpl: (async () => new Response("down", {
+				status: 503,
+			})) as unknown as typeof fetch,
+		})).rejects.toThrow(/^HTTP 503 for https:\/\/baseballsavant\.mlb\.com\/gf\?game_pk=1$/);
+	});
+
 	it("S155: a day's answer that isn't JSON fails loudly and leaves the mapped file as it was", async () =>
 	{
 		const out = await mkdtemp(path.join(tmpdir(), "bt-standings-day-bad-"));

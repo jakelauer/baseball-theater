@@ -1847,7 +1847,32 @@ const savantFeedPitchSchema = savantPitchWhoSchema
 	.extend(savantBattedBallSchema.shape)
 	.extend(savantSwingAndCallsSchema.shape);
 
-const savantGameFeedResponseSchema = z.object({
+/**
+ * `value` without its null-valued keys (through nested objects when `deep`), so a figure Savant sends as null parses as
+ * absent: "not yet", as a figure it leaves off does (S103 AC 5). Anything but a plain object (a string, an array, null)
+ * comes back unchanged, so a garbled answer still fails its schema.
+ */
+function withoutNulls(value: unknown, deep: boolean): unknown
+{
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+	return Object.fromEntries(Object.entries(value)
+		.filter(([, child]) => child !== null)
+		.map(([key, child]) => [key, deep ? withoutNulls(child, true) : child]));
+}
+
+const savantFeedRowSchema = z.preprocess((row) => withoutNulls(row, true), savantFeedPitchSchema);
+
+/**
+ * One team's pitch rows, each parsed on its own: a row that still fails (no `play_id` or `ab_number` to join it by, or a
+ * figure of the wrong type) is dropped alone, so one bad row never costs the game its other pitches' figures.
+ */
+const savantFeedRowsSchema = z.array(z.unknown()).transform((rows) => rows.flatMap((row) =>
+{
+	const parsed = savantFeedRowSchema.safeParse(row);
+	return parsed.success ? [parsed.data] : [];
+}));
+
+const savantGameFeedResponseSchema = z.preprocess((feed) => withoutNulls(feed, false), z.object({
 	game_status_code: z.string().optional(),
 	game_status: z.string().optional(),
 	gamedayType: z.string().optional(),
@@ -1857,8 +1882,8 @@ const savantGameFeedResponseSchema = z.object({
 	venue_id: z.number().optional(),
 	team_home_id: z.number().optional(),
 	team_away_id: z.number().optional(),
-	team_home: z.array(savantFeedPitchSchema).optional(),
-	team_away: z.array(savantFeedPitchSchema).optional(),
+	team_home: savantFeedRowsSchema.optional(),
+	team_away: savantFeedRowsSchema.optional(),
 	cacheKey: z.string().optional(),
 	cache_hit: z.string().optional(),
 	scoreboard: savantRepeated.optional(),
@@ -1875,9 +1900,12 @@ const savantGameFeedResponseSchema = z.object({
 	away_lineup: savantRepeated.optional(),
 	home_pitcher_lineup: savantRepeated.optional(),
 	away_pitcher_lineup: savantRepeated.optional(),
-});
+}));
 
-/** `GET baseballsavant.mlb.com/gf?game_pk={gamePk}` (S103; Savant's per-pitch game feed, an internal feed). */
+/**
+ * `GET baseballsavant.mlb.com/gf?game_pk={gamePk}` (S103; Savant's per-pitch game feed, an internal feed). Throws on an
+ * answer that isn't a feed; a null field reads as absent, and a pitch row that can't be read is left out alone.
+ */
 export function parseSavantGameFeedResponse(input: unknown): SavantGameFeedResponse
 {
 	return savantGameFeedResponseSchema.parse(input);
