@@ -28,6 +28,8 @@ import type {
 	SettingsRepository,
 	UserDataExport,
 	UserRepository,
+	VenueField,
+	VenueFieldRepository,
 } from "@bt/ports";
 
 /** A JSON round-trip: what a Postgres `jsonb` column hands back, and never the caller's object. */
@@ -518,6 +520,22 @@ export class InMemoryReplayArtifactRepository implements ReplayArtifactRepositor
 	clear(): void
 	{
 		this.store.clear();
+	}
+}
+
+/** Each venue's field drawing (S105), versioned by when BT asked Savant (`fetchedAt`), newer only (ADR-022). */
+export class InMemoryVenueFieldRepository implements VenueFieldRepository
+{
+	private readonly store = new VersionedMemoryStore<number, VenueField>((field) => Date.parse(field.fetchedAt));
+
+	async get(venueId: number): Promise<VenueField | null>
+	{
+		return this.store.get(venueId);
+	}
+
+	async upsert(field: VenueField): Promise<void>
+	{
+		this.store.put(field.venueId, field);
 	}
 }
 

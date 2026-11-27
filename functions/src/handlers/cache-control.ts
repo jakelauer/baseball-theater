@@ -118,6 +118,13 @@ export const PAST_BROWSER_MAX_AGE_S = 3600;
 export const PAST_CACHE_CONTROL = `public, max-age=${PAST_BROWSER_MAX_AGE_S}, s-maxage=${PAST_EDGE_TTL_S}, stale-while-revalidate=${PAST_STALE_S}`;
 
 /**
+ * A ballpark's field drawing (S105, `GET /api/v1/venues/:venueId/field.svg`): a park's outline almost never changes and
+ * BT never replaces one it keeps, so a browser keeps it a day and the edge for ADR-021's cap ({@link PAST_EDGE_TTL_S}),
+ * served stale for a day ({@link PAST_STALE_S}) while it refetches.
+ */
+export const VENUE_FIELD_CACHE_CONTROL = `public, max-age=86400, s-maxage=${PAST_EDGE_TTL_S}, stale-while-revalidate=${PAST_STALE_S}`;
+
+/**
  * A past, finished day's digest missing a game it couldn't read (S212 AC 3): the floor, with ADR-021's stale window,
  * never the long lifetime, so the next read after about ten minutes tries that game again rather than waiting on a purge.
  */

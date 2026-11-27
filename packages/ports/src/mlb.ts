@@ -77,6 +77,14 @@ export interface MlbStatsClient {
 	 * does, on its own cadence (`savantPullDue`), and merges the answer in (`mergeSavantPitches`).
 	 */
 	fetchSavantGameFeed(gamePk: number): Promise<SavantPitch[] | null>;
+	/**
+	 * A ballpark's field outline (S105): Baseball Savant's SVG drawing for MLB's venue id
+	 * (`baseballsavant.mlb.com/site-core/images/fields/<venueId>.svg`, MLB-made artwork; terms and the owner's go-ahead in
+	 * `docs/v3/SAVANT-DATA.md`), as the text Savant sent, unsanitized; null when Savant has none for the venue, the call
+	 * fails or the answer isn't an SVG, never a throw. Ingest asks it once per venue (`keepVenueFields`), sanitizes it
+	 * and keeps it; no request ever does.
+	 */
+	fetchVenueField(venueId: number): Promise<string | null>;
 	/** The regular season's standings as of `date` (S4); MLB has none outside the regular season. */
 	fetchStandings(date: string): Promise<StandingsSnapshot>;
 	/** A season's final regular-season table (S128): MLB's standings for the season with no date. */

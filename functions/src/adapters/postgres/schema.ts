@@ -157,6 +157,16 @@ export const replayArtifacts = pgTable("replay_artifacts", {
 	document: jsonb("document").$type<ReplayArtifact>().notNull(),
 });
 
+/**
+ * Each ballpark's field drawing (`VenueFieldRepository`, S105), by MLB venue id: Savant's SVG after `sanitizeFieldSvg`,
+ * or null when BT asked and got none; `fetched_at` (ISO, when BT asked) is its version, newer only (ADR-022).
+ */
+export const venueFields = pgTable("venue_fields", {
+	venueId: integer("venue_id").primaryKey(),
+	svg: text("svg"),
+	fetchedAt: text("fetched_at").notNull(),
+});
+
 /** BT's own users (ADR-019): the profile, keyed by BT's uid. Personal: `BT database: users`. */
 export const users = pgTable("users", {
 	uid: text("uid").primaryKey(),

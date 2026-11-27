@@ -64,6 +64,13 @@
 			"when": 1795766534472,
 			"tag": "0008_player_ids",
 			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "7",
+			"when": 1795772939230,
+			"tag": "0009_venue_fields",
+			"breakpoints": true
 		}
 	]
 }

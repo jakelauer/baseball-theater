@@ -1,6 +1,7 @@
 import type {
 	StatsProvider,
-	ApiErrorResponse, ApiResponseFor, ApiRoute, ApiVersionTable, CacheLifetimeStep, MeDeleteRequest, PatronTier, ReleaseNotes, SeasonPhaseName, TierOverrideResponse, UserProfile,
+	ApiErrorResponse, ApiMediaTypes, ApiResponseFor, ApiRoute, ApiVersionTable, CacheLifetimeStep, MeDeleteRequest, PatronTier, ReleaseNotes, SeasonPhaseName, TierOverrideResponse,
+	UserProfile,
 } from "@bt/domain";
 import type { SettingsRepository } from "@bt/ports";
 import {
@@ -35,7 +36,8 @@ import type { IngestDeps } from "../services/ingest.js";
 import { getOrRefreshGame, getScheduleRead } from "../services/ingest.js";
 import {
 	edgeCacheControl, PARTIAL_PAST_DIGEST_CACHE_CONTROL, PAST_CACHE_CONTROL, PLAYER_PROFILES_CACHE_CONTROL,
-	RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, versionedMonthCacheControl,
+	RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, VENUE_FIELD_CACHE_CONTROL,
+	versionedMonthCacheControl,
 } from "./cache-control.js";
 import { liveDayUpgrade, liveUpgrade } from "./live.js";
 
@@ -99,6 +101,26 @@ export function sendJson<R extends ApiRoute>(
 ): Response
 {
 	return json(status, body);
+}
+
+/**
+ * Sends a route whose 200 is an SVG drawing (S105, the route table's `ApiMediaTypes`), its body checked against the
+ * route's entry as `sendJson` checks a JSON body. The drawing was sanitized before it was stored (`sanitizeFieldSvg`);
+ * the policy header is a second guard should it be opened as a page: nothing in it may run or load, its own inline
+ * styles aside, and the browser may not read it as anything but SVG.
+ */
+function sendSvg<R extends keyof typeof ApiMediaTypes>(_route: R, body: ApiResponseFor<R>, cacheControl: string): Response
+{
+	return new Response(body, {
+		status: 200,
+		headers: {
+			"Content-Type": "image/svg+xml; charset=utf-8",
+			"Cache-Control": cacheControl,
+			"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+			"X-Content-Type-Options": "nosniff",
+			...CORS_HEADERS,
+		},
+	});
 }
 
 function sendError(status: number, body: ApiErrorResponse): Response
@@ -651,6 +673,20 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			gamePk: /^\d+$/,
 		},
 		handle: (_url, params, ctx, request) => liveUpgrade(Number(params.gamePk), request, ctx),
+	},
+	{
+		route: "GET /api/v1/venues/:venueId/field.svg",
+		params: {
+			venueId: /^\d{1,9}$/,
+		},
+		handle: async (_url, params, ctx) =>
+		{
+			// S105: only what ingest kept (`keepVenueFields`); a request never asks Savant. No drawing is `no-store`, so
+			// one kept later shows at once.
+			const field = await ctx.ingest.venueFields?.get(Number(params.venueId));
+			if (!field?.svg) return noStore(notFound());
+			return sendSvg("GET /api/v1/venues/:venueId/field.svg", field.svg, VENUE_FIELD_CACHE_CONTROL);
+		},
 	},
 	{
 		route: "GET /api/v1/me",

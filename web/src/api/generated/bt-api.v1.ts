@@ -296,6 +296,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/venues/{venueId}/field.svg": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A ballpark's field outline: Baseball Savant's 250×250 SVG drawing of the park, for MLB's venue id (a game's `venue.id`), as BT keeps it. BT asks Savant for a park's drawing when it first stores a game there and removes anything that could run or load from elsewhere (scripts, event handlers, outside links) before keeping it; the browser never asks Savant. Cacheable for a day in the browser and 30 days at the edge. */
+        get: operations["getVenueField"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1223,6 +1240,8 @@ export interface components {
             text: string;
             type: string;
         };
+        /** @description A ballpark's field outline (S105): Baseball Savant's SVG drawing of the park BT keeps for an MLB venue id (`GameSnapshot.venue.id`), sanitized before it was stored. Not JSON: its route answers it as `image/svg+xml` (`ApiMediaTypes`). */
+        VenueFieldSvgResponse: string;
         /** @description The pitch a video shows, by MLB's own link (S94; GraphQL `playIdRef`): `videoId` is the video's id in the content feed (`MediaHighlight.id`), `playId` the pitch's `PitchEvent.playId`. It covers clips the content feed links to no play, such as ABS challenges. */
         VideoPlayRef: {
             playId: string;
@@ -2191,6 +2210,47 @@ export interface operations {
             };
             /** @description `standings_unavailable`: MLB couldn't answer a standings table; never cached, so trying again shortly may succeed. A season calendar MLB couldn't give is not this error: the answer is then the day's table without phase dates, cached only briefly. */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getVenueField: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description MLB venue id (`4169` is loanDepot park). */
+                venueId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/svg+xml": components["schemas"]["VenueFieldSvgResponse"];
+                };
+            };
+            /** @description BT keeps no drawing for that venue: Savant has none, BT couldn't get it, or no game there has been stored yet. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };

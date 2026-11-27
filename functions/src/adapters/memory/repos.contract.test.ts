@@ -25,6 +25,7 @@ import {
 	InMemoryReplayArtifactRepository,
 	InMemorySettingsRepository,
 	InMemoryUserRepository,
+	InMemoryVenueFieldRepository,
 	memoryScheduleStores,
 } from "./repos.js";
 
@@ -33,6 +34,7 @@ describeStorageContract("InMemory", {
 	games: () => new InMemoryGameRepository(),
 	projections: () => new InMemoryGameProjectionRepository(),
 	replays: () => new InMemoryReplayArtifactRepository(),
+	venueFields: () => new InMemoryVenueFieldRepository(),
 	users: () => new InMemoryUserRepository(),
 	settings: () => new InMemorySettingsRepository(),
 });

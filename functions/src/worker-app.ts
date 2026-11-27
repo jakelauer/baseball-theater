@@ -38,6 +38,7 @@ import {
 	PostgresPlayerIdRepository,
 	PostgresSettingsRepository,
 	PostgresUserRepository,
+	PostgresVenueFieldRepository,
 } from "./adapters/postgres/repos.js";
 import type { GameIngestNamespace } from "./game-ingest-object.js";
 import type { ApiContext } from "./handlers/api.js";
@@ -203,6 +204,8 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		games,
 		projections: new PostgresGameProjectionRepository(db),
 		gameStates,
+		// S105: each venue's field drawing, asked by a game's first write and served by the venue field route.
+		venueFields: new PostgresVenueFieldRepository(db),
 		// One coordinator per isolate: stale out-of-window reads refresh single-flighted.
 		refresh: new RefreshCoordinator(),
 		edgePurge: edgePurgeFor(env, options.fetch, new PostgresOwedEdgePurgeRepository(db)),

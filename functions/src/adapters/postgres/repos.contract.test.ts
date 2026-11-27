@@ -34,6 +34,7 @@ import {
 	PostgresGameStateRepository,
 	PostgresPlayerIdRepository,
 	PostgresReplayArtifactRepository,
+	PostgresVenueFieldRepository,
 	PostgresScheduleRepository,
 	PostgresSettingsRepository,
 	PostgresUserRepository,
@@ -46,7 +47,7 @@ const migrated = migrate(db as Parameters<typeof migrate>[0], {
 });
 
 /** Every table the migrations create, emptied between cases. */
-const TABLES = ["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts", "identity_links", "entitlements", "users", "account_settings", "deletion_log", "player_ids", "player_register_files"];
+const TABLES = ["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts", "venue_fields", "identity_links", "entitlements", "users", "account_settings", "deletion_log", "player_ids", "player_register_files"];
 
 /** Empties every table, after the migrations have run. */
 function emptied(): Promise<unknown>
@@ -104,6 +105,7 @@ describeStorageContract("Postgres", {
 	games: fresh((d) => new PostgresGameRepository(d)),
 	projections: fresh((d) => new PostgresGameProjectionRepository(d)),
 	replays: fresh((d) => new PostgresReplayArtifactRepository(d)),
+	venueFields: fresh((d) => new PostgresVenueFieldRepository(d)),
 	users: together((d) => new PostgresUserRepository(d)),
 	settings: together((d) => new PostgresSettingsRepository(d)),
 });

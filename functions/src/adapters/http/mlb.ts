@@ -203,6 +203,15 @@ export function savantGameFeedUrl(gamePk: number, baseUrl = SAVANT_BASE_URL): st
 }
 
 /**
+ * A ballpark's field outline on Savant's host (S105): a 250×250 SVG keyed by MLB's venue id (`GameSnapshot.venue.id`;
+ * 4169 is loanDepot park, 3313 Yankee Stadium). Ingest asks it once per venue (`keepVenueFields`), never a request.
+ */
+export function venueFieldUrl(venueId: number, baseUrl = SAVANT_BASE_URL): string
+{
+	return `${baseUrl}/site-core/images/fields/${venueId}.svg`;
+}
+
+/**
  * The uniforms each team wore in one game (S101), on the Stats API. `fetchGame` never asks it (a value settled before
  * first pitch, asked by ingest off the fetch path: `withAskedExtras`). The recorder (S14) records the same URL.
  */
@@ -613,6 +622,30 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources, Playe
 		try
 		{
 			return mapSavantGameFeed(parseSavantGameFeedResponse(await this.getJson(savantGameFeedUrl(gamePk, this.savantBaseUrl))), version);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/**
+	 * A ballpark's field drawing (S105), the SVG text as Savant sent it; null when Savant answers an error (an unknown
+	 * venue gets its HTML 404 page), the call fails, or the answer holds no `<svg` element. The caller sanitizes it
+	 * (`sanitizeFieldSvg`) before keeping it.
+	 */
+	async fetchVenueField(venueId: number): Promise<string | null>
+	{
+		try
+		{
+			const response = await this.fetchImpl(venueFieldUrl(venueId, this.savantBaseUrl), {
+				headers: {
+					accept: "image/svg+xml",
+				},
+			});
+			if (!response.ok) return null;
+			const text = await response.text();
+			return text.includes("<svg") ? text : null;
 		}
 		catch
 		{

@@ -13,7 +13,7 @@
  */
 import { fileURLToPath } from "node:url";
 import {
-	ApiRequestBodies, ApiRoutes, PERSON_IDS_PATTERN,
+	ApiMediaTypes, ApiRequestBodies, ApiRoutes, PERSON_IDS_PATTERN,
 } from "@bt/domain";
 import type {
 	ApiRequestTypes, ApiResponseTypes, ApiRoute,
@@ -151,6 +151,24 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 		],
 		errors: {
 			404: "No game with that id.",
+		},
+	},
+	"GET /api/v1/venues/:venueId/field.svg": {
+		operationId: "getVenueField",
+		summary: "A ballpark's field outline: Baseball Savant's 250×250 SVG drawing of the park, for MLB's venue id (a game's `venue.id`), as BT keeps it. BT asks Savant for a park's drawing when it first stores a game there and removes anything that could run or load from elsewhere (scripts, event handlers, outside links) before keeping it; the browser never asks Savant. Cacheable for a day in the browser and 30 days at the edge.",
+		parameters: [
+			{
+				name: "venueId",
+				in: "path",
+				required: true,
+				description: "MLB venue id (`4169` is loanDepot park).",
+				schema: {
+					type: "integer",
+				},
+			},
+		],
+		errors: {
+			404: "BT keeps no drawing for that venue: Savant has none, BT couldn't get it, or no game there has been stored yet.",
 		},
 	},
 	"GET /api/v1/digest": {
@@ -483,12 +501,13 @@ export function generateComponentSchemas(typeNames: readonly (keyof ApiResponseT
 	return components;
 }
 
-function jsonResponse(description: string, schemaName: string): JsonSchema
+/** A response whose body is `schemaName`, as `mediaType` (JSON unless the route table's `ApiMediaTypes` says otherwise, S105). */
+function jsonResponse(description: string, schemaName: string, mediaType = "application/json"): JsonSchema
 {
 	return {
 		description,
 		content: {
-			"application/json": {
+			[mediaType]: {
 				schema: ref(schemaName),
 			},
 		},
@@ -507,7 +526,7 @@ export function buildOpenApiSpec(components: Record<string, JsonSchema>): JsonSc
 		const [method = "", path = ""] = route.split(" ");
 		const description = ROUTE_DESCRIPTIONS[route];
 		const responses: Record<string, JsonSchema> = {
-			200: jsonResponse("OK", responseType),
+			200: jsonResponse("OK", responseType, (ApiMediaTypes as Partial<Record<ApiRoute, string>>)[route]),
 		};
 		for (const [status, text] of Object.entries(description.errors))
 		{

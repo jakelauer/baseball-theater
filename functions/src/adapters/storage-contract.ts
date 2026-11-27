@@ -10,7 +10,8 @@ import type {
 } from "@bt/domain";
 import { entitlementsForTier, projectGame } from "@bt/domain";
 import type {
-	GameProjectionRepository, GameRepository, ReplayArtifact, ReplayArtifactRepository, ScheduleRepository, SettingsRepository, UserRepository,
+	GameProjectionRepository, GameRepository, ReplayArtifact, ReplayArtifactRepository, ScheduleRepository, SettingsRepository, UserRepository, VenueField,
+	VenueFieldRepository,
 } from "@bt/ports";
 import { FixtureMlbStatsClient } from "./fixtures/mlb.js";
 import { InMemoryExportStore, InMemoryMailer } from "./memory/repos.js";
@@ -29,6 +30,8 @@ export interface StoreFactories
 	games: () => GameRepository;
 	projections: () => GameProjectionRepository;
 	replays: () => ReplayArtifactRepository;
+	/** Each venue's field drawing (S105). */
+	venueFields: () => VenueFieldRepository;
 	users: () => UserRepository;
 	settings: () => SettingsRepository;
 }
@@ -194,6 +197,23 @@ export function describeStorageContract(prefix: string, stores: StoreFactories):
 		{
 			a.patches.length = 0;
 			a.baseTimecode = "mutated";
+		},
+	});
+
+	describeRepositoryContract<number, VenueField>(`${prefix}VenueFieldRepository`, {
+		create: () => stores.venueFields(),
+		// A drawing's version is when BT asked for it (`fetchedAt`), a second per version; its outline names the version.
+		make: async (venueId, version) => ({
+			venueId,
+			svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 250"><path id="v${version}" d="M0,0L${version},1"/></svg>`,
+			fetchedAt: new Date(Date.UTC(2026, 10, 27) + version * 1000).toISOString(),
+		}),
+		keyOf: (field) => field.venueId,
+		keys: [4169, 3313],
+		missingKey: 1,
+		mutate: (field) =>
+		{
+			field.svg = "mutated";
 		},
 	});
 
