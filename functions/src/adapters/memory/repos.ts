@@ -523,7 +523,10 @@ export class InMemoryReplayArtifactRepository implements ReplayArtifactRepositor
 	}
 }
 
-/** Each venue's field drawing (S105), versioned by when BT asked Savant (`fetchedAt`), newer only (ADR-022). */
+/**
+ * Each venue's field drawing (S105), versioned by when BT asked Savant (`fetchedAt`), newer only (ADR-022), and a kept
+ * drawing never replaced by a later ask that got none, as the Postgres adapter's `setWhere` does.
+ */
 export class InMemoryVenueFieldRepository implements VenueFieldRepository
 {
 	private readonly store = new VersionedMemoryStore<number, VenueField>((field) => Date.parse(field.fetchedAt));
@@ -535,6 +538,7 @@ export class InMemoryVenueFieldRepository implements VenueFieldRepository
 
 	async upsert(field: VenueField): Promise<void>
 	{
+		if (field.svg === null && this.store.get(field.venueId)?.svg) return;
 		this.store.put(field.venueId, field);
 	}
 }

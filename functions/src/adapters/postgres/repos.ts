@@ -715,7 +715,10 @@ export class PostgresReplayArtifactRepository implements ReplayArtifactRepositor
 	}
 }
 
-/** Each venue's field drawing (S105): one row per venue id, replaced only by a later ask (`fetched_at`, ADR-022). */
+/**
+ * Each venue's field drawing (S105): one row per venue id, replaced only by a later ask (`fetched_at`, ADR-022), and a
+ * kept drawing never by a later ask that got none (`VenueFieldRepository.upsert`).
+ */
 export class PostgresVenueFieldRepository implements VenueFieldRepository
 {
 	constructor(private readonly db: PostgresDb) {}
@@ -738,8 +741,8 @@ export class PostgresVenueFieldRepository implements VenueFieldRepository
 				svg: sql`excluded.svg`,
 				fetchedAt: sql`excluded.fetched_at`,
 			},
-			// ISO times from toISOString compare in time order as text.
-			setWhere: sql`excluded.fetched_at > ${venueFields.fetchedAt}`,
+			setWhere: sql`(${venueFields.svg} IS NULL OR excluded.svg IS NOT NULL)
+				AND excluded.fetched_at::timestamptz > ${venueFields.fetchedAt}::timestamptz`,
 		});
 	}
 }

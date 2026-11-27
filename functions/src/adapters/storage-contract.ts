@@ -20,7 +20,7 @@ import {
 } from "../services/personal-data.js";
 import {
 	describeBatchedWritesContract, describeGameStateFieldsContract, describeIdentityLinkContract, describePersonalDataStoreContract, describeRepositoryContract,
-	describeScheduleCountsContract,
+	describeScheduleCountsContract, describeVenueFieldContract,
 } from "./repository-contract.js";
 
 /** A fresh, empty instance of each repository an adapter implements. */
@@ -216,6 +216,7 @@ export function describeStorageContract(prefix: string, stores: StoreFactories):
 			field.svg = "mutated";
 		},
 	});
+	describeVenueFieldContract(`${prefix}VenueFieldRepository`, () => stores.venueFields());
 
 	describeIdentityLinkContract(`${prefix}UserRepository`, () => stores.users());
 

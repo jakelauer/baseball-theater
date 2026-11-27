@@ -16,7 +16,8 @@
  * Case (j) is the schedule repository's month read (S124, `listGameCounts`).
  * Case (k) is the game-state repository's write rule (S150), and case (l) the schedule repository's `served_base`
  * raise, read from the game-state store of the same database (S150). Case (m) is the game repository's state-field
- * read (S150). Case (p) is the player-id repository's register sync and batched read (S209).
+ * read (S150). Case (p) is the player-id repository's register sync and batched read (S209). Case (q) is the venue
+ * field repository's keep rule (S105): a later ask that got no drawing never replaces a kept one.
  */
 import {
 	beforeEach, describe, expect, it,
@@ -29,7 +30,7 @@ import {
 } from "@bt/domain";
 import type {
 	GameProjectionRepository, GameRepository, GameStateRepository, OwedEdgePurge, OwedEdgePurgeRepository, PersonalDataStore, PlayerIdRepository, PlayerIdRow,
-	ScheduleRepository, UserRepository,
+	ScheduleRepository, UserRepository, VenueField, VenueFieldRepository,
 } from "@bt/ports";
 
 /** The reads and writes every keyed repository shares. */
@@ -1145,6 +1146,47 @@ export function describePlayerIdContract(label: string, create: () => PlayerIdRe
 				syncedAt: later(30 * hour),
 				triedAt: later(30 * hour),
 			});
+		});
+	});
+}
+
+/**
+ * Case (q), the venue field repository's keep rule (S105): newer only by `fetchedAt` (ADR-022), and a kept drawing is
+ * never replaced by none. A later ask that timed out or failed stores null with a later `fetchedAt`; were it to win,
+ * the park would answer 404 until the week's retry. A null still replaces a null (the retry clock moves on), and a
+ * later drawing replaces either.
+ */
+export function describeVenueFieldContract(label: string, create: () => VenueFieldRepository): void
+{
+	describe(`${label} — repository contract`, () =>
+	{
+		/** A field for venue 4169 asked at second `second` of 2026-11-27, with a drawing naming that second or none. */
+		const field = (second: number, drawn: boolean): VenueField => ({
+			venueId: 4169,
+			svg: drawn ? `<svg xmlns="http://www.w3.org/2000/svg"><path id="s${second}" d="M0,0"/></svg>` : null,
+			fetchedAt: new Date(Date.UTC(2026, 10, 27) + second * 1000).toISOString(),
+		});
+
+		it("(q) a later null never replaces a kept drawing; a later null replaces a null, and a later drawing replaces either", async () =>
+		{
+			const kept = create();
+			await kept.upsert(field(1, true));
+			await kept.upsert(field(2, false));
+			expect(await kept.get(4169)).toEqual(field(1, true));
+			await kept.upsert(field(3, true));
+			expect(await kept.get(4169)).toEqual(field(3, true));
+			await kept.upsert(field(4, false));
+			expect(await kept.get(4169)).toEqual(field(3, true));
+
+			const none = create();
+			await none.upsert(field(1, false));
+			await none.upsert(field(2, false));
+			expect(await none.get(4169)).toEqual(field(2, false));
+			await none.upsert(field(3, true));
+			expect(await none.get(4169)).toEqual(field(3, true));
+			// Newer only still holds: an older drawing never replaces a newer one.
+			await none.upsert(field(2, true));
+			expect(await none.get(4169)).toEqual(field(3, true));
 		});
 	});
 }

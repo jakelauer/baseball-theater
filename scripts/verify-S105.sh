@@ -126,5 +126,24 @@ grep -vE '^(fixtures/|packages/mlb-api/src/|packages/ports/src/|packages/domain/
 grep -E '^(scripts/|test/)' "$TMP/changed.txt" | grep -vE '^scripts/verify-S105\.sh$' >"$TMP/scripts.txt"
 [ -s "$TMP/scripts.txt" ] && bad 6 "the story changes files under scripts/ or test/: $(tr '\n' ' ' <"$TMP/scripts.txt")"
 
+# --- Ledger notes (the reuse check and a follow-up), printed so audit.sh captures them ------------------------
+cat <<'NOTES'
+S105 notes (design reasoning, not checked by this grader) —
+Reuse check (ADR-025): the bounded ask is askWithinLimit (player-of-the-game.ts, S99/S216), and the drawing ask
+  runs as one more step of runAfterWrites in ingest.ts rather than a new path. The memory double is the shared
+  VersionedMemoryStore and the store runs the shared contract (describeRepositoryContract, plus case (q),
+  describeVenueFieldContract, for its keep rule); the Postgres upsert follows the file's ::timestamptz setWhere form.
+  The route reuses the route table (packages/domain/src/api-routes.ts), extended by ApiMediaTypes rather than a
+  second table, noStore / notFound for its 404, and S212's PAST_EDGE_TTL_S / PAST_STALE_S (cache-control.ts, after
+  S47) for VENUE_FIELD_CACHE_CONTROL. The fixture client reads the raw recordings as S103's does, and the Worker's
+  bundled copy follows the bundled-fixture pattern (bundled.ts, guarded by bundled.test.ts). Nothing fit the
+  sanitizer: the repo had no SVG or HTML sanitizer and none is added as a dependency, so sanitizeFieldSvg is a small
+  allowlist parser, and its result is safe only shown as an image, never inlined into a page.
+Follow-up (not built by S105): pnpm db:seed stores the fixture games through the seed path, which composes no
+  drawing store, so in pnpm dev the fixture parks (4169, 3313) answer 404 until a game there is first stored by
+  ingest. A later item that wants local drawings composes venueFields and the fixture client into the seed path
+  (seedFromFixtures / functions/src/scripts/db-seed.ts) or stores the two recordings there.
+NOTES
+
 report "verify-S105"
 exit $?

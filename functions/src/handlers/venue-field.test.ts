@@ -24,6 +24,7 @@ function api(answer?: () => Promise<string | null>)
 	const mlb = new FixtureMlbStatsClient();
 	const fetchVenueField = vi.spyOn(mlb, "fetchVenueField");
 	if (answer) fetchVenueField.mockImplementation(answer);
+	const venueFields = new InMemoryVenueFieldRepository();
 	const auth = createDevAuth();
 	const settings = new InMemorySettingsRepository();
 	const ctx: ApiContext = {
@@ -32,7 +33,7 @@ function api(answer?: () => Promise<string | null>)
 			...memoryScheduleStores(),
 			games: new InMemoryGameRepository(),
 			projections: new InMemoryGameProjectionRepository(),
-			venueFields: new InMemoryVenueFieldRepository(),
+			venueFields,
 		},
 		auth,
 		settings,
@@ -44,6 +45,7 @@ function api(answer?: () => Promise<string | null>)
 	return {
 		get: (pathname: string) => handleApiRequest(new Request(`http://localhost:8787${pathname}`), ctx),
 		fetchVenueField,
+		venueFields,
 	};
 }
 
@@ -90,6 +92,22 @@ describe("GET /api/v1/venues/:venueId/field.svg (S105)", () =>
 		expect((await get("/api/v1/venues/abc/field.svg")).status).toBe(404);
 		expect((await get("/api/v1/venues/4169/field.png")).status).toBe(404);
 		expect(fetchVenueField).not.toHaveBeenCalled();
+	});
+
+	it("S105 AC 4: a venue id of up to nine digits reaches the kept drawing; a tenth digit is not the route", async () =>
+	{
+		const { get, venueFields } = api();
+		const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M0,0\"/></svg>";
+		await venueFields.upsert({
+			venueId: 999999999,
+			svg,
+			fetchedAt: "2026-11-27T00:00:00.000Z",
+		});
+		const nine = await get("/api/v1/venues/999999999/field.svg");
+		expect(nine.status).toBe(200);
+		expect(await nine.text()).toBe(svg);
+		// The same number with a tenth digit (a leading zero) is outside the route's pattern.
+		expect((await get("/api/v1/venues/0999999999/field.svg")).status).toBe(404);
 	});
 
 	it("S105 AC 5: a venue Savant has no drawing for, or a failed fetch, answers 404 and the game is served as without the source", async () =>

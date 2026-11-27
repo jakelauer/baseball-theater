@@ -268,7 +268,10 @@ describe("sanitizeFieldSvg (S105 AC 3)", () =>
 		expect(sanitizeFieldSvg(ok)).toBe(ok);
 		expect(sanitizeFieldSvg(`<!DOCTYPE svg [<!ENTITY x "<script>alert(1)</script>">]>${ok}`)).toBeNull();
 		expect(sanitizeFieldSvg("<svg><g></svg>")).toBeNull();
-		// A closing tag inside a script is markup to XML, so the script can't hide one: refused as mismatched.
+		// A closing tag that names an element other than the innermost open one.
+		expect(sanitizeFieldSvg("<svg><g></h></svg>")).toBeNull();
+		// A closing tag inside a script is markup to XML, so the script can't hide one: its `</svg>` closes the script,
+		// and the document's last closing tag then finds nothing open.
 		expect(sanitizeFieldSvg("<svg><script>alert(\"</svg>\")</script></svg>")).toBeNull();
 		expect(sanitizeFieldSvg("<svg><g>")).toBeNull();
 		expect(sanitizeFieldSvg("<svg><path d=M0/></svg>")).toBeNull();
@@ -281,8 +284,73 @@ describe("sanitizeFieldSvg (S105 AC 3)", () =>
 		expect(sanitizeFieldSvg("<svg><path d=\"M0\"x=\"1\"/></svg>")).toBeNull();
 		expect(sanitizeFieldSvg("<html><body>Error</body></html>")).toBeNull();
 		expect(sanitizeFieldSvg("<foreignObject><svg></svg></foreignObject>")).toBeNull();
-		expect(sanitizeFieldSvg(`<svg>${" ".repeat(VENUE_FIELD_MAX_LENGTH)}</svg>`)).toBeNull();
+		// The cap is inclusive: a document of exactly VENUE_FIELD_MAX_LENGTH characters is kept, one more is refused.
+		const atCap = `<svg>${" ".repeat(VENUE_FIELD_MAX_LENGTH - 11)}</svg>`;
+		expect(atCap).toHaveLength(VENUE_FIELD_MAX_LENGTH);
+		expect(sanitizeFieldSvg(atCap)).toBe(atCap);
+		expect(sanitizeFieldSvg(`<svg> ${atCap.slice(5)}`)).toBeNull();
 	});
+
+	it("S105 AC 3: what an HTML parser reads differently from XML is refused whole, should the drawing ever be inlined", () =>
+	{
+		// HTML ends a comment at `--!>`, `<!-->` and `<!--->`; XML forbids `--` inside one and a trailing `-`.
+		expect(sanitizeFieldSvg("<svg><!-- --!><img src=x onerror=alert(1)> --></svg>")).toBeNull();
+		expect(sanitizeFieldSvg("<svg><!--><img src=x onerror=alert(1)>--></svg>")).toBeNull();
+		expect(sanitizeFieldSvg("<svg><!--->x<img src=x onerror=alert(1)>--></svg>")).toBeNull();
+		expect(sanitizeFieldSvg("<svg><!-- a---></svg>")).toBeNull();
+		// HTML reads CDATA in a title (or anywhere outside foreign content) as a bogus comment that ends at the first `>`.
+		expect(sanitizeFieldSvg("<svg><title><![CDATA[ x><img src=x onerror=alert(1)> ]]></title></svg>")).toBeNull();
+		expect(sanitizeFieldSvg("<svg><style><![CDATA[ .a{} ]]></style></svg>")).toBeNull();
+		// HTML reads an XML declaration as a bogus comment that ends at the first `>`, so only XML's own grammar is kept.
+		expect(sanitizeFieldSvg("<?xml version=\"1.0\" x=\"><img src=x onerror=alert(1)>\"?><svg/>")).toBeNull();
+		expect(sanitizeFieldSvg("<?xml version='1.0' encoding='UTF-8' standalone='no'?>\n<svg/>")).toBe("<?xml version='1.0' encoding='UTF-8' standalone='no'?>\n<svg/>");
+		// Savant's own comment is ordinary, so the recordings still come through intact (above).
+		expect(sanitizeFieldSvg("<svg><!-- Generator: Adobe Illustrator 24.0.0 --></svg>")).toBe("<svg><!-- Generator: Adobe Illustrator 24.0.0 --></svg>");
+	});
+
+	// The browser drops a comment from a style's text and joins the CSS around it: these read as
+	// `url(https://evil.example/p)` and `@import '//evil.example/x.css'`.
+	it.each([
+		["<svg><style>.a{fill:ur<!-- x -->l(https://evil.example/p)}</style></svg>"],
+		["<svg><style>@im<!---->port '/<!---->/evil.example/x.css';</style></svg>"],
+	])("S105 AC 3: a comment inside a kept <style> is refused whole: %s", (svg) =>
+	{
+		expect(sanitizeFieldSvg(svg)).toBeNull();
+	});
+
+	it("S105 AC 3: a comment in a dropped element goes with it, and one beside a kept <style> stays", () =>
+	{
+		expect(sanitizeFieldSvg("<svg><script><!-- x --></script><!-- y --><style>.a{}</style></svg>")).toBe("<svg><!-- y --><style>.a{}</style></svg>");
+	});
+
+	it.each([
+		["image-set in a <style>", "<style>.b{background:image-set(\"https://evil.example/i.png\" 1x)}</style>", "<style></style>"],
+		["a protocol-relative image-set in a <style>", "<style>.c{background:image-set(\"//evil.example/k.png\" 1x)}</style>", "<style></style>"],
+		["a quoted URL under another function name", "<style>.d{background:paint-set(\"https://evil.example/n.png\")}</style>", "<style></style>"],
+		["-webkit-image-set in a style attribute", "<path style=\"fill:-webkit-image-set('https://evil.example/j.png' 1x)\"/>", "<path/>"],
+		["a CSS escape spelling url( in a presentation attribute", "<path fill=\"\\75 rl(https://evil.example/l)\"/>", "<path/>"],
+		["a CSS escape spelling url( in mask", "<path mask=\"\\75rl(https://evil.example/m)\"/>", "<path/>"],
+		["a character reference spelling url( in a style attribute", "<path style=\"fill:&#117;rl(https://evil.example/z)\"/>", "<path/>"],
+	])("S105 AC 3: CSS that loads from elsewhere without a plain url( is refused: %s", (_label, inner, cleaned) =>
+	{
+		const svg = `<svg xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+		expect(sanitizeFieldSvg(svg)).toBe(`<svg xmlns="http://www.w3.org/2000/svg">${cleaned}</svg>`);
+	});
+
+	it("S105 AC 3: a deeply nested drawing is cleaned in linear time", () =>
+	{
+		const started = performance.now();
+		// Unclosed, kept nesting: refused at the end, after every tag is read.
+		expect(sanitizeFieldSvg(`<svg>${"<g>".repeat(87_000)}`)).toBeNull();
+		// Nesting inside a dropped element.
+		expect(sanitizeFieldSvg(`<svg><x>${"<g>".repeat(87_000)}`)).toBeNull();
+		// Closed nesting comes through as it went in.
+		const closed = `<svg>${"<g>".repeat(37_000)}${"</g>".repeat(37_000)}</svg>`;
+		expect(closed.length).toBeLessThanOrEqual(VENUE_FIELD_MAX_LENGTH);
+		expect(sanitizeFieldSvg(closed)).toBe(closed);
+		// Before the open-dropped counter, the first input alone took about 19 s (each tag scanned every open element).
+		expect(performance.now() - started).toBeLessThan(2_500);
+	}, 30_000);
 
 	it("S105 AC 3: ingest keeps only the sanitized drawing, and none when the sanitizer refuses Savant's answer", async () =>
 	{
@@ -325,12 +393,28 @@ describe("an optional source (S105 AC 5)", () =>
 			expect(fetchVenueField).toHaveBeenCalledTimes(1);
 			expect((await venueFields.get(4169))?.svg).toBeNull();
 		}
-		const { mlb, venueFields } = setup(() => new Promise<string | null>(() => undefined));
-		await keepVenueFields({
-			mlb,
-			venueFields,
-		}, [4169], new Date("2026-11-27T00:00:00.000Z"), 10);
-		expect((await venueFields.get(4169))?.svg).toBeNull();
+		// A hanging fetch: the ask gives up at `limitMs` (10 ms here), not at the 3 s default.
+		vi.useFakeTimers();
+		try
+		{
+			const { mlb, venueFields } = setup(() => new Promise<string | null>(() => undefined));
+			let settled = false;
+			const kept = keepVenueFields({
+				mlb,
+				venueFields,
+			}, [4169], new Date("2026-11-27T00:00:00.000Z"), 10).then(() =>
+			{
+				settled = true;
+			});
+			await vi.advanceTimersByTimeAsync(10);
+			expect(settled).toBe(true);
+			await kept;
+			expect((await venueFields.get(4169))?.svg).toBeNull();
+		}
+		finally
+		{
+			vi.useRealTimers();
+		}
 	});
 
 	it("S105 AC 5: a drawing store that fails is logged and the game is still stored and served", async () =>

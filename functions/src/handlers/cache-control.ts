@@ -119,7 +119,7 @@ export const PAST_CACHE_CONTROL = `public, max-age=${PAST_BROWSER_MAX_AGE_S}, s-
 
 /**
  * A ballpark's field drawing (S105, `GET /api/v1/venues/:venueId/field.svg`): a park's outline almost never changes and
- * BT never replaces one it keeps, so a browser keeps it a day and the edge for ADR-021's cap ({@link PAST_EDGE_TTL_S}),
+ * BT never takes away one it keeps (only a later drawing replaces it), so a browser keeps it a day and the edge for ADR-021's cap ({@link PAST_EDGE_TTL_S}),
  * served stale for a day ({@link PAST_STALE_S}) while it refetches.
  */
 export const VENUE_FIELD_CACHE_CONTROL = `public, max-age=86400, s-maxage=${PAST_EDGE_TTL_S}, stale-while-revalidate=${PAST_STALE_S}`;

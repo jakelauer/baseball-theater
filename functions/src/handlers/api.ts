@@ -107,7 +107,8 @@ export function sendJson<R extends ApiRoute>(
  * Sends a route whose 200 is an SVG drawing (S105, the route table's `ApiMediaTypes`), its body checked against the
  * route's entry as `sendJson` checks a JSON body. The drawing was sanitized before it was stored (`sanitizeFieldSvg`);
  * the policy header is a second guard should it be opened as a page: nothing in it may run or load, its own inline
- * styles aside, and the browser may not read it as anything but SVG.
+ * styles aside, and the browser may not read it as anything but SVG. A client shows it as an image (`<img src>`), never
+ * inlined into a page, where neither the policy nor the sanitizer's XML reading holds.
  */
 function sendSvg<R extends keyof typeof ApiMediaTypes>(_route: R, body: ApiResponseFor<R>, cacheControl: string): Response
 {

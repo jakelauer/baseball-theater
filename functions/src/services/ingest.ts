@@ -451,7 +451,10 @@ async function storeGames(
 /**
  * One fetched game through {@link storeGames} with its projection and purge written at once after it
  * (`runAfterWrites`): every writer but an on-read refresh (game ingest, the recent-game re-check, the cron's tick, the
- * seed paths), so the purge stays awaited after its write. `stored` is what the caller read (S216: never read again).
+ * seed paths), so the purge stays awaited after its write. With `venueFields` composed, a game stored for the first
+ * time also asks for its venue's field drawing, last among those steps (S105, `keepVenueFields`), awaited too: a new
+ * venue can hold the write (and a game's ingest object, its poll's publish) up to `VENUE_FIELD_LIMIT_MS` (3 s). `stored`
+ * is what the caller read (S216: never read again).
  */
 async function storeGame(
 	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge" | "dayHubs"> & VenueFieldAsk,

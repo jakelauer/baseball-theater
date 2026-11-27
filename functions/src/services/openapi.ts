@@ -168,7 +168,7 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 			},
 		],
 		errors: {
-			404: "BT keeps no drawing for that venue: Savant has none, BT couldn't get it, or no game there has been stored yet.",
+			404: "BT keeps no drawing for that venue: Savant has none, BT couldn't get it, or BT has first stored no game there since it began keeping drawings (a park whose games were all stored earlier has none until its next new game).",
 		},
 	},
 	"GET /api/v1/digest": {

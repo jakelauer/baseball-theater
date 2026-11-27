@@ -196,7 +196,11 @@ export interface VenueField {
 /** The field drawings BT keeps by venue (S105). */
 export interface VenueFieldRepository {
 	get(venueId: number): Promise<VenueField | null>;
-	/** Stores `field` unless the stored row was fetched at the same time or later (ADR-022: newer only). */
+	/**
+	 * Stores `field` unless the stored row was fetched at the same time or later (ADR-022: newer only), or the stored row
+	 * holds a drawing and `field` holds none: a later ask that failed never takes a kept drawing away. A later null
+	 * still replaces a null, so the retry clock moves on.
+	 */
 	upsert(field: VenueField): Promise<void>;
 }
 

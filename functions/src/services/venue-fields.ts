@@ -4,7 +4,9 @@
  * (ADR-002): a game's first write asks Savant for its venue's drawing when BT keeps none ({@link keepVenueFields}, run
  * among the write's after-steps in `ingest.ts`), sanitizes it ({@link sanitizeFieldSvg}) and keeps it; the route
  * `GET /api/v1/venues/:venueId/field.svg` only reads what is kept, so neither a request nor the browser ever reaches
- * Savant. The drawings are MLB's artwork; the terms and the owner's go-ahead are in `docs/v3/SAVANT-DATA.md`.
+ * Savant. A kept drawing is safe only shown as an image (`<img src>`, a CSS background) or opened as its own document
+ * under the route's policy header, never inlined into a page ({@link sanitizeFieldSvg} says why). The drawings are
+ * MLB's artwork; the terms and the owner's go-ahead are in `docs/v3/SAVANT-DATA.md`.
  */
 import type { MlbStatsClient, VenueFieldRepository } from "@bt/ports";
 import { askWithinLimit } from "./player-of-the-game.js";
@@ -18,7 +20,8 @@ export const VENUE_FIELD_LIMIT_MS = 3_000;
 /**
  * How long a venue BT asked and got no drawing for (Savant has none, the call failed or timed out, or its answer was
  * refused) waits before a new game there asks again: a week, so a failure is retried without asking on every game.
- * A kept drawing is never asked again.
+ * A kept drawing is never asked again, and never replaced by none (`VenueFieldRepository.upsert` refuses a later null
+ * over it).
  */
 export const VENUE_FIELD_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -61,25 +64,40 @@ function decodeEntities(text: string): string
 }
 
 /**
- * Whether decoded CSS (a `<style>` element's text or a `style` attribute) can reach outside the drawing or run
- * anything: an `@import`, a `url(…)` to anything but a local `#` fragment, old script hooks (`expression(`,
- * `-moz-binding`, `behavior`, `javascript:`), or any backslash, since a CSS escape can spell any of those (`\75 rl(`).
+ * CSS functions that load an image from a string, no `url(` needed (`image-set("https://…" 1x)`), with or without a
+ * vendor prefix (`-webkit-image-set(`).
+ */
+const LOADING_CSS_FUNCTION = /(?:^|[^a-z0-9_-])(?:-[a-z]+-)?(?:image-set|image|cross-fade|element|src)\s*\(/;
+
+/**
+ * Whether decoded CSS (a `<style>` element's text, or any attribute value, since presentation attributes such as
+ * `fill` and `mask` are read as CSS too) can reach outside the drawing or run anything: an `@import`, a `url(…)` to
+ * anything but a local `#` fragment, a function that loads an image from a string ({@link LOADING_CSS_FUNCTION}), a
+ * quoted string holding a URL (`//…` or a scheme, so a function nobody listed can't load one either), old script hooks
+ * (`expression(`, `-moz-binding`, `behavior`, `javascript:`), or any backslash, since a CSS escape can spell any of
+ * those (`\75 rl(`). Only quoted strings inside the value are read as URLs: a bare value such as `xmlns`'s
+ * `http://www.w3.org/2000/svg` loads nothing.
  */
 function unsafeCss(css: string): boolean
 {
 	const lower = css.toLowerCase();
-	if (/[\\]|@import|expression\s*\(|-moz-binding|behavior\s*:|javascript:/.test(lower)) return true;
+	if (/[\\]|@import|expression\s*\(|-moz-binding|behavior\s*:|javascript:/.test(lower) || LOADING_CSS_FUNCTION.test(lower)) return true;
 	for (const match of lower.matchAll(/url\s*\(\s*(['"]?)\s*([^'")]*)/g))
 	{
 		if (!(match[2] ?? "").startsWith("#")) return true;
+	}
+	for (const match of lower.matchAll(/(["'])(.*?)\1/g))
+	{
+		if (/\/\/|^\s*[a-z][a-z0-9+.-]*:/.test(match[2] ?? "")) return true;
 	}
 	return false;
 }
 
 /**
  * Whether an attribute may stay: never an event handler (`on…`), never `xml:base`, an `href` in any namespace
- * (`href`, `xlink:href`) only to a local `#` fragment, never a value naming `javascript:`, and a value with CSS in
- * it (`style`, or `url(…)` in `fill`, `clip-path`, …) only when {@link unsafeCss} passes it. Values are read decoded.
+ * (`href`, `xlink:href`) only to a local `#` fragment, never a value naming `javascript:`, and any other value only
+ * when {@link unsafeCss} passes it, since `style` and every presentation attribute (`fill`, `mask`, `clip-path`, …)
+ * are read as CSS. Values are read decoded, as the browser reads them.
  */
 function keptAttribute(name: string, rawValue: string): boolean
 {
@@ -90,9 +108,11 @@ function keptAttribute(name: string, rawValue: string): boolean
 	if (lower.startsWith("on") || lower === "xml:base") return false;
 	if (local === "href") return value.trim().startsWith("#");
 	if (squashed.includes("javascript:")) return false;
-	if (lower === "style" || squashed.includes("url(")) return !unsafeCss(value);
-	return true;
+	return !unsafeCss(value);
 }
+
+/** XML's declaration, whole: a version, then an optional encoding and standalone, each quoted, nothing else. */
+const XML_DECLARATION = /^<\?xml\s+version\s*=\s*(["'])1\.[0-9]+\1(?:\s+encoding\s*=\s*(["'])[A-Za-z][A-Za-z0-9._-]*\2)?(?:\s+standalone\s*=\s*(["'])(?:yes|no)\3)?\s*\?>$/;
 
 /** One parsed start tag: its name, its attributes as written, whether it closes itself, and where it ends. */
 type StartTag = { name: string;
@@ -151,9 +171,18 @@ function parseStartTag(svg: string, at: number): StartTag | null
  * {@link keptAttribute} refuses (`on…` handlers, an `href` / `xlink:href` to anything but a `#` fragment). A
  * `<style>` whose CSS {@link unsafeCss} refuses keeps the element but loses its text. Refused whole (null): a
  * `<!DOCTYPE` or other declaration (its entities could smuggle markup in), anything that isn't well-formed (an
- * unclosed or mismatched tag, an unquoted attribute), a document over {@link VENUE_FIELD_MAX_LENGTH}, or one left with
- * no `<svg>` element. It parses, never regex-replaces, so markup split across a comment or an attribute can't slip
- * through.
+ * unclosed or mismatched tag, an unquoted attribute, `--` inside a comment or a comment ending in `-`), a kept comment
+ * that HTML would close early (`<!-->`, `<!--->`), a comment inside a kept `<style>` (the browser drops it and joins
+ * the CSS around it, so it could split a forbidden word), a kept CDATA section, a leading `<?xml` that isn't XML's own
+ * declaration grammar, a document over {@link VENUE_FIELD_MAX_LENGTH}, or one left with no `<svg>` element. It parses,
+ * never regex-replaces, so markup split across a comment or an attribute can't slip through, and it tracks how many
+ * dropped elements are open, so each tag costs the same however deep the nesting.
+ *
+ * It reads the drawing as XML, as a browser does for an `image/svg+xml` image or document. The result is safe only
+ * shown that way: as an image (`<img src>`, a CSS background) or opened as its own document under the route's policy
+ * header, **never inlined into a page** (`innerHTML`, `dangerouslySetInnerHTML`). An HTML parser reads comments, CDATA
+ * and declarations differently (`--!>` closes a comment, CDATA in a `<title>` ends at its first `>`), so markup XML
+ * reads as text could run there. The HTML-only readings named above are refused too, as a second guard, not a promise.
  */
 export function sanitizeFieldSvg(svg: string): string | null
 {
@@ -163,7 +192,9 @@ export function sanitizeFieldSvg(svg: string): string | null
 	/** Open elements, innermost last; `dropped` marks one dropped (with all it holds). */
 	const open: { name: string;
 		dropped: boolean; }[] = [];
-	const dropping = () => open.some((element) => element.dropped);
+	/** How many of `open` are dropped: inside any of them, everything is dropped. A count, so each check is O(1). */
+	let droppedOpen = 0;
+	const dropping = () => droppedOpen > 0;
 	const inStyle = () => open.at(-1)?.name === "style" && !dropping();
 	/** Text inside a kept `<style>` is CSS: kept only when safe. */
 	let styleText: string[] = [];
@@ -186,7 +217,12 @@ export function sanitizeFieldSvg(svg: string): string | null
 		{
 			const end = svg.indexOf("-->", lt + 4);
 			if (end === -1) return null;
-			// A comment does nothing in SVG; inside a style it would be CSS text, so it goes through the CSS check.
+			// XML forbids `--` inside a comment and a `-` before its end; HTML would close `<!-->` and `<!--->` at once.
+			const body = svg.slice(lt + 4, end);
+			if (body.includes("--") || body.endsWith("-") || body.startsWith(">") || body.startsWith("->")) return null;
+			// A comment does nothing in SVG. Inside a kept style the browser drops it and joins the CSS on either side
+			// (`ur<!-- -->l(` reads as `url(`), so no check of the pieces can stand for the sheet: refused whole.
+			if (inStyle()) return null;
 			emitText(svg.slice(lt, end + 3), svg.slice(lt, end + 3));
 			i = end + 3;
 		}
@@ -194,16 +230,22 @@ export function sanitizeFieldSvg(svg: string): string | null
 		{
 			const end = svg.indexOf("]]>", lt + 9);
 			if (end === -1) return null;
-			// Character data isn't entity-decoded, so its decoded form is itself.
-			emitText(svg.slice(lt, end + 3), svg.slice(lt + 9, end));
+			// Character data is kept nowhere: HTML reads it as a comment that ends at its first `>`. Inside a dropped
+			// element (a script's body) it goes with the element.
+			if (!dropping()) return null;
 			i = end + 3;
 		}
 		else if (svg.startsWith("<?", lt))
 		{
 			const end = svg.indexOf("?>", lt + 2);
 			if (end === -1) return null;
-			// Only the XML declaration, and only first in the document, is kept.
-			if (lt === 0 && /^<\?xml\s/.test(svg.slice(0, 6))) out += svg.slice(lt, end + 2);
+			// Only the XML declaration, and only first in the document, is kept, and only in XML's own grammar: HTML
+			// reads it as a comment that ends at its first `>`, so a `>` inside a value would end it early.
+			if (lt === 0 && /^<\?xml\s/.test(svg.slice(0, 6)))
+			{
+				if (!XML_DECLARATION.test(svg.slice(0, end + 2))) return null;
+				out += svg.slice(lt, end + 2);
+			}
 			i = end + 2;
 		}
 		else if (svg.startsWith("<!", lt))
@@ -217,6 +259,7 @@ export function sanitizeFieldSvg(svg: string): string | null
 			const name = svg.slice(lt + 2, end).trim();
 			const element = open.pop();
 			if (!element || element.name !== name) return null;
+			if (element.dropped) droppedOpen--;
 			if (!element.dropped && !dropping())
 			{
 				if (name === "style")
@@ -242,10 +285,14 @@ export function sanitizeFieldSvg(svg: string): string | null
 					? svg.slice(lt, tag.end)
 					: `<${tag.name}${kept.map((attribute) => ` ${attribute.text}`).join("")}${tag.selfClosing ? "/>" : ">"}`;
 			}
-			if (!tag.selfClosing) open.push({
-				name: tag.name,
-				dropped,
-			});
+			if (!tag.selfClosing)
+			{
+				open.push({
+					name: tag.name,
+					dropped,
+				});
+				if (dropped) droppedOpen++;
+			}
 			i = tag.end;
 		}
 	}
@@ -273,7 +320,8 @@ export type VenueFieldDeps = {
  * integer; repeats count once) with no drawing kept, and no failed ask in the last {@link VENUE_FIELD_RETRY_MS}, asks
  * Savant once (bounded by `limitMs`), sanitizes the answer and stores it, or stores null (no drawing, a failed or slow
  * call, or an answer the sanitizer refused) so the venue isn't asked again on every game. A kept drawing is never asked
- * again or replaced. `at` is the write's time: the row's `fetchedAt`. The source is optional (AC 5), so this never
+ * again, and the store never replaces it with a later null (`VenueFieldRepository.upsert`): only a later drawing, from
+ * two first asks racing, replaces it. `at` is the write's time: the row's `fetchedAt`. The source is optional (AC 5), so this never
  * throws: a venue whose read or write fails is logged and skipped, the rest still asked, and the game's own writes,
  * which ran before it, stand.
  */

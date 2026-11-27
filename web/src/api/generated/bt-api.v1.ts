@@ -2240,7 +2240,7 @@ export interface operations {
                     "image/svg+xml": components["schemas"]["VenueFieldSvgResponse"];
                 };
             };
-            /** @description BT keeps no drawing for that venue: Savant has none, BT couldn't get it, or no game there has been stored yet. */
+            /** @description BT keeps no drawing for that venue: Savant has none, BT couldn't get it, or BT has first stored no game there since it began keeping drawings (a park whose games were all stored earlier has none until its next new game). */
             404: {
                 headers: {
                     [name: string]: unknown;
