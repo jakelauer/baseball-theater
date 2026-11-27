@@ -32,8 +32,8 @@
  *       in `fragment`. Any command that fails other than by refusing exits 2.
  *   node scripts/backlog-vault/runs.ts fragment --journal <run.json> --date <d> --stamp <s>
  *       --head <text> [--audit <ledger>] [--abandoned]   prints the run entry (`audit.sh run` writes it), its
- *       findings per pull request from the journal's `findings` events alone (no GitHub read; a pull request with none
- *       is unknown, and check-end says how many)
+ *       findings per pull request from the journal's `findings` events alone (no GitHub read; any pull request with
+ *       none leaves the run unmeasured, its figure unknown, and check-end says how many)
  *   node scripts/backlog-vault/runs.ts turn-caps [--audit <ledger>] [--run-dir <main checkout>/.run]
  *       one line per item with a turn-cap hit no backlog review lists: `<ID>\t<turn-cap event JSON>`
  *   node scripts/backlog-vault/runs.ts debt-hits --debt-json <file>     the hits a review's seed held, as its row's text
@@ -195,7 +195,7 @@ export interface RunSummary extends RunRecord
 	conflicts: number;
 	duplicates: number;
 	prs: number[];
-	/** Pull requests with no recorded pre-PR findings ({@link prePrFindingsByPr}), left out of findings per pull request. */
+	/** Pull requests with no recorded pre-PR findings ({@link prePrFindingsByPr}); any at all leaves the run unmeasured. */
 	unknownFindingsPrs: number;
 	turnCaps: TurnCapHit[];
 	/** Items still in flight at the journal's end (`audit.sh run` refuses to record such a run unless it is abandoned). */
@@ -269,7 +269,7 @@ export function prePrFindingsByPr(journal: RunJournal): Record<number, number | 
 /**
  * Summarize a run's journal (S158 ACs 2, 3 and 7), pure. `findingsByPr` maps a pull request number to its
  * findings ({@link prePrFindingsByPr}: its item's pre-PR review findings), a pull request it leaves out or maps to
- * null being unknown: findings per pull request average the known ones only; `earlierRuns` are the earlier run entries (any order); `abandoned`
+ * null being unknown: one unknown pull request leaves the run unmeasured (no findings figure, see below); `earlierRuns` are the earlier run entries (any order); `abandoned`
  * is a run the owner chose not to finish, which never counts. Active time leaves out every span from
  * `interrupted` to the next `run-resume`; an item is in flight from `item-start` to its `merged`, `park` or
  * `held`, and again from each `resume` (one with no `item-start` never is). Only items this run started count
@@ -420,15 +420,17 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 	const drain = drainFrom === undefined || drainTo === undefined ? null : active(drainFrom, drainTo);
 	const known = prs.map((pr) => findingsByPr[pr]).filter((n): n is number => typeof n === "number");
 	const unknownFindingsPrs = prs.length - known.length;
-	const findingsPerPr = known.length === 0 ? null : roundFindings(known.reduce((a, b) => a + b, 0) / known.length);
+	// Any unknown pull request leaves the whole run unmeasured: averaging only the known ones would let one `--count 0`
+	// among twelve unrecorded pull requests read 0 and become the bar for every later run.
+	const findingsPerPr = prs.length === 0 || unknownFindingsPrs > 0 ? null : roundFindings(known.reduce((a, b) => a + b, 0) / known.length);
 	const counted = started.size >= MIN_ITEMS && peak >= journal.c && merged >= 1 && !opts.abandoned;
 	// The bar (owner, 2026-11-20: "First C=2 run sets it"): the lowest findings per pull request of the earlier
 	// counted runs at C = 2. None yet, and this run meets it. A run too small to count never sets it.
 	const bars = earlierRuns.filter((r) => r.counted && r.c === 2 && r.findingsPerPr !== null).map((r) => roundFindings(r.findingsPerPr!));
-	// A run that opened pull requests but recorded no findings for any of them is not clean on this point, even with no
-	// bar yet: the owner chose to count pre-PR findings (2026-11-26: "Count pre-PR findings (Recommended)"), and "the
-	// first run passes this condition by definition" was said of a run whose findings were counted. Passing it would
-	// let C climb with nothing measured. A run with some known pull requests is judged on their average.
+	// An unmeasured run (pull requests opened, any of them with no recorded findings) is not clean on this point, even
+	// with no bar yet, and its null figure never sets the bar (filtered above): the owner chose to count pre-PR findings
+	// (2026-11-26: "Count pre-PR findings (Recommended)"), and "the first run passes this condition by definition" was
+	// said of a run whose findings were counted. Passing it would let C climb with nothing measured.
 	const unmeasured = prs.length > 0 && findingsPerPr === null;
 	const underBar = !unmeasured && (bars.length === 0 || (findingsPerPr ?? 0) <= Math.min(...bars));
 	const clean = counted && conflicts === 0 && duplicates === 0 && drain !== null && drain < MAX_DRAIN_MS && underBar;
@@ -785,7 +787,7 @@ function main(argv: string[]): number
 				problems.push(...endReviewProblems(journal, readLedger(audit)));
 			}
 			problems.forEach((p) => console.error(`runs.ts check-end: ${p}`));
-			// Not a refusal: a pull request with no findings event is recorded as unknown (prePrFindingsByPr), but the
+			// Not a refusal: a pull request with no findings event leaves the run unmeasured (prePrFindingsByPr), but the
 			// coordinator should know before the entry is written, while it can still log the missing counts.
 			const findings = prePrFindingsByPr(journal);
 			const prCount = Object.keys(findings).length;
@@ -793,7 +795,7 @@ function main(argv: string[]): number
 			if (unknown.length > 0)
 			{
 				console.error(`runs.ts check-end: ${unknown.length} of ${prCount} pull requests have no recorded pre-PR findings (${unknown.join(", ")}): `
-					+ "they count as unknown, left out of findings per pull request; log run event findings <ID> --count <n> for each item first if the counts are known");
+					+ "the run is recorded unmeasured (findings per pull request unknown, not clean, never the bar); log run event findings <ID> --count <n> for each item first if the counts are known");
 			}
 			return problems.length > 0 ? 1 : 0;
 		}

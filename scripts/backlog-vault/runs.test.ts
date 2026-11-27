@@ -84,12 +84,13 @@ describe("prePrFindingsByPr (owner, 2026-11-26: \"Count pre-PR findings (Recomme
 			3: 0,
 			4: null,
 		});
-		// Only the two known pull requests are averaged: (3 + 0) / 2.
+		// Two of four unknown: the run is unmeasured, never an average of the two known.
 		const s = sum(events, {
 			findings: prePrFindingsByPr(journal(events)),
 		});
-		expect(s.findingsPerPr).toBe(1.5);
+		expect(s.findingsPerPr).toBeNull();
 		expect(s.unknownFindingsPrs).toBe(2);
+		expect(s.clean).toBe(false);
 	});
 
 	it("an item's findings go to its first pull request once (a later one of the same item is unknown), a pr-open logged twice is one pull request, and an item with no pull request in the run adds nothing", () =>
@@ -128,9 +129,43 @@ describe("prePrFindingsByPr (owner, 2026-11-26: \"Count pre-PR findings (Recomme
 		expect(sum(events, {
 			findings: prePrFindingsByPr(journal(events)),
 		})).toMatchObject({
-			findingsPerPr: 1,
+			findingsPerPr: null,
 			unknownFindingsPrs: 4,
 		});
+	});
+
+	it("one pull request known at 0 and twelve unknown: unmeasured, so it reads unknown, sets no bar and is not clean", () =>
+	{
+		const thirteen = [...countedRun(), ...Array.from({
+			length: 9,
+		}, (_, i) => item("pr-open", `S${10 + i}`, 56 + i, {
+			pr: 10 + i,
+		}))];
+		const findings = prePrFindingsByPr(journal([...thirteen, item("findings", "S1", 15, {
+			count: 0,
+		})]));
+		expect(Object.values(findings).filter((n) => n === null)).toHaveLength(12);
+		const s = sum(thirteen, {
+			findings,
+		});
+		expect(s).toMatchObject({
+			counted: true,
+			findingsPerPr: null,
+			unknownFindingsPrs: 12,
+			clean: false,
+		});
+		// Recorded with a null figure, it can never become the bar for a later run that found something.
+		expect(sum(countedRun(), {
+			findings: {
+				1: 1,
+			},
+			earlier: [{
+				c: 2,
+				counted: true,
+				clean: false,
+				findingsPerPr: s.findingsPerPr,
+			}],
+		}).clean).toBe(true);
 	});
 
 	it("a run whose findings are all unknown has no findings figure, sets no bar and is not clean, even with no bar yet; its entry says unknown", () =>

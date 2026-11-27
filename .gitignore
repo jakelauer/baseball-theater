@@ -78,3 +78,6 @@ docs/v3/audit/**/.*.tmp
 
 # The backlog issue cache (S164): pnpm backlog:sync writes it in the main checkout; never committed.
 .backlog-cache/
+
+# Python bytecode caches (a reviewer's python3 -m unittest writes them; plan-review.test.ts runs with PYTHONDONTWRITEBYTECODE=1)
+__pycache__/

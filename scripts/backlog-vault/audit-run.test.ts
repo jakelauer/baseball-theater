@@ -343,9 +343,12 @@ describe("audit.sh run refuses what it can't record truly", () =>
 		expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
 		expect(existsSync(join(tmp, "gh-called"))).toBe(false);
 		expect(r.stderr).toContain("1 of 3 pull requests have no recorded pre-PR findings");
-		expect(runEntries(repo)[0]).toMatchObject({
-			findingsPerPr: 1.5,
-		});
+		// Any unknown pull request leaves the run unmeasured: no figure, never an average of the known two.
+		const [entry] = runEntries(repo);
+		expect(entry!.findingsPerPr).toBeNull();
+		const text = readFileSync(join(repo, "docs/v3", entry!.file!), "utf8");
+		expect(text).toContain("| Findings per pull request | unknown |");
+		expect(text).toContain("| Pull requests with unknown findings | 1 |");
 	});
 
 	it("audit.sh run records a run with no findings events as unknown, which the ledger reads back as no figure", () =>
