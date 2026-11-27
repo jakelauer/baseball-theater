@@ -716,6 +716,88 @@ describe("runProgress (S221 AC 1): how far a run has got through its plan", () =
 		});
 	});
 
+	// A parked design match is reviewed, its findings logged and its checkpoint's pull request opened after the park
+	// (run-backlog step 4), so later item events must not move it back to in flight.
+	it.each([
+		["findings", [item("findings", "S1", 3, {
+			count: 2,
+		})]],
+		["pr-open then ready", [item("pr-open", "S1", 3, {
+			pr: 7,
+		}), item("ready", "S1", 4)]],
+		["needs-lead", [item("needs-lead", "S1", 3)]],
+		["conflict", [item("conflict", "S1", 3, {
+			path: "changelog.d/S1.md",
+		})]],
+		["turn-cap", [item("turn-cap", "S1", 3)]],
+	])("S221 AC 1: a parked item stays parked through a later %s", (_, later) =>
+	{
+		expect(progress([plan(0, "S1", "S2"), item("item-start", "S1", 1), item("park", "S1", 2), ...later])).toMatchObject({
+			inFlight: [],
+			parked: ["S1"],
+			next: ["S2"],
+			total: 2,
+			percent: 0,
+		});
+	});
+
+	it("S221 AC 1: the live journal's parked items (S104, S151: park, findings, findings, pr-open) stay parked", () =>
+	{
+		// Each item's events in the order the live run's journal (.run/run.json, 2026-11-27) logged them, where `runs.ts progress` printed "now: S104, S151, S221".
+		const events = [plan(0, "S104", "S151", "S221"), item("item-start", "S104", 1), item("claim", "S104", 2), item("item-start", "S151", 3),
+			item("claim", "S151", 4), item("claim", "S151", 5), item("claim", "S151", 6), item("park", "S104", 7), item("park", "S151", 8),
+			item("item-start", "S221", 9), item("claim", "S221", 10), item("findings", "S104", 11, {
+				count: 3,
+			}), item("findings", "S151", 12, {
+				count: 2,
+			}), item("findings", "S104", 13, {
+				count: 0,
+			}), item("findings", "S151", 14, {
+				count: 0,
+			}), item("pr-open", "S104", 15, {
+				pr: 650,
+			}), item("pr-open", "S151", 16, {
+				pr: 651,
+			}), item("findings", "S221", 17, {
+				count: 2,
+			})];
+		const p = progress(events);
+		expect(p).toMatchObject({
+			inFlight: ["S221"],
+			parked: ["S104", "S151"],
+			total: 3,
+			percent: 0,
+		});
+		const bar = renderProgress("R1", p);
+		expect(bar).toContain("🔨 now: S221\n");
+		expect(bar).toContain("⏸ parked: S104, S151\n");
+	});
+
+	it("S221 AC 1: a park ends on resume, item-start, merged or held, whatever came between", () =>
+	{
+		const parked = [plan(0, "S1"), item("item-start", "S1", 1), item("park", "S1", 2), item("findings", "S1", 3, {
+			count: 1,
+		})];
+		expect(progress([...parked, item("resume", "S1", 4)])).toMatchObject({
+			inFlight: ["S1"],
+			parked: [],
+		});
+		expect(progress([...parked, item("item-start", "S1", 4)])).toMatchObject({
+			inFlight: ["S1"],
+			parked: [],
+		});
+		expect(progress([...parked, item("merged", "S1", 4)])).toMatchObject({
+			finished: ["S1"],
+			parked: [],
+			percent: 100,
+		});
+		expect(progress([...parked, item("held", "S1", 4)])).toMatchObject({
+			setAside: ["S1"],
+			parked: [],
+			total: 0,
+		});
+	});
+
 	it("S221 AC 1: a held item is set aside and leaves the total, so the run reaches 100% once the rest merge", () =>
 	{
 		const p = progress([plan(0, "S1", "B9", "S2"), item("item-start", "B9", 1), item("held", "B9", 2), item("item-start", "S1", 3), item("merged", "S1", 4),
@@ -873,6 +955,13 @@ describe("renderProgress and runs.ts progress (S221 AC 2): one bar for the termi
 		expect(renderProgress("R1", progress([plan(0, "S1", "S2")]))).toBe(["▶ run R1", `${"░".repeat(20)}  0 / 2 merged  0%`, "⏳ next: S1, S2", "─".repeat(40), ""].join("\n"));
 		expect(renderProgress("R1", progress([item("merged", "S1", 1)]))).toBe(["▶ run R1", `${"█".repeat(20)}  1 / 1 merged  100%`, "✅ done: S1", "⏳ next: none", "─".repeat(40), ""].join("\n"));
 		expect(renderProgress("R1", progress([]))).toBe(["▶ run R1", `${"░".repeat(20)}  0 / 0 merged  0%`, "⏳ next: none", "─".repeat(40), ""].join("\n"));
+	});
+
+	it("S221 AC 2: 2 of 3 merged rounds down to 66% and fills 13 of the 20 cells", () =>
+	{
+		const p = progress([plan(0, "S1", "S2", "S3"), item("merged", "S1", 1), item("merged", "S2", 2)]);
+		expect(p.percent).toBe(66);
+		expect(renderProgress("R1", p).split("\n")[1]).toBe(`${"█".repeat(13)}${"░".repeat(7)}  2 / 3 merged  66%`);
 	});
 
 	it("S221 AC 2: runs.ts progress with no readable journal exits 2", () =>

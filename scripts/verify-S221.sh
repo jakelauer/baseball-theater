@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "AC 1: runs.ts exports runProgress(journal); claims.ts RUN_KINDS has a run-level 'plan' event (run event plan --items <ID>,…, each ID checked by ITEM_ID); state from each item's newest RUN_ITEM_KINDS event only; unit tests 'S221 AC 1' cover an empty run, part-way, a park then resume, a held item reaching 100%, a turn-capped item, a merged unplanned ID, an item added mid-run, a merged then review-score and claim, and a finished run"
+check 1 "AC 1: runs.ts exports runProgress(journal); claims.ts RUN_KINDS has a run-level 'plan' event (run event plan --items <ID>,…, each ID checked by ITEM_ID); state from each item's newest RUN_ITEM_KINDS event only, except a park, which holds until resume, item-start, merged or held; unit tests 'S221 AC 1' cover an empty run, part-way, a park then resume, a parked item staying parked through later events, a held item reaching 100%, a turn-capped item, a merged unplanned ID, an item added mid-run, a merged then review-score and claim, and a finished run"
 check 2 "AC 2: runs.ts progress --journal <path> prints a marker line, a 20-cell █/░ bar with finished / total and the percentage, done / in flight / parked / set aside lines only when they have items, a next line, and a closing rule line, with no ANSI codes; a test 'S221 AC 2' pins the exact output"
 check 3 "AC 3: run-backlog's SKILL.md tells the coordinator to print runs.ts progress in a fenced code block when an item merges or parks, when the plan grows, and at the start of step 6's summary, and to log plan events when it adds items"
 check 4 "AC 4: runProgress's and the progress command's comments say what counts as planned and finished, and why"
@@ -77,7 +77,7 @@ fails="$(failed_tests)"
 # --- Check 1: AC 1: one computation, from the journal ---
 grep -qE '^export function runProgress\(' "$RUNS" || bad 1 "$RUNS does not export function runProgress"
 grep -qE '^export const RUN_KINDS = \[[^]]*"plan"' "$CLAIMS" || bad 1 "$CLAIMS's RUN_KINDS has no \"plan\""
-for t in "empty run" "part-way" "park.*resume" "held.*100" "turn-cap" "unplanned" "added mid-run" "review-score" "finished run"; do
+for t in "empty run" "part-way" "park.*resume" "stays parked" "held.*100" "turn-cap" "unplanned" "added mid-run" "review-score" "finished run"; do
 	has_test runs.test.ts "S221 AC 1.*$t" || bad 1 "no passing runs.test.ts test titled 'S221 AC 1 … $t'"
 done
 has_test runs.test.ts "S221 AC 1.*claim" || bad 1 "no passing runs.test.ts test titled 'S221 AC 1 … claim' (a claim after merged)"

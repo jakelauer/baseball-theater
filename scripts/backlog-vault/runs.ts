@@ -634,9 +634,12 @@ export interface RunProgress
 	planned: string[];
 	/** Newest item event `merged`. */
 	finished: string[];
-	/** Newest item event any other than `merged`, `park` or `held` (`item-start`, `resume`, `pr-open`, `ready`, `turn-cap`, …). */
+	/** Newest item event any other than `merged`, `park` or `held` (`item-start`, `resume`, `pr-open`, `ready`, `turn-cap`, …), with no park holding. */
 	inFlight: string[];
-	/** Newest item event `park`: still in the total, since a parked item is still the run's to finish once the owner answers. */
+	/**
+	 * Parked, with no `resume`, `item-start`, `merged` or `held` since: still in the total, since a parked item is still the
+	 * run's to finish once the owner answers.
+	 */
 	parked: string[];
 	/** Newest item event `held` (an arbiter's hold, or a bug found closed): out of the total, since the run won't finish it. */
 	setAside: string[];
@@ -648,6 +651,9 @@ export interface RunProgress
 	percent: number;
 }
 
+/** The item events that end a park in {@link runProgress}: the owner answered, a worker started it again, it merged, or it was set aside. */
+const UNPARK = ["resume", "item-start", "merged", "held"];
+
 /**
  * The run's progress from its journal (S221 AC 1; ADR-025: the one computation, which `runs.ts progress` only prints).
  * **Planned** is every ID a `plan` event names (logged at `run start` and whenever the plan grows) plus every ID with an
@@ -656,8 +662,11 @@ export interface RunProgress
  * **Finished** is an item whose newest item event is `merged`. Only item events set an item's state: `claim`,
  * `claim-refused` and the review tracker's `review-score` and `review-start` also carry an item's ID, but the journal logs a
  * `review-score` for an item right after its `merged` (and a `claim` can follow a `resume`), so reading them as the item's
- * newest event would move a finished item back to in flight. A `resume` after a `park` moves the item back to in flight;
- * a `held` item leaves the total, so a run whose other items all merge reaches 100%.
+ * newest event would move a finished item back to in flight. The one exception is a **park**, which holds until a `resume`,
+ * `item-start`, `merged` or `held`: a parked design match is reviewed, its `findings` logged and its checkpoint's pull
+ * request opened (`pr-open`) after the park (run-backlog step 4), and a `turn-cap`, `needs-lead`, `ready`, `conflict` or
+ * `duplicate` can follow one too, none of which means work has restarted. A `resume` moves the item back to in flight; a `held` item
+ * leaves the total, so a run whose other items all merge reaches 100%.
  */
 export function runProgress(journal: RunJournal): RunProgress
 {
@@ -669,7 +678,8 @@ export function runProgress(journal: RunJournal): RunProgress
 			planned.push(id);
 		}
 	};
-	const newest = new Map<string, string>();
+	// Each item's state: its newest item event, except that only UNPARK kinds replace a `park`.
+	const state = new Map<string, string>();
 	for (const e of journal.events)
 	{
 		if (e.kind === "plan")
@@ -679,15 +689,18 @@ export function runProgress(journal: RunJournal): RunProgress
 		else if (e.id && RUN_ITEM_KINDS.includes(e.kind))
 		{
 			plan(e.id);
-			newest.set(e.id, e.kind);
+			if (state.get(e.id) !== "park" || UNPARK.includes(e.kind))
+			{
+				state.set(e.id, e.kind);
+			}
 		}
 	}
-	const inState = (...kinds: (string | undefined)[]) => planned.filter((id) => kinds.includes(newest.get(id)));
+	const inState = (...kinds: (string | undefined)[]) => planned.filter((id) => kinds.includes(state.get(id)));
 	const finished = inState("merged");
 	const parked = inState("park");
 	const setAside = inState("held");
 	const next = inState(undefined);
-	const inFlight = planned.filter((id) => newest.has(id) && !["merged", "park", "held"].includes(newest.get(id)!));
+	const inFlight = planned.filter((id) => state.has(id) && !["merged", "park", "held"].includes(state.get(id)!));
 	const total = planned.length - setAside.length;
 	return {
 		planned,
