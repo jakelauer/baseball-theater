@@ -221,6 +221,7 @@ export type MediaHighlight = {
 };
 
 import type { AtBat } from "./plays.js";
+import type { SavantPitch } from "./savant.js";
 import type { ScoreboardWinProbability } from "./win-probability.js";
 
 /**
@@ -411,6 +412,13 @@ export type GameSnapshot = {
 	 * window, which the backfill skips as already stored) gets none here: #619's scope.
 	 */
 	ruleSettings?: GameRuleSetting[];
+	/**
+	 * Baseball Savant's figures for each pitch (S103), only those MLB's own feeds lack, joined to the live feed's pitches
+	 * by `playId`. Pulled by the game's ingest object on its own cadence (`savantPullDue`), never with the live feed, and
+	 * merged in as Savant publishes them (`mergeSavantPitches`): a figure is absent until it arrives, and every game write
+	 * keeps the stored ones (`keepStoredExtras`). Absent when Savant failed or had nothing: the game is served as before.
+	 */
+	savant?: SavantPitch[];
 	/** Who is on base and who is batting and pitching (S63); `null` unless in progress, absent on older recordings. */
 	live?: GameLive | null;
 	fetchedAt: string; // ISO

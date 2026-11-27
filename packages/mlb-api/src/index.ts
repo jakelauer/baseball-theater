@@ -13,6 +13,7 @@ export * from "./player-of-the-game.js";
 export * from "./uniforms.js";
 export * from "./rule-settings.js";
 export * from "./seasons.js";
+export * from "./savant.js";
 export * from "./parse.js";
 export * from "./replay.js";
 export * from "./coverage.js";

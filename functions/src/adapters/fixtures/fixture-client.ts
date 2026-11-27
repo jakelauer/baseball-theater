@@ -8,6 +8,7 @@ import type {
 	GameUniforms,
 	PlayerOfTheGame,
 	PlayerProfile,
+	SavantPitch,
 	ScheduleDay,
 	SearchFilters,
 	SearchHighlightsPage,
@@ -22,7 +23,7 @@ import {
 import type { GameDiffPatchResponse, ReplayPatchEntry } from "@bt/mlb-api";
 import {
 	parseGameRuleSettingsResponse, parseGameTimestamps, parseGameUniformsResponse, parseGraphContentResponse, parsePlayMetricsResponse, parsePlayerOfTheGameResponse,
-	parseRecordedReplayWalk, parseScheduleResponse, parseSearchResponse,
+	parseRecordedReplayWalk, parseSavantGameFeedResponse, parseScheduleResponse, parseSearchResponse,
 	parseSeasonsResponse, parseStandingsResponse,
 } from "@bt/mlb-api";
 import type {
@@ -32,6 +33,7 @@ import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
 import { mapPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
+import { mapSavantGameFeed } from "../../mappers/savant.js";
 import { mapGameUniforms } from "../../mappers/uniforms.js";
 import { mapGameRuleSettings } from "../../mappers/rule-settings.js";
 import { mapSearchResults } from "../../mappers/search.js";
@@ -157,7 +159,7 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 	async fetchGameFeed(gamePk: number): Promise<FetchedGame>
 	{
 		const {
-			highlights: _highlights, recap: _recap, ...data
+			highlights: _highlights, recap: _recap, savant: _savant, ...data
 		} = await this.readJson<GameFixture>(`game-${gamePk}.json`);
 		const playerOfTheGameDue = await this.files.read(`raw/potg-${gamePk}.json`).then(() => true, () => false);
 		return {
@@ -351,6 +353,30 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 		catch
 		{
 			return null;
+		}
+	}
+
+	/**
+	 * Baseball Savant's figures for each pitch (S103), from the recording `fixtures/raw/savant-gf-<gamePk>.json`, mapped,
+	 * or, where the recording isn't readable (the Worker bundles the game files, not the 3 MB recording), from the
+	 * projection the recorder keeps in the game file (`savant`); each pitch stamped with this read's time as its version, as
+	 * the HTTP client stamps a pull. Null for a game with neither, as the HTTP client answers when the call fails. Never
+	 * part of `fetchGame` (`fetchGameFeed` leaves the projection out), as on the HTTP client.
+	 */
+	async fetchSavantGameFeed(gamePk: number): Promise<SavantPitch[] | null>
+	{
+		const version = Date.now();
+		try
+		{
+			return mapSavantGameFeed(parseSavantGameFeedResponse(await this.readJson(`raw/savant-gf-${gamePk}.json`)), version);
+		}
+		catch
+		{
+			const projected = await this.readJson<GameFixture>(`game-${gamePk}.json`).then((game) => game.savant, () => undefined);
+			return projected && projected.length > 0 ? projected.map((pitch) => ({
+				...pitch,
+				version,
+			})) : null;
 		}
 	}
 

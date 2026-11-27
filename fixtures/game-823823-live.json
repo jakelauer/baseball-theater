@@ -117,6 +117,7 @@
           "pitchNumber": 1,
           "playId": "d60784fd-fea5-354b-aa53-a8bc50f1f3a2",
           "startTime": "2026-09-05T20:12:10.981Z",
+          "endTime": "2026-09-05T20:12:14.797Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -169,6 +170,7 @@
           "pitchNumber": 2,
           "playId": "659c3ee0-7bc6-3df4-bd50-eb29c31096a8",
           "startTime": "2026-09-05T20:12:26.006Z",
+          "endTime": "2026-09-05T20:12:29.768Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -221,6 +223,7 @@
           "pitchNumber": 3,
           "playId": "3adfce72-2b79-3710-b51d-3176743b162f",
           "startTime": "2026-09-05T20:12:41.433Z",
+          "endTime": "2026-09-05T20:12:45.329Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -273,6 +276,7 @@
           "pitchNumber": 4,
           "playId": "9318081e-795d-357e-967c-d221a97fbf4b",
           "startTime": "2026-09-05T20:13:01.553Z",
+          "endTime": "2026-09-05T20:13:05.154Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -325,6 +329,7 @@
           "pitchNumber": 5,
           "playId": "b3611153-8c57-365e-bf62-d13591e7a61a",
           "startTime": "2026-09-05T20:13:20.332Z",
+          "endTime": "2026-09-05T20:13:23.896Z",
           "details": {
             "call": "S",
             "callDescription": "Swinging Strike",
@@ -377,6 +382,7 @@
           "pitchNumber": 6,
           "playId": "0e660226-0fda-3d36-8cd6-51ddc29cf366",
           "startTime": "2026-09-05T20:13:50.434Z",
+          "endTime": "2026-09-05T20:13:54.971Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -466,6 +472,7 @@
           "pitchNumber": 1,
           "playId": "5d414cf3-3d6e-356b-82e7-823397c32a52",
           "startTime": "2026-09-05T20:14:19.796Z",
+          "endTime": "2026-09-05T20:14:23.624Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -518,6 +525,7 @@
           "pitchNumber": 2,
           "playId": "c9506875-4faa-37a9-8764-c420de3243ff",
           "startTime": "2026-09-05T20:14:37.224Z",
+          "endTime": "2026-09-05T20:14:47.382Z",
           "details": {
             "call": "D",
             "callDescription": "In play, no out",
@@ -616,6 +624,7 @@
           "pitchNumber": 1,
           "playId": "4ebb2121-3b3b-318a-ab3b-c25aa0e99657",
           "startTime": "2026-09-05T20:15:39.657Z",
+          "endTime": "2026-09-05T20:15:43.739Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -668,6 +677,7 @@
           "pitchNumber": 2,
           "playId": "e78724c6-78c9-36c1-854d-8d16d07d9b37",
           "startTime": "2026-09-05T20:15:58.685Z",
+          "endTime": "2026-09-05T20:16:02.861Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -720,6 +730,7 @@
           "pitchNumber": 3,
           "playId": "a42a1f80-4f9b-3f3d-a325-135afe541b5c",
           "startTime": "2026-09-05T20:16:19.357Z",
+          "endTime": "2026-09-05T20:16:23.558Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -772,6 +783,7 @@
           "pitchNumber": 4,
           "playId": "1275c2a8-2b0d-36fd-93d4-8d3e6f11bf9e",
           "startTime": "2026-09-05T20:16:40.527Z",
+          "endTime": "2026-09-05T20:16:44.571Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -861,6 +873,7 @@
           "pitchNumber": 1,
           "playId": "47a13590-572d-3554-823b-474f5cc32732",
           "startTime": "2026-09-05T20:17:29.385Z",
+          "endTime": "2026-09-05T20:17:36.130Z",
           "details": {
             "call": "X",
             "callDescription": "In play, out(s)",
@@ -959,6 +972,7 @@
           "pitchNumber": 1,
           "playId": "f30dd7a6-55e8-39f3-b440-3913935b20ea",
           "startTime": "2026-09-05T20:19:51.690Z",
+          "endTime": "2026-09-05T20:19:56.122Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -1011,6 +1025,7 @@
           "pitchNumber": 2,
           "playId": "ac3f66e5-9586-31c5-b3b7-8ec7c75a53d4",
           "startTime": "2026-09-05T20:20:05.704Z",
+          "endTime": "2026-09-05T20:20:09.549Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -1063,6 +1078,7 @@
           "pitchNumber": 3,
           "playId": "77c21edf-4b66-3a13-ae49-ca39e3cdfa7e",
           "startTime": "2026-09-05T20:20:19.230Z",
+          "endTime": "2026-09-05T20:20:23.538Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -1115,6 +1131,7 @@
           "pitchNumber": 4,
           "playId": "ce43c816-8df7-3bdd-80cf-df7dac1c2e53",
           "startTime": "2026-09-05T20:20:43.896Z",
+          "endTime": "2026-09-05T20:20:47.717Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -1167,6 +1184,7 @@
           "pitchNumber": 5,
           "playId": "7332fe2b-d2fb-3fe5-9c87-cdc1e04055e8",
           "startTime": "2026-09-05T20:20:58.922Z",
+          "endTime": "2026-09-05T20:21:03.539Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -1256,6 +1274,7 @@
           "pitchNumber": 1,
           "playId": "cb74a89e-6966-37f1-9f0c-e1a9d35b013f",
           "startTime": "2026-09-05T20:21:28.464Z",
+          "endTime": "2026-09-05T20:21:36.303Z",
           "details": {
             "call": "X",
             "callDescription": "In play, out(s)",
@@ -1354,6 +1373,7 @@
           "pitchNumber": 1,
           "playId": "c6e52b5f-e2b5-3814-9591-cdc43ccb2d7d",
           "startTime": "2026-09-05T20:22:07.571Z",
+          "endTime": "2026-09-05T20:22:11.422Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -1406,6 +1426,7 @@
           "pitchNumber": 2,
           "playId": "45ebc7c8-38d5-3bb8-89a0-a44109934c60",
           "startTime": "2026-09-05T20:22:24.860Z",
+          "endTime": "2026-09-05T20:22:28.829Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -1458,6 +1479,7 @@
           "pitchNumber": 3,
           "playId": "6c9c5125-becd-3dd6-958e-99c94b4840e4",
           "startTime": "2026-09-05T20:22:45.682Z",
+          "endTime": "2026-09-05T20:22:49.145Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -1510,6 +1532,7 @@
           "pitchNumber": 4,
           "playId": "a4e77dd3-6714-38d3-bfc2-b8aa7df42050",
           "startTime": "2026-09-05T20:23:07.252Z",
+          "endTime": "2026-09-05T20:23:10.680Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -1562,6 +1585,7 @@
           "pitchNumber": 5,
           "playId": "978189c6-e8b6-3bde-8552-3920e49c3572",
           "startTime": "2026-09-05T20:23:27.509Z",
+          "endTime": "2026-09-05T20:23:31.359Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -1614,6 +1638,7 @@
           "pitchNumber": 6,
           "playId": "1b5c5018-71aa-38cd-b9ba-2e71bf79260c",
           "startTime": "2026-09-05T20:23:57.245Z",
+          "endTime": "2026-09-05T20:24:01.700Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -1703,6 +1728,7 @@
           "pitchNumber": 1,
           "playId": "c49db31e-fb60-358a-a76a-7947542f17b9",
           "startTime": "2026-09-05T20:24:34.165Z",
+          "endTime": "2026-09-05T20:24:37.976Z",
           "details": {
             "call": "*B",
             "callDescription": "Ball In Dirt",
@@ -1755,6 +1781,7 @@
           "pitchNumber": 2,
           "playId": "2dfe1572-3b3c-38b3-b42f-e40723d3590b",
           "startTime": "2026-09-05T20:24:58.421Z",
+          "endTime": "2026-09-05T20:25:02.454Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -1807,6 +1834,7 @@
           "pitchNumber": 3,
           "playId": "13170ed8-8517-38cd-a1b1-53443afa250f",
           "startTime": "2026-09-05T20:25:18.734Z",
+          "endTime": "2026-09-05T20:25:22.628Z",
           "details": {
             "call": "*B",
             "callDescription": "Ball In Dirt",
@@ -1859,6 +1887,7 @@
           "pitchNumber": 4,
           "playId": "db1449d0-62ec-3ab6-b8e0-264c0e9539a3",
           "startTime": "2026-09-05T20:25:43.694Z",
+          "endTime": "2026-09-05T20:25:51.594Z",
           "details": {
             "call": "X",
             "callDescription": "In play, out(s)",
@@ -1957,6 +1986,7 @@
           "pitchNumber": 1,
           "playId": "6f766e45-b046-3f81-ba6a-8fdebb7b1046",
           "startTime": "2026-09-05T20:28:13.679Z",
+          "endTime": "2026-09-05T20:28:16.843Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -2009,6 +2039,7 @@
           "pitchNumber": 2,
           "playId": "3136bf2e-6e6b-37a0-a1ba-793345ecb657",
           "startTime": "2026-09-05T20:28:35.417Z",
+          "endTime": "2026-09-05T20:28:39.738Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -2061,6 +2092,7 @@
           "pitchNumber": 3,
           "playId": "13d65dcb-d96d-3ed1-9678-e4cb4158f2c8",
           "startTime": "2026-09-05T20:28:52.606Z",
+          "endTime": "2026-09-05T20:28:55.967Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -2113,6 +2145,7 @@
           "pitchNumber": 4,
           "playId": "3cb3533b-41b0-3f0e-8a96-566513aa941c",
           "startTime": "2026-09-05T20:29:16.065Z",
+          "endTime": "2026-09-05T20:29:19.309Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -2165,6 +2198,7 @@
           "pitchNumber": 5,
           "playId": "20913bd8-8c46-3655-b8ca-aaaa70e1ea7d",
           "startTime": "2026-09-05T20:29:36.629Z",
+          "endTime": "2026-09-05T20:29:41.156Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -2217,6 +2251,7 @@
           "pitchNumber": 6,
           "playId": "f235c0da-ed67-34f9-9996-044e576a0c31",
           "startTime": "2026-09-05T20:29:56.028Z",
+          "endTime": "2026-09-05T20:30:06.958Z",
           "details": {
             "call": "D",
             "callDescription": "In play, no out",
@@ -2315,6 +2350,7 @@
           "pitchNumber": 1,
           "playId": "12c25f22-e86f-361b-ae6d-3d3385614c3d",
           "startTime": "2026-09-05T20:30:32.881Z",
+          "endTime": "2026-09-05T20:30:36.835Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -2367,6 +2403,7 @@
           "pitchNumber": 2,
           "playId": "58fe0c70-2309-348b-9fb4-1a2accbae042",
           "startTime": "2026-09-05T20:30:57.714Z",
+          "endTime": "2026-09-05T20:31:08.282Z",
           "details": {
             "call": "X",
             "callDescription": "In play, out(s)",
@@ -2465,6 +2502,7 @@
           "pitchNumber": 1,
           "playId": "6b36dd8e-dfc3-341e-840a-86d443c39c2f",
           "startTime": "2026-09-05T20:31:55.709Z",
+          "endTime": "2026-09-05T20:31:59.049Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -2517,6 +2555,7 @@
           "pitchNumber": 2,
           "playId": "38b6aeb5-b764-32cf-89cf-b9394628a8eb",
           "startTime": "2026-09-05T20:32:19.423Z",
+          "endTime": "2026-09-05T20:32:23.038Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -2569,6 +2608,7 @@
           "pitchNumber": 3,
           "playId": "c02ac63b-fb0e-3559-804b-e87392e9b7ca",
           "startTime": "2026-09-05T20:32:48.041Z",
+          "endTime": "2026-09-05T20:32:55.559Z",
           "details": {
             "call": "X",
             "callDescription": "In play, out(s)",
@@ -2667,6 +2707,7 @@
           "pitchNumber": 1,
           "playId": "14517670-7098-35c0-b2e9-915990e846cf",
           "startTime": "2026-09-05T20:33:26.027Z",
+          "endTime": "2026-09-05T20:33:29.904Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -2719,6 +2760,7 @@
           "pitchNumber": 2,
           "playId": "87bf7860-8b5d-3f0f-9824-0159e95d84fa",
           "startTime": "2026-09-05T20:33:51.373Z",
+          "endTime": "2026-09-05T20:33:55.924Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -2771,6 +2813,7 @@
           "pitchNumber": 3,
           "playId": "856df45b-59a2-3423-a9fa-e6d2a468bf3c",
           "startTime": "2026-09-05T20:34:35.091Z",
+          "endTime": "2026-09-05T20:34:40.836Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -2860,6 +2903,7 @@
           "pitchNumber": 1,
           "playId": "97cb4fd3-13b0-3105-99b0-7cc8256d8e96",
           "startTime": "2026-09-05T20:37:04.487Z",
+          "endTime": "2026-09-05T20:37:08.468Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -2912,6 +2956,7 @@
           "pitchNumber": 2,
           "playId": "67bcfdbe-8d80-3b68-ad7b-25d4d091bef0",
           "startTime": "2026-09-05T20:37:19.965Z",
+          "endTime": "2026-09-05T20:37:23.903Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -2964,6 +3009,7 @@
           "pitchNumber": 3,
           "playId": "bd4a9631-2ac2-3257-9181-b6c3a5a69ba5",
           "startTime": "2026-09-05T20:37:35.504Z",
+          "endTime": "2026-09-05T20:37:38.738Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -3016,6 +3062,7 @@
           "pitchNumber": 4,
           "playId": "725988fe-3c1a-354d-b6a6-d099ebf11c9d",
           "startTime": "2026-09-05T20:37:57.518Z",
+          "endTime": "2026-09-05T20:38:01.733Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -3068,6 +3115,7 @@
           "pitchNumber": 5,
           "playId": "59e5b4ae-cdbd-320e-85da-28bf9db695ed",
           "startTime": "2026-09-05T20:38:14.929Z",
+          "endTime": "2026-09-05T20:38:18.913Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -3120,6 +3168,7 @@
           "pitchNumber": 6,
           "playId": "11245839-9bc6-3f01-ba50-4c61e34359f5",
           "startTime": "2026-09-05T20:38:46.430Z",
+          "endTime": "2026-09-05T20:38:56.478Z",
           "details": {
             "call": "X",
             "callDescription": "In play, out(s)",
@@ -3218,6 +3267,7 @@
           "pitchNumber": 1,
           "playId": "5e8fc18d-44ff-351b-9238-4c89c2b338dc",
           "startTime": "2026-09-05T20:39:30.277Z",
+          "endTime": "2026-09-05T20:39:34.236Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -3270,6 +3320,7 @@
           "pitchNumber": 2,
           "playId": "19adfbda-82ce-3cdb-8763-06c635e1aef6",
           "startTime": "2026-09-05T20:39:43.490Z",
+          "endTime": "2026-09-05T20:39:47.658Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -3322,6 +3373,7 @@
           "pitchNumber": 3,
           "playId": "5ce44461-dd9d-38a3-b685-c5b1668b499b",
           "startTime": "2026-09-05T20:40:04.937Z",
+          "endTime": "2026-09-05T20:40:08.776Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -3374,6 +3426,7 @@
           "pitchNumber": 4,
           "playId": "b2560302-2dcc-3b15-a541-d5f607c1713d",
           "startTime": "2026-09-05T20:40:23.258Z",
+          "endTime": "2026-09-05T20:40:27.135Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -3426,6 +3479,7 @@
           "pitchNumber": 5,
           "playId": "fc272e14-79eb-3b74-8efc-20146f6aa025",
           "startTime": "2026-09-05T20:40:51.163Z",
+          "endTime": "2026-09-05T20:40:55.486Z",
           "details": {
             "call": "S",
             "callDescription": "Swinging Strike",
@@ -3515,6 +3569,7 @@
           "pitchNumber": 1,
           "playId": "4f2be145-ed6b-3440-8a75-ef68a080b8a7",
           "startTime": "2026-09-05T20:41:19.983Z",
+          "endTime": "2026-09-05T20:41:23.931Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -3567,6 +3622,7 @@
           "pitchNumber": 2,
           "playId": "b277657e-3375-3699-ac71-ad3338c46055",
           "startTime": "2026-09-05T20:41:34.772Z",
+          "endTime": "2026-09-05T20:41:38.201Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -3619,6 +3675,7 @@
           "pitchNumber": 3,
           "playId": "355c4a19-7511-30f3-a500-1b959d6af88a",
           "startTime": "2026-09-05T20:41:54.719Z",
+          "endTime": "2026-09-05T20:41:58.617Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -3671,6 +3728,7 @@
           "pitchNumber": 4,
           "playId": "a0d77d3e-0b4a-3bc3-9948-e19228f60475",
           "startTime": "2026-09-05T20:42:12.354Z",
+          "endTime": "2026-09-05T20:42:20.296Z",
           "details": {
             "call": "X",
             "callDescription": "In play, out(s)",
@@ -3769,6 +3827,7 @@
           "pitchNumber": 1,
           "playId": "a56c807d-1497-3516-bdb8-8a1f068e25a5",
           "startTime": "2026-09-05T20:44:43.691Z",
+          "endTime": "2026-09-05T20:44:47.555Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -3821,6 +3880,7 @@
           "pitchNumber": 2,
           "playId": "1087726b-d323-3793-824a-025542a0f12d",
           "startTime": "2026-09-05T20:44:58.746Z",
+          "endTime": "2026-09-05T20:45:02.761Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -3873,6 +3933,7 @@
           "pitchNumber": 3,
           "playId": "dc7734d1-5061-358b-99de-82561130040c",
           "startTime": "2026-09-05T20:45:18.774Z",
+          "endTime": "2026-09-05T20:45:22.622Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -3925,6 +3986,7 @@
           "pitchNumber": 4,
           "playId": "2baadb6b-0eed-395e-a549-a1b2dcba2a5f",
           "startTime": "2026-09-05T20:45:36.573Z",
+          "endTime": "2026-09-05T20:45:40.462Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -3977,6 +4039,7 @@
           "pitchNumber": 5,
           "playId": "c515390e-a3e3-3a91-8df6-8185dc0fc29f",
           "startTime": "2026-09-05T20:45:55.463Z",
+          "endTime": "2026-09-05T20:46:17.947Z",
           "details": {
             "call": "E",
             "callDescription": "In play, run(s)",
@@ -4075,6 +4138,7 @@
           "pitchNumber": 1,
           "playId": "011a974b-0bf5-30fc-a145-2e830ebfc5b6",
           "startTime": "2026-09-05T20:46:40.259Z",
+          "endTime": "2026-09-05T20:46:43.608Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -4127,6 +4191,7 @@
           "pitchNumber": 2,
           "playId": "6a35723b-4bdd-357e-a360-d335d7980e6a",
           "startTime": "2026-09-05T20:46:58.692Z",
+          "endTime": "2026-09-05T20:47:02.572Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -4179,6 +4244,7 @@
           "pitchNumber": 3,
           "playId": "df6b8e61-a21b-3d1f-84f4-c7e443483edd",
           "startTime": "2026-09-05T20:47:29.494Z",
+          "endTime": "2026-09-05T20:47:35.301Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -4231,6 +4297,7 @@
           "pitchNumber": 4,
           "playId": "bdef543e-78de-3816-8e85-bbf712a4c959",
           "startTime": "2026-09-05T20:47:56.688Z",
+          "endTime": "2026-09-05T20:48:03.134Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -4283,6 +4350,7 @@
           "pitchNumber": 5,
           "playId": "2dce874e-f71c-3f47-928b-74c204f74935",
           "startTime": "2026-09-05T20:48:24.132Z",
+          "endTime": "2026-09-05T20:48:32.116Z",
           "details": {
             "call": "D",
             "callDescription": "In play, no out",
@@ -4381,6 +4449,7 @@
           "pitchNumber": 1,
           "playId": "c3ae6e38-9ec8-30d2-895c-87bc88e878c5",
           "startTime": "2026-09-05T20:49:10.871Z",
+          "endTime": "2026-09-05T20:49:14.794Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -4433,6 +4502,7 @@
           "pitchNumber": 2,
           "playId": "1d341614-1911-3b44-8092-d4b875744bd3",
           "startTime": "2026-09-05T20:49:28.563Z",
+          "endTime": "2026-09-05T20:49:32.458Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -4485,6 +4555,7 @@
           "pitchNumber": 3,
           "playId": "085277bd-b5e4-39d5-8c76-479fc55d08e1",
           "startTime": "2026-09-05T20:49:59.591Z",
+          "endTime": "2026-09-05T20:50:03.609Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -4537,6 +4608,7 @@
           "pitchNumber": 4,
           "playId": "b8374b5e-d053-33a8-9c0a-913a58970b51",
           "startTime": "2026-09-05T20:50:22.258Z",
+          "endTime": "2026-09-05T20:50:25.909Z",
           "details": {
             "call": "S",
             "callDescription": "Swinging Strike",
@@ -4626,6 +4698,7 @@
           "pitchNumber": 1,
           "playId": "2b4e536b-b529-34a8-b4fb-8e197bff72d5",
           "startTime": "2026-09-05T20:51:12.212Z",
+          "endTime": "2026-09-05T20:51:16.100Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -4678,6 +4751,7 @@
           "pitchNumber": 2,
           "playId": "79cfe772-51da-3fe0-b7d7-41f1829f93c7",
           "startTime": "2026-09-05T20:51:29.868Z",
+          "endTime": "2026-09-05T20:51:33.803Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -4730,6 +4804,7 @@
           "pitchNumber": 3,
           "playId": "9572ddbd-c9f0-38eb-8265-d1bd8b7e8600",
           "startTime": "2026-09-05T20:52:23.323Z",
+          "endTime": "2026-09-05T20:52:27.320Z",
           "details": {
             "call": "*B",
             "callDescription": "Ball In Dirt",
@@ -4782,6 +4857,7 @@
           "pitchNumber": 4,
           "playId": "00d07b06-5d55-3407-bd96-ddbf67da4d8d",
           "startTime": "2026-09-05T20:52:47.893Z",
+          "endTime": "2026-09-05T20:52:51.669Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -4834,6 +4910,7 @@
           "pitchNumber": 5,
           "playId": "cb08edb4-bcf8-3aaf-b650-a5d40d7ab31a",
           "startTime": "2026-09-05T20:53:19.590Z",
+          "endTime": "2026-09-05T20:53:23.556Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -4886,6 +4963,7 @@
           "pitchNumber": 6,
           "playId": "2f516c56-8921-3553-bf84-0d06b75fb11f",
           "startTime": "2026-09-05T20:53:40.334Z",
+          "endTime": "2026-09-05T20:53:44.021Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -4938,6 +5016,7 @@
           "pitchNumber": 7,
           "playId": "84d866c9-6ac8-3b02-9c75-819000b7729a",
           "startTime": "2026-09-05T20:54:03.052Z",
+          "endTime": "2026-09-05T20:54:07.986Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -5027,6 +5106,7 @@
           "pitchNumber": 1,
           "playId": "07dc8def-9eaa-3798-9c1a-7338d85c76d6",
           "startTime": "2026-09-05T20:54:35.966Z",
+          "endTime": "2026-09-05T20:54:39.886Z",
           "details": {
             "call": "C",
             "callDescription": "Called Strike",
@@ -5079,6 +5159,7 @@
           "pitchNumber": 2,
           "playId": "9d93dc78-d05f-3904-941c-daea33c1cf19",
           "startTime": "2026-09-05T20:54:56.213Z",
+          "endTime": "2026-09-05T20:55:10.083Z",
           "details": {
             "call": "X",
             "callDescription": "In play, out(s)",
@@ -5177,6 +5258,7 @@
           "pitchNumber": 1,
           "playId": "183bedc2-e434-3d1c-b01c-7880b76379df",
           "startTime": "2026-09-05T20:55:37.232Z",
+          "endTime": "2026-09-05T20:55:41.206Z",
           "details": {
             "call": "B",
             "callDescription": "Ball",
@@ -5229,6 +5311,7 @@
           "pitchNumber": 2,
           "playId": "50cb5d94-0354-3464-8761-e90204c5f791",
           "startTime": "2026-09-05T20:55:55.375Z",
+          "endTime": "2026-09-05T20:55:59.286Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -5281,6 +5364,7 @@
           "pitchNumber": 3,
           "playId": "316e2041-14aa-3ba2-870d-443e6ecbfb58",
           "startTime": "2026-09-05T20:56:23.946Z",
+          "endTime": "2026-09-05T20:56:27.250Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -5333,6 +5417,7 @@
           "pitchNumber": 4,
           "playId": "2d2081e0-5e24-3336-90d4-d900c3a2601b",
           "startTime": "2026-09-05T20:56:51.007Z",
+          "endTime": "2026-09-05T20:56:54.471Z",
           "details": {
             "call": "F",
             "callDescription": "Foul",
@@ -5385,6 +5470,7 @@
           "pitchNumber": 5,
           "playId": "22b8896f-c364-3b31-a847-d03fe1b6bc92",
           "startTime": "2026-09-05T20:57:19.434Z",
+          "endTime": "2026-09-05T20:57:24.276Z",
           "details": {
             "call": "H",
             "callDescription": "Hit By Pitch",

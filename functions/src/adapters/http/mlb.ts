@@ -6,7 +6,8 @@
  * so `pnpm verify` never needs network.
  *
  * Highlights come from the content endpoint (`/api/v1/game/{gamePk}/content`);
- * the live feed hydrate carries no playback URLs.
+ * the live feed hydrate carries no playback URLs. Beside MLB's hosts it reads
+ * Baseball Savant's game feed on Savant's own host (S103, `fetchSavantGameFeed`).
  */
 import type {
 	FetchedGame,
@@ -17,6 +18,7 @@ import type {
 	GameUniforms,
 	PlayerOfTheGame,
 	PlayerProfile,
+	SavantPitch,
 	ScheduleDay,
 	SearchFilters,
 	SearchHighlightsPage,
@@ -39,6 +41,7 @@ import {
 	parsePeopleResponse,
 	parsePlayMetricsResponse,
 	parsePlayerOfTheGameResponse,
+	parseSavantGameFeedResponse,
 	parseScheduleResponse,
 	parseSearchResponse,
 	parseSeasonsResponse,
@@ -57,6 +60,7 @@ import { mapStandings } from "../../mappers/standings.js";
 import { mapLiveFeed } from "../../mappers/live.js";
 import { mapPlayMetrics } from "../../mappers/play-metrics.js";
 import { mapPlayerOfTheGame } from "../../mappers/player-of-the-game.js";
+import { mapSavantGameFeed } from "../../mappers/savant.js";
 import { mapScheduleRange, mapScheduleResponse } from "../../mappers/schedule.js";
 import { mapSeasonCalendar } from "../../mappers/season-calendar.js";
 import { mapGameUniforms } from "../../mappers/uniforms.js";
@@ -184,6 +188,20 @@ export function playerOfTheGameUrl(gamePk: number): string
 	return `https://www.mlb.com/apps/player-of-the-game/game/json/winners/${gamePk}.json`;
 }
 
+/** Baseball Savant's host (S103): its own base URL, apart from the Stats API's. */
+export const SAVANT_BASE_URL = "https://baseballsavant.mlb.com";
+
+/**
+ * Baseball Savant's per-pitch game feed (S103): an internal, unversioned feed Savant's game page calls, every pitch
+ * keyed by the live feed's `playId`. Ingest asks it on its own cadence (`savantPollDue`), never in `fetchGame`, so a
+ * slow Savant can't hold up a pitch. MLB's Terms of Use and the owner's go-ahead: `docs/v3/SAVANT-DATA.md`. The
+ * recorder (S14) records the same URL.
+ */
+export function savantGameFeedUrl(gamePk: number, baseUrl = SAVANT_BASE_URL): string
+{
+	return `${baseUrl}/gf?game_pk=${gamePk}`;
+}
+
 /**
  * The uniforms each team wore in one game (S101), on the Stats API. `fetchGame` never asks it (a value settled before
  * first pitch, asked by ingest off the fetch path: `withAskedExtras`). The recorder (S14) records the same URL.
@@ -295,6 +313,8 @@ export const PLAY_METRICS_LIMIT_MS = 750;
 
 export interface HttpMlbStatsClientOptions {
 	baseUrl?: string;
+	/** Baseball Savant's host (S103), its own base URL; `SAVANT_BASE_URL` when absent. */
+	savantBaseUrl?: string;
 	/** Injected in tests; defaults to global `fetch`. */
 	fetchImpl?: typeof fetch;
 	now?: () => Date;
@@ -303,12 +323,14 @@ export interface HttpMlbStatsClientOptions {
 export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources, PlayerXrefSource
 {
 	private readonly baseUrl: string;
+	private readonly savantBaseUrl: string;
 	private readonly fetchImpl: typeof fetch;
 	private readonly now: () => Date;
 
 	constructor(options: HttpMlbStatsClientOptions = {})
 	{
 		this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
+		this.savantBaseUrl = options.savantBaseUrl ?? SAVANT_BASE_URL;
 		this.fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
 		this.now = options.now ?? (() => new Date());
 	}
@@ -581,6 +603,24 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources, Playe
 	}
 
 	/**
+	 * Baseball Savant's figures for each pitch (S103), mapped and stamped with the time of this pull; null when the call
+	 * fails, can't be parsed or lists no pitch. `fetchGame` never calls it: the game's ingest object does, on its own
+	 * cadence, so a slow Savant can't hold up a pitch.
+	 */
+	async fetchSavantGameFeed(gamePk: number): Promise<SavantPitch[] | null>
+	{
+		const version = this.now().getTime();
+		try
+		{
+			return mapSavantGameFeed(parseSavantGameFeedResponse(await this.getJson(savantGameFeedUrl(gamePk, this.savantBaseUrl))), version);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/**
 	 * The season's calendar with its World Series final (S111) and its regular season's first and
 	 * last days (S128, which the dev seed's default range also reads); null when MLB answers that
 	 * the season is unpublished (an empty seasons list). A failed request (an HTTP error, no
@@ -620,7 +660,8 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources, Playe
 		});
 		if (!response.ok)
 		{
-			throw new Error(`MLB Stats API ${response.status} for ${url}`);
+			// The URL names the service asked (the Stats API, mlb.com or Savant's own host), so the message claims no other.
+			throw new Error(`HTTP ${response.status} for ${url}`);
 		}
 		return await response.json();
 	}

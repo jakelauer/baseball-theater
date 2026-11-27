@@ -15,6 +15,7 @@ import {
 	parseGameUniformsResponse,
 	parseGameRuleSettingsResponse,
 	parsePlayerOfTheGameResponse,
+	parseSavantGameFeedResponse,
 	parseScheduleResponse,
 	parseSeasonsResponse,
 	parseStandingsResponse,
@@ -42,6 +43,8 @@ const fixtures: ReadonlyArray<[string, (input: unknown) => unknown]> = [
 	["playmetrics-823823.json", parsePlayMetricsResponse],
 	["graphql-content-823823.json", parseGraphContentResponse],
 	["potg-823823.json", parsePlayerOfTheGameResponse],
+	// Baseball Savant's per-pitch game feed (S103): its pitch rows modeled, its repeats of MLB's feeds passed through.
+	["savant-gf-823823.json", parseSavantGameFeedResponse],
 	["uniforms-823823.json", parseGameUniformsResponse],
 	["rulesettings-823823.json", parseGameRuleSettingsResponse],
 	["timestamps-823823.json", parseGameTimestamps],

@@ -83,6 +83,9 @@ export function mapPitchEvent(event: LiveGamePlayEvent): PitchEvent
 		pitchNumber: event.pitchNumber ?? event.index,
 		playId: event.playId ?? "",
 		startTime: event.startTime ?? "",
+		...event.endTime !== undefined && {
+			endTime: event.endTime,
+		},
 		details: {
 			call: event.details?.call?.code ?? null,
 			callDescription: event.details?.call?.description ?? null,

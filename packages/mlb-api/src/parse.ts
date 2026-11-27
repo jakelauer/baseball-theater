@@ -19,6 +19,7 @@ import type { SeasonsResponse } from "./seasons.js";
 import type { StandingsResponse } from "./standings.js";
 import type { GameUniformsResponse } from "./uniforms.js";
 import type { GameRuleSettingsResponse } from "./rule-settings.js";
+import type { SavantGameFeedResponse } from "./savant.js";
 
 /**
  * Branches MLB has only ever returned `null` or empty in every recorded
@@ -1682,4 +1683,235 @@ export function parsePeopleResponse(input: unknown): PeopleResponse
 export function parseGameTimestamps(input: unknown): string[]
 {
 	return z.array(z.string()).parse(input);
+}
+
+/**
+ * A branch of Savant's game feed (S103) that repeats a feed BT reads from MLB itself (the scoreboard, the box score, the
+ * team records) or regroups the same pitch rows (by pitcher and batter, batted balls alone): passed through whole, so the
+ * coverage gate counts it kept, and never modeled, since BT takes each of those values from MLB (ADR-025).
+ */
+const savantRepeated = z.unknown();
+
+
+/** Savant's pitch row (S103), part by part as `savant.ts` splits it; every figure optional, since an automatic call has none. */
+const savantContextMetricsSchema = z.object({
+	homeRunBallparks: z.number().optional(),
+});
+
+const savantAbsChallengeSchema = z.object({
+	is_batter: z.boolean().optional(),
+	is_in_progress: z.boolean().optional(),
+	is_overturned: z.boolean().optional(),
+	challenge_team_id: z.number().optional(),
+	edge_distance: z.number().optional(),
+	edge_distance_calc: z.number().optional(),
+	challenging_player_id: z.number().optional(),
+	challenging_player_type: z.string().optional(),
+});
+
+const savantPitchWhoSchema = z.object({
+	play_id: z.string(),
+	ab_number: z.number(),
+	game_pk: z.string().optional(),
+	rowId: z.string().optional(),
+	source: z.string().optional(),
+	type: z.string().optional(),
+	sportId: z.number().optional(),
+	year: z.number().optional(),
+	inning: z.number().optional(),
+	half_inning: z.string().optional(),
+	batter: z.number().optional(),
+	batter_name: z.string().optional(),
+	stand: z.string().optional(),
+	pitcher: z.number().optional(),
+	pitcher_name: z.string().optional(),
+	p_throws: z.string().optional(),
+	catcher: z.number().optional(),
+	catcher_name: z.string().optional(),
+	team_batting: z.string().optional(),
+	team_batting_id: z.number().optional(),
+	team_fielding: z.string().optional(),
+	team_fielding_id: z.number().optional(),
+	player_name: z.string().optional(),
+	index: z.number().optional(),
+	is_last_pitch: z.boolean().optional(),
+	pitch_number: z.number().optional(),
+	game_total_pitches: z.number().optional(),
+	player_total_pitches: z.number().optional(),
+	player_total_pitches_pitch_types: z.number().optional(),
+	pitcher_pa_number: z.number().optional(),
+	pitcher_time_thru_order: z.number().optional(),
+	runnerOn1B: z.boolean().optional(),
+	runnerOn2B: z.boolean().optional(),
+	runnerOn3B: z.boolean().optional(),
+});
+
+const savantPitchCallSchema = z.object({
+	balls: z.number().optional(),
+	strikes: z.number().optional(),
+	pre_balls: z.number().optional(),
+	pre_strikes: z.number().optional(),
+	balls_and_strikes: z.string().optional(),
+	outs: z.number().optional(),
+	call: z.string().optional(),
+	call_name: z.string().optional(),
+	pitch_call: z.string().optional(),
+	description: z.string().optional(),
+	des: z.string().optional(),
+	events: z.string().optional(),
+	result: z.string().optional(),
+	result_code: z.string().optional(),
+	is_bip_out: z.string().optional(),
+	is_strike_swinging: z.boolean().optional(),
+	pitch_type: z.string().optional(),
+	pitch_name: z.string().optional(),
+	cap_index: z.number().optional(),
+});
+
+const savantPitchFlightSchema = z.object({
+	start_speed: z.number().optional(),
+	end_speed: z.number().optional(),
+	spin_rate: z.number().optional(),
+	extension: z.number().optional(),
+	vx0: z.number().optional(),
+	vy0: z.number().optional(),
+	vz0: z.number().optional(),
+	ax: z.number().optional(),
+	ay: z.number().optional(),
+	az: z.number().optional(),
+	x0: z.number().optional(),
+	y0: z.number().optional(),
+	z0: z.number().optional(),
+	px: z.number().optional(),
+	pz: z.number().optional(),
+	plate_x: z.number().optional(),
+	plate_z: z.number().optional(),
+	plateTime: z.number().optional(),
+	plateTimeSZDepth: z.number().optional(),
+	pfxX: z.number().optional(),
+	pfxZ: z.number().optional(),
+	pfxXNoAbs: z.number().optional(),
+	pfxXWithGravity: z.number().optional(),
+	pfxZWithGravity: z.number().optional(),
+	pfxXDirection: z.string().optional(),
+	pfxZDirection: z.string().optional(),
+	breakX: z.number().optional(),
+	breakZ: z.number().optional(),
+	breakXFeet: z.number().optional(),
+	breakXInches: z.number().optional(),
+	breakZInducedFeet: z.number().optional(),
+	breakZInducedInches: z.number().optional(),
+	breakZWithGravityFeet: z.number().optional(),
+	breakZWithGravityInches: z.number().optional(),
+	inducedBreakZ: z.number().optional(),
+	inducedBreakZForcedSign: z.string().optional(),
+	ivbZDirection: z.string().optional(),
+	sz_top: z.number().optional(),
+	sz_bot: z.number().optional(),
+	sz_depth: z.number().optional(),
+	sz_width: z.number().optional(),
+	zone: z.number().optional(),
+	isInZone: z.boolean().optional(),
+});
+
+const savantPlateCrossingSchema = z.object({
+	plateXPoly: z.number().optional(),
+	plateYPoly: z.number().optional(),
+	plateZPoly: z.number().optional(),
+});
+
+const savantBattedBallSchema = z.object({
+	launch_speed: z.string().optional(),
+	launch_angle: z.string().optional(),
+	hit_speed: z.string().optional(),
+	hit_speed_round: z.string().optional(),
+	hit_angle: z.string().optional(),
+	hit_distance: z.string().optional(),
+	xba: z.string().optional(),
+	is_barrel: z.number().optional(),
+	hc_x: z.number().optional(),
+	hc_y: z.number().optional(),
+	hc_x_ft: z.number().optional(),
+	hc_y_ft: z.number().optional(),
+	contextMetrics: savantContextMetricsSchema.optional(),
+});
+
+const savantSwingAndCallsSchema = z.object({
+	batSpeed: z.number().optional(),
+	isSword: z.boolean().optional(),
+	savantIsInZone: z.boolean().optional(),
+	is_abs_challenge: z.boolean().optional(),
+	abs_challenge: savantAbsChallengeSchema.optional(),
+});
+
+/** One pitch row, its parts joined (`SavantFeedPitch`). */
+const savantFeedPitchSchema = savantPitchWhoSchema
+	.extend(savantPitchCallSchema.shape)
+	.extend(savantPitchFlightSchema.shape)
+	.extend(savantPlateCrossingSchema.shape)
+	.extend(savantBattedBallSchema.shape)
+	.extend(savantSwingAndCallsSchema.shape);
+
+/**
+ * `value` without its null-valued keys (through nested objects when `deep`), so a figure Savant sends as null parses as
+ * absent: "not yet", as a figure it leaves off does (S103 AC 5). Anything but a plain object (a string, an array, null)
+ * comes back unchanged, so a garbled answer still fails its schema.
+ */
+function withoutNulls(value: unknown, deep: boolean): unknown
+{
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+	return Object.fromEntries(Object.entries(value)
+		.filter(([, child]) => child !== null)
+		.map(([key, child]) => [key, deep ? withoutNulls(child, true) : child]));
+}
+
+const savantFeedRowSchema = z.preprocess((row) => withoutNulls(row, true), savantFeedPitchSchema);
+
+/**
+ * One team's pitch rows, each parsed on its own: a row that still fails (no `play_id` or `ab_number` to join it by, or a
+ * figure of the wrong type) is dropped alone, so one bad row never costs the game its other pitches' figures.
+ */
+const savantFeedRowsSchema = z.array(z.unknown()).transform((rows) => rows.flatMap((row) =>
+{
+	const parsed = savantFeedRowSchema.safeParse(row);
+	return parsed.success ? [parsed.data] : [];
+}));
+
+const savantGameFeedResponseSchema = z.preprocess((feed) => withoutNulls(feed, false), z.object({
+	game_status_code: z.string().optional(),
+	game_status: z.string().optional(),
+	gamedayType: z.string().optional(),
+	gameDate: z.string().optional(),
+	game_date: z.string().optional(),
+	hasAbs: z.boolean().optional(),
+	venue_id: z.number().optional(),
+	team_home_id: z.number().optional(),
+	team_away_id: z.number().optional(),
+	team_home: savantFeedRowsSchema.optional(),
+	team_away: savantFeedRowsSchema.optional(),
+	cacheKey: z.string().optional(),
+	cache_hit: z.string().optional(),
+	scoreboard: savantRepeated.optional(),
+	boxscore: savantRepeated.optional(),
+	home_team_data: savantRepeated.optional(),
+	away_team_data: savantRepeated.optional(),
+	home_pitchers: savantRepeated.optional(),
+	away_pitchers: savantRepeated.optional(),
+	home_batters: savantRepeated.optional(),
+	away_batters: savantRepeated.optional(),
+	exit_velocity: savantRepeated.optional(),
+	players: savantRepeated.optional(),
+	home_lineup: savantRepeated.optional(),
+	away_lineup: savantRepeated.optional(),
+	home_pitcher_lineup: savantRepeated.optional(),
+	away_pitcher_lineup: savantRepeated.optional(),
+}));
+
+/**
+ * `GET baseballsavant.mlb.com/gf?game_pk={gamePk}` (S103; Savant's per-pitch game feed, an internal feed). Throws on an
+ * answer that isn't a feed; a null field reads as absent, and a pitch row that can't be read is left out alone.
+ */
+export function parseSavantGameFeedResponse(input: unknown): SavantGameFeedResponse
+{
+	return savantGameFeedResponseSchema.parse(input);
 }

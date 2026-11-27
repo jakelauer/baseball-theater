@@ -125,6 +125,12 @@ class FakeMlbStatsClient implements MlbStatsClient
 		return null;
 	}
 
+	/** No Savant figures here (S103): the field stays absent. */
+	async fetchSavantGameFeed(): Promise<null>
+	{
+		return null;
+	}
+
 	async fetchSeasonCalendar(): Promise<null>
 	{
 		return null;
@@ -210,8 +216,8 @@ describe("fixture recorder", () =>
 			},
 		);
 
-		// The eleven names packages/mlb-api/src/coverage.test.ts consumes (play metrics since S93, GraphQL content since S94,
-		// player of the game since S99, uniforms since S101, rule settings since S100).
+		// The twelve names packages/mlb-api/src/coverage.test.ts consumes (play metrics since S93, GraphQL content since S94,
+		// player of the game since S99, uniforms since S101, rule settings since S100, Savant's game feed since S103).
 		expect(written).toEqual([
 			`schedule-${DATE}.json`,
 			`live-${GAME_PK}.json`,
@@ -219,6 +225,7 @@ describe("fixture recorder", () =>
 			`timestamps-${GAME_PK}.json`,
 			`playmetrics-${GAME_PK}.json`,
 			`potg-${GAME_PK}.json`,
+			`savant-gf-${GAME_PK}.json`,
 			`uniforms-${GAME_PK}.json`,
 			`rulesettings-${GAME_PK}.json`,
 			`graphql-content-${GAME_PK}.json`,
@@ -413,6 +420,19 @@ describe("fixture recorder", () =>
 			divisions: expected.divisions,
 		});
 		expect(mapped).toEqual(await readFixture("standings-1950-07-04.json"));
+	});
+
+	it("S103: a failed recording names the status and the URL asked, not the Stats API, so a Savant failure says Savant", async () =>
+	{
+		const out = await mkdtemp(path.join(tmpdir(), "bt-savant-down-"));
+		await expect(recordEndpoints([{
+			name: "savant-gf-1",
+			url: "https://baseballsavant.mlb.com/gf?game_pk=1",
+		}], out, {
+			fetchImpl: (async () => new Response("down", {
+				status: 503,
+			})) as unknown as typeof fetch,
+		})).rejects.toThrow(/^HTTP 503 for https:\/\/baseballsavant\.mlb\.com\/gf\?game_pk=1$/);
 	});
 
 	it("S155: a day's answer that isn't JSON fails loudly and leaves the mapped file as it was", async () =>

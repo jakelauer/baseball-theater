@@ -8,6 +8,7 @@ import type {
 	GameUniforms,
 	PlayerOfTheGame,
 	PlayerProfile,
+	SavantPitch,
 	ScheduleDay,
 	SearchFilters,
 	SearchHighlightsPage,
@@ -69,6 +70,13 @@ export interface MlbStatsClient {
 	 * none is stored, as it asks the uniforms (`askedExtraDue`, `withAskedExtras`).
 	 */
 	fetchGameRuleSettings(gamePk: number): Promise<GameRuleSetting[] | null>;
+	/**
+	 * Baseball Savant's figures for each pitch (S103; `baseballsavant.mlb.com/gf`, an internal feed on Savant's own host),
+	 * only those MLB's feeds lack, each pitch stamped with this pull's version (the time it was fetched); null when the
+	 * call fails, can't be parsed or lists no pitch, never a throw. `fetchGame` never asks it: the game's ingest object
+	 * does, on its own cadence (`savantPullDue`), and merges the answer in (`mergeSavantPitches`).
+	 */
+	fetchSavantGameFeed(gamePk: number): Promise<SavantPitch[] | null>;
 	/** The regular season's standings as of `date` (S4); MLB has none outside the regular season. */
 	fetchStandings(date: string): Promise<StandingsSnapshot>;
 	/** A season's final regular-season table (S128): MLB's standings for the season with no date. */
