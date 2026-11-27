@@ -11,9 +11,9 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "docs/v3/SAVANT-CATALOGUE.md holds a table with the columns Data set, URL pattern, Format, Fields, Update cadence, Grain, Reachability, BT already has, What BT could show, Source, Read (in that order); a row for batters and one for pitchers; no row covers pitchers alone"
+check 1 "docs/v3/SAVANT-CATALOGUE.md holds a table with the columns Data set, URL pattern, Format, Fields, Update cadence, Grain, Reachability, BT already has, What BT could show, Source, Read (in that order); a row for batters and one for pitchers; no row covers pitchers alone (its Grain names batters, hitters, runners, fielders or catchers beside them)"
 check 2 "every row's Source cell links https://baseballsavant.mlb.com/…, and its Read cell is an ISO date from 2026-11-27 to today"
-check 3 "every row's BT already has cell names what BT already gets (a field or feed, or 'nothing') and its Reachability cell says how it is fetched (plain URL, CSV, JSON, login, key or blocked)"
+check 3 "every row's BT already has cell names what BT already gets (a field or feed, or 'nothing') and its Reachability cell says how it is fetched (plain URL, CSV, JSON, login, key or blocked; \"no login or key\" alone names no method)"
 check 4 "the catalogue opens with S103's Terms of Use finding (linked from docs/v3/SAVANT-DATA.md) and says this story fetched nothing by code; each of SAVANT-DATA's seven player-season ideas is a row; SAVANT-DATA.md links the catalogue"
 check 5 "S104's own changes touch only docs/v3/SAVANT-CATALOGUE.md, docs/v3/SAVANT-DATA.md, docs/v3/backlog/, docs/v3/audit/, changelog.d/ (and create scripts/verify-S104.sh)"
 check 6 "the catalogue ends with an Owner question section: 1 to 3 numbered options, the first marked (Recommended), each naming catalogue rows by Data set name and what BT could show"
@@ -30,7 +30,10 @@ trap 'rm -rf "$TMP"' EXIT
 # Checks 1–4 and 6 read the catalogue through one parser: the first Markdown table after the opening, its cells
 # split on unescaped pipes (a cell writes a literal pipe as \| or %7C). It prints "FAIL <check> <reason>" lines.
 # "Pitcher-only by construction" (AC 1, the owner's "shouldn't be specific to pitchers") is read from each row's
-# Grain cell, which names who the row covers: a row naming pitchers and no one else fails.
+# Grain cell, which names who the row covers: a row naming pitchers and no other kind of player (batters, hitters,
+# runners, fielders, catchers) fails. "League", "all players" or "every player" names no kind of player, so it
+# cannot rescue a pitcher-only row. Check 3 drops "no login or key" (and its variants) from a Reachability cell
+# before looking for a fetch method, so a cell saying only that, with no method, fails.
 cat >"$TMP/parse.mjs" <<'EOF'
 import { readFileSync } from "node:fs";
 const [cat, data, today] = process.argv.slice(2);
@@ -58,7 +61,7 @@ else
 if (head >= 0 && rows.length === 0) bad(1, "the table has no rows");
 const who = (g) => ({
 	pitchers: /\bpitchers?\b/i.test(g),
-	others: /\b(batters?|hitters?|runners?|fielders?|catchers?|all players|every player|league)\b/i.test(g),
+	others: /\b(batters?|hitters?|runners?|fielders?|catchers?)\b/i.test(g),
 });
 let batters = false, pitchers = false;
 for (const { line, c } of rows)
@@ -74,7 +77,8 @@ for (const { line, c } of rows)
 	else if (d[1] < "2026-11-27" || d[1] > today || Number.isNaN(Date.parse(d[1]))) bad(2, `row ${line}: Read ${d[1]} is before 2026-11-27, after ${today} or not a date`);
 	const has = strip(c["BT already has"]);
 	if (has === "" || /^(-|—|tbd|\?|n\/a)$/i.test(has)) bad(3, `row ${line}: BT already has is blank`);
-	if (!/\b(plain URL|CSV|JSON|login|key|blocked)\b/i.test(c.Reachability)) bad(3, `row ${line}: Reachability says no fetch method: ${c.Reachability}`);
+	const reach = c.Reachability.replace(/\b(no|not|without)\s+(an?\s+)?(login|key)(\s*(,|or|and|nor)\s+(an?\s+)?(login|key))*\b/gi, "");
+	if (!/\b(plain URL|CSV|JSON|login|key|blocked)\b/i.test(reach)) bad(3, `row ${line}: Reachability says no fetch method: ${c.Reachability}`);
 	for (const k of ["Data set", "URL pattern", "Format", "Fields", "Update cadence", "What BT could show"]) if (strip(c[k]) === "") bad(1, `row ${line}: ${k} is blank`);
 }
 if (rows.length && !batters) bad(1, "no row's Grain covers batters");
