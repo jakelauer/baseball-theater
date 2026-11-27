@@ -3,6 +3,7 @@ name: pre-pr-reviewer
 description: 'Fresh-context, read-only code review with the review-class checklist (`docs/v3/LOOP.md` §7). Use for the pre-PR review of every pull request (§7 step 2, sized to the diff's risk: one per checklist slice in parallel for a big or sensitive diff, one covering all four for a small, low-risk one, none for one that holds only ledger and changelog fragments and frame note 00's review log), and for the review of a fix''s uncommitted changes plus their callers (§7 step 3.4); in a small fix round (under about 100 changed lines) the same reviewer checks the plan first, then is continued with SendMessage for the change (§7 step 3.2). Sonnet by default; pass `model: "opus"` only when the diff touches a sensitive path (`is_sensitive` in `scripts/claude-review/plan-review.py`: `SENSITIVE_PREFIXES` / `SENSITIVE_WORDS`).'
 tools: Read, Grep, Glob, Bash
 model: sonnet
+effort: high
 color: yellow
 ---
 

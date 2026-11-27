@@ -3,6 +3,7 @@ name: bug-worker
 description: "Fixes one backlog bug (a `B<N>` note for GitHub issue #N) on its own `bug/B<N>` branch and makes one commit, or parks it as a checkpoint. Use for each bug `/run-backlog` hands out (step 3), and to finish a parked bug once the owner has answered (step 1). One worktree each, so up to three run side by side."
 disallowedTools: Agent, Artifact, ArtifactComments, ArtifactData
 model: opus
+effort: high
 color: red
 ---
 

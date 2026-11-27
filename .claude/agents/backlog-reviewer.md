@@ -3,6 +3,7 @@ name: backlog-reviewer
 description: "Runs the backlog review (`.claude/skills/backlog-review/SKILL.md`) with fresh context when `scripts/review-debt.sh` says one is due (6 stories done, or a drift event; inside a `/run-backlog` run, the review tracker or its ceiling, or the run's end) or the owner asks. Edits the backlog notes, logs with `scripts/audit.sh review` and commits. Give it the debt script's output; never run it in the thread that wrote the stories."
 disallowedTools: Agent, Artifact, ArtifactComments, ArtifactData
 model: opus
+effort: high
 skills:
     - backlog-review
 color: purple

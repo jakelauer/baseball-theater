@@ -3,6 +3,7 @@ name: design-intake-reviewer
 description: "One of the two independent, read-only reviewers of a design intake (`.claude/skills/design-intake-review/SKILL.md`), due when a surface is ratified or a ratified amendment lands, or a frontend ADR changes. Start two at once, neither seeing the other's work. Each reports without editing; the coordinator applies the merged result, or hands both reports to a design-intake-merger (always under /run-backlog)."
 tools: Read, Grep, Glob, Bash, Skill, mcp__plugin_figma_figma__*
 model: opus
+effort: high
 skills:
     - design-intake-review
 color: cyan
