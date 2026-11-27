@@ -49,6 +49,11 @@ export type PitchEvent = {
 	pitchNumber: number;
 	playId: string;
 	startTime: string;
+	/**
+	 * When the live feed says the pitch ended (its play event's `endTime`); Savant's arrival times are read beside it (S103).
+	 * Absent where MLB sent none, and on older recordings.
+	 */
+	endTime?: string;
 	details: {
 		call: string | null;
 		callDescription: string | null;

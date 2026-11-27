@@ -26,6 +26,7 @@ import {
 	parsePlayMetricsResponse,
 	parsePlayerOfTheGameResponse,
 	parseRecordedReplayWalk,
+	parseSavantGameFeedResponse,
 	parseScheduleResponse,
 	parseSeasonsResponse,
 	parseStandingsResponse,
@@ -69,6 +70,8 @@ const PARSERS: ReadonlyArray<readonly [RegExp, Parser]> = [
 	[/^uniforms-\d+\.json$/, parseGameUniformsResponse],
 	// The rules the game was played under (S100), the live feed filtered to its ruleSettings hydrate.
 	[/^rulesettings-\d+\.json$/, parseGameRuleSettingsResponse],
+	// Baseball Savant's per-pitch game feed (S103).
+	[/^savant-gf-\d+\.json$/, parseSavantGameFeedResponse],
 	[/^timestamps-.*\.json$/, parseGameTimestamps],
 	[/^standings-.*\.json$/, parseStandingsResponse],
 	[/^people-.*\.json$/, parsePeopleResponse],

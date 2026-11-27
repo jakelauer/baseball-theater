@@ -350,7 +350,14 @@ node -e '
   }
   if (hits.length) { console.log("asks Savant in the live feed call, in " + hits.join(", ")); process.exit(1); }
 ' functions/src/adapters/http/mlb.ts >"$TMP/live.txt" 2>&1 || bad 5 "the HTTP client's fetchGame $(cat "$TMP/live.txt")"
-grep -qF 'fetchSavantGameFeed' functions/src/game-ingest-object.ts || bad 5 "the ingest object (functions/src/game-ingest-object.ts) never calls fetchSavantGameFeed"
+# S48's ingest object is the Durable Object shell game-ingest-object.ts over GameIngest (functions/src/services/
+# game-ingest.ts, "what the game-ingest:<gamePk> Durable Object does"): the shell must run GameIngest, and GameIngest
+# must call fetchSavantGameFeed, in its own module or in a ./services module it imports. (Before S103 shipped, this
+# grepped the shell alone, which holds no ingest logic; rule 7, shown red on 10964fa1 first.)
+grep -qE 'new GameIngest\(' functions/src/game-ingest-object.ts || bad 5 "the ingest object (functions/src/game-ingest-object.ts) does not run GameIngest"
+ingest_files="functions/src/services/game-ingest.ts $(grep -oE 'from "\./[a-z0-9-]+\.js"' functions/src/services/game-ingest.ts 2>/dev/null | sed -E 's#from "\./([a-z0-9-]+)\.js"#functions/src/services/\1.ts#' | tr '\n' ' ')"
+# shellcheck disable=SC2086
+grep -lF 'fetchSavantGameFeed' $ingest_files >/dev/null 2>&1 || bad 5 "the ingest object (GameIngest, functions/src/services/game-ingest.ts, and the modules it imports) never calls fetchSavantGameFeed"
 run_tagged_any 5 "S103 AC 5" functions packages/domain
 
 # --- Check 6: the source is optional --------------------------------------------------------------------------

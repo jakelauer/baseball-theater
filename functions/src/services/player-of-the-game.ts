@@ -23,14 +23,15 @@ import { withPlayerOfTheGame } from "../mappers/player-of-the-game.js";
 /**
  * One ask of an extra off the game fetch (S99, generalized for S101): its answer, or null when it fails or once
  * {@link PLAY_METRICS_LIMIT_MS} passes with none (the request is left to finish unseen), so a hanging request holds
- * neither a read nor a poll. Every extra ingest asks off the fetch goes through it (ADR-025).
+ * neither a read nor a poll. Every extra ingest asks off the fetch goes through it (ADR-025); Savant's pull (S103) too,
+ * with its own longer `limitMs`, since its answer is megabytes and it is asked after the poll's write, never before it.
  */
-export async function askWithinLimit<T>(ask: () => Promise<T | null>): Promise<T | null>
+export async function askWithinLimit<T>(ask: () => Promise<T | null>, limitMs: number = PLAY_METRICS_LIMIT_MS): Promise<T | null>
 {
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const limit = new Promise<null>((resolve) =>
 	{
-		timer = setTimeout(() => resolve(null), PLAY_METRICS_LIMIT_MS);
+		timer = setTimeout(() => resolve(null), limitMs);
 	});
 	return Promise.race([Promise.resolve().then(ask).catch(() => null), limit]).finally(() => clearTimeout(timer));
 }

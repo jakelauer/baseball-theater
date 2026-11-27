@@ -31,8 +31,8 @@ import type { StandingsResponse } from "@bt/mlb-api";
 import { parseSearchResponse, parseStandingsResponse } from "@bt/mlb-api";
 import type { MlbStatsClient } from "@bt/ports";
 import {
-	finalStandingsUrl, gameRuleSettingsUrl, gameUniformsUrl, graphContentRequest, playMetricsUrl, playerOfTheGameUrl, searchHighlightsRequest, seasonsUrl, springStandingsUrl,
-	standingsUrl, worldSeriesUrl,
+	finalStandingsUrl, gameRuleSettingsUrl, gameUniformsUrl, graphContentRequest, playMetricsUrl, playerOfTheGameUrl, savantGameFeedUrl, searchHighlightsRequest, seasonsUrl,
+	springStandingsUrl, standingsUrl, worldSeriesUrl,
 } from "../adapters/http/mlb.js";
 import { searchFixtureName } from "../adapters/fixtures/fixture-client.js";
 import { mapStandings } from "../mappers/standings.js";
@@ -100,6 +100,11 @@ export function rawEndpoints(
 			// MLB's player of the game (S99), an mlb.com app feed: the URL the HTTP client asks.
 			name: `potg-${gamePk}`,
 			url: playerOfTheGameUrl(gamePk),
+		},
+		{
+			// Baseball Savant's per-pitch game feed (S103), on Savant's own host: the URL the HTTP client asks.
+			name: `savant-gf-${gamePk}`,
+			url: savantGameFeedUrl(gamePk),
 		},
 		{
 			// The uniforms each team wore (S101): the URL the HTTP client asks.
@@ -297,7 +302,10 @@ async function writeJson(file: string, data: unknown): Promise<void>
  *
  * `plays` is written as its own `plays-<gamePk>.json` and stripped from the
  * game file: `fetchGame` overwrites embedded plays with that separate file, so
- * inlining them would round-trip silently to `plays: []`.
+ * inlining them would round-trip silently to `plays: []`. The game file also keeps
+ * Savant's figures for each pitch (`savant`, S103), asked of the client apart from
+ * `fetchGame` as ingest asks them, so the Worker's bundled fixtures carry them without
+ * the 3 MB raw recording.
  */
 export async function recordNormalized(
 	client: MlbStatsClient,
@@ -324,7 +332,13 @@ export async function recordNormalized(
 	const {
 		fetchedAt: _f, windowMode: _w, plays, ...rest
 	} = game;
-	await writeJson(path.join(outDir, `game-${gamePk}.json`), rest);
+	// S103: Savant's figures projected into the game file, so the Worker's bundled fixtures carry them without the 3 MB
+	// recording (`FixtureClient.fetchSavantGameFeed` reads them back); never part of `fetchGame`.
+	const savant = await client.fetchSavantGameFeed(gamePk);
+	await writeJson(path.join(outDir, `game-${gamePk}.json`), savant ? {
+		...rest,
+		savant,
+	} : rest);
 	written.push(`game-${gamePk}.json`);
 
 	await writeJson(path.join(outDir, `plays-${gamePk}.json`), (plays ?? []) as AtBat[]);

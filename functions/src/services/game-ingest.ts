@@ -9,10 +9,15 @@
  * payload writes nothing, ADR-022), and **only then** publishes to the hubs leased in
  * its storage, so a viewer is never told about a change the store doesn't hold. When the
  * game leaves its window, the last poll publishes the final state and no alarm is set.
+ *
+ * S103: after a poll has written and published (and armed the next alarm), the object pulls Baseball Savant on its own
+ * cadence (`savantPullDue`: at most once per `savantIntervalMs` while the game is live, then once more on the run's last
+ * poll after the final), merges what arrived into the stored game and publishes that version too. Savant is never asked
+ * inside the poll's fetch, so a slow or failing Savant never delays a pitch.
  */
 import type { CadenceParams, GameSnapshot } from "@bt/domain";
 import {
-	DEFAULT_CADENCE, isFinalStatus, isGameInActiveWindow, isSuspendedStatus, playerOfTheGameComplete, suspendedSince, wholeFetchedGame,
+	DEFAULT_CADENCE, isFinalStatus, isGameInActiveWindow, isSuspendedStatus, playerOfTheGameComplete, savantPullDue, suspendedSince, wholeFetchedGame,
 } from "@bt/domain";
 import type { DurableStore } from "./hub-leases.js";
 import { HubLeases } from "./hub-leases.js";
@@ -20,6 +25,7 @@ import type { IngestDeps } from "./ingest.js";
 import { servedGame } from "./game-state.js";
 import { ingestGame, refreshTodaysWindow } from "./ingest.js";
 import { withAskedPlayerOfTheGame } from "./player-of-the-game.js";
+import { pullSavant, SAVANT_LIMIT_MS } from "./savant-ingest.js";
 
 /** Durable Object storage with its alarm (`state.storage`). */
 export interface AlarmStore extends DurableStore
@@ -56,6 +62,10 @@ const POTG_COMPLETE_KEY = "potgComplete";
  * object mid-run across the deploy still finds (and clears) it.
  */
 const EXTRAS_ASKED_KEY = "uniformsAsked";
+/** When this run last pulled Baseball Savant (epoch ms, S103), for `savantPullDue`'s interval. Cleared when the run ends. */
+const SAVANT_AT_KEY = "savantAt";
+/** Set once this run has made its one Savant pull after the final (S103). Cleared when the run ends. */
+const SAVANT_FINAL_KEY = "savantFinal";
 
 export class GameIngest
 {
@@ -66,6 +76,8 @@ export class GameIngest
 		private readonly deps: IngestDeps,
 		private readonly publish: HubPublisher,
 		private readonly params: CadenceParams = DEFAULT_CADENCE,
+		/** How long one Savant pull may take (S103); tests shorten it. */
+		private readonly savantLimitMs: number = SAVANT_LIMIT_MS,
 	)
 	{
 		this.hubs = new HubLeases(storage);
@@ -140,16 +152,41 @@ export class GameIngest
 		// S150 AC 6: the served game (status and linescore from its one stored state), as the HTTP read and the hub's first send serve it.
 		// S149 AC 2: a mend (the row changed under an unchanged snapshot) is published too, so a day hub pushes its day.
 		if (changed || stateChanged || !inWindow) await this.publishToHubs(servedGame(snapshot, state, now), now);
+		// S103: decided now, pulled only after the next alarm is armed, so a slow Savant never holds up the next poll.
+		const savantDue = savantPullDue({
+			codedGameState: game.status.codedGameState,
+			inWindow,
+			lastPulledAt: await this.storage.get<number>(SAVANT_AT_KEY),
+			finalPulled: await this.storage.get<boolean>(SAVANT_FINAL_KEY) === true,
+			now: now.getTime(),
+			intervalMs: this.params.savantIntervalMs,
+		});
 		if (inWindow)
 		{
 			await this.storage.setAlarm(now.getTime() + this.params.intervalMs);
+			if (savantDue) await this.pullSavant(gamePk, isFinalStatus(game.status.codedGameState), now);
 			return;
 		}
+		if (savantDue) await this.pullSavant(gamePk, isFinalStatus(game.status.codedGameState), now);
 		await this.storage.deleteAlarm();
 		await this.storage.delete(GAME_KEY);
 		await this.storage.delete(ACTIVE_KEY);
 		await this.storage.delete(POTG_COMPLETE_KEY);
 		await this.storage.delete(EXTRAS_ASKED_KEY);
+		await this.storage.delete(SAVANT_AT_KEY);
+		await this.storage.delete(SAVANT_FINAL_KEY);
+	}
+
+	/**
+	 * One Savant pull (S103): noted first (so a pull that hangs still counts toward the interval), then merged into the
+	 * stored game and, when that changed it, published as its next version.
+	 */
+	private async pullSavant(gamePk: number, final: boolean, now: Date): Promise<void>
+	{
+		await this.storage.put(SAVANT_AT_KEY, now.getTime());
+		if (final) await this.storage.put(SAVANT_FINAL_KEY, true);
+		const written = await pullSavant(this.deps, gamePk, now, this.savantLimitMs);
+		if (written) await this.publishToHubs(servedGame(written.snapshot, written.row, now), now);
 	}
 
 	private async publishToHubs(snapshot: GameSnapshot, now: Date): Promise<void>

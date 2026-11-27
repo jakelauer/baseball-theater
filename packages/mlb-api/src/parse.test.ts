@@ -11,6 +11,7 @@ import {
 	parseGameUniformsResponse,
 	parseGameRuleSettingsResponse,
 	parsePlayerOfTheGameResponse,
+	parseSavantGameFeedResponse,
 	parseScheduleResponse,
 	parseSeasonsResponse,
 	parseStandingsResponse,
@@ -368,6 +369,39 @@ describe("parsePlayerOfTheGameResponse (S99)", () =>
 			mediaWinner: {
 				WPA: "high",
 			},
+		})).toThrow();
+	});
+});
+
+describe("parseSavantGameFeedResponse (S103)", () =>
+{
+	it("S103 AC 2: parses the recorded 823823 answer: 340 pitch rows, each with its playId, and Savant's own figures typed", () =>
+	{
+		const feed = parseSavantGameFeedResponse(readRaw("savant-gf-823823.json"));
+		const pitches = [...feed.team_home ?? [], ...feed.team_away ?? []];
+		expect(pitches).toHaveLength(340);
+		expect(new Set(pitches.map((p) => p.play_id)).size).toBe(340);
+		const first = pitches.find((p) => p.play_id === "d60784fd-fea5-354b-aa53-a8bc50f1f3a2");
+		expect(first).toMatchObject({
+			ab_number: 1,
+			pitcher_time_thru_order: 1,
+			savantIsInZone: true,
+			isSword: false,
+			is_abs_challenge: false,
+		});
+		expect(typeof first?.plateXPoly).toBe("number");
+		expect(pitches.filter((p) => p.xba !== undefined)).toHaveLength(52);
+		expect(pitches.filter((p) => p.contextMetrics?.homeRunBallparks !== undefined)).toHaveLength(52);
+		expect(pitches.filter((p) => p.batSpeed !== undefined)).toHaveLength(150);
+		expect(pitches.filter((p) => p.abs_challenge).map((p) => p.abs_challenge?.is_overturned)).toHaveLength(5);
+	});
+
+	it("S103 AC 2: refuses a pitch row without its playId", () =>
+	{
+		expect(() => parseSavantGameFeedResponse({
+			team_home: [{
+				ab_number: 1,
+			}],
 		})).toThrow();
 	});
 });
