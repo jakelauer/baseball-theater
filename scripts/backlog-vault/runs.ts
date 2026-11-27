@@ -9,6 +9,9 @@
  * clean on this point if its findings per pull request are no higher than the lowest earlier recorded run's.
  * The first run passes this condition by definition."); asked what follows an unclean run at 3: "Drop back to
  * 2 (Recommended)". S156's Phase 2 exit criteria add the rest: at least four items, a drain under 3 hours.
+ * Claude's in-pull-request review was retired on 2026-11-26; asked what should replace its findings, the owner
+ * chose "Count pre-PR findings (Recommended)": findings per pull request are now the real findings of each item's
+ * pre-PR review, logged in the journal as `findings` events ({@link prePrFindingsByPr}), against the same bar.
  *
  * Everything but the CLI is pure (runs.test.ts). CLI (from the repository root):
  *
@@ -18,7 +21,6 @@
  *       (oldest to newest by run ID, which is the run's start time, so a run re-recorded later keeps its place;
  *       a run recorded twice is read once, its newest entry standing)
  *   node scripts/backlog-vault/runs.ts id --journal <run.json>          prints the journal's run ID
- *   node scripts/backlog-vault/runs.ts prs --journal <run.json>         the run's pull requests, space-separated
  *   node scripts/backlog-vault/runs.ts check-end --journal <run.json> --run-dir <main checkout>/.run [--audit <ledger>]
  *       [--abandoned] [--rerecord]   exit 1, saying why, when `audit.sh run` can't record the run truly:
  *       (a) an ended run has no entry in this tree (its entry is missing from the bar and from `concurrency`;
@@ -28,8 +30,9 @@
  *       logged a verdict ({@link endReviewProblems}; not checked for --abandoned or --rerecord).
  *       A journal marked `"abandoned": true` (claims.ts `run end --abandoned`) counts as --abandoned here and
  *       in `fragment`. Any command that fails other than by refusing exits 2.
- *   node scripts/backlog-vault/runs.ts fragment --journal <run.json> --findings <json> --date <d> --stamp <s>
- *       --head <text> [--audit <ledger>] [--abandoned]   prints the run entry (`audit.sh run` writes it)
+ *   node scripts/backlog-vault/runs.ts fragment --journal <run.json> --date <d> --stamp <s>
+ *       --head <text> [--audit <ledger>] [--abandoned]   prints the run entry (`audit.sh run` writes it), its
+ *       findings per pull request from the journal's `findings` events alone (no GitHub read)
  *   node scripts/backlog-vault/runs.ts turn-caps [--audit <ledger>] [--run-dir <main checkout>/.run]
  *       one line per item with a turn-cap hit no backlog review lists: `<ID>\t<turn-cap event JSON>`
  *   node scripts/backlog-vault/runs.ts debt-hits --debt-json <file>     the hits a review's seed held, as its row's text
@@ -226,8 +229,41 @@ function stoppedSpans(events: RunEvent[], end: number): [number, number][]
 }
 
 /**
- * Summarize a run's journal (S158 ACs 2, 3 and 7), pure. `findingsByPr` maps a pull request number to the
- * inline comments on its Claude reviews; `earlierRuns` are the earlier run entries (any order); `abandoned`
+ * Each pull request the run opened (`pr-open`), mapped to the real findings its item's pre-PR review found in this
+ * run: the sum of the item's `findings` events (one per review round, claims.ts `run event findings <ID> --count <n>`),
+ * 0 when it has none. An item's findings go to the first pull request the journal opened for it, so two `pr-open`s
+ * never count them twice; a `findings` event for an item with no `pr-open` in this run adds nothing (no pull request
+ * to divide by). Owner, 2026-11-26, asked what should replace the retired Claude review's findings: "Count pre-PR
+ * findings (Recommended)".
+ */
+export function prePrFindingsByPr(journal: RunJournal): Record<number, number>
+{
+	const byItem = new Map<string, number>();
+	for (const e of journal.events)
+	{
+		if (e.kind === "findings" && e.id !== undefined)
+		{
+			byItem.set(e.id, (byItem.get(e.id) ?? 0) + (e.count ?? 0));
+		}
+	}
+	const out: Record<number, number> = {};
+	const credited = new Set<string>();
+	for (const e of journal.events)
+	{
+		if (e.kind !== "pr-open" || e.pr === undefined || e.pr in out)
+		{
+			continue;
+		}
+		const id = e.id ?? "";
+		out[e.pr] = credited.has(id) ? 0 : byItem.get(id) ?? 0;
+		credited.add(id);
+	}
+	return out;
+}
+
+/**
+ * Summarize a run's journal (S158 ACs 2, 3 and 7), pure. `findingsByPr` maps a pull request number to its
+ * findings ({@link prePrFindingsByPr}: its item's pre-PR review findings); `earlierRuns` are the earlier run entries (any order); `abandoned`
  * is a run the owner chose not to finish, which never counts. Active time leaves out every span from
  * `interrupted` to the next `run-resume`; an item is in flight from `item-start` to its `merged`, `park` or
  * `held`, and again from each `resume` (one with no `item-start` never is). Only items this run started count
@@ -350,7 +386,8 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 				break;
 			default:
 				// claim, claim-refused (the admission check working: never a duplicate), needs-lead,
-				// interrupted, run-resume and the review tracker's review-score and review-start move no figure here.
+				// interrupted, run-resume, the review tracker's review-score and review-start, and findings
+				// (read by prePrFindingsByPr, whose result comes in as findingsByPr) move no figure here.
 				break;
 		}
 		peak = Math.max(peak, [...open].filter((i) => !barrier.has(i)).length);
@@ -636,9 +673,6 @@ function main(argv: string[]): number
 			"journal": {
 				type: "string",
 			},
-			"findings": {
-				type: "string",
-			},
 			"date": {
 				type: "string",
 			},
@@ -702,11 +736,6 @@ function main(argv: string[]): number
 		case "id":
 			console.log(readJournal().id);
 			return 0;
-		case "prs":
-			console.log(summarizeRun(readJournal(), {}, [], {
-				abandoned: false,
-			}).prs.join(" "));
-			return 0;
 		case "check-end":
 		{
 			const journal = readJournal();
@@ -743,9 +772,8 @@ function main(argv: string[]): number
 		case "fragment":
 		{
 			const journal = readJournal();
-			const findings = JSON.parse(readFileSync(values.findings ?? "", "utf8")) as Record<number, number>;
 			// Only runs that started before this one are earlier (a run re-recorded later still sits in its place).
-			const summary = summarizeRun(journal, findings, runs().filter((e) => (e.run ?? "") < journal.id).map(runRecordOf), {
+			const summary = summarizeRun(journal, prePrFindingsByPr(journal), runs().filter((e) => (e.run ?? "") < journal.id).map(runRecordOf), {
 				abandoned: values.abandoned === true || journal.abandoned === true,
 			});
 			process.stdout.write(renderRunEntry(summary, {
@@ -806,7 +834,7 @@ function main(argv: string[]): number
 			return state.due ? 1 : 0;
 		}
 		default:
-			console.error("usage: runs.ts concurrency|id|prs|check-end|fragment|turn-caps|debt-hits|review-state|review-base … (see the file's header)");
+			console.error("usage: runs.ts concurrency|id|check-end|fragment|turn-caps|debt-hits|review-state|review-base … (see the file's header)");
 			return 2;
 	}
 }

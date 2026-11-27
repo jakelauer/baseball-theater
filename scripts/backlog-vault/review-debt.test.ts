@@ -1345,6 +1345,27 @@ describe("review-debt.sh and parity-debt.sh inside an open /run-backlog run: the
 		}
 	});
 
+	it("the ceiling: a frame note 00 without exactly one of each review-log marker counts whole, so even a log-only edit forces both", () =>
+	{
+		// Two `**Last review:**` lines (or none) leave the log's edges unknown; skipping anything could hide a rule edit.
+		const frame = "docs/v3/backlog/frame/00 Baseball Theater v3 — Checkable backlog.md";
+		const note = (log: string) =>
+			`# Backlog\n\n1. Rule one.\n\n**Last review:** ${log}\n\n**Last review:** 2026-11-01.\n\n**Next review due:** by count.\n`;
+		reviewed({
+			".gitignore": "node_modules\n.run/\n",
+			[frame]: note("2026-11-02."),
+		});
+		write(frame, note("2026-11-03."));
+		commit("a review-log-only edit in a note with two Last review markers");
+		journal([score(1, "backlog", 0, 9), score(1, "parity", 0, 9)]);
+		for (const script of ["parity-debt.sh", "review-debt.sh"])
+		{
+			const r = debt(script);
+			expect(r.status, r.stdout).toBe(1);
+			expect(r.stdout).toContain(`ceiling reached: ${frame} changed`);
+		}
+	});
+
 	it("the ceiling: pnpm verify itself changing forces it", () =>
 	{
 		reviewed({

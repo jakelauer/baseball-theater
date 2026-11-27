@@ -17,7 +17,7 @@ import type { RunEvent, RunJournal } from "./claims.ts";
 import type { LedgerEntry } from "./ledger.ts";
 import type { RunRecord } from "./runs.ts";
 import {
-	concurrencyFromRuns, endReviewProblems, formatReviewState, renderRunEntry, REVIEW_CEILING_ITEMS, reviewBase, reviewState, summarizeRun, unlistedTurnCaps,
+	concurrencyFromRuns, endReviewProblems, formatReviewState, prePrFindingsByPr, renderRunEntry, REVIEW_CEILING_ITEMS, reviewBase, reviewState, summarizeRun, unlistedTurnCaps,
 } from "./runs.ts";
 
 const T0 = Date.parse("2026-11-21T00:00:00.000Z");
@@ -54,6 +54,59 @@ const life = (id: string, pr: number, start: number, ready: number, merged: numb
 /** A counted run at C = 2: four items, two at a time, all merged within the hour. */
 const countedRun = (extra: RunEvent[] = []) => [...life("S1", 1, 0, 20, 30), ...life("S2", 2, 5, 25, 35), ...life("S3", 3, 31, 40, 50), ...life("S4", 4, 36, 45, 55), ...extra]
 	.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+
+describe("prePrFindingsByPr (owner, 2026-11-26: \"Count pre-PR findings (Recommended)\")", () =>
+{
+	it("sums each item's findings events onto its pull request, every opened pull request listed (0 when none)", () =>
+	{
+		const events = [
+			...countedRun(),
+			item("findings", "S1", 15, {
+				count: 2,
+			}),
+			item("findings", "S1", 18, {
+				count: 1,
+			}),
+			item("findings", "S3", 38, {
+				count: 0,
+			}),
+		];
+		expect(prePrFindingsByPr(journal(events))).toEqual({
+			1: 3,
+			2: 0,
+			3: 0,
+			4: 0,
+		});
+		expect(sum(events, {
+			findings: prePrFindingsByPr(journal(events)),
+		}).findingsPerPr).toBe(0.75);
+	});
+
+	it("an item's findings go to its first pull request once, a pr-open logged twice is one pull request, and an item with no pull request in the run adds nothing", () =>
+	{
+		const events = [
+			item("pr-open", "S1", 1, {
+				pr: 7,
+			}),
+			item("findings", "S1", 2, {
+				count: 4,
+			}),
+			item("pr-open", "S1", 3, {
+				pr: 7,
+			}),
+			item("pr-open", "S1", 4, {
+				pr: 9,
+			}),
+			item("findings", "S5", 5, {
+				count: 6,
+			}),
+		];
+		expect(prePrFindingsByPr(journal(events))).toEqual({
+			7: 4,
+			9: 0,
+		});
+	});
+});
 
 describe("summarizeRun", () =>
 {

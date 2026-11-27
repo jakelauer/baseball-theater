@@ -51,13 +51,14 @@
  *       question's `Blocks:` line names, with the local branches whose name holds its ID
  *
  *   node scripts/backlog-vault/claims.ts run start --n <N> --c <2|3> | run start --resume
- *   node scripts/backlog-vault/claims.ts run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier]
+ *   node scripts/backlog-vault/claims.ts run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier] [--count <n>]
  *   node scripts/backlog-vault/claims.ts run event review-score [<ID>] --review backlog|parity --score <0-10> --threshold <0-10> --reason "<text>"
  *   node scripts/backlog-vault/claims.ts run event review-start --review backlog|parity [--reason "<focus>"] [--base <sha>]
  *   node scripts/backlog-vault/claims.ts run end <run id> [--abandoned]
  *       the run journal, `.run/run.json` (S158 AC 1; see {@link RunJournal}): `start` opens one (exit 1 naming
  *       the run when one is open), `--resume` keeps it and logs `run-resume`; `event` appends one event
- *       (exit 1 on an unknown kind, a missing ID or flag, a flag its kind doesn't take, an ID that fails
+ *       (`findings <ID> --count <n>`: the real findings one round of the item's pre-PR review found, which runs.ts
+ *       sums onto its pull request; exit 1 on an unknown kind, a missing ID or flag, a flag its kind doesn't take, an ID that fails
  *       `ITEM_ID`, a `turn-cap` on an item that isn't a story, or any event while the run is interrupted:
  *       an `interrupted` with no later `run-resume`); `end` moves the journal to `.run/ended/<run id>.json`
  *       (exit 1 when no run, or another, is open), with `"abandoned": true` written into it for `--abandoned`. `claim` appends its own `claim` or `claim-refused`
@@ -170,7 +171,7 @@ export interface RunJournal
 
 /**
  * One journal event; `id` for an item's events, `pr` for `pr-open`, `path` for `conflict`, `barrier` on a barrier's
- * `item-start`, and `review` (with `score`, `threshold`, `due` and `reason` on a `review-score`) on the review tracker's events.
+ * `item-start`, `count` on `findings`, and `review` (with `score`, `threshold`, `due` and `reason` on a `review-score`) on the review tracker's events.
  */
 export interface RunEvent
 {
@@ -179,6 +180,11 @@ export interface RunEvent
 	pr?: number;
 	path?: string;
 	barrier?: boolean;
+	/**
+	 * A `findings` event's count: the real findings one round of the item's pre-PR review found, after the coordinator
+	 * merged its reviewers' reports (runs.ts prePrFindingsByPr sums them onto the item's pull request).
+	 */
+	count?: number;
 	review?: TrackedReview;
 	/** The tracker's 0–10 judgment of how much this review is needed now (`review-score`). */
 	score?: number;
@@ -194,7 +200,7 @@ export interface RunEvent
 }
 
 /** The item events `run event` takes, each needing an item ID (run-backlog steps 2–5 say where each is logged). */
-export const RUN_ITEM_KINDS = ["item-start", "needs-lead", "park", "resume", "held", "pr-open", "ready", "merged", "conflict", "duplicate", "turn-cap"];
+export const RUN_ITEM_KINDS = ["item-start", "needs-lead", "park", "resume", "held", "pr-open", "ready", "merged", "conflict", "duplicate", "turn-cap", "findings"];
 /** The run events `run event` takes, which name no item. `run-resume`, `claim` and `claim-refused` are written only by `run start --resume` and `claim`. */
 export const RUN_KINDS = ["gate-open", "gate-close", "interrupted"];
 /**
@@ -230,6 +236,7 @@ export function makeRunEvent(kind: string, input: { id?: string;
 	pr?: string;
 	path?: string;
 	barrier?: boolean;
+	count?: string;
 	review?: string;
 	score?: string;
 	threshold?: string;
@@ -276,10 +283,19 @@ export function makeRunEvent(kind: string, input: { id?: string;
 	{
 		throw new RunError("conflict needs --path <p>");
 	}
-	// A flag on a kind that doesn't take it would be dropped silently, so it is refused.
-	if ((input.pr !== undefined && kind !== "pr-open") || (input.path !== undefined && kind !== "conflict") || (input.barrier && kind !== "item-start"))
+	// A count of findings is a whole number; 0 is a round that found nothing, still worth recording.
+	if (kind === "findings" && !/^(0|[1-9][0-9]*)$/.test(input.count ?? ""))
 	{
-		throw new RunError(`${kind} takes no ${input.pr !== undefined && kind !== "pr-open" ? "--pr" : input.path !== undefined && kind !== "conflict" ? "--path" : "--barrier"}`);
+		throw new RunError("findings needs --count <n>, the pre-PR review round's real findings (0 or more)");
+	}
+	// A flag on a kind that doesn't take it would be dropped silently, so it is refused.
+	const stray = input.pr !== undefined && kind !== "pr-open" ? "--pr"
+		: input.path !== undefined && kind !== "conflict" ? "--path"
+			: input.barrier && kind !== "item-start" ? "--barrier"
+				: input.count !== undefined && kind !== "findings" ? "--count" : undefined;
+	if (stray)
+	{
+		throw new RunError(`${kind} takes no ${stray}`);
 	}
 	return {
 		kind,
@@ -294,6 +310,9 @@ export function makeRunEvent(kind: string, input: { id?: string;
 		} : {}),
 		...(input.barrier ? {
 			barrier: true,
+		} : {}),
+		...(kind === "findings" ? {
+			count: Number(input.count),
 		} : {}),
 		at,
 	};
@@ -310,9 +329,9 @@ function trackerEvent(kind: string, input: Parameters<typeof makeRunEvent>[1], a
 	{
 		throw new RunError(`${kind} needs --review ${TRACKED_REVIEWS.join("|")}`);
 	}
-	if (input.pr !== undefined || input.path !== undefined || input.barrier)
+	if (input.pr !== undefined || input.path !== undefined || input.barrier || input.count !== undefined)
 	{
-		throw new RunError(`${kind} takes no --pr, --path or --barrier`);
+		throw new RunError(`${kind} takes no --pr, --path, --barrier or --count`);
 	}
 	const review = input.review as TrackedReview;
 	if (kind === "review-start")
@@ -1090,6 +1109,7 @@ function runCommand(root: string, sub: string, rest: string[], values: { n?: str
 	pr?: string;
 	path?: string;
 	barrier?: boolean;
+	count?: string;
 	abandoned?: boolean;
 	review?: string;
 	score?: string;
@@ -1148,6 +1168,7 @@ function runCommand(root: string, sub: string, rest: string[], values: { n?: str
 			pr: values.pr,
 			path: values.path,
 			barrier: values.barrier,
+			count: values.count,
 			review: values.review,
 			score: values.score,
 			threshold: values.threshold,
@@ -1196,7 +1217,7 @@ function runCommand(root: string, sub: string, rest: string[], values: { n?: str
 		console.log(`run ${open.id} ended: its journal is .run/ended/${open.id}.json`);
 		return 0;
 	}
-	throw new RunError("usage: claims.ts run start --n <N> --c <C> | run start --resume | run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier] "
+	throw new RunError("usage: claims.ts run start --n <N> --c <C> | run start --resume | run event <kind> [<ID>] [--pr <n>] [--path <p>] [--barrier] [--count <n>] "
 		+ "| run event review-score [<ID>] --review backlog|parity --score <0-10> --threshold <0-10> --reason <text> | run event review-start --review backlog|parity [--reason <focus>] [--base <sha>] | run end <run id>");
 }
 
@@ -1247,6 +1268,9 @@ function main(argv: string[]): number
 			},
 			"barrier": {
 				type: "boolean",
+			},
+			"count": {
+				type: "string",
 			},
 			"abandoned": {
 				type: "boolean",

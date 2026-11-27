@@ -34,5 +34,18 @@ class IsReviewerPath(unittest.TestCase):
             self.assertTrue(plan_review.is_reviewer_path(path), repr(path))
 
 
+class IsSensitive(unittest.TestCase):
+    """`is_sensitive` picks Opus for a pull request's pre-PR reviewers (LOOP §7 step 2)."""
+
+    def test_sensitive_paths(self):
+        for path in ["web/src/session/x.ts", ".github/workflows/ci.yml", "functions/src/adapters/logto-auth.ts",
+                     "functions/migrations/0003_x.sql", "functions/src/deploy/x.ts", "wrangler.jsonc"]:
+            self.assertTrue(plan_review.is_sensitive(path), path)
+
+    def test_ordinary_paths(self):
+        for path in ["web/src/components/x.tsx", "packages/domain/src/impact.ts", "docs/v3/LOOP.md", "functions/src/handlers/games.ts"]:
+            self.assertFalse(plan_review.is_sensitive(path), path)
+
+
 if __name__ == "__main__":
     unittest.main()

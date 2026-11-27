@@ -124,7 +124,7 @@ export interface LedgerEntry
 	/** A run entry's `| Counted |` and `| Clean |` rows (runs.ts summarizeRun). */
 	counted?: boolean;
 	clean?: boolean;
-	/** A run entry's Claude-review findings per pull request; null when it opened none. */
+	/** A run entry's findings per pull request (Claude-review findings before 2026-11-26, pre-PR review findings since: runs.ts prePrFindingsByPr); null when it opened none. */
 	findingsPerPr?: number | null;
 	/**
 	 * Turn-cap hits (S158 AC 7): a run entry's `| Turn-cap hits |` row, or a backlog review's
