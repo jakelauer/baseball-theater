@@ -374,7 +374,8 @@ export function parseFragment(text: string, file: string): LedgerEntry
 		entry.counted = row("Counted") === "yes";
 		entry.clean = row("Clean") === "yes";
 		const f = row("Findings per pull request");
-		entry.findingsPerPr = f === undefined || f === "none" ? null : Number(f);
+		// "none": the run opened no pull request; "unknown": it recorded no pre-PR findings for any (runs.ts renderRunEntry).
+		entry.findingsPerPr = f === undefined || f === "none" || f === "unknown" ? null : Number(f);
 		entry.turnCaps = parseHits(row("Turn-cap hits"));
 	}
 	if (entry.kind === "review")

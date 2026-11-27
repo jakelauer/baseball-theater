@@ -12,7 +12,7 @@ How to run Baseball Theater v3 with goal/loop agents without relying on chat mem
 | 4. Checkable backlog | **Done** | the stories and bugs as GitHub issues, read through `pnpm backlog:sync` and `pnpm backlog:search`, their text recorded in `docs/v3/audit/` and the frame notes in `docs/v3/backlog/`, indexed by `docs/v3/INDEX.md` (S164) |
 | 5. Permission boundaries | **Done** | `.claude/settings.json` + `.cursor/rules/agent-boundaries.mdc` |
 | 6. Pilot one story | **Ready** | S1 prompt in its note — **you** run/watch first `/goal` |
-| 7. Fresh-context reviewer | **Ready** | Process below: a fresh-context pre-PR review with the review-class checklist, sized to each pull request's risk (none for one that holds only ledger and changelog fragments, which CI gates) |
+| 7. Fresh-context reviewer | **Ready** | Process below: a fresh-context pre-PR review with the review-class checklist, sized to each pull request's risk (none for one that holds only ledger and changelog fragments and frame note 00's review log, which CI gates) |
 | 7b. Backlog review cadence | **Ready** | `.claude/skills/backlog-review/SKILL.md` · log in the ledger (`docs/v3/audit/`) |
 | 7c. Verification ledger | **Done** | `scripts/audit.sh` → one fragment per entry in `docs/v3/audit/<date>/` (story + review entries; `docs/v3/AUDIT.md` is frozen history, S156) |
 | 8. Scale then unattended loop | **Not yet** | Only after S1–S2 succeed observed |

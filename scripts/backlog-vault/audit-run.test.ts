@@ -330,7 +330,7 @@ describe("audit.sh run refuses what it can't record truly", () =>
 	const OLD = "R20261120T090000Z";
 	const fragments = () => runEntries(repo).map((e) => e.run);
 
-	it("audit.sh run counts a pull request with no findings event as 0, without asking GitHub", () =>
+	it("audit.sh run counts a pull request with no findings event as unknown, not 0, says how many, and asks GitHub nothing", () =>
 	{
 		const bin = setup();
 		journal(repo, RUN, [{
@@ -342,9 +342,26 @@ describe("audit.sh run refuses what it can't record truly", () =>
 		const r = audit(bin, repo, ["run"]);
 		expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
 		expect(existsSync(join(tmp, "gh-called"))).toBe(false);
+		expect(r.stderr).toContain("1 of 3 pull requests have no recorded pre-PR findings");
 		expect(runEntries(repo)[0]).toMatchObject({
-			findingsPerPr: 1,
+			findingsPerPr: 1.5,
 		});
+	});
+
+	it("audit.sh run records a run with no findings events as unknown, which the ledger reads back as no figure", () =>
+	{
+		const bin = setup();
+		const path = join(repo, ".run/run.json");
+		journal(repo);
+		const j = JSON.parse(readFileSync(path, "utf8")) as { events: Ev[] };
+		j.events = j.events.filter((e) => e.kind !== "findings");
+		writeFileSync(path, JSON.stringify(j));
+		const r = audit(bin, repo, ["run"]);
+		expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+		expect(r.stderr).toContain("2 of 2 pull requests have no recorded pre-PR findings");
+		const [entry] = runEntries(repo);
+		expect(entry!.findingsPerPr).toBeNull();
+		expect(readFileSync(join(repo, "docs/v3", entry!.file!), "utf8")).toContain("| Findings per pull request | unknown |");
 	});
 
 	it("audit.sh run refuses while an ended run has no entry in the tree, naming --journal", () =>

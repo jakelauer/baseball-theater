@@ -32,7 +32,8 @@
  *       in `fragment`. Any command that fails other than by refusing exits 2.
  *   node scripts/backlog-vault/runs.ts fragment --journal <run.json> --date <d> --stamp <s>
  *       --head <text> [--audit <ledger>] [--abandoned]   prints the run entry (`audit.sh run` writes it), its
- *       findings per pull request from the journal's `findings` events alone (no GitHub read)
+ *       findings per pull request from the journal's `findings` events alone (no GitHub read; a pull request with none
+ *       is unknown, and check-end says how many)
  *   node scripts/backlog-vault/runs.ts turn-caps [--audit <ledger>] [--run-dir <main checkout>/.run]
  *       one line per item with a turn-cap hit no backlog review lists: `<ID>\t<turn-cap event JSON>`
  *   node scripts/backlog-vault/runs.ts debt-hits --debt-json <file>     the hits a review's seed held, as its row's text
@@ -194,6 +195,8 @@ export interface RunSummary extends RunRecord
 	conflicts: number;
 	duplicates: number;
 	prs: number[];
+	/** Pull requests with no recorded pre-PR findings ({@link prePrFindingsByPr}), left out of findings per pull request. */
+	unknownFindingsPrs: number;
 	turnCaps: TurnCapHit[];
 	/** Items still in flight at the journal's end (`audit.sh run` refuses to record such a run unless it is abandoned). */
 	inFlightAtEnd: string[];
@@ -231,12 +234,14 @@ function stoppedSpans(events: RunEvent[], end: number): [number, number][]
 /**
  * Each pull request the run opened (`pr-open`), mapped to the real findings its item's pre-PR review found in this
  * run: the sum of the item's `findings` events (one per review round, claims.ts `run event findings <ID> --count <n>`),
- * 0 when it has none. An item's findings go to the first pull request the journal opened for it, so two `pr-open`s
- * never count them twice; a `findings` event for an item with no `pr-open` in this run adds nothing (no pull request
- * to divide by). Owner, 2026-11-26, asked what should replace the retired Claude review's findings: "Count pre-PR
+ * or null (unknown) when it has none, never 0: a run that logged no findings must not read as a run that found none,
+ * or it would set the bar at 0 for every later run. An item an earlier run started (joined in step 0) has its events
+ * in that run's journal, so its pull request is unknown here. An item's findings go to the first pull request the
+ * journal opened for it, so two `pr-open`s never count them twice (a later one is unknown); a `findings` event for an
+ * item with no `pr-open` in this run adds nothing (no pull request to divide by). Owner, 2026-11-26, asked what should replace the retired Claude review's findings: "Count pre-PR
  * findings (Recommended)".
  */
-export function prePrFindingsByPr(journal: RunJournal): Record<number, number>
+export function prePrFindingsByPr(journal: RunJournal): Record<number, number | null>
 {
 	const byItem = new Map<string, number>();
 	for (const e of journal.events)
@@ -246,7 +251,7 @@ export function prePrFindingsByPr(journal: RunJournal): Record<number, number>
 			byItem.set(e.id, (byItem.get(e.id) ?? 0) + (e.count ?? 0));
 		}
 	}
-	const out: Record<number, number> = {};
+	const out: Record<number, number | null> = {};
 	const credited = new Set<string>();
 	for (const e of journal.events)
 	{
@@ -255,7 +260,7 @@ export function prePrFindingsByPr(journal: RunJournal): Record<number, number>
 			continue;
 		}
 		const id = e.id ?? "";
-		out[e.pr] = credited.has(id) ? 0 : byItem.get(id) ?? 0;
+		out[e.pr] = credited.has(id) ? null : byItem.get(id) ?? null;
 		credited.add(id);
 	}
 	return out;
@@ -263,13 +268,14 @@ export function prePrFindingsByPr(journal: RunJournal): Record<number, number>
 
 /**
  * Summarize a run's journal (S158 ACs 2, 3 and 7), pure. `findingsByPr` maps a pull request number to its
- * findings ({@link prePrFindingsByPr}: its item's pre-PR review findings); `earlierRuns` are the earlier run entries (any order); `abandoned`
+ * findings ({@link prePrFindingsByPr}: its item's pre-PR review findings), a pull request it leaves out or maps to
+ * null being unknown: findings per pull request average the known ones only; `earlierRuns` are the earlier run entries (any order); `abandoned`
  * is a run the owner chose not to finish, which never counts. Active time leaves out every span from
  * `interrupted` to the next `run-resume`; an item is in flight from `item-start` to its `merged`, `park` or
  * `held`, and again from each `resume` (one with no `item-start` never is). Only items this run started count
  * toward its merges and drain: a previous run's pull request that step 0 joins to the merge train never does.
  */
-export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, number>, earlierRuns: RunRecord[], opts: { abandoned: boolean }): RunSummary
+export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, number | null>, earlierRuns: RunRecord[], opts: { abandoned: boolean }): RunSummary
 {
 	const events = journal.events;
 	const end = Math.max(ms(journal.startedAt), ...events.map((e) => ms(e.at)));
@@ -412,12 +418,19 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 		};
 	});
 	const drain = drainFrom === undefined || drainTo === undefined ? null : active(drainFrom, drainTo);
-	const findingsPerPr = prs.length === 0 ? null : roundFindings(prs.reduce((sum, pr) => sum + (findingsByPr[pr] ?? 0), 0) / prs.length);
+	const known = prs.map((pr) => findingsByPr[pr]).filter((n): n is number => typeof n === "number");
+	const unknownFindingsPrs = prs.length - known.length;
+	const findingsPerPr = known.length === 0 ? null : roundFindings(known.reduce((a, b) => a + b, 0) / known.length);
 	const counted = started.size >= MIN_ITEMS && peak >= journal.c && merged >= 1 && !opts.abandoned;
 	// The bar (owner, 2026-11-20: "First C=2 run sets it"): the lowest findings per pull request of the earlier
 	// counted runs at C = 2. None yet, and this run meets it. A run too small to count never sets it.
 	const bars = earlierRuns.filter((r) => r.counted && r.c === 2 && r.findingsPerPr !== null).map((r) => roundFindings(r.findingsPerPr!));
-	const underBar = bars.length === 0 || (findingsPerPr ?? 0) <= Math.min(...bars);
+	// A run that opened pull requests but recorded no findings for any of them is not clean on this point, even with no
+	// bar yet: the owner chose to count pre-PR findings (2026-11-26: "Count pre-PR findings (Recommended)"), and "the
+	// first run passes this condition by definition" was said of a run whose findings were counted. Passing it would
+	// let C climb with nothing measured. A run with some known pull requests is judged on their average.
+	const unmeasured = prs.length > 0 && findingsPerPr === null;
+	const underBar = !unmeasured && (bars.length === 0 || (findingsPerPr ?? 0) <= Math.min(...bars));
 	const clean = counted && conflicts === 0 && duplicates === 0 && drain !== null && drain < MAX_DRAIN_MS && underBar;
 	return {
 		id: journal.id,
@@ -435,6 +448,7 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 		duplicates,
 		prs,
 		findingsPerPr,
+		unknownFindingsPrs,
 		turnCaps,
 		inFlightAtEnd: [...open],
 		counted,
@@ -473,7 +487,10 @@ export function runRecordOf(entry: LedgerEntry): RunRecord
 const minutes = (d: number | null) => (d === null ? "—" : String(Math.round(d / 60000)));
 const yesNo = (b: boolean) => (b ? "yes" : "no");
 
-/** The run entry's Markdown, from its heading down (`audit.sh run` writes it). Rows ledger.ts reads: C, Counted, Clean, Findings per pull request, Turn-cap hits. */
+/**
+ * The run entry's Markdown, from its heading down (`audit.sh run` writes it). Rows ledger.ts reads: C, Counted, Clean,
+ * Findings per pull request ("none" with no pull request, "unknown" with no recorded findings), Turn-cap hits.
+ */
 export function renderRunEntry(s: RunSummary, meta: { date: string;
 	stamp: string;
 	head: string }): string
@@ -494,7 +511,8 @@ export function renderRunEntry(s: RunSummary, meta: { date: string;
 		`| Peak in flight (non-barrier) | ${s.peak} |`,
 		`| Merged | ${s.merged} |`,
 		`| Pull requests | ${s.prs.map((p) => `#${p}`).join(", ") || "none"} |`,
-		`| Findings per pull request | ${s.findingsPerPr === null ? "none" : String(s.findingsPerPr)} |`,
+		`| Findings per pull request | ${s.findingsPerPr !== null ? String(s.findingsPerPr) : s.prs.length > 0 ? "unknown" : "none"} |`,
+		`| Pull requests with unknown findings | ${s.unknownFindingsPrs} |`,
 		`| Record conflicts | ${s.conflicts} |`,
 		`| Duplicate implementations | ${s.duplicates} |`,
 		`| Drain (active minutes) | ${minutes(s.drain)} |`,
@@ -767,6 +785,16 @@ function main(argv: string[]): number
 				problems.push(...endReviewProblems(journal, readLedger(audit)));
 			}
 			problems.forEach((p) => console.error(`runs.ts check-end: ${p}`));
+			// Not a refusal: a pull request with no findings event is recorded as unknown (prePrFindingsByPr), but the
+			// coordinator should know before the entry is written, while it can still log the missing counts.
+			const findings = prePrFindingsByPr(journal);
+			const prCount = Object.keys(findings).length;
+			const unknown = Object.entries(findings).filter(([, n]) => n === null).map(([pr]) => `#${pr}`);
+			if (unknown.length > 0)
+			{
+				console.error(`runs.ts check-end: ${unknown.length} of ${prCount} pull requests have no recorded pre-PR findings (${unknown.join(", ")}): `
+					+ "they count as unknown, left out of findings per pull request; log run event findings <ID> --count <n> for each item first if the counts are known");
+			}
 			return problems.length > 0 ? 1 : 0;
 		}
 		case "fragment":
