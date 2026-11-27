@@ -22,11 +22,12 @@ import type { ScheduleRepository } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../fixtures/mlb.js";
 import { memoryScheduleStores } from "../memory/repos.js";
 import {
-	describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract, describePlayerIdContract, describeServedBaseContract,
+	describeClipEngagementContract, describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract, describePlayerIdContract, describeServedBaseContract,
 } from "../repository-contract.js";
 import { contractGame, describeStorageContract } from "../storage-contract.js";
 import type { PostgresDb } from "./repos.js";
 import {
+	PostgresClipEngagementRepository,
 	PostgresDeletionLog,
 	PostgresOwedEdgePurgeRepository,
 	PostgresGameProjectionRepository,
@@ -47,7 +48,7 @@ const migrated = migrate(db as Parameters<typeof migrate>[0], {
 });
 
 /** Every table the migrations create, emptied between cases. */
-const TABLES = ["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts", "venue_fields", "identity_links", "entitlements", "users", "account_settings", "deletion_log", "player_ids", "player_register_files"];
+const TABLES = ["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts", "venue_fields", "identity_links", "entitlements", "users", "account_settings", "deletion_log", "player_ids", "player_register_files", "clip_engagement"];
 
 /** Empties every table, after the migrations have run. */
 function emptied(): Promise<unknown>
@@ -134,6 +135,42 @@ describeGameRecheckContract("PostgresGameRepository", () =>
 
 describeOwedEdgePurgeContract("PostgresOwedEdgePurgeRepository", () => gated(new PostgresOwedEdgePurgeRepository(db), emptied()));
 describePlayerIdContract("PostgresPlayerIdRepository", () => gated(new PostgresPlayerIdRepository(db), emptied()));
+
+// S174 AC 3: the clip counts' one contract, on PGlite with the committed migrations, as the memory double runs it.
+describeClipEngagementContract("S174 AC 3 PostgresClipEngagementRepository", fresh((d) => new PostgresClipEngagementRepository(d)));
+
+describe("clip_engagement holds nothing about the viewer (S174 AC 5)", () =>
+{
+	it("S174 AC 5: its columns, read back from the migrated database, are the five key columns and the count", async () =>
+	{
+		await migrated;
+		const result = await db.execute(sql`SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'clip_engagement' ORDER BY ordinal_position`);
+		const columns = (result as unknown as { rows: { column_name: string;
+			data_type: string; }[]; }).rows.map((row) => [row.column_name, row.data_type]);
+		expect(columns).toEqual([
+			["media_id", "text"],
+			["game_pk", "integer"],
+			["view_day", "text"],
+			["event", "text"],
+			["shown_position", "integer"],
+			["count", "integer"],
+		]);
+		// Nothing names a viewer, and the only time is the day.
+		for (const [name] of columns) expect(name).not.toMatch(/user|uid|session|ip|addr|device|agent|browser|time|_at$/);
+	});
+
+	it("S174 AC 5: the day column refuses anything finer than a day, and the key and bounds hold", async () =>
+	{
+		await emptied();
+		const insert = (viewDay: string, event: string, shownPosition: number, count: number) => db.execute(sql`INSERT INTO clip_engagement VALUES ('hl-1', 1, ${viewDay}, ${event}, ${shownPosition}, ${count})`);
+		await expect(insert("2026-11-22T10:00:00Z", "start", 1, 1)).rejects.toThrow();
+		await expect(insert("2026-11-22", "pause", 1, 1)).rejects.toThrow();
+		await expect(insert("2026-11-22", "start", 101, 1)).rejects.toThrow();
+		await expect(insert("2026-11-22", "start", 1, 0)).rejects.toThrow();
+		await insert("2026-11-22", "start", 1, 1);
+		await expect(insert("2026-11-22", "start", 1, 1)).rejects.toThrow();
+	});
+});
 
 describe("Postgres adapter (S50)", () =>
 {

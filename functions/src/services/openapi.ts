@@ -13,7 +13,7 @@
  */
 import { fileURLToPath } from "node:url";
 import {
-	ApiMediaTypes, ApiRequestBodies, ApiRoutes, PERSON_IDS_PATTERN,
+	ApiMediaTypes, ApiRequestBodies, ApiRoutes, CLIP_SHOWN_POSITION_MAX, NO_CONTENT_RESPONSE, PERSON_IDS_PATTERN,
 } from "@bt/domain";
 import type {
 	ApiRequestTypes, ApiResponseTypes, ApiRoute,
@@ -417,6 +417,25 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 			401: "No session, or the account no longer exists.",
 		},
 	},
+	"POST /api/v1/clips/:mediaId/views": {
+		operationId: "countClipView",
+		summary: `Counts one view of a clip played from its game's Videos room (S174): \`start\` the first time it plays after it is opened, \`complete\` once it has been watched to the end. BT keeps only an anonymous count per clip, UTC day, event and the clip's place in the game's ranked Videos list (\`shownPosition\`, 1 to ${CLIP_SHOWN_POSITION_MAX}, or 0 when it was opened directly); nothing about who watched. It reads no cookie and no session. Answers 204 with no body.`,
+		parameters: [
+			{
+				name: "mediaId",
+				in: "path",
+				required: true,
+				description: "The clip's MLB media id, as the game's `highlights` list it (`id`).",
+				schema: {
+					type: "string",
+				},
+			},
+		],
+		errors: {
+			400: `\`invalid_body\`: the body is not JSON with a positive whole \`gamePk\`, an \`event\` of \`start\` or \`complete\`, and a whole \`shownPosition\` from 0 to ${CLIP_SHOWN_POSITION_MAX}. Nothing is counted.`,
+			404: "`not_found`: `mediaId` is not one of the stored highlights of game `gamePk` (or BT holds no such game). Nothing is counted.",
+		},
+	},
 };
 
 const ROUTE_TYPES_SOURCE = fileURLToPath(new URL("../../../packages/domain/src/api-routes.ts", import.meta.url));
@@ -525,7 +544,12 @@ export function buildOpenApiSpec(components: Record<string, JsonSchema>): JsonSc
 	{
 		const [method = "", path = ""] = route.split(" ");
 		const description = ROUTE_DESCRIPTIONS[route];
-		const responses: Record<string, JsonSchema> = {
+		// A route whose response type is `NoContentResponse` (S174) answers 204 with no body, so it has no 200.
+		const responses: Record<string, JsonSchema> = responseType === NO_CONTENT_RESPONSE ? {
+			204: {
+				description: "No Content",
+			},
+		} : {
 			200: jsonResponse("OK", responseType, (ApiMediaTypes as Partial<Record<ApiRoute, string>>)[route]),
 		};
 		for (const [status, text] of Object.entries(description.errors))
@@ -580,7 +604,8 @@ export const COMMITTED_SPEC = fileURLToPath(new URL("../../../openapi/bt-api.v1.
  */
 export async function generateOpenApiSpec(): Promise<string>
 {
-	const typeNames = [...new Set([...Object.values(ApiRoutes), ...Object.values(ApiRequestBodies), ERROR_TYPE])];
+	// `NoContentResponse` names no body, so it gets no schema.
+	const typeNames = [...new Set([...Object.values(ApiRoutes), ...Object.values(ApiRequestBodies), ERROR_TYPE])].filter((name) => name !== NO_CONTENT_RESPONSE);
 	const json = JSON.stringify(buildOpenApiSpec(generateComponentSchemas(typeNames)));
 	return format(json, {
 		...await resolveConfig(COMMITTED_SPEC),

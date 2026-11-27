@@ -11,7 +11,8 @@
  * holds aliases the store.
  */
 import type {
-	AccountSettings, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, GameStateSource, PatronTier, Role, ScheduleDayTally,
+	AccountSettings, ClipViewEvent, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, GameStateSource, PatronTier, Role,
+	ScheduleDayTally,
 	ScheduleMonthCheck,
 	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
@@ -20,6 +21,8 @@ import {
 	SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
 } from "@bt/domain";
 import type {
+	ClipEngagementRepository,
+	ClipEngagementRow,
 	DeletionLog,
 	DeletionLogEntry,
 	GameProjectionRepository,
@@ -46,7 +49,8 @@ import {
 import type { SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
-	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, playerIds, playerRegisterFiles, replayArtifacts,
+	accountSettings, clipEngagement, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, playerIds, playerRegisterFiles,
+	replayArtifacts,
 	scheduleDays, scheduleMonths, tierOverrides, users, venueFields,
 } from "./schema.js";
 
@@ -744,6 +748,63 @@ export class PostgresVenueFieldRepository implements VenueFieldRepository
 			setWhere: sql`(${venueFields.svg} IS NULL OR excluded.svg IS NOT NULL)
 				AND excluded.fetched_at::timestamptz > ${venueFields.fetchedAt}::timestamptz`,
 		});
+	}
+}
+
+/**
+ * The anonymous daily clip counts (S174 AC 3): `record` is one `INSERT … ON CONFLICT … DO UPDATE SET count = count + 1`,
+ * so Postgres raises the row's count atomically and two records of one key at once end at 2. Reads order text
+ * `COLLATE "C"` (by code unit, as the memory double does), never by the database's locale.
+ */
+export class PostgresClipEngagementRepository implements ClipEngagementRepository
+{
+	constructor(private readonly db: PostgresDb) {}
+
+	async record(mediaId: string, gamePk: number, viewDay: string, event: ClipViewEvent, shownPosition: number): Promise<void>
+	{
+		await this.db.insert(clipEngagement).values({
+			mediaId,
+			gamePk,
+			viewDay,
+			event,
+			shownPosition,
+			count: 1,
+		}).onConflictDoUpdate({
+			target: [clipEngagement.gamePk, clipEngagement.mediaId, clipEngagement.viewDay, clipEngagement.event, clipEngagement.shownPosition],
+			set: {
+				count: sql`${clipEngagement.count} + 1`,
+			},
+		});
+	}
+
+	async countsFor(gamePk: number): Promise<ClipEngagementRow[]>
+	{
+		return this.rowsWhere(eq(clipEngagement.gamePk, gamePk));
+	}
+
+	async exportRange(fromDay: string, toDay: string): Promise<ClipEngagementRow[]>
+	{
+		return this.rowsWhere(between(clipEngagement.viewDay, fromDay, toDay));
+	}
+
+	/** The rows `where` picks, in the port's order: day, game, media id, event, shown position. */
+	private async rowsWhere(where: SQL | undefined): Promise<ClipEngagementRow[]>
+	{
+		const rows = await this.db.select().from(clipEngagement).where(where).orderBy(
+			sql`${clipEngagement.viewDay} COLLATE "C"`,
+			asc(clipEngagement.gamePk),
+			sql`${clipEngagement.mediaId} COLLATE "C"`,
+			sql`${clipEngagement.event} COLLATE "C"`,
+			asc(clipEngagement.shownPosition),
+		);
+		return rows.map((row) => ({
+			mediaId: row.mediaId,
+			gamePk: row.gamePk,
+			viewDay: row.viewDay,
+			event: row.event,
+			shownPosition: row.shownPosition,
+			count: row.count,
+		}));
 	}
 }
 

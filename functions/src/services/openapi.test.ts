@@ -71,6 +71,18 @@ describe("generateOpenApiSpec", () =>
 		expect(spec.paths["/api/v1/schedule"].get.responses["200"].content["application/json"].schema.$ref).toBe("#/components/schemas/ScheduleDayResponse");
 	});
 
+	it("S174 AC 4: gives the clip-view route a 204 with no body and no 200, its request body, and no schema for the empty response", () =>
+	{
+		const post = spec.paths["/api/v1/clips/{mediaId}/views"].post;
+		expect(Object.keys(post.responses).sort()).toEqual(["204", "400", "404", "426"]);
+		expect(post.responses["204"]).toEqual({
+			description: "No Content",
+		});
+		expect(post.requestBody.content["application/json"].schema.$ref).toBe("#/components/schemas/ClipViewRequest");
+		expect(spec.components.schemas.ClipViewRequest.required).toEqual(["gamePk", "event", "shownPosition"]);
+		expect(spec.components.schemas).not.toHaveProperty("NoContentResponse");
+	});
+
 	it("declares the handler's error responses with ApiErrorResponse bodies", () =>
 	{
 		const errorRef = {

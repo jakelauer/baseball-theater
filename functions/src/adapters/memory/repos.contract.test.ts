@@ -11,10 +11,12 @@ import {
 	DOWNLOADS_STORE, MAIL_STORE, personalDataStores,
 } from "../../services/personal-data.js";
 import {
-	describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract, describePersonalDataStoreContract, describePlayerIdContract, describeServedBaseContract,
+	describeClipEngagementContract, describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract,
+	describePersonalDataStoreContract, describePlayerIdContract, describeServedBaseContract,
 } from "../repository-contract.js";
 import { contractGame, describeStorageContract } from "../storage-contract.js";
 import {
+	InMemoryClipEngagementRepository,
 	InMemoryExportStore,
 	InMemoryGameProjectionRepository,
 	InMemoryOwedEdgePurgeRepository,
@@ -54,6 +56,9 @@ describeGameRecheckContract("InMemoryGameRepository", () =>
 
 describeOwedEdgePurgeContract("InMemoryOwedEdgePurgeRepository", () => new InMemoryOwedEdgePurgeRepository());
 describePlayerIdContract("InMemoryPlayerIdRepository", () => new InMemoryPlayerIdRepository());
+
+// S174 AC 3: the clip counts' one contract, which the Postgres adapter runs on PGlite too.
+describeClipEngagementContract("S174 AC 3 InMemoryClipEngagementRepository", () => new InMemoryClipEngagementRepository());
 
 type RegistryDeps = {
 	users: InMemoryUserRepository;

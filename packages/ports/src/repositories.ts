@@ -7,7 +7,7 @@
  * the stored one is a no-op (ADR-022 apply-if-newer).
  */
 import type {
-	AccountSettings, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay,
+	AccountSettings, ClipViewEvent, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, ScheduleDayTally, ScheduleMonthCheck, StoredScheduleDay,
 } from "@bt/domain";
 import type { ReplayPatchEntry } from "@bt/mlb-api";
 
@@ -202,6 +202,39 @@ export interface VenueFieldRepository {
 	 * still replaces a null, so the retry clock moves on.
 	 */
 	upsert(field: VenueField): Promise<void>;
+}
+
+/**
+ * One clip engagement count (S174): how many times, on one UTC day, a clip of one game was started or watched to the end
+ * from one place in that game's ranked Videos list. Its key is every field but `count`; nothing in it says who watched
+ * (no user, session, address, device, browser or time finer than the day).
+ */
+export interface ClipEngagementRow {
+	/** The clip's MLB media id (`MediaHighlight.id`). */
+	mediaId: string;
+	gamePk: number;
+	/** The UTC calendar day the server took the request on, `YYYY-MM-DD` (`clipViewDay`). */
+	viewDay: string;
+	event: ClipViewEvent;
+	/** The clip's 1-based place in the game's ranked Videos list, or 0 when it was opened directly (0–100). */
+	shownPosition: number;
+	count: number;
+}
+
+/**
+ * The anonymous daily counts of clips started and finished (S174): what the clip-view route adds to and what S185's
+ * training reads (`pnpm clips:engagement-export`). Personal data it holds none (ADR-028's manifest labels it `none`).
+ */
+export interface ClipEngagementRepository {
+	/**
+	 * Adds one to the count of the row keyed by these five values, making it at 1 when there is none. Atomic: two calls for
+	 * one key at once end at 2, never 1.
+	 */
+	record(mediaId: string, gamePk: number, viewDay: string, event: ClipViewEvent, shownPosition: number): Promise<void>;
+	/** Every row of the game's clips, over every day, ordered by day, media id, event and shown position. */
+	countsFor(gamePk: number): Promise<ClipEngagementRow[]>;
+	/** Every row whose `viewDay` is from `fromDay` to `toDay` inclusive (`YYYY-MM-DD`), ordered by day, game, media id, event and shown position. */
+	exportRange(fromDay: string, toDay: string): Promise<ClipEngagementRow[]>;
 }
 
 /**

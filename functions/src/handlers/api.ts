@@ -3,12 +3,13 @@ import type {
 	ApiErrorResponse, ApiMediaTypes, ApiResponseFor, ApiRoute, ApiVersionTable, CacheLifetimeStep, MeDeleteRequest, PatronTier, ReleaseNotes, SeasonPhaseName, TierOverrideResponse,
 	UserProfile,
 } from "@bt/domain";
-import type { SettingsRepository } from "@bt/ports";
+import type { ClipEngagementRepository, SettingsRepository } from "@bt/ports";
 import {
-	API_VERSIONS, DEFAULT_SETTINGS, entitlementsForTier, PERSON_IDS_PATTERN, PLAYER_PROFILES_MAX_IDS, playerProfileUrl, SEARCH_QUERY_MAX_LENGTH, STATS_PROVIDERS,
+	API_VERSIONS, clipViewDay, DEFAULT_SETTINGS, entitlementsForTier, PERSON_IDS_PATTERN, PLAYER_PROFILES_MAX_IDS, playerProfileUrl, SEARCH_QUERY_MAX_LENGTH, STATS_PROVIDERS,
 	SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
 	isCalendarMonth, isPastFinishedGame, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
-	isPatronTier, mlbDayEndsAt, mlbToday, parseAccountSettings, parseSearchFilters, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
+	isPatronTier, mlbDayEndsAt, mlbToday, parseAccountSettings, parseClipViewRequest, parseSearchFilters, seasonSettling,
+	toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
 import type { AccountDataDeps } from "../services/account-deletion.js";
 import { deleteAccount } from "../services/account-deletion.js";
@@ -64,6 +65,11 @@ export type ApiContext = {
 	versions?: ApiVersionTable;
 	/** The release notes the releases route answers from (S132); the build's bundle unless a test supplies its own. */
 	releases?: readonly ReleaseNotes[];
+	/**
+	 * The anonymous daily clip counts the clip-view route adds to (S174). Absent (most tests), the route counts nothing
+	 * and answers 404 as for a clip BT doesn't have.
+	 */
+	clipEngagement?: ClipEngagementRepository;
 };
 
 /** `personIds`' form, from the one pattern the OpenAPI spec publishes (S209 AC 3). */
@@ -329,6 +335,55 @@ async function handleTierOverride(ctx: ApiContext, request: Request, write: bool
 		...await overrideAnswer(ctx, account.user),
 		token,
 	}));
+}
+
+/** An answer with no body (S174's clip views): 204, the CORS headers, and `no-store`. */
+function noContent(): Response
+{
+	return noStore(new Response(null, {
+		status: 204,
+		headers: CORS_HEADERS,
+	}));
+}
+
+/** A raw path segment decoded, or null when its percent-encoding is malformed (the route answers 404). */
+function decodedSegment(segment: string): string | null
+{
+	try
+	{
+		return decodeURIComponent(segment);
+	}
+	catch
+	{
+		return null;
+	}
+}
+
+/**
+ * `POST /api/v1/clips/:mediaId/views` (S174 AC 4): counts one start or finish of a clip of a game's Videos room, on the
+ * UTC day the request arrives (`clipViewDay`, by ingest's clock). The body must be a `ClipViewRequest`
+ * (`parseClipViewRequest`; 400 otherwise), and the clip one of the game's stored highlights (404 otherwise, so a caller
+ * can't make rows for clips BT doesn't have; only the stored copy is read, never MLB). Nothing is counted on either
+ * refusal. It reads no cookie, no session and no header, and logs nothing (S174 AC 5, law P5): the count keeps nothing
+ * about who asked. Every answer is `no-store`.
+ */
+async function countClipView(ctx: ApiContext, rawMediaId: string, request: Request): Promise<Response>
+{
+	const body = parseClipViewRequest(await readJson(request));
+	if (!body)
+	{
+		return noStore(sendError(400, {
+			error: "invalid_body",
+			hint: "{ gamePk, event: \"start\" | \"complete\", shownPosition: 0–100 }",
+		}));
+	}
+	const mediaId = decodedSegment(rawMediaId);
+	const counts = ctx.clipEngagement;
+	if (mediaId === null || !counts) return noStore(notFound());
+	const game = await ctx.ingest.games.getByPk(body.gamePk);
+	if (!game?.highlights.some((highlight) => highlight.id === mediaId)) return noStore(notFound());
+	await counts.record(mediaId, body.gamePk, clipViewDay(ctx.ingest.now?.() ?? new Date()), body.event, body.shownPosition);
+	return noContent();
 }
 
 /**
@@ -688,6 +743,10 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			if (!field?.svg) return noStore(notFound());
 			return sendSvg("GET /api/v1/venues/:venueId/field.svg", field.svg, VENUE_FIELD_CACHE_CONTROL);
 		},
+	},
+	{
+		route: "POST /api/v1/clips/:mediaId/views",
+		handle: (_url, params, ctx, request) => countClipView(ctx, params.mediaId ?? "", request),
 	},
 	{
 		route: "GET /api/v1/me",

@@ -35,6 +35,7 @@ import {
 	PostgresGameRepository,
 	PostgresScheduleRepository,
 	PostgresOwedEdgePurgeRepository,
+	PostgresClipEngagementRepository,
 	PostgresPlayerIdRepository,
 	PostgresSettingsRepository,
 	PostgresUserRepository,
@@ -264,6 +265,8 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 			account,
 			// One log line per versioned request, for retiring versions on evidence (S28).
 			usage: logApiUsage,
+			// S174: the anonymous daily clip counts the clip-view route adds to.
+			clipEngagement: new PostgresClipEngagementRepository(db),
 			...env.GAME_HUB && {
 				live: liveForwarder(env.GAME_HUB),
 			},

@@ -1,5 +1,6 @@
 import type {
-	AccountSettings, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, PatronTier, ScheduleDayTally, ScheduleMonthCheck,
+	AccountSettings, ClipViewEvent, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, PatronTier, ScheduleDayTally,
+	ScheduleMonthCheck,
 	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
@@ -7,6 +8,8 @@ import {
 	SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
 } from "@bt/domain";
 import type {
+	ClipEngagementRepository,
+	ClipEngagementRow,
 	DataDownload,
 	ExportStore,
 	GameProjectionRepository,
@@ -540,6 +543,60 @@ export class InMemoryVenueFieldRepository implements VenueFieldRepository
 	{
 		if (field.svg === null && this.store.get(field.venueId)?.svg) return;
 		this.store.put(field.venueId, field);
+	}
+}
+
+/** Text compared by code unit, as Postgres's `COLLATE "C"` compares it, not by locale. */
+function codeUnitOrder(a: string, b: string): number
+{
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Orders clip engagement rows as both adapters answer them: by day, game, media id, event and shown position, text by
+ * code unit (the Postgres adapter orders `COLLATE "C"`).
+ */
+function byEngagementKey(a: ClipEngagementRow, b: ClipEngagementRow): number
+{
+	return codeUnitOrder(a.viewDay, b.viewDay) || a.gamePk - b.gamePk || codeUnitOrder(a.mediaId, b.mediaId) || codeUnitOrder(a.event, b.event)
+		|| a.shownPosition - b.shownPosition;
+}
+
+/**
+ * The anonymous daily clip counts (S174), the Postgres adapter's test double: one row per key, its count raised by one per
+ * `record`. JavaScript runs one call at a time, so two records of one key always end at 2, as Postgres's upsert does.
+ */
+export class InMemoryClipEngagementRepository implements ClipEngagementRepository
+{
+	private readonly rows = new Map<string, ClipEngagementRow>();
+
+	async record(mediaId: string, gamePk: number, viewDay: string, event: ClipViewEvent, shownPosition: number): Promise<void>
+	{
+		const key = JSON.stringify([mediaId, gamePk, viewDay, event, shownPosition]);
+		const row = this.rows.get(key);
+		if (row) row.count += 1;
+		else this.rows.set(key, {
+			mediaId,
+			gamePk,
+			viewDay,
+			event,
+			shownPosition,
+			count: 1,
+		});
+	}
+
+	async countsFor(gamePk: number): Promise<ClipEngagementRow[]>
+	{
+		return [...this.rows.values()].filter((row) => row.gamePk === gamePk).map((row) => ({
+			...row,
+		})).sort(byEngagementKey);
+	}
+
+	async exportRange(fromDay: string, toDay: string): Promise<ClipEngagementRow[]>
+	{
+		return [...this.rows.values()].filter((row) => row.viewDay >= fromDay && row.viewDay <= toDay).map((row) => ({
+			...row,
+		})).sort(byEngagementKey);
 	}
 }
 

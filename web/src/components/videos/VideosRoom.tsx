@@ -6,7 +6,7 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import {
-	countHighlightFacets, filterHighlights, groupHighlights, groupHighlightsByTeam, HIGHLIGHT_GROUPS, sortHighlights,
+	clipShownPosition, countHighlightFacets, filterHighlights, groupHighlights, groupHighlightsByTeam, HIGHLIGHT_GROUPS, sortHighlights,
 } from "@bt/domain";
 import type {
 	HighlightFacetCounts, HighlightGroup, HighlightSort,
@@ -298,6 +298,10 @@ function FilterDrawer({
  * dialog carries no link back to it. With Hide Scores on the recap clip is titled
  * "Recap (score hidden)" on its card and in the player (S75; game-shell A3); search still
  * matches MLB's titles.
+ * The dialog counts the clip's start and finish anonymously (S174, `countViews`): with the game and the clip's place in
+ * the game's ranked list (`clipShownPosition`, the order the game arrives in, whatever sort or filter shows), or 0 for
+ * the clip that was open when the room first drew (opened directly, from a link); a clip past the list's 100th place
+ * isn't counted. The stage counts nothing.
  */
 export function VideosRoom({ game, variant }: { game: GamePayload;
 	variant: LayoutVariant; })
@@ -318,6 +322,10 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 		playing, href, close,
 	} = useOpenClip(game.highlights, (video) => video.id);
 	const scoresHidden = useScoresHidden(game);
+	// The clip open as the room first drew came from a link, not the list (S174: shown position 0), until it closes.
+	const [openedDirectly, setOpenedDirectly] = useState(() => playing?.id ?? null);
+	if (openedDirectly !== null && playing?.id !== openedDirectly) setOpenedDirectly(null);
+	const shownPosition = playing ? (playing.id === openedDirectly ? 0 : clipShownPosition(game.highlights, playing.id)) : null;
 
 	if (game.highlights.length === 0)
 	{
@@ -392,6 +400,10 @@ export function VideosRoom({ game, variant }: { game: GamePayload;
 				scoresHidden={scoresHidden}
 				playLink={playing ? videoPlayLink(playing, game) : null}
 				stageGame={game}
+				countViews={shownPosition === null ? undefined : {
+					gamePk: game.gamePk,
+					shownPosition,
+				}}
 			/>
 			<TextInput
 				aria-label="Search videos"

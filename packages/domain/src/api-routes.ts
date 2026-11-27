@@ -17,6 +17,7 @@
  * divergence lives in the matching `to<DomainType>Response` mapping function
  * (still a passthrough today), not in a rewrite of the route table.
  */
+import type { ClipViewEvent } from "./clip-views.js";
 import type { DigestItem } from "./digest.js";
 import type { SearchHighlight } from "./search.js";
 import type { ReleaseNotes } from "./release-notes.js";
@@ -215,6 +216,28 @@ export interface PlayerProfilesResponse {
 	players: PlayerPages[];
 }
 
+/**
+ * The body of `POST /api/v1/clips/:mediaId/views` (S174 AC 4): the game the clip belongs to, what happened, and where the
+ * clip sat in the game's ranked Videos list. Nothing about the viewer. `parseClipViewRequest` checks it.
+ */
+export interface ClipViewRequest {
+	/** The MLB game the clip is one of the stored highlights of. */
+	gamePk: number;
+	event: ClipViewEvent;
+	/** The clip's 1-based place in the game's ranked Videos list (`rankHighlightsByImpact`), or 0 when it was opened directly; 0 to 100. */
+	shownPosition: number;
+}
+
+/**
+ * The response of a route that answers `204 No Content` (S174's clip views): there is no body, so no value has this
+ * type, and `sendJson` can't be called for such a route. The spec generator gives each route naming it a 204 and no 200
+ * (`NO_CONTENT_RESPONSE`).
+ */
+export type NoContentResponse = never;
+
+/** The response-type name of a route that answers 204 with no body (see {@link NoContentResponse}). */
+export const NO_CONTENT_RESPONSE = "NoContentResponse" satisfies keyof ApiResponseTypes;
+
 /** The one error-body shape every 4xx path returns. */
 export interface ApiErrorResponse {
 	error: string;
@@ -353,6 +376,7 @@ export interface ApiResponseTypes {
 	PlayerProfilesResponse: PlayerProfilesResponse;
 	TierOverrideResponse: TierOverrideResponse;
 	TierOverrideSetResponse: TierOverrideSetResponse;
+	NoContentResponse: NoContentResponse;
 	ApiErrorResponse: ApiErrorResponse;
 }
 
@@ -384,6 +408,7 @@ export const ApiRoutes = {
 	"POST /api/v1/sign-in": "SignInResponse",
 	"GET /api/v1/releases": "ReleasesResponse",
 	"GET /api/v1/players/profiles": "PlayerProfilesResponse",
+	"POST /api/v1/clips/:mediaId/views": "NoContentResponse",
 } as const satisfies Record<string, keyof ApiResponseTypes>;
 
 export type ApiRoute = keyof typeof ApiRoutes;
@@ -405,6 +430,7 @@ export interface ApiRequestTypes {
 	SettingsRequest: SettingsRequest;
 	SignInRequest: SignInRequest;
 	TierOverrideRequest: TierOverrideRequest;
+	ClipViewRequest: ClipViewRequest;
 }
 
 /**
@@ -417,6 +443,7 @@ export const ApiRequestBodies = {
 	"PUT /api/v1/me/settings": "SettingsRequest",
 	"POST /api/v1/sign-in": "SignInRequest",
 	"PUT /api/v1/me/tier-override": "TierOverrideRequest",
+	"POST /api/v1/clips/:mediaId/views": "ClipViewRequest",
 } as const satisfies Partial<Record<ApiRoute, keyof ApiRequestTypes>>;
 
 export type ApiRouteWithBody = keyof typeof ApiRequestBodies;

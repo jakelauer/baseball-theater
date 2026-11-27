@@ -11,7 +11,7 @@
  * this file by `drizzle-kit` (`drizzle.config.ts`) and committed under `migrations/`.
  */
 import type {
-	AccountSettings, GameProjection, GameSnapshot, GameState, PatronTier, ScoreboardWinProbability, StoredScheduleDay,
+	AccountSettings, ClipViewEvent, GameProjection, GameSnapshot, GameState, PatronTier, ScoreboardWinProbability, StoredScheduleDay,
 } from "@bt/domain";
 import type { ReplayArtifact } from "@bt/ports";
 import { sql } from "drizzle-orm";
@@ -166,6 +166,32 @@ export const venueFields = pgTable("venue_fields", {
 	svg: text("svg"),
 	fetchedAt: text("fetched_at").notNull(),
 });
+
+/**
+ * The anonymous daily clip counts (`ClipEngagementRepository`, S174): keyed by the clip's media id, its game, the UTC day
+ * (`YYYY-MM-DD`, text like every BT date), the event and the clip's place in the game's ranked Videos list (0 when opened
+ * directly), and holding only the count beside them. No column says who watched: no user, session, address, device,
+ * browser or time finer than the day (S174 AC 5). The key leads with the game, which `countsFor` reads by; the day index
+ * serves `exportRange`. The checks hold the route's own bounds, so no writer can store what the route refuses.
+ */
+export const clipEngagement = pgTable("clip_engagement", {
+	mediaId: text("media_id").notNull(),
+	gamePk: integer("game_pk").notNull(),
+	viewDay: text("view_day").notNull(),
+	event: text("event").$type<ClipViewEvent>().notNull(),
+	shownPosition: integer("shown_position").notNull(),
+	count: integer("count").notNull(),
+}, (t) => [
+	primaryKey({
+		columns: [t.gamePk, t.mediaId, t.viewDay, t.event, t.shownPosition],
+	}),
+	index("clip_engagement_view_day").on(t.viewDay),
+	// A day, never a finer time.
+	check("clip_engagement_view_day_format", sql`${t.viewDay} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`),
+	check("clip_engagement_event", sql`${t.event} IN ('start', 'complete')`),
+	check("clip_engagement_shown_position", sql`${t.shownPosition} BETWEEN 0 AND 100`),
+	check("clip_engagement_count", sql`${t.count} > 0`),
+]);
 
 /** BT's own users (ADR-019): the profile, keyed by BT's uid. Personal: `BT database: users`. */
 export const users = pgTable("users", {

@@ -1,13 +1,15 @@
 import {
 	Box, Group, Stack, Text,
 } from "@mantine/core";
-import type { VideoQuality } from "@bt/domain";
+import type { ClipViewEvent, VideoQuality } from "@bt/domain";
 import {
-	defaultVideoQuality, fileQuality, rememberedVideoQuality, videoQualities,
+	clipCompleted, defaultVideoQuality, fileQuality, rememberedVideoQuality, videoQualities,
 } from "@bt/domain";
 import {
 	useEffect, useRef, useState,
 } from "react";
+import type { ClipViewSource } from "../../api/clipViews.js";
+import { sendClipView } from "../../api/clipViews.js";
 import { setVideoQuality, useVideoQuality } from "../../settings/store.js";
 import { loadHls } from "./hls-loader.js";
 import { PlayerActions, QualityPicker } from "./PlayerActions.js";
@@ -140,9 +142,15 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
  * corner draws its own), the title, the tools or the disclaimer, and Space left to the page, whose
  * fan is browsing it. Each part comes and goes in its own place, so the `<video>` is never re-created.
  * `onMiniPlayer` adds the tool row's Mini player button (`PlayerActions`).
+ *
+ * `countViews` (S174 AC 6), which only the Videos room's dialog passes, counts this opening of the clip anonymously
+ * (`sendClipView`): `start` the first time it plays, and `complete` once, when the element fires `ended` or 90% of a
+ * known length has played (`clipCompleted`; a clip whose length is 0 or `NaN` completes only by `ended`). An opening
+ * is this mount: the provider keys the player by the clip, so a new clip, or the same one opened again after it
+ * closed, starts afresh, while pausing, a quality switch or a move to the corner does not. Nothing on screen changes.
  */
 export function VideoPlayer({
-	video, title = video.title, autoPlay = false, titleAbove = false, compact = false, onMiniPlayer,
+	video, title = video.title, autoPlay = false, titleAbove = false, compact = false, onMiniPlayer, countViews,
 }: { video: Video;
 	/** The clip's title; the game page passes `highlightTitle`'s (S75). */
 	title?: string;
@@ -152,7 +160,9 @@ export function VideoPlayer({
 	/** The corner player's drawing (S198): the clip alone, no built-in controls, Space not taken. */
 	compact?: boolean;
 	/** Sends the clip to the corner player (S198): the tool row's Mini player button. */
-	onMiniPlayer?: () => void; })
+	onMiniPlayer?: () => void;
+	/** Where this opening's start and finish are counted from (S174): the Videos room's game and the clip's place; none counts nothing. */
+	countViews?: ClipViewSource; })
 {
 	const ref = useRef<HTMLVideoElement>(null);
 	// `compact` as last rendered, read by the page-wide Space handler.
@@ -180,6 +190,18 @@ export function VideoPlayer({
 	const wantsPlay = useRef(autoPlay);
 	// `autoPlay` as last rendered, so only its turning on after mount plays the clip here (#423).
 	const autoPlayed = useRef(autoPlay);
+	// Which of this opening's views have been counted (S174): each at most once per mount.
+	const counted = useRef<Record<ClipViewEvent, boolean>>({
+		start: false,
+		complete: false,
+	});
+	// Counts `event` for this opening, once, when the host asked for counting.
+	const countView = (event: ClipViewEvent) =>
+	{
+		if (!countViews || counted.current[event]) return;
+		counted.current[event] = true;
+		sendClipView(video.id, event, countViews);
+	};
 
 	const switchTo = (next: VideoQuality) =>
 	{
@@ -303,6 +325,7 @@ export function VideoPlayer({
 				onPlay={() =>
 				{
 					wantsPlay.current = true;
+					countView("start");
 				}}
 				onPause={() =>
 				{
@@ -312,7 +335,14 @@ export function VideoPlayer({
 				// blank, and the next play starts the clip again on every browser.
 				onEnded={(event) =>
 				{
+					countView("complete");
 					event.currentTarget.currentTime = 0;
+				}}
+				// 90% of a known length played also finishes it (S174); only a clip that has started can finish.
+				onTimeUpdate={(event) =>
+				{
+					const element = event.currentTarget;
+					if (counted.current.start && clipCompleted(element.currentTime, element.duration)) countView("complete");
 				}}
 				onLoadedMetadata={(event) =>
 				{

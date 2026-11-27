@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "the story's **Owner answer:** line records the owner's answer with a quotation, and the Privacy policy page's source under web/src/ says BT counts, anonymously, how often each video is started and finished"
+check 1 "the story's **Owner answer:** line records the owner's answer with a quotation, and the Privacy policy's source (web/src/pages/legal/privacy.md) carries the owner's approved sentence, word for word"
 check 2 "packages/domain exports ClipViewEvent (\"start\" | \"complete\"), CLIP_COMPLETE_SHARE = 0.9 and clipCompleted(positionSeconds, durationSeconds); table tests 'S174 AC 2' (0, NaN, Infinity, unknown never complete; 90% complete; 89.9% not)"
 check 3 "packages/ports has ClipEngagementRepository (record, countsFor, exportRange); one migration makes clip_engagement; the Postgres adapter increments with INSERT … ON CONFLICT … DO UPDATE SET count = count + 1; one contract test runs memory and Postgres (PGlite), concurrent records end at 2, UTC view days; tests 'S174 AC 3'"
 check 4 "POST /api/v1/clips/:mediaId/views is in ApiRoutes, dispatched, in the spec with a 204, in the generated client; spec fresh, pnpm api:breaking 0, generated client rendered; tests 'S174 AC 4' (204 counts one; 400 bad event/body/shownPosition; 404 unknown clip; no cookie or session read)"
@@ -53,20 +53,14 @@ run_tagged() {
 node scripts/backlog-vault/text-records.ts newest S174 >"$TMP/story.md" 2>/dev/null
 grep -qE '^\*\*Owner answer:\*\*.*\*"[^"]+"\*' "$TMP/story.md" ||
   bad 1 "S174's text has no **Owner answer:** line quoting the owner"
-# The Privacy policy's source: the page S154 routes /privacy to (web/src/pages/legal/privacy.md today), or any
-# web/src file a later change moves it to. The sentence must name, on one line, that the counts are anonymous and
-# that both starts and finishes of videos (clips) are counted.
-grep -rlE --include='*.md' --include='*.ts' --include='*.tsx' -i 'privacy policy' web/src 2>/dev/null | grep -vE '\.test\.tsx?$' >"$TMP/privacy-files.txt"
-[ -f web/src/pages/legal/privacy.md ] && echo web/src/pages/legal/privacy.md >>"$TMP/privacy-files.txt"
-found=""
-while read -r f; do
-  [ -f "$f" ] || continue
-  if grep -iE 'anonym' "$f" | grep -iE 'video|clip' | grep -iE 'start' | grep -qiE 'finish|to the end'; then
-    found="$f"
-    break
-  fi
-done < <(sort -u "$TMP/privacy-files.txt")
-[ -n "$found" ] || bad 1 "the Privacy policy's source under web/src/ (web/src/pages/legal/privacy.md) has no sentence saying BT counts, anonymously, how often each video is started and finished (AC 1: the story stops and reports, rule 10)"
+# The Privacy policy's source is the page S154 routes /privacy to, web/src/pages/legal/privacy.md, and only that file
+# is read (a test or another page quoting the sentence proves nothing). It must carry the sentence the owner approved
+# on 2026-11-27 ("Widen S174's scope (Recommended)": "You approve that sentence and add privacy.md to S174's scope"),
+# word for word on one line.
+PRIVACY=web/src/pages/legal/privacy.md
+PRIVACY_SENTENCE="BT counts, for each video, how many times a day it is started and how many times it is watched to the end. These counts are anonymous: they record nothing about who watched."
+grep -qF -- "$PRIVACY_SENTENCE" "$PRIVACY" 2>/dev/null ||
+  bad 1 "the Privacy policy's source ($PRIVACY) does not carry the owner's approved sentence word for word: \"$PRIVACY_SENTENCE\""
 
 # --- Check 2: one rule for a finished view ---------------------------------------------------------------------
 grep -rqE --include='*.ts' '^export type ClipViewEvent = "start" \| "complete"' packages/domain/src 2>/dev/null ||
@@ -91,11 +85,15 @@ else
     grep -qE "$m" "$TMP/port.txt" || bad 3 "ClipEngagementRepository has no ${m%\\(}"
   done
 fi
-grep -rlF 'clip_engagement' functions/src/adapters/postgres/migrations 2>/dev/null >"$TMP/mig.txt"
-[ "$(wc -l <"$TMP/mig.txt")" -eq 1 ] || bad 3 "expected exactly one migration under functions/src/adapters/postgres/migrations naming clip_engagement, found: $(tr '\n' ' ' <"$TMP/mig.txt")"
-grep -rlE --include='*.ts' 'ON CONFLICT|onConflictDoUpdate' functions/src/adapters/postgres 2>/dev/null | xargs -r grep -lF 'clip_engagement' 2>/dev/null >"$TMP/pg.txt"
-grep -rlE --include='*.ts' 'count \+ 1|count\} \+ 1' functions/src/adapters/postgres 2>/dev/null | grep -v '\.test\.ts$' >"$TMP/inc.txt"
-{ [ -s "$TMP/pg.txt" ] && [ -s "$TMP/inc.txt" ]; } || bad 3 "the Postgres adapter does not increment clip_engagement with INSERT … ON CONFLICT … DO UPDATE SET count = count + 1"
+# Only the SQL migrations count: drizzle-kit's meta/ snapshots and _journal.json name the table too.
+grep -rlF --include='*.sql' 'clip_engagement' functions/src/adapters/postgres/migrations 2>/dev/null >"$TMP/mig.txt"
+[ "$(wc -l <"$TMP/mig.txt")" -eq 1 ] || bad 3 "expected exactly one *.sql migration under functions/src/adapters/postgres/migrations naming clip_engagement, found: $(tr '\n' ' ' <"$TMP/mig.txt")"
+# One non-test module of the Postgres adapter names the table (by its SQL name or its drizzle identifier,
+# clipEngagement), upserts (ON CONFLICT / onConflictDoUpdate) and increments the count by one, all in that same file.
+grep -rlE --include='*.ts' 'clip_engagement|clipEngagement' functions/src/adapters/postgres 2>/dev/null | grep -v '\.test\.ts$' |
+  xargs -r grep -lE 'ON CONFLICT|onConflictDoUpdate' 2>/dev/null |
+  xargs -r grep -lE 'count \+ 1|count\} \+ 1' 2>/dev/null >"$TMP/pg.txt"
+[ -s "$TMP/pg.txt" ] || bad 3 "no module of the Postgres adapter increments clip_engagement with INSERT … ON CONFLICT … DO UPDATE SET count = count + 1 in one file"
 run_tagged 3 functions "S174 AC 3"
 
 # --- Check 4: the route, the spec, the generated client --------------------------------------------------------
@@ -133,7 +131,8 @@ grep -rlF --include='*.ts' 'sendBeacon' web/src/api 2>/dev/null | grep -v '\.tes
 [ -s "$TMP/sender.txt" ] && { grep -qF 'keepalive' "$(head -1 "$TMP/sender.txt")" || bad 6 "the sender ($(head -1 "$TMP/sender.txt")) has no fetch fallback with keepalive"; }
 grep -rlF 'sendBeacon' web/src --include='*.ts' --include='*.tsx' 2>/dev/null | grep -vE '^web/src/api/|\.test\.tsx?$' >"$TMP/beacon-elsewhere.txt"
 [ -s "$TMP/beacon-elsewhere.txt" ] && bad 6 "navigator.sendBeacon is used outside web/src/api: $(tr '\n' ' ' <"$TMP/beacon-elsewhere.txt")"
-grep -qw 'clipCompleted' web/src/components/videos/*.tsx 2>/dev/null || bad 6 "no player under web/src/components/videos calls clipCompleted"
+# A player module, not its test, calls the rule.
+grep -lw 'clipCompleted' web/src/components/videos/*.tsx 2>/dev/null | grep -qvE '\.test\.tsx$' || bad 6 "no player under web/src/components/videos calls clipCompleted"
 run_tagged 6 web "S174 AC 6"
 
 # --- Check 7: export for training --------------------------------------------------------------------------------
@@ -148,7 +147,8 @@ run_tagged 7 functions "S174 AC 7"
 [ "$(story_snapshot_status S174)" = "done" ] || bad 8 "S174's snapshot does not record Status done"
 story_own_changed_files S174 "$BASE" . >"$TMP/changed.txt"
 # docs/v3/audit/ is in S174's Scope files as a whole, so its own ledger fragments and text records need no extra rule.
-grep -vE '^(packages/domain/|packages/ports/|functions/src/|functions/vitest\.config\.ts$|openapi/|web/src/api/|web/src/components/videos/|web/vitest\.config\.ts$|package\.json$|docs/v3/backlog/|docs/v3/audit/|changelog\.d/S174\.md$|scripts/verify-S174\.sh$)' "$TMP/changed.txt" >"$TMP/fence.txt"
+# web/src/pages/legal/privacy.md joined the fence on 2026-11-27 (the owner's "Widen S174's scope (Recommended)").
+grep -vE '^(packages/domain/|packages/ports/|functions/src/|functions/vitest\.config\.ts$|openapi/|web/src/api/|web/src/components/videos/|web/src/pages/legal/privacy\.md$|web/vitest\.config\.ts$|package\.json$|docs/v3/backlog/|docs/v3/audit/|changelog\.d/S174\.md$|scripts/verify-S174\.sh$)' "$TMP/changed.txt" >"$TMP/fence.txt"
 [ -s "$TMP/fence.txt" ] && bad 8 "the story changes files outside its scope: $(tr '\n' ' ' <"$TMP/fence.txt")"
 grep -E '^(scripts/|test/)' "$TMP/changed.txt" | grep -vE '^scripts/verify-S174\.sh$' >"$TMP/scripts.txt"
 [ -s "$TMP/scripts.txt" ] && bad 8 "the story changes files under scripts/ or test/: $(tr '\n' ' ' <"$TMP/scripts.txt")"
