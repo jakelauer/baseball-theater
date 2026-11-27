@@ -207,7 +207,7 @@ of PRs basically"; asked who merges a story's pull request and whether `main` st
 automatically 2. Mirror"):
 
 - Every story arrives as its own pull request from a `story/S<N>` branch into `stage`. The agent
-  opens it, handles Claude's review, then turns on auto-merge, so it merges once `ci-passed` is green; each merge deploys
+  opens it after its pre-PR review, then turns on auto-merge, so it merges once `ci-passed` is green; each merge deploys
   staging, `stage.baseball.theater`, unless its build inputs are unchanged (**Staging**, below). Every pull request that changes code also gets a preview (below); a docs-only change runs only the docs checks, and a docs-only merge doesn't deploy staging at all.
 - Production, at `next.baseball.theater` until the owner's cutover (below), deploys only when a
   GitHub Release is published (by the coordinator, on the owner's word), and deploys exactly that release's tag, with no approval wait
@@ -541,22 +541,21 @@ Still to finish before a public launch (the _Cloudflare deploy_ Later theme):
 
 ## Scripts
 
-| Command                 | What                                             |
-| ----------------------- | ------------------------------------------------ |
-| `pnpm verify`           | **Single health gate** (lint + coverage + build) |
-| `pnpm dev`              | Postgres in Docker + Worker on workerd + Vite    |
-| `pnpm db:seed`          | Migrate and seed the local Postgres (idempotent) |
-| `pnpm seed:refresh`     | Record the dev seed from live MLB (see above)    |
-| `pnpm mlb:backfill`     | Every game between two dates (see above)         |
-| `pnpm db:migrate`       | Migrate the database `BT_DATABASE_URL` names     |
-| `pnpm db:copy-baseball` | Copy production's baseball data (by hand only)   |
-| `pnpm deploy:bootstrap` | A deploy's bootstrapping (GitHub Actions only)   |
-| `pnpm test`             | Vitest (all packages)                            |
-| `pnpm test:coverage`    | Coverage + thresholds                            |
-| `pnpm lint`             | ESLint                                           |
-| `pnpm build`            | lint → typecheck → build                         |
-| `pnpm api:spec`         | Regenerate the OpenAPI spec (see below)          |
-| `pnpm api:breaking`     | Breaking-change gate against the baseline        |
+| Command                 | What                                                                                                                                                                                                                                                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm verify`           | **Single health gate**: the Turborepo tasks the change reaches (each unit's lint, typecheck, test with its coverage floors, build and size, plus the root backlog, duplication and Markdown checks; ADR-030); `--all` every task, unchanged ones replayed from the local cache (the finishing gate); `--full` every task, fresh |
+| `pnpm dev`              | Postgres in Docker + Worker on workerd + Vite                                                                                                                                                                                                                                                                                   |
+| `pnpm db:seed`          | Migrate and seed the local Postgres (idempotent)                                                                                                                                                                                                                                                                                |
+| `pnpm seed:refresh`     | Record the dev seed from live MLB (see above)                                                                                                                                                                                                                                                                                   |
+| `pnpm mlb:backfill`     | Every game between two dates (see above)                                                                                                                                                                                                                                                                                        |
+| `pnpm db:migrate`       | Migrate the database `BT_DATABASE_URL` names                                                                                                                                                                                                                                                                                    |
+| `pnpm db:copy-baseball` | Copy production's baseball data (by hand only)                                                                                                                                                                                                                                                                                  |
+| `pnpm deploy:bootstrap` | A deploy's bootstrapping (GitHub Actions only)                                                                                                                                                                                                                                                                                  |
+| `pnpm test`             | Every unit's `test` task (Vitest with its coverage floors; `turbo run test`)                                                                                                                                                                                                                                                    |
+| `pnpm lint`             | Every unit's `lint` task (ESLint; `turbo run lint`)                                                                                                                                                                                                                                                                             |
+| `pnpm build`            | Every unit's `build` task, after its dependencies' type checks (no lint; `turbo run build`)                                                                                                                                                                                                                                     |
+| `pnpm api:spec`         | Regenerate the OpenAPI spec (see below)                                                                                                                                                                                                                                                                                         |
+| `pnpm api:breaking`     | Breaking-change gate against the baseline                                                                                                                                                                                                                                                                                       |
 
 Loop / agent automation: [docs/v3/LOOP.md](./docs/v3/LOOP.md) · backlog [docs/v3/INDEX.md](./docs/v3/INDEX.md) (built by `pnpm backlog:build`) and the notes in [docs/v3/backlog/](./docs/v3/backlog/) · conventions `CLAUDE.md`.
 

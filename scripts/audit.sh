@@ -735,7 +735,9 @@ if [ "$MODE" = "run" ]; then
   esac
   PRS="$("${RUNS[@]}" prs --journal "$JOURNAL")" || { echo "audit: could not read run ${RUN_ID}'s pull requests" >&2; exit 2; }
   # The Claude-review findings on each pull request the run opened: inline comments on its reviews whose
-  # body starts "Claude review of" (docs/v3/LOOP.md §9, "Claude's review is handled before a pull request merges").
+  # body starts "Claude review of". The owner retired that review on 2026-11-26 ("I'm thinking we should ditch
+  # the PR review because it's just wasting tokens at this point."), so a pull request opened since has none
+  # and counts 0: the findings bar (runs.ts) no longer measures anything until the owner names a replacement.
   # A failed read exits 2: counted as 0, it would lower the bar for every later run (runs.ts).
   FINDINGS_FILE="$(mktemp)"
   {

@@ -2,8 +2,8 @@
  * Law L12 (docs/v3/LAWS.md; S156 AC 2; owner, 2026-11-20, asked whether S156 may add it: "Add both
  * (Recommended)"): no workflow runs a story grader. `scripts/claude-review/plan-review.py`'s
  * `is_reviewer_path` leaves graders (`scripts/verify-S<N>.sh`, `-B<N>`, `-V<N>`) out of the CI and
- * deploy machinery that is re-reviewed on every push, so a branch whose only machinery is its grader
- * gets an `unchanged` review after a merge from stage. That is honest only while nothing CI runs can
+ * deploy machinery, so an item whose only machinery is its grader is no `/run-backlog` barrier (the
+ * pull request review that once re-read that machinery on every push was retired on 2026-11-26). That is honest only while nothing CI runs can
  * run a grader, or the helpers graders source (`scripts/lib/checks.sh`), since a pull request's grader
  * could then change what CI does. So any file under `.github/` that names one fails, on its whole text.
  *

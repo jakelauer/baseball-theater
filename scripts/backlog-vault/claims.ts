@@ -142,7 +142,7 @@ const BARRIER_DIRS = [".claude/"];
  * (`pnpm-workspace.yaml`'s `packages/<name>/`, `functions/`, `web/`): a reviewer path that doesn't make an item a barrier.
  * Rule 21 has nearly every code story raise its package's floors, so counting them made most stories run
  * alone (owner, 2026-11-22, asked whether such a story should still run alone as a barrier: "Don't count
- * them (Recommended)"). Claude's review still re-reads them in full (`is_reviewer_path` is unchanged). The
+ * them (Recommended)"). `is_reviewer_path` itself is unchanged. The
  * root configs, `scripts/` (review tooling, `scripts/backlog-vault/` among it), `tools/`, `e2e/` (not a
  * workspace package: its vitest.config.ts runs the selector tests inside `pnpm verify`) and every other
  * `*.config.*` stay barriers.
