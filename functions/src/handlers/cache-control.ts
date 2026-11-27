@@ -124,13 +124,7 @@ export const PAST_CACHE_CONTROL = `public, max-age=${PAST_BROWSER_MAX_AGE_S}, s-
 export const PARTIAL_PAST_DIGEST_CACHE_CONTROL = `public, s-maxage=${CACHE_LIFETIME_FLOOR_MS / 1000}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`;
 
 /**
- * A checked player's profile links (S209, `GET /api/v1/players/:personId/profiles`): the ids change rarely, so the
- * edge and the browser may keep the answer for a day.
+ * Players' profile links (S209, `GET /api/v1/players/profiles`): the ids come from the Chadwick register, synced at
+ * most once a day a file, so the edge and the browser may keep any answer (a player with no row included) for a day.
  */
-export const PLAYER_PROFILES_CHECKED_CACHE_CONTROL = "public, max-age=86400, s-maxage=86400";
-
-/**
- * A player not yet checked, or one BT has no row for (a 404): kept only minutes, so the links fill in soon after the
- * cron's resolve step looks the player up.
- */
-export const PLAYER_PROFILES_PENDING_CACHE_CONTROL = "public, max-age=300, s-maxage=300";
+export const PLAYER_PROFILES_CACHE_CONTROL = "public, max-age=86400, s-maxage=86400";

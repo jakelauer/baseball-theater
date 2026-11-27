@@ -8,6 +8,7 @@ import {
 	beforeAll, describe, expect, it, vi,
 } from "vitest";
 import { FixtureClient } from "./adapters/fixtures/fixture-client.js";
+import { CHADWICK_REGISTER_BASE_URL, ChadwickPlayerRegister } from "./adapters/http/chadwick-register.js";
 import { HttpMlbStatsClient } from "./adapters/http/mlb.js";
 import * as gameIngest from "./services/game-ingest.js";
 import * as edgePurge from "./services/edge-purge.js";
@@ -16,6 +17,7 @@ import * as scheduleRefresh from "./services/schedule-refresh.js";
 import { useNodeDatabase } from "./test/node-database.js";
 import { handleApiRequest } from "./handlers/api.js";
 import worker from "./worker.js";
+import * as workerAppModule from "./worker-app.js";
 import {
 	createMlbClient, createWorkerApp, tickAllowed, workerApp,
 } from "./worker-app.js";
@@ -43,6 +45,22 @@ describe("the Worker composition (S45)", () =>
 		const response = await handleApiRequest(new Request("http://bt.test/api/v1/schedule?date=2026-09-05"), app.context);
 		expect(response.status).toBe(200);
 		expect((await app.ingest.schedules.getByDate("2026-09-05"))?.games.length).toBe(15);
+	});
+
+	it("S209 AC 3: with live MLB data the player-id job gets the register and the same MLB client as its cross-references; otherwise neither", async () =>
+	{
+		const db = await useNodeDatabase();
+		const live = createWorkerApp({
+			BT_USE_LIVE_MLB: "1",
+		}, db);
+		expect(live.ingest.mlb).toBeInstanceOf(HttpMlbStatsClient);
+		expect(live.ingest.playerXrefs).toBe(live.ingest.mlb);
+		expect(live.ingest.playerRegister).toBeInstanceOf(ChadwickPlayerRegister);
+		expect(live.ingest.playerIds).toBeDefined();
+		const fixtures = createWorkerApp({}, db);
+		expect(fixtures.ingest.playerRegister).toBeUndefined();
+		expect(fixtures.ingest.playerXrefs).toBeUndefined();
+		expect(fixtures.ingest.playerIds).toBeDefined();
 	});
 
 	it("one app per isolate", () =>
@@ -167,9 +185,8 @@ describe("the Worker entry (S45)", () =>
 			GAME_INGEST: namespaceRecording(ensured),
 		}, ctx);
 		const settled = await Promise.allSettled(waits);
-		// The third is S212's re-check, which has no due game here, the fourth its owed-purge retry, which has none,
-		// and the fifth S209's player-id job, with no player waiting and no game to seed.
-		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "fulfilled", "fulfilled", "fulfilled", "rejected"]);
+		// The third is S212's re-check, which has no due game here, and the fourth its owed-purge retry, which has none.
+		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "fulfilled", "fulfilled", "rejected"]);
 		expect(ensured).toEqual(["game-ingest:1", "game-ingest:2"]);
 		refresh.mockRestore();
 		ingest.mockRestore();
@@ -184,9 +201,8 @@ describe("the Worker entry (S45)", () =>
 			GAME_INGEST: namespaceRecording([]),
 		}, ctx);
 		const settled = await Promise.allSettled(waits);
-		// The third is S212's re-check, which has no due game here, the fourth its owed-purge retry, which has none,
-		// and the fifth S209's player-id job, with no player waiting and no game to seed.
-		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "fulfilled", "fulfilled", "fulfilled", "rejected"]);
+		// The third is S212's re-check, which has no due game here, and the fourth its owed-purge retry, which has none.
+		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "fulfilled", "fulfilled", "rejected"]);
 		expect(refresh).toHaveBeenCalledTimes(1);
 		const month = await refresh.mock.results[0]!.value as string | null;
 		expect(month).toMatch(/^\d{4}-\d{2}$/);
@@ -228,7 +244,7 @@ describe("the Worker entry (S45)", () =>
 			GAME_INGEST: namespaceRecording([]),
 		}, ctx);
 		const settled = await Promise.allSettled(waits);
-		expect(settled.map((s) => s.status)).toEqual(["fulfilled", "fulfilled", "rejected", "fulfilled", "fulfilled"]);
+		expect(settled.map((s) => s.status)).toEqual(["fulfilled", "fulfilled", "rejected", "fulfilled"]);
 		expect(recheck).toHaveBeenCalledTimes(1);
 		expect(refresh).toHaveBeenCalledTimes(1);
 		expect(ingest).toHaveBeenCalledTimes(1);
@@ -253,12 +269,73 @@ describe("the Worker entry (S45)", () =>
 			GAME_INGEST: namespaceRecording([]),
 		}, ctx);
 		const settled = await Promise.allSettled(waits);
-		expect(settled.map((s) => s.status)).toEqual(["fulfilled", "fulfilled", "fulfilled", "rejected", "fulfilled"]);
+		expect(settled.map((s) => s.status)).toEqual(["fulfilled", "fulfilled", "fulfilled", "rejected"]);
 		expect([retry, recheck, refresh, ingest].map((spy) => spy.mock.calls.length)).toEqual([1, 1, 1, 1]);
 		await worker.scheduled(undefined, {
 			BT_LOCAL: "1",
 		}, ctx);
 		expect(retry).toHaveBeenCalledTimes(1);
 		for (const spy of [retry, recheck, refresh, ingest]) spy.mockRestore();
+	});
+
+	it("S209 AC 3: with live MLB data a tick syncs one register file in its own waitUntil, logged as the player-ids job", async () =>
+	{
+		// The Worker builds its app once per isolate, already on fixtures here, so the tick is handed a live-data app
+		// whose register is served by the composition's test fetch: one file, one player with both ids (no MLB call).
+		const db = await useNodeDatabase();
+		const registerAsks: { url: string;
+			ifNoneMatch: string | null; }[] = [];
+		const live = createWorkerApp({
+			BT_USE_LIVE_MLB: "1",
+		}, db, {
+			fetch: async (url, init) =>
+			{
+				if (!url.startsWith(CHADWICK_REGISTER_BASE_URL)) throw new Error(`unexpected fetch ${url}`);
+				registerAsks.push({
+					url,
+					ifNoneMatch: new Headers(init?.headers).get("If-None-Match"),
+				});
+				return new Response("key_person,key_mlbam,key_fangraphs,key_bbref,mlb_played_first\nabc0,665871,21741,assadja01,2021\n", {
+					headers: {
+						ETag: "\"w1\"",
+					},
+				});
+			},
+		});
+		const app = vi.spyOn(workerAppModule, "workerApp").mockReturnValue(live);
+		const others = [
+			vi.spyOn(scheduleRefresh, "refreshDueScheduleMonth").mockResolvedValue(null),
+			vi.spyOn(gameRecheck, "recheckDueGame").mockResolvedValue(null),
+			vi.spyOn(edgePurge, "retryOwedEdgePurges").mockResolvedValue(0),
+		];
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		try
+		{
+			const { waits, ctx } = collecting();
+			await worker.scheduled(undefined, {}, ctx);
+			const settled = await Promise.allSettled(waits);
+			const synced = settled.flatMap((s) => s.status === "fulfilled" && (s.value as { changed?: boolean } | undefined)?.changed !== undefined ? [s.value] : []);
+			expect(synced).toEqual([expect.objectContaining({
+				file: "people-0.csv",
+				changed: true,
+				inserted: 1,
+			})]);
+			expect(registerAsks).toEqual([{
+				url: `${CHADWICK_REGISTER_BASE_URL}/people-0.csv`,
+				ifNoneMatch: null,
+			}]);
+			expect(await live.ingest.playerIds!.getMany([665871])).toEqual([{
+				personId: 665871,
+				fangraphsId: "21741",
+				bbrefId: "assadja01",
+			}]);
+			const lines = log.mock.calls.map(([line]) => line as Record<string, unknown>).filter((line) => line?.event === "db-round-trips" && line.kind === "cron");
+			expect(lines.filter((line) => line.job === "player-ids")).toHaveLength(1);
+		}
+		finally
+		{
+			log.mockRestore();
+			for (const spy of [app, ...others]) spy.mockRestore();
+		}
 	});
 });

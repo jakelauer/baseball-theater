@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Grader for story S209 — a player's name opens their stats page: outside ids from one source behind
-# a port, stored in one table resolved lazily by the cron and served by one route; one URL function
+# Grader for story S209 — a player's name opens their stats page: outside ids from the Chadwick register,
+# MLB's cross-references filling its gaps, each behind a port, preseeded into one table and kept in step
+# by a daily per-file ETag sync, served by one batched route (re-scoped 2026-11-27); one URL function
 # and one link component; a stats-site setting that patrons (Backer and up) may change. A commit-time
 # proof of this story (S84). Contract: frame note 00, "Verify-script contract" (docs/v3/backlog/frame/).
 # No network. No writes outside /tmp. Does its own checking (never `pnpm verify`); runs only the
@@ -12,16 +13,16 @@ cd "$(dirname "$0")/.."
 # shellcheck source=lib/checks.sh
 source "$(dirname "$0")/lib/checks.sh"
 
-check 1 "AC 1: MLB's xrefId hydrate recorded for 823823's players (fixtures/raw/people-xref-823823.json: FanGraphs ids, no Baseball-Reference ids), so the source is the Chadwick Bureau register (licence: Open Data Commons Attribution License 1.0, named in its adapter): one port method (PlayerRegister in packages/ports), an adapter that fetches the register at run time keeping only the wanted rows, its measured fit in one Worker run in its comment, a recorded sample in fixtures/; tests 'S209 AC 1' pass"
+check 1 "AC 1: MLB's xrefId hydrate recorded for 823823's players (fixtures/raw/people-xref-823823.json: FanGraphs and Lahman ids, no Baseball-Reference ids) and a Chadwick register sample in fixtures/; the register (licence: Open Data Commons Attribution License 1.0, named in its adapter) behind PlayerRegister, read with a conditional request (If-None-Match) as a stream, its measured cost in its comment; MLB's cross-references behind PlayerXrefSource, implemented by HttpMlbStatsClient with the batched hydrate=xrefId call, PLAYER_XREF_BATCH ids a call; tests 'S209 AC 1' pass"
 check 2 "AC 2: packages/domain exports StatsProvider and playerProfileUrl (MLBAM for MLB.com and Savant, the provider's own id for FanGraphs and Baseball-Reference, null when unknown, no name slugs); table test 'S209 AC 2' passes"
-check 3 "AC 3: PlayerIdRepository (packages/ports) with a Postgres adapter, one migration (player_ids: person_id key, checked_at, fangraphs_id, bbref_id nullable, index on checked_at NULLS FIRST; the seed cursor's table) and an in-memory double; ingest adds a game's players on a roster change; the cron's capped resolve step and keyset seeding pass in their own cron scope (job player-ids) with named constants (interval at least a week); GET /api/v1/players/:personId/profiles in ApiRoutes, the spec and web/src/api/generated/ (api:breaking exits 0); the classification manifest labels both classes and both tables; tests 'S209 AC 3' pass"
+check 3 "AC 3: PlayerIdRepository (packages/ports) with a Postgres adapter, one migration (player_ids: person_id key, fangraphs_id, bbref_id, register_file, no checked_at; player_register_files with etag; no seed cursor) and an in-memory double; the cron's player-id sync in its own cron scope (job player-ids) with named constants (REGISTER_SYNC_INTERVAL_MS at least a day, REGISTER_RETRY_MS), updating only changed rows (IS DISTINCT FROM); ingest adds no players; GET /api/v1/players/profiles (PLAYER_PROFILES_MAX_IDS) in ApiRoutes, the spec and web/src/api/generated/, the per-person route gone (api:breaking exits 0); the classification manifest labels both classes and both tables; tests 'S209 AC 3' pass"
 check 4 "AC 4: a player's name on the matchup cards and in the box score's batting and pitching tables is a new-tab link (target=_blank rel=noopener noreferrer) to playerProfileUrl, MLB.com with no setting; no profile URL is built under web/src/ outside playerProfileUrl; RTL 'S209 AC 4' passes"
 check 5 "AC 5: one name-link component under web/src/components/ (PlayerLink), used by MatchupCards and BoxRoom"
 check 6 "AC 6: Hide Scores changes nothing about the links (RTL 'S209 AC 6')"
 check 7 "AC 7: the story records the owner's tier answer on its **Owner answer (tier):** line, quoting it"
 check 8 "AC 8: AccountSettings.statsProvider (default \"mlb\", a document without it parses as \"mlb\"); one migration adds stats_provider text NOT NULL DEFAULT 'mlb'; the repository reads and writes it; the Settings page offers the four sites, MLB.com only without the entitlement (others disabled, marked patron); tests 'S209 AC 8' pass"
 check 9 "AC 9: Entitlements.statsProviderChoice from entitlementsForTier (Backer and up), derived from the stored tier in getByUid with no column; the settings route refuses only a change away from \"mlb\" without it, deciding by entitlementsForTier; effectiveStatsProvider answers \"mlb\" without it; tests 'S209 AC 9' pass"
-check 10 "AC 10: the link follows effectiveStatsProvider and the profiles route, falling back to MLB.com for an unknown id, a 404, loading and failure; RTL 'S209 AC 10' passes"
+check 10 "AC 10: the link follows effectiveStatsProvider and the profiles route, names shown together sharing one request (PlayerLink's roster, passed by MatchupCards and BoxRoom), falling back to MLB.com for an unknown id, a player with no row, loading and failure; RTL 'S209 AC 10' passes"
 check 11 "AC 11: no design match (no e2e/design/S209.spec.ts, no docs/v3/design-checks/S209/)"
 check 12 "AC 12: S209's Status is done: its snapshot records done"
 check 13 "S209 changed no file outside its fence (plus creating scripts/verify-S209.sh and its own records)"
@@ -79,7 +80,8 @@ else
 		const types = new Set(p.flatMap((x) => (x.xrefIds ?? []).map((r) => r.xrefType)));
 		if (p.length < 20) { console.log("only " + p.length + " people recorded"); process.exit(1); }
 		if (!types.has("fangraphs")) { console.log("no fangraphs cross-reference"); process.exit(1); }
-		if (types.has("bbref") || types.has("baseball-reference")) { console.log("MLB carries Baseball-Reference ids: the source should be MLB"); process.exit(1); }
+		if (!types.has("lahman")) { console.log("no lahman cross-reference"); process.exit(1); }
+		if (types.has("bbref") || types.has("baseball-reference")) { console.log("MLB carries Baseball-Reference ids of its own: the reading AC 1 records no longer holds"); process.exit(1); }
 	' "$XREF" >"$TMP/x.log" 2>&1 || bad 1 "$XREF: $(cat "$TMP/x.log")"
 fi
 SAMPLE="$(ls fixtures/chadwick-register-*.csv 2>/dev/null | head -1)"
@@ -89,6 +91,7 @@ else
 	head -1 "$SAMPLE" | grep -q 'key_mlbam' && head -1 "$SAMPLE" | grep -q 'key_bbref' && head -1 "$SAMPLE" | grep -q 'key_fangraphs' || bad 1 "$SAMPLE's header lacks key_mlbam, key_bbref or key_fangraphs"
 fi
 grep -qE 'export interface PlayerRegister\b' "$PORTS"/*.ts 2>/dev/null || bad 1 "packages/ports has no PlayerRegister port"
+grep -qE 'export interface PlayerXrefSource\b' "$PORTS"/*.ts 2>/dev/null || bad 1 "packages/ports has no PlayerXrefSource port"
 REG="$(grep -rlE 'chadwickbureau/register' functions/src/adapters 2>/dev/null | grep -v '\.test\.ts$' | head -1)"
 if [ -z "$REG" ]; then
 	bad 1 "no adapter under functions/src/adapters fetches the Chadwick register"
@@ -96,7 +99,13 @@ else
 	grep -qE 'implements PlayerRegister' "$REG" || bad 1 "$REG does not implement PlayerRegister"
 	grep -qiE 'Open Data Commons Attribution' "$REG" || bad 1 "$REG does not name the register's licence"
 	grep -qiE 'memory' "$REG" && grep -qiE 'CPU|time' "$REG" || bad 1 "$REG's comment does not record the measured memory and time of one run"
+	grep -qiE 'If-None-Match' "$REG" || bad 1 "$REG sends no conditional request (If-None-Match)"
+	grep -qE 'getReader\(|pipeThrough\(' "$REG" || bad 1 "$REG does not read a file as a stream"
 fi
+MLBHTTP=functions/src/adapters/http/mlb.ts
+grep -qE 'class HttpMlbStatsClient implements[^{]*\bPlayerXrefSource\b' "$MLBHTTP" || bad 1 "HttpMlbStatsClient does not implement PlayerXrefSource"
+grep -qE 'hydrate=xrefId' "$MLBHTTP" || bad 1 "$MLBHTTP does not ask MLB's batched people call with hydrate=xrefId"
+grep -rqE 'export const PLAYER_XREF_BATCH\b' functions/src --include='*.ts' || bad 1 "no named constant PLAYER_XREF_BATCH"
 grep -rqE 'xrefId' functions/src/services/recorder.ts || bad 1 "the recorder does not record the xrefId hydrate"
 run_tagged 1 functions "S209 AC 1"
 
@@ -106,7 +115,7 @@ grep -rqE 'export function playerProfileUrl\(' "$DOMAIN" || bad 2 "packages/doma
 grep -qE 'playerProfileUrl|StatsProvider|player-links' "$DOMAIN/index.ts" || bad 2 "packages/domain's index does not export the link module"
 run_tagged 2 packages/domain "S209 AC 2"
 
-# --- Check 3: ids stored, resolved lazily, served ---
+# --- Check 3: ids preseeded, synced by ETag, served ---
 grep -qE 'export interface PlayerIdRepository\b' "$PORTS"/*.ts 2>/dev/null || bad 3 "packages/ports has no PlayerIdRepository"
 grep -rqE 'class PostgresPlayerIdRepository' functions/src/adapters/postgres/ || bad 3 "no PostgresPlayerIdRepository"
 grep -rqE 'class InMemoryPlayerIdRepository' functions/src/adapters/memory/ || bad 3 "no InMemoryPlayerIdRepository"
@@ -115,36 +124,39 @@ new_migs="$(sort -u <<<"$new_migs" | grep -v '^$')"
 [ "$(grep -c . <<<"$new_migs")" = "1" ] || bad 3 "S209 adds $(grep -c . <<<"$new_migs") migrations (want one): $(tr '\n' ' ' <<<"$new_migs")"
 m="$(cat $new_migs 2>/dev/null)"
 grep -qE 'CREATE TABLE "player_ids"' <<<"$m" || bad 3 "the migration does not create player_ids"
-for col in '"person_id" integer PRIMARY KEY' '"checked_at" text' '"fangraphs_id" text' '"bbref_id" text'; do
-	grep -qF "$col" <<<"$m" || bad 3 "player_ids lacks $col"
+pids="$(awk '/CREATE TABLE "player_ids"/,/\);/' <<<"$m")"
+for col in '"person_id" integer PRIMARY KEY' '"fangraphs_id" text' '"bbref_id" text' '"register_file" text'; do
+	grep -qF "$col" <<<"$pids" || bad 3 "player_ids lacks $col"
 done
-grep -qiE 'player_ids.*\("checked_at"[^)]*NULLS FIRST' <<<"$m" || bad 3 "no index on player_ids (checked_at NULLS FIRST)"
-grep -qE 'CREATE TABLE "player_id_seed_cursor"' <<<"$m" || bad 3 "the migration does not create the seed cursor's table"
-grep -qE 'official_date' <<<"$(grep -A6 'player_id_seed_cursor' <<<"$m")" || bad 3 "the seed cursor has no official_date"
+grep -qF '"checked_at"' <<<"$pids" && bad 3 "player_ids still has checked_at (no per-player check after the re-scope)"
+grep -qE 'CREATE TABLE "player_register_files"' <<<"$m" || bad 3 "the migration does not create player_register_files"
+grep -qF '"etag" text' <<<"$(awk '/CREATE TABLE "player_register_files"/,/\);/' <<<"$m")" || bad 3 "player_register_files has no etag"
+grep -qE 'player_id_seed_cursor' <<<"$m" && bad 3 "the migration still creates the seeding cursor"
 SVC=functions/src/services/player-ids.ts
 if [ ! -f "$SVC" ]; then
-	bad 3 "no $SVC (the resolve step and seeding pass)"
+	bad 3 "no $SVC (the register sync)"
 else
-	for c in RESOLVE_CAP RECHECK_INTERVAL_MS SEED_PAGE_GAMES; do grep -qE "export const $c\b" "$SVC" || bad 3 "$SVC has no named constant $c"; done
+	for c in REGISTER_SYNC_INTERVAL_MS REGISTER_RETRY_MS; do grep -qE "export const $c\b" "$SVC" || bad 3 "$SVC has no named constant $c"; done
 	node -e '
 		const s = require("node:fs").readFileSync(process.argv[1], "utf8");
-		const m = s.match(/export const RECHECK_INTERVAL_MS\s*=\s*([^;]+);/);
+		const m = s.match(/export const REGISTER_SYNC_INTERVAL_MS\s*=\s*([^;]+);/);
 		if (!m) process.exit(1);
 		const v = Function("return (" + m[1] + ")")();
-		process.exit(v >= 7 * 24 * 3600 * 1000 ? 0 : 1);
-	' "$SVC" || bad 3 "RECHECK_INTERVAL_MS is under a week"
+		process.exit(v >= 24 * 3600 * 1000 ? 0 : 1);
+	' "$SVC" || bad 3 "REGISTER_SYNC_INTERVAL_MS is under a day"
 fi
 grep -qE 'job: "player-ids"' functions/src/worker.ts || bad 3 "worker.ts runs no cron scope with job \"player-ids\""
-grep -qE 'jsonb_path_query' functions/src/adapters/postgres/*.ts || bad 3 "the seeding pass does not pull ids with jsonb_path_query"
-grep -qE 'ON CONFLICT DO NOTHING|onConflictDoNothing' functions/src/adapters/postgres/repos.ts || bad 3 "the adapter inserts players without ON CONFLICT DO NOTHING"
-grep -qE 'playerIds' functions/src/services/ingest.ts || bad 3 "ingest does not add a game's players"
-grep -qF '"GET /api/v1/players/:personId/profiles"' "$DOMAIN/api-routes.ts" || bad 3 "ApiRoutes lacks GET /api/v1/players/:personId/profiles"
-grep -qF '"/api/v1/players/{personId}/profiles"' openapi/bt-api.v1.json || bad 3 "the OpenAPI spec lacks the profiles path"
-grep -rqF '/api/v1/players/{personId}/profiles' web/src/api/generated/ || bad 3 "web/src/api/generated/ lacks the profiles path"
+grep -qE 'IS DISTINCT FROM' <<<"$(awk '/class PostgresPlayerIdRepository/,/^}/' functions/src/adapters/postgres/repos.ts)" || bad 3 "PostgresPlayerIdRepository does not update only changed rows (IS DISTINCT FROM)"
+grep -qE 'addRosterPlayers|playerIds\??\.add' functions/src/services/ingest.ts && bad 3 "ingest still adds a game's players"
+grep -rqE 'export const PLAYER_PROFILES_MAX_IDS\b' "$DOMAIN" functions/src --include='*.ts' || bad 3 "no named constant PLAYER_PROFILES_MAX_IDS"
+grep -qF '"GET /api/v1/players/profiles"' "$DOMAIN/api-routes.ts" || bad 3 "ApiRoutes lacks GET /api/v1/players/profiles"
+grep -qF '"/api/v1/players/profiles"' openapi/bt-api.v1.json || bad 3 "the OpenAPI spec lacks the profiles path"
+grep -rqF '/api/v1/players/profiles' web/src/api/generated/ || bad 3 "web/src/api/generated/ lacks the profiles path"
+grep -rqF 'players/{personId}/profiles' openapi/bt-api.v1.json "$DOMAIN/api-routes.ts" && bad 3 "the per-person profiles route is still served"
 (cd functions && pnpm exec tsx src/scripts/generate-openapi.ts --out "$TMP/spec.json" >/dev/null 2>&1) && cmp -s "$TMP/spec.json" openapi/bt-api.v1.json || bad 3 "the committed spec is stale against the route table"
 (pnpm -s api:breaking >"$TMP/b.log" 2>&1) || { bad 3 "pnpm api:breaking failed:"; tail -5 "$TMP/b.log" | sed 's/^/        /'; }
 CLS=functions/src/services/data-classification.ts
-for k in InMemoryPlayerIdRepository PostgresPlayerIdRepository player_ids player_id_seed_cursor; do
+for k in InMemoryPlayerIdRepository PostgresPlayerIdRepository player_ids player_register_files; do
 	grep -qE "^\s*$k: \{" "$CLS" || bad 3 "$CLS does not label $k"
 done
 run_tagged 3 functions "S209 AC 3"
@@ -195,6 +207,9 @@ run_tagged 9 functions "S209 AC 9"
 
 # --- Check 10: names follow the setting ---
 grep -qE 'effectiveStatsProvider' "${LINK:-/dev/null}" || bad 10 "PlayerLink does not pick its provider with effectiveStatsProvider"
+grep -qE '\broster\b' "${LINK:-/dev/null}" || bad 10 "PlayerLink takes no roster to share one request among names shown together"
+grep -qE '<PlayerLink\b[^>]*\broster=' web/src/components/game/BoxRoom.tsx || bad 10 "BoxRoom's names pass no roster"
+grep -qE '<PlayerLink\b[^>]*\broster=' web/src/components/pitch/MatchupCards.tsx || bad 10 "MatchupCards' names pass no roster"
 run_tagged 10 web "S209 AC 10"
 
 # --- Check 11: no design match ---

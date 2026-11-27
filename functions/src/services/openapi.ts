@@ -12,7 +12,9 @@
  * the same way responses come from `ApiRoutes`.
  */
 import { fileURLToPath } from "node:url";
-import { ApiRequestBodies, ApiRoutes } from "@bt/domain";
+import {
+	ApiRequestBodies, ApiRoutes, PERSON_IDS_PATTERN,
+} from "@bt/domain";
 import type {
 	ApiRequestTypes, ApiResponseTypes, ApiRoute,
 } from "@bt/domain";
@@ -369,22 +371,23 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 		parameters: [],
 		errors: {},
 	},
-	"GET /api/v1/players/:personId/profiles": {
+	"GET /api/v1/players/profiles": {
 		operationId: "getPlayerProfiles",
-		summary: "One player's pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from; a site whose id BT doesn't know yet, or whose register has none for this player, is null. A checked player's answer is cacheable for a day; one not yet checked, for minutes, so it fills in once the cron resolves it.",
+		summary: "Players' pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from, for each asked player BT has a row for (a player with none is left out); a site whose id BT doesn't know is null. Cacheable for a day: the ids are synced from the Chadwick register at most daily.",
 		parameters: [
 			{
-				name: "personId",
-				in: "path",
+				name: "personIds",
+				in: "query",
 				required: true,
-				description: "MLB person id (MLBAM).",
+				description: "1 to 100 MLB person ids (MLBAM), comma-separated; repeats count once.",
 				schema: {
-					type: "integer",
+					type: "string",
+					pattern: PERSON_IDS_PATTERN,
 				},
 			},
 		],
 		errors: {
-			404: "BT has no row for that player (it has seen no game they played in); cacheable for minutes.",
+			400: "`personIds` is missing, malformed, or names more than 100 players.",
 		},
 	},
 	"PUT /api/v1/me/settings": {

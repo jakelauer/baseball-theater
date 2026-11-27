@@ -488,8 +488,8 @@ describe("the cron's round-trip lines (S220)", () =>
 		try
 		{
 			// BT_LOCAL is set as in `pnpm dev`, so the tick runs only with BT_INGEST_TICK (`tickAllowed`). The tick runs
-			// inside one unlabelled scope, so its five jobs (S209 added player-ids) share one connection: the test PGlite's
-			// socket server multiplexes connections onto one database and can't interleave five at once. Each job's scope still
+			// inside one unlabelled scope, so its four jobs share one connection: the test PGlite's socket server
+			// multiplexes connections onto one database and can't interleave four at once. Each job's scope still
 			// measures and logs itself, as when it opens its own connection on Cloudflare.
 			const workerEnv = env as unknown as WorkerEnv;
 			await inDatabaseScope(workerEnv.HYPERDRIVE, async () =>
@@ -501,7 +501,7 @@ describe("the cron's round-trip lines (S220)", () =>
 				await waitOnExecutionContext(ctx);
 			});
 			const lines = log.mock.calls.map(([line]) => line as Record<string, unknown>).filter((line) => line?.event === "db-round-trips" && line.kind === "cron");
-			expect(lines.map((line) => line.job).sort()).toEqual(["edge-purge-retry", "game-recheck", "ingest-start", "month-refresh", "player-ids"]);
+			expect(lines.map((line) => line.job).sort()).toEqual(["edge-purge-retry", "game-recheck", "ingest-start", "month-refresh"]);
 			for (const line of lines)
 			{
 				expect(line.roundTrips).toEqual(expect.any(Number));

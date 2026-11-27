@@ -1,97 +1,128 @@
 /**
- * Players' outside ids, resolved lazily (S209 AC 3; ARCHITECTURE §3), never by scanning every game BT holds in one
- * go: S122 backfills every game since 1901, and the cron runs every minute under the Worker's subrequest limit.
- *
- * - Ingest adds a game's players, unchecked, when it first writes the game or a write changes its roster
- *   (`addRosterPlayers`, called from `storeGames`), not on every live snapshot.
- * - The cron's player-id job (`runPlayerIdJobs`, its own `cron` scope in `worker.ts`) first resolves at most
- *   {@link RESOLVE_CAP} due players through the register (one read of it a run, and none when nothing is due), then
- *   seeds one page of {@link SEED_PAGE_GAMES} stored games by keyset, so games stored before S209 get their players
- *   without any game document reaching the Worker. Neither keeps a last-run time: what is due is in the rows.
+ * MLB's players' outside ids, preseeded once and kept in step with the Chadwick register (S209 AC 3; owner,
+ * 2026-11-27: "yes, go ahead with the ETag sync"). Nothing looks players up one by one and nothing at ingest adds
+ * them: the cron's player-id job (its own `cron` scope in `worker.ts`) syncs at most one of the register's sixteen
+ * files a run, each about once a day, with a conditional request on the ETag it stored. An unchanged file is a 304
+ * and nothing more; a changed one is read, its gaps filled from MLB's cross-references, and written in one statement
+ * (`PlayerIdRepository.replaceRegisterFile`). The first sync of each file is the preseed: sixteen runs.
  */
-import type { GameSnapshot } from "@bt/domain";
-import { gamePersonIds } from "@bt/domain";
-import type { PlayerIdRepository, PlayerRegister } from "@bt/ports";
+import type {
+	PlayerIdRepository, PlayerIdRow, PlayerRegister, PlayerXrefSource, RegisterFileState, RegisterRow, ResolvedPlayerIds,
+} from "@bt/ports";
 
-/** At most this many players are looked up in one cron run; the rest stay unchecked for the next run. */
-export const RESOLVE_CAP = 1000;
+/** How long a synced register file is left before it is checked again (a day; an unchanged day is sixteen 304s). */
+export const REGISTER_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
-/** A checked player the register knew nothing for is asked about again only after this long (two weeks). */
-export const RECHECK_INTERVAL_MS = 14 * 24 * 60 * 60 * 1000;
+/** How long a file whose sync failed (or is running) is left before a run tries it again (an hour). */
+export const REGISTER_RETRY_MS = 60 * 60 * 1000;
 
-/** How many stored games one seeding run reads (counted in games, apart from the resolve cap). */
-export const SEED_PAGE_GAMES = 200;
+/** How many players one MLB cross-reference request asks about. */
+export const PLAYER_XREF_BATCH = 100;
 
-export type PlayerIdJobDeps = {
+export type PlayerIdSyncDeps = {
 	playerIds: PlayerIdRepository;
-	/** The register; absent (local fixture data, tests of seeding alone) the resolve step does nothing. */
-	register?: PlayerRegister;
+	register: PlayerRegister;
+	xrefs: PlayerXrefSource;
 	now?: () => Date;
 };
 
+/** What one run did: which file it synced (null when none was due) and whether that file had changed. */
+export type PlayerIdSyncResult =
+	| { file: null }
+	| { file: string;
+		changed: false; }
+	| { file: string;
+		changed: true;
+		inserted: number;
+		updated: number;
+		deleted: number;
+		xrefCalls: number; };
+
 /**
- * The resolve step: selects up to {@link RESOLVE_CAP} due players (never checked first, then those with no outside
- * id checked over {@link RECHECK_INTERVAL_MS} ago), asks the register once for all of them, and marks each checked
- * with what it found (nulls for one it lacks). Answers how many were asked about; 0 means no register call.
+ * The file a run should sync, or null: a file never synced first (in the register's order), else the one synced
+ * longest ago, once that is over {@link REGISTER_SYNC_INTERVAL_MS} ago; never one tried within
+ * {@link REGISTER_RETRY_MS} (a failed or running sync). The claim (`claimRegisterFile`) applies the same rule again
+ * in the database, so two runs can't both take a file.
  */
-export async function resolveDuePlayerIds(deps: PlayerIdJobDeps): Promise<number>
+export function dueRegisterFile(files: readonly string[], states: readonly RegisterFileState[], now: Date): string | null
 {
-	if (!deps.register) return 0;
-	const now = deps.now?.() ?? new Date();
-	const due = await deps.playerIds.listDue(RESOLVE_CAP, new Date(now.getTime() - RECHECK_INTERVAL_MS).toISOString());
-	if (due.length === 0) return 0;
-	const found = await deps.register.lookup(due);
-	await deps.playerIds.recordChecked(due, found, now.toISOString());
-	return due.length;
+	const byFile = new Map(states.map((state) => [state.file, state]));
+	const resting = (state: RegisterFileState | undefined) => state?.triedAt != null && now.getTime() - Date.parse(state.triedAt) < REGISTER_RETRY_MS;
+	const never = files.find((file) => byFile.get(file)?.syncedAt == null && !resting(byFile.get(file)));
+	if (never !== undefined) return never;
+	const due = files
+		.map((file) => byFile.get(file)!)
+		.filter((state) => state.syncedAt != null && now.getTime() - Date.parse(state.syncedAt) > REGISTER_SYNC_INTERVAL_MS && !resting(state))
+		.sort((a, b) => Date.parse(a.syncedAt!) - Date.parse(b.syncedAt!));
+	return due[0]?.file ?? null;
 }
 
 /**
- * The cron's player-id job: the resolve step, then one page of the seeding pass (`seedNextPage`, one SQL statement
- * that moves its own cursor). An empty page means every stored game has been seeded, and a later run reads only games
- * stored after the cursor.
+ * A register row with MLB's cross-references filling only an id the register lacks (S209 AC 1): where both hold one,
+ * the register's is kept (they agree in every recorded case, the register publishes Baseball-Reference's own key,
+ * where MLB's `lahman` only matches it, and the register is what the sync follows for corrections).
  */
-export async function runPlayerIdJobs(deps: PlayerIdJobDeps): Promise<{ resolved: number;
-	seededGames: number; }>
+export function fillFromXrefs(row: RegisterRow, xref: ResolvedPlayerIds | undefined): PlayerIdRow
 {
-	const resolved = await resolveDuePlayerIds(deps);
-	const seeded = await deps.playerIds.seedNextPage(SEED_PAGE_GAMES);
 	return {
-		resolved,
-		seededGames: seeded.games,
+		personId: row.personId,
+		fangraphsId: row.fangraphsId ?? xref?.fangraphsId ?? null,
+		bbrefId: row.bbrefId ?? xref?.bbrefId ?? null,
 	};
 }
 
-/** Whether two sorted id lists differ. */
-function rosterChanged(before: readonly number[], after: readonly number[]): boolean
-{
-	return before.length !== after.length || before.some((id, i) => id !== after[i]);
-}
-
 /**
- * Ingest's part (S209 AC 3): of the games a write stored (`stored` the copy before it, null for a first write), the
- * players of each whose roster (`gamePersonIds`) is new or changed are added unchecked, in one insert. A failed insert
- * is logged and never fails the game write: the seeding pass reaches the game's players too.
+ * One run of the player-id job: picks and claims the due file, fetches it conditionally (with its stored ETag), and on
+ * a 304 records the check; on a changed file asks MLB's cross-references, {@link PLAYER_XREF_BATCH} at a time, for its
+ * players the register says played in MLB and lacks an id for, fills them ({@link fillFromXrefs}), keeps the rows
+ * with at least one id (a row with neither would answer what no row answers) and writes them with the new ETag in one
+ * statement. Any failure rejects (the runtime logs it) having stored no ETag; the claim's `triedAt` keeps the file
+ * back for {@link REGISTER_RETRY_MS}, and the other files go on syncing meanwhile.
  */
-export async function addRosterPlayers(
-	playerIds: PlayerIdRepository | undefined,
-	written: readonly { stored: GameSnapshot | null;
-		snapshot: GameSnapshot; }[],
-): Promise<void>
+export async function syncPlayerRegister(deps: PlayerIdSyncDeps): Promise<PlayerIdSyncResult>
 {
-	if (!playerIds) return;
-	const ids = new Set<number>();
-	for (const { stored, snapshot } of written)
+	const now = deps.now?.() ?? new Date();
+	const at = now.toISOString();
+	const states = await deps.playerIds.registerFiles();
+	const file = dueRegisterFile(deps.register.files, states, now);
+	if (file === null) return {
+		file: null,
+	};
+	const claimed = await deps.playerIds.claimRegisterFile(
+		file,
+		at,
+		new Date(now.getTime() - REGISTER_SYNC_INTERVAL_MS).toISOString(),
+		new Date(now.getTime() - REGISTER_RETRY_MS).toISOString(),
+	);
+	if (!claimed) return {
+		file: null,
+	};
+	const stored = states.find((state) => state.file === file);
+	const answer = await deps.register.fetchFile(file, stored?.etag ?? null);
+	if (!answer.changed)
 	{
-		const after = gamePersonIds(snapshot);
-		if (stored === null || rosterChanged(gamePersonIds(stored), after)) for (const id of after) ids.add(id);
+		await deps.playerIds.markRegisterFileUnchanged(file, at);
+		return {
+			file,
+			changed: false,
+		};
 	}
-	if (ids.size === 0) return;
-	try
+	const gaps = answer.rows.filter((row) => row.playedInMlb && (row.fangraphsId === null || row.bbrefId === null)).map((row) => row.personId);
+	const xrefs = new Map<number, ResolvedPlayerIds>();
+	let xrefCalls = 0;
+	for (let start = 0; start < gaps.length; start += PLAYER_XREF_BATCH)
 	{
-		await playerIds.addPlayers([...ids]);
+		xrefCalls++;
+		for (const [id, ids] of await deps.xrefs.fetchPlayerXrefs(gaps.slice(start, start + PLAYER_XREF_BATCH))) xrefs.set(id, ids);
 	}
-	catch (error)
-	{
-		console.error("player ids: adding a game's players failed:", error instanceof Error ? error.name : typeof error);
-	}
+	const rows = answer.rows
+		.map((row) => fillFromXrefs(row, row.playedInMlb ? xrefs.get(row.personId) : undefined))
+		.filter((row) => row.fangraphsId !== null || row.bbrefId !== null);
+	const written = await deps.playerIds.replaceRegisterFile(file, rows, answer.etag, at);
+	return {
+		file,
+		changed: true,
+		...written,
+		xrefCalls,
+	};
 }

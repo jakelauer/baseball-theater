@@ -118,28 +118,30 @@ export const games = pgTable("games", {
 ]);
 
 /**
- * Each player BT has seen and their ids on FanGraphs and Baseball-Reference (`PlayerIdRepository`, S209),
- * keyed by MLB's person id: `checked_at` null until the cron's resolve step first asks the register, and
- * each outside id null while unknown. Public facts about players; no user data. The index serves the
- * resolve step's `ORDER BY checked_at NULLS FIRST`, so it reads the never-checked rows first.
+ * MLB's players and their ids on FanGraphs and Baseball-Reference (`PlayerIdRepository`, S209), keyed by MLB's
+ * person id: a row for each Chadwick register row with an MLB id and at least one of the two ids, MLB's
+ * cross-references filling an id the register lacks. `register_file` names the register file the row came from,
+ * so a file's sync deletes exactly the rows that file dropped. Public facts about players; no user data. No index
+ * beyond the key: the only other read is that delete, a scan of about 24,000 rows at most once a day a file.
  */
 export const playerIds = pgTable("player_ids", {
 	personId: integer("person_id").primaryKey(),
-	checkedAt: text("checked_at"),
 	fangraphsId: text("fangraphs_id"),
 	bbrefId: text("bbref_id"),
-}, (t) => [index("player_ids_checked_at").on(t.checkedAt.asc().nullsFirst())]);
+	registerFile: text("register_file").notNull(),
+});
 
 /**
- * The seeding pass's single-row keyset cursor (S209): the last stored game, in (official date, gamePk)
- * order, whose players it has added: no row before the pass's first page, which writes the one row
- * (`id` 1), and the CHECK keeps it the only one.
+ * The register sync's state per file (S209): the ETag of the copy last written (null when the register sent
+ * none), when it was last synced (written, or answered unchanged) and when a run last claimed it (ISO instants,
+ * compared as `timestamptz`, as `schedule_months`' are). Sixteen rows at most.
  */
-export const playerIdSeedCursor = pgTable("player_id_seed_cursor", {
-	id: integer("id").primaryKey(),
-	officialDate: text("official_date").notNull(),
-	gamePk: integer("game_pk").notNull(),
-}, (t) => [check("player_id_seed_cursor_one_row", sql`${t.id} = 1`)]);
+export const playerRegisterFiles = pgTable("player_register_files", {
+	file: text("file").primaryKey(),
+	etag: text("etag"),
+	syncedAt: text("synced_at"),
+	triedAt: text("tried_at"),
+});
 
 /** The five projected documents per game (`GameProjectionRepository`), versioned by `header.version`. */
 export const gameProjections = pgTable("game_projections", {

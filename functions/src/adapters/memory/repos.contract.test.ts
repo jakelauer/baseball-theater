@@ -11,7 +11,7 @@ import {
 	DOWNLOADS_STORE, MAIL_STORE, personalDataStores,
 } from "../../services/personal-data.js";
 import {
-	describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract, describePersonalDataStoreContract, describeServedBaseContract,
+	describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract, describePersonalDataStoreContract, describePlayerIdContract, describeServedBaseContract,
 } from "../repository-contract.js";
 import { contractGame, describeStorageContract } from "../storage-contract.js";
 import {
@@ -21,6 +21,7 @@ import {
 	InMemoryGameRepository,
 	InMemoryGameStateRepository,
 	InMemoryMailer,
+	InMemoryPlayerIdRepository,
 	InMemoryReplayArtifactRepository,
 	InMemorySettingsRepository,
 	InMemoryUserRepository,
@@ -50,6 +51,7 @@ describeGameRecheckContract("InMemoryGameRepository", () =>
 }, contractGame);
 
 describeOwedEdgePurgeContract("InMemoryOwedEdgePurgeRepository", () => new InMemoryOwedEdgePurgeRepository());
+describePlayerIdContract("InMemoryPlayerIdRepository", () => new InMemoryPlayerIdRepository());
 
 type RegistryDeps = {
 	users: InMemoryUserRepository;

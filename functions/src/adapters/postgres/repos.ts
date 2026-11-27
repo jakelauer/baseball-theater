@@ -16,7 +16,7 @@ import type {
 	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, entitlementsForTier, GAME_RECHECK_CLAIM_LEASE_MS,
+	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, entitlementsForTier, GAME_RECHECK_CLAIM_LEASE_MS, PERSON_ID_MAX,
 	SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
 } from "@bt/domain";
 import type {
@@ -29,9 +29,10 @@ import type {
 	OwedEdgePurgeRepository,
 	PlayerIdRepository,
 	PlayerIdRow,
+	RegisterFileState,
+	RegisterFileWrite,
 	ReplayArtifact,
 	ReplayArtifactRepository,
-	ResolvedPlayerIds,
 	ScheduleRepository,
 	SettingsRepository,
 	UserDataExport,
@@ -43,7 +44,7 @@ import {
 import type { SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
-	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, playerIds, replayArtifacts,
+	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, playerIds, playerRegisterFiles, replayArtifacts,
 	scheduleDays, scheduleMonths, tierOverrides, users,
 } from "./schema.js";
 
@@ -939,98 +940,100 @@ export class PostgresSettingsRepository implements SettingsRepository
 }
 
 /**
- * The seeding pass's one statement (S209 AC 3): the next `pageSize` stored games after the cursor by keyset
- * (`(official_date, game_pk) > cursor`, served by `games_official_date`), the person ids each names pulled out of its
- * document in SQL (`jsonb_path_query` over the plays' batter and pitcher and both box score tables), inserted
- * `ON CONFLICT DO NOTHING`, and the cursor moved to the page's last game (written on the first page; before it the pass
- * starts from the beginning), all one statement and so one transaction. Its result is three counts: no document leaves
- * the database. Exported so a test can read the SQL it runs.
- */
-export function seedPlayerIdsPageSql(pageSize: number): SQL
-{
-	return sql`WITH cursor AS (
-		SELECT COALESCE((SELECT official_date FROM player_id_seed_cursor WHERE id = 1), '') AS official_date,
-			COALESCE((SELECT game_pk FROM player_id_seed_cursor WHERE id = 1), 0) AS game_pk
-	), page AS (
-		SELECT g.official_date, g.game_pk, g.document FROM games g, cursor c
-		WHERE (g.official_date, g.game_pk) > (c.official_date, c.game_pk)
-		ORDER BY g.official_date, g.game_pk
-		LIMIT ${pageSize}
-	), people AS (
-		SELECT DISTINCT (person.id)::integer AS person_id FROM page, LATERAL (
-			SELECT jsonb_path_query(page.document, '$.plays[*].matchup.batter.id') AS id
-			UNION ALL SELECT jsonb_path_query(page.document, '$.plays[*].matchup.pitcher.id')
-			UNION ALL SELECT jsonb_path_query(page.document, '$.boxscore.teams.*.batting[*].id')
-			UNION ALL SELECT jsonb_path_query(page.document, '$.boxscore.teams.*.pitching[*].id')
-		) person
-	), added AS (
-		INSERT INTO player_ids (person_id) SELECT person_id FROM people ON CONFLICT DO NOTHING RETURNING 1
-	), last AS (
-		SELECT official_date, game_pk FROM page ORDER BY official_date DESC, game_pk DESC LIMIT 1
-	), moved AS (
-		INSERT INTO player_id_seed_cursor (id, official_date, game_pk) SELECT 1, official_date, game_pk FROM last
-		ON CONFLICT (id) DO UPDATE SET official_date = excluded.official_date, game_pk = excluded.game_pk RETURNING 1
-	)
-	SELECT (SELECT count(*) FROM page)::integer AS games, (SELECT count(*) FROM added)::integer AS added, (SELECT count(*) FROM moved)::integer AS moved`;
-}
-
-/**
- * Each player BT has seen and their outside ids (S209, `PlayerIdRepository`): rows added unchecked by ingest and the
- * seeding pass, looked up a capped few at a time by the cron's resolve step. Instants compared as `timestamptz`, as
- * `schedule_months` is.
+ * MLB's players and their outside ids (S209, `PlayerIdRepository`), written only by the cron's register sync: each
+ * register file's rows replaced in one statement, and the file's sync state beside them in `player_register_files`.
+ * An id past `PERSON_ID_MAX` is never sent to the database (it can't be stored, so it has no row).
  */
 export class PostgresPlayerIdRepository implements PlayerIdRepository
 {
 	constructor(private readonly db: PostgresDb) {}
 
-	async addPlayers(personIds: readonly number[]): Promise<number>
+	async getMany(personIds: readonly number[]): Promise<PlayerIdRow[]>
 	{
-		if (personIds.length === 0) return 0;
-		const added = await this.db.insert(playerIds).values([...new Set(personIds)].map((personId) => ({
-			personId,
-		}))).onConflictDoNothing().returning({
+		const wanted = [...new Set(personIds)].filter((id) => Number.isInteger(id) && id > 0 && id <= PERSON_ID_MAX);
+		if (wanted.length === 0) return [];
+		return this.db.select({
 			personId: playerIds.personId,
+			fangraphsId: playerIds.fangraphsId,
+			bbrefId: playerIds.bbrefId,
+		}).from(playerIds).where(inArray(playerIds.personId, wanted)).orderBy(asc(playerIds.personId));
+	}
+
+	async registerFiles(): Promise<RegisterFileState[]>
+	{
+		return this.db.select().from(playerRegisterFiles);
+	}
+
+	/**
+	 * One conditional statement, `claimScheduleMonth`'s pattern: insert the file's record claimed, or take an existing
+	 * record's claim only while the file is still due (never synced, or last synced before `dueBefore`) and not tried
+	 * since `retryBefore`. A returned row means this caller holds it; the second of two racing claims re-checks the
+	 * first's committed `tried_at` and is refused.
+	 */
+	async claimRegisterFile(file: string, at: string, dueBefore: string, retryBefore: string): Promise<boolean>
+	{
+		const claimed = await this.db.insert(playerRegisterFiles).values({
+			file,
+			triedAt: at,
+		}).onConflictDoUpdate({
+			target: playerRegisterFiles.file,
+			set: {
+				triedAt: sql`excluded.tried_at`,
+			},
+			setWhere: sql`(${playerRegisterFiles.syncedAt} IS NULL OR ${playerRegisterFiles.syncedAt}::timestamptz < ${dueBefore}::timestamptz)
+				AND (${playerRegisterFiles.triedAt} IS NULL OR ${playerRegisterFiles.triedAt}::timestamptz < ${retryBefore}::timestamptz)`,
+		}).returning({
+			file: playerRegisterFiles.file,
 		});
-		return added.length;
+		return claimed.length > 0;
 	}
 
-	async get(personId: number): Promise<PlayerIdRow | null>
+	async markRegisterFileUnchanged(file: string, at: string): Promise<void>
 	{
-		const [row] = await this.db.select().from(playerIds).where(eq(playerIds.personId, personId));
-		return row ?? null;
+		await this.db.update(playerRegisterFiles).set({
+			syncedAt: at,
+		}).where(eq(playerRegisterFiles.file, file));
 	}
 
-	async listDue(cap: number, recheckBefore: string): Promise<number[]>
+	/**
+	 * One statement, so it all lands or none of it does: the file's rows from one JSON parameter, inserted or updated
+	 * only where a stored row's ids or file differ (`IS DISTINCT FROM`, so a re-sync of an unchanged row writes
+	 * nothing), the rows this file wrote before and no longer has deleted, and the file's ETag and sync time stored.
+	 * `xmax = 0` tells an inserted row from an updated one in `RETURNING`.
+	 */
+	async replaceRegisterFile(file: string, rows: readonly PlayerIdRow[], etag: string | null, at: string): Promise<RegisterFileWrite>
 	{
-		const rows = await this.db.select({
-			personId: playerIds.personId,
-		}).from(playerIds).where(sql`${playerIds.checkedAt} IS NULL OR (${playerIds.fangraphsId} IS NULL AND ${playerIds.bbrefId} IS NULL
-			AND ${playerIds.checkedAt}::timestamptz < ${recheckBefore}::timestamptz)`).orderBy(sql`${playerIds.checkedAt} ASC NULLS FIRST`).limit(cap);
-		return rows.map((row) => row.personId);
-	}
-
-	async recordChecked(personIds: readonly number[], found: ReadonlyMap<number, ResolvedPlayerIds>, checkedAt: string): Promise<void>
-	{
-		if (personIds.length === 0) return;
-		// One UPDATE for the whole batch: each row's ids from a VALUES list, null for a player the register doesn't know.
-		const values = sql.join([...new Set(personIds)].map((personId) =>
-		{
-			const ids = found.get(personId);
-			return sql`(${personId}::integer, ${ids?.fangraphsId ?? null}::text, ${ids?.bbrefId ?? null}::text)`;
-		}), sql`, `);
-		await this.db.execute(sql`UPDATE player_ids AS p SET checked_at = ${checkedAt}, fangraphs_id = v.fangraphs_id, bbref_id = v.bbref_id
-			FROM (VALUES ${values}) AS v(person_id, fangraphs_id, bbref_id) WHERE p.person_id = v.person_id`);
-	}
-
-	async seedNextPage(pageSize: number): Promise<{ games: number;
-		added: number; }>
-	{
-		const result = await this.db.execute(seedPlayerIdsPageSql(pageSize)) as unknown as { rows: { games: number;
-			added: number; }[]; };
+		// One row per person id, the last given (the port's rule): `ON CONFLICT` can't touch one row twice (SQLSTATE 21000).
+		const unique = new Map(rows.filter((row) => row.personId > 0 && row.personId <= PERSON_ID_MAX).map((row) => [row.personId, row]));
+		const incoming = JSON.stringify([...unique.values()].map((row) => ({
+			person_id: row.personId,
+			fangraphs_id: row.fangraphsId,
+			bbref_id: row.bbrefId,
+		})));
+		const result = await this.db.execute(sql`WITH incoming AS (
+			SELECT * FROM json_to_recordset(${incoming}::json) AS r(person_id integer, fangraphs_id text, bbref_id text)
+		), written AS (
+			INSERT INTO player_ids (person_id, fangraphs_id, bbref_id, register_file)
+			SELECT person_id, fangraphs_id, bbref_id, ${file} FROM incoming
+			ON CONFLICT (person_id) DO UPDATE SET fangraphs_id = excluded.fangraphs_id, bbref_id = excluded.bbref_id, register_file = excluded.register_file
+			WHERE (player_ids.fangraphs_id, player_ids.bbref_id, player_ids.register_file) IS DISTINCT FROM (excluded.fangraphs_id, excluded.bbref_id, excluded.register_file)
+			RETURNING (xmax = 0) AS inserted
+		), removed AS (
+			-- A row is owned by the last file that wrote it. If two files name one MLB id, the later one owns it, and
+			-- when that one drops the id the row goes though the other still holds it, until the other next changes
+			-- (it answers 304 meanwhile). The register keys each person to one file, so only a duplicate does this.
+			DELETE FROM player_ids p WHERE p.register_file = ${file} AND NOT EXISTS (SELECT 1 FROM incoming i WHERE i.person_id = p.person_id) RETURNING 1
+		), state AS (
+			INSERT INTO player_register_files (file, etag, synced_at, tried_at) VALUES (${file}, ${etag}, ${at}, ${at})
+			ON CONFLICT (file) DO UPDATE SET etag = excluded.etag, synced_at = excluded.synced_at, tried_at = excluded.tried_at RETURNING 1
+		)
+		SELECT (SELECT count(*) FROM written WHERE inserted)::integer AS inserted, (SELECT count(*) FROM written WHERE NOT inserted)::integer AS updated,
+			(SELECT count(*) FROM removed)::integer AS deleted, (SELECT count(*) FROM state)::integer AS state`) as unknown as { rows: RegisterFileWrite[] };
 		const [row] = result.rows;
 		return {
-			games: Number(row?.games ?? 0),
-			added: Number(row?.added ?? 0),
+			inserted: Number(row?.inserted ?? 0),
+			updated: Number(row?.updated ?? 0),
+			deleted: Number(row?.deleted ?? 0),
 		};
 	}
 }

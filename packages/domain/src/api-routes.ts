@@ -191,16 +191,21 @@ export type SettingsRequest = Omit<AccountSettings, OptionalSettings> & Partial<
 type OptionalSettings = "gameRowSlot" | "collapseNonFavorites" | "hideScores" | "videoPlayer" | "statsProvider";
 
 /**
- * A player's pages on each stats site (S209, `GET /api/v1/players/:personId/profiles`): the ids BT
- * holds for them and the URL `playerProfileUrl` builds for each site, null for a site whose id BT
- * doesn't know (not yet resolved, or the register has none for this player). The web builds its link
- * from `ids` through the same function.
+ * One player's pages on each stats site (S209): the ids BT holds for them and the URL `playerProfileUrl` builds for
+ * each site, null for a site whose id BT doesn't know (neither the Chadwick register nor MLB's cross-references has
+ * it). The web builds its link from `ids` through the same function.
  */
-export interface PlayerProfilesResponse {
+export interface PlayerPages {
 	ids: PlayerIds;
 	profiles: Record<StatsProvider, string | null>;
-	/** Whether BT has looked this player up yet; until then FanGraphs and Baseball-Reference are null and may fill in. */
-	checked: boolean;
+}
+
+/**
+ * The answer of `GET /api/v1/players/profiles?personIds=…` (S209 AC 3): the pages of each asked player BT has a row
+ * for, by ascending MLB id; a player with no row is left out.
+ */
+export interface PlayerProfilesResponse {
+	players: PlayerPages[];
 }
 
 /** The one error-body shape every 4xx path returns. */
@@ -369,7 +374,7 @@ export const ApiRoutes = {
 	"GET /api/v1/sign-in": "SignInConfigResponse",
 	"POST /api/v1/sign-in": "SignInResponse",
 	"GET /api/v1/releases": "ReleasesResponse",
-	"GET /api/v1/players/:personId/profiles": "PlayerProfilesResponse",
+	"GET /api/v1/players/profiles": "PlayerProfilesResponse",
 } as const satisfies Record<string, keyof ApiResponseTypes>;
 
 export type ApiRoute = keyof typeof ApiRoutes;

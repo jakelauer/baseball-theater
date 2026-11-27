@@ -187,7 +187,10 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 	const schedules = new PostgresScheduleRepository(db);
 	const games = new PostgresGameRepository(db);
 	const gameStates = new PostgresGameStateRepository(db);
-	const mlb = createMlbClient(env, storeOverlay({
+	// With live MLB data the one HTTP client is built here, so the player-id job's cross-references (S209) use the same
+	// instance as ingest; every other case is `createMlbClient`'s.
+	const live = env.BT_USE_LIVE_MLB === "1" ? new HttpMlbStatsClient() : undefined;
+	const mlb = live ?? createMlbClient(env, storeOverlay({
 		schedules,
 		games,
 		gameStates,
@@ -203,11 +206,12 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		// One coordinator per isolate: stale out-of-window reads refresh single-flighted.
 		refresh: new RefreshCoordinator(),
 		edgePurge: edgePurgeFor(env, options.fetch, new PostgresOwedEdgePurgeRepository(db)),
-		// S209: the players seen and their outside ids; the register is read only with live MLB data, so local fixture
-		// runs and tests never fetch it (their players stay unchecked and link to MLB.com).
+		// S209: MLB's players and their outside ids. The cron's sync reads the register and MLB's cross-references only
+		// with live MLB data, so local fixture runs and tests never fetch them (their names link to MLB.com).
 		playerIds: new PostgresPlayerIdRepository(db),
-		...env.BT_USE_LIVE_MLB === "1" && {
+		...live && {
 			playerRegister: new ChadwickPlayerRegister(options.fetch ? (input, init) => options.fetch!(String(input), init) : undefined),
+			playerXrefs: live,
 		},
 		...options.background && {
 			background: options.background,

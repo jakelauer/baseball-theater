@@ -181,20 +181,18 @@ export async function fetchReleases()
 }
 
 /**
- * One player's pages on each stats site and the ids they are built from (S209), or null when BT has no row for the
- * player (the route's 404): the caller links to MLB.com then. Any other failure throws.
+ * The pages on each stats site, and the ids they are built from, of each of `personIds` BT has a row for (S209); a
+ * player with no row is left out of the answer, and the caller links them to MLB.com. Any failure throws.
  */
-export async function fetchPlayerProfiles(personId: number)
+export async function fetchPlayerProfiles(personIds: readonly number[])
 {
-	const result = await api.GET("/api/v1/players/{personId}/profiles", {
+	return unwrap(await api.GET("/api/v1/players/profiles", {
 		params: {
-			path: {
-				personId,
+			query: {
+				personIds: personIds.join(","),
 			},
 		},
-	});
-	if (result.response.status === 404) return null;
-	return unwrap(result);
+	}));
 }
 
 /** "Best of <date>" (S71): the day's top videos across its games. */
@@ -260,12 +258,26 @@ export async function fetchSettings()
 	return unwrap(await api.GET("/api/v1/me/settings"));
 }
 
-/** Saves the whole settings document; the answer is what the server kept (an older `version` is ignored, ADR-022). */
+/**
+ * The settings route refused the document itself (400, e.g. S209's `invalid_settings` for a stats site the account
+ * may not choose), as opposed to failing to answer: the store puts the account's copy back rather than keep it.
+ */
+export class SettingsRefused extends Error
+{
+	override readonly name = "SettingsRefused";
+}
+
+/**
+ * Saves the whole settings document; the answer is what the server kept (an older `version` is ignored, ADR-022).
+ * Rejects with {@link SettingsRefused} on a 400, and with a plain error when the request fails otherwise.
+ */
 export async function saveSettings(settings: AccountSettings)
 {
-	return unwrap(await api.PUT("/api/v1/me/settings", {
+	const result = await api.PUT("/api/v1/me/settings", {
 		body: settings,
-	}));
+	});
+	if (result.response.status === 400) throw new SettingsRefused(`Settings refused (400): ${result.response.url}`);
+	return unwrap(result);
 }
 
 /**

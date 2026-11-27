@@ -401,7 +401,7 @@
 					"fasterLiveRefresh": { "type": "boolean" },
 					"savantLinks": { "type": "boolean" },
 					"statsProviderChoice": {
-						"description": "May pick a stats site other than MLB.com for player links (S209; owner, 2026-11-24: \"Every patron, Backer and up\"). Never stored: `entitlementsForTier` derives it from the tier wherever entitlements are read, so a row or a session signed before S209 can't lack it where it matters.",
+						"description": "May pick a stats site other than MLB.com for player links (S209; owner, 2026-11-24: \"Every patron, Backer and up (Recommended)\"). Never stored: `entitlementsForTier` derives it from the tier wherever entitlements are read, so a row or a session signed before S209 can't lack it where it matters.",
 						"type": "boolean"
 					},
 					"tier": { "$ref": "#/components/schemas/PatronTier" }
@@ -941,7 +941,7 @@
 			},
 			"PlayerIds": {
 				"additionalProperties": false,
-				"description": "A player's ids on the sites BT links to: MLB's own (MLBAM, which MLB.com and Baseball Savant key their pages by), and FanGraphs' and Baseball-Reference's, each null while BT doesn't know it (not yet resolved, or the source has none for this player).",
+				"description": "A player's ids on the sites BT links to: MLB's own (MLBAM, which MLB.com and Baseball Savant key their pages by), and FanGraphs' and Baseball-Reference's, each null when BT doesn't know it (neither the Chadwick register nor MLB's cross-references has it for this player).",
 				"properties": {
 					"bbref": { "type": ["string", "null"] },
 					"fangraphs": { "type": ["string", "null"] },
@@ -971,14 +971,10 @@
 				"required": ["playerId", "teamId", "summary", "winProbabilityAdded"],
 				"type": "object"
 			},
-			"PlayerProfilesResponse": {
+			"PlayerPages": {
 				"additionalProperties": false,
-				"description": "A player's pages on each stats site (S209, `GET /api/v1/players/:personId/profiles`): the ids BT holds for them and the URL `playerProfileUrl` builds for each site, null for a site whose id BT doesn't know (not yet resolved, or the register has none for this player). The web builds its link from `ids` through the same function.",
+				"description": "One player's pages on each stats site (S209): the ids BT holds for them and the URL `playerProfileUrl` builds for each site, null for a site whose id BT doesn't know (neither the Chadwick register nor MLB's cross-references has it). The web builds its link from `ids` through the same function.",
 				"properties": {
-					"checked": {
-						"description": "Whether BT has looked this player up yet; until then FanGraphs and Baseball-Reference are null and may fill in.",
-						"type": "boolean"
-					},
 					"ids": { "$ref": "#/components/schemas/PlayerIds" },
 					"profiles": {
 						"additionalProperties": false,
@@ -992,7 +988,16 @@
 						"type": "object"
 					}
 				},
-				"required": ["ids", "profiles", "checked"],
+				"required": ["ids", "profiles"],
+				"type": "object"
+			},
+			"PlayerProfilesResponse": {
+				"additionalProperties": false,
+				"description": "The answer of `GET /api/v1/players/profiles?personIds=…` (S209 AC 3): the pages of each asked player BT has a row for, by ascending MLB id; a player with no row is left out.",
+				"properties": {
+					"players": { "items": { "$ref": "#/components/schemas/PlayerPages" }, "type": "array" }
+				},
+				"required": ["players"],
 				"type": "object"
 			},
 			"PlayerRef": {
@@ -2061,16 +2066,16 @@
 				"summary": "Staging only, for testing: chooses the backer tier to see BT as (`\"none\"` is not a patron; null goes back to the real tier), and answers as the GET does plus a new session token whose entitlements are the chosen tier's, so every check that reads the session uses it at once. Never changes the real tier or calls Patreon. Exists only where the server's deploy-time config allows the override (staging); everywhere else it answers 404. Never cached (`no-store`)."
 			}
 		},
-		"/api/v1/players/{personId}/profiles": {
+		"/api/v1/players/profiles": {
 			"get": {
 				"operationId": "getPlayerProfiles",
 				"parameters": [
 					{
-						"description": "MLB person id (MLBAM).",
-						"in": "path",
-						"name": "personId",
+						"description": "1 to 100 MLB person ids (MLBAM), comma-separated; repeats count once.",
+						"in": "query",
+						"name": "personIds",
 						"required": true,
-						"schema": { "type": "integer" }
+						"schema": { "pattern": "^\\d{1,16}(,\\d{1,16})*$", "type": "string" }
 					}
 				],
 				"responses": {
@@ -2080,11 +2085,11 @@
 						},
 						"description": "OK"
 					},
-					"404": {
+					"400": {
 						"content": {
 							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
 						},
-						"description": "BT has no row for that player (it has seen no game they played in); cacheable for minutes."
+						"description": "`personIds` is missing, malformed, or names more than 100 players."
 					},
 					"426": {
 						"content": {
@@ -2093,7 +2098,7 @@
 						"description": "`version_unsupported`: this API version has been retired (ADR-015); the client should reload to update."
 					}
 				},
-				"summary": "One player's pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from; a site whose id BT doesn't know yet, or whose register has none for this player, is null. A checked player's answer is cacheable for a day; one not yet checked, for minutes, so it fills in once the cron resolves it."
+				"summary": "Players' pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from, for each asked player BT has a row for (a player with none is left out); a site whose id BT doesn't know is null. Cacheable for a day: the ids are synced from the Chadwick register at most daily."
 			}
 		},
 		"/api/v1/releases": {

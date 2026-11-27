@@ -22,7 +22,7 @@ import type { ScheduleRepository } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../fixtures/mlb.js";
 import { memoryScheduleStores } from "../memory/repos.js";
 import {
-	describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract, describeServedBaseContract,
+	describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract, describePlayerIdContract, describeServedBaseContract,
 } from "../repository-contract.js";
 import { contractGame, describeStorageContract } from "../storage-contract.js";
 import type { PostgresDb } from "./repos.js";
@@ -32,6 +32,7 @@ import {
 	PostgresGameProjectionRepository,
 	PostgresGameRepository,
 	PostgresGameStateRepository,
+	PostgresPlayerIdRepository,
 	PostgresReplayArtifactRepository,
 	PostgresScheduleRepository,
 	PostgresSettingsRepository,
@@ -45,7 +46,7 @@ const migrated = migrate(db as Parameters<typeof migrate>[0], {
 });
 
 /** Every table the migrations create, emptied between cases. */
-const TABLES = ["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts", "identity_links", "entitlements", "users", "account_settings", "deletion_log"];
+const TABLES = ["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts", "identity_links", "entitlements", "users", "account_settings", "deletion_log", "player_ids", "player_register_files"];
 
 /** Empties every table, after the migrations have run. */
 function emptied(): Promise<unknown>
@@ -130,6 +131,7 @@ describeGameRecheckContract("PostgresGameRepository", () =>
 }, contractGame);
 
 describeOwedEdgePurgeContract("PostgresOwedEdgePurgeRepository", () => gated(new PostgresOwedEdgePurgeRepository(db), emptied()));
+describePlayerIdContract("PostgresPlayerIdRepository", () => gated(new PostgresPlayerIdRepository(db), emptied()));
 
 describe("Postgres adapter (S50)", () =>
 {

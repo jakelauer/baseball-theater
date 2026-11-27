@@ -4,7 +4,7 @@ import type {
 } from "@bt/domain";
 import type { SettingsRepository } from "@bt/ports";
 import {
-	API_VERSIONS, DEFAULT_SETTINGS, entitlementsForTier, playerProfileUrl, SEARCH_QUERY_MAX_LENGTH, STATS_PROVIDERS,
+	API_VERSIONS, DEFAULT_SETTINGS, entitlementsForTier, PERSON_IDS_PATTERN, PLAYER_PROFILES_MAX_IDS, playerProfileUrl, SEARCH_QUERY_MAX_LENGTH, STATS_PROVIDERS,
 	SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
 	isCalendarMonth, isPastFinishedGame, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
 	isPatronTier, mlbDayEndsAt, mlbToday, parseAccountSettings, parseSearchFilters, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
@@ -34,7 +34,7 @@ import { getStandings, standingsNothingYet } from "../services/standings.js";
 import type { IngestDeps } from "../services/ingest.js";
 import { getOrRefreshGame, getScheduleRead } from "../services/ingest.js";
 import {
-	edgeCacheControl, PARTIAL_PAST_DIGEST_CACHE_CONTROL, PAST_CACHE_CONTROL, PLAYER_PROFILES_CHECKED_CACHE_CONTROL, PLAYER_PROFILES_PENDING_CACHE_CONTROL,
+	edgeCacheControl, PARTIAL_PAST_DIGEST_CACHE_CONTROL, PAST_CACHE_CONTROL, PLAYER_PROFILES_CACHE_CONTROL,
 	RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, versionedMonthCacheControl,
 } from "./cache-control.js";
 import { liveDayUpgrade, liveUpgrade } from "./live.js";
@@ -63,6 +63,9 @@ export type ApiContext = {
 	/** The release notes the releases route answers from (S132); the build's bundle unless a test supplies its own. */
 	releases?: readonly ReleaseNotes[];
 };
+
+/** `personIds`' form, from the one pattern the OpenAPI spec publishes (S209 AC 3). */
+const PERSON_IDS = new RegExp(PERSON_IDS_PATTERN);
 
 const CORS_HEADERS = {
 	"Access-Control-Allow-Origin": "*",
@@ -576,31 +579,36 @@ export const API_ROUTER: readonly RouteEntry[] = [
 		},
 	},
 	{
-		route: "GET /api/v1/players/:personId/profiles",
-		params: {
-			personId: /^\d+$/,
-		},
-		handle: async (_url, params, ctx) =>
+		route: "GET /api/v1/players/profiles",
+		handle: async (url, _params, ctx) =>
 		{
-			// S209 AC 3: read from the player-id table only; the cron's resolve step fills it, never this request.
-			const row = await ctx.ingest.playerIds?.get(Number(params.personId)) ?? null;
-			if (!row)
+			// S209 AC 3: 1 to PLAYER_PROFILES_MAX_IDS ids in PERSON_IDS_PATTERN's form (the spec's pattern); an id past
+			// PERSON_ID_MAX is never cast (the repository leaves it out, so it is "no row", not a database error).
+			const personIds = url.searchParams.get("personIds") ?? "";
+			const parts = personIds.split(",");
+			if (parts.length > PLAYER_PROFILES_MAX_IDS || !PERSON_IDS.test(personIds))
 			{
-				const missing = notFound();
-				missing.headers.set("Cache-Control", PLAYER_PROFILES_PENDING_CACHE_CONTROL);
-				return missing;
+				return sendError(400, {
+					error: "person_ids_invalid",
+					hint: `personIds: 1 to ${PLAYER_PROFILES_MAX_IDS} comma-separated MLB person ids`,
+				});
 			}
-			const ids = {
-				mlbam: row.personId,
-				fangraphs: row.fangraphsId,
-				bbref: row.bbrefId,
-			};
-			const response = sendJson(200, "GET /api/v1/players/:personId/profiles", {
-				ids,
-				profiles: Object.fromEntries(STATS_PROVIDERS.map((provider) => [provider, playerProfileUrl(provider, ids)])) as Record<StatsProvider, string | null>,
-				checked: row.checkedAt !== null,
+			const rows = await ctx.ingest.playerIds?.getMany(parts.map(Number)) ?? [];
+			const response = sendJson(200, "GET /api/v1/players/profiles", {
+				players: rows.map((row) =>
+				{
+					const ids = {
+						mlbam: row.personId,
+						fangraphs: row.fangraphsId,
+						bbref: row.bbrefId,
+					};
+					return {
+						ids,
+						profiles: Object.fromEntries(STATS_PROVIDERS.map((provider) => [provider, playerProfileUrl(provider, ids)])) as Record<StatsProvider, string | null>,
+					};
+				}),
 			});
-			response.headers.set("Cache-Control", row.checkedAt === null ? PLAYER_PROFILES_PENDING_CACHE_CONTROL : PLAYER_PROFILES_CHECKED_CACHE_CONTROL);
+			response.headers.set("Cache-Control", PLAYER_PROFILES_CACHE_CONTROL);
 			return response;
 		},
 	},

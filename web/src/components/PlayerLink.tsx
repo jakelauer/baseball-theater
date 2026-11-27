@@ -6,8 +6,9 @@
  *
  * Which site comes from `effectiveStatsProvider` (a patron's saved choice, else MLB.com), the URL
  * from `playerProfileUrl`. FanGraphs and Baseball-Reference need the player's id on that site, read
- * from `GET /api/v1/players/:personId/profiles`; while that is loading or has failed, when BT has no
- * row for the player, or when the site's id is unknown, the link points at MLB.com, so a name always
+ * from `GET /api/v1/players/profiles` (`usePlayerPages`); names shown together pass their `roster`,
+ * so they are asked about in one request. While that is loading or has failed, when BT has no row
+ * for the player, or when the site's id is unknown, the link points at MLB.com, so a name always
  * opens something.
  */
 import type { PlayerIds, StatsProvider } from "@bt/domain";
@@ -16,13 +17,18 @@ import type { AnchorProps } from "@mantine/core";
 import { Anchor } from "@mantine/core";
 import type { ReactNode } from "react";
 import { useContext } from "react";
-import { usePlayerProfiles } from "../api/players.js";
+import { usePlayerPages } from "../api/players.js";
 import { SessionContext } from "../session/session.js";
 import { useSettings } from "../settings/store.js";
 
 type PlayerLinkProps = Omit<AnchorProps, "href"> & {
 	/** MLB's person id (MLBAM). */
 	personId: number;
+	/**
+	 * The players whose names are shown with this one (a game's, `gamePersonIds`), asked about together in one
+	 * request when the site needs BT's ids; the player alone when absent.
+	 */
+	roster?: readonly number[];
 	children: ReactNode;
 };
 
@@ -45,7 +51,7 @@ function mlbPage(personId: number): string
 /** The anchor itself, at `href`. */
 function NameAnchor({
 	href, children, ...anchor
-}: Omit<PlayerLinkProps, "personId"> & { href: string })
+}: Omit<PlayerLinkProps, "personId" | "roster"> & { href: string })
 {
 	return (
 		<Anchor href={href} target="_blank" rel="noopener noreferrer" c="inherit" underline="hover" {...anchor}>
@@ -56,11 +62,11 @@ function NameAnchor({
 
 /** A name on a site whose own id BT looks up (FanGraphs, Baseball-Reference): MLB.com until the ids arrive, and if none does. */
 function LookedUpLink({
-	provider, personId, ...rest
+	provider, personId, roster, ...rest
 }: PlayerLinkProps & { provider: StatsProvider })
 {
-	const profiles = usePlayerProfiles(personId, true);
-	const ids = profiles.data?.ids;
+	const pages = usePlayerPages(personId, roster ?? [personId], true);
+	const ids = pages.data?.ids;
 	const href = (ids ? playerProfileUrl(provider, ids) : null) ?? mlbPage(personId);
 	return <NameAnchor href={href} {...rest} />;
 }
@@ -69,12 +75,16 @@ function LookedUpLink({
  * A player's name linking to their page on the fan's stats site. Read outside a session (a test
  * rendering a room alone), the visitor counts as signed out: MLB.com.
  */
-export function PlayerLink({ personId, ...rest }: PlayerLinkProps)
+export function PlayerLink({
+	personId, roster, ...rest
+}: PlayerLinkProps)
 {
 	const settings = useSettings();
 	const session = useContext(SessionContext);
 	const entitlements = session?.status === "signedIn" ? session.account.entitlements : null;
 	const provider = effectiveStatsProvider(settings, entitlements);
-	if (provider === "fangraphs" || provider === "bbref") return <LookedUpLink provider={provider} personId={personId} {...rest} />;
+	if (provider === "fangraphs" || provider === "bbref") return <LookedUpLink provider={provider} personId={personId} {...roster && {
+		roster,
+	}} {...rest} />;
 	return <NameAnchor href={playerProfileUrl(provider, mlbOnly(personId)) ?? mlbPage(personId)} {...rest} />;
 }

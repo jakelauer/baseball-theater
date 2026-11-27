@@ -1,5 +1,5 @@
 {
-	"id": "cb74ef6e-a1db-4253-b9bd-d843492934c0",
+	"id": "060b9cdd-05dc-457e-915f-0e0d48887eb9",
 	"prevId": "d1853b2c-d4b0-491f-b95a-34d96aa1edbe",
 	"version": "7",
 	"dialect": "postgresql",
@@ -455,42 +455,6 @@
 			"checkConstraints": {},
 			"isRLSEnabled": false
 		},
-		"public.player_id_seed_cursor": {
-			"name": "player_id_seed_cursor",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "integer",
-					"primaryKey": true,
-					"notNull": true
-				},
-				"official_date": {
-					"name": "official_date",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"game_pk": {
-					"name": "game_pk",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true
-				}
-			},
-			"indexes": {},
-			"foreignKeys": {},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {
-				"player_id_seed_cursor_one_row": {
-					"name": "player_id_seed_cursor_one_row",
-					"value": "\"player_id_seed_cursor\".\"id\" = 1"
-				}
-			},
-			"isRLSEnabled": false
-		},
 		"public.player_ids": {
 			"name": "player_ids",
 			"schema": "",
@@ -500,12 +464,6 @@
 					"type": "integer",
 					"primaryKey": true,
 					"notNull": true
-				},
-				"checked_at": {
-					"name": "checked_at",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": false
 				},
 				"fangraphs_id": {
 					"name": "fangraphs_id",
@@ -518,25 +476,52 @@
 					"type": "text",
 					"primaryKey": false,
 					"notNull": false
+				},
+				"register_file": {
+					"name": "register_file",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
 				}
 			},
-			"indexes": {
-				"player_ids_checked_at": {
-					"name": "player_ids_checked_at",
-					"columns": [
-						{
-							"expression": "checked_at",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "first"
-						}
-					],
-					"isUnique": false,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.player_register_files": {
+			"name": "player_register_files",
+			"schema": "",
+			"columns": {
+				"file": {
+					"name": "file",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"etag": {
+					"name": "etag",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"synced_at": {
+					"name": "synced_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"tried_at": {
+					"name": "tried_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
 				}
 			},
+			"indexes": {},
 			"foreignKeys": {},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},

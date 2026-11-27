@@ -236,6 +236,36 @@ describe("HttpMlbStatsClient (S2)", () =>
 		expect(decodeURIComponent(urls[0]!)).toContain("season=2026");
 	});
 
+	it("S209 AC 1: fetchPlayerXrefs asks the batched people call with hydrate=xrefId, reading FanGraphs and Lahman ids, and asks nothing for no ids", async () =>
+	{
+		const urls: string[] = [];
+		const mlb = new HttpMlbStatsClient({
+			fetchImpl: async (input) =>
+			{
+				urls.push(String(input));
+				return new Response(readFileSync(path.join(RAW, "people-xref-823823.json")));
+			},
+		});
+		expect(await mlb.fetchPlayerXrefs([])).toEqual(new Map());
+		expect(urls).toEqual([]);
+		const xrefs = await mlb.fetchPlayerXrefs([665871, 691788]);
+		expect(urls).toHaveLength(1);
+		const asked = new URL(urls[0]!);
+		expect(asked.pathname).toBe("/api/v1/people");
+		expect(asked.searchParams.get("personIds")).toBe("665871,691788");
+		expect(asked.searchParams.get("hydrate")).toBe("xrefId");
+		// Every recorded player is read (the file answers all 33, whatever was asked); the recorded rookie has no Lahman id.
+		expect(xrefs.size).toBe(33);
+		expect(xrefs.get(691788)).toEqual({
+			fangraphsId: "29780",
+			bbrefId: null,
+		});
+		expect(xrefs.get(665871)).toEqual({
+			fangraphsId: "21741",
+			bbrefId: "assadja01",
+		});
+	});
+
 	it("fetchGameTimestamps and fetchGameDiffPatch read the recorded feed history", async () =>
 	{
 		const { mlb, urls } = client();

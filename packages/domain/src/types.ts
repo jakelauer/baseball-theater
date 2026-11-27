@@ -527,7 +527,7 @@ export type Entitlements = {
 	savantLinks: boolean;
 	/**
 	 * May pick a stats site other than MLB.com for player links (S209; owner, 2026-11-24: "Every patron,
-	 * Backer and up"). Never stored: `entitlementsForTier` derives it from the tier wherever entitlements
+	 * Backer and up (Recommended)"). Never stored: `entitlementsForTier` derives it from the tier wherever entitlements
 	 * are read, so a row or a session signed before S209 can't lack it where it matters.
 	 */
 	statsProviderChoice: boolean;

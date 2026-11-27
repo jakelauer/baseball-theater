@@ -3,7 +3,7 @@ import type {
 	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	contentHash, downloadExpired, entitlementsForTier, gamePersonIds, GAME_RECHECK_CLAIM_LEASE_MS,
+	contentHash, downloadExpired, entitlementsForTier, GAME_RECHECK_CLAIM_LEASE_MS, PERSON_ID_MAX,
 	SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
 } from "@bt/domain";
 import type {
@@ -22,7 +22,8 @@ import type {
 	OwedEdgePurgeRepository,
 	PlayerIdRepository,
 	PlayerIdRow,
-	ResolvedPlayerIds,
+	RegisterFileState,
+	RegisterFileWrite,
 	ScheduleRepository,
 	SettingsRepository,
 	UserDataExport,
@@ -313,12 +314,6 @@ export class InMemoryGameRepository implements GameRepository
 		claimedAt: string | null; }>();
 
 	constructor(private readonly gameStates?: InMemoryGameStateRepository) {}
-
-	/** Every stored snapshot, for the player-id double's seeding pass (S209); not part of the port. */
-	snapshots(): GameSnapshot[]
-	{
-		return this.store.values();
-	}
 
 	async getByPk(gamePk: number): Promise<GameSnapshot | null>
 	{
@@ -725,90 +720,100 @@ export class InMemoryMailer implements Mailer
 }
 
 /**
- * Each player seen and their outside ids (S209), the Postgres adapter's `player_ids` rows; its seeding pass walks
- * `games`' snapshots in (official date, gamePk) order behind a cursor, as the adapter's keyset query does.
+ * MLB's players and their outside ids (S209), the Postgres adapter's `player_ids` and `player_register_files`: each
+ * register file's rows replaced at once, an unchanged row left as it was, and the same claim rule for a file's sync.
  */
 export class InMemoryPlayerIdRepository implements PlayerIdRepository
 {
-	private readonly rows = new Map<number, PlayerIdRow>();
-	private cursor = {
-		officialDate: "",
-		gamePk: 0,
-	};
+	private readonly rows = new Map<number, PlayerIdRow & { registerFile: string }>();
+	private readonly files = new Map<string, RegisterFileState>();
 
-	constructor(private readonly games?: Pick<InMemoryGameRepository, "snapshots">) {}
-
-	async addPlayers(personIds: readonly number[]): Promise<number>
+	async getMany(personIds: readonly number[]): Promise<PlayerIdRow[]>
 	{
-		let added = 0;
-		for (const personId of personIds)
+		const wanted = [...new Set(personIds)].filter((id) => Number.isInteger(id) && id > 0 && id <= PERSON_ID_MAX).sort((a, b) => a - b);
+		return wanted.flatMap((id) =>
 		{
-			if (this.rows.has(personId)) continue;
-			this.rows.set(personId, {
-				personId,
-				checkedAt: null,
-				fangraphsId: null,
-				bbrefId: null,
-			});
-			added++;
-		}
-		return added;
+			const row = this.rows.get(id);
+			return row ? [{
+				personId: row.personId,
+				fangraphsId: row.fangraphsId,
+				bbrefId: row.bbrefId,
+			}] : [];
+		});
 	}
 
-	async get(personId: number): Promise<PlayerIdRow | null>
+	async registerFiles(): Promise<RegisterFileState[]>
 	{
-		const row = this.rows.get(personId);
-		return row ? {
-			...row,
-		} : null;
+		return [...this.files.values()].map((state) => ({
+			...state,
+		}));
 	}
 
-	async listDue(cap: number, recheckBefore: string): Promise<number[]>
+	async claimRegisterFile(file: string, at: string, dueBefore: string, retryBefore: string): Promise<boolean>
 	{
-		const before = Date.parse(recheckBefore);
-		const due = [...this.rows.values()].filter((row) => row.checkedAt === null || (row.fangraphsId === null && row.bbrefId === null && Date.parse(row.checkedAt) < before));
-		// NULLS FIRST, then the oldest check first.
-		due.sort((a, b) => (a.checkedAt === null ? -1 : b.checkedAt === null ? 1 : Date.parse(a.checkedAt) - Date.parse(b.checkedAt)));
-		return due.slice(0, cap).map((row) => row.personId);
-	}
-
-	async recordChecked(personIds: readonly number[], found: ReadonlyMap<number, ResolvedPlayerIds>, checkedAt: string): Promise<void>
-	{
-		for (const personId of personIds)
+		const state = this.files.get(file);
+		if (state)
 		{
-			if (!this.rows.has(personId)) continue;
-			const ids = found.get(personId);
-			this.rows.set(personId, {
-				personId,
-				checkedAt,
-				fangraphsId: ids?.fangraphsId ?? null,
-				bbrefId: ids?.bbrefId ?? null,
-			});
+			const due = state.syncedAt === null || Date.parse(state.syncedAt) < Date.parse(dueBefore);
+			const resting = state.triedAt !== null && Date.parse(state.triedAt) >= Date.parse(retryBefore);
+			if (!due || resting) return false;
 		}
+		this.files.set(file, {
+			file,
+			etag: state?.etag ?? null,
+			syncedAt: state?.syncedAt ?? null,
+			triedAt: at,
+		});
+		return true;
 	}
 
-	async seedNextPage(pageSize: number): Promise<{ games: number;
-		added: number; }>
+	async markRegisterFileUnchanged(file: string, at: string): Promise<void>
 	{
-		const { officialDate, gamePk } = this.cursor;
-		const page = (this.games?.snapshots() ?? [])
-			.filter((game) => game.officialDate > officialDate || (game.officialDate === officialDate && game.gamePk > gamePk))
-			.sort((a, b) => a.officialDate.localeCompare(b.officialDate) || a.gamePk - b.gamePk)
-			.slice(0, pageSize);
-		const last = page.at(-1);
-		if (!last) return {
-			games: 0,
-			added: 0,
+		const state = this.files.get(file);
+		if (state) this.files.set(file, {
+			...state,
+			syncedAt: at,
+		});
+	}
+
+	async replaceRegisterFile(file: string, rows: readonly PlayerIdRow[], etag: string | null, at: string): Promise<RegisterFileWrite>
+	{
+		const write: RegisterFileWrite = {
+			inserted: 0,
+			updated: 0,
+			deleted: 0,
 		};
-		const added = await this.addPlayers([...new Set(page.flatMap((game) => gamePersonIds(game)))]);
-		this.cursor = {
-			officialDate: last.officialDate,
-			gamePk: last.gamePk,
-		};
-		return {
-			games: page.length,
-			added,
-		};
+		const kept = new Set<number>();
+		// One row per person id, the last given, as the Postgres adapter does (the port's rule).
+		const unique = new Map(rows.map((row) => [row.personId, row]));
+		for (const row of unique.values())
+		{
+			if (row.personId <= 0 || row.personId > PERSON_ID_MAX) continue;
+			kept.add(row.personId);
+			const stored = this.rows.get(row.personId);
+			if (stored && stored.fangraphsId === row.fangraphsId && stored.bbrefId === row.bbrefId && stored.registerFile === file) continue;
+			if (stored) write.updated++;
+			else write.inserted++;
+			this.rows.set(row.personId, {
+				personId: row.personId,
+				fangraphsId: row.fangraphsId,
+				bbrefId: row.bbrefId,
+				registerFile: file,
+			});
+		}
+		for (const [id, stored] of this.rows)
+		{
+			if (stored.registerFile !== file || kept.has(id)) continue;
+			this.rows.delete(id);
+			write.deleted++;
+		}
+		this.files.set(file, {
+			file,
+			etag,
+			syncedAt: at,
+			triedAt: at,
+		});
+		return write;
 	}
 }
 

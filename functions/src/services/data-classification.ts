@@ -174,11 +174,11 @@ export const DATA_CLASSIFICATION = {
 		},
 		player_ids: {
 			kind: "none",
-			why: "per MLB player (person_id), their FanGraphs and Baseball-Reference ids (fangraphs_id, bbref_id) and when the register was last asked (checked_at), S209; public facts about players, no user data",
+			why: "per MLB player (person_id), their FanGraphs and Baseball-Reference ids (fangraphs_id, bbref_id) and the Chadwick register file the row came from (register_file), S209; public facts about players, no user data",
 		},
-		player_id_seed_cursor: {
+		player_register_files: {
 			kind: "none",
-			why: "one row: the last stored game (official_date, game_pk) whose players the seeding pass has added, S209; no user data",
+			why: "per Chadwick register file, the ETag of the copy last synced and when it was synced and tried (S209); no user data",
 		},
 		users: {
 			kind: "personal",

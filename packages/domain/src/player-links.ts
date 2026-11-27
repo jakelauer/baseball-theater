@@ -1,8 +1,8 @@
 /**
  * Where a player's name links (S209): the four stats sites BT can open a player on, the one function
- * that builds each site's player-page URL, the one rule for which site a fan's links use, and the
- * roster of a stored game (the players whose outside ids BT keeps). ADR-025: every view, list and
- * route calls these and only formats.
+ * that builds each site's player-page URL, the one rule for which site a fan's links use, the roster
+ * of a game (the players whose names a view links together), and the bounds of the profiles route.
+ * ADR-025: every view, list and route calls these and only formats.
  */
 import type { AccountSettings } from "./settings.js";
 import type { Entitlements, GameSnapshot } from "./types.js";
@@ -18,8 +18,8 @@ export type StatsProvider = (typeof STATS_PROVIDERS)[number];
 
 /**
  * A player's ids on the sites BT links to: MLB's own (MLBAM, which MLB.com and Baseball Savant key
- * their pages by), and FanGraphs' and Baseball-Reference's, each null while BT doesn't know it
- * (not yet resolved, or the source has none for this player).
+ * their pages by), and FanGraphs' and Baseball-Reference's, each null when BT doesn't know it
+ * (neither the Chadwick register nor MLB's cross-references has it for this player).
  */
 export type PlayerIds = {
 	mlbam: number;
@@ -63,12 +63,30 @@ export function effectiveStatsProvider(
 }
 
 /**
- * Every player a stored game names, sorted and without repeats (S209 AC 3): each play's batter and
- * pitcher and each box score batter and pitcher. Ingest compares a write's roster with the stored one
- * through this, so it adds players only when the roster changes; the seeding pass reads the same
- * paths in SQL.
+ * The largest MLB person id BT stores or asks about (S209 AC 3): Postgres's `integer` maximum, the type of
+ * `player_ids.person_id`. The register's reader skips a row past it, the repositories never query one, and the
+ * profiles route leaves one out, so an id that can't be stored is "no row", never a database error.
  */
-export function gamePersonIds(game: Pick<GameSnapshot, "plays" | "boxscore">): number[]
+export const PERSON_ID_MAX = 2147483647;
+
+/** How many players one `GET /api/v1/players/profiles` asks about at most (S209 AC 3); more is a 400. */
+export const PLAYER_PROFILES_MAX_IDS = 100;
+
+/**
+ * The form of `GET /api/v1/players/profiles`'s `personIds` (S209 AC 3): comma-separated digit strings of 1 to 16
+ * digits, no sign, no empty part. A 16-digit id may round when cast (`Number("9999999999999999")` is 1e16), but any
+ * id over ten digits lands past `PERSON_ID_MAX` either way, so it answers "no row"; a longer one is a 400. The route tests the
+ * whole value against it and the OpenAPI spec publishes it as the parameter's `pattern`, so the two never disagree;
+ * the count (`PLAYER_PROFILES_MAX_IDS`) is checked beside it.
+ */
+export const PERSON_IDS_PATTERN = "^\\d{1,16}(,\\d{1,16})*$";
+
+/**
+ * Every player a game names, sorted and without repeats (S209 AC 10): each play's batter and pitcher and
+ * each box score batter and pitcher. The name links shown together pass it as their `roster`, so they ask
+ * the profiles route for the game's players in one request rather than one each.
+ */
+export function gamePersonIds(game: Pick<GameSnapshot, "boxscore"> & { plays: readonly Pick<GameSnapshot["plays"][number], "matchup">[] }): number[]
 {
 	const ids = new Set<number>();
 	for (const play of game.plays)

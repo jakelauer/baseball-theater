@@ -6,6 +6,7 @@ import { useState } from "react";
 import type {
 	BoxscoreBatter, BoxscoreInfoLine, BoxscorePitcher,
 } from "@bt/domain";
+import { gamePersonIds } from "@bt/domain";
 import type { GamePayload } from "../../api/game.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { useScoresHidden } from "../../settings/useScoresHidden.js";
@@ -137,12 +138,13 @@ function InfoLine({ line, scoresHidden }: { line: BoxscoreInfoLine;
  * `batterLabel` (`Shaw (PH-DH)`), linking to his stats page (S209, `PlayerLink`); a substitute is indented under
  * the player he replaced.
  */
-function BatterName({ batter }: { batter: BoxscoreBatter })
+function BatterName({ batter, roster }: { batter: BoxscoreBatter;
+	roster: readonly number[]; })
 {
 	return (
 		<Text span fz={12} pl={batter.isSubstitute ? 12 : 0} data-substitute={batter.isSubstitute ? "" : undefined}>
 			{batter.note ? <Text span inherit fw={700}>{batter.note}</Text> : null}
-			<PlayerLink personId={batter.id} inherit>
+			<PlayerLink personId={batter.id} roster={roster} inherit>
 				{batterLabel(batter)}
 			</PlayerLink>
 		</Text>
@@ -150,10 +152,11 @@ function BatterName({ batter }: { batter: BoxscoreBatter })
 }
 
 /** A pitcher's `PLAYER` cell: MLB's `Assad, J`, as v2 prints it, linking to his stats page (S209, `PlayerLink`). */
-function PitcherName({ pitcher }: { pitcher: BoxscorePitcher })
+function PitcherName({ pitcher, roster }: { pitcher: BoxscorePitcher;
+	roster: readonly number[]; })
 {
 	return (
-		<PlayerLink personId={pitcher.id} fz={12}>
+		<PlayerLink personId={pitcher.id} roster={roster} fz={12}>
 			{pitcher.lastInitName}
 		</PlayerLink>
 	);
@@ -166,10 +169,12 @@ function PitcherName({ pitcher }: { pitcher: BoxscorePitcher })
  * send for this team) is not drawn, so no section is ever empty.
  */
 function TeamBox({
-	game, side, scoresHidden,
+	game, side, scoresHidden, roster,
 }: { game: GamePayload;
 	side: Side;
-	scoresHidden: boolean; })
+	scoresHidden: boolean;
+	/** Every player the game names (`gamePersonIds`): the names' one profiles request (S209 AC 10). */
+	roster: readonly number[]; })
 {
 	const abbr = game.teams[side].abbreviation;
 	const team = game.boxscore?.teams[side];
@@ -184,7 +189,7 @@ function TeamBox({
 					label={`${abbr} batting`}
 					rows={team?.batting ?? []}
 					rowKey={(b) => b.id}
-					player={(b) => <BatterName batter={b} />}
+					player={(b) => <BatterName batter={b} roster={roster} />}
 					columns={BATTING_COLUMNS}
 					testId="batting-row"
 				/>
@@ -196,7 +201,7 @@ function TeamBox({
 						label={`${abbr} pitching`}
 						rows={pitching}
 						rowKey={(p) => p.id}
-						player={(p) => <PitcherName pitcher={p} />}
+						player={(p) => <PitcherName pitcher={p} roster={roster} />}
 						columns={pitchingColumns(scoresHidden)}
 						testId="pitching-row"
 					/>
@@ -265,6 +270,8 @@ export function BoxRoom({ game, variant }: { game: GamePayload;
 		return <ViewState kind="empty" message="No box score yet." />;
 	}
 	const info = gameInfoLines(boxscore.info);
+	// S209 AC 10: every name in the room asks the profiles route about the whole game at once.
+	const roster = gamePersonIds(game);
 
 	return (
 		<Stack gap="md" data-testid="box-room" data-variant={variant}>
@@ -294,14 +301,14 @@ export function BoxRoom({ game, variant }: { game: GamePayload;
 							);
 						})}
 					</SimpleGrid>
-					<TeamBox game={game} side={side} scoresHidden={scoresHidden} />
+					<TeamBox game={game} side={side} scoresHidden={scoresHidden} roster={roster} />
 				</>
 			) : (
 				<SimpleGrid cols={2} spacing="lg">
 					{(["away", "home"] as const).map((s) => (
 						<Stack key={s} gap="xs" data-testid="box-team">
 							<TeamLabel game={game} side={s} heading />
-							<TeamBox game={game} side={s} scoresHidden={scoresHidden} />
+							<TeamBox game={game} side={s} scoresHidden={scoresHidden} roster={roster} />
 						</Stack>
 					))}
 				</SimpleGrid>

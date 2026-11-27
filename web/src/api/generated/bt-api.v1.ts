@@ -142,14 +142,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/players/{personId}/profiles": {
+    "/api/v1/players/profiles": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** One player's pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from; a site whose id BT doesn't know yet, or whose register has none for this player, is null. A checked player's answer is cacheable for a day; one not yet checked, for minutes, so it fills in once the cron resolves it. */
+        /** Players' pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from, for each asked player BT has a row for (a player with none is left out); a site whose id BT doesn't know is null. Cacheable for a day: the ids are synced from the Chadwick register at most daily. */
         get: operations["getPlayerProfiles"];
         put?: never;
         post?: never;
@@ -502,7 +502,7 @@ export interface components {
             cloudSyncedSettings: boolean;
             fasterLiveRefresh: boolean;
             savantLinks: boolean;
-            /** @description May pick a stats site other than MLB.com for player links (S209; owner, 2026-11-24: "Every patron, Backer and up"). Never stored: `entitlementsForTier` derives it from the tier wherever entitlements are read, so a row or a session signed before S209 can't lack it where it matters. */
+            /** @description May pick a stats site other than MLB.com for player links (S209; owner, 2026-11-24: "Every patron, Backer and up (Recommended)"). Never stored: `entitlementsForTier` derives it from the tier wherever entitlements are read, so a row or a session signed before S209 can't lack it where it matters. */
             statsProviderChoice: boolean;
             tier: components["schemas"]["PatronTier"];
         };
@@ -784,7 +784,7 @@ export interface components {
             y0: number;
             z0: number;
         };
-        /** @description A player's ids on the sites BT links to: MLB's own (MLBAM, which MLB.com and Baseball Savant key their pages by), and FanGraphs' and Baseball-Reference's, each null while BT doesn't know it (not yet resolved, or the source has none for this player). */
+        /** @description A player's ids on the sites BT links to: MLB's own (MLBAM, which MLB.com and Baseball Savant key their pages by), and FanGraphs' and Baseball-Reference's, each null when BT doesn't know it (neither the Chadwick register nor MLB's cross-references has it for this player). */
         PlayerIds: {
             bbref: string | null;
             fangraphs: string | null;
@@ -802,10 +802,8 @@ export interface components {
             teamId: number | null;
             winProbabilityAdded: number | null;
         };
-        /** @description A player's pages on each stats site (S209, `GET /api/v1/players/:personId/profiles`): the ids BT holds for them and the URL `playerProfileUrl` builds for each site, null for a site whose id BT doesn't know (not yet resolved, or the register has none for this player). The web builds its link from `ids` through the same function. */
-        PlayerProfilesResponse: {
-            /** @description Whether BT has looked this player up yet; until then FanGraphs and Baseball-Reference are null and may fill in. */
-            checked: boolean;
+        /** @description One player's pages on each stats site (S209): the ids BT holds for them and the URL `playerProfileUrl` builds for each site, null for a site whose id BT doesn't know (neither the Chadwick register nor MLB's cross-references has it). The web builds its link from `ids` through the same function. */
+        PlayerPages: {
             ids: components["schemas"]["PlayerIds"];
             profiles: {
                 bbref: string | null;
@@ -813,6 +811,10 @@ export interface components {
                 mlb: string | null;
                 savant: string | null;
             };
+        };
+        /** @description The answer of `GET /api/v1/players/profiles?personIds=…` (S209 AC 3): the pages of each asked player BT has a row for, by ascending MLB id; a player with no row is left out. */
+        PlayerProfilesResponse: {
+            players: components["schemas"]["PlayerPages"][];
         };
         /** @description A player named on the scoreboard (pitchers of record). */
         PlayerRef: {
@@ -1713,12 +1715,12 @@ export interface operations {
     };
     getPlayerProfiles: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description MLB person id (MLBAM). */
-                personId: number;
+            query: {
+                /** @description 1 to 100 MLB person ids (MLBAM), comma-separated; repeats count once. */
+                personIds: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -1732,8 +1734,8 @@ export interface operations {
                     "application/json": components["schemas"]["PlayerProfilesResponse"];
                 };
             };
-            /** @description BT has no row for that player (it has seen no game they played in); cacheable for minutes. */
-            404: {
+            /** @description `personIds` is missing, malformed, or names more than 100 players. */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

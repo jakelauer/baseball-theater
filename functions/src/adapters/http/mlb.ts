@@ -45,13 +45,13 @@ import {
 	parseStandingsResponse,
 } from "@bt/mlb-api";
 import type {
-	GameEditorial, MlbGameSources, MlbStatsClient,
+	GameEditorial, MlbGameSources, MlbStatsClient, PlayerXrefSource, ResolvedPlayerIds,
 } from "@bt/ports";
 import { inPool } from "../in-pool.js";
 import { mapContentHighlights, mapRecap } from "../../mappers/content.js";
 import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
-import { mapPeople } from "../../mappers/players.js";
+import { mapPeople, mapPeopleXrefs } from "../../mappers/players.js";
 import { mapSearchResults } from "../../mappers/search.js";
 import { mapStandings } from "../../mappers/standings.js";
 import { mapLiveFeed } from "../../mappers/live.js";
@@ -300,7 +300,7 @@ export interface HttpMlbStatsClientOptions {
 	now?: () => Date;
 }
 
-export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
+export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources, PlayerXrefSource
 {
 	private readonly baseUrl: string;
 	private readonly fetchImpl: typeof fetch;
@@ -463,6 +463,17 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		const hydrate = `stats(group=[hitting,pitching],type=[season],season=${season})`;
 		const url = `${this.baseUrl}/api/v1/people?personIds=${ids.join(",")}&hydrate=${encodeURIComponent(hydrate)}`;
 		return mapPeople(parsePeopleResponse(await this.getJson(url)));
+	}
+
+	/**
+	 * MLB's cross-references for `personIds` (S209 AC 1, `PlayerXrefSource`): the batched `people` call with
+	 * `hydrate=xrefId`, one request for every id given (the register sync batches them, `PLAYER_XREF_BATCH`), parsed
+	 * by `parsePeopleResponse` and read by `mapPeopleXrefs`. Rejects when MLB errors.
+	 */
+	async fetchPlayerXrefs(personIds: readonly number[]): Promise<Map<number, ResolvedPlayerIds>>
+	{
+		if (personIds.length === 0) return new Map();
+		return mapPeopleXrefs(parsePeopleResponse(await this.getJson(`${this.baseUrl}/api/v1/people?personIds=${personIds.join(",")}&hydrate=xrefId`)));
 	}
 
 	/**

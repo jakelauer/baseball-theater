@@ -8,7 +8,8 @@ import {
 	wholeFetchedGame,
 } from "@bt/domain";
 import type {
-	BackgroundWork, GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, PlayerIdRepository, PlayerRegister, ScheduleRepository,
+	BackgroundWork, GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, PlayerIdRepository, PlayerRegister, PlayerXrefSource,
+	ScheduleRepository,
 } from "@bt/ports";
 import { withLatePlayMetrics } from "../mappers/game-extras.js";
 import type { ExtraAsker } from "./player-of-the-game.js";
@@ -25,7 +26,6 @@ import type {
 import {
 	joinStoredScheduleDay, readJoinedScheduleDay, readScheduleDay, readServedGame, scheduleDayWindowMode, servedGame, switchGameState, withSuspendedAt,
 } from "./game-state.js";
-import { addRosterPlayers } from "./player-ids.js";
 import type { RefreshCoordinator } from "./refresh.js";
 import { CACHE_TTL_MS, isStale } from "./refresh.js";
 
@@ -67,13 +67,16 @@ export type IngestDeps = {
 	 */
 	dayHubs?: DayHubNotifier;
 	/**
-	 * Each player seen and their outside ids (S209): a game write whose roster is new or changed adds its players
-	 * (`addRosterPlayers`), and the cron's player-id job resolves and seeds them; the profiles route reads it. Absent
-	 * (most tests, the backfill), nothing is added and the route answers 404.
+	 * MLB's players and their outside ids (S209): the profiles route reads it, and the cron's player-id job keeps it in
+	 * step with the register (`syncPlayerRegister`). Absent (most tests), the route answers no player.
 	 */
 	playerIds?: PlayerIdRepository;
-	/** Where the cron's resolve step looks players up (S209): the Chadwick register with live MLB; absent, nothing is resolved. */
+	/**
+	 * The player-id job's sources (S209 AC 1): the Chadwick register and MLB's cross-references, both set with live MLB
+	 * data only (`createWorkerApp`), so local fixture runs and tests never fetch the register; absent, the job never runs.
+	 */
 	playerRegister?: PlayerRegister;
+	playerXrefs?: PlayerXrefSource;
 };
 
 /** The one MLB read the standings' calendar cache wraps (S139). */
@@ -340,9 +343,6 @@ type GameWrite = {
  * status, already a new version, and carried unchanged after, so it never bumps a version on its own; left out when
  * there is none, so a game never suspended hashes as before.
  *
- * S209 AC 3: the games this write stored add their players (`addRosterPlayers`) when the game is new or its roster
- * changed, so an ordinary live poll adds nothing.
- *
  * S212 AC 4: when the write stores a game for the first time, or changes its snapshot or state, and the served game
  * (`servedGame`) is past and finished (`isPastFinishedGame`) after the write, or was before it (S212 review: a final
  * game MLB turns suspended leaves the edge holding the final one), its edge URL and the schedule and digest URLs of
@@ -350,7 +350,7 @@ type GameWrite = {
  * first time was not past and finished before.
  */
 async function storeGames(
-	deps: Pick<IngestDeps, "games" | "gameStates" | "playerIds">,
+	deps: Pick<IngestDeps, "games" | "gameStates">,
 	writes: readonly GameWrite[],
 	at: Date,
 	after: AfterWrites,
@@ -397,11 +397,6 @@ async function storeGames(
 	const taken = new Set(changed.length === 0 ? [] : await deps.games.upsertMany(changed));
 	const refused = changed.filter((snapshot) => !taken.has(snapshot.gamePk)).map((snapshot) => snapshot.gamePk);
 	const storedFirst = new Map(refused.length === 0 ? [] : (await deps.games.getMany(refused)).map((snapshot) => [snapshot.gamePk, snapshot]));
-	// S209 AC 3: a first write, or one whose roster changed, adds the game's players for the cron to resolve.
-	await addRosterPlayers(deps.playerIds, stamped.filter(({ write, snapshot }) => snapshot !== write.stored && taken.has(snapshot.gamePk)).map(({ write, snapshot }) => ({
-		stored: write.stored,
-		snapshot,
-	})));
 	for (const {
 		write, outcome, snapshot: formed,
 	} of stamped)

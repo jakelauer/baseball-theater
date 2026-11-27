@@ -20,7 +20,9 @@ import type {
 import { applyIfNewer, DEFAULT_SETTINGS } from "@bt/domain";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { fetchSettings, saveSettings } from "../api/client.js";
+import {
+	fetchSettings, saveSettings, SettingsRefused,
+} from "../api/client.js";
 import { readStored, writeStored } from "../storage/storage.js";
 
 type SettingsState = { settings: AccountSettings;
@@ -69,8 +71,16 @@ function keepNewer(incoming: AccountSettings, sentIn: number): void
 
 /**
  * Applies a change locally at once (the UI updates without waiting), then saves
- * the whole document with the next version. A failed save keeps the local
- * change; the next hydrate from the account settles it.
+ * the whole document with the next version. A save that fails to answer keeps the
+ * local change; the next hydrate from the account settles it. A save the account
+ * refuses (`SettingsRefused`, S209) reads the account's copy back and puts it in
+ * place outright, not through `keepNewer`: the refused copy carries the next
+ * version, so it would otherwise win and every later save would carry it too.
+ * It does so only while the store still holds that very copy (the same object):
+ * once a later change, answer or re-read has replaced it, the account copy read
+ * back may be older than what the store holds, and versions alone can't tell,
+ * since a re-read or hydrate can move the store down and a later change then
+ * reuses the refused copy's version.
  */
 async function save(change: Partial<Omit<AccountSettings, "version">>): Promise<void>
 {
@@ -88,9 +98,21 @@ async function save(change: Partial<Omit<AccountSettings, "version">>): Promise<
 	{
 		keepNewer(await saveSettings(next), sentIn);
 	}
-	catch
+	catch (error)
 	{
-		// Offline or rejected: the local copy stands until the account is read again.
+		// Offline or failing: the local copy stands until the account is read again.
+		if (!(error instanceof SettingsRefused)) return;
+		try
+		{
+			const account = await fetchSettings();
+			if (sentIn === generation && settingsStore.getState().settings === next) settingsStore.setState({
+				settings: account,
+			});
+		}
+		catch
+		{
+			// The account can't be read either: the next hydrate settles it.
+		}
 	}
 }
 
@@ -146,7 +168,7 @@ export function setVideoPlayer(mode: VideoPlayerMode): Promise<void>
 /**
  * The stats site a player's name opens (S209). Saved as chosen; links read it through
  * `effectiveStatsProvider`, so only a patron's choice takes effect, and the server refuses a
- * change away from MLB.com for an account without a patron tier.
+ * change to a site other than MLB.com for an account without a patron tier.
  */
 export function setStatsProvider(provider: StatsProvider): Promise<void>
 {

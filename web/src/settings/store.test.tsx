@@ -111,6 +111,139 @@ describe("settings store", () =>
 		expect(result.current.opensFirst).toBe("live");
 	});
 
+	it("S209 AC 9: a save the account refuses (400) puts the account's copy back, so the next change saves", async () =>
+	{
+		// The account may not choose a site other than MLB.com: its PUT is refused unless the document keeps "mlb".
+		let doc: AccountSettings = {
+			...DEFAULT_SETTINGS,
+			version: 3,
+		};
+		const puts: AccountSettings[] = [];
+		vi.stubGlobal("fetch", vi.fn(async (request: Request) =>
+		{
+			if (request.method === "PUT")
+			{
+				const body = await request.json() as AccountSettings;
+				puts.push(body);
+				if (body.statsProvider !== "mlb") return jsonResponse({
+					error: "invalid_settings",
+				}, 400);
+				if (body.version > doc.version) doc = body;
+			}
+			return jsonResponse(doc);
+		}));
+		await hydrateSettings(DEV_ACCOUNT.uid);
+		const { result } = renderHook(() => useSettings());
+		await act(() => setStatsProvider("fangraphs"));
+		await waitFor(() => expect(result.current).toEqual(doc));
+		await act(() => setHideScores(true));
+		expect(puts.map((put) => [put.statsProvider, put.version])).toEqual([["fangraphs", 4], ["mlb", 4]]);
+		expect(doc.hideScores).toBe(true);
+		expect(result.current.hideScores).toBe(true);
+	});
+
+	/**
+	 * The account of the S209 AC 9 test, refusing any document whose site isn't MLB.com, with each settings read held
+	 * until the test answers it, as the account stood when it was asked.
+	 */
+	async function stubRefusingAccountWithHeldReads()
+	{
+		let doc: AccountSettings = {
+			...DEFAULT_SETTINGS,
+			version: 3,
+		};
+		const puts: AccountSettings[] = [];
+		const reads: (() => void)[] = [];
+		vi.stubGlobal("fetch", vi.fn(async (request: Request) =>
+		{
+			if (request.method === "PUT")
+			{
+				const body = await request.json() as AccountSettings;
+				puts.push(body);
+				if (body.statsProvider !== "mlb") return jsonResponse({
+					error: "invalid_settings",
+				}, 400);
+				if (body.version > doc.version) doc = body;
+				return jsonResponse(doc);
+			}
+			const asOf = doc;
+			return new Promise<Response>((resolve) => reads.push(() => resolve(jsonResponse(asOf))));
+		}));
+		const hydrated = hydrateSettings(DEV_ACCOUNT.uid);
+		await waitFor(() => expect(reads).toHaveLength(1));
+		reads.shift()!();
+		await hydrated;
+		return {
+			puts,
+			reads,
+			doc: () => doc,
+		};
+	}
+
+	it("S209 AC 9: a refused save's re-read that lands after a later accepted save leaves the later save's copy", async () =>
+	{
+		const account = await stubRefusingAccountWithHeldReads();
+		const { result } = renderHook(() => useSettings());
+		const refused = setStatsProvider("fangraphs");
+		await waitFor(() => expect(account.reads).toHaveLength(1));
+		// Before the re-read answers, the reader picks MLB.com again (version 5), which the account accepts.
+		await act(() => setStatsProvider("mlb"));
+		expect(account.doc()).toMatchObject({
+			statsProvider: "mlb",
+			version: 5,
+		});
+		// The re-read, asked before the accepted save, answers the account's old copy (version 3) last.
+		await act(async () =>
+		{
+			account.reads.shift()!();
+			await refused;
+		});
+		expect(result.current).toEqual(account.doc());
+		await act(() => setOpensFirst("box"));
+		expect(account.puts.map((put) => [put.version, put.statsProvider])).toEqual([[4, "fangraphs"], [5, "mlb"], [6, "mlb"]]);
+		expect(account.doc()).toMatchObject({
+			opensFirst: "box",
+			version: 6,
+		});
+	});
+
+	it("S209 AC 9: an earlier refused save's late re-read doesn't undo a change saved since at the version it had", async () =>
+	{
+		const account = await stubRefusingAccountWithHeldReads();
+		const { result } = renderHook(() => useSettings());
+		// A (version 4) and B (version 5) are both refused; each reads the account back (version 3).
+		const a = setStatsProvider("fangraphs");
+		await waitFor(() => expect(account.reads).toHaveLength(1));
+		const b = setStatsProvider("bbref");
+		await waitFor(() => expect(account.reads).toHaveLength(2));
+		// B's re-read lands first and puts version 3 back; C then saves at version 4, A's version, and is accepted.
+		await act(async () =>
+		{
+			account.reads[1]!();
+			await b;
+		});
+		expect(result.current.version).toBe(3);
+		await act(() => setOpensFirst("box"));
+		expect(account.doc()).toMatchObject({
+			opensFirst: "box",
+			version: 4,
+		});
+		// A's re-read lands last: the store holds C's copy, not A's refused one, so it stays.
+		await act(async () =>
+		{
+			account.reads[0]!();
+			await a;
+		});
+		expect(result.current).toEqual(account.doc());
+		await act(() => setHideScores(true));
+		expect(account.puts.map((put) => [put.version, put.statsProvider])).toEqual([[4, "fangraphs"], [5, "bbref"], [4, "mlb"], [5, "mlb"]]);
+		expect(account.doc()).toMatchObject({
+			opensFirst: "box",
+			hideScores: true,
+			version: 5,
+		});
+	});
+
 	it("hydrates from the account after sign-in and resets to the house defaults on sign-out", async () =>
 	{
 		const saved = {
