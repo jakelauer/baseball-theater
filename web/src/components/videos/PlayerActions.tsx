@@ -77,7 +77,8 @@ export function QualityPicker({
  * takes control (`controllerchange`), since an older worker still in control under the update
  * prompt would answer the route with the app's page. False until it answers, and where there are no
  * workers. Only the newest question's answer counts, so a slow "no" from the old worker can't hide
- * Download after the new one said yes.
+ * Download after the new one said yes, and an effect that has been cleaned up (StrictMode mounts
+ * twice, `main.tsx`) drops its late answers.
  */
 function useDownloadRoute(): boolean
 {

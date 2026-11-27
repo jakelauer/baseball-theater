@@ -94,7 +94,9 @@ run_tagged 4 web "S151 AC 4"
 
 # --- Check 5: the owner's browser check, quoted -----------------------------------------------------------------
 node scripts/backlog-vault/text-records.ts newest S151 >"$TMP/story.md" 2>/dev/null || bad 5 "no text record for S151"
-grep -qE '^\*\*Owner browser check:\*\* .*[A-Za-z]' "$TMP/story.md" || bad 5 "S151's story text has no **Owner browser check:** line quoting the owner (the story parks until the owner answers)"
+# The line must quote the owner: an opening quote mark (straight or curly), then a letter, then a closing one,
+# so a bare pending or a paraphrase with no quote doesn't pass. Plain `.*` between them, so any locale reads it.
+grep -qE '^\*\*Owner browser check:\*\* .*("|“).*[A-Za-z].*("|”)' "$TMP/story.md" || bad 5 "S151's story text has no **Owner browser check:** line quoting the owner (the story parks until the owner answers)"
 
 # --- Check 6: Status done, inside the fence ---------------------------------------------------------------------
 [ "$(story_snapshot_status S151)" = "done" ] || bad 6 "S151's snapshot does not record Status done"

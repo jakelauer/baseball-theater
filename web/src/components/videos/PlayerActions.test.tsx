@@ -9,12 +9,13 @@ import {
 	act, cleanup, fireEvent, render, screen, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import {
 	afterEach, beforeEach, describe, expect, it, vi,
 } from "vitest";
 import {
-	answerDownloadPing, DOWNLOAD_PING_TIMEOUT_MS, downloadHref,
+	answerDownloadPing, DOWNLOAD_PING_TIMEOUT_MS, DOWNLOAD_READY, downloadHref,
 } from "../../pwa/download.js";
 import { setVideoQuality } from "../../settings/store.js";
 import type { Video } from "./VideoCard.js";
@@ -162,6 +163,27 @@ function silentWorker(): ServiceWorker
 {
 	return {
 		postMessage: vi.fn(),
+	} as unknown as ServiceWorker;
+}
+
+/** A worker in control that holds each ping's port in `pending` and answers only when the test posts on it. */
+function deferredWorker(pending: MessagePort[]): ServiceWorker
+{
+	return {
+		postMessage: (_message: unknown, transfer: MessagePort[]) =>
+		{
+			pending.push(transfer[0]!);
+		},
+	} as unknown as ServiceWorker;
+}
+
+/** A worker in control that answers the ping at once with something other than ready: the page hears no. */
+function refusingWorker(): ServiceWorker
+{
+	return {
+		postMessage: (_message: unknown, transfer: MessagePort[]) => transfer[0]!.postMessage({
+			type: "BT_NOT_READY",
+		}),
 	} as unknown as ServiceWorker;
 }
 
@@ -869,6 +891,57 @@ describe("action palette", () =>
 		stubWorkers(answeringWorker());
 		renderPlayer();
 		cleanup();
+		await settle();
+		expect(screen.queryByRole("link", {
+			name: "Download",
+		})).toBeNull();
+	});
+
+	it("S151 AC 4: a slow yes to an older question can't show Download after a newer question was answered no", async () =>
+	{
+		const pending: MessagePort[] = [];
+		const container = stubWorkers(deferredWorker(pending));
+		renderPlayer();
+		await settle();
+		expect(pending).toHaveLength(1);
+		container.controller = refusingWorker();
+		act(() =>
+		{
+			container.dispatchEvent(new Event("controllerchange"));
+		});
+		await settle();
+		// The first worker answers yes only now, after the newer worker's no.
+		pending[0]!.postMessage(DOWNLOAD_READY);
+		await settle();
+		expect(screen.queryByRole("link", {
+			name: "Download",
+		})).toBeNull();
+	});
+
+	it("S151 AC 4: under StrictMode (main.tsx) the first mount's late yes changes nothing once its effect is cleaned up and the newer question was answered no", async () =>
+	{
+		const pending: MessagePort[] = [];
+		const container = stubWorkers(deferredWorker(pending));
+		// StrictMode mounts, cleans up and mounts again: two questions, the first from an effect that is gone.
+		render(
+			<StrictMode>
+				<MantineProvider>
+					<MemoryRouter>
+						<VideoPlayer video={VIDEO} autoPlay={false} />
+					</MemoryRouter>
+				</MantineProvider>
+			</StrictMode>,
+		);
+		await settle();
+		expect(pending).toHaveLength(2);
+		container.controller = refusingWorker();
+		act(() =>
+		{
+			container.dispatchEvent(new Event("controllerchange"));
+		});
+		await settle();
+		// The cleaned-up effect's question is answered yes only now.
+		pending[0]!.postMessage(DOWNLOAD_READY);
 		await settle();
 		expect(screen.queryByRole("link", {
 			name: "Download",

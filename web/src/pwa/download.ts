@@ -41,8 +41,12 @@ export function downloadHref(fileUrl: string, title: string): string
 	return `${DOWNLOAD_PATH}?${query.toString()}`;
 }
 
-/** A trailing file extension on a title (`.exe`, `.mp4`), dropped so every saved name ends `.mp4` and nothing else. */
-const TRAILING_EXTENSION = /\.[A-Za-z0-9]{1,4}$/;
+/**
+ * A video file's extension at the end of a title (`.mp4`, `.MOV`), dropped so the saved name doesn't
+ * end `.mp4.mp4`. Only video extensions: a title's own last word after a dot ("Dodgers vs. Cubs 5.2")
+ * is kept, and the name still ends `.mp4` either way.
+ */
+const TRAILING_VIDEO_EXTENSION = /\.(?:mp4|m4v|mov|webm|mkv|avi)$/i;
 
 /** A UTF-16 half with no partner, which `encodeURIComponent` throws on (a title cut mid-character). */
 const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
@@ -58,13 +62,13 @@ function rfc5987(text: string): string
 
 /**
  * The `Content-Disposition` for a clip titled `title`: never the caller's name as given. The title
- * loses a trailing extension, then `filename` is its ASCII slug (lower case, each run of anything
+ * loses a trailing video extension, then `filename` is its ASCII slug (lower case, each run of anything
  * but `a-z0-9` one `-`, trimmed; `clip` when nothing is left) and `filename*` (RFC 5987, which
  * browsers prefer) the title itself without CR, LF, `"`, `/` or `\`, percent-encoded; both end `.mp4`.
  */
 export function contentDisposition(title: string): string
 {
-	const base = title.replace(TRAILING_EXTENSION, "");
+	const base = title.replace(TRAILING_VIDEO_EXTENSION, "");
 	const slug = base.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "clip";
 	const plain = base.replace(/[\r\n"/\\]/g, "") || "clip";
 	return `attachment; filename="${slug}.mp4"; filename*=UTF-8''${rfc5987(plain)}.mp4`;
@@ -85,7 +89,11 @@ function badGateway(): Response
  * The worker's answer to a request for {@link DOWNLOAD_PATH} (`href`, the whole request URL). Its
  * `url` must be an MLB clip MP4 (`isMlbClipMp4`), else 400 and nothing is fetched. MLB's file is
  * fetched with `redirect: "error"`, so a 30x can't lead it elsewhere, and its body is passed on
- * unread with `Content-Disposition: attachment` and MLB's `Content-Length` (the browser's progress).
+ * unread with `Content-Disposition: attachment` and MLB's `Content-Length` (the browser's progress),
+ * unless MLB names a `Content-Encoding` other than `identity`: `fetch` hands on the decoded bytes, so
+ * an encoded file's length would be the wrong count, and the download goes without one. (A cross-origin
+ * answer shows `Content-Encoding` only when MLB exposes it; MP4s aren't compressed in transit, so this
+ * guards the case the worker can see.)
  * A non-2xx answer (a removed clip's 403 or 404) or a failed fetch is a 502. `fetcher` is the
  * worker's `fetch`; tests pass a fake.
  */
@@ -124,7 +132,8 @@ export async function downloadResponse(href: string, fetcher: typeof fetch): Pro
 		"Content-Disposition": contentDisposition(query.get("name") ?? ""),
 	});
 	const length = upstream.headers.get("Content-Length");
-	if (length) headers.set("Content-Length", length);
+	const encoding = upstream.headers.get("Content-Encoding");
+	if (length && (!encoding || encoding.trim().toLowerCase() === "identity")) headers.set("Content-Length", length);
 	return new Response(upstream.body, {
 		status: 200,
 		headers,

@@ -70,6 +70,19 @@ describe("the download route (S151, downloadResponse)", () =>
 		expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([1, 2, 3]);
 	});
 
+	it("S151 AC 1: an encoded body (Content-Encoding other than identity) gets no Content-Length, since MLB's would count the encoded bytes, not the ones saved", async () =>
+	{
+		for (const [encoding, length] of [["gzip", null], ["br", null], ["identity", "3"]] as const)
+		{
+			const upstream = mlbFile([1, 2, 3]);
+			upstream.headers.set("Content-Encoding", encoding);
+			const response = await downloadResponse(routeHref(MP4), answering(upstream));
+			expect(response.status, encoding).toBe(200);
+			expect(response.headers.get("Content-Length"), encoding).toBe(length);
+			expect(response.headers.get("Content-Encoding"), encoding).toBeNull();
+		}
+	});
+
 	it("S151 AC 1: with no Content-Length from MLB, none is made up", async () =>
 	{
 		const upstream = new Response("abc", {
@@ -85,7 +98,11 @@ describe("the download route (S151, downloadResponse)", () =>
 	{
 		const cases: [string, string][] = [
 			["Acuña's homer", "attachment; filename=\"acu-a-s-homer.mp4\"; filename*=UTF-8''Acu%C3%B1a%27s%20homer.mp4"],
-			["x.exe", "attachment; filename=\"x.mp4\"; filename*=UTF-8''x.mp4"],
+			// Only a video extension is dropped: anything else is part of the title, and the name still ends .mp4.
+			["x.exe", "attachment; filename=\"x-exe.mp4\"; filename*=UTF-8''x.exe.mp4"],
+			["Dodgers vs. Cubs 5.2", "attachment; filename=\"dodgers-vs-cubs-5-2.mp4\"; filename*=UTF-8''Dodgers%20vs.%20Cubs%205.2.mp4"],
+			["Judge's 62nd.mp4", "attachment; filename=\"judge-s-62nd.mp4\"; filename*=UTF-8''Judge%27s%2062nd.mp4"],
+			["Walk-off.MOV", "attachment; filename=\"walk-off.mp4\"; filename*=UTF-8''Walk-off.mp4"],
 			["満塁弾", "attachment; filename=\"clip.mp4\"; filename*=UTF-8''%E6%BA%80%E5%A1%81%E5%BC%BE.mp4"],
 			["Ohtani reaches 50-50 vs. Marlins", "attachment; filename=\"ohtani-reaches-50-50-vs-marlins.mp4\"; filename*=UTF-8''Ohtani%20reaches%2050-50%20vs.%20Marlins.mp4"],
 			["a \"b\"/c\\d\r\ne (f) *", "attachment; filename=\"a-b-c-d-e-f.mp4\"; filename*=UTF-8''a%20bcde%20%28f%29%20%2A.mp4"],
