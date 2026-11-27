@@ -11,7 +11,14 @@ None of these are documented APIs. They are the endpoints Savant's own pages cal
 
 The terms of use (Savant's and MLB's) must be checked before any live call to Savant ships (owner, 2026-10-30, _"Sure"_). Covered: the data, the field drawings and query-engine use. **S103** AC 7 does the check and records the result here, quoting the terms with links and the date read.
 
-_Not yet checked._
+Checked 2026-11-27 by S103 (AC 7). Savant has no terms of its own: its pages' footer links MLB's [Terms of Use](https://www.mlb.com/official-information/terms-of-use) ("LAST UPDATED: MARCH 11, 2025"), which cover every "MLB Digital Property", defined as including "all materials contained in this Website and/or otherwise accessible via other MLB-controlled products or services or MLB-operated interactive media locations"; `baseballsavant.mlb.com` is one. Read on 2026-11-27:
+
+- **Reading these feeds.** The Terms say "You must not use the MLB Digital Properties … to: … (xi) use automated scripts to collect information from or otherwise interact with the MLB Digital Properties" ([Terms of Use](https://www.mlb.com/official-information/terms-of-use), §1). Ingest polling `gf?game_pk=` during a game, and a recording run, are automated scripts collecting information. Savant's [robots.txt](https://baseballsavant.mlb.com/robots.txt) (`User-agent: *`, an empty `Disallow:`) asks crawlers to avoid nothing, but robots.txt grants no licence.
+- **Serving their data.** "Except for downloading one copy of the MLB Digital Properties on any single device for your personal, non-commercial home use, you must not reproduce, prepare derivative works based upon, distribute, perform or display the MLB Digital Properties without first obtaining the written permission of MLB" ([Terms of Use](https://www.mlb.com/official-information/terms-of-use), §1). MLB's Stats API answers carry the same rule in their `copyright` field, pointing at [copyright.txt](http://gdx.mlb.com/components/copyright.txt): "Only individual, non-commercial, non-bulk use of the Materials is permitted and any other use of the Materials is prohibited without prior written authorization from MLBAM." Serving Savant's per-pitch fields to fans (S103) and season averages (S104) is distributing and displaying them.
+- **Serving the field drawings.** The same §1 sentence covers them: the SVGs under `site-core/images/fields/` are MLB-made artwork on an MLB Digital Property, so S105's plan to serve them is reproducing and displaying it, which needs MLB's written permission.
+- **Query-engine use.** `statcast_search/csv` is reached by the same automated scripts (xi) and its answers are covered by the same §1 sentence. No story calls it.
+
+**Result:** read as written, the Terms forbid what S103–S105 plan (automated reads of Savant, and serving its data and drawings) without MLB's written permission. BT already reads MLB's Stats API and mlb.com feeds under the same Terms. Whether BT goes ahead is the owner's decision (S103 AC 7, rule 10): S103 is parked on that question, and no live Savant call ships until the owner answers.
 
 ## Game data (ingested by stories)
 
