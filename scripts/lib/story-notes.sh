@@ -171,12 +171,48 @@ turbo_gate_shape()
 # are the ceiling's other two parts (ceiling_changes); the item count is runs.ts REVIEW_CEILING_ITEMS.
 CEILING_RULE_PATHS=(CLAUDE.md docs/v3/LOOP.md docs/v3/LAWS.md 'docs/v3/backlog/frame/00 *' .claude/skills .claude/agents)
 
+# frame00_outside_review_log — frame note 00 on stdin without its review log: from its `**Last review:**` line up to,
+# not including, its `**Next review due:**` line (every Last review / Earlier review entry and their bullets). A
+# note without exactly one of each marker passes through whole, so a missing marker never hides a rule edit.
+frame00_outside_review_log()
+{
+  awk '{ lines[NR] = $0 } /^\*\*Last review:\*\*/ { last++ } /^\*\*Next review due:\*\*/ { next_due++ }
+    END {
+      whole = (last != 1 || next_due != 1)
+      for (i = 1; i <= NR; i++) {
+        if (!whole && lines[i] ~ /^\*\*Last review:\*\*/) skip = 1
+        if (lines[i] ~ /^\*\*Next review due:\*\*/) skip = 0
+        if (!skip) print lines[i]
+      }
+    }'
+}
+
+# frame00_review_log_only <base> <path> — true when frame note 00 at <path> differs between <base> and HEAD only
+# inside its review log (frame00_outside_review_log): every backlog review rewrites those entries, so they are no
+# rule change (owner, 2026-11-26, of the loop in which each backlog review forced another doc parity review: "Skip
+# this one, fix it in S221's rules PR (Recommended)"). A note added or removed since <base> is a change.
+frame00_review_log_only()
+{
+  local before after
+  before=$(git show "$1:$2" 2>/dev/null) || return 1
+  after=$(git show "HEAD:$2" 2>/dev/null) || return 1
+  [ "$(printf '%s\n' "$before" | frame00_outside_review_log)" = "$(printf '%s\n' "$after" | frame00_outside_review_log)" ]
+}
+
 # ceiling_changes <base> — one line per ceiling change since <base> (the commit that logged the review's newest
 # entry): each rule file changed, ARCHITECTURE.md (an ADR accepted or changed) and `pnpm verify` itself. Both debt
-# scripts pass each line to `runs.ts review-state --changed` inside a run.
+# scripts pass each line to `runs.ts review-state --changed` inside a run. Frame note 00 counts only when something
+# outside its review log changed (frame00_review_log_only), for both reviews: neither treats a review's own log as a
+# rule. Paths print unquoted (core.quotePath=false), so frame note 00's em dash reads as itself.
 ceiling_changes()
 {
-  git diff --name-only "$1" HEAD -- "${CEILING_RULE_PATHS[@]}" docs/v3/ARCHITECTURE.md
+  local path
+  while IFS= read -r path; do
+    if [[ "$path" == "docs/v3/backlog/frame/00 "* ]] && frame00_review_log_only "$1" "$path"; then
+      continue
+    fi
+    printf '%s\n' "$path"
+  done < <(git -c core.quotePath=false diff --name-only "$1" HEAD -- "${CEILING_RULE_PATHS[@]}" docs/v3/ARCHITECTURE.md)
   verify_changed "$1" | sed 's/$/ (pnpm verify itself)/'
   return 0
 }

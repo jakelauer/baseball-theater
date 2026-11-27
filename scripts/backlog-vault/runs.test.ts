@@ -17,7 +17,7 @@ import type { RunEvent, RunJournal } from "./claims.ts";
 import type { LedgerEntry } from "./ledger.ts";
 import type { RunRecord } from "./runs.ts";
 import {
-	concurrencyFromRuns, endReviewProblems, formatReviewState, renderRunEntry, REVIEW_CEILING_ITEMS, reviewBase, reviewState, summarizeRun, unlistedTurnCaps,
+	concurrencyFromRuns, endReviewProblems, formatReviewState, prePrFindingsByPr, renderRunEntry, REVIEW_CEILING_ITEMS, reviewBase, reviewState, summarizeRun, unlistedTurnCaps,
 } from "./runs.ts";
 
 const T0 = Date.parse("2026-11-21T00:00:00.000Z");
@@ -39,10 +39,17 @@ const journal = (events: RunEvent[], c = 2): RunJournal => ({
 	startedAt: new Date(T0).toISOString(),
 	events,
 });
+/**
+ * Summarize; every pull request the events open counts 0 findings unless `findings` names it (a null there is
+ * unknown), so a test about something else isn't judged on unknown findings.
+ */
 const sum = (events: RunEvent[], opts: { c?: number;
-	findings?: Record<number, number>;
+	findings?: Record<number, number | null>;
 	earlier?: RunRecord[];
-	abandoned?: boolean } = {}) => summarizeRun(journal(events, opts.c ?? 2), opts.findings ?? {}, opts.earlier ?? [], {
+	abandoned?: boolean } = {}) => summarizeRun(journal(events, opts.c ?? 2), {
+	...Object.fromEntries(events.filter((e) => e.kind === "pr-open" && e.pr !== undefined).map((e) => [e.pr!, 0])),
+	...opts.findings,
+}, opts.earlier ?? [], {
 	abandoned: opts.abandoned ?? false,
 });
 /** One item's whole life: start, its pull request, ready, merged. */
@@ -54,6 +61,169 @@ const life = (id: string, pr: number, start: number, ready: number, merged: numb
 /** A counted run at C = 2: four items, two at a time, all merged within the hour. */
 const countedRun = (extra: RunEvent[] = []) => [...life("S1", 1, 0, 20, 30), ...life("S2", 2, 5, 25, 35), ...life("S3", 3, 31, 40, 50), ...life("S4", 4, 36, 45, 55), ...extra]
 	.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+
+describe("prePrFindingsByPr (owner, 2026-11-26: \"Count pre-PR findings (Recommended)\")", () =>
+{
+	it("sums each item's findings events onto its pull request; a pull request whose item logged none is unknown (null), never 0", () =>
+	{
+		const events = [
+			...countedRun(),
+			item("findings", "S1", 15, {
+				count: 2,
+			}),
+			item("findings", "S1", 18, {
+				count: 1,
+			}),
+			item("findings", "S3", 38, {
+				count: 0,
+			}),
+		];
+		expect(prePrFindingsByPr(journal(events))).toEqual({
+			1: 3,
+			2: null,
+			3: 0,
+			4: null,
+		});
+		// Two of four unknown: the run is unmeasured, never an average of the two known.
+		const s = sum(events, {
+			findings: prePrFindingsByPr(journal(events)),
+		});
+		expect(s.findingsPerPr).toBeNull();
+		expect(s.unknownFindingsPrs).toBe(2);
+		expect(s.clean).toBe(false);
+	});
+
+	it("an item's findings go to its first pull request once (a later one of the same item is unknown), a pr-open logged twice is one pull request, and an item with no pull request in the run adds nothing", () =>
+	{
+		const events = [
+			item("pr-open", "S1", 1, {
+				pr: 7,
+			}),
+			item("findings", "S1", 2, {
+				count: 4,
+			}),
+			item("pr-open", "S1", 3, {
+				pr: 7,
+			}),
+			item("pr-open", "S1", 4, {
+				pr: 9,
+			}),
+			item("findings", "S5", 5, {
+				count: 6,
+			}),
+		];
+		expect(prePrFindingsByPr(journal(events))).toEqual({
+			7: 4,
+			9: null,
+		});
+	});
+
+	it("a pull request opened for an item an earlier run started (joined in step 0) has no findings here, and is left out of the measure: carried over, never unknown", () =>
+	{
+		const counts = ["S1", "S2", "S3", "S4"].map((id, i) => item("findings", id, 15, {
+			count: i === 0 ? 1 : 0,
+		}));
+		const events = [...countedRun(), ...counts, item("pr-open", "S90", 56, {
+			pr: 90,
+		})];
+		expect(prePrFindingsByPr(journal(events))[90]).toBeNull();
+		expect(sum(events, {
+			findings: prePrFindingsByPr(journal(events)),
+		})).toMatchObject({
+			prs: [1, 2, 3, 4, 90],
+			findingsPerPr: 0.25,
+			unknownFindingsPrs: 0,
+			carriedOverPrs: 1,
+			clean: true,
+		});
+	});
+
+	it("nine items this run started, all with counts, plus four carried-over pull requests: measured over the nine", () =>
+	{
+		const nine = Array.from({
+			length: 9,
+		}, (_, i) => `S${i + 1}`);
+		// Two at a time, five minutes apart, each merged ten minutes after it starts.
+		const events = [
+			...nine.flatMap((id, i) => [...life(id, i + 1, i * 5, i * 5 + 5, i * 5 + 10), item("findings", id, i * 5 + 4, {
+				count: i === 0 ? 9 : 0,
+			})]),
+			...[91, 92, 93, 94].map((pr, i) => item("pr-open", `S${pr}`, 60 + i, {
+				pr,
+			})),
+		].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+		const s = sum(events, {
+			findings: prePrFindingsByPr(journal(events)),
+		});
+		expect(s).toMatchObject({
+			itemsStarted: 9,
+			findingsPerPr: 1,
+			unknownFindingsPrs: 0,
+			carriedOverPrs: 4,
+			counted: true,
+			clean: true,
+		});
+		expect(s.prs).toHaveLength(13);
+		expect(renderRunEntry(s, {
+			date: "2026-11-21",
+			stamp: "20261121T000000Z",
+			head: "x",
+		})).toContain("| Carried-over pull requests (not measured) | 4 |");
+	});
+
+	it("one pull request known at 0 and twelve unknown: unmeasured, so it reads unknown, sets no bar and is not clean", () =>
+	{
+		// Thirteen items this run started, so none is carried over.
+		const thirteen = [...countedRun(), ...Array.from({
+			length: 9,
+		}, (_, i) => life(`S${10 + i}`, 10 + i, 56 + i * 2, 56 + i * 2, 57 + i * 2)).flat()].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+		const findings = prePrFindingsByPr(journal([...thirteen, item("findings", "S1", 15, {
+			count: 0,
+		})]));
+		expect(Object.values(findings).filter((n) => n === null)).toHaveLength(12);
+		const s = sum(thirteen, {
+			findings,
+		});
+		expect(s).toMatchObject({
+			counted: true,
+			findingsPerPr: null,
+			unknownFindingsPrs: 12,
+			clean: false,
+		});
+		// Recorded with a null figure, it can never become the bar for a later run that found something.
+		expect(sum(countedRun(), {
+			findings: {
+				1: 1,
+			},
+			earlier: [{
+				c: 2,
+				counted: true,
+				clean: false,
+				findingsPerPr: s.findingsPerPr,
+			}],
+		}).clean).toBe(true);
+	});
+
+	it("a run whose findings are all unknown has no findings figure, sets no bar and is not clean, even with no bar yet; its entry says unknown", () =>
+	{
+		const s = sum(countedRun(), {
+			findings: prePrFindingsByPr(journal(countedRun())),
+		});
+		expect(s).toMatchObject({
+			counted: true,
+			findingsPerPr: null,
+			unknownFindingsPrs: 4,
+			clean: false,
+		});
+		const text = renderRunEntry(s, {
+			date: "2026-11-21",
+			stamp: "20261121T000000Z",
+			head: "x",
+		});
+		expect(text).toContain("| Findings per pull request | unknown |");
+		expect(text).toContain("| Pull requests with unknown findings | 4 |");
+	});
+});
 
 describe("summarizeRun", () =>
 {

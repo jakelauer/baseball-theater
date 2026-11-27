@@ -28,9 +28,9 @@
 #   scripts/audit.sh run --journal <main checkout>/.run/ended/<id>.json   # re-record an ended run
 #
 # A run entry (S158) records a /run-backlog run: runs.ts summarizes the main checkout's .run/run.json
-# (found through git's common dir, so it works the same from a worktree), counting the inline comments
-# on each opened pull request's "Claude review of" reviews (gh api, REST; a failed read exits 2 and
-# records nothing), and the entry is read back through ledger.ts to set the next run's concurrency
+# (found through git's common dir, so it works the same from a worktree), its findings per pull request
+# from the journal's `findings` events (each item's pre-PR review findings; owner, 2026-11-26: "Count
+# pre-PR findings (Recommended)"; no GitHub read), and the entry is read back through ledger.ts to set the next run's concurrency
 # (`runs.ts concurrency`). The journal then moves to .run/ended/<run id>.json (`claims.ts run end`,
 # under the claims lock), kept so review-debt.sh still sees its turn-cap hits until the entry reaches
 # stage. It refuses (exit 1, nothing written; `runs.ts check-end`) a run already recorded, a run with
@@ -726,40 +726,19 @@ if [ "$MODE" = "run" ]; then
   [ -f "$JOURNAL" ] || { echo "audit: no run is open (${JOURNAL} is missing)" >&2; exit 2; }
   RUNS=(node scripts/backlog-vault/runs.ts --audit "$LEDGER")
   RUN_ID="$("${RUNS[@]}" id --journal "$JOURNAL")" || exit 2
-  # What would make the entry untrue refuses before any GitHub call (runs.ts check-end prints each reason).
+  # What would make the entry untrue refuses before anything is written (runs.ts check-end prints each reason).
   "${RUNS[@]}" check-end --journal "$JOURNAL" --run-dir "${main_checkout}/.run" ${ABANDONED[@]+"${ABANDONED[@]}"} ${MODE_FLAGS[@]+"${MODE_FLAGS[@]}"}
   case $? in
     0) ;;
     1) echo "audit: run ${RUN_ID} not recorded" >&2; exit 1 ;;
     *) exit 2 ;;
   esac
-  PRS="$("${RUNS[@]}" prs --journal "$JOURNAL")" || { echo "audit: could not read run ${RUN_ID}'s pull requests" >&2; exit 2; }
-  # The Claude-review findings on each pull request the run opened: inline comments on its reviews whose
-  # body starts "Claude review of" (docs/v3/LOOP.md §9, "Claude's review is handled before a pull request merges").
-  # A failed read exits 2: counted as 0, it would lower the bar for every later run (runs.ts).
-  FINDINGS_FILE="$(mktemp)"
-  {
-    printf '{'
-    sep=""
-    for pr in $PRS; do
-      count=0
-      reviews="$(gh api "repos/{owner}/{repo}/pulls/${pr}/reviews" --paginate --jq '.[] | select(.body | startswith("Claude review of")) | .id')" ||
-        { echo "audit: could not read pull request #${pr}'s reviews" >&2; rm -f "$FINDINGS_FILE"; exit 2; }
-      for rid in $reviews; do
-        comments="$(gh api "repos/{owner}/{repo}/pulls/${pr}/reviews/${rid}/comments" --paginate --jq '.[].id')" ||
-          { echo "audit: could not read review ${rid}'s comments on pull request #${pr}" >&2; rm -f "$FINDINGS_FILE"; exit 2; }
-        n="$(grep -c . <<<"$comments" || true)"
-        count=$((count + n))
-      done
-      printf '%s"%s":%s' "$sep" "$pr" "$count"
-      sep=","
-    done
-    printf '}\n'
-  } >"$FINDINGS_FILE"
   new_fragment "$RUN_ID" run || exit 2
-  "${RUNS[@]}" fragment --journal "$JOURNAL" --findings "$FINDINGS_FILE" --date "$TODAY" --stamp "$STAMP" \
-    --head "\`${HEAD_SHA}\` (tree ${TREE})" ${ABANDONED[@]+"${ABANDONED[@]}"} >"$FRAG_TMP" || { rm -f "$FINDINGS_FILE"; exit 2; }
-  rm -f "$FINDINGS_FILE"
+  # Findings per pull request come from the journal's `findings` events (runs.ts prePrFindingsByPr): the real
+  # findings each item's pre-PR review found (owner, 2026-11-26, asked what should replace the retired Claude
+  # review's findings: "Count pre-PR findings (Recommended)").
+  "${RUNS[@]}" fragment --journal "$JOURNAL" --date "$TODAY" --stamp "$STAMP" \
+    --head "\`${HEAD_SHA}\` (tree ${TREE})" ${ABANDONED[@]+"${ABANDONED[@]}"} >"$FRAG_TMP" || exit 2
   finish_fragment || exit 2
   if [ -n "$REJOURNAL" ]; then
     echo "audit run: re-recorded run ${RUN_ID}'s entry in ${FRAG} from ${JOURNAL}"

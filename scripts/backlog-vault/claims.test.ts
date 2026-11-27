@@ -381,13 +381,13 @@ describe("CLI in a temp root", () =>
 		expect(j.events.map((e) => e.kind)).toEqual(["item-start", "run-resume"]);
 	});
 
-	const itemKinds = ["item-start", "needs-lead", "park", "resume", "held", "pr-open", "ready", "merged", "conflict", "duplicate", "turn-cap"];
+	const itemKinds = ["item-start", "needs-lead", "park", "resume", "held", "pr-open", "ready", "merged", "conflict", "duplicate", "turn-cap", "findings"];
 	it.each([...itemKinds, "gate-open", "gate-close", "interrupted"])("run event %s is appended", (kind) =>
 	{
 		started();
 		const item = itemKinds.includes(kind);
 		const args = ["run", "event", kind, ...(item ? ["S3"] : []), ...(kind === "pr-open" ? ["--pr", "42"] : []), ...(kind === "conflict" ? ["--path", "docs/x.md"] : []),
-			...(kind === "item-start" ? ["--barrier"] : [])];
+			...(kind === "item-start" ? ["--barrier"] : []), ...(kind === "findings" ? ["--count", "3"] : [])];
 		expect(cli(args).status).toBe(0);
 		const [event] = journal().events;
 		expect(event).toMatchObject({
@@ -404,8 +404,29 @@ describe("CLI in a temp root", () =>
 			...(kind === "item-start" ? {
 				barrier: true,
 			} : {}),
+			...(kind === "findings" ? {
+				count: 3,
+			} : {}),
 		});
 		expect(Number.isNaN(Date.parse(event!.at))).toBe(false);
+	});
+
+	it("run event findings needs --count, a whole number of the pre-PR review's real findings (0 allowed), and no other kind takes it", () =>
+	{
+		started();
+		expect(cli(["run", "event", "findings", "S1"]).status).toBe(1);
+		expect(cli(["run", "event", "findings", "S1", "--count", "-1"]).status).toBe(1);
+		expect(cli(["run", "event", "findings", "S1", "--count", "1.5"]).status).toBe(1);
+		expect(cli(["run", "event", "findings", "S1", "--count", "x"]).status).toBe(1);
+		expect(cli(["run", "event", "pr-open", "S1", "--pr", "3", "--count", "2"]).status).toBe(1);
+		expect(cli(["run", "event", "review-start", "--review", "backlog", "--base", "abc1234", "--count", "2"]).status).toBe(1);
+		expect(journal().events).toEqual([]);
+		expect(cli(["run", "event", "findings", "S1", "--count", "0"]).status).toBe(0);
+		expect(journal().events).toMatchObject([{
+			kind: "findings",
+			id: "S1",
+			count: 0,
+		}]);
 	});
 
 	it("run event refuses an unknown kind", () =>

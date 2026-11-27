@@ -45,7 +45,7 @@ function git(cwd: string, ...args: string[]): string
 	return r.stdout.trim();
 }
 
-/** A repository with audit.sh and the vault scripts, and a `gh` answering two pull requests' Claude reviews. */
+/** A repository with audit.sh and the vault scripts, and a `gh` that fails and records being called. */
 function setup(): string
 {
 	git(repo, "init", "-q", "-b", "stage");
@@ -67,20 +67,9 @@ function setup(): string
 	git(repo, "commit", "-q", "-m", "base");
 	const bin = join(tmp, "bin");
 	mkdirSync(bin);
-	// #7 has two Claude reviews (2 and 1 inline comments) and another review; #8 has none.
-	writeFileSync(join(bin, "gh"), [
-		"#!/bin/sh",
-		"case \"$2\" in",
-		"  */pulls/7/reviews) echo 101; echo 102 ;;",
-		"  */reviews/101/comments) echo c1; echo c2 ;;",
-		"  */reviews/102/comments) echo c3 ;;",
-		"  */pulls/8/reviews) ;;",
-		// #9's one Claude review answers, but reading its comments fails (a 502, a rate limit).
-		"  */pulls/9/reviews) echo 103 ;;",
-		"  *) exit 1 ;;",
-		"esac",
-		"",
-	].join("\n"));
+	// Findings per pull request come from the journal's `findings` events (the pre-PR review's real findings), never
+	// GitHub: this `gh` leaves a mark and fails, so any call shows (owner, 2026-11-26: "Count pre-PR findings (Recommended)").
+	writeFileSync(join(bin, "gh"), ["#!/bin/sh", `echo "$*" >> "${join(tmp, "gh-called")}"`, "exit 1", ""].join("\n"));
 	chmodSync(join(bin, "gh"), 0o755);
 	return bin;
 }
@@ -88,6 +77,7 @@ function setup(): string
 type Ev = { kind: string;
 	id?: string;
 	pr?: number;
+	count?: number;
 	review?: string;
 	base?: string;
 	at: string };
@@ -135,6 +125,22 @@ function journal(root: string, id = RUN, extra: Ev[] = [], path = ".run/run.json
 			kind: "item-start",
 			id: "S9",
 			at: "2026-11-21T09:01:00.000Z",
+		}, {
+			// S9's pre-PR review: two rounds, 2 and 1 real findings; S10's found none (#7: 3, #8: 0).
+			kind: "findings",
+			id: "S9",
+			count: 2,
+			at: "2026-11-21T09:20:00.000Z",
+		}, {
+			kind: "findings",
+			id: "S9",
+			count: 1,
+			at: "2026-11-21T09:25:00.000Z",
+		}, {
+			kind: "findings",
+			id: "S10",
+			count: 0,
+			at: "2026-11-21T09:35:00.000Z",
 		}, {
 			kind: "pr-open",
 			id: "S9",
@@ -187,13 +193,15 @@ describe("audit.sh run (S158 AC 4)", () =>
 		expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
 		expect(existsSync(join(repo, ".run/run.json"))).toBe(false);
 		const ended = JSON.parse(readFileSync(join(repo, `.run/ended/${RUN}.json`), "utf8")) as { events: unknown[] };
-		expect(ended.events).toHaveLength(6 + END_STARTS.length);
+		// #8 is S10's, an item this run never started (carried over), so only #7 is measured: 3 findings.
+		expect(ended.events).toHaveLength(9 + END_STARTS.length);
+		expect(existsSync(join(tmp, "gh-called")), "audit.sh run asked GitHub for findings").toBe(false);
 		const [entry] = runEntries(repo);
 		expect(entry).toMatchObject({
 			run: RUN,
 			runC: 2,
 			counted: false,
-			findingsPerPr: 1.5,
+			findingsPerPr: 3,
 			turnCaps: [{
 				id: "S9",
 				at: A,
@@ -323,20 +331,50 @@ describe("audit.sh run refuses what it can't record truly", () =>
 	const OLD = "R20261120T090000Z";
 	const fragments = () => runEntries(repo).map((e) => e.run);
 
-	it("audit.sh run exits 2 when a review's comments can't be read, and records nothing", () =>
+	it("audit.sh run counts a pull request with no findings event as unknown, not 0, says how many, and asks GitHub nothing", () =>
 	{
 		const bin = setup();
 		journal(repo, RUN, [{
+			kind: "item-start",
+			id: "S11",
+			at: "2026-11-21T11:35:00.000Z",
+		}, {
 			kind: "pr-open",
-			id: "S9",
+			id: "S11",
 			pr: 9,
 			at: "2026-11-21T11:40:00.000Z",
+		}, {
+			kind: "merged",
+			id: "S11",
+			at: "2026-11-21T11:41:00.000Z",
 		}]);
 		const r = audit(bin, repo, ["run"]);
-		expect(r.status, `${r.stdout}${r.stderr}`).toBe(2);
-		expect(existsSync(join(repo, ".run/run.json"))).toBe(true);
-		expect(existsSync(join(repo, ".run/ended"))).toBe(false);
-		expect(fragments()).toEqual([]);
+		expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+		expect(existsSync(join(tmp, "gh-called"))).toBe(false);
+		expect(r.stderr).toContain("1 of 2 pull requests for items this run started have no recorded pre-PR findings (#9)");
+		expect(r.stderr).toContain("1 pull request carried over from an earlier run (#8)");
+		// Any unknown pull request leaves the run unmeasured: no figure, never an average of the known two.
+		const [entry] = runEntries(repo);
+		expect(entry!.findingsPerPr).toBeNull();
+		const text = readFileSync(join(repo, "docs/v3", entry!.file!), "utf8");
+		expect(text).toContain("| Findings per pull request | unknown |");
+		expect(text).toContain("| Pull requests with unknown findings | 1 |");
+	});
+
+	it("audit.sh run records a run with no findings events as unknown, which the ledger reads back as no figure", () =>
+	{
+		const bin = setup();
+		const path = join(repo, ".run/run.json");
+		journal(repo);
+		const j = JSON.parse(readFileSync(path, "utf8")) as { events: Ev[] };
+		j.events = j.events.filter((e) => e.kind !== "findings");
+		writeFileSync(path, JSON.stringify(j));
+		const r = audit(bin, repo, ["run"]);
+		expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+		expect(r.stderr).toContain("1 of 1 pull requests for items this run started have no recorded pre-PR findings (#7)");
+		const [entry] = runEntries(repo);
+		expect(entry!.findingsPerPr).toBeNull();
+		expect(readFileSync(join(repo, "docs/v3", entry!.file!), "utf8")).toContain("| Findings per pull request | unknown |");
 	});
 
 	it("audit.sh run refuses while an ended run has no entry in the tree, naming --journal", () =>
