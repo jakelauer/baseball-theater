@@ -66,6 +66,7 @@ describe("personal data registry", () =>
 			collapseNonFavorites: false,
 			hideScores: false,
 			videoPlayer: "dialog" as const,
+			statsProvider: "mlb" as const,
 			version: 1,
 		};
 		await settings.upsert("uid-1", doc);

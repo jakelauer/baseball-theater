@@ -3,7 +3,7 @@ import type {
 	MeDownloadFileResponse, MeDownloadResponse, MeResponse, ScheduleDayResponse, ScheduleMonthResponse, ScheduleMonthVersionsResponse, SettingsResponse,
 	TierOverrideResponse, TierOverrideSetResponse,
 	DayDigestResponse, StandingsResponse,
-	ReleasesResponse, ScoreboardDefaultDateResponse, SearchHighlightsResponse, SignInConfigResponse, SignInResponse, StandingsPhaseAnswer, StandingsPhases,
+	PlayerProfilesResponse, ReleasesResponse, ScoreboardDefaultDateResponse, SearchHighlightsResponse, SignInConfigResponse, SignInResponse, StandingsPhaseAnswer, StandingsPhases,
 } from "@bt/domain";
 import {
 	describe, expect, it,
@@ -54,6 +54,7 @@ const fidelity = {
 	"GET /api/v1/sign-in": true as MutuallyAssignable<Json200<"/api/v1/sign-in">, SignInConfigResponse>,
 	"POST /api/v1/sign-in": true as MutuallyAssignable<Json200<"/api/v1/sign-in", "post">, SignInResponse>,
 	"GET /api/v1/releases": true as MutuallyAssignable<Json200<"/api/v1/releases">, ReleasesResponse>,
+	"GET /api/v1/players/:personId/profiles": true as MutuallyAssignable<Json200<"/api/v1/players/{personId}/profiles">, PlayerProfilesResponse>,
 } satisfies Record<ApiRoute, true>;
 
 /** Every route that takes a body, paired with its generated request type the same way. */
@@ -76,7 +77,7 @@ const componentFidelity = {
 	ProbablePitcher: true as MutuallyAssignable<components["schemas"]["ProbablePitcher"], ProbablePitcher>,
 } satisfies Record<string, true>;
 
-type SpecPathsCovered = MutuallyAssignable<keyof paths, "/api/v1/games/{gamePk}" | "/api/v1/schedule" | "/api/v1/schedule/month/{month}" | "/api/v1/schedule/month-versions/{year}" | "/api/v1/digest" | "/api/v1/search/highlights" | "/api/v1/standings" | "/api/v1/scoreboard/default-date" | "/api/v1/me" | "/api/v1/me/download" | "/api/v1/me/download/{downloadId}" | "/api/v1/me/delete" | "/api/v1/me/settings" | "/api/v1/me/tier-override" | "/api/v1/sign-in" | "/api/v1/releases">;
+type SpecPathsCovered = MutuallyAssignable<keyof paths, "/api/v1/games/{gamePk}" | "/api/v1/schedule" | "/api/v1/schedule/month/{month}" | "/api/v1/schedule/month-versions/{year}" | "/api/v1/digest" | "/api/v1/search/highlights" | "/api/v1/standings" | "/api/v1/scoreboard/default-date" | "/api/v1/me" | "/api/v1/me/download" | "/api/v1/me/download/{downloadId}" | "/api/v1/me/delete" | "/api/v1/me/settings" | "/api/v1/me/tier-override" | "/api/v1/sign-in" | "/api/v1/releases" | "/api/v1/players/{personId}/profiles">;
 const specPathsCovered: SpecPathsCovered = true;
 
 /**
@@ -91,7 +92,7 @@ describe("generated response types — spec fidelity", () =>
 {
 	it("pairs every S26 route with its generated type (checked by tsc)", () =>
 	{
-		expect(Object.keys(fidelity).sort()).toEqual(["GET /api/v1/digest", "GET /api/v1/games/:gamePk", "GET /api/v1/me", "GET /api/v1/me/download", "GET /api/v1/me/download/:downloadId", "GET /api/v1/me/settings", "GET /api/v1/me/tier-override", "GET /api/v1/releases", "GET /api/v1/schedule", "GET /api/v1/schedule/month-versions/:year", "GET /api/v1/schedule/month/:month", "GET /api/v1/scoreboard/default-date", "GET /api/v1/search/highlights", "GET /api/v1/sign-in", "GET /api/v1/standings", "POST /api/v1/me/delete", "POST /api/v1/me/download", "POST /api/v1/sign-in", "PUT /api/v1/me/settings", "PUT /api/v1/me/tier-override"]);
+		expect(Object.keys(fidelity).sort()).toEqual(["GET /api/v1/digest", "GET /api/v1/games/:gamePk", "GET /api/v1/me", "GET /api/v1/me/download", "GET /api/v1/me/download/:downloadId", "GET /api/v1/me/settings", "GET /api/v1/me/tier-override", "GET /api/v1/players/:personId/profiles", "GET /api/v1/releases", "GET /api/v1/schedule", "GET /api/v1/schedule/month-versions/:year", "GET /api/v1/schedule/month/:month", "GET /api/v1/scoreboard/default-date", "GET /api/v1/search/highlights", "GET /api/v1/sign-in", "GET /api/v1/standings", "POST /api/v1/me/delete", "POST /api/v1/me/download", "POST /api/v1/sign-in", "PUT /api/v1/me/settings", "PUT /api/v1/me/tier-override"]);
 		expect(Object.keys(requestFidelity)).toEqual(["POST /api/v1/me/delete", "PUT /api/v1/me/settings", "POST /api/v1/sign-in", "PUT /api/v1/me/tier-override"]);
 		expect([specPathsCovered, wrongPairing]).toEqual([true, true]);
 		expect(Object.keys(componentFidelity)).toEqual(["StandingsPhases", "StandingsPhaseAnswer", "ProbablePitcher"]);

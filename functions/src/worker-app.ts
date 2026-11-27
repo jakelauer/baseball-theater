@@ -22,6 +22,7 @@ import { createBundledFixtureClient } from "./adapters/fixtures/bundled.js";
 import { LogtoIdentityAdmin, LogtoManagementApi } from "./adapters/logto/admin.js";
 import { LogtoIdentityProvider } from "./adapters/logto/identity.js";
 import { MockIdentityProvider } from "./adapters/mock/identity.js";
+import { ChadwickPlayerRegister } from "./adapters/http/chadwick-register.js";
 import { HttpMlbStatsClient } from "./adapters/http/mlb.js";
 import type { MlbOverlaySource } from "./adapters/overlay-mlb.js";
 import { overlayMlbClient, storeOverlay } from "./adapters/overlay-mlb.js";
@@ -34,6 +35,7 @@ import {
 	PostgresGameRepository,
 	PostgresScheduleRepository,
 	PostgresOwedEdgePurgeRepository,
+	PostgresPlayerIdRepository,
 	PostgresSettingsRepository,
 	PostgresUserRepository,
 } from "./adapters/postgres/repos.js";
@@ -201,6 +203,12 @@ export function createWorkerApp(env: WorkerEnv, db: PostgresDb, options: WorkerA
 		// One coordinator per isolate: stale out-of-window reads refresh single-flighted.
 		refresh: new RefreshCoordinator(),
 		edgePurge: edgePurgeFor(env, options.fetch, new PostgresOwedEdgePurgeRepository(db)),
+		// S209: the players seen and their outside ids; the register is read only with live MLB data, so local fixture
+		// runs and tests never fetch it (their players stay unchecked and link to MLB.com).
+		playerIds: new PostgresPlayerIdRepository(db),
+		...env.BT_USE_LIVE_MLB === "1" && {
+			playerRegister: new ChadwickPlayerRegister(options.fetch ? (input, init) => options.fetch!(String(input), init) : undefined),
+		},
 		...options.background && {
 			background: options.background,
 		},

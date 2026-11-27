@@ -15,7 +15,7 @@
  * survives sign-out. It is left out of `bt.settings` and of `resetSettings`.
  */
 import type {
-	AccountSettings, GameRowSlot, OpensFirst, VideoPlayerMode,
+	AccountSettings, GameRowSlot, OpensFirst, StatsProvider, VideoPlayerMode,
 } from "@bt/domain";
 import { applyIfNewer, DEFAULT_SETTINGS } from "@bt/domain";
 import { create } from "zustand";
@@ -140,6 +140,18 @@ export function setVideoPlayer(mode: VideoPlayerMode): Promise<void>
 {
 	return save({
 		videoPlayer: mode,
+	});
+}
+
+/**
+ * The stats site a player's name opens (S209). Saved as chosen; links read it through
+ * `effectiveStatsProvider`, so only a patron's choice takes effect, and the server refuses a
+ * change away from MLB.com for an account without a patron tier.
+ */
+export function setStatsProvider(provider: StatsProvider): Promise<void>
+{
+	return save({
+		statsProvider: provider,
 	});
 }
 

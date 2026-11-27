@@ -28,6 +28,8 @@ export function entitlementsForTier(tier: PatronTier): Entitlements
 		fasterLiveRefresh: rank >= TIER_RANK.Backer,
 		cloudSyncedSettings: rank >= TIER_RANK.Backer,
 		savantLinks: rank >= TIER_RANK["Pro Backer"],
+		// S209 AC 9: any active pledge unlocks every other stats site, Savant included (not held to `savantLinks`).
+		statsProviderChoice: rank >= TIER_RANK.Backer,
 	};
 }
 

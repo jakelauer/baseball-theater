@@ -347,6 +347,11 @@ const personSchema = z.object({
 	strikeZoneTop: z.number().optional(),
 	strikeZoneBottom: z.number().optional(),
 	stats: z.array(personStatSplitSchema).optional(),
+	xrefIds: z.array(z.object({
+		xrefId: z.string().optional(),
+		xrefType: z.string().optional(),
+		season: z.string().optional(),
+	})).optional(),
 });
 
 const hotColdZoneSchema = z.object({

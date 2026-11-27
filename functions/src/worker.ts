@@ -7,7 +7,8 @@
  * own the ADR-002 cadence, refreshes at most one due schedule month of the fill window
  * (S194, `refreshDueScheduleMonth`), so every month is checked against MLB about every six
  * hours with no second cron expression, and re-checks at most one recently finished game's full
- * detail (S212, `recheckDueGame`). Composition lives in `worker-app.ts`.
+ * detail (S212, `recheckDueGame`), and resolves and seeds a capped batch of players' outside ids (S209,
+ * `runPlayerIdJobs`). Composition lives in `worker-app.ts`.
  */
 import { DeferredWorkQueue, withDeferredWork } from "./adapters/background-work.js";
 import { inDatabaseScope } from "./adapters/postgres/connect.js";
@@ -16,6 +17,7 @@ import { handleApiRequest } from "./handlers/api.js";
 import { ensureIngestRunning } from "./services/game-ingest.js";
 import { retryOwedEdgePurges } from "./services/edge-purge.js";
 import { recheckDueGame } from "./services/game-recheck.js";
+import { runPlayerIdJobs } from "./services/player-ids.js";
 import { refreshDueScheduleMonth } from "./services/schedule-refresh.js";
 import { tickAllowed, workerApp } from "./worker-app.js";
 import type { WorkerEnv } from "./worker-app.js";
@@ -47,7 +49,8 @@ export default {
 	 * refreshes at most one due schedule month (S194, `refreshDueScheduleMonth`), which needs no
 	 * binding but the database, and re-checks at most one due recently finished game (S212,
 	 * `recheckDueGame`), whose writes purge the edge copy of what they change, and retries the purges a failure left owed
-	 * (S212 review, `retryOwedEdgePurges`; one database read a tick, and only with purge credentials). Each runs in its own
+	 * (S212 review, `retryOwedEdgePurges`; one database read a tick, and only with purge credentials), and runs the
+	 * player-id job (S209, `runPlayerIdJobs`: at most one register read a tick, none when no player is due). Each runs in its own
 	 * `waitUntil` and its own database scope, so one that rejects (and is logged by the runtime)
 	 * doesn't stop the others. A preview's
 	 * `crons: []` (`wrangler.jsonc`) means previews never run either.
@@ -83,5 +86,20 @@ export default {
 			kind: "cron",
 			job: "edge-purge-retry",
 		}));
+		// S209 AC 3: the capped resolve step, then one seeding page, in a scope of their own so their database waits show
+		// in their own round-trip line.
+		const playerIds = app.ingest.playerIds;
+		if (playerIds)
+		{
+			ctx.waitUntil(inDatabaseScope(env.HYPERDRIVE, () => runPlayerIdJobs({
+				playerIds,
+				...app.ingest.playerRegister && {
+					register: app.ingest.playerRegister,
+				},
+			}), undefined, undefined, {
+				kind: "cron",
+				job: "player-ids",
+			}));
+		}
 	},
 };

@@ -26,7 +26,7 @@ import { jsonResponse } from "../test/jsonResponse.js";
 import { DEV_ACCOUNT } from "../test/meApi.js";
 import { SettingsSync } from "./SettingsSync.js";
 import {
-	hydrateSettings, resetSettings, setCollapseNonFavorites, setFavoriteTeams, setGameRowSlot, setHideScores, setOpensFirst, setVideoPlayer, setVideoQuality,
+	hydrateSettings, resetSettings, setCollapseNonFavorites, setFavoriteTeams, setGameRowSlot, setHideScores, setOpensFirst, setStatsProvider, setVideoPlayer, setVideoQuality,
 	useSettings, useVideoQuality,
 } from "./store.js";
 
@@ -86,6 +86,7 @@ describe("settings store", () =>
 		await act(() => setCollapseNonFavorites(true));
 		await act(() => setHideScores(true));
 		await act(() => setVideoPlayer("stage"));
+		await act(() => setStatsProvider("bbref"));
 		expect(result.current).toEqual({
 			favoriteTeamIds: [147, 111],
 			opensFirst: "box",
@@ -93,9 +94,10 @@ describe("settings store", () =>
 			collapseNonFavorites: true,
 			hideScores: true,
 			videoPlayer: "stage",
-			version: 6,
+			statsProvider: "bbref",
+			version: 7,
 		});
-		expect(api.puts.map((p) => p.version)).toEqual([1, 2, 3, 4, 5, 6]);
+		expect(api.puts.map((p) => p.version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
 		expect(api.stored()).toEqual(result.current);
 	});
 
@@ -118,6 +120,7 @@ describe("settings store", () =>
 			collapseNonFavorites: false,
 			hideScores: false,
 			videoPlayer: "dialog" as const,
+			statsProvider: "mlb" as const,
 			version: 4,
 		};
 		stubAccountApi(saved);
@@ -224,6 +227,7 @@ describe("settings store", () =>
 			collapseNonFavorites: false,
 			hideScores: false,
 			videoPlayer: "dialog" as const,
+			statsProvider: "mlb" as const,
 			version: 9,
 		});
 		await hydrateSettings("test-user");

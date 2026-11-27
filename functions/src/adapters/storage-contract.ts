@@ -225,6 +225,7 @@ export function describeStorageContract(prefix: string, stores: StoreFactories):
 				collapseNonFavorites: false,
 				hideScores: false,
 				videoPlayer: "dialog",
+				statsProvider: "mlb",
 				version,
 			},
 		}),
@@ -266,6 +267,7 @@ export function describeStorageContract(prefix: string, stores: StoreFactories):
 			collapseNonFavorites: false,
 			hideScores: false,
 			videoPlayer: "dialog",
+			statsProvider: "mlb",
 			version: 1,
 		})),
 	});

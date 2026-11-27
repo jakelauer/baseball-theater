@@ -1,9 +1,11 @@
 import type {
+	StatsProvider,
 	ApiErrorResponse, ApiResponseFor, ApiRoute, ApiVersionTable, CacheLifetimeStep, MeDeleteRequest, PatronTier, ReleaseNotes, SeasonPhaseName, TierOverrideResponse, UserProfile,
 } from "@bt/domain";
 import type { SettingsRepository } from "@bt/ports";
 import {
-	API_VERSIONS, DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
+	API_VERSIONS, DEFAULT_SETTINGS, entitlementsForTier, playerProfileUrl, SEARCH_QUERY_MAX_LENGTH, STATS_PROVIDERS,
+	SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
 	isCalendarMonth, isPastFinishedGame, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
 	isPatronTier, mlbDayEndsAt, mlbToday, parseAccountSettings, parseSearchFilters, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
@@ -32,7 +34,8 @@ import { getStandings, standingsNothingYet } from "../services/standings.js";
 import type { IngestDeps } from "../services/ingest.js";
 import { getOrRefreshGame, getScheduleRead } from "../services/ingest.js";
 import {
-	edgeCacheControl, PARTIAL_PAST_DIGEST_CACHE_CONTROL, PAST_CACHE_CONTROL, RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, versionedMonthCacheControl,
+	edgeCacheControl, PARTIAL_PAST_DIGEST_CACHE_CONTROL, PAST_CACHE_CONTROL, PLAYER_PROFILES_CHECKED_CACHE_CONTROL, PLAYER_PROFILES_PENDING_CACHE_CONTROL,
+	RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, versionedMonthCacheControl,
 } from "./cache-control.js";
 import { liveDayUpgrade, liveUpgrade } from "./live.js";
 
@@ -573,6 +576,35 @@ export const API_ROUTER: readonly RouteEntry[] = [
 		},
 	},
 	{
+		route: "GET /api/v1/players/:personId/profiles",
+		params: {
+			personId: /^\d+$/,
+		},
+		handle: async (_url, params, ctx) =>
+		{
+			// S209 AC 3: read from the player-id table only; the cron's resolve step fills it, never this request.
+			const row = await ctx.ingest.playerIds?.get(Number(params.personId)) ?? null;
+			if (!row)
+			{
+				const missing = notFound();
+				missing.headers.set("Cache-Control", PLAYER_PROFILES_PENDING_CACHE_CONTROL);
+				return missing;
+			}
+			const ids = {
+				mlbam: row.personId,
+				fangraphs: row.fangraphsId,
+				bbref: row.bbrefId,
+			};
+			const response = sendJson(200, "GET /api/v1/players/:personId/profiles", {
+				ids,
+				profiles: Object.fromEntries(STATS_PROVIDERS.map((provider) => [provider, playerProfileUrl(provider, ids)])) as Record<StatsProvider, string | null>,
+				checked: row.checkedAt !== null,
+			});
+			response.headers.set("Cache-Control", row.checkedAt === null ? PLAYER_PROFILES_PENDING_CACHE_CONTROL : PLAYER_PROFILES_CHECKED_CACHE_CONTROL);
+			return response;
+		},
+	},
+	{
 		route: "GET /api/v1/releases",
 		handle: async (_url, _params, ctx) =>
 		{
@@ -775,7 +807,21 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			{
 				return sendError(400, {
 					error: "invalid_settings",
-					hint: "{ favoriteTeamIds, opensFirst, gameRowSlot?, collapseNonFavorites?, hideScores?, videoPlayer?, version }",
+					hint: "{ favoriteTeamIds, opensFirst, gameRowSlot?, collapseNonFavorites?, hideScores?, videoPlayer?, statsProvider?, version }",
+				});
+			}
+			// S209 AC 9: a stats site other than MLB.com is a patron's choice. The route takes the whole document, so only a
+			// change of it is refused: a lapsed patron's stored choice saves unchanged with any other edit. Decided from the
+			// account's tier (`getByUid`, with staging's override as /me applies it) through `entitlementsForTier`, never
+			// from the session token's copy, which a token signed before S209 lacks.
+			const stored = await ctx.settings.get(account.session.uid);
+			const changedProvider = settings.statsProvider !== (stored ?? DEFAULT_SETTINGS).statsProvider;
+			const tier = (await accountEntitlements(ctx.auth, account.user)).tier;
+			if (changedProvider && settings.statsProvider !== "mlb" && !entitlementsForTier(tier).statsProviderChoice)
+			{
+				return sendError(400, {
+					error: "invalid_settings",
+					hint: "statsProvider other than \"mlb\" needs a patron tier (Backer and up)",
 				});
 			}
 			// Apply-if-newer (ADR-022): an older version is ignored, and the answer is what is stored.

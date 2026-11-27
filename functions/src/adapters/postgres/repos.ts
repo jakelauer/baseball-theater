@@ -16,7 +16,8 @@ import type {
 	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, GAME_RECHECK_CLAIM_LEASE_MS, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
+	dayRegularSeason, dayRegularSeasonTeamIds, distinctTeamIds, entitlementsForTier, GAME_RECHECK_CLAIM_LEASE_MS,
+	SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, storedGameType,
 } from "@bt/domain";
 import type {
 	DeletionLog,
@@ -26,8 +27,11 @@ import type {
 	GameStateRepository,
 	OwedEdgePurge,
 	OwedEdgePurgeRepository,
+	PlayerIdRepository,
+	PlayerIdRow,
 	ReplayArtifact,
 	ReplayArtifactRepository,
+	ResolvedPlayerIds,
 	ScheduleRepository,
 	SettingsRepository,
 	UserDataExport,
@@ -39,8 +43,8 @@ import {
 import type { SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
-	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, replayArtifacts, scheduleDays, scheduleMonths,
-	tierOverrides, users,
+	accountSettings, deletionLog, entitlements, gameProjections, gameRechecks, games, gameStates, identityLinks, owedEdgePurges, playerIds, replayArtifacts,
+	scheduleDays, scheduleMonths, tierOverrides, users,
 } from "./schema.js";
 
 /** Any Drizzle Postgres database: PGlite in tests, node-postgres behind Hyperdrive in the Worker (S51). */
@@ -746,6 +750,9 @@ export class PostgresUserRepository implements UserRepository
 				fasterLiveRefresh: granted.fasterLiveRefresh,
 				cloudSyncedSettings: granted.cloudSyncedSettings,
 				savantLinks: granted.savantLinks,
+				// S209 AC 9: derived from the stored tier, never a column, so a row stored before S209 reads it and a
+				// deploy's migrate-before-Worker gap or a rollback can't leave it out of step with the tier.
+				statsProviderChoice: entitlementsForTier(granted.tier as PatronTier).statsProviderChoice,
 			},
 			createdAt: user.createdAt,
 			updatedAt: user.updatedAt,
@@ -886,6 +893,7 @@ export class PostgresSettingsRepository implements SettingsRepository
 			collapseNonFavorites: row.collapseNonFavorites,
 			hideScores: row.hideScores,
 			videoPlayer: row.videoPlayer,
+			statsProvider: row.statsProvider,
 			version: row.version,
 		};
 	}
@@ -900,6 +908,7 @@ export class PostgresSettingsRepository implements SettingsRepository
 			collapseNonFavorites: settings.collapseNonFavorites,
 			hideScores: settings.hideScores,
 			videoPlayer: settings.videoPlayer,
+			statsProvider: settings.statsProvider,
 			version: settings.version,
 		};
 		await this.db.insert(accountSettings).values(row).onConflictDoUpdate({
@@ -911,6 +920,7 @@ export class PostgresSettingsRepository implements SettingsRepository
 				collapseNonFavorites: sql`excluded.collapse_non_favorites`,
 				hideScores: sql`excluded.hide_scores`,
 				videoPlayer: sql`excluded.video_player`,
+				statsProvider: sql`excluded.stats_provider`,
 				version: sql`excluded.version`,
 			},
 			setWhere: sql`excluded.version > ${accountSettings.version}`,
@@ -925,6 +935,103 @@ export class PostgresSettingsRepository implements SettingsRepository
 	async deleteFor(uid: string): Promise<void>
 	{
 		await this.db.delete(accountSettings).where(eq(accountSettings.uid, uid));
+	}
+}
+
+/**
+ * The seeding pass's one statement (S209 AC 3): the next `pageSize` stored games after the cursor by keyset
+ * (`(official_date, game_pk) > cursor`, served by `games_official_date`), the person ids each names pulled out of its
+ * document in SQL (`jsonb_path_query` over the plays' batter and pitcher and both box score tables), inserted
+ * `ON CONFLICT DO NOTHING`, and the cursor moved to the page's last game (written on the first page; before it the pass
+ * starts from the beginning), all one statement and so one transaction. Its result is three counts: no document leaves
+ * the database. Exported so a test can read the SQL it runs.
+ */
+export function seedPlayerIdsPageSql(pageSize: number): SQL
+{
+	return sql`WITH cursor AS (
+		SELECT COALESCE((SELECT official_date FROM player_id_seed_cursor WHERE id = 1), '') AS official_date,
+			COALESCE((SELECT game_pk FROM player_id_seed_cursor WHERE id = 1), 0) AS game_pk
+	), page AS (
+		SELECT g.official_date, g.game_pk, g.document FROM games g, cursor c
+		WHERE (g.official_date, g.game_pk) > (c.official_date, c.game_pk)
+		ORDER BY g.official_date, g.game_pk
+		LIMIT ${pageSize}
+	), people AS (
+		SELECT DISTINCT (person.id)::integer AS person_id FROM page, LATERAL (
+			SELECT jsonb_path_query(page.document, '$.plays[*].matchup.batter.id') AS id
+			UNION ALL SELECT jsonb_path_query(page.document, '$.plays[*].matchup.pitcher.id')
+			UNION ALL SELECT jsonb_path_query(page.document, '$.boxscore.teams.*.batting[*].id')
+			UNION ALL SELECT jsonb_path_query(page.document, '$.boxscore.teams.*.pitching[*].id')
+		) person
+	), added AS (
+		INSERT INTO player_ids (person_id) SELECT person_id FROM people ON CONFLICT DO NOTHING RETURNING 1
+	), last AS (
+		SELECT official_date, game_pk FROM page ORDER BY official_date DESC, game_pk DESC LIMIT 1
+	), moved AS (
+		INSERT INTO player_id_seed_cursor (id, official_date, game_pk) SELECT 1, official_date, game_pk FROM last
+		ON CONFLICT (id) DO UPDATE SET official_date = excluded.official_date, game_pk = excluded.game_pk RETURNING 1
+	)
+	SELECT (SELECT count(*) FROM page)::integer AS games, (SELECT count(*) FROM added)::integer AS added, (SELECT count(*) FROM moved)::integer AS moved`;
+}
+
+/**
+ * Each player BT has seen and their outside ids (S209, `PlayerIdRepository`): rows added unchecked by ingest and the
+ * seeding pass, looked up a capped few at a time by the cron's resolve step. Instants compared as `timestamptz`, as
+ * `schedule_months` is.
+ */
+export class PostgresPlayerIdRepository implements PlayerIdRepository
+{
+	constructor(private readonly db: PostgresDb) {}
+
+	async addPlayers(personIds: readonly number[]): Promise<number>
+	{
+		if (personIds.length === 0) return 0;
+		const added = await this.db.insert(playerIds).values([...new Set(personIds)].map((personId) => ({
+			personId,
+		}))).onConflictDoNothing().returning({
+			personId: playerIds.personId,
+		});
+		return added.length;
+	}
+
+	async get(personId: number): Promise<PlayerIdRow | null>
+	{
+		const [row] = await this.db.select().from(playerIds).where(eq(playerIds.personId, personId));
+		return row ?? null;
+	}
+
+	async listDue(cap: number, recheckBefore: string): Promise<number[]>
+	{
+		const rows = await this.db.select({
+			personId: playerIds.personId,
+		}).from(playerIds).where(sql`${playerIds.checkedAt} IS NULL OR (${playerIds.fangraphsId} IS NULL AND ${playerIds.bbrefId} IS NULL
+			AND ${playerIds.checkedAt}::timestamptz < ${recheckBefore}::timestamptz)`).orderBy(sql`${playerIds.checkedAt} ASC NULLS FIRST`).limit(cap);
+		return rows.map((row) => row.personId);
+	}
+
+	async recordChecked(personIds: readonly number[], found: ReadonlyMap<number, ResolvedPlayerIds>, checkedAt: string): Promise<void>
+	{
+		if (personIds.length === 0) return;
+		// One UPDATE for the whole batch: each row's ids from a VALUES list, null for a player the register doesn't know.
+		const values = sql.join([...new Set(personIds)].map((personId) =>
+		{
+			const ids = found.get(personId);
+			return sql`(${personId}::integer, ${ids?.fangraphsId ?? null}::text, ${ids?.bbrefId ?? null}::text)`;
+		}), sql`, `);
+		await this.db.execute(sql`UPDATE player_ids AS p SET checked_at = ${checkedAt}, fangraphs_id = v.fangraphs_id, bbref_id = v.bbref_id
+			FROM (VALUES ${values}) AS v(person_id, fangraphs_id, bbref_id) WHERE p.person_id = v.person_id`);
+	}
+
+	async seedNextPage(pageSize: number): Promise<{ games: number;
+		added: number; }>
+	{
+		const result = await this.db.execute(seedPlayerIdsPageSql(pageSize)) as unknown as { rows: { games: number;
+			added: number; }[]; };
+		const [row] = result.rows;
+		return {
+			games: Number(row?.games ?? 0),
+			added: Number(row?.added ?? 0),
+		};
 	}
 }
 

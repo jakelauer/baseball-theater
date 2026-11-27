@@ -167,8 +167,9 @@ describe("the Worker entry (S45)", () =>
 			GAME_INGEST: namespaceRecording(ensured),
 		}, ctx);
 		const settled = await Promise.allSettled(waits);
-		// The third is S212's re-check, which has no due game here, and the fourth its owed-purge retry, which has none.
-		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "fulfilled", "fulfilled", "rejected"]);
+		// The third is S212's re-check, which has no due game here, the fourth its owed-purge retry, which has none,
+		// and the fifth S209's player-id job, with no player waiting and no game to seed.
+		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "fulfilled", "fulfilled", "fulfilled", "rejected"]);
 		expect(ensured).toEqual(["game-ingest:1", "game-ingest:2"]);
 		refresh.mockRestore();
 		ingest.mockRestore();
@@ -183,8 +184,9 @@ describe("the Worker entry (S45)", () =>
 			GAME_INGEST: namespaceRecording([]),
 		}, ctx);
 		const settled = await Promise.allSettled(waits);
-		// The third is S212's re-check, which has no due game here, and the fourth its owed-purge retry, which has none.
-		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "fulfilled", "fulfilled", "rejected"]);
+		// The third is S212's re-check, which has no due game here, the fourth its owed-purge retry, which has none,
+		// and the fifth S209's player-id job, with no player waiting and no game to seed.
+		expect(settled.map((s) => s.status).sort()).toEqual(["fulfilled", "fulfilled", "fulfilled", "fulfilled", "rejected"]);
 		expect(refresh).toHaveBeenCalledTimes(1);
 		const month = await refresh.mock.results[0]!.value as string | null;
 		expect(month).toMatch(/^\d{4}-\d{2}$/);
@@ -226,7 +228,7 @@ describe("the Worker entry (S45)", () =>
 			GAME_INGEST: namespaceRecording([]),
 		}, ctx);
 		const settled = await Promise.allSettled(waits);
-		expect(settled.map((s) => s.status)).toEqual(["fulfilled", "fulfilled", "rejected", "fulfilled"]);
+		expect(settled.map((s) => s.status)).toEqual(["fulfilled", "fulfilled", "rejected", "fulfilled", "fulfilled"]);
 		expect(recheck).toHaveBeenCalledTimes(1);
 		expect(refresh).toHaveBeenCalledTimes(1);
 		expect(ingest).toHaveBeenCalledTimes(1);
@@ -251,7 +253,7 @@ describe("the Worker entry (S45)", () =>
 			GAME_INGEST: namespaceRecording([]),
 		}, ctx);
 		const settled = await Promise.allSettled(waits);
-		expect(settled.map((s) => s.status)).toEqual(["fulfilled", "fulfilled", "fulfilled", "rejected"]);
+		expect(settled.map((s) => s.status)).toEqual(["fulfilled", "fulfilled", "fulfilled", "rejected", "fulfilled"]);
 		expect([retry, recheck, refresh, ingest].map((spy) => spy.mock.calls.length)).toEqual([1, 1, 1, 1]);
 		await worker.scheduled(undefined, {
 			BT_LOCAL: "1",

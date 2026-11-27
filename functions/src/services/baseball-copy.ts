@@ -120,7 +120,8 @@ export function baseballTables(): string[]
  * labels `none` must have one (`checkCopyRules`), so a table added later can't fall back to comparing two
  * databases' counters. `rebuiltFromGames` assumes the `games` table and a projection per `game_pk`; `stateChangedLater` (S150,
  * `game_states`) is `changedLater` except for a row the target's live feed is writing (see the module comment);
- * `neverCopied` (S194, `schedule_months`; S212, `game_rechecks` and `owed_edge_purges`) reads and writes none of the table's rows.
+ * `neverCopied` (S194, `schedule_months`; S212, `game_rechecks` and `owed_edge_purges`; S209, `player_ids` and
+ * `player_id_seed_cursor`) reads and writes none of the table's rows.
  */
 export type CopyRule = "changedLater" | "stateChangedLater" | "rebuiltFromGames" | "patchCount" | "neverCopied";
 
@@ -142,6 +143,10 @@ export const COPY_RULES: Readonly<Record<string, CopyRule>> = {
 	game_rechecks: "neverCopied",
 	// S212: the purges the target's own edge is owed; production's name production's URLs.
 	owed_edge_purges: "neverCopied",
+	// S209: the target's own player lookups and seeding cursor, which its cron keeps; production's cursor would skip
+	// the target's games, and its rows carry no version to compare.
+	player_ids: "neverCopied",
+	player_id_seed_cursor: "neverCopied",
 	games: "changedLater",
 	game_projections: "rebuiltFromGames",
 	replay_artifacts: "patchCount",

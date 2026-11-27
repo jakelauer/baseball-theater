@@ -369,12 +369,30 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 		parameters: [],
 		errors: {},
 	},
+	"GET /api/v1/players/:personId/profiles": {
+		operationId: "getPlayerProfiles",
+		summary: "One player's pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from; a site whose id BT doesn't know yet, or whose register has none for this player, is null. A checked player's answer is cacheable for a day; one not yet checked, for minutes, so it fills in once the cron resolves it.",
+		parameters: [
+			{
+				name: "personId",
+				in: "path",
+				required: true,
+				description: "MLB person id (MLBAM).",
+				schema: {
+					type: "integer",
+				},
+			},
+		],
+		errors: {
+			404: "BT has no row for that player (it has seen no game they played in); cacheable for minutes.",
+		},
+	},
 	"PUT /api/v1/me/settings": {
 		operationId: "putSettings",
 		summary: "Saves the whole settings document. Applies only if `version` is newer than the stored one (ADR-022); answers with what is stored either way.",
 		parameters: [],
 		errors: {
-			400: "The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a whole non-negative version).",
+			400: "The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a known stats site or none, a whole non-negative version), or it changes `statsProvider` to a site other than `mlb` for an account without a patron tier (S209: Backer and up).",
 			401: "No session, or the account no longer exists.",
 		},
 	},

@@ -31,6 +31,10 @@
 						"type": "boolean"
 					},
 					"opensFirst": { "$ref": "#/components/schemas/OpensFirst" },
+					"statsProvider": {
+						"$ref": "#/components/schemas/StatsProvider",
+						"description": "The stats site a player's name opens (S209). Read it through `effectiveStatsProvider`, never directly: only a patron's choice counts, and a lapsed pledge links to MLB.com."
+					},
 					"version": { "type": "number" },
 					"videoPlayer": {
 						"$ref": "#/components/schemas/VideoPlayerMode",
@@ -44,6 +48,7 @@
 					"collapseNonFavorites",
 					"hideScores",
 					"videoPlayer",
+					"statsProvider",
 					"version"
 				],
 				"type": "object"
@@ -395,9 +400,13 @@
 					"cloudSyncedSettings": { "type": "boolean" },
 					"fasterLiveRefresh": { "type": "boolean" },
 					"savantLinks": { "type": "boolean" },
+					"statsProviderChoice": {
+						"description": "May pick a stats site other than MLB.com for player links (S209; owner, 2026-11-24: \"Every patron, Backer and up\"). Never stored: `entitlementsForTier` derives it from the tier wherever entitlements are read, so a row or a session signed before S209 can't lack it where it matters.",
+						"type": "boolean"
+					},
 					"tier": { "$ref": "#/components/schemas/PatronTier" }
 				},
-				"required": ["tier", "fasterLiveRefresh", "cloudSyncedSettings", "savantLinks"],
+				"required": ["tier", "fasterLiveRefresh", "cloudSyncedSettings", "savantLinks", "statsProviderChoice"],
 				"type": "object"
 			},
 			"GameBoxscore": {
@@ -930,6 +939,17 @@
 				"required": ["pX", "pZ", "x0", "y0", "z0", "vx0", "vy0", "vz0", "ax", "ay", "az", "pfxX", "pfxZ"],
 				"type": "object"
 			},
+			"PlayerIds": {
+				"additionalProperties": false,
+				"description": "A player's ids on the sites BT links to: MLB's own (MLBAM, which MLB.com and Baseball Savant key their pages by), and FanGraphs' and Baseball-Reference's, each null while BT doesn't know it (not yet resolved, or the source has none for this player).",
+				"properties": {
+					"bbref": { "type": ["string", "null"] },
+					"fangraphs": { "type": ["string", "null"] },
+					"mlbam": { "type": "number" }
+				},
+				"required": ["mlbam", "fangraphs", "bbref"],
+				"type": "object"
+			},
 			"PlayerOfTheGame": {
 				"additionalProperties": false,
 				"description": "MLB's player of the game (S99): the media's pick and the fans' pick, each absent until MLB names a player for it. Never an object with neither: a game with no pick has no `playerOfTheGame`.",
@@ -949,6 +969,30 @@
 					"winProbabilityAdded": { "type": ["number", "null"] }
 				},
 				"required": ["playerId", "teamId", "summary", "winProbabilityAdded"],
+				"type": "object"
+			},
+			"PlayerProfilesResponse": {
+				"additionalProperties": false,
+				"description": "A player's pages on each stats site (S209, `GET /api/v1/players/:personId/profiles`): the ids BT holds for them and the URL `playerProfileUrl` builds for each site, null for a site whose id BT doesn't know (not yet resolved, or the register has none for this player). The web builds its link from `ids` through the same function.",
+				"properties": {
+					"checked": {
+						"description": "Whether BT has looked this player up yet; until then FanGraphs and Baseball-Reference are null and may fill in.",
+						"type": "boolean"
+					},
+					"ids": { "$ref": "#/components/schemas/PlayerIds" },
+					"profiles": {
+						"additionalProperties": false,
+						"properties": {
+							"bbref": { "type": ["string", "null"] },
+							"fangraphs": { "type": ["string", "null"] },
+							"mlb": { "type": ["string", "null"] },
+							"savant": { "type": ["string", "null"] }
+						},
+						"required": ["mlb", "fangraphs", "bbref", "savant"],
+						"type": "object"
+					}
+				},
+				"required": ["ids", "profiles", "checked"],
 				"type": "object"
 			},
 			"PlayerRef": {
@@ -1321,7 +1365,7 @@
 			},
 			"SettingsRequest": {
 				"additionalProperties": false,
-				"description": "A settings write: the whole document with a bumped `version`; an older version is ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70) may be left out — each reads as its default — so a page loaded before they shipped can still save.",
+				"description": "A settings write: the whole document with a bumped `version`; an older version is ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70), `statsProvider` (S209) may be left out — each reads as its default — so a page loaded before they shipped can still save.",
 				"properties": {
 					"collapseNonFavorites": {
 						"description": "Fold games without a favorite team into slim bars (S68).",
@@ -1338,6 +1382,10 @@
 						"type": "boolean"
 					},
 					"opensFirst": { "$ref": "#/components/schemas/OpensFirst" },
+					"statsProvider": {
+						"$ref": "#/components/schemas/StatsProvider",
+						"description": "The stats site a player's name opens (S209). Read it through `effectiveStatsProvider`, never directly: only a patron's choice counts, and a lapsed pledge links to MLB.com."
+					},
 					"version": { "type": "number" },
 					"videoPlayer": {
 						"$ref": "#/components/schemas/VideoPlayerMode",
@@ -1552,6 +1600,7 @@
 				],
 				"type": "object"
 			},
+			"StatsProvider": { "enum": ["mlb", "fangraphs", "bbref", "savant"], "type": "string" },
 			"TeamRecord": {
 				"additionalProperties": false,
 				"description": "A team's season record (S65; the scoreboard module's `81-62`).",
@@ -1918,7 +1967,7 @@
 						"content": {
 							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
 						},
-						"description": "The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a whole non-negative version)."
+						"description": "The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a known stats site or none, a whole non-negative version), or it changes `statsProvider` to a site other than `mlb` for an account without a patron tier (S209: Backer and up)."
 					},
 					"401": {
 						"content": {
@@ -2010,6 +2059,41 @@
 					}
 				},
 				"summary": "Staging only, for testing: chooses the backer tier to see BT as (`\"none\"` is not a patron; null goes back to the real tier), and answers as the GET does plus a new session token whose entitlements are the chosen tier's, so every check that reads the session uses it at once. Never changes the real tier or calls Patreon. Exists only where the server's deploy-time config allows the override (staging); everywhere else it answers 404. Never cached (`no-store`)."
+			}
+		},
+		"/api/v1/players/{personId}/profiles": {
+			"get": {
+				"operationId": "getPlayerProfiles",
+				"parameters": [
+					{
+						"description": "MLB person id (MLBAM).",
+						"in": "path",
+						"name": "personId",
+						"required": true,
+						"schema": { "type": "integer" }
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/PlayerProfilesResponse" } }
+						},
+						"description": "OK"
+					},
+					"404": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "BT has no row for that player (it has seen no game they played in); cacheable for minutes."
+					},
+					"426": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } }
+						},
+						"description": "`version_unsupported`: this API version has been retired (ADR-015); the client should reload to update."
+					}
+				},
+				"summary": "One player's pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from; a site whose id BT doesn't know yet, or whose register has none for this player, is null. A checked player's answer is cacheable for a day; one not yet checked, for minutes, so it fills in once the cron resolves it."
 			}
 		},
 		"/api/v1/releases": {

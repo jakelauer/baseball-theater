@@ -1,5 +1,5 @@
 import {
-	Anchor, Group, SimpleGrid, Stack, Text, UnstyledButton,
+	Group, SimpleGrid, Stack, Text, UnstyledButton,
 } from "@mantine/core";
 import type { ReactNode } from "react";
 import { useState } from "react";
@@ -10,6 +10,7 @@ import type { GamePayload } from "../../api/game.js";
 import type { LayoutVariant } from "../../layout/variant.js";
 import { useScoresHidden } from "../../settings/useScoresHidden.js";
 import { HiddenValue } from "../HiddenValue.js";
+import { PlayerLink } from "../PlayerLink.js";
 import { TeamSwatch } from "../team/TeamSwatch.js";
 import { ViewState } from "../ViewState.js";
 import {
@@ -133,7 +134,7 @@ function InfoLine({ line, scoresHidden }: { line: BoxscoreInfoLine;
 
 /**
  * A batter's `PLAYER` cell, as v2 prints it: MLB's substitute marker in bold (`a-`), then
- * `batterLabel` (`Shaw (PH-DH)`), linking to his MLB player page; a substitute is indented under
+ * `batterLabel` (`Shaw (PH-DH)`), linking to his stats page (S209, `PlayerLink`); a substitute is indented under
  * the player he replaced.
  */
 function BatterName({ batter }: { batter: BoxscoreBatter })
@@ -141,20 +142,20 @@ function BatterName({ batter }: { batter: BoxscoreBatter })
 	return (
 		<Text span fz={12} pl={batter.isSubstitute ? 12 : 0} data-substitute={batter.isSubstitute ? "" : undefined}>
 			{batter.note ? <Text span inherit fw={700}>{batter.note}</Text> : null}
-			<Anchor href={`https://www.mlb.com/player/${batter.id}`} target="_blank" rel="noreferrer nofollow" inherit c="inherit" underline="hover">
+			<PlayerLink personId={batter.id} inherit>
 				{batterLabel(batter)}
-			</Anchor>
+			</PlayerLink>
 		</Text>
 	);
 }
 
-/** A pitcher's `PLAYER` cell: MLB's `Assad, J`, linking to his MLB player page, as v2 prints it. */
+/** A pitcher's `PLAYER` cell: MLB's `Assad, J`, as v2 prints it, linking to his stats page (S209, `PlayerLink`). */
 function PitcherName({ pitcher }: { pitcher: BoxscorePitcher })
 {
 	return (
-		<Anchor href={`https://www.mlb.com/player/${pitcher.id}`} target="_blank" rel="noreferrer nofollow" fz={12} c="inherit" underline="hover">
+		<PlayerLink personId={pitcher.id} fz={12}>
 			{pitcher.lastInitName}
-		</Anchor>
+		</PlayerLink>
 	);
 }
 

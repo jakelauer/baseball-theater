@@ -224,9 +224,10 @@ describe("fixture recorder", () =>
 			`graphql-content-${GAME_PK}.json`,
 			`standings-${DATE}.json`,
 			`people-${GAME_PK}.json`,
+			`people-xref-${GAME_PK}.json`,
 		]);
-		expect(seen).toHaveLength(11);
-		expect(await readdir(path.join(out, "raw"))).toHaveLength(11);
+		expect(seen).toHaveLength(12);
+		expect(await readdir(path.join(out, "raw"))).toHaveLength(12);
 
 		// Byte-exact: not re-stringified through JSON.parse.
 		const onDisk = await readFile(path.join(out, "raw", `live-${GAME_PK}.json`), "utf8");

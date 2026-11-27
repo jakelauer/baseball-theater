@@ -142,6 +142,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/players/{personId}/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One player's pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from; a site whose id BT doesn't know yet, or whose register has none for this player, is null. A checked player's answer is cacheable for a day; one not yet checked, for minutes, so it fills in once the cron resolves it. */
+        get: operations["getPlayerProfiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/releases": {
         parameters: {
             query?: never;
@@ -299,6 +316,8 @@ export interface components {
             /** @description Hide every score and record (S68). Read it through `shouldHideScores`, never directly (owner, 2026-10-21), so the setting can outgrow an on/off switch. */
             hideScores: boolean;
             opensFirst: components["schemas"]["OpensFirst"];
+            /** @description The stats site a player's name opens (S209). Read it through `effectiveStatsProvider`, never directly: only a patron's choice counts, and a lapsed pledge links to MLB.com. */
+            statsProvider: components["schemas"]["StatsProvider"];
             version: number;
             /** @description Where videos play (S70): a dialog over the page, or a stage in the Videos room. */
             videoPlayer: components["schemas"]["VideoPlayerMode"];
@@ -483,6 +502,8 @@ export interface components {
             cloudSyncedSettings: boolean;
             fasterLiveRefresh: boolean;
             savantLinks: boolean;
+            /** @description May pick a stats site other than MLB.com for player links (S209; owner, 2026-11-24: "Every patron, Backer and up"). Never stored: `entitlementsForTier` derives it from the tier wherever entitlements are read, so a row or a session signed before S209 can't lack it where it matters. */
+            statsProviderChoice: boolean;
             tier: components["schemas"]["PatronTier"];
         };
         /** @description The box score (S2): each team's side (`BoxscoreTeam`) and MLB's game info lines, in MLB's order (a line MLB sends with no value, the game's date, is kept with an empty `value` since S207). */
@@ -763,6 +784,12 @@ export interface components {
             y0: number;
             z0: number;
         };
+        /** @description A player's ids on the sites BT links to: MLB's own (MLBAM, which MLB.com and Baseball Savant key their pages by), and FanGraphs' and Baseball-Reference's, each null while BT doesn't know it (not yet resolved, or the source has none for this player). */
+        PlayerIds: {
+            bbref: string | null;
+            fangraphs: string | null;
+            mlbam: number;
+        };
         /** @description MLB's player of the game (S99): the media's pick and the fans' pick, each absent until MLB names a player for it. Never an object with neither: a game with no pick has no `playerOfTheGame`. */
         PlayerOfTheGame: {
             fan?: components["schemas"]["PlayerOfTheGamePick"];
@@ -774,6 +801,18 @@ export interface components {
             summary: string | null;
             teamId: number | null;
             winProbabilityAdded: number | null;
+        };
+        /** @description A player's pages on each stats site (S209, `GET /api/v1/players/:personId/profiles`): the ids BT holds for them and the URL `playerProfileUrl` builds for each site, null for a site whose id BT doesn't know (not yet resolved, or the register has none for this player). The web builds its link from `ids` through the same function. */
+        PlayerProfilesResponse: {
+            /** @description Whether BT has looked this player up yet; until then FanGraphs and Baseball-Reference are null and may fill in. */
+            checked: boolean;
+            ids: components["schemas"]["PlayerIds"];
+            profiles: {
+                bbref: string | null;
+                fangraphs: string | null;
+                mlb: string | null;
+                savant: string | null;
+            };
         };
         /** @description A player named on the scoreboard (pitchers of record). */
         PlayerRef: {
@@ -976,7 +1015,7 @@ export interface components {
             /** @description MLB's count of every clip it matched; `highlights` is the first page of them, so it may hold fewer. */
             total: number;
         };
-        /** @description A settings write: the whole document with a bumped `version`; an older version is ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70) may be left out — each reads as its default — so a page loaded before they shipped can still save. */
+        /** @description A settings write: the whole document with a bumped `version`; an older version is ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70), `statsProvider` (S209) may be left out — each reads as its default — so a page loaded before they shipped can still save. */
         SettingsRequest: {
             /** @description Fold games without a favorite team into slim bars (S68). */
             collapseNonFavorites?: boolean;
@@ -986,6 +1025,8 @@ export interface components {
             /** @description Hide every score and record (S68). Read it through `shouldHideScores`, never directly (owner, 2026-10-21), so the setting can outgrow an on/off switch. */
             hideScores?: boolean;
             opensFirst: components["schemas"]["OpensFirst"];
+            /** @description The stats site a player's name opens (S209). Read it through `effectiveStatsProvider`, never directly: only a patron's choice counts, and a lapsed pledge links to MLB.com. */
+            statsProvider?: components["schemas"]["StatsProvider"];
             version: number;
             /** @description Where videos play (S70): a dialog over the page, or a stage in the Videos room. */
             videoPlayer?: components["schemas"]["VideoPlayerMode"];
@@ -1098,6 +1139,8 @@ export interface components {
             teamId: number;
             wins: number;
         };
+        /** @enum {string} */
+        StatsProvider: "mlb" | "fangraphs" | "bbref" | "savant";
         /** @description A team's season record (S65; the scoreboard module's `81-62`). */
         TeamRecord: {
             losses: number;
@@ -1532,7 +1575,7 @@ export interface operations {
                     "application/json": components["schemas"]["SettingsResponse"];
                 };
             };
-            /** @description The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a whole non-negative version). */
+            /** @description The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a known stats site or none, a whole non-negative version), or it changes `statsProvider` to a site other than `mlb` for an account without a patron tier (S209: Backer and up). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1649,6 +1692,47 @@ export interface operations {
                 };
             };
             /** @description `not_found`: this deployment offers no tier override (production, previews, local dev). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getPlayerProfiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description MLB person id (MLBAM). */
+                personId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerProfilesResponse"];
+                };
+            };
+            /** @description BT has no row for that player (it has seen no game they played in); cacheable for minutes. */
             404: {
                 headers: {
                     [name: string]: unknown;

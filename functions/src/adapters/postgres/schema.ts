@@ -117,6 +117,30 @@ export const games = pgTable("games", {
 	index("games_document_gin").using("gin", t.document),
 ]);
 
+/**
+ * Each player BT has seen and their ids on FanGraphs and Baseball-Reference (`PlayerIdRepository`, S209),
+ * keyed by MLB's person id: `checked_at` null until the cron's resolve step first asks the register, and
+ * each outside id null while unknown. Public facts about players; no user data. The index serves the
+ * resolve step's `ORDER BY checked_at NULLS FIRST`, so it reads the never-checked rows first.
+ */
+export const playerIds = pgTable("player_ids", {
+	personId: integer("person_id").primaryKey(),
+	checkedAt: text("checked_at"),
+	fangraphsId: text("fangraphs_id"),
+	bbrefId: text("bbref_id"),
+}, (t) => [index("player_ids_checked_at").on(t.checkedAt.asc().nullsFirst())]);
+
+/**
+ * The seeding pass's single-row keyset cursor (S209): the last stored game, in (official date, gamePk)
+ * order, whose players it has added: no row before the pass's first page, which writes the one row
+ * (`id` 1), and the CHECK keeps it the only one.
+ */
+export const playerIdSeedCursor = pgTable("player_id_seed_cursor", {
+	id: integer("id").primaryKey(),
+	officialDate: text("official_date").notNull(),
+	gamePk: integer("game_pk").notNull(),
+}, (t) => [check("player_id_seed_cursor_one_row", sql`${t.id} = 1`)]);
+
 /** The five projected documents per game (`GameProjectionRepository`), versioned by `header.version`. */
 export const gameProjections = pgTable("game_projections", {
 	gamePk: integer("game_pk").primaryKey(),
@@ -188,6 +212,8 @@ export const accountSettings = pgTable("account_settings", {
 	collapseNonFavorites: boolean("collapse_non_favorites").notNull(),
 	hideScores: boolean("hide_scores").notNull(),
 	videoPlayer: text("video_player").$type<AccountSettings["videoPlayer"]>().notNull(),
+	// S209: a row written before the column existed reads MLB.com, the house default.
+	statsProvider: text("stats_provider").$type<AccountSettings["statsProvider"]>().notNull().default("mlb"),
 	version: integer("version").notNull(),
 });
 

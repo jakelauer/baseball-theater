@@ -69,6 +69,10 @@ export const DATA_CLASSIFICATION = {
 			kind: "none",
 			why: "MLB live-feed replay patches; no user data",
 		},
+		InMemoryPlayerIdRepository: {
+			kind: "none",
+			why: "MLB person ids and their FanGraphs and Baseball-Reference ids (S209), public facts about players; no user data",
+		},
 		InMemoryUserRepository: {
 			kind: "personal",
 			deletedBy: USERS_STORE,
@@ -113,6 +117,10 @@ export const DATA_CLASSIFICATION = {
 		PostgresReplayArtifactRepository: {
 			kind: "none",
 			why: "MLB live-feed replay patches; no user data",
+		},
+		PostgresPlayerIdRepository: {
+			kind: "none",
+			why: "MLB person ids and their FanGraphs and Baseball-Reference ids (S209), public facts about players; no user data",
 		},
 		PostgresUserRepository: {
 			kind: "personal",
@@ -163,6 +171,14 @@ export const DATA_CLASSIFICATION = {
 		replay_artifacts: {
 			kind: "none",
 			why: "MLB live-feed replay patches; no user data",
+		},
+		player_ids: {
+			kind: "none",
+			why: "per MLB player (person_id), their FanGraphs and Baseball-Reference ids (fangraphs_id, bbref_id) and when the register was last asked (checked_at), S209; public facts about players, no user data",
+		},
+		player_id_seed_cursor: {
+			kind: "none",
+			why: "one row: the last stored game (official_date, game_pk) whose players the seeding pass has added, S209; no user data",
 		},
 		users: {
 			kind: "personal",

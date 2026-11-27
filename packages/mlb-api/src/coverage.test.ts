@@ -56,6 +56,7 @@ const fixtures: ReadonlyArray<[string, (input: unknown) => unknown]> = [
 	["worldseries-2026.json", parseScheduleResponse],
 	["worldseries-2027.json", parseScheduleResponse],
 	["people-823823.json", parsePeopleResponse],
+	["people-xref-823823.json", parsePeopleResponse],
 	["diffpatch-823823.json", parseRecordedReplayWalk],
 ];
 

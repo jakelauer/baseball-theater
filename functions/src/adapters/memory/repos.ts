@@ -3,7 +3,8 @@ import type {
 	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	contentHash, downloadExpired, GAME_RECHECK_CLAIM_LEASE_MS, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
+	contentHash, downloadExpired, entitlementsForTier, gamePersonIds, GAME_RECHECK_CLAIM_LEASE_MS,
+	SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
 } from "@bt/domain";
 import type {
 	DataDownload,
@@ -19,6 +20,9 @@ import type {
 	Mailer,
 	OwedEdgePurge,
 	OwedEdgePurgeRepository,
+	PlayerIdRepository,
+	PlayerIdRow,
+	ResolvedPlayerIds,
 	ScheduleRepository,
 	SettingsRepository,
 	UserDataExport,
@@ -310,6 +314,12 @@ export class InMemoryGameRepository implements GameRepository
 
 	constructor(private readonly gameStates?: InMemoryGameStateRepository) {}
 
+	/** Every stored snapshot, for the player-id double's seeding pass (S209); not part of the port. */
+	snapshots(): GameSnapshot[]
+	{
+		return this.store.values();
+	}
+
 	async getByPk(gamePk: number): Promise<GameSnapshot | null>
 	{
 		return this.store.get(gamePk);
@@ -533,7 +543,14 @@ export class InMemoryUserRepository implements UserRepository
 	async getByUid(uid: string): Promise<UserProfile | null>
 	{
 		const user = this.byUid.get(uid);
-		return user === undefined ? null : jsonCopy(user);
+		// S209 AC 9: derived from the tier as the Postgres adapter derives it, whatever the stored copy held.
+		return user === undefined ? null : {
+			...jsonCopy(user),
+			entitlements: {
+				...jsonCopy(user.entitlements),
+				statsProviderChoice: entitlementsForTier(user.entitlements.tier).statsProviderChoice,
+			},
+		};
 	}
 
 	async upsert(user: UserProfile): Promise<void>
@@ -704,6 +721,94 @@ export class InMemoryMailer implements Mailer
 	{
 		// In place: `sent` is a readonly reference tests hold.
 		for (let i = this.sent.length - 1; i >= 0; i--) if (this.sent[i]!.uid === uid) this.sent.splice(i, 1);
+	}
+}
+
+/**
+ * Each player seen and their outside ids (S209), the Postgres adapter's `player_ids` rows; its seeding pass walks
+ * `games`' snapshots in (official date, gamePk) order behind a cursor, as the adapter's keyset query does.
+ */
+export class InMemoryPlayerIdRepository implements PlayerIdRepository
+{
+	private readonly rows = new Map<number, PlayerIdRow>();
+	private cursor = {
+		officialDate: "",
+		gamePk: 0,
+	};
+
+	constructor(private readonly games?: Pick<InMemoryGameRepository, "snapshots">) {}
+
+	async addPlayers(personIds: readonly number[]): Promise<number>
+	{
+		let added = 0;
+		for (const personId of personIds)
+		{
+			if (this.rows.has(personId)) continue;
+			this.rows.set(personId, {
+				personId,
+				checkedAt: null,
+				fangraphsId: null,
+				bbrefId: null,
+			});
+			added++;
+		}
+		return added;
+	}
+
+	async get(personId: number): Promise<PlayerIdRow | null>
+	{
+		const row = this.rows.get(personId);
+		return row ? {
+			...row,
+		} : null;
+	}
+
+	async listDue(cap: number, recheckBefore: string): Promise<number[]>
+	{
+		const before = Date.parse(recheckBefore);
+		const due = [...this.rows.values()].filter((row) => row.checkedAt === null || (row.fangraphsId === null && row.bbrefId === null && Date.parse(row.checkedAt) < before));
+		// NULLS FIRST, then the oldest check first.
+		due.sort((a, b) => (a.checkedAt === null ? -1 : b.checkedAt === null ? 1 : Date.parse(a.checkedAt) - Date.parse(b.checkedAt)));
+		return due.slice(0, cap).map((row) => row.personId);
+	}
+
+	async recordChecked(personIds: readonly number[], found: ReadonlyMap<number, ResolvedPlayerIds>, checkedAt: string): Promise<void>
+	{
+		for (const personId of personIds)
+		{
+			if (!this.rows.has(personId)) continue;
+			const ids = found.get(personId);
+			this.rows.set(personId, {
+				personId,
+				checkedAt,
+				fangraphsId: ids?.fangraphsId ?? null,
+				bbrefId: ids?.bbrefId ?? null,
+			});
+		}
+	}
+
+	async seedNextPage(pageSize: number): Promise<{ games: number;
+		added: number; }>
+	{
+		const { officialDate, gamePk } = this.cursor;
+		const page = (this.games?.snapshots() ?? [])
+			.filter((game) => game.officialDate > officialDate || (game.officialDate === officialDate && game.gamePk > gamePk))
+			.sort((a, b) => a.officialDate.localeCompare(b.officialDate) || a.gamePk - b.gamePk)
+			.slice(0, pageSize);
+		const last = page.at(-1);
+		if (!last) return {
+			games: 0,
+			added: 0,
+		};
+		const added = await this.addPlayers([...new Set(page.flatMap((game) => gamePersonIds(game)))]);
+		this.cursor = {
+			officialDate: last.officialDate,
+			gamePk: last.gamePk,
+		};
+		return {
+			games: page.length,
+			added,
+		};
 	}
 }
 

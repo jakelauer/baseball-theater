@@ -9,7 +9,7 @@ import type { GameSnapshot, ScheduleDay } from "./types.js";
 
 describe("ApiRoutes", () =>
 {
-	it("is a runtime-enumerable table covering the schedule, schedule month, schedule month versions (S194), game, digest, highlight search, standings, scoreboard default-date, account, tier override (S215), sign-in and releases routes", () =>
+	it("is a runtime-enumerable table covering the schedule, schedule month, schedule month versions (S194), game, digest, highlight search, standings, scoreboard default-date, account, tier override (S215), sign-in, releases and player profiles (S209) routes", () =>
 	{
 		expect(Object.keys(ApiRoutes)).toEqual([
 			"GET /api/v1/schedule",
@@ -32,7 +32,9 @@ describe("ApiRoutes", () =>
 			"GET /api/v1/sign-in",
 			"POST /api/v1/sign-in",
 			"GET /api/v1/releases",
+			"GET /api/v1/players/:personId/profiles",
 		]);
+		expect(ApiRoutes["GET /api/v1/players/:personId/profiles"]).toBe("PlayerProfilesResponse");
 		expect(ApiRoutes["GET /api/v1/releases"]).toBe("ReleasesResponse");
 		expect(ApiRoutes["GET /api/v1/schedule"]).toBe("ScheduleDayResponse");
 		expect(ApiRoutes["GET /api/v1/schedule/month/:month"]).toBe("ScheduleMonthResponse");
