@@ -221,10 +221,23 @@ export interface PlayerProfilesResponse {
  * clip sat in the game's ranked Videos list. Nothing about the viewer. `parseClipViewRequest` checks it.
  */
 export interface ClipViewRequest {
-	/** The MLB game the clip is one of the stored highlights of. */
+	// The bounds below are `parseClipViewRequest`'s (`CLIP_VIEW_GAME_PK_MAX`, `CLIP_SHOWN_POSITION_MAX`); the generator
+	// reads the tags into the spec, and `openapi.test.ts` checks the two agree.
+	/**
+	 * The MLB game the clip is one of the stored highlights of.
+	 * @asType integer
+	 * @minimum 1
+	 * @maximum 2147483647
+	 */
 	gamePk: number;
 	event: ClipViewEvent;
-	/** The clip's 1-based place in the game's ranked Videos list (`rankHighlightsByImpact`), or 0 when it was opened directly; 0 to 100. */
+	/**
+	 * The clip's 1-based place in the game's ranked Videos list (`rankHighlightsByImpact`), or 0 when it was opened directly;
+	 * 0 to 100.
+	 * @asType integer
+	 * @minimum 0
+	 * @maximum 100
+	 */
 	shownPosition: number;
 }
 

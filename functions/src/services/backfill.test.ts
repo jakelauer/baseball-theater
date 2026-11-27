@@ -284,6 +284,7 @@ function counted(base: { schedules: ScheduleRepository;
 		gameStates: base.gameStates,
 		games: {
 			getByPk: (pk) => base.games.getByPk(pk),
+			hasHighlight: (pk, mediaId) => base.games.hasHighlight(pk, mediaId),
 			getStateFields: (pks) => base.games.getStateFields(pks),
 			listByDate: (date) => base.games.listByDate(date),
 			listRecheckCandidates: (from, to) => base.games.listRecheckCandidates(from, to),

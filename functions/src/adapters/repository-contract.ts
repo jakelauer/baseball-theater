@@ -1268,3 +1268,35 @@ export function describeClipEngagementContract(label: string, create: () => Clip
 		});
 	});
 }
+
+/**
+ * Case (s), a game repository's clip check (S174 AC 4, `hasHighlight`), for any `GameRepository` adapter: whether a
+ * media id is the `id` of one of a stored game's highlights, answered without the game's document. Only an exact `id`
+ * of that game's own highlights is true: another id, a highlight's play id or title, another game's clip or a game not
+ * stored is false, and an id holding JSON's quote, bracket and backslash is data, never part of the query.
+ */
+export function describeGameHighlightContract(label: string, create: () => GameRepository, make: (gamePk: number, date: string) => Promise<GameSnapshot>): void
+{
+	describe(`${label} — game highlight contract`, () =>
+	{
+		it("S174 AC 4 hasHighlight: true only for an id of the stored game's own highlights", async () =>
+		{
+			const games = create();
+			const one = await make(1, "2024-07-04");
+			const [clip] = one.highlights;
+			expect(clip).toBeDefined();
+			await games.upsert(one);
+			await games.upsert({
+				...await make(2, "2024-07-04"),
+				highlights: [],
+			});
+			expect(await games.hasHighlight(1, clip!.id)).toBe(true);
+			expect(await games.hasHighlight(1, "hl-404")).toBe(false);
+			if (clip!.playId) expect(await games.hasHighlight(1, clip!.playId)).toBe(false);
+			expect(await games.hasHighlight(1, clip!.title)).toBe(false);
+			expect(await games.hasHighlight(2, clip!.id)).toBe(false);
+			expect(await games.hasHighlight(3, clip!.id)).toBe(false);
+			expect(await games.hasHighlight(1, "\"}]\\")).toBe(false);
+		});
+	});
+}

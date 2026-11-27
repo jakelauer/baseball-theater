@@ -89,6 +89,33 @@ describe("the Worker composition on Postgres (S51)", () =>
 	});
 });
 
+describe("the clip-view route in the Worker composition (S174)", () =>
+{
+	it("S174 AC 4 PGlite: a view of a stored game's clip from BT's own page answers 204 and stores its count", async () =>
+	{
+		const { db } = await migratedPglite();
+		const app = createWorkerApp({
+			BT_LOCAL: "1",
+		}, db);
+		// Reading the game stores it, highlights and all.
+		expect((await handleApiRequest(new Request("http://bt.test/api/v1/games/744834"), app.context)).status).toBe(200);
+		const response = await handleApiRequest(new Request("http://bt.test/api/v1/clips/hl-1/views", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"Sec-Fetch-Site": "same-origin",
+			},
+			body: JSON.stringify({
+				gamePk: 744834,
+				event: "start",
+				shownPosition: 1,
+			}),
+		}), app.context);
+		expect(response.status).toBe(204);
+		expect(await count(db, "clip_engagement")).toBe(1);
+	});
+});
+
 describe("the dev composition on a loaded dev seed (S112)", () =>
 {
 	afterEach(() =>

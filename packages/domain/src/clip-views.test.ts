@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	CLIP_COMPLETE_SHARE, CLIP_SHOWN_POSITION_MAX, clipCompleted, clipShownPosition, clipViewDay, isClipShownPosition, isClipViewEvent, parseClipViewRequest,
+	CLIP_COMPLETE_SHARE, CLIP_SHOWN_POSITION_MAX, CLIP_VIEW_GAME_PK_MAX, clipCompleted, clipShownPosition, clipViewDay, isClipShownPosition, isClipViewEvent, parseClipViewRequest,
 } from "./clip-views.js";
 
 describe("clipCompleted (S174 AC 2)", () =>
@@ -54,13 +54,12 @@ describe("clip view request (S174 AC 4)", () =>
 		for (const bad of [-1, 101, 1.5, Number.NaN, "3", null]) expect(isClipShownPosition(bad)).toBe(false);
 	});
 
-	it("parses exactly { gamePk, event, shownPosition }", () =>
+	it("parses exactly { gamePk, event, shownPosition }, refusing any other key as the spec's additionalProperties: false does", () =>
 	{
 		expect(parseClipViewRequest({
 			gamePk: 823823,
 			event: "complete",
 			shownPosition: 3,
-			extra: "ignored",
 		})).toEqual({
 			gamePk: 823823,
 			event: "complete",
@@ -87,7 +86,7 @@ describe("clip view request (S174 AC 4)", () =>
 				shownPosition: 1,
 			},
 			{
-				gamePk: 2147483648,
+				gamePk: CLIP_VIEW_GAME_PK_MAX + 1,
 				event: "start",
 				shownPosition: 1,
 			},
@@ -99,6 +98,12 @@ describe("clip view request (S174 AC 4)", () =>
 			{
 				gamePk: 823823,
 				event: "start",
+			},
+			{
+				gamePk: 823823,
+				event: "complete",
+				shownPosition: 3,
+				extra: "refused",
 			},
 		]) expect(parseClipViewRequest(bad)).toBeNull();
 	});

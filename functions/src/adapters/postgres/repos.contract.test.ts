@@ -22,7 +22,8 @@ import type { ScheduleRepository } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../fixtures/mlb.js";
 import { memoryScheduleStores } from "../memory/repos.js";
 import {
-	describeClipEngagementContract, describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract, describePlayerIdContract, describeServedBaseContract,
+	describeClipEngagementContract, describeGameHighlightContract, describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract,
+	describePlayerIdContract, describeServedBaseContract,
 } from "../repository-contract.js";
 import { contractGame, describeStorageContract } from "../storage-contract.js";
 import type { PostgresDb } from "./repos.js";
@@ -137,6 +138,7 @@ describeOwedEdgePurgeContract("PostgresOwedEdgePurgeRepository", () => gated(new
 describePlayerIdContract("PostgresPlayerIdRepository", () => gated(new PostgresPlayerIdRepository(db), emptied()));
 
 // S174 AC 3: the clip counts' one contract, on PGlite with the committed migrations, as the memory double runs it.
+describeGameHighlightContract("S174 AC 4 PostgresGameRepository", fresh((d) => new PostgresGameRepository(d)), contractGame);
 describeClipEngagementContract("S174 AC 3 PostgresClipEngagementRepository", fresh((d) => new PostgresClipEngagementRepository(d)));
 
 describe("clip_engagement holds nothing about the viewer (S174 AC 5)", () =>

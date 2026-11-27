@@ -368,6 +368,20 @@ export class PostgresGameRepository implements GameRepository
 		return row?.document ?? null;
 	}
 
+	/**
+	 * One row of a constant or none (S174 AC 4): JSON containment on the keyed row's `highlights`, so the document never
+	 * leaves the database. The id goes in as a bound JSON parameter, so quotes or brackets in it are data.
+	 */
+	async hasHighlight(gamePk: number, mediaId: string): Promise<boolean>
+	{
+		const rows = await this.db.select({
+			found: sql<number>`1`,
+		}).from(games).where(and(eq(games.gamePk, gamePk), sql`${games.document}->'highlights' @> ${JSON.stringify([{
+			id: mediaId,
+		}])}::jsonb`)).limit(1);
+		return rows.length > 0;
+	}
+
 	async upsert(game: GameSnapshot): Promise<void>
 	{
 		await upsertGame(this.db, game);

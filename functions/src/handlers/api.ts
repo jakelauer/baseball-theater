@@ -337,13 +337,42 @@ async function handleTierOverride(ctx: ApiContext, request: Request, write: bool
 	}));
 }
 
-/** An answer with no body (S174's clip views): 204, the CORS headers, and `no-store`. */
+/** An answer with no body (S174's clip views): 204 and `no-store`. */
 function noContent(): Response
 {
 	return noStore(new Response(null, {
 		status: 204,
-		headers: CORS_HEADERS,
 	}));
+}
+
+/**
+ * `response` without the API's CORS headers (S174's clip views): no other site's script is invited to call the route
+ * or read its answers. The shared `OPTIONS` answer still carries them; it only lets a browser send the POST, which
+ * {@link fromOwnPage} then refuses.
+ */
+function withoutCors(response: Response): Response
+{
+	for (const name of Object.keys(CORS_HEADERS)) response.headers.delete(name);
+	return response;
+}
+
+/**
+ * Whether `request` came from one of BT's own pages (S174's clip views), so another site's page can't make its
+ * visitors' browsers count views (a `sendBeacon` with a `text/plain` body needs no preflight). When the browser sends
+ * `Sec-Fetch-Site`, only `same-origin` passes. Without it (older browsers, or a page on plain `http` off `localhost`),
+ * `Origin` must equal the request URL's own origin. A request with neither is refused: every browser sends `Origin` on a
+ * POST, so it came from no browser page. Production and every preview serve the app and `/api` from one origin, and
+ * `pnpm dev` on `localhost` passes by `Sec-Fetch-Site` (Vite's proxy forwards it; its `changeOrigin` makes the URL's
+ * origin the API's, `localhost:8787`, not the page's). So counts from another device on the LAN in local dev (plain
+ * `http` to `name.local:5173`, no `Sec-Fetch-Site`, an `Origin` that isn't `localhost:8787`) are refused: a deliberate
+ * limit, since trusting a forwarded host would let a cross-site page name one. Neither header says who is asking: one
+ * is a keyword for how the page relates to the API, the other a scheme and host.
+ */
+function fromOwnPage(request: Request): boolean
+{
+	const site = request.headers.get("Sec-Fetch-Site");
+	if (site !== null) return site === "same-origin";
+	return request.headers.get("Origin") === new URL(request.url).origin;
 }
 
 /** A raw path segment decoded, or null when its percent-encoding is malformed (the route answers 404). */
@@ -361,27 +390,40 @@ function decodedSegment(segment: string): string | null
 
 /**
  * `POST /api/v1/clips/:mediaId/views` (S174 AC 4): counts one start or finish of a clip of a game's Videos room, on the
- * UTC day the request arrives (`clipViewDay`, by ingest's clock). The body must be a `ClipViewRequest`
- * (`parseClipViewRequest`; 400 otherwise), and the clip one of the game's stored highlights (404 otherwise, so a caller
- * can't make rows for clips BT doesn't have; only the stored copy is read, never MLB). Nothing is counted on either
- * refusal. It reads no cookie, no session and no header, and logs nothing (S174 AC 5, law P5): the count keeps nothing
- * about who asked. Every answer is `no-store`.
+ * UTC day the request arrives (`clipViewDay`, by ingest's clock). The request must come from BT's own page
+ * ({@link fromOwnPage}; 403 otherwise), the body must be a `ClipViewRequest` (`parseClipViewRequest`; 400 otherwise),
+ * and the clip one of the game's stored highlights (`hasHighlight`, without loading the game's document; 404 otherwise,
+ * so a caller can't make rows for clips BT doesn't have; only the stored copy is read, never MLB). Nothing is counted on
+ * any refusal. It reads no cookie and no session, and of the headers only `Sec-Fetch-Site` and `Origin`, which say
+ * nothing about who asked; it logs nothing (S174 AC 5, law P5). Every answer is `no-store` and carries no CORS headers.
  */
 async function countClipView(ctx: ApiContext, rawMediaId: string, request: Request): Promise<Response>
 {
+	return withoutCors(noStore(await clipViewAnswer(ctx, rawMediaId, request)));
+}
+
+/** {@link countClipView}'s answer before its shared headers. */
+async function clipViewAnswer(ctx: ApiContext, rawMediaId: string, request: Request): Promise<Response>
+{
+	if (!fromOwnPage(request))
+	{
+		return sendError(403, {
+			error: "cross_site",
+			hint: "Views count only from Baseball Theater's own pages.",
+		});
+	}
 	const body = parseClipViewRequest(await readJson(request));
 	if (!body)
 	{
-		return noStore(sendError(400, {
+		return sendError(400, {
 			error: "invalid_body",
-			hint: "{ gamePk, event: \"start\" | \"complete\", shownPosition: 0–100 }",
-		}));
+			hint: "{ gamePk, event: \"start\" | \"complete\", shownPosition: 0–100 } and no other keys",
+		});
 	}
 	const mediaId = decodedSegment(rawMediaId);
 	const counts = ctx.clipEngagement;
-	if (mediaId === null || !counts) return noStore(notFound());
-	const game = await ctx.ingest.games.getByPk(body.gamePk);
-	if (!game?.highlights.some((highlight) => highlight.id === mediaId)) return noStore(notFound());
+	if (mediaId === null || !counts) return notFound();
+	if (!await ctx.ingest.games.hasHighlight(body.gamePk, mediaId)) return notFound();
 	await counts.record(mediaId, body.gamePk, clipViewDay(ctx.ingest.now?.() ?? new Date()), body.event, body.shownPosition);
 	return noContent();
 }

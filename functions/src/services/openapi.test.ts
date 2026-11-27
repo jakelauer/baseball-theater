@@ -5,7 +5,9 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ApiRoutes } from "@bt/domain";
+import {
+	ApiRoutes, CLIP_SHOWN_POSITION_MAX, CLIP_VIEW_GAME_PK_MAX,
+} from "@bt/domain";
 import {
 	afterAll, describe, expect, it,
 } from "vitest";
@@ -74,13 +76,29 @@ describe("generateOpenApiSpec", () =>
 	it("S174 AC 4: gives the clip-view route a 204 with no body and no 200, its request body, and no schema for the empty response", () =>
 	{
 		const post = spec.paths["/api/v1/clips/{mediaId}/views"].post;
-		expect(Object.keys(post.responses).sort()).toEqual(["204", "400", "404", "426"]);
+		expect(Object.keys(post.responses).sort()).toEqual(["204", "400", "403", "404", "426"]);
 		expect(post.responses["204"]).toEqual({
 			description: "No Content",
 		});
 		expect(post.requestBody.content["application/json"].schema.$ref).toBe("#/components/schemas/ClipViewRequest");
 		expect(spec.components.schemas.ClipViewRequest.required).toEqual(["gamePk", "event", "shownPosition"]);
 		expect(spec.components.schemas).not.toHaveProperty("NoContentResponse");
+	});
+
+	it("S174 AC 4: states ClipViewRequest as parseClipViewRequest takes it: whole numbers in its bounds and no other keys", () =>
+	{
+		const schema = spec.components.schemas.ClipViewRequest;
+		expect(schema.additionalProperties).toBe(false);
+		expect(schema.properties.gamePk).toMatchObject({
+			type: "integer",
+			minimum: 1,
+			maximum: CLIP_VIEW_GAME_PK_MAX,
+		});
+		expect(schema.properties.shownPosition).toMatchObject({
+			type: "integer",
+			minimum: 0,
+			maximum: CLIP_SHOWN_POSITION_MAX,
+		});
 	});
 
 	it("declares the handler's error responses with ApiErrorResponse bodies", () =>

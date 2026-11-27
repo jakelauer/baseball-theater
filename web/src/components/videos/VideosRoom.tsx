@@ -300,8 +300,9 @@ function FilterDrawer({
  * matches MLB's titles.
  * The dialog counts the clip's start and finish anonymously (S174, `countViews`): with the game and the clip's place in
  * the game's ranked list (`clipShownPosition`, the order the game arrives in, whatever sort or filter shows), or 0 for
- * the clip that was open when the room first drew (opened directly, from a link); a clip past the list's 100th place
- * isn't counted. The stage counts nothing.
+ * the clip that was open when the room first drew (opened directly, from a link; a clip taken back from the corner keeps
+ * the place its start was counted at, `VideoPlayer`); a clip past the list's 100th place isn't counted. The stage counts
+ * nothing.
  */
 export function VideosRoom({ game, variant }: { game: GamePayload;
 	variant: LayoutVariant; })

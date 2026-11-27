@@ -2,8 +2,9 @@
  * S174 AC 6: only the Videos room's player counts views. With the sender stubbed (`sendClipView`), the dialog the room
  * opens sends `start` once per opening however often the fan pauses and plays, with the game and the clip's place in
  * the ranked list (0 when opened directly from a link), and `complete` once per opening, by `ended` or at 90% of a known
- * length, never for a clip stopped at 50%; switching clips counts the new one. The stage, Search's and the day digest's
- * players send nothing.
+ * length, never for a clip stopped at 50%, and only after this opening's counted start, at the place it started from
+ * (a clip expanded back from the corner keeps it); switching clips counts the new one. The stage, Search's and the day
+ * digest's players send nothing.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -19,7 +20,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
-	MemoryRouter, Route, Routes,
+	Link, MemoryRouter, Route, Routes,
 } from "react-router-dom";
 import {
 	afterEach, describe, expect, it, vi,
@@ -33,7 +34,9 @@ import { ScoreboardPage } from "../../pages/ScoreboardPage.js";
 import { SearchPage } from "../../pages/SearchPage.js";
 import { hydrateSettings, resetSettings } from "../../settings/store.js";
 import { jsonResponse } from "../../test/jsonResponse.js";
+import { markPlaying } from "../../test/renderWithPlayer.js";
 import { PlayerProvider } from "./PlayerProvider.js";
+import { VideoPlayer } from "./VideoPlayer.js";
 import { VideosRoom } from "./VideosRoom.js";
 
 // The stubbed sender: every view the players would send lands here.
@@ -68,8 +71,11 @@ function renderRoom(entry = "/game/823823/videos")
 	render(
 		<MantineProvider>
 			<MemoryRouter initialEntries={[entry]}><PlayerProvider>
+				{/* Another page to leave for: a playing clip goes to the corner. */}
+				<Link to="/elsewhere">Leave</Link>
 				<Routes>
 					<Route path="/game/823823/videos" element={<VideosRoom game={GAME} variant="desktop" />} />
+					<Route path="/elsewhere" element={<p>Elsewhere</p>} />
 				</Routes>
 			</PlayerProvider></MemoryRouter>
 		</MantineProvider>,
@@ -151,6 +157,7 @@ describe("the Videos room's player counts views (S174 AC 6)", () =>
 		playedTo(video, 89.9, 100);
 		expect(views().map(([, event]) => event)).toEqual(["start"]);
 		playedTo(video, 90, 100);
+		expect(views().map(([, event]) => event)).toEqual(["start", "complete"]);
 		playedTo(video, 99, 100);
 		fireEvent.ended(video);
 		fireEvent.play(video);
@@ -210,6 +217,74 @@ describe("the Videos room's player counts views (S174 AC 6)", () =>
 			gamePk: 823823,
 			shownPosition: 0,
 		}]]);
+	});
+
+	it("S174 AC 6: a clip opened directly, closed, then opened from its card counts at its ranked place, not 0", async () =>
+	{
+		renderRoom(`/game/823823/videos?clip=${encodeURIComponent(RANKED[6]!.id)}`);
+		fireEvent.play(await playerVideo());
+		const user = userEvent.setup();
+		await user.click(screen.getByRole("button", {
+			name: /close/i,
+		}));
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		fireEvent.play(await openCard(6));
+		expect(views().map(([mediaId, event, source]) => [mediaId, event, (source as { shownPosition: number }).shownPosition])).toEqual([
+			[RANKED[6]!.id, "start", 0],
+			[RANKED[6]!.id, "start", 7],
+		]);
+	});
+
+	it("S174 AC 6: a clip left to the corner and expanded back completes at the place it started from", async () =>
+	{
+		renderRoom();
+		const video = await openCard(2);
+		markPlaying(video, 3);
+		fireEvent.play(video);
+		// Leaving the room while it plays moves the clip to the corner.
+		fireEvent.click(screen.getByRole("link", {
+			name: "Leave",
+		}));
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		// Expanding it goes to the clip's own link: the room draws again with it open, as if opened directly.
+		fireEvent.click(screen.getByRole("button", {
+			name: "Expand mini player",
+		}));
+		const dialog = await screen.findByRole("dialog");
+		await waitFor(() => expect(within(dialog).getByTestId("video-player").querySelector("video")).toBe(video));
+		playedTo(video, 95, 100);
+		expect(views()).toEqual([[RANKED[2]!.id, "start", {
+			gamePk: 823823,
+			shownPosition: 3,
+		}], [RANKED[2]!.id, "complete", {
+			gamePk: 823823,
+			shownPosition: 3,
+		}]]);
+	});
+
+	it("S174 AC 6: a clip already playing when counting begins (Search's player, taken to the Videos room) completes nothing", () =>
+	{
+		const clip = RANKED[0]!;
+		const source = {
+			gamePk: 823823,
+			shownPosition: 1,
+		};
+		const { rerender } = render(
+			<MantineProvider>
+				<MemoryRouter><PlayerProvider><VideoPlayer video={clip} /></PlayerProvider></MemoryRouter>
+			</MantineProvider>,
+		);
+		const video = screen.getByTestId("video-player").querySelector("video")!;
+		fireEvent.play(video);
+		rerender(
+			<MantineProvider>
+				<MemoryRouter><PlayerProvider><VideoPlayer video={clip} countViews={source} /></PlayerProvider></MemoryRouter>
+			</MantineProvider>,
+		);
+		expect(screen.getByTestId("video-player").querySelector("video")).toBe(video);
+		playedTo(video, 95, 100);
+		fireEvent.ended(video);
+		expect(sent).not.toHaveBeenCalled();
 	});
 
 	it("S174 AC 6: nothing on screen changes: the dialog's player draws the same with and without counting", async () =>

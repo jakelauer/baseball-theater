@@ -325,6 +325,11 @@ export class InMemoryGameRepository implements GameRepository
 		return this.store.get(gamePk);
 	}
 
+	async hasHighlight(gamePk: number, mediaId: string): Promise<boolean>
+	{
+		return (await this.store.get(gamePk))?.highlights.some((highlight) => highlight.id === mediaId) ?? false;
+	}
+
 	async upsert(game: GameSnapshot): Promise<void>
 	{
 		this.store.put(game.gamePk, game);

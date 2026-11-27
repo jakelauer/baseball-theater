@@ -103,6 +103,12 @@ export interface GameStateRepository {
 export interface GameRepository {
 	getByPk(gamePk: number): Promise<GameSnapshot | null>;
 	/**
+	 * Whether `mediaId` is the `id` of one of the stored game's highlights (S174 AC 4: a clip view counts only for a clip BT
+	 * holds), answered without returning the game's document, which a view would otherwise load whole on every start and
+	 * finish; false when the game isn't stored.
+	 */
+	hasHighlight(gamePk: number, mediaId: string): Promise<boolean>;
+	/**
 	 * The stored snapshots of `gamePks` in one read (S216 AC 2: a day's games read at once, not one query a game), in no
 	 * particular order; games not stored are left out.
 	 */

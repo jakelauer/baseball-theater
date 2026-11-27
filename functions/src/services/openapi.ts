@@ -419,7 +419,7 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 	},
 	"POST /api/v1/clips/:mediaId/views": {
 		operationId: "countClipView",
-		summary: `Counts one view of a clip played from its game's Videos room (S174): \`start\` the first time it plays after it is opened, \`complete\` once it has been watched to the end. BT keeps only an anonymous count per clip, UTC day, event and the clip's place in the game's ranked Videos list (\`shownPosition\`, 1 to ${CLIP_SHOWN_POSITION_MAX}, or 0 when it was opened directly); nothing about who watched. It reads no cookie and no session. Answers 204 with no body.`,
+		summary: `Counts one view of a clip played from its game's Videos room (S174): \`start\` the first time it plays after it is opened, \`complete\` once it has been watched to the end. BT keeps only an anonymous count per clip, UTC day, event and the clip's place in the game's ranked Videos list (\`shownPosition\`, 1 to ${CLIP_SHOWN_POSITION_MAX}, or 0 when it was opened directly); nothing about who watched. It counts only from BT's own pages: the browser's \`Sec-Fetch-Site\` must be \`same-origin\`, or, where a browser sends none, its \`Origin\` must be BT's own; it reads no cookie and no session, and its answers carry no CORS headers. Answers 204 with no body.`,
 		parameters: [
 			{
 				name: "mediaId",
@@ -432,7 +432,8 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 			},
 		],
 		errors: {
-			400: `\`invalid_body\`: the body is not JSON with a positive whole \`gamePk\`, an \`event\` of \`start\` or \`complete\`, and a whole \`shownPosition\` from 0 to ${CLIP_SHOWN_POSITION_MAX}. Nothing is counted.`,
+			400: `\`invalid_body\`: the body is not JSON with a positive whole \`gamePk\`, an \`event\` of \`start\` or \`complete\`, and a whole \`shownPosition\` from 0 to ${CLIP_SHOWN_POSITION_MAX}, and no other keys. Nothing is counted.`,
+			403: "`cross_site`: the request didn't come from one of BT's own pages (`Sec-Fetch-Site` other than `same-origin`, or, without it, an `Origin` other than BT's own, or neither header). Nothing is counted.",
 			404: "`not_found`: `mediaId` is not one of the stored highlights of game `gamePk` (or BT holds no such game). Nothing is counted.",
 		},
 	},

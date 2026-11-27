@@ -69,21 +69,29 @@ export function clipViewDay(at: Date): string
 	return at.toISOString().slice(0, 10);
 }
 
-/** The largest MLB game id the route accepts: Postgres `integer`'s top, which every game id is far below. */
-const GAME_PK_MAX = 2147483647;
+/**
+ * The largest MLB game id the route accepts: Postgres `integer`'s top, which every game id is far below. The spec states
+ * it too, as `ClipViewRequest.gamePk`'s `@maximum` (`openapi.test.ts` checks they agree).
+ */
+export const CLIP_VIEW_GAME_PK_MAX = 2147483647;
+
+/** The keys a {@link ClipViewRequest} has, and the only ones it may have. */
+const CLIP_VIEW_REQUEST_KEYS: readonly string[] = ["gamePk", "event", "shownPosition"];
 
 /**
  * `body` as a {@link ClipViewRequest}, or null when it isn't exactly that shape: an object whose `gamePk` is a positive
  * whole number, whose `event` is a {@link ClipViewEvent} and whose `shownPosition` passes {@link isClipShownPosition}.
- * Other keys are ignored. The route answers 400 for null and counts nothing.
+ * Any other key makes it null, as the spec's `additionalProperties: false` says. The route answers 400 for null and
+ * counts nothing.
  */
 export function parseClipViewRequest(body: unknown): ClipViewRequest | null
 {
 	if (body === null || typeof body !== "object" || Array.isArray(body)) return null;
+	if (Object.keys(body).some((key) => !CLIP_VIEW_REQUEST_KEYS.includes(key))) return null;
 	const {
 		gamePk, event, shownPosition,
 	} = body as Record<string, unknown>;
-	if (!Number.isInteger(gamePk) || (gamePk as number) < 1 || (gamePk as number) > GAME_PK_MAX) return null;
+	if (!Number.isInteger(gamePk) || (gamePk as number) < 1 || (gamePk as number) > CLIP_VIEW_GAME_PK_MAX) return null;
 	if (!isClipViewEvent(event) || !isClipShownPosition(shownPosition)) return null;
 	return {
 		gamePk: gamePk as number,

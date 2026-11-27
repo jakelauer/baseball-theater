@@ -145,8 +145,11 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
  *
  * `countViews` (S174 AC 6), which only the Videos room's dialog passes, counts this opening of the clip anonymously
  * (`sendClipView`): `start` the first time it plays, and `complete` once, when the element fires `ended` or 90% of a
- * known length has played (`clipCompleted`; a clip whose length is 0 or `NaN` completes only by `ended`). An opening
- * is this mount: the provider keys the player by the clip, so a new clip, or the same one opened again after it
+ * known length has played (`clipCompleted`; a clip whose length is 0 or `NaN` completes only by `ended`). `complete`
+ * needs this opening's counted start, so a clip already playing when counting began (Search's player taken to the
+ * Videos room through the corner) finishes uncounted, and it carries the start's game and shown position, so the room
+ * drawing the clip again at another place (the corner's expand reopens it by its link, at 0) doesn't move it; a host
+ * that doesn't count still sends nothing. An opening is this mount: the provider keys the player by the clip, so a new clip, or the same one opened again after it
  * closed, starts afresh, while pausing, a quality switch or a move to the corner does not. Nothing on screen changes.
  */
 export function VideoPlayer({
@@ -190,17 +193,28 @@ export function VideoPlayer({
 	const wantsPlay = useRef(autoPlay);
 	// `autoPlay` as last rendered, so only its turning on after mount plays the clip here (#423).
 	const autoPlayed = useRef(autoPlay);
-	// Which of this opening's views have been counted (S174): each at most once per mount.
-	const counted = useRef<Record<ClipViewEvent, boolean>>({
-		start: false,
+	// This opening's counted views (S174): the source its start was counted with, and whether its finish was.
+	const counted = useRef<{ start: ClipViewSource | null;
+		complete: boolean; }>({
+		start: null,
 		complete: false,
 	});
-	// Counts `event` for this opening, once, when the host asked for counting.
+	// Counts `event` for this opening, once, while the host asks for counting. A finish counts only after a counted
+	// start, and from the start's source: the place the clip started from stays its place.
 	const countView = (event: ClipViewEvent) =>
 	{
-		if (!countViews || counted.current[event]) return;
-		counted.current[event] = true;
-		sendClipView(video.id, event, countViews);
+		const views = counted.current;
+		if (!countViews) return;
+		if (event === "start")
+		{
+			if (views.start) return;
+			views.start = countViews;
+			sendClipView(video.id, "start", countViews);
+			return;
+		}
+		if (!views.start || views.complete) return;
+		views.complete = true;
+		sendClipView(video.id, "complete", views.start);
 	};
 
 	const switchTo = (next: VideoQuality) =>
@@ -338,11 +352,11 @@ export function VideoPlayer({
 					countView("complete");
 					event.currentTarget.currentTime = 0;
 				}}
-				// 90% of a known length played also finishes it (S174); only a clip that has started can finish.
+				// 90% of a known length played also finishes it (S174); `countView` counts it only after a counted start.
 				onTimeUpdate={(event) =>
 				{
 					const element = event.currentTarget;
-					if (counted.current.start && clipCompleted(element.currentTime, element.duration)) countView("complete");
+					if (clipCompleted(element.currentTime, element.duration)) countView("complete");
 				}}
 				onLoadedMetadata={(event) =>
 				{

@@ -12,7 +12,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Counts one view of a clip played from its game's Videos room (S174): `start` the first time it plays after it is opened, `complete` once it has been watched to the end. BT keeps only an anonymous count per clip, UTC day, event and the clip's place in the game's ranked Videos list (`shownPosition`, 1 to 100, or 0 when it was opened directly); nothing about who watched. It reads no cookie and no session. Answers 204 with no body. */
+        /** Counts one view of a clip played from its game's Videos room (S174): `start` the first time it plays after it is opened, `complete` once it has been watched to the end. BT keeps only an anonymous count per clip, UTC day, event and the clip's place in the game's ranked Videos list (`shownPosition`, 1 to 100, or 0 when it was opened directly); nothing about who watched. It counts only from BT's own pages: the browser's `Sec-Fetch-Site` must be `same-origin`, or, where a browser sends none, its `Origin` must be BT's own; it reads no cookie and no session, and its answers carry no CORS headers. Answers 204 with no body. */
         post: operations["countClipView"];
         delete?: never;
         options?: never;
@@ -1316,8 +1316,17 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description `invalid_body`: the body is not JSON with a positive whole `gamePk`, an `event` of `start` or `complete`, and a whole `shownPosition` from 0 to 100. Nothing is counted. */
+            /** @description `invalid_body`: the body is not JSON with a positive whole `gamePk`, an `event` of `start` or `complete`, and a whole `shownPosition` from 0 to 100, and no other keys. Nothing is counted. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `cross_site`: the request didn't come from one of BT's own pages (`Sec-Fetch-Site` other than `same-origin`, or, without it, an `Origin` other than BT's own, or neither header). Nothing is counted. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

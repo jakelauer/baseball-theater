@@ -21,13 +21,15 @@ When you sign in, BT keeps the following, each in the place named:
 
 BT shows no advertising and uses no third-party analytics. Its server logs don't record your email address or other personal details.
 
-BT counts, for each video, how many times a day it is started and how many times it is watched to the end. These counts are anonymous: they record nothing about who watched.
-
 ## Download and delete
 
 In Settings, under Your data, you can download everything BT keeps about you, and you can delete your account. Deleting it removes your data from every place listed above at once, signs you out, and clears what your browser kept for BT. Downloading and deleting are separate: you can do either without the other.
 
 After a deletion, BT keeps only a record that an account with its internal ID was deleted, and when, so that a restored database backup can't bring your data back. Database backups age out on their own schedule, and the email and sign-in services keep their own logs for as long as their own policies say.
+
+## Video counts
+
+BT counts, for each video, how many times a day it is started and how many times it is watched to the end. These counts are anonymous: they record nothing about who watched.
 
 ## Questions
 
