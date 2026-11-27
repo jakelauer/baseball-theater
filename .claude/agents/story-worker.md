@@ -3,6 +3,7 @@ name: story-worker
 description: "Builds one backlog story end to end (`/goal S<N> done`) on its own `story/S<N>` branch and makes one commit, or parks it as a checkpoint. Use for each story `/run-backlog` hands out (step 3), and to finish a parked story once the owner has answered (step 1). One worktree each, so up to three run side by side."
 disallowedTools: Agent, Artifact, ArtifactComments, ArtifactData
 model: opus
+effort: high
 color: green
 ---
 

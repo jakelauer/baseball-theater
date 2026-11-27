@@ -3,6 +3,7 @@ name: doc-parity-reviewer
 description: "Runs the doc parity review (`.claude/skills/doc-parity-review/SKILL.md`) with fresh context when `pnpm parity:debt` says one is due (inside a `/run-backlog` run, by the review tracker or its ceiling, or at the run's end). Edits only INTENT, FEATURES and `**Source:**` lines, logs with `scripts/audit.sh parity` and commits. Give it the debt script's output; never run it in the thread that wrote the stories."
 disallowedTools: Agent, Artifact, ArtifactComments, ArtifactData
 model: opus
+effort: high
 skills:
     - doc-parity-review
 color: blue

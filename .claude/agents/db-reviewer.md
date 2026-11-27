@@ -3,6 +3,7 @@ name: db-reviewer
 description: 'Fresh-context, read-only database review of the parts of a change that touch Postgres: the schema, migrations, the data classification manifest, repositories and any SQL or drizzle query (`docs/v3/LOOP.md` §7 step 2 lists the paths). Raises performance and structure concerns, separates "must fix in this PR" from forward-looking "consider later", and justifies every claim. The coordinator adds one beside the slice reviewers whenever a change set touches those paths, and in the fix flow''s change review (§7 step 3.4) when a fix does. Give it that slice of the diff and why the change is made: the story or issue and its acceptance criteria (or the finding a fix answers), the pull request description, and the owner''s quoted decisions.'
 tools: Read, Grep, Glob, Bash
 model: opus
+effort: high
 color: cyan
 ---
 

@@ -3,6 +3,7 @@ name: fix-worker
 description: "Fixes the merged findings of a pre-PR review, through `docs/v3/LOOP.md` §7 step 3: first a plan with no code changed, then (after the plan review passes) the uncommitted fixes, then the finish's one local `pnpm verify` (through `scripts/audit.sh story` for a `done` story) and one commit when the coordinator says the change review came back clean. Continue the same worker with SendMessage between rounds."
 disallowedTools: Agent, Artifact, ArtifactComments, ArtifactData
 model: opus
+effort: high
 color: orange
 ---
 

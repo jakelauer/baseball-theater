@@ -2,7 +2,8 @@
 name: fix-plan-reviewer
 description: "Fresh-context, read-only review of a fix-worker's plan before any code is written (`docs/v3/LOOP.md` §7 step 3.2) — what the plan would break. Give it the findings, the plan and the branch."
 tools: Read, Grep, Glob, Bash
-model: opus
+model: sonnet
+effort: high
 color: yellow
 ---
 
