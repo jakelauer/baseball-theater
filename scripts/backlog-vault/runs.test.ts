@@ -118,29 +118,65 @@ describe("prePrFindingsByPr (owner, 2026-11-26: \"Count pre-PR findings (Recomme
 		});
 	});
 
-	it("a pull request opened for an item an earlier run started (joined in step 0) is unknown: its findings events are in that run's journal", () =>
+	it("a pull request opened for an item an earlier run started (joined in step 0) has no findings here, and is left out of the measure: carried over, never unknown", () =>
 	{
-		const events = [...countedRun(), item("findings", "S1", 15, {
-			count: 1,
-		}), item("pr-open", "S90", 56, {
+		const counts = ["S1", "S2", "S3", "S4"].map((id, i) => item("findings", id, 15, {
+			count: i === 0 ? 1 : 0,
+		}));
+		const events = [...countedRun(), ...counts, item("pr-open", "S90", 56, {
 			pr: 90,
 		})];
 		expect(prePrFindingsByPr(journal(events))[90]).toBeNull();
 		expect(sum(events, {
 			findings: prePrFindingsByPr(journal(events)),
 		})).toMatchObject({
-			findingsPerPr: null,
-			unknownFindingsPrs: 4,
+			prs: [1, 2, 3, 4, 90],
+			findingsPerPr: 0.25,
+			unknownFindingsPrs: 0,
+			carriedOverPrs: 1,
+			clean: true,
 		});
+	});
+
+	it("nine items this run started, all with counts, plus four carried-over pull requests: measured over the nine", () =>
+	{
+		const nine = Array.from({
+			length: 9,
+		}, (_, i) => `S${i + 1}`);
+		// Two at a time, five minutes apart, each merged ten minutes after it starts.
+		const events = [
+			...nine.flatMap((id, i) => [...life(id, i + 1, i * 5, i * 5 + 5, i * 5 + 10), item("findings", id, i * 5 + 4, {
+				count: i === 0 ? 9 : 0,
+			})]),
+			...[91, 92, 93, 94].map((pr, i) => item("pr-open", `S${pr}`, 60 + i, {
+				pr,
+			})),
+		].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+		const s = sum(events, {
+			findings: prePrFindingsByPr(journal(events)),
+		});
+		expect(s).toMatchObject({
+			itemsStarted: 9,
+			findingsPerPr: 1,
+			unknownFindingsPrs: 0,
+			carriedOverPrs: 4,
+			counted: true,
+			clean: true,
+		});
+		expect(s.prs).toHaveLength(13);
+		expect(renderRunEntry(s, {
+			date: "2026-11-21",
+			stamp: "20261121T000000Z",
+			head: "x",
+		})).toContain("| Carried-over pull requests (not measured) | 4 |");
 	});
 
 	it("one pull request known at 0 and twelve unknown: unmeasured, so it reads unknown, sets no bar and is not clean", () =>
 	{
+		// Thirteen items this run started, so none is carried over.
 		const thirteen = [...countedRun(), ...Array.from({
 			length: 9,
-		}, (_, i) => item("pr-open", `S${10 + i}`, 56 + i, {
-			pr: 10 + i,
-		}))];
+		}, (_, i) => life(`S${10 + i}`, 10 + i, 56 + i * 2, 56 + i * 2, 57 + i * 2)).flat()].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 		const findings = prePrFindingsByPr(journal([...thirteen, item("findings", "S1", 15, {
 			count: 0,
 		})]));

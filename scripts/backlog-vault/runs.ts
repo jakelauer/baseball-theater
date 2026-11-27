@@ -32,8 +32,9 @@
  *       in `fragment`. Any command that fails other than by refusing exits 2.
  *   node scripts/backlog-vault/runs.ts fragment --journal <run.json> --date <d> --stamp <s>
  *       --head <text> [--audit <ledger>] [--abandoned]   prints the run entry (`audit.sh run` writes it), its
- *       findings per pull request from the journal's `findings` events alone (no GitHub read; any pull request with
- *       none leaves the run unmeasured, its figure unknown, and check-end says how many)
+ *       findings per pull request from the journal's `findings` events alone (no GitHub read), over the pull requests
+ *       of items this run started: any with none leaves the run unmeasured, its figure unknown; carried-over ones are
+ *       left out; check-end names both
  *   node scripts/backlog-vault/runs.ts turn-caps [--audit <ledger>] [--run-dir <main checkout>/.run]
  *       one line per item with a turn-cap hit no backlog review lists: `<ID>\t<turn-cap event JSON>`
  *   node scripts/backlog-vault/runs.ts debt-hits --debt-json <file>     the hits a review's seed held, as its row's text
@@ -195,8 +196,10 @@ export interface RunSummary extends RunRecord
 	conflicts: number;
 	duplicates: number;
 	prs: number[];
-	/** Pull requests with no recorded pre-PR findings ({@link prePrFindingsByPr}); any at all leaves the run unmeasured. */
+	/** Pull requests for items this run started with no recorded pre-PR findings ({@link prePrFindingsByPr}); any leaves the run unmeasured. */
 	unknownFindingsPrs: number;
+	/** Pull requests for items an earlier run started (joined in step 0): listed, never measured. */
+	carriedOverPrs: number;
 	turnCaps: TurnCapHit[];
 	/** Items still in flight at the journal's end (`audit.sh run` refuses to record such a run unless it is abandoned). */
 	inFlightAtEnd: string[];
@@ -236,7 +239,7 @@ function stoppedSpans(events: RunEvent[], end: number): [number, number][]
  * run: the sum of the item's `findings` events (one per review round, claims.ts `run event findings <ID> --count <n>`),
  * or null (unknown) when it has none, never 0: a run that logged no findings must not read as a run that found none,
  * or it would set the bar at 0 for every later run. An item an earlier run started (joined in step 0) has its events
- * in that run's journal, so its pull request is unknown here. An item's findings go to the first pull request the
+ * in that run's journal, so its pull request is null here, and summarizeRun leaves it out as carried over. An item's findings go to the first pull request the
  * journal opened for it, so two `pr-open`s never count them twice (a later one is unknown); a `findings` event for an
  * item with no `pr-open` in this run adds nothing (no pull request to divide by). Owner, 2026-11-26, asked what should replace the retired Claude review's findings: "Count pre-PR
  * findings (Recommended)".
@@ -294,6 +297,8 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 	let gateFrom: number | undefined;
 	let gate = 0;
 	const prs: number[] = [];
+	/** Each pull request's item, from its first `pr-open`. */
+	const prItem = new Map<number, string>();
 	const turnCaps: TurnCapHit[] = [];
 	let conflicts = 0;
 	let duplicates = 0;
@@ -361,11 +366,13 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 				drainTo = t;
 				break;
 			case "pr-open":
-				// Every `pr-open` counts toward findings per pull request, as AC 2 defines it ("the --pr numbers of
-				// pr-open events"), an item started by an earlier run included: its pull request opened in this run.
+				// Every `pr-open` is listed among the run's pull requests (AC 2: "the --pr numbers of pr-open events"), an
+				// item started by an earlier run included. Findings per pull request measure only those whose item this run
+				// started (below): a carried-over item's `findings` events are in the earlier run's journal.
 				if (e.pr !== undefined && !prs.includes(e.pr))
 				{
 					prs.push(e.pr);
+					prItem.set(e.pr, id);
 				}
 				break;
 			case "conflict":
@@ -418,11 +425,16 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 		};
 	});
 	const drain = drainFrom === undefined || drainTo === undefined ? null : active(drainFrom, drainTo);
-	const known = prs.map((pr) => findingsByPr[pr]).filter((n): n is number => typeof n === "number");
-	const unknownFindingsPrs = prs.length - known.length;
-	// Any unknown pull request leaves the whole run unmeasured: averaging only the known ones would let one `--count 0`
-	// among twelve unrecorded pull requests read 0 and become the bar for every later run.
-	const findingsPerPr = prs.length === 0 || unknownFindingsPrs > 0 ? null : roundFindings(known.reduce((a, b) => a + b, 0) / known.length);
+	// Only pull requests whose item this run started are measured; a carried-over one (an item an earlier run started,
+	// joined in step 0) is listed but left out of both the average and the unknown count, since its findings were
+	// logged in the earlier run's journal and would always read unknown here.
+	const measured = prs.filter((pr) => started.has(prItem.get(pr) ?? ""));
+	const carriedOverPrs = prs.length - measured.length;
+	const known = measured.map((pr) => findingsByPr[pr]).filter((n): n is number => typeof n === "number");
+	const unknownFindingsPrs = measured.length - known.length;
+	// Any unknown measured pull request leaves the whole run unmeasured: averaging only the known ones would let one
+	// `--count 0` among twelve unrecorded pull requests read 0 and become the bar for every later run.
+	const findingsPerPr = measured.length === 0 || unknownFindingsPrs > 0 ? null : roundFindings(known.reduce((a, b) => a + b, 0) / known.length);
 	const counted = started.size >= MIN_ITEMS && peak >= journal.c && merged >= 1 && !opts.abandoned;
 	// The bar (owner, 2026-11-20: "First C=2 run sets it"): the lowest findings per pull request of the earlier
 	// counted runs at C = 2. None yet, and this run meets it. A run too small to count never sets it.
@@ -431,7 +443,7 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 	// with no bar yet, and its null figure never sets the bar (filtered above): the owner chose to count pre-PR findings
 	// (2026-11-26: "Count pre-PR findings (Recommended)"), and "the first run passes this condition by definition" was
 	// said of a run whose findings were counted. Passing it would let C climb with nothing measured.
-	const unmeasured = prs.length > 0 && findingsPerPr === null;
+	const unmeasured = measured.length > 0 && findingsPerPr === null;
 	const underBar = !unmeasured && (bars.length === 0 || (findingsPerPr ?? 0) <= Math.min(...bars));
 	const clean = counted && conflicts === 0 && duplicates === 0 && drain !== null && drain < MAX_DRAIN_MS && underBar;
 	return {
@@ -451,6 +463,7 @@ export function summarizeRun(journal: RunJournal, findingsByPr: Record<number, n
 		prs,
 		findingsPerPr,
 		unknownFindingsPrs,
+		carriedOverPrs,
 		turnCaps,
 		inFlightAtEnd: [...open],
 		counted,
@@ -513,8 +526,9 @@ export function renderRunEntry(s: RunSummary, meta: { date: string;
 		`| Peak in flight (non-barrier) | ${s.peak} |`,
 		`| Merged | ${s.merged} |`,
 		`| Pull requests | ${s.prs.map((p) => `#${p}`).join(", ") || "none"} |`,
-		`| Findings per pull request | ${s.findingsPerPr !== null ? String(s.findingsPerPr) : s.prs.length > 0 ? "unknown" : "none"} |`,
+		`| Findings per pull request | ${s.findingsPerPr !== null ? String(s.findingsPerPr) : s.prs.length > s.carriedOverPrs ? "unknown" : "none"} |`,
 		`| Pull requests with unknown findings | ${s.unknownFindingsPrs} |`,
+		`| Carried-over pull requests (not measured) | ${s.carriedOverPrs} |`,
 		`| Record conflicts | ${s.conflicts} |`,
 		`| Duplicate implementations | ${s.duplicates} |`,
 		`| Drain (active minutes) | ${minutes(s.drain)} |`,
@@ -787,15 +801,26 @@ function main(argv: string[]): number
 				problems.push(...endReviewProblems(journal, readLedger(audit)));
 			}
 			problems.forEach((p) => console.error(`runs.ts check-end: ${p}`));
-			// Not a refusal: a pull request with no findings event leaves the run unmeasured (prePrFindingsByPr), but the
-			// coordinator should know before the entry is written, while it can still log the missing counts.
+			// Not a refusal: a pull request for an item this run started with no findings event leaves the run unmeasured,
+			// and a carried-over one is left out (summarizeRun); the coordinator should know before the entry is written,
+			// while it can still log the missing counts.
 			const findings = prePrFindingsByPr(journal);
-			const prCount = Object.keys(findings).length;
-			const unknown = Object.entries(findings).filter(([, n]) => n === null).map(([pr]) => `#${pr}`);
+			const startedIds = new Set(summarizeRun(journal, findings, [], {
+				abandoned: false,
+			}).items.map((i) => i.id));
+			const firstItem = new Map<number, string>();
+			journal.events.filter((e) => e.kind === "pr-open" && e.pr !== undefined && !firstItem.has(e.pr)).forEach((e) => firstItem.set(e.pr!, e.id ?? ""));
+			const ours = [...firstItem].filter(([, id]) => startedIds.has(id)).map(([pr]) => pr);
+			const carried = [...firstItem].filter(([, id]) => !startedIds.has(id)).map(([pr]) => `#${pr}`);
+			const unknown = ours.filter((pr) => findings[pr] === null).map((pr) => `#${pr}`);
 			if (unknown.length > 0)
 			{
-				console.error(`runs.ts check-end: ${unknown.length} of ${prCount} pull requests have no recorded pre-PR findings (${unknown.join(", ")}): `
+				console.error(`runs.ts check-end: ${unknown.length} of ${ours.length} pull requests for items this run started have no recorded pre-PR findings (${unknown.join(", ")}): `
 					+ "the run is recorded unmeasured (findings per pull request unknown, not clean, never the bar); log run event findings <ID> --count <n> for each item first if the counts are known");
+			}
+			if (carried.length > 0)
+			{
+				console.error(`runs.ts check-end: ${carried.length} pull request${carried.length === 1 ? "" : "s"} carried over from an earlier run (${carried.join(", ")}) left out of the findings measure`);
 			}
 			return problems.length > 0 ? 1 : 0;
 		}

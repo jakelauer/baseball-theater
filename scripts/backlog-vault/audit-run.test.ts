@@ -193,6 +193,7 @@ describe("audit.sh run (S158 AC 4)", () =>
 		expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
 		expect(existsSync(join(repo, ".run/run.json"))).toBe(false);
 		const ended = JSON.parse(readFileSync(join(repo, `.run/ended/${RUN}.json`), "utf8")) as { events: unknown[] };
+		// #8 is S10's, an item this run never started (carried over), so only #7 is measured: 3 findings.
 		expect(ended.events).toHaveLength(9 + END_STARTS.length);
 		expect(existsSync(join(tmp, "gh-called")), "audit.sh run asked GitHub for findings").toBe(false);
 		const [entry] = runEntries(repo);
@@ -200,7 +201,7 @@ describe("audit.sh run (S158 AC 4)", () =>
 			run: RUN,
 			runC: 2,
 			counted: false,
-			findingsPerPr: 1.5,
+			findingsPerPr: 3,
 			turnCaps: [{
 				id: "S9",
 				at: A,
@@ -334,15 +335,24 @@ describe("audit.sh run refuses what it can't record truly", () =>
 	{
 		const bin = setup();
 		journal(repo, RUN, [{
+			kind: "item-start",
+			id: "S11",
+			at: "2026-11-21T11:35:00.000Z",
+		}, {
 			kind: "pr-open",
 			id: "S11",
 			pr: 9,
 			at: "2026-11-21T11:40:00.000Z",
+		}, {
+			kind: "merged",
+			id: "S11",
+			at: "2026-11-21T11:41:00.000Z",
 		}]);
 		const r = audit(bin, repo, ["run"]);
 		expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
 		expect(existsSync(join(tmp, "gh-called"))).toBe(false);
-		expect(r.stderr).toContain("1 of 3 pull requests have no recorded pre-PR findings");
+		expect(r.stderr).toContain("1 of 2 pull requests for items this run started have no recorded pre-PR findings (#9)");
+		expect(r.stderr).toContain("1 pull request carried over from an earlier run (#8)");
 		// Any unknown pull request leaves the run unmeasured: no figure, never an average of the known two.
 		const [entry] = runEntries(repo);
 		expect(entry!.findingsPerPr).toBeNull();
@@ -361,7 +371,7 @@ describe("audit.sh run refuses what it can't record truly", () =>
 		writeFileSync(path, JSON.stringify(j));
 		const r = audit(bin, repo, ["run"]);
 		expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
-		expect(r.stderr).toContain("2 of 2 pull requests have no recorded pre-PR findings");
+		expect(r.stderr).toContain("1 of 1 pull requests for items this run started have no recorded pre-PR findings (#7)");
 		const [entry] = runEntries(repo);
 		expect(entry!.findingsPerPr).toBeNull();
 		expect(readFileSync(join(repo, "docs/v3", entry!.file!), "utf8")).toContain("| Findings per pull request | unknown |");
