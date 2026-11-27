@@ -1,7 +1,8 @@
 /**
  * Law L18 (docs/v3/LAWS.md; owner, 2026-11-27: "Yes, add item 33 to the tests slice and the parse test"):
  * every agent definition (`.claude/agents/*.md`) and every skill (`.claude/skills/<name>/SKILL.md`) opens
- * with YAML frontmatter that parses, and names itself and says what it is for.
+ * with YAML frontmatter that parses, names itself (an agent by its file name, a skill by its directory
+ * name) and says what it is for; every skill directory holds a `SKILL.md`.
  *
  * Why a test and not only review checklist item 35 (docs/v3/LOOP.md §7): Claude Code drops a definition
  * whose frontmatter fails to parse without any error, so the Agent tool silently stops listing that
@@ -43,16 +44,26 @@ function parseFrontmatter(block: string): Record<string, unknown>
 	return value as Record<string, unknown>;
 }
 
-/** Every definition file, relative to the repository root: each agent, then each skill directory's SKILL.md. */
+/**
+ * Every definition file, relative to the repository root: each agent, then each skill directory's SKILL.md.
+ * A skill directory is listed whether or not its SKILL.md exists, so one saved under another name
+ * (`skill.md`) fails its test instead of being skipped: Claude Code would skip it silently too.
+ */
 function definitionFiles(): string[]
 {
 	const agents = readdirSync(join(ROOT, ".claude/agents")).filter((f) => f.endsWith(".md")).map((f) => `.claude/agents/${f}`);
 	const skills = readdirSync(join(ROOT, ".claude/skills"), {
 		withFileTypes: true,
 	})
-		.filter((d) => d.isDirectory() && existsSync(join(ROOT, ".claude/skills", d.name, "SKILL.md")))
+		.filter((d) => d.isDirectory())
 		.map((d) => `.claude/skills/${d.name}/SKILL.md`);
 	return [...agents, ...skills].sort();
+}
+
+/** The name a definition must declare: an agent's file name without `.md`, or a skill's directory name. */
+function expectedName(file: string): string
+{
+	return file.startsWith(".claude/agents/") ? file.slice(".claude/agents/".length, -".md".length) : file.split("/")[2]!;
 }
 
 describe("agent and skill frontmatter parses (law L18)", () =>
@@ -69,17 +80,15 @@ describe("agent and skill frontmatter parses (law L18)", () =>
 	{
 		it(`${file}: frontmatter parses, with a name and a description`, () =>
 		{
+			expect(existsSync(join(ROOT, file)), `${file} is missing`).toBe(true);
 			const block = frontmatterOf(readFileSync(join(ROOT, file), "utf8"));
 			expect(block, `${file} opens with no --- frontmatter block`).not.toBeNull();
 			const data = parseFrontmatter(block!);
-			expect(typeof data.name, `${file}: name`).toBe("string");
 			expect(typeof data.description, `${file}: description`).toBe("string");
 			expect((data.description as string).trim().length, `${file}: description`).toBeGreaterThan(0);
-			// Claude Code addresses an agent by its `name`; one that differs from its file name is a renamed copy.
-			if (file.startsWith(".claude/agents/"))
-			{
-				expect(data.name).toBe(file.slice(".claude/agents/".length, -".md".length));
-			}
+			// Claude Code addresses an agent or a skill by its `name`; one that differs from its file or
+			// directory name is a renamed copy (and the comparison also rules out a missing or empty name).
+			expect(data.name, `${file}: name`).toBe(expectedName(file));
 		});
 	}
 
