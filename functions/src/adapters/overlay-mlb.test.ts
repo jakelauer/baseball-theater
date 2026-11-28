@@ -88,6 +88,33 @@ describe("overlayMlbClient (S112)", () =>
 		]);
 	});
 
+	it("B577: a game the source lacks is asked underneath with the caller's options (skipPlayMetrics)", async () =>
+	{
+		const calls: unknown[][] = [];
+		const inner = {
+			fetchGame: async (...args: unknown[]) =>
+			{
+				calls.push(args);
+				return {
+					game: {
+						gamePk: 1,
+					},
+				};
+			},
+		} as unknown as MlbStatsClient;
+		const mlb = overlayMlbClient(inner, {
+			schedule: async () => null,
+			game: async () => null,
+		});
+		await mlb.fetchGame(1, {
+			skipPlayMetrics: true,
+		});
+		await mlb.fetchGame(2);
+		expect(calls).toEqual([[1, {
+			skipPlayMetrics: true,
+		}], [2, undefined]]);
+	});
+
 	it("storeOverlay hands back a stored day or game without its version, and null for what isn't stored", async () =>
 	{
 		const { schedules, gameStates } = memoryScheduleStores();

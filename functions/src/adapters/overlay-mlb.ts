@@ -27,12 +27,12 @@ export function overlayMlbClient(inner: MlbStatsClient, source: MlbOverlaySource
 		fetchSchedule: async (date) => await source.schedule(date) ?? inner.fetchSchedule(date),
 		fetchScheduleRange: (startDate, endDate) => overlayScheduleRange(inner, source, startDate, endDate),
 		// A game from `source` has no feed time of its own (S150 AC 2: never skipped for its time).
-		fetchGame: async (gamePk) =>
+		fetchGame: async (gamePk, options) =>
 		{
 			const game = await source.game(gamePk);
 			return game ? {
 				game,
-			} : inner.fetchGame(gamePk);
+			} : inner.fetchGame(gamePk, options);
 		},
 		fetchGameContent: (gamePk) => inner.fetchGameContent(gamePk),
 		fetchPlayMetrics: (gamePk) => inner.fetchPlayMetrics(gamePk),

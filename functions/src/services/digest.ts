@@ -14,9 +14,9 @@ import { readDayAndGames } from "./ingest.js";
 export type DigestEdgeLifetime = "past" | "partialPast" | "ladder";
 
 /**
- * "Best of <date>" (S71): reads the day's schedule, then each of its games the way the
- * game route does (stored copy, refreshed when stale), and ranks their videos with
- * `dayDigest`. A game that can't be read is left out rather than failing the whole
+ * "Best of <date>" (S71): reads the day's schedule, then each of its games (stored copy, refreshed when stale, as the
+ * game route reads one; B577: a game it fetches is asked only what the digest ranks with, its playMetrics and extras
+ * after the response), and ranks their videos with `dayDigest`. A game that can't be read is left out rather than failing the whole
  * digest; a day with no videos yet has an empty digest. Returns the digest's freshness too
  * (`digestFreshness`: live while the day or any game is, last changed when the latest of them
  * did, #61), so the route caches it by the same graduated rule as the day and its games (ADR-021).

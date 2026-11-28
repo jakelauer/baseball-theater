@@ -1,4 +1,6 @@
-import type { GameSnapshot, PlayerOfTheGame } from "./types.js";
+import type {
+	GamePlayMetrics, GameSnapshot, PlayerOfTheGame,
+} from "./types.js";
 import { isFinalStatus } from "./window.js";
 
 /**
@@ -39,7 +41,7 @@ export function playerOfTheGameComplete(pick: PlayerOfTheGame | null | undefined
  * The incoming game with each pick the stored game has and the incoming one lacks kept (S99 review), side by side:
  * MLB names the media pick first and the fans' later, and an answer can lack a side because its request failed, ran
  * past its limit or wasn't made, so only a side the new answer names replaces the stored one; a side is never cleared.
- * Every game write calls it before stamping the version (`storeGames`, the late playMetrics write), so a refresh that
+ * Every game write calls it before stamping the version (`storeGames`, the late answers' write), so a refresh that
  * missed the pick neither drops it nor makes a new version for its absence. The incoming game unchanged when neither
  * has a pick.
  */
@@ -81,7 +83,7 @@ export type AskedExtra = (typeof KEPT_WHOLE)[number];
 
 /**
  * The incoming game with every extra the stored game has and the incoming one lacks kept (S99, S101, S100, S103): the one
- * keep every game write calls before stamping the version (`storeGames`, the late playMetrics write), so a refresh that
+ * keep every game write calls before stamping the version (`storeGames`, the late answers' write), so a refresh that
  * didn't ask, or whose ask failed or ran past its limit, neither drops a stored extra nor makes a new version for its
  * absence. Savant's figures are kept whole too: only the Savant write carries them, already merged with the stored ones
  * (`mergeSavantPitches`), and every other write lacks them.
@@ -113,4 +115,15 @@ export function askedExtraDue(extra: AskedExtra, stored: (Partial<Pick<GameSnaps
 {
 	if (stored?.[extra] !== undefined) return false;
 	return stored?.status.codedGameState !== codedGameState || isFinalStatus(codedGameState);
+}
+
+/**
+ * The last at-bat a game's play metrics reach (its highest `atBatIndex`; -1 for none), read off the last entry since
+ * the mapper sorts them by at-bat (`mapPlayMetrics`). How a late write over another writer's snapshot (B577 review,
+ * `lateAdditions` in ingest) tells a fuller set from one carried over an older feed: only a set reaching a later at-bat
+ * replaces the stored one.
+ */
+export function lastMeasuredAtBat(metrics: GamePlayMetrics): number
+{
+	return metrics.atBats.at(-1)?.atBatIndex ?? -1;
 }

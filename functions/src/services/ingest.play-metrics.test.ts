@@ -229,6 +229,75 @@ describe("S216 AC 5: playMetrics can't hold a cold game's answer", () =>
 		expect(await deps.games.getByPk(PK)).toEqual(newer);
 		expect((await deps.games.getByPk(PK))?.version).toBe(answered!.version + 1);
 	});
+	it("B577 review: a late playMetrics write over another writer's newer version that refused this read's own write adds only the playMetrics, never rewinding it", async () =>
+	{
+		const { deps, background } = setup(2000);
+		const upsertMany = deps.games.upsertMany.bind(deps.games);
+		let newer: GameSnapshot | null = null;
+		// Another writer (the game's ingest object) stores a newer version, told apart by its empty videos, before this
+		// read's own write, which it then refuses: the read answers that one.
+		deps.games.upsertMany = async (batch) =>
+		{
+			if (!newer)
+			{
+				const { playMetrics: _without, ...content } = batch[0]!;
+				newer = {
+					...content,
+					highlights: [],
+					version: batch[0]!.version + 1,
+					lastChangedAt: NOW.toISOString(),
+				};
+				await deps.games.upsert(newer);
+			}
+			return upsertMany(batch);
+		};
+		const answered = await readWithin(deps, PLAY_METRICS_LIMIT_MS);
+		expect(answered?.version).toBe(newer!.version);
+		await vi.advanceTimersByTimeAsync(2000);
+		await background.flush();
+		const stored = await deps.games.getByPk(PK);
+		expect(stored?.highlights).toEqual([]);
+		expect(stored?.playMetrics?.atBats).toHaveLength(85);
+		expect(stored?.version).toBe(newer!.version + 1);
+	});
+
+	it("B577 review: a forced read whose feed the switch skips as older keeps the stored game and only adds the late playMetrics it lacks, never writing this read's older feed over it", async () =>
+	{
+		const { deps, background } = setup(2000);
+		const fetching = client(0).fetchGame(PK);
+		await vi.advanceTimersByTimeAsync(10);
+		const { game } = await fetching;
+		const { playMetrics: _without, ...content } = game;
+		// Stored from a newer feed (its own later feed time on the row), told apart by its empty videos, without playMetrics.
+		const stored: GameSnapshot = {
+			...content,
+			highlights: [],
+			version: 3,
+			lastChangedAt: NOW.toISOString(),
+		};
+		await deps.games.upsert(stored);
+		await deps.gameStates.write([{
+			gamePk: PK,
+			source: "feed",
+			feedTime: "2026-11-01T00:00:00.000Z",
+			officialDate: DATE,
+			startTime: game.startTime ?? null,
+			state: {
+				...gameStateFromGame(game),
+				version: 5,
+				lastChangedAt: NOW.toISOString(),
+			},
+		}]);
+		const answered = await readWithin(deps, PLAY_METRICS_LIMIT_MS, true);
+		expect(answered?.version).toBe(3);
+		await vi.advanceTimersByTimeAsync(2000);
+		await background.flush();
+		const after = await deps.games.getByPk(PK);
+		expect(after?.highlights).toEqual([]);
+		expect(after?.playMetrics?.atBats).toHaveLength(85);
+		expect(after?.version).toBe(4);
+	});
+
 	it("S216 review late playMetrics purge judged as served: a final snapshot whose state row says suspended purges nothing", async () =>
 	{
 		const { deps, background } = setup(2000);

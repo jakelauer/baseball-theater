@@ -2,10 +2,11 @@
  * The fixture client's season calendars (S111): the recorded calendar and World Series
  * for a season, mapped as the HTTP client maps them, offline; null for one never recorded.
  * And its final and spring standings (S128), from the season's recorded tables. And a game's
- * videos and recap on their own (S122), null when the game has neither or no recording.
+ * videos and recap on their own (S122), null when the game has neither or no recording. And a game asked without its
+ * playMetrics (B577).
  */
 import {
-	describe, expect, it,
+	describe, expect, it, vi,
 } from "vitest";
 import { createBundledFixtureClient } from "./bundled.js";
 import { FixtureClient } from "./fixture-client.js";
@@ -155,6 +156,23 @@ describe("FixtureClient fetchGameEditorial (S122)", () =>
 		const recorded = await new FixtureMlbStatsClient().fetchGameEditorial(823823);
 		expect(recorded?.highlights).toHaveLength(40);
 		expect(recorded?.recap).toBeTruthy();
+	});
+});
+
+describe("FixtureClient fetchGame skipPlayMetrics (B577)", () =>
+{
+	it("B577: with skipPlayMetrics the playMetrics recording is never read; the game keeps only what its own file holds", async () =>
+	{
+		const client = new FixtureMlbStatsClient();
+		const fetchPlayMetrics = vi.spyOn(client, "fetchPlayMetrics");
+		const skipped = await client.fetchGame(823823, {
+			skipPlayMetrics: true,
+		});
+		expect(fetchPlayMetrics).not.toHaveBeenCalled();
+		expect(skipped.playMetricsLate).toBeUndefined();
+		// 823823's game file is a stored game holding its own playMetrics, which it keeps; asked, the recording is read.
+		await client.fetchGame(823823);
+		expect(fetchPlayMetrics).toHaveBeenCalledTimes(1);
 	});
 });
 
