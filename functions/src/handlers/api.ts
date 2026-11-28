@@ -1,11 +1,15 @@
 import type {
-	ApiErrorResponse, ApiResponseFor, ApiRoute, ApiVersionTable, CacheLifetimeStep, MeDeleteRequest, PatronTier, ReleaseNotes, SeasonPhaseName, TierOverrideResponse, UserProfile,
+	StatsProvider,
+	ApiErrorResponse, ApiMediaTypes, ApiResponseFor, ApiRoute, ApiVersionTable, CacheLifetimeStep, MeDeleteRequest, PatronTier, ReleaseNotes, SeasonPhaseName, TierOverrideResponse,
+	UserProfile,
 } from "@bt/domain";
-import type { SettingsRepository } from "@bt/ports";
+import type { ClipEngagementRepository, SettingsRepository } from "@bt/ports";
 import {
-	API_VERSIONS, DEFAULT_SETTINGS, SEARCH_QUERY_MAX_LENGTH, SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
+	API_VERSIONS, clipViewDay, DEFAULT_SETTINGS, entitlementsForTier, PERSON_IDS_PATTERN, PLAYER_PROFILES_MAX_IDS, playerProfileUrl, SEARCH_QUERY_MAX_LENGTH, STATS_PROVIDERS,
+	SEASON_PHASES, STANDINGS_CACHE_LIFETIME_LADDER, apiVersionOf, deprecationHeaders, isCalendarDate,
 	isCalendarMonth, isPastFinishedGame, latestScheduleMonth, scheduleMonthAnswer, scheduleMonthVersion,
-	isPatronTier, mlbDayEndsAt, mlbToday, parseAccountSettings, parseSearchFilters, seasonSettling, toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
+	isPatronTier, mlbDayEndsAt, mlbToday, parseAccountSettings, parseClipViewRequest, parseSearchFilters, seasonSettling,
+	toGameSnapshotResponse, toMeResponse, toScheduleDayResponse,
 } from "@bt/domain";
 import type { AccountDataDeps } from "../services/account-deletion.js";
 import { deleteAccount } from "../services/account-deletion.js";
@@ -32,7 +36,9 @@ import { getStandings, standingsNothingYet } from "../services/standings.js";
 import type { IngestDeps } from "../services/ingest.js";
 import { getOrRefreshGame, getScheduleRead } from "../services/ingest.js";
 import {
-	edgeCacheControl, PARTIAL_PAST_DIGEST_CACHE_CONTROL, PAST_CACHE_CONTROL, RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, versionedMonthCacheControl,
+	edgeCacheControl, PARTIAL_PAST_DIGEST_CACHE_CONTROL, PAST_CACHE_CONTROL, PLAYER_PROFILES_CACHE_CONTROL,
+	RELEASES_CACHE_CONTROL, SCHEDULE_MONTH_VERSIONS_CACHE_CONTROL, VENUE_FIELD_CACHE_CONTROL,
+	versionedMonthCacheControl,
 } from "./cache-control.js";
 import { liveDayUpgrade, liveUpgrade } from "./live.js";
 
@@ -59,7 +65,15 @@ export type ApiContext = {
 	versions?: ApiVersionTable;
 	/** The release notes the releases route answers from (S132); the build's bundle unless a test supplies its own. */
 	releases?: readonly ReleaseNotes[];
+	/**
+	 * The anonymous daily clip counts the clip-view route adds to (S174). Absent (most tests), the route counts nothing
+	 * and answers 404 as for a clip BT doesn't have.
+	 */
+	clipEngagement?: ClipEngagementRepository;
 };
+
+/** `personIds`' form, from the one pattern the OpenAPI spec publishes (S209 AC 3). */
+const PERSON_IDS = new RegExp(PERSON_IDS_PATTERN);
 
 const CORS_HEADERS = {
 	"Access-Control-Allow-Origin": "*",
@@ -93,6 +107,27 @@ export function sendJson<R extends ApiRoute>(
 ): Response
 {
 	return json(status, body);
+}
+
+/**
+ * Sends a route whose 200 is an SVG drawing (S105, the route table's `ApiMediaTypes`), its body checked against the
+ * route's entry as `sendJson` checks a JSON body. The drawing was sanitized before it was stored (`sanitizeFieldSvg`);
+ * the policy header is a second guard should it be opened as a page: nothing in it may run or load, its own inline
+ * styles aside, and the browser may not read it as anything but SVG. A client shows it as an image (`<img src>`), never
+ * inlined into a page, where neither the policy nor the sanitizer's XML reading holds.
+ */
+function sendSvg<R extends keyof typeof ApiMediaTypes>(_route: R, body: ApiResponseFor<R>, cacheControl: string): Response
+{
+	return new Response(body, {
+		status: 200,
+		headers: {
+			"Content-Type": "image/svg+xml; charset=utf-8",
+			"Cache-Control": cacheControl,
+			"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+			"X-Content-Type-Options": "nosniff",
+			...CORS_HEADERS,
+		},
+	});
 }
 
 function sendError(status: number, body: ApiErrorResponse): Response
@@ -300,6 +335,97 @@ async function handleTierOverride(ctx: ApiContext, request: Request, write: bool
 		...await overrideAnswer(ctx, account.user),
 		token,
 	}));
+}
+
+/** An answer with no body (S174's clip views): 204 and `no-store`. */
+function noContent(): Response
+{
+	return noStore(new Response(null, {
+		status: 204,
+	}));
+}
+
+/**
+ * `response` without the API's CORS headers (S174's clip views): no other site's script is invited to call the route
+ * or read its answers. The shared `OPTIONS` answer still carries them; it only lets a browser send the POST, which
+ * {@link fromOwnPage} then refuses.
+ */
+function withoutCors(response: Response): Response
+{
+	for (const name of Object.keys(CORS_HEADERS)) response.headers.delete(name);
+	return response;
+}
+
+/**
+ * Whether `request` came from one of BT's own pages (S174's clip views), so another site's page can't make its
+ * visitors' browsers count views (a `sendBeacon` with a `text/plain` body needs no preflight). When the browser sends
+ * `Sec-Fetch-Site`, only `same-origin` passes. Without it (older browsers, or a page on plain `http` off `localhost`),
+ * `Origin` must equal the request URL's own origin. A request with neither is refused: every browser sends `Origin` on a
+ * POST, so it came from no browser page. Production and every preview serve the app and `/api` from one origin, and
+ * `pnpm dev` on `localhost` passes by `Sec-Fetch-Site` (Vite's proxy forwards it; its `changeOrigin` makes the URL's
+ * origin the API's, `localhost:8787`, not the page's). So counts from another device on the LAN in local dev (plain
+ * `http` to `name.local:5173`, no `Sec-Fetch-Site`, an `Origin` that isn't `localhost:8787`) are refused: a deliberate
+ * limit, since trusting a forwarded host would let a cross-site page name one. Neither header says who is asking: one
+ * is a keyword for how the page relates to the API, the other a scheme and host.
+ */
+function fromOwnPage(request: Request): boolean
+{
+	const site = request.headers.get("Sec-Fetch-Site");
+	if (site !== null) return site === "same-origin";
+	return request.headers.get("Origin") === new URL(request.url).origin;
+}
+
+/** A raw path segment decoded, or null when its percent-encoding is malformed (the route answers 404). */
+function decodedSegment(segment: string): string | null
+{
+	try
+	{
+		return decodeURIComponent(segment);
+	}
+	catch
+	{
+		return null;
+	}
+}
+
+/**
+ * `POST /api/v1/clips/:mediaId/views` (S174 AC 4): counts one start or finish of a clip of a game's Videos room, on the
+ * UTC day the request arrives (`clipViewDay`, by ingest's clock). The request must come from BT's own page
+ * ({@link fromOwnPage}; 403 otherwise), the body must be a `ClipViewRequest` (`parseClipViewRequest`; 400 otherwise),
+ * and the clip one of the game's stored highlights (`hasHighlight`, without loading the game's document; 404 otherwise,
+ * so a caller can't make rows for clips BT doesn't have; only the stored copy is read, never MLB). Nothing is counted on
+ * any refusal. It reads no cookie and no session, and of the headers only `Sec-Fetch-Site` and `Origin`, which say
+ * nothing about who asked; it logs nothing (S174 AC 5, law P5). Every answer is `no-store` and carries no CORS headers.
+ */
+async function countClipView(ctx: ApiContext, rawMediaId: string, request: Request): Promise<Response>
+{
+	return withoutCors(noStore(await clipViewAnswer(ctx, rawMediaId, request)));
+}
+
+/** {@link countClipView}'s answer before its shared headers. */
+async function clipViewAnswer(ctx: ApiContext, rawMediaId: string, request: Request): Promise<Response>
+{
+	if (!fromOwnPage(request))
+	{
+		return sendError(403, {
+			error: "cross_site",
+			hint: "Views count only from Baseball Theater's own pages.",
+		});
+	}
+	const body = parseClipViewRequest(await readJson(request));
+	if (!body)
+	{
+		return sendError(400, {
+			error: "invalid_body",
+			hint: "{ gamePk, event: \"start\" | \"complete\", shownPosition: 0–100 } and no other keys",
+		});
+	}
+	const mediaId = decodedSegment(rawMediaId);
+	const counts = ctx.clipEngagement;
+	if (mediaId === null || !counts) return notFound();
+	if (!await ctx.ingest.games.hasHighlight(body.gamePk, mediaId)) return notFound();
+	await counts.record(mediaId, body.gamePk, clipViewDay(ctx.ingest.now?.() ?? new Date()), body.event, body.shownPosition);
+	return noContent();
 }
 
 /**
@@ -573,6 +699,40 @@ export const API_ROUTER: readonly RouteEntry[] = [
 		},
 	},
 	{
+		route: "GET /api/v1/players/profiles",
+		handle: async (url, _params, ctx) =>
+		{
+			// S209 AC 3: 1 to PLAYER_PROFILES_MAX_IDS ids in PERSON_IDS_PATTERN's form (the spec's pattern); an id past
+			// PERSON_ID_MAX is never cast (the repository leaves it out, so it is "no row", not a database error).
+			const personIds = url.searchParams.get("personIds") ?? "";
+			const parts = personIds.split(",");
+			if (parts.length > PLAYER_PROFILES_MAX_IDS || !PERSON_IDS.test(personIds))
+			{
+				return sendError(400, {
+					error: "person_ids_invalid",
+					hint: `personIds: 1 to ${PLAYER_PROFILES_MAX_IDS} comma-separated MLB person ids`,
+				});
+			}
+			const rows = await ctx.ingest.playerIds?.getMany(parts.map(Number)) ?? [];
+			const response = sendJson(200, "GET /api/v1/players/profiles", {
+				players: rows.map((row) =>
+				{
+					const ids = {
+						mlbam: row.personId,
+						fangraphs: row.fangraphsId,
+						bbref: row.bbrefId,
+					};
+					return {
+						ids,
+						profiles: Object.fromEntries(STATS_PROVIDERS.map((provider) => [provider, playerProfileUrl(provider, ids)])) as Record<StatsProvider, string | null>,
+					};
+				}),
+			});
+			response.headers.set("Cache-Control", PLAYER_PROFILES_CACHE_CONTROL);
+			return response;
+		},
+	},
+	{
 		route: "GET /api/v1/releases",
 		handle: async (_url, _params, ctx) =>
 		{
@@ -611,6 +771,24 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			gamePk: /^\d+$/,
 		},
 		handle: (_url, params, ctx, request) => liveUpgrade(Number(params.gamePk), request, ctx),
+	},
+	{
+		route: "GET /api/v1/venues/:venueId/field.svg",
+		params: {
+			venueId: /^\d{1,9}$/,
+		},
+		handle: async (_url, params, ctx) =>
+		{
+			// S105: only what ingest kept (`keepVenueFields`); a request never asks Savant. No drawing is `no-store`, so
+			// one kept later shows at once.
+			const field = await ctx.ingest.venueFields?.get(Number(params.venueId));
+			if (!field?.svg) return noStore(notFound());
+			return sendSvg("GET /api/v1/venues/:venueId/field.svg", field.svg, VENUE_FIELD_CACHE_CONTROL);
+		},
+	},
+	{
+		route: "POST /api/v1/clips/:mediaId/views",
+		handle: (_url, params, ctx, request) => countClipView(ctx, params.mediaId ?? "", request),
 	},
 	{
 		route: "GET /api/v1/me",
@@ -775,7 +953,21 @@ export const API_ROUTER: readonly RouteEntry[] = [
 			{
 				return sendError(400, {
 					error: "invalid_settings",
-					hint: "{ favoriteTeamIds, opensFirst, gameRowSlot?, collapseNonFavorites?, hideScores?, videoPlayer?, version }",
+					hint: "{ favoriteTeamIds, opensFirst, gameRowSlot?, collapseNonFavorites?, hideScores?, videoPlayer?, statsProvider?, version }",
+				});
+			}
+			// S209 AC 9: a stats site other than MLB.com is a patron's choice. The route takes the whole document, so only a
+			// change of it is refused: a lapsed patron's stored choice saves unchanged with any other edit. Decided from the
+			// account's tier (`getByUid`, with staging's override as /me applies it) through `entitlementsForTier`, never
+			// from the session token's copy, which a token signed before S209 lacks.
+			const stored = await ctx.settings.get(account.session.uid);
+			const changedProvider = settings.statsProvider !== (stored ?? DEFAULT_SETTINGS).statsProvider;
+			const tier = (await accountEntitlements(ctx.auth, account.user)).tier;
+			if (changedProvider && settings.statsProvider !== "mlb" && !entitlementsForTier(tier).statsProviderChoice)
+			{
+				return sendError(400, {
+					error: "invalid_settings",
+					hint: "statsProvider other than \"mlb\" needs a patron tier (Backer and up)",
 				});
 			}
 			// Apply-if-newer (ADR-022): an older version is ignored, and the answer is what is stored.

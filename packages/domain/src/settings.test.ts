@@ -47,6 +47,7 @@ describe("parseAccountSettings", () =>
 			collapseNonFavorites: false,
 			hideScores: false,
 			videoPlayer: "dialog",
+			statsProvider: "mlb",
 			version: 3,
 		});
 	});
@@ -66,6 +67,7 @@ describe("parseAccountSettings", () =>
 			collapseNonFavorites: false,
 			hideScores: false,
 			videoPlayer: "dialog",
+			statsProvider: "mlb",
 			version: 2,
 		});
 	});
@@ -160,5 +162,20 @@ describe("parseAccountSettings", () =>
 		{
 			expect(parseAccountSettings(bad)).toBeNull();
 		}
+	});
+
+	it("S209 AC 8: statsProvider defaults to MLB.com, and a document without it parses as MLB.com", () =>
+	{
+		expect(DEFAULT_SETTINGS.statsProvider).toBe("mlb");
+		const { statsProvider: _left, ...before } = DEFAULT_SETTINGS;
+		expect(parseAccountSettings(before)?.statsProvider).toBe("mlb");
+		expect(parseAccountSettings({
+			...DEFAULT_SETTINGS,
+			statsProvider: "bbref",
+		})?.statsProvider).toBe("bbref");
+		expect(parseAccountSettings({
+			...DEFAULT_SETTINGS,
+			statsProvider: "espn",
+		})).toBeNull();
 	});
 });

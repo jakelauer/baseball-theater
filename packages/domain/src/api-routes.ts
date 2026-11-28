@@ -17,10 +17,12 @@
  * divergence lives in the matching `to<DomainType>Response` mapping function
  * (still a passthrough today), not in a rewrite of the route table.
  */
+import type { ClipViewEvent } from "./clip-views.js";
 import type { DigestItem } from "./digest.js";
 import type { SearchHighlight } from "./search.js";
 import type { ReleaseNotes } from "./release-notes.js";
 import type { ScheduleDayCount } from "./schedule-month.js";
+import type { PlayerIds, StatsProvider } from "./player-links.js";
 import type { AccountSettings } from "./settings.js";
 import type { StandingsChampion } from "./standings-phase.js";
 import type {
@@ -29,6 +31,13 @@ import type {
 
 export type ScheduleDayResponse = ScheduleDay;
 export type GameSnapshotResponse = GameSnapshot;
+
+/**
+ * A ballpark's field outline (S105): Baseball Savant's SVG drawing of the park BT keeps for an MLB venue id
+ * (`GameSnapshot.venue.id`), sanitized before it was stored. Not JSON: its route answers it as `image/svg+xml`
+ * (`ApiMediaTypes`).
+ */
+export type VenueFieldSvgResponse = string;
 
 /**
  * One season phase in a standings answer (S139): the first and last day the phase runs in the
@@ -181,13 +190,66 @@ export type SettingsResponse = AccountSettings;
 
 /**
  * A settings write: the whole document with a bumped `version`; an older version is
- * ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70)
+ * ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70), `statsProvider` (S209)
  * may be left out — each reads as its default — so a page loaded before they shipped can still save.
  */
 export type SettingsRequest = Omit<AccountSettings, OptionalSettings> & Partial<Pick<AccountSettings, OptionalSettings>>;
 
-/** Settings added after launch of the document, which a write may leave out (S67, S68, S70). */
-type OptionalSettings = "gameRowSlot" | "collapseNonFavorites" | "hideScores" | "videoPlayer";
+/** Settings added after launch of the document, which a write may leave out (S67, S68, S70, S209). */
+type OptionalSettings = "gameRowSlot" | "collapseNonFavorites" | "hideScores" | "videoPlayer" | "statsProvider";
+
+/**
+ * One player's pages on each stats site (S209): the ids BT holds for them and the URL `playerProfileUrl` builds for
+ * each site, null for a site whose id BT doesn't know (neither the Chadwick register nor MLB's cross-references has
+ * it). The web builds its link from `ids` through the same function.
+ */
+export interface PlayerPages {
+	ids: PlayerIds;
+	profiles: Record<StatsProvider, string | null>;
+}
+
+/**
+ * The answer of `GET /api/v1/players/profiles?personIds=…` (S209 AC 3): the pages of each asked player BT has a row
+ * for, by ascending MLB id; a player with no row is left out.
+ */
+export interface PlayerProfilesResponse {
+	players: PlayerPages[];
+}
+
+/**
+ * The body of `POST /api/v1/clips/:mediaId/views` (S174 AC 4): the game the clip belongs to, what happened, and where the
+ * clip sat in the game's ranked Videos list. Nothing about the viewer. `parseClipViewRequest` checks it.
+ */
+export interface ClipViewRequest {
+	// The bounds below are `parseClipViewRequest`'s (`CLIP_VIEW_GAME_PK_MAX`, `CLIP_SHOWN_POSITION_MAX`); the generator
+	// reads the tags into the spec, and `openapi.test.ts` checks the two agree.
+	/**
+	 * The MLB game the clip is one of the stored highlights of.
+	 * @asType integer
+	 * @minimum 1
+	 * @maximum 2147483647
+	 */
+	gamePk: number;
+	event: ClipViewEvent;
+	/**
+	 * The clip's 1-based place in the game's ranked Videos list (`rankHighlightsByImpact`), or 0 when it was opened directly;
+	 * 0 to 100.
+	 * @asType integer
+	 * @minimum 0
+	 * @maximum 100
+	 */
+	shownPosition: number;
+}
+
+/**
+ * The response of a route that answers `204 No Content` (S174's clip views): there is no body, so no value has this
+ * type, and `sendJson` can't be called for such a route. The spec generator gives each route naming it a 204 and no 200
+ * (`NO_CONTENT_RESPONSE`).
+ */
+export type NoContentResponse = never;
+
+/** The response-type name of a route that answers 204 with no body (see {@link NoContentResponse}). */
+export const NO_CONTENT_RESPONSE = "NoContentResponse" satisfies keyof ApiResponseTypes;
 
 /** The one error-body shape every 4xx path returns. */
 export interface ApiErrorResponse {
@@ -311,6 +373,7 @@ export interface ApiResponseTypes {
 	ScheduleMonthResponse: ScheduleMonthResponse;
 	ScheduleMonthVersionsResponse: ScheduleMonthVersionsResponse;
 	GameSnapshotResponse: GameSnapshotResponse;
+	VenueFieldSvgResponse: VenueFieldSvgResponse;
 	DayDigestResponse: DayDigestResponse;
 	SearchHighlightsResponse: SearchHighlightsResponse;
 	StandingsResponse: StandingsResponse;
@@ -323,8 +386,10 @@ export interface ApiResponseTypes {
 	SignInConfigResponse: SignInConfigResponse;
 	SignInResponse: SignInResponse;
 	ReleasesResponse: ReleasesResponse;
+	PlayerProfilesResponse: PlayerProfilesResponse;
 	TierOverrideResponse: TierOverrideResponse;
 	TierOverrideSetResponse: TierOverrideSetResponse;
+	NoContentResponse: NoContentResponse;
 	ApiErrorResponse: ApiErrorResponse;
 }
 
@@ -338,6 +403,7 @@ export const ApiRoutes = {
 	"GET /api/v1/schedule/month/:month": "ScheduleMonthResponse",
 	"GET /api/v1/schedule/month-versions/:year": "ScheduleMonthVersionsResponse",
 	"GET /api/v1/games/:gamePk": "GameSnapshotResponse",
+	"GET /api/v1/venues/:venueId/field.svg": "VenueFieldSvgResponse",
 	"GET /api/v1/digest": "DayDigestResponse",
 	"GET /api/v1/search/highlights": "SearchHighlightsResponse",
 	"GET /api/v1/standings": "StandingsResponse",
@@ -354,6 +420,8 @@ export const ApiRoutes = {
 	"GET /api/v1/sign-in": "SignInConfigResponse",
 	"POST /api/v1/sign-in": "SignInResponse",
 	"GET /api/v1/releases": "ReleasesResponse",
+	"GET /api/v1/players/profiles": "PlayerProfilesResponse",
+	"POST /api/v1/clips/:mediaId/views": "NoContentResponse",
 } as const satisfies Record<string, keyof ApiResponseTypes>;
 
 export type ApiRoute = keyof typeof ApiRoutes;
@@ -361,12 +429,21 @@ export type ApiRoute = keyof typeof ApiRoutes;
 /** The response type a given route resolves to, via the registry above. */
 export type ApiResponseFor<R extends ApiRoute> = ApiResponseTypes[(typeof ApiRoutes)[R]];
 
+/**
+ * The routes whose 200 isn't JSON → its media type (S105: a field drawing is `image/svg+xml`). A runtime value, so the
+ * spec generator emits each one's content type; a route absent here answers `application/json` through `sendJson`.
+ */
+export const ApiMediaTypes = {
+	"GET /api/v1/venues/:venueId/field.svg": "image/svg+xml",
+} as const satisfies Partial<Record<ApiRoute, string>>;
+
 /** Registry a route's request-body type name is checked against, like {@link ApiResponseTypes}. */
 export interface ApiRequestTypes {
 	MeDeleteRequest: MeDeleteRequest;
 	SettingsRequest: SettingsRequest;
 	SignInRequest: SignInRequest;
 	TierOverrideRequest: TierOverrideRequest;
+	ClipViewRequest: ClipViewRequest;
 }
 
 /**
@@ -379,6 +456,7 @@ export const ApiRequestBodies = {
 	"PUT /api/v1/me/settings": "SettingsRequest",
 	"POST /api/v1/sign-in": "SignInRequest",
 	"PUT /api/v1/me/tier-override": "TierOverrideRequest",
+	"POST /api/v1/clips/:mediaId/views": "ClipViewRequest",
 } as const satisfies Partial<Record<ApiRoute, keyof ApiRequestTypes>>;
 
 export type ApiRouteWithBody = keyof typeof ApiRequestBodies;

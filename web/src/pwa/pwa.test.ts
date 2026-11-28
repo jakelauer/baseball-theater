@@ -8,6 +8,9 @@ import {
 } from "vitest";
 import { API_CACHE } from "../storage/storage.js";
 import {
+	DOWNLOAD_PATH, DOWNLOAD_PING, DOWNLOAD_READY,
+} from "./download.js";
+import {
 	APP_BACKGROUND, isRuntimeCached, PWA_OPTIONS, RUNTIME_CACHED,
 } from "./options.js";
 import { PREFETCH_TAG } from "./prefetch.js";
@@ -141,6 +144,86 @@ describe("the service worker (S74, sw.ts)", () =>
 	beforeEach(() =>
 	{
 		worker.handle.mockReset();
+	});
+
+	it("S151 AC 3: precaches the same files as generateSW did, through injectManifest's options (its workbox block would be ignored)", () =>
+	{
+		expect(PWA_OPTIONS.strategies).toBe("injectManifest");
+		expect(PWA_OPTIONS.workbox).toBeUndefined();
+		expect(PWA_OPTIONS.injectManifest?.globPatterns).toEqual(["**/*.{js,css,html,svg,png,webmanifest}"]);
+		expect(worker.precacheShell).toHaveBeenCalledOnce();
+	});
+
+	it("S151 AC 3: navigations get the page, except under /api/ and the download route", () =>
+	{
+		const [navigation] = worker.registerRoute.mock.calls.find(([route]) => route instanceof worker.NavigationRoute)!;
+		const { handler, options } = navigation as { handler: unknown;
+			options: { denylist: RegExp[] }; };
+		expect(handler).toBe("shell-handler");
+		const denied = (path: string) => options.denylist.some((deny) => deny.test(path));
+		for (const path of ["/api/v1/schedule", `${DOWNLOAD_PATH}?url=x&name=y`, DOWNLOAD_PATH, `${DOWNLOAD_PATH}/`]) expect(denied(path), path).toBe(true);
+		for (const path of ["/", "/games/2026-09-05", "/download", "/download/clips", "/settings"]) expect(denied(path), path).toBe(false);
+	});
+
+	it("S151 AC 3: SKIP_WAITING still makes the waiting worker take over, so Update Now works", () =>
+	{
+		const skipWaiting = vi.fn(async () => undefined);
+		Object.assign(window, {
+			skipWaiting,
+		});
+		window.dispatchEvent(new MessageEvent("message", {
+			data: {
+				type: "SKIP_WAITING",
+			},
+		}));
+		expect(skipWaiting).toHaveBeenCalledOnce();
+	});
+
+	it("S151 AC 2: the worker routes only same-site requests for the download route to downloadResponse, ahead of the navigation fallback", async () =>
+	{
+		const calls = worker.registerRoute.mock.calls;
+		const at = calls.findIndex(([match]) => typeof match === "function");
+		expect(at).toBeGreaterThanOrEqual(0);
+		expect(at).toBeLessThan(calls.findIndex(([route]) => route instanceof worker.NavigationRoute));
+		const [match, handler] = calls[at] as unknown as [(options: { url: URL;
+			sameOrigin: boolean; }) => boolean, (options: { request: Request }) => Promise<Response>];
+		const route = new URL(`${DOWNLOAD_PATH}?url=x`, location.origin);
+		expect(match({
+			url: route,
+			sameOrigin: true,
+		})).toBe(true);
+		expect(match({
+			url: route,
+			sameOrigin: false,
+		})).toBe(false);
+		expect(match({
+			url: new URL("/games/2026-09-05", location.origin),
+			sameOrigin: true,
+		})).toBe(false);
+		// A URL that isn't an MLB clip MP4 is refused without a fetch.
+		const fetcher = vi.fn();
+		vi.stubGlobal("fetch", fetcher);
+		const response = await handler({
+			request: new Request(new URL(`${DOWNLOAD_PATH}?url=${encodeURIComponent("https://evil.example/a.mp4")}`, location.origin).href),
+		});
+		vi.unstubAllGlobals();
+		expect(response.status).toBe(400);
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+
+	it("S151 AC 4: the worker answers the page's download ping on the port it came with", () =>
+	{
+		const port = {
+			postMessage: vi.fn(),
+		};
+		const ping = new MessageEvent("message", {
+			data: DOWNLOAD_PING,
+		});
+		Object.defineProperty(ping, "ports", {
+			value: [port],
+		});
+		window.dispatchEvent(ping);
+		expect(port.postMessage).toHaveBeenCalledExactlyOnceWith(DOWNLOAD_READY);
 	});
 
 	it("precaches the build's shell and answers navigations with it, except under /api/", () =>

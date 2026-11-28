@@ -8,7 +8,8 @@ import {
 	wholeFetchedGame,
 } from "@bt/domain";
 import type {
-	BackgroundWork, GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, ScheduleRepository,
+	BackgroundWork, GameProjectionRepository, GameRepository, GameStateRepository, MlbStatsClient, PlayerIdRepository, PlayerRegister, PlayerXrefSource,
+	ScheduleRepository, VenueFieldRepository,
 } from "@bt/ports";
 import { withLatePlayMetrics } from "../mappers/game-extras.js";
 import type { ExtraAsker } from "./player-of-the-game.js";
@@ -27,6 +28,8 @@ import {
 } from "./game-state.js";
 import type { RefreshCoordinator } from "./refresh.js";
 import { CACHE_TTL_MS, isStale } from "./refresh.js";
+import type { VenueFieldAsk } from "./venue-fields.js";
+import { keepVenueFields } from "./venue-fields.js";
 
 export type IngestDeps = {
 	mlb: MlbStatsClient;
@@ -35,6 +38,12 @@ export type IngestDeps = {
 	projections: GameProjectionRepository;
 	/** Each game's one stored state (S150), written only through `switchGameState`. */
 	gameStates: GameStateRepository;
+	/**
+	 * Where each ballpark's field drawing is kept (S105): a game's first write asks Savant for its venue's drawing when
+	 * none is kept (`keepVenueFields`, an after-step, so deferred past the response on a read). Absent (most tests, the
+	 * backfill, the seed paths), nothing is asked.
+	 */
+	venueFields?: VenueFieldRepository;
 	now?: () => Date;
 	/**
    * Single-flight + cooldown coordinator for out-of-window refresh-on-read.
@@ -65,6 +74,17 @@ export type IngestDeps = {
 	 * tests), nothing is called.
 	 */
 	dayHubs?: DayHubNotifier;
+	/**
+	 * MLB's players and their outside ids (S209): the profiles route reads it, and the cron's player-id job keeps it in
+	 * step with the register (`syncPlayerRegister`). Absent (most tests), the route answers no player.
+	 */
+	playerIds?: PlayerIdRepository;
+	/**
+	 * The player-id job's sources (S209 AC 1): the Chadwick register and MLB's cross-references, both set with live MLB
+	 * data only (`createWorkerApp`), so local fixture runs and tests never fetch the register; absent, the job never runs.
+	 */
+	playerRegister?: PlayerRegister;
+	playerXrefs?: PlayerXrefSource;
 };
 
 /** The one MLB read the standings' calendar cache wraps (S139). */
@@ -117,6 +137,8 @@ class AfterWrites
 		judge: () => Promise<boolean>; }[] = [];
 	/** Late playMetrics writes (S216 AC 5), each after the rest. */
 	readonly followUps: (() => Promise<void>)[] = [];
+	/** The venues of the games this request stored for the first time (S105): their field drawings are kept, last. */
+	readonly venues = new Set<number>();
 	/**
 	 * Each date a schedule write changed, and whether its day has a game in its window before or after the write (S149
 	 * AC 2): judged after the writes, the true ones added to `hubCalls`.
@@ -143,20 +165,24 @@ class AfterWrites
 	get empty(): boolean
 	{
 		return this.projections.length === 0 && this.purgeGames.size === 0 && this.changedStates.size === 0 && this.dayChecks.length === 0
-			&& this.followUps.length === 0 && this.hubChecks.length === 0;
+			&& this.followUps.length === 0 && this.hubChecks.length === 0 && this.venues.size === 0;
 	}
 }
 
 /**
  * Runs what {@link AfterWrites} holds, in order: the projections in one write (a projection a newer stored version
  * refuses is logged and dropped, never written over it), the purge judgement and its one `purgeGameEdge` request for
- * every game and day the request stored, then the late playMetrics writes. Each step runs whether or not an earlier
+ * every game and day the request stored, then the late playMetrics writes, then the field drawings of the venues of the
+ * games stored for the first time (S105, `keepVenueFields`, with `venueFields` composed). Each step runs whether or not an earlier
  * one failed (S216 review), so a failed projection write or day verdict never costs the purge or a follow-up; when the
  * judgement's snapshot read or the purge's listing read fails, the candidates' own URLs are purged without it (or owed,
  * `purgeGameAndDayEdge`). Then it rejects with every failure (`AggregateError`), so a caller that runs it at once fails
  * as its own write would; deferred, `BackgroundWork` logs it.
  */
-async function runAfterWrites(deps: Pick<IngestDeps, "projections" | "games" | "gameStates" | "schedules" | "edgePurge" | "dayHubs">, after: AfterWrites): Promise<void>
+async function runAfterWrites(
+	deps: Pick<IngestDeps, "projections" | "games" | "gameStates" | "schedules" | "edgePurge" | "dayHubs"> & VenueFieldAsk,
+	after: AfterWrites,
+): Promise<void>
 {
 	const errors: unknown[] = [];
 	const step = async (work: () => Promise<void>) =>
@@ -247,6 +273,17 @@ async function runAfterWrites(deps: Pick<IngestDeps, "projections" | "games" | "
 	}
 	if (after.ownsHubCalls) await after.hubCalls.flush(deps.dayHubs);
 	for (const followUp of after.followUps) await step(followUp);
+	const { mlb, venueFields } = deps;
+	if (mlb?.fetchVenueField && venueFields && after.venues.size > 0)
+	{
+		const fetchVenueField = mlb.fetchVenueField.bind(mlb);
+		await step(() => keepVenueFields({
+			mlb: {
+				fetchVenueField,
+			},
+			venueFields,
+		}, after.venues, after.at));
+	}
 	if (errors.length > 0) throw new AggregateError(errors, `after-write steps failed: ${errors.map(String).join("; ")}`);
 }
 
@@ -395,6 +432,8 @@ async function storeGames(
 		const snapshot = storedFirst.get(gamePk) ?? formed;
 		after.held.set(gamePk, snapshot);
 		if (written) after.projections.push(projectGame(snapshot));
+		// S105: a game stored for the first time asks for its venue's field drawing, if none is kept.
+		if (written && write.stored === null && snapshot.venue) after.venues.add(snapshot.venue.id);
 		const wasPastFinished = write.stored !== null && isPastFinishedGame(servedGame(write.stored, outcome?.before ?? null, at), at);
 		if ((written || outcome?.stateChanged) && (isPastFinishedGame(servedGame(snapshot, state, at), at) || wasPastFinished))
 		{
@@ -412,10 +451,13 @@ async function storeGames(
 /**
  * One fetched game through {@link storeGames} with its projection and purge written at once after it
  * (`runAfterWrites`): every writer but an on-read refresh (game ingest, the recent-game re-check, the cron's tick, the
- * seed paths), so the purge stays awaited after its write. `stored` is what the caller read (S216: never read again).
+ * seed paths), so the purge stays awaited after its write. With `venueFields` composed, a game stored for the first
+ * time also asks for its venue's field drawing, last among those steps (S105, `keepVenueFields`), awaited too: a new
+ * venue can hold the write (and a game's ingest object, its poll's publish) up to `VENUE_FIELD_LIMIT_MS` (3 s). `stored`
+ * is what the caller read (S216: never read again).
  */
 async function storeGame(
-	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge" | "dayHubs">,
+	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge" | "dayHubs"> & VenueFieldAsk,
 	fetched: Unversioned<GameSnapshot>,
 	feedTime: string | undefined,
 	stored: GameSnapshot | null,
@@ -625,7 +667,7 @@ async function joinedBefore(deps: Pick<IngestDeps, "games" | "gameStates">, stor
  * re-check window stays without them (#619's scope). Without `mlb` (the backfill, tests) nothing is asked.
  */
 export async function ingestGame(
-	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge" | "dayHubs"> & { mlb?: ExtraAsker },
+	deps: Pick<IngestDeps, "games" | "projections" | "gameStates" | "schedules" | "edgePurge" | "dayHubs"> & { mlb?: ExtraAsker & VenueFieldAsk["mlb"] } & Pick<VenueFieldAsk, "venueFields">,
 	fetched: Unversioned<GameSnapshot>,
 	feedTime?: string,
 ): Promise<StoredGame & { changed: boolean }>

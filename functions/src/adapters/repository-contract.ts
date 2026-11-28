@@ -16,7 +16,9 @@
  * Case (j) is the schedule repository's month read (S124, `listGameCounts`).
  * Case (k) is the game-state repository's write rule (S150), and case (l) the schedule repository's `served_base`
  * raise, read from the game-state store of the same database (S150). Case (m) is the game repository's state-field
- * read (S150).
+ * read (S150). Case (p) is the player-id repository's register sync and batched read (S209). Case (q) is the venue
+ * field repository's keep rule (S105): a later ask that got no drawing never replaces a kept one. Case (r) is the clip
+ * engagement repository's counting (S174): one row per key, raised by one per record, two at once ending at 2.
  */
 import {
 	beforeEach, describe, expect, it,
@@ -28,7 +30,9 @@ import {
 	entitlementsForTier, GAME_RECHECK_CLAIM_LEASE_MS, projectGame, SCHEDULE_MONTH_REFRESH_INTERVAL_MS,
 } from "@bt/domain";
 import type {
-	GameProjectionRepository, GameRepository, GameStateRepository, OwedEdgePurge, OwedEdgePurgeRepository, PersonalDataStore, ScheduleRepository, UserRepository,
+	ClipEngagementRepository, ClipEngagementRow,
+	GameProjectionRepository, GameRepository, GameStateRepository, OwedEdgePurge, OwedEdgePurgeRepository, PersonalDataStore, PlayerIdRepository, PlayerIdRow,
+	ScheduleRepository, UserRepository, VenueField, VenueFieldRepository,
 } from "@bt/ports";
 
 /** The reads and writes every keyed repository shares. */
@@ -1046,6 +1050,253 @@ export function describeOwedEdgePurgeContract(label: string, create: () => OwedE
 			expect((await owed.listDue(later(60_000), 10))[0]?.failures).toBe(1);
 			await owed.owe(["https://a/x"], later(1000));
 			expect(urlsAndFailures(await owed.listDue(later(1000), 10))).toEqual([["https://a/x", later(1000), 0]]);
+		});
+	});
+}
+
+/**
+ * Case (p): MLB's players' outside ids (S209 AC 3), for any `PlayerIdRepository` adapter. A register file's rows are
+ * replaced at once, writing only what changed and deleting what the file dropped; the read takes many ids and leaves
+ * out what has no row, an id past Postgres's integer range included, never failing; a file's claim holds it for one run.
+ */
+export function describePlayerIdContract(label: string, create: () => PlayerIdRepository): void
+{
+	describe(`${label} — player id contract (S209)`, () =>
+	{
+		const T = "2026-11-27T12:00:00.000Z";
+		const later = (ms: number) => new Date(Date.parse(T) + ms).toISOString();
+		const row = (personId: number, fangraphsId: string | null, bbrefId: string | null): PlayerIdRow => ({
+			personId,
+			fangraphsId,
+			bbrefId,
+		});
+
+		it("S209 AC 3: getMany answers the rows it holds, leaving out repeats, unknown ids, 0 and an id past 2147483647", async () =>
+		{
+			const ids = create();
+			await ids.replaceRegisterFile("people-0.csv", [row(665871, "21741", "assadja01"), row(691788, "29780", "mackjo02")], "\"e1\"", T);
+			expect(await ids.getMany([691788, 665871, 665871, 1, 0, 99999999999, 2147483648])).toEqual([row(665871, "21741", "assadja01"), row(691788, "29780", "mackjo02")]);
+			expect(await ids.getMany([99999999999])).toEqual([]);
+			expect(await ids.getMany([])).toEqual([]);
+		});
+
+		it("S209 AC 3: a file's re-sync writes only changed rows, deletes the rows it dropped, and keeps other files' rows", async () =>
+		{
+			const ids = create();
+			expect(await ids.replaceRegisterFile("people-0.csv", [row(1, "f1", "b1"), row(2, "f2", null), row(3, null, "b3")], "\"e1\"", T)).toEqual({
+				inserted: 3,
+				updated: 0,
+				deleted: 0,
+			});
+			await ids.replaceRegisterFile("people-1.csv", [row(9, "f9", "b9")], "\"x1\"", T);
+			// The same rows again: nothing written.
+			expect(await ids.replaceRegisterFile("people-0.csv", [row(1, "f1", "b1"), row(2, "f2", null), row(3, null, "b3")], "\"e2\"", later(1))).toEqual({
+				inserted: 0,
+				updated: 0,
+				deleted: 0,
+			});
+			// One id changed, one row dropped, one new.
+			expect(await ids.replaceRegisterFile("people-0.csv", [row(1, "f1", "b1"), row(2, "f2", "b2"), row(4, "f4", null)], "\"e3\"", later(2))).toEqual({
+				inserted: 1,
+				updated: 1,
+				deleted: 1,
+			});
+			expect(await ids.getMany([1, 2, 3, 4, 9])).toEqual([row(1, "f1", "b1"), row(2, "f2", "b2"), row(4, "f4", null), row(9, "f9", "b9")]);
+			expect((await ids.registerFiles()).find((state) => state.file === "people-0.csv")).toEqual({
+				file: "people-0.csv",
+				etag: "\"e3\"",
+				syncedAt: later(2),
+				triedAt: later(2),
+			});
+		});
+
+		it("S209 AC 3: a row whose MLB id is past 2147483647 is skipped, and the file's other rows are still written", async () =>
+		{
+			const ids = create();
+			expect((await ids.replaceRegisterFile("people-0.csv", [row(99999999999, "f", "b"), row(5, "f5", "b5")], null, T)).inserted).toBe(1);
+			expect(await ids.getMany([5])).toEqual([row(5, "f5", "b5")]);
+		});
+
+		it("S209 AC 3: a person id given twice counts once and its last row wins", async () =>
+		{
+			const ids = create();
+			expect(await ids.replaceRegisterFile("people-0.csv", [row(1, "f1", null), row(2, "f2", "b2"), row(1, "f1", "b1")], "\"e1\"", T)).toEqual({
+				inserted: 2,
+				updated: 0,
+				deleted: 0,
+			});
+			expect(await ids.getMany([1, 2])).toEqual([row(1, "f1", "b1"), row(2, "f2", "b2")]);
+		});
+
+		it("S209 AC 3: a claim takes a never-tried file once, then holds it until the retry time; a synced file waits until it is due", async () =>
+		{
+			const ids = create();
+			const hour = 3_600_000;
+			expect(await ids.claimRegisterFile("people-0.csv", T, T, T)).toBe(true);
+			// Tried at T and not synced: refused within the retry window, taken after it.
+			expect(await ids.claimRegisterFile("people-0.csv", later(1000), later(1000), T)).toBe(false);
+			expect(await ids.claimRegisterFile("people-0.csv", later(hour + 1), later(hour + 1), later(1))).toBe(true);
+			// Synced (written) at later(2 h): not due until the sync interval has passed.
+			await ids.replaceRegisterFile("people-0.csv", [row(1, "f1", null)], "\"e\"", later(2 * hour));
+			expect(await ids.claimRegisterFile("people-0.csv", later(3 * hour), later(2 * hour - 1), later(3 * hour - hour))).toBe(false);
+			expect(await ids.claimRegisterFile("people-0.csv", later(30 * hour), later(2 * hour + 1), later(29 * hour))).toBe(true);
+			// An unchanged answer moves the sync time on, keeping the ETag.
+			await ids.markRegisterFileUnchanged("people-0.csv", later(30 * hour));
+			expect((await ids.registerFiles())[0]).toEqual({
+				file: "people-0.csv",
+				etag: "\"e\"",
+				syncedAt: later(30 * hour),
+				triedAt: later(30 * hour),
+			});
+		});
+	});
+}
+
+/**
+ * Case (q), the venue field repository's keep rule (S105): newer only by `fetchedAt` (ADR-022), and a kept drawing is
+ * never replaced by none. A later ask that timed out or failed stores null with a later `fetchedAt`; were it to win,
+ * the park would answer 404 until the week's retry. A null still replaces a null (the retry clock moves on), and a
+ * later drawing replaces either.
+ */
+export function describeVenueFieldContract(label: string, create: () => VenueFieldRepository): void
+{
+	describe(`${label} — repository contract`, () =>
+	{
+		/** A field for venue 4169 asked at second `second` of 2026-11-27, with a drawing naming that second or none. */
+		const field = (second: number, drawn: boolean): VenueField => ({
+			venueId: 4169,
+			svg: drawn ? `<svg xmlns="http://www.w3.org/2000/svg"><path id="s${second}" d="M0,0"/></svg>` : null,
+			fetchedAt: new Date(Date.UTC(2026, 10, 27) + second * 1000).toISOString(),
+		});
+
+		it("(q) a later null never replaces a kept drawing; a later null replaces a null, and a later drawing replaces either", async () =>
+		{
+			const kept = create();
+			await kept.upsert(field(1, true));
+			await kept.upsert(field(2, false));
+			expect(await kept.get(4169)).toEqual(field(1, true));
+			await kept.upsert(field(3, true));
+			expect(await kept.get(4169)).toEqual(field(3, true));
+			await kept.upsert(field(4, false));
+			expect(await kept.get(4169)).toEqual(field(3, true));
+
+			const none = create();
+			await none.upsert(field(1, false));
+			await none.upsert(field(2, false));
+			expect(await none.get(4169)).toEqual(field(2, false));
+			await none.upsert(field(3, true));
+			expect(await none.get(4169)).toEqual(field(3, true));
+			// Newer only still holds: an older drawing never replaces a newer one.
+			await none.upsert(field(2, true));
+			expect(await none.get(4169)).toEqual(field(3, true));
+		});
+	});
+}
+
+/**
+ * Case (r), the clip engagement repository (S174 AC 3): `record` adds one to the row its five values key, making it at 1;
+ * two records of one key at once end at 2 (the Postgres adapter's one atomic upsert); a different day, event, place or
+ * clip is its own row. `countsFor` reads one game's rows over every day; `exportRange` the rows of an inclusive range of
+ * days, across games. Both answer in day, game, media id, event, shown-position order.
+ */
+export function describeClipEngagementContract(label: string, create: () => ClipEngagementRepository): void
+{
+	describe(`${label} — clip engagement contract (r)`, () =>
+	{
+		/** A row as the port answers it. */
+		const row = (mediaId: string, gamePk: number, viewDay: string, event: ClipEngagementRow["event"], shownPosition: number, count: number): ClipEngagementRow => ({
+			mediaId,
+			gamePk,
+			viewDay,
+			event,
+			shownPosition,
+			count,
+		});
+
+		it("(r) two records of one key at once end at 2, and each other key is its own row", async () =>
+		{
+			const counts = create();
+			await Promise.all([counts.record("hl-1", 823823, "2026-11-22", "start", 3), counts.record("hl-1", 823823, "2026-11-22", "start", 3)]);
+			await counts.record("hl-1", 823823, "2026-11-22", "complete", 3);
+			await counts.record("hl-1", 823823, "2026-11-23", "start", 3);
+			await counts.record("hl-1", 823823, "2026-11-22", "start", 0);
+			await counts.record("hl-2", 823823, "2026-11-22", "start", 1);
+			await counts.record("hl-1", 744834, "2026-11-22", "start", 3);
+			expect(await counts.countsFor(823823)).toEqual([
+				row("hl-1", 823823, "2026-11-22", "complete", 3, 1),
+				row("hl-1", 823823, "2026-11-22", "start", 0, 1),
+				row("hl-1", 823823, "2026-11-22", "start", 3, 2),
+				row("hl-2", 823823, "2026-11-22", "start", 1, 1),
+				row("hl-1", 823823, "2026-11-23", "start", 3, 1),
+			]);
+			expect(await counts.countsFor(1)).toEqual([]);
+		});
+
+		it("(r) many records of one key at once are each counted", async () =>
+		{
+			const counts = create();
+			await Promise.all(Array.from({
+				length: 10,
+			}, () => counts.record("hl-1", 823823, "2026-11-22", "complete", 2)));
+			expect(await counts.countsFor(823823)).toEqual([row("hl-1", 823823, "2026-11-22", "complete", 2, 10)]);
+		});
+
+		it("(r) exportRange reads an inclusive range of days across games, and nothing outside it", async () =>
+		{
+			const counts = create();
+			await counts.record("hl-a", 2, "2026-11-21", "start", 1);
+			await counts.record("hl-b", 2, "2026-11-22", "start", 1);
+			await counts.record("hl-c", 1, "2026-11-23", "complete", 4);
+			await counts.record("hl-d", 1, "2026-11-24", "start", 0);
+			expect(await counts.exportRange("2026-11-22", "2026-11-23")).toEqual([
+				row("hl-b", 2, "2026-11-22", "start", 1, 1),
+				row("hl-c", 1, "2026-11-23", "complete", 4, 1),
+			]);
+			expect(await counts.exportRange("2026-11-23", "2026-11-23")).toEqual([row("hl-c", 1, "2026-11-23", "complete", 4, 1)]);
+			expect(await counts.exportRange("2026-12-01", "2026-12-31")).toEqual([]);
+			// A reversed range holds no day.
+			expect(await counts.exportRange("2026-11-24", "2026-11-21")).toEqual([]);
+		});
+
+		it("(r) answers copies: changing a row it answered changes nothing stored", async () =>
+		{
+			const counts = create();
+			await counts.record("hl-1", 823823, "2026-11-22", "start", 1);
+			const [first] = await counts.countsFor(823823);
+			first!.count = 99;
+			expect(await counts.countsFor(823823)).toEqual([row("hl-1", 823823, "2026-11-22", "start", 1, 1)]);
+		});
+	});
+}
+
+/**
+ * Case (s), a game repository's clip check (S174 AC 4, `hasHighlight`), for any `GameRepository` adapter: whether a
+ * media id is the `id` of one of a stored game's highlights, answered without the game's document. Only an exact `id`
+ * of that game's own highlights is true: another id, a highlight's play id or title, another game's clip or a game not
+ * stored is false, and an id holding JSON's quote, bracket and backslash is data, never part of the query.
+ */
+export function describeGameHighlightContract(label: string, create: () => GameRepository, make: (gamePk: number, date: string) => Promise<GameSnapshot>): void
+{
+	describe(`${label} — game highlight contract`, () =>
+	{
+		it("S174 AC 4 hasHighlight: true only for an id of the stored game's own highlights", async () =>
+		{
+			const games = create();
+			const one = await make(1, "2024-07-04");
+			const [clip] = one.highlights;
+			expect(clip).toBeDefined();
+			await games.upsert(one);
+			await games.upsert({
+				...await make(2, "2024-07-04"),
+				highlights: [],
+			});
+			expect(await games.hasHighlight(1, clip!.id)).toBe(true);
+			expect(await games.hasHighlight(1, "hl-404")).toBe(false);
+			if (clip!.playId) expect(await games.hasHighlight(1, clip!.playId)).toBe(false);
+			expect(await games.hasHighlight(1, clip!.title)).toBe(false);
+			expect(await games.hasHighlight(2, clip!.id)).toBe(false);
+			expect(await games.hasHighlight(3, clip!.id)).toBe(false);
+			expect(await games.hasHighlight(1, "\"}]\\")).toBe(false);
 		});
 	});
 }

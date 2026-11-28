@@ -12,6 +12,7 @@ export const DEV_ACCOUNT = {
 		fasterLiveRefresh: false,
 		cloudSyncedSettings: false,
 		savantLinks: false,
+		statsProviderChoice: false,
 	},
 };
 

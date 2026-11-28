@@ -1,4 +1,23 @@
-pnpm exec lint-staged
+# lint-staged runs with --no-stash: its backup is a `git stash` entry, and every worktree of this
+# repository shares one stash stack, so parallel workers' commits could pop or drop each other's
+# backups (owner, 2026-11-28, asked which parts of the speed review's rules PR to draft: "R1–R6 plus
+# R7 (Recommended)", the option that also named "lint-staged's shared git stash"). Without the stash
+# lint-staged neither reverts its fixes when a task fails (they stay in the working tree and index,
+# and the commit is still refused) nor hides the unstaged hunks of a partially staged file, which it
+# would lint and commit with the staged ones. So a commit with a partially staged file is refused
+# here first: stage the whole file (`git add <file>`) or set the unstaged change aside in a copy
+# of the file (never `git stash`, the shared stack this avoids).
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+unstaged=$(git diff --name-only)
+if [ -n "$staged" ] && [ -n "$unstaged" ]; then
+	partial=$(printf '%s\n' "$unstaged" | grep -Fx -e "$staged" || true)
+	if [ -n "$partial" ]; then
+		echo "pre-commit: these files have both staged and unstaged changes; stage the whole file, or set the unstaged change aside in a copy of the file, never with git stash (lint-staged runs without a backup stash):" >&2
+		printf '%s\n' "$partial" | sed 's/^/  /' >&2
+		exit 1
+	fi
+fi
+pnpm exec lint-staged --no-stash
 
 # Canonicalizes the staged frame notes in docs/v3/backlog/ (like pnpm backlog:build, but from the
 # index) and re-stages them; refuses notes that don't build, and a commit adding back the retired

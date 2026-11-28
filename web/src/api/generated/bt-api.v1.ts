@@ -3,6 +3,23 @@
 // Regenerate after `pnpm api:spec`; src/api/codegen.test.ts fails while this file is stale.
 
 export interface paths {
+    "/api/v1/clips/{mediaId}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Counts one view of a clip played from its game's Videos room (S174): `start` the first time it plays after it is opened, `complete` once it has been watched to the end. BT keeps only an anonymous count per clip, UTC day, event and the clip's place in the game's ranked Videos list (`shownPosition`, 1 to 100, or 0 when it was opened directly); nothing about who watched. It counts only from BT's own pages: the browser's `Sec-Fetch-Site` must be `same-origin`, or, where a browser sends none, its `Origin` must be BT's own; it reads no cookie and no session, and its answers carry no CORS headers. Answers 204 with no body. */
+        post: operations["countClipView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/digest": {
         parameters: {
             query?: never;
@@ -135,6 +152,23 @@ export interface paths {
         get: operations["getTierOverride"];
         /** Staging only, for testing: chooses the backer tier to see BT as (`"none"` is not a patron; null goes back to the real tier), and answers as the GET does plus a new session token whose entitlements are the chosen tier's, so every check that reads the session uses it at once. Never changes the real tier or calls Patreon. Exists only where the server's deploy-time config allows the override (staging); everywhere else it answers 404. Never cached (`no-store`). */
         put: operations["putTierOverride"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/players/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Players' pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from, for each asked player BT has a row for (a player with none is left out); a site whose id BT doesn't know is null. Cacheable for a day: the ids are synced from the Chadwick register at most daily. */
+        get: operations["getPlayerProfiles"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -279,6 +313,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/venues/{venueId}/field.svg": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A ballpark's field outline: Baseball Savant's 250×250 SVG drawing of the park, for MLB's venue id (a game's `venue.id`), as BT keeps it. BT asks Savant for a park's drawing when it first stores a game there and removes anything that could run or load from elsewhere (scripts, event handlers, outside links) before keeping it; the browser never asks Savant. Cacheable for a day in the browser and 30 days at the edge. */
+        get: operations["getVenueField"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -299,6 +350,8 @@ export interface components {
             /** @description Hide every score and record (S68). Read it through `shouldHideScores`, never directly (owner, 2026-10-21), so the setting can outgrow an on/off switch. */
             hideScores: boolean;
             opensFirst: components["schemas"]["OpensFirst"];
+            /** @description The stats site a player's name opens (S209). Read it through `effectiveStatsProvider`, never directly: only a patron's choice counts, and a lapsed pledge links to MLB.com. */
+            statsProvider: components["schemas"]["StatsProvider"];
             version: number;
             /** @description Where videos play (S70): a dialog over the page, or a stage in the Videos room. */
             videoPlayer: components["schemas"]["VideoPlayerMode"];
@@ -444,6 +497,19 @@ export interface components {
             notes?: components["schemas"]["BoxscoreInfoLine"][];
             pitching?: components["schemas"]["BoxscorePitcher"][];
         };
+        /**
+         * @description What a fan did with a clip: began playing it (`start`) or watched it to the end (`complete`).
+         * @enum {string}
+         */
+        ClipViewEvent: "start" | "complete";
+        /** @description The body of `POST /api/v1/clips/:mediaId/views` (S174 AC 4): the game the clip belongs to, what happened, and where the clip sat in the game's ranked Videos list. Nothing about the viewer. `parseClipViewRequest` checks it. */
+        ClipViewRequest: {
+            event: components["schemas"]["ClipViewEvent"];
+            /** @description The MLB game the clip is one of the stored highlights of. */
+            gamePk: number;
+            /** @description The clip's 1-based place in the game's ranked Videos list (`rankHighlightsByImpact`), or 0 when it was opened directly; 0 to 100. */
+            shownPosition: number;
+        };
         /** @description "Best of <date>" (S71): the day's top clips across its games, ranked by `dayDigest`. */
         DayDigestResponse: {
             /** @description The day, `YYYY-MM-DD`. */
@@ -483,6 +549,8 @@ export interface components {
             cloudSyncedSettings: boolean;
             fasterLiveRefresh: boolean;
             savantLinks: boolean;
+            /** @description May pick a stats site other than MLB.com for player links (S209; owner, 2026-11-24: "Every patron, Backer and up (Recommended)"). Never stored: `entitlementsForTier` derives it from the tier wherever entitlements are read, so a row or a session signed before S209 can't lack it where it matters. */
+            statsProviderChoice: boolean;
             tier: components["schemas"]["PatronTier"];
         };
         /** @description The box score (S2): each team's side (`BoxscoreTeam`) and MLB's game info lines, in MLB's order (a line MLB sends with no value, the game's date, is kept with an empty `value` since S207). */
@@ -767,6 +835,12 @@ export interface components {
             y0: number;
             z0: number;
         };
+        /** @description A player's ids on the sites BT links to: MLB's own (MLBAM, which MLB.com and Baseball Savant key their pages by), and FanGraphs' and Baseball-Reference's, each null when BT doesn't know it (neither the Chadwick register nor MLB's cross-references has it for this player). */
+        PlayerIds: {
+            bbref: string | null;
+            fangraphs: string | null;
+            mlbam: number;
+        };
         /** @description MLB's player of the game (S99): the media's pick and the fans' pick, each absent until MLB names a player for it. Never an object with neither: a game with no pick has no `playerOfTheGame`. */
         PlayerOfTheGame: {
             fan?: components["schemas"]["PlayerOfTheGamePick"];
@@ -778,6 +852,20 @@ export interface components {
             summary: string | null;
             teamId: number | null;
             winProbabilityAdded: number | null;
+        };
+        /** @description One player's pages on each stats site (S209): the ids BT holds for them and the URL `playerProfileUrl` builds for each site, null for a site whose id BT doesn't know (neither the Chadwick register nor MLB's cross-references has it). The web builds its link from `ids` through the same function. */
+        PlayerPages: {
+            ids: components["schemas"]["PlayerIds"];
+            profiles: {
+                bbref: string | null;
+                fangraphs: string | null;
+                mlb: string | null;
+                savant: string | null;
+            };
+        };
+        /** @description The answer of `GET /api/v1/players/profiles?personIds=…` (S209 AC 3): the pages of each asked player BT has a row for, by ascending MLB id; a player with no row is left out. */
+        PlayerProfilesResponse: {
+            players: components["schemas"]["PlayerPages"][];
         };
         /** @description A player named on the scoreboard (pitchers of record). */
         PlayerRef: {
@@ -1030,7 +1118,7 @@ export interface components {
             /** @description MLB's count of every clip it matched; `highlights` is the first page of them, so it may hold fewer. */
             total: number;
         };
-        /** @description A settings write: the whole document with a bumped `version`; an older version is ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70) may be left out — each reads as its default — so a page loaded before they shipped can still save. */
+        /** @description A settings write: the whole document with a bumped `version`; an older version is ignored (ADR-022). `gameRowSlot` (S67), `collapseNonFavorites` and `hideScores` (S68), `videoPlayer` (S70), `statsProvider` (S209) may be left out — each reads as its default — so a page loaded before they shipped can still save. */
         SettingsRequest: {
             /** @description Fold games without a favorite team into slim bars (S68). */
             collapseNonFavorites?: boolean;
@@ -1040,6 +1128,8 @@ export interface components {
             /** @description Hide every score and record (S68). Read it through `shouldHideScores`, never directly (owner, 2026-10-21), so the setting can outgrow an on/off switch. */
             hideScores?: boolean;
             opensFirst: components["schemas"]["OpensFirst"];
+            /** @description The stats site a player's name opens (S209). Read it through `effectiveStatsProvider`, never directly: only a patron's choice counts, and a lapsed pledge links to MLB.com. */
+            statsProvider?: components["schemas"]["StatsProvider"];
             version: number;
             /** @description Where videos play (S70): a dialog over the page, or a stage in the Videos room. */
             videoPlayer?: components["schemas"]["VideoPlayerMode"];
@@ -1152,6 +1242,8 @@ export interface components {
             teamId: number;
             wins: number;
         };
+        /** @enum {string} */
+        StatsProvider: "mlb" | "fangraphs" | "bbref" | "savant";
         /** @description A team's season record (S65; the scoreboard module's `81-62`). */
         TeamRecord: {
             losses: number;
@@ -1178,6 +1270,8 @@ export interface components {
             text: string;
             type: string;
         };
+        /** @description A ballpark's field outline (S105): Baseball Savant's SVG drawing of the park BT keeps for an MLB venue id (`GameSnapshot.venue.id`), sanitized before it was stored. Not JSON: its route answers it as `image/svg+xml` (`ApiMediaTypes`). */
+        VenueFieldSvgResponse: string;
         /** @description The pitch a video shows, by MLB's own link (S94; GraphQL `playIdRef`): `videoId` is the video's id in the content feed (`MediaHighlight.id`), `playId` the pitch's `PitchEvent.playId`. It covers clips the content feed links to no play, such as ABS challenges. */
         VideoPlayRef: {
             playId: string;
@@ -1199,6 +1293,67 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    countClipView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The clip's MLB media id, as the game's `highlights` list it (`id`). */
+                mediaId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClipViewRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `invalid_body`: the body is not JSON with a positive whole `gamePk`, an `event` of `start` or `complete`, and a whole `shownPosition` from 0 to 100, and no other keys. Nothing is counted. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `cross_site`: the request didn't come from one of BT's own pages (`Sec-Fetch-Site` other than `same-origin`, or, without it, an `Origin` other than BT's own, or neither header). Nothing is counted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `not_found`: `mediaId` is not one of the stored highlights of game `gamePk` (or BT holds no such game). Nothing is counted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     getDayDigest: {
         parameters: {
             query: {
@@ -1586,7 +1741,7 @@ export interface operations {
                     "application/json": components["schemas"]["SettingsResponse"];
                 };
             };
-            /** @description The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a whole non-negative version). */
+            /** @description The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a known stats site or none, a whole non-negative version), or it changes `statsProvider` to a site other than `mlb` for an account without a patron tier (S209: Backer and up). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1704,6 +1859,47 @@ export interface operations {
             };
             /** @description `not_found`: this deployment offers no tier override (production, previews, local dev). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getPlayerProfiles: {
+        parameters: {
+            query: {
+                /** @description 1 to 100 MLB person ids (MLBAM), comma-separated; repeats count once. */
+                personIds: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerProfilesResponse"];
+                };
+            };
+            /** @description `personIds` is missing, malformed, or names more than 100 players. */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2105,6 +2301,47 @@ export interface operations {
             };
             /** @description `standings_unavailable`: MLB couldn't answer a standings table; never cached, so trying again shortly may succeed. A season calendar MLB couldn't give is not this error: the answer is then the day's table without phase dates, cached only briefly. */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getVenueField: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description MLB venue id (`4169` is loanDepot park). */
+                venueId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/svg+xml": components["schemas"]["VenueFieldSvgResponse"];
+                };
+            };
+            /** @description BT keeps no drawing for that venue: Savant has none, BT couldn't get it, or BT has first stored no game there since it began keeping drawings (a park whose games were all stored earlier has none until its next new game). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+            /** @description `version_unsupported`: this API version has been retired (ADR-015); the client should reload to update. */
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };

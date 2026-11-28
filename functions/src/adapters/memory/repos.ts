@@ -1,11 +1,15 @@
 import type {
-	AccountSettings, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, PatronTier, ScheduleDayTally, ScheduleMonthCheck,
+	AccountSettings, ClipViewEvent, Entitlements, GameProjection, GameRecheckCandidate, GameSnapshot, GameStateFields, GameStateRow, PatronTier, ScheduleDayTally,
+	ScheduleMonthCheck,
 	StoredScheduleDay, UserProfile,
 } from "@bt/domain";
 import {
-	contentHash, downloadExpired, GAME_RECHECK_CLAIM_LEASE_MS, SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
+	contentHash, downloadExpired, entitlementsForTier, GAME_RECHECK_CLAIM_LEASE_MS, PERSON_ID_MAX,
+	SCHEDULE_MONTH_CLAIM_LEASE_MS, SCHEDULE_MONTH_REFRESH_INTERVAL_MS, scheduleDayTally,
 } from "@bt/domain";
 import type {
+	ClipEngagementRepository,
+	ClipEngagementRow,
 	DataDownload,
 	ExportStore,
 	GameProjectionRepository,
@@ -19,10 +23,16 @@ import type {
 	Mailer,
 	OwedEdgePurge,
 	OwedEdgePurgeRepository,
+	PlayerIdRepository,
+	PlayerIdRow,
+	RegisterFileState,
+	RegisterFileWrite,
 	ScheduleRepository,
 	SettingsRepository,
 	UserDataExport,
 	UserRepository,
+	VenueField,
+	VenueFieldRepository,
 } from "@bt/ports";
 
 /** A JSON round-trip: what a Postgres `jsonb` column hands back, and never the caller's object. */
@@ -315,6 +325,11 @@ export class InMemoryGameRepository implements GameRepository
 		return this.store.get(gamePk);
 	}
 
+	async hasHighlight(gamePk: number, mediaId: string): Promise<boolean>
+	{
+		return (await this.store.get(gamePk))?.highlights.some((highlight) => highlight.id === mediaId) ?? false;
+	}
+
 	async upsert(game: GameSnapshot): Promise<void>
 	{
 		this.store.put(game.gamePk, game);
@@ -517,6 +532,80 @@ export class InMemoryReplayArtifactRepository implements ReplayArtifactRepositor
 }
 
 /**
+ * Each venue's field drawing (S105), versioned by when BT asked Savant (`fetchedAt`), newer only (ADR-022), and a kept
+ * drawing never replaced by a later ask that got none, as the Postgres adapter's `setWhere` does.
+ */
+export class InMemoryVenueFieldRepository implements VenueFieldRepository
+{
+	private readonly store = new VersionedMemoryStore<number, VenueField>((field) => Date.parse(field.fetchedAt));
+
+	async get(venueId: number): Promise<VenueField | null>
+	{
+		return this.store.get(venueId);
+	}
+
+	async upsert(field: VenueField): Promise<void>
+	{
+		if (field.svg === null && this.store.get(field.venueId)?.svg) return;
+		this.store.put(field.venueId, field);
+	}
+}
+
+/** Text compared by code unit, as Postgres's `COLLATE "C"` compares it, not by locale. */
+function codeUnitOrder(a: string, b: string): number
+{
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Orders clip engagement rows as both adapters answer them: by day, game, media id, event and shown position, text by
+ * code unit (the Postgres adapter orders `COLLATE "C"`).
+ */
+function byEngagementKey(a: ClipEngagementRow, b: ClipEngagementRow): number
+{
+	return codeUnitOrder(a.viewDay, b.viewDay) || a.gamePk - b.gamePk || codeUnitOrder(a.mediaId, b.mediaId) || codeUnitOrder(a.event, b.event)
+		|| a.shownPosition - b.shownPosition;
+}
+
+/**
+ * The anonymous daily clip counts (S174), the Postgres adapter's test double: one row per key, its count raised by one per
+ * `record`. JavaScript runs one call at a time, so two records of one key always end at 2, as Postgres's upsert does.
+ */
+export class InMemoryClipEngagementRepository implements ClipEngagementRepository
+{
+	private readonly rows = new Map<string, ClipEngagementRow>();
+
+	async record(mediaId: string, gamePk: number, viewDay: string, event: ClipViewEvent, shownPosition: number): Promise<void>
+	{
+		const key = JSON.stringify([mediaId, gamePk, viewDay, event, shownPosition]);
+		const row = this.rows.get(key);
+		if (row) row.count += 1;
+		else this.rows.set(key, {
+			mediaId,
+			gamePk,
+			viewDay,
+			event,
+			shownPosition,
+			count: 1,
+		});
+	}
+
+	async countsFor(gamePk: number): Promise<ClipEngagementRow[]>
+	{
+		return [...this.rows.values()].filter((row) => row.gamePk === gamePk).map((row) => ({
+			...row,
+		})).sort(byEngagementKey);
+	}
+
+	async exportRange(fromDay: string, toDay: string): Promise<ClipEngagementRow[]>
+	{
+		return [...this.rows.values()].filter((row) => row.viewDay >= fromDay && row.viewDay <= toDay).map((row) => ({
+			...row,
+		})).sort(byEngagementKey);
+	}
+}
+
+/**
  * Users, their identity links (ADR-019) and staging's tier overrides (S215, kept apart from the
  * real entitlements), stored as JSON copies like the
  * other doubles. Users carry no version: a user record changes by explicit
@@ -533,7 +622,14 @@ export class InMemoryUserRepository implements UserRepository
 	async getByUid(uid: string): Promise<UserProfile | null>
 	{
 		const user = this.byUid.get(uid);
-		return user === undefined ? null : jsonCopy(user);
+		// S209 AC 9: derived from the tier as the Postgres adapter derives it, whatever the stored copy held.
+		return user === undefined ? null : {
+			...jsonCopy(user),
+			entitlements: {
+				...jsonCopy(user.entitlements),
+				statsProviderChoice: entitlementsForTier(user.entitlements.tier).statsProviderChoice,
+			},
+		};
 	}
 
 	async upsert(user: UserProfile): Promise<void>
@@ -704,6 +800,104 @@ export class InMemoryMailer implements Mailer
 	{
 		// In place: `sent` is a readonly reference tests hold.
 		for (let i = this.sent.length - 1; i >= 0; i--) if (this.sent[i]!.uid === uid) this.sent.splice(i, 1);
+	}
+}
+
+/**
+ * MLB's players and their outside ids (S209), the Postgres adapter's `player_ids` and `player_register_files`: each
+ * register file's rows replaced at once, an unchanged row left as it was, and the same claim rule for a file's sync.
+ */
+export class InMemoryPlayerIdRepository implements PlayerIdRepository
+{
+	private readonly rows = new Map<number, PlayerIdRow & { registerFile: string }>();
+	private readonly files = new Map<string, RegisterFileState>();
+
+	async getMany(personIds: readonly number[]): Promise<PlayerIdRow[]>
+	{
+		const wanted = [...new Set(personIds)].filter((id) => Number.isInteger(id) && id > 0 && id <= PERSON_ID_MAX).sort((a, b) => a - b);
+		return wanted.flatMap((id) =>
+		{
+			const row = this.rows.get(id);
+			return row ? [{
+				personId: row.personId,
+				fangraphsId: row.fangraphsId,
+				bbrefId: row.bbrefId,
+			}] : [];
+		});
+	}
+
+	async registerFiles(): Promise<RegisterFileState[]>
+	{
+		return [...this.files.values()].map((state) => ({
+			...state,
+		}));
+	}
+
+	async claimRegisterFile(file: string, at: string, dueBefore: string, retryBefore: string): Promise<boolean>
+	{
+		const state = this.files.get(file);
+		if (state)
+		{
+			const due = state.syncedAt === null || Date.parse(state.syncedAt) < Date.parse(dueBefore);
+			const resting = state.triedAt !== null && Date.parse(state.triedAt) >= Date.parse(retryBefore);
+			if (!due || resting) return false;
+		}
+		this.files.set(file, {
+			file,
+			etag: state?.etag ?? null,
+			syncedAt: state?.syncedAt ?? null,
+			triedAt: at,
+		});
+		return true;
+	}
+
+	async markRegisterFileUnchanged(file: string, at: string): Promise<void>
+	{
+		const state = this.files.get(file);
+		if (state) this.files.set(file, {
+			...state,
+			syncedAt: at,
+		});
+	}
+
+	async replaceRegisterFile(file: string, rows: readonly PlayerIdRow[], etag: string | null, at: string): Promise<RegisterFileWrite>
+	{
+		const write: RegisterFileWrite = {
+			inserted: 0,
+			updated: 0,
+			deleted: 0,
+		};
+		const kept = new Set<number>();
+		// One row per person id, the last given, as the Postgres adapter does (the port's rule).
+		const unique = new Map(rows.map((row) => [row.personId, row]));
+		for (const row of unique.values())
+		{
+			if (row.personId <= 0 || row.personId > PERSON_ID_MAX) continue;
+			kept.add(row.personId);
+			const stored = this.rows.get(row.personId);
+			if (stored && stored.fangraphsId === row.fangraphsId && stored.bbrefId === row.bbrefId && stored.registerFile === file) continue;
+			if (stored) write.updated++;
+			else write.inserted++;
+			this.rows.set(row.personId, {
+				personId: row.personId,
+				fangraphsId: row.fangraphsId,
+				bbrefId: row.bbrefId,
+				registerFile: file,
+			});
+		}
+		for (const [id, stored] of this.rows)
+		{
+			if (stored.registerFile !== file || kept.has(id)) continue;
+			this.rows.delete(id);
+			write.deleted++;
+		}
+		this.files.set(file, {
+			file,
+			etag,
+			syncedAt: at,
+			triedAt: at,
+		});
+		return write;
 	}
 }
 

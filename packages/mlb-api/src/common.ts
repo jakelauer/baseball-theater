@@ -191,6 +191,21 @@ export interface Person {
 	strikeZoneTop?: number;
 	strikeZoneBottom?: number;
 	stats?: PersonStatSplit[];
+	/** The person's ids on other sites (`hydrate=xrefId`, S209): BT reads its `fangraphs` and `lahman` ones (see `PersonXref`). */
+	xrefIds?: PersonXref[];
+}
+
+/**
+ * One cross-reference MLB keeps for a person (`hydrate=xrefId`): an id on another site (`retrosheet`, `lahman`,
+ * `fangraphs`, `espn`, `bis`, social accounts…) and the season MLB linked it, when it says. It has no
+ * Baseball-Reference type; `lahman`, the Lahman database's id, matched Baseball-Reference's for every recorded player
+ * that had one (28 of 33 for 823823; the five 2026 rookies had none). S209 takes the Chadwick register's ids first
+ * and fills a gap from `fangraphs` and `lahman` (`mapPeopleXrefs`).
+ */
+export interface PersonXref {
+	xrefId?: string;
+	xrefType?: string;
+	season?: string;
 }
 
 export interface Position {

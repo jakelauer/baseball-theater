@@ -12,7 +12,9 @@
  * the same way responses come from `ApiRoutes`.
  */
 import { fileURLToPath } from "node:url";
-import { ApiRequestBodies, ApiRoutes } from "@bt/domain";
+import {
+	ApiMediaTypes, ApiRequestBodies, ApiRoutes, CLIP_SHOWN_POSITION_MAX, NO_CONTENT_RESPONSE, PERSON_IDS_PATTERN,
+} from "@bt/domain";
 import type {
 	ApiRequestTypes, ApiResponseTypes, ApiRoute,
 } from "@bt/domain";
@@ -149,6 +151,24 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 		],
 		errors: {
 			404: "No game with that id.",
+		},
+	},
+	"GET /api/v1/venues/:venueId/field.svg": {
+		operationId: "getVenueField",
+		summary: "A ballpark's field outline: Baseball Savant's 250×250 SVG drawing of the park, for MLB's venue id (a game's `venue.id`), as BT keeps it. BT asks Savant for a park's drawing when it first stores a game there and removes anything that could run or load from elsewhere (scripts, event handlers, outside links) before keeping it; the browser never asks Savant. Cacheable for a day in the browser and 30 days at the edge.",
+		parameters: [
+			{
+				name: "venueId",
+				in: "path",
+				required: true,
+				description: "MLB venue id (`4169` is loanDepot park).",
+				schema: {
+					type: "integer",
+				},
+			},
+		],
+		errors: {
+			404: "BT keeps no drawing for that venue: Savant has none, BT couldn't get it, or BT has first stored no game there since it began keeping drawings (a park whose games were all stored earlier has none until its next new game).",
 		},
 	},
 	"GET /api/v1/digest": {
@@ -369,13 +389,52 @@ export const ROUTE_DESCRIPTIONS: Record<ApiRoute, RouteDescription> = {
 		parameters: [],
 		errors: {},
 	},
+	"GET /api/v1/players/profiles": {
+		operationId: "getPlayerProfiles",
+		summary: "Players' pages on MLB.com, FanGraphs, Baseball-Reference and Baseball Savant (S209), with the ids they are built from, for each asked player BT has a row for (a player with none is left out); a site whose id BT doesn't know is null. Cacheable for a day: the ids are synced from the Chadwick register at most daily.",
+		parameters: [
+			{
+				name: "personIds",
+				in: "query",
+				required: true,
+				description: "1 to 100 MLB person ids (MLBAM), comma-separated; repeats count once.",
+				schema: {
+					type: "string",
+					pattern: PERSON_IDS_PATTERN,
+				},
+			},
+		],
+		errors: {
+			400: "`personIds` is missing, malformed, or names more than 100 players.",
+		},
+	},
 	"PUT /api/v1/me/settings": {
 		operationId: "putSettings",
 		summary: "Saves the whole settings document. Applies only if `version` is newer than the stored one (ADR-022); answers with what is stored either way.",
 		parameters: [],
 		errors: {
-			400: "The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a whole non-negative version).",
+			400: "The body is not a settings document (known team ids, an offered room, a known game-row slot or none, true or false or none for collapse and hide scores, a known stats site or none, a whole non-negative version), or it changes `statsProvider` to a site other than `mlb` for an account without a patron tier (S209: Backer and up).",
 			401: "No session, or the account no longer exists.",
+		},
+	},
+	"POST /api/v1/clips/:mediaId/views": {
+		operationId: "countClipView",
+		summary: `Counts one view of a clip played from its game's Videos room (S174): \`start\` the first time it plays after it is opened, \`complete\` once it has been watched to the end. BT keeps only an anonymous count per clip, UTC day, event and the clip's place in the game's ranked Videos list (\`shownPosition\`, 1 to ${CLIP_SHOWN_POSITION_MAX}, or 0 when it was opened directly); nothing about who watched. It counts only from BT's own pages: the browser's \`Sec-Fetch-Site\` must be \`same-origin\`, or, where a browser sends none, its \`Origin\` must be BT's own; it reads no cookie and no session, and its answers carry no CORS headers. Answers 204 with no body.`,
+		parameters: [
+			{
+				name: "mediaId",
+				in: "path",
+				required: true,
+				description: "The clip's MLB media id, as the game's `highlights` list it (`id`).",
+				schema: {
+					type: "string",
+				},
+			},
+		],
+		errors: {
+			400: `\`invalid_body\`: the body is not JSON with a positive whole \`gamePk\`, an \`event\` of \`start\` or \`complete\`, and a whole \`shownPosition\` from 0 to ${CLIP_SHOWN_POSITION_MAX}, and no other keys. Nothing is counted.`,
+			403: "`cross_site`: the request didn't come from one of BT's own pages (`Sec-Fetch-Site` other than `same-origin`, or, without it, an `Origin` other than BT's own, or neither header). Nothing is counted.",
+			404: "`not_found`: `mediaId` is not one of the stored highlights of game `gamePk` (or BT holds no such game). Nothing is counted.",
 		},
 	},
 };
@@ -462,12 +521,13 @@ export function generateComponentSchemas(typeNames: readonly (keyof ApiResponseT
 	return components;
 }
 
-function jsonResponse(description: string, schemaName: string): JsonSchema
+/** A response whose body is `schemaName`, as `mediaType` (JSON unless the route table's `ApiMediaTypes` says otherwise, S105). */
+function jsonResponse(description: string, schemaName: string, mediaType = "application/json"): JsonSchema
 {
 	return {
 		description,
 		content: {
-			"application/json": {
+			[mediaType]: {
 				schema: ref(schemaName),
 			},
 		},
@@ -485,8 +545,13 @@ export function buildOpenApiSpec(components: Record<string, JsonSchema>): JsonSc
 	{
 		const [method = "", path = ""] = route.split(" ");
 		const description = ROUTE_DESCRIPTIONS[route];
-		const responses: Record<string, JsonSchema> = {
-			200: jsonResponse("OK", responseType),
+		// A route whose response type is `NoContentResponse` (S174) answers 204 with no body, so it has no 200.
+		const responses: Record<string, JsonSchema> = responseType === NO_CONTENT_RESPONSE ? {
+			204: {
+				description: "No Content",
+			},
+		} : {
+			200: jsonResponse("OK", responseType, (ApiMediaTypes as Partial<Record<ApiRoute, string>>)[route]),
 		};
 		for (const [status, text] of Object.entries(description.errors))
 		{
@@ -540,7 +605,8 @@ export const COMMITTED_SPEC = fileURLToPath(new URL("../../../openapi/bt-api.v1.
  */
 export async function generateOpenApiSpec(): Promise<string>
 {
-	const typeNames = [...new Set([...Object.values(ApiRoutes), ...Object.values(ApiRequestBodies), ERROR_TYPE])];
+	// `NoContentResponse` names no body, so it gets no schema.
+	const typeNames = [...new Set([...Object.values(ApiRoutes), ...Object.values(ApiRequestBodies), ERROR_TYPE])].filter((name) => name !== NO_CONTENT_RESPONSE);
 	const json = JSON.stringify(buildOpenApiSpec(generateComponentSchemas(typeNames)));
 	return format(json, {
 		...await resolveConfig(COMMITTED_SPEC),

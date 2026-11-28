@@ -48,13 +48,13 @@ import {
 	parseStandingsResponse,
 } from "@bt/mlb-api";
 import type {
-	GameEditorial, MlbGameSources, MlbStatsClient,
+	GameEditorial, MlbGameSources, MlbStatsClient, PlayerXrefSource, ResolvedPlayerIds,
 } from "@bt/ports";
 import { inPool } from "../in-pool.js";
 import { mapContentHighlights, mapRecap } from "../../mappers/content.js";
 import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
-import { mapPeople } from "../../mappers/players.js";
+import { mapPeople, mapPeopleXrefs } from "../../mappers/players.js";
 import { mapSearchResults } from "../../mappers/search.js";
 import { mapStandings } from "../../mappers/standings.js";
 import { mapLiveFeed } from "../../mappers/live.js";
@@ -203,6 +203,15 @@ export function savantGameFeedUrl(gamePk: number, baseUrl = SAVANT_BASE_URL): st
 }
 
 /**
+ * A ballpark's field outline on Savant's host (S105): a 250×250 SVG keyed by MLB's venue id (`GameSnapshot.venue.id`;
+ * 4169 is loanDepot park, 3313 Yankee Stadium). Ingest asks it once per venue (`keepVenueFields`), never a request.
+ */
+export function venueFieldUrl(venueId: number, baseUrl = SAVANT_BASE_URL): string
+{
+	return `${baseUrl}/site-core/images/fields/${venueId}.svg`;
+}
+
+/**
  * The uniforms each team wore in one game (S101), on the Stats API. `fetchGame` never asks it (a value settled before
  * first pitch, asked by ingest off the fetch path: `withAskedExtras`). The recorder (S14) records the same URL.
  */
@@ -320,7 +329,7 @@ export interface HttpMlbStatsClientOptions {
 	now?: () => Date;
 }
 
-export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
+export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources, PlayerXrefSource
 {
 	private readonly baseUrl: string;
 	private readonly savantBaseUrl: string;
@@ -488,6 +497,17 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 	}
 
 	/**
+	 * MLB's cross-references for `personIds` (S209 AC 1, `PlayerXrefSource`): the batched `people` call with
+	 * `hydrate=xrefId`, one request for every id given (the register sync batches them, `PLAYER_XREF_BATCH`), parsed
+	 * by `parsePeopleResponse` and read by `mapPeopleXrefs`. Rejects when MLB errors.
+	 */
+	async fetchPlayerXrefs(personIds: readonly number[]): Promise<Map<number, ResolvedPlayerIds>>
+	{
+		if (personIds.length === 0) return new Map();
+		return mapPeopleXrefs(parsePeopleResponse(await this.getJson(`${this.baseUrl}/api/v1/people?personIds=${personIds.join(",")}&hydrate=xrefId`)));
+	}
+
+	/**
 	 * MLB's highlight search (S5, S72): free text, or `mlbSearchQuery`'s filtered `STRUCTURED` query once a
 	 * filter is set; rejects when MLB errors or answers something that isn't the search's shape.
 	 */
@@ -602,6 +622,30 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources
 		try
 		{
 			return mapSavantGameFeed(parseSavantGameFeedResponse(await this.getJson(savantGameFeedUrl(gamePk, this.savantBaseUrl))), version);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/**
+	 * A ballpark's field drawing (S105), the SVG text as Savant sent it; null when Savant answers an error (an unknown
+	 * venue gets its HTML 404 page), the call fails, or the answer holds no `<svg` element. The caller sanitizes it
+	 * (`sanitizeFieldSvg`) before keeping it.
+	 */
+	async fetchVenueField(venueId: number): Promise<string | null>
+	{
+		try
+		{
+			const response = await this.fetchImpl(venueFieldUrl(venueId, this.savantBaseUrl), {
+				headers: {
+					accept: "image/svg+xml",
+				},
+			});
+			if (!response.ok) return null;
+			const text = await response.text();
+			return text.includes("<svg") ? text : null;
 		}
 		catch
 		{

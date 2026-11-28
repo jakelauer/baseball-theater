@@ -9,7 +9,9 @@ import { fileURLToPath } from "node:url";
 import {
 	describe, expect, it,
 } from "vitest";
-import { BUNDLED_FIXTURES, bundledFixtureFiles } from "./bundled.js";
+import {
+	BUNDLED_FIXTURES, BUNDLED_TEXT_FIXTURES, bundledFixtureFiles, createBundledFixtureClient,
+} from "./bundled.js";
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures");
 
@@ -56,6 +58,21 @@ describe("bundled fixtures (S45)", () =>
 		}
 		// The combined-types and playoff recordings are evidence for the ledger, never served, so never bundled.
 		expect(SERVED.test("raw/standings-2026-final-wildcard.json")).toBe(false);
+	});
+
+	it("S105 AC 1: bundles exactly the committed field drawings, byte for byte, so pnpm dev serves the recordings", async () =>
+	{
+		const drawings = readdirSync(path.join(FIXTURES, "raw")).filter((name) => /^savant-field-\d+\.svg$/.test(name)).map((name) => `raw/${name}`).sort();
+		expect(drawings).toEqual(["raw/savant-field-3313.svg", "raw/savant-field-4169.svg"]);
+		expect(Object.keys(BUNDLED_TEXT_FIXTURES).sort()).toEqual(drawings);
+		for (const name of drawings)
+		{
+			const recorded = readFileSync(path.join(FIXTURES, name), "utf8");
+			expect(await bundledFixtureFiles.readText(name), name).toBe(recorded);
+			expect(await createBundledFixtureClient().fetchVenueField(Number(/\d+/.exec(name)![0])), name).toBe(recorded);
+		}
+		await expect(bundledFixtureFiles.readText("raw/savant-field-1.svg")).rejects.toThrow(/no bundled fixture/);
+		expect(await createBundledFixtureClient().fetchVenueField(1)).toBeNull();
 	});
 
 	it("an unknown fixture rejects like a missing file", async () =>

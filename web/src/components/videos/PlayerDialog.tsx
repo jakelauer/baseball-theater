@@ -6,6 +6,7 @@ import {
 	useEffect, useRef, useState,
 } from "react";
 import { highlightTitle } from "@bt/domain";
+import type { ClipViewSource } from "../../api/clipViews.js";
 import type { Video } from "./VideoCard.js";
 import { PlayInningPill } from "./PlayInningPill.js";
 import { gameVideosLink } from "./playLink.js";
@@ -75,14 +76,16 @@ export type PlayerGame = Parameters<typeof gameVideosLink>[0];
  * control in order, Esc still closes, and Space plays and pauses (`VideoPlayer`).
  */
 export function PlayerDialog({
-	video, onClose, game, fromGamePk, scoresHidden = false, playLink,
+	video, onClose, game, fromGamePk, scoresHidden = false, playLink, countViews,
 }: { video: Video;
 	onClose: () => void;
 	game?: PlayerGame;
 	fromGamePk?: number;
 	scoresHidden?: boolean;
 	/** The clip's play link (S97; game-shell A6's inning pill, S145): its inning pill, drawn after the game pill when there is one (S173). */
-	playLink?: PlayLink | null; })
+	playLink?: PlayLink | null;
+	/** Where the clip's start and finish are counted from (S174): the Videos room passes it; Search and the digest don't. */
+	countViews?: ClipViewSource; })
 {
 	const title = highlightTitle(video, scoresHidden);
 	const gameLink = game && game.gamePk !== fromGamePk ? gameVideosLink(game) : null;
@@ -98,6 +101,7 @@ export function PlayerDialog({
 		titleAbove: true,
 		chosen: true,
 		onClose,
+		countViews,
 		...fromGamePk === undefined ? {} : {
 			scoresGame: {
 				gamePk: fromGamePk,

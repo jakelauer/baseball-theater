@@ -118,7 +118,20 @@ export const PAST_BROWSER_MAX_AGE_S = 3600;
 export const PAST_CACHE_CONTROL = `public, max-age=${PAST_BROWSER_MAX_AGE_S}, s-maxage=${PAST_EDGE_TTL_S}, stale-while-revalidate=${PAST_STALE_S}`;
 
 /**
+ * A ballpark's field drawing (S105, `GET /api/v1/venues/:venueId/field.svg`): a park's outline almost never changes and
+ * BT never takes away one it keeps (only a later drawing replaces it), so a browser keeps it a day and the edge for ADR-021's cap ({@link PAST_EDGE_TTL_S}),
+ * served stale for a day ({@link PAST_STALE_S}) while it refetches.
+ */
+export const VENUE_FIELD_CACHE_CONTROL = `public, max-age=86400, s-maxage=${PAST_EDGE_TTL_S}, stale-while-revalidate=${PAST_STALE_S}`;
+
+/**
  * A past, finished day's digest missing a game it couldn't read (S212 AC 3): the floor, with ADR-021's stale window,
  * never the long lifetime, so the next read after about ten minutes tries that game again rather than waiting on a purge.
  */
 export const PARTIAL_PAST_DIGEST_CACHE_CONTROL = `public, s-maxage=${CACHE_LIFETIME_FLOOR_MS / 1000}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_S}`;
+
+/**
+ * Players' profile links (S209, `GET /api/v1/players/profiles`): the ids come from the Chadwick register, synced at
+ * most once a day a file, so the edge and the browser may keep any answer (a player with no row included) for a day.
+ */
+export const PLAYER_PROFILES_CACHE_CONTROL = "public, max-age=86400, s-maxage=86400";

@@ -69,6 +69,18 @@ export const DATA_CLASSIFICATION = {
 			kind: "none",
 			why: "MLB live-feed replay patches; no user data",
 		},
+		InMemoryPlayerIdRepository: {
+			kind: "none",
+			why: "MLB person ids and their FanGraphs and Baseball-Reference ids (S209), public facts about players; no user data",
+		},
+		InMemoryVenueFieldRepository: {
+			kind: "none",
+			why: "each ballpark's field drawing from Baseball Savant, by MLB venue id (S105); no user data",
+		},
+		InMemoryClipEngagementRepository: {
+			kind: "none",
+			why: "anonymous daily counts per clip; nothing about who watched (S174): how many times each clip of a game was started and finished, by UTC day and its place in the game's ranked Videos list; no user, session, address, device or browser",
+		},
 		InMemoryUserRepository: {
 			kind: "personal",
 			deletedBy: USERS_STORE,
@@ -113,6 +125,18 @@ export const DATA_CLASSIFICATION = {
 		PostgresReplayArtifactRepository: {
 			kind: "none",
 			why: "MLB live-feed replay patches; no user data",
+		},
+		PostgresPlayerIdRepository: {
+			kind: "none",
+			why: "MLB person ids and their FanGraphs and Baseball-Reference ids (S209), public facts about players; no user data",
+		},
+		PostgresVenueFieldRepository: {
+			kind: "none",
+			why: "each ballpark's field drawing from Baseball Savant, by MLB venue id (S105); no user data",
+		},
+		PostgresClipEngagementRepository: {
+			kind: "none",
+			why: "anonymous daily counts per clip; nothing about who watched (S174): how many times each clip of a game was started and finished, by UTC day and its place in the game's ranked Videos list; no user, session, address, device or browser",
 		},
 		PostgresUserRepository: {
 			kind: "personal",
@@ -163,6 +187,22 @@ export const DATA_CLASSIFICATION = {
 		replay_artifacts: {
 			kind: "none",
 			why: "MLB live-feed replay patches; no user data",
+		},
+		player_ids: {
+			kind: "none",
+			why: "per MLB player (person_id), their FanGraphs and Baseball-Reference ids (fangraphs_id, bbref_id) and the Chadwick register file the row came from (register_file), S209; public facts about players, no user data",
+		},
+		player_register_files: {
+			kind: "none",
+			why: "per Chadwick register file, the ETag of the copy last synced and when it was synced and tried (S209); no user data",
+		},
+		clip_engagement: {
+			kind: "none",
+			why: "anonymous daily counts per clip; nothing about who watched (S174): the clip (media_id), its game (game_pk), the UTC day (view_day), the event (start or complete), its place in the game's ranked Videos list (shown_position) and the count; no column for a user, session, address, device, browser or time finer than the day",
+		},
+		venue_fields: {
+			kind: "none",
+			why: "each ballpark's field drawing from Baseball Savant (svg), by MLB venue id (venue_id), and when BT asked for it (fetched_at), S105; no user data",
 		},
 		users: {
 			kind: "personal",

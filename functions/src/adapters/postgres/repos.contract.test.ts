@@ -4,6 +4,11 @@
  * case starts from empty tables. Plus the version guard seen from the database: a stale game
  * write changes 0 rows (AC 2).
  */
+import {
+	cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
@@ -17,17 +22,21 @@ import type { ScheduleRepository } from "@bt/ports";
 import { FixtureMlbStatsClient } from "../fixtures/mlb.js";
 import { memoryScheduleStores } from "../memory/repos.js";
 import {
-	describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract, describeServedBaseContract,
+	describeClipEngagementContract, describeGameHighlightContract, describeGameRecheckContract, describeGameStateContract, describeOwedEdgePurgeContract,
+	describePlayerIdContract, describeServedBaseContract,
 } from "../repository-contract.js";
 import { contractGame, describeStorageContract } from "../storage-contract.js";
 import type { PostgresDb } from "./repos.js";
 import {
+	PostgresClipEngagementRepository,
 	PostgresDeletionLog,
 	PostgresOwedEdgePurgeRepository,
 	PostgresGameProjectionRepository,
 	PostgresGameRepository,
 	PostgresGameStateRepository,
+	PostgresPlayerIdRepository,
 	PostgresReplayArtifactRepository,
+	PostgresVenueFieldRepository,
 	PostgresScheduleRepository,
 	PostgresSettingsRepository,
 	PostgresUserRepository,
@@ -40,7 +49,7 @@ const migrated = migrate(db as Parameters<typeof migrate>[0], {
 });
 
 /** Every table the migrations create, emptied between cases. */
-const TABLES = ["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts", "identity_links", "entitlements", "users", "account_settings", "deletion_log"];
+const TABLES = ["schedule_days", "game_states", "schedule_months", "game_rechecks", "owed_edge_purges", "games", "game_projections", "replay_artifacts", "venue_fields", "identity_links", "entitlements", "users", "account_settings", "deletion_log", "player_ids", "player_register_files", "clip_engagement"];
 
 /** Empties every table, after the migrations have run. */
 function emptied(): Promise<unknown>
@@ -98,6 +107,7 @@ describeStorageContract("Postgres", {
 	games: fresh((d) => new PostgresGameRepository(d)),
 	projections: fresh((d) => new PostgresGameProjectionRepository(d)),
 	replays: fresh((d) => new PostgresReplayArtifactRepository(d)),
+	venueFields: fresh((d) => new PostgresVenueFieldRepository(d)),
 	users: together((d) => new PostgresUserRepository(d)),
 	settings: together((d) => new PostgresSettingsRepository(d)),
 });
@@ -125,6 +135,44 @@ describeGameRecheckContract("PostgresGameRepository", () =>
 }, contractGame);
 
 describeOwedEdgePurgeContract("PostgresOwedEdgePurgeRepository", () => gated(new PostgresOwedEdgePurgeRepository(db), emptied()));
+describePlayerIdContract("PostgresPlayerIdRepository", () => gated(new PostgresPlayerIdRepository(db), emptied()));
+
+// S174 AC 3: the clip counts' one contract, on PGlite with the committed migrations, as the memory double runs it.
+describeGameHighlightContract("S174 AC 4 PostgresGameRepository", fresh((d) => new PostgresGameRepository(d)), contractGame);
+describeClipEngagementContract("S174 AC 3 PostgresClipEngagementRepository", fresh((d) => new PostgresClipEngagementRepository(d)));
+
+describe("clip_engagement holds nothing about the viewer (S174 AC 5)", () =>
+{
+	it("S174 AC 5: its columns, read back from the migrated database, are the five key columns and the count", async () =>
+	{
+		await migrated;
+		const result = await db.execute(sql`SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'clip_engagement' ORDER BY ordinal_position`);
+		const columns = (result as unknown as { rows: { column_name: string;
+			data_type: string; }[]; }).rows.map((row) => [row.column_name, row.data_type]);
+		expect(columns).toEqual([
+			["media_id", "text"],
+			["game_pk", "integer"],
+			["view_day", "text"],
+			["event", "text"],
+			["shown_position", "integer"],
+			["count", "integer"],
+		]);
+		// Nothing names a viewer, and the only time is the day.
+		for (const [name] of columns) expect(name).not.toMatch(/user|uid|session|ip|addr|device|agent|browser|time|_at$/);
+	});
+
+	it("S174 AC 5: the day column refuses anything finer than a day, and the key and bounds hold", async () =>
+	{
+		await emptied();
+		const insert = (viewDay: string, event: string, shownPosition: number, count: number) => db.execute(sql`INSERT INTO clip_engagement VALUES ('hl-1', 1, ${viewDay}, ${event}, ${shownPosition}, ${count})`);
+		await expect(insert("2026-11-22T10:00:00Z", "start", 1, 1)).rejects.toThrow();
+		await expect(insert("2026-11-22", "pause", 1, 1)).rejects.toThrow();
+		await expect(insert("2026-11-22", "start", 101, 1)).rejects.toThrow();
+		await expect(insert("2026-11-22", "start", 1, 0)).rejects.toThrow();
+		await insert("2026-11-22", "start", 1, 1);
+		await expect(insert("2026-11-22", "start", 1, 1)).rejects.toThrow();
+	});
+});
 
 describe("Postgres adapter (S50)", () =>
 {
@@ -197,6 +245,7 @@ describe("Postgres adapter (S50)", () =>
 				fasterLiveRefresh: false,
 				cloudSyncedSettings: false,
 				savantLinks: false,
+				statsProviderChoice: false,
 			},
 			createdAt: "2026-10-24T00:00:00.000Z",
 			updatedAt: "2026-10-24T00:00:00.000Z",
@@ -206,12 +255,14 @@ describe("Postgres adapter (S50)", () =>
 			fasterLiveRefresh: true,
 			cloudSyncedSettings: true,
 			savantLinks: false,
+			statsProviderChoice: true,
 		});
 		await users.setEntitlements("nobody", {
 			tier: "Backer",
 			fasterLiveRefresh: true,
 			cloudSyncedSettings: true,
 			savantLinks: false,
+			statsProviderChoice: true,
 		});
 		const user = await users.getByUid("uid-1");
 		expect(user?.entitlements.tier).toBe("Backer");
@@ -328,5 +379,77 @@ describe("S194 AC 1 Postgres schedule_months", () =>
 		}
 		await repo.recordScheduleMonthCheck("2026-12", "2026-11-09T17:00:00.000Z");
 		expect(await repo.listScheduleMonthChecks("2026-01", "2026-12")).toHaveLength(1);
+	});
+});
+
+/**
+ * S209 AC 8 and AC 9 against rows stored before S209's migration: a database migrated up to the migration before it,
+ * rows written there, then the committed migrations applied. Settings gain `stats_provider` (reading "mlb"), and the
+ * entitlements read `statsProviderChoice` from the stored tier, with no column of their own.
+ */
+describe("rows stored before S209 (PGlite)", () =>
+{
+	async function beforeS209(): Promise<PostgresDb>
+	{
+		const committed = fileURLToPath(new URL("./migrations", import.meta.url));
+		const folder = mkdtempSync(join(tmpdir(), "bt-before-s209-"));
+		cpSync(committed, folder, {
+			recursive: true,
+		});
+		const journalPath = join(folder, "meta", "_journal.json");
+		const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries: { tag: string }[] };
+		const at = journal.entries.findIndex((entry) => entry.tag === "0008_player_ids");
+		expect(at).toBeGreaterThan(0);
+		writeFileSync(journalPath, JSON.stringify({
+			...journal,
+			entries: journal.entries.slice(0, at),
+		}));
+		const old: PostgresDb = drizzle(new PGlite());
+		await migrate(old as Parameters<typeof migrate>[0], {
+			migrationsFolder: folder,
+		});
+		rmSync(folder, {
+			recursive: true,
+			force: true,
+		});
+		await old.execute(sql`INSERT INTO account_settings (uid, favorite_team_ids, opens_first, game_row_slot, collapse_non_favorites, hide_scores, video_player, version)
+			VALUES ('old-fan', '{147}', 'live', 'status', false, false, 'dialog', 4)`);
+		for (const [uid, tier] of [["old-backer", "Backer"], ["old-member", "none"], ["old-pro", "Pro Backer"]] as const)
+		{
+			await old.execute(sql`INSERT INTO users (uid, email, role, created_at, updated_at) VALUES (${uid}, ${`${uid}@example.test`}, 'member', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`);
+			await old.execute(sql`INSERT INTO entitlements (uid, tier, faster_live_refresh, cloud_synced_settings, savant_links) VALUES (${uid}, ${tier}, false, false, false)`);
+		}
+		await migrate(old as Parameters<typeof migrate>[0], {
+			migrationsFolder: committed,
+		});
+		return old;
+	}
+
+	it("S209 AC 8: a settings row written before the migration reads MLB.com, and the repository writes and reads the choice", async () =>
+	{
+		const old = await beforeS209();
+		const settings = new PostgresSettingsRepository(old);
+		expect(await settings.get("old-fan")).toMatchObject({
+			statsProvider: "mlb",
+			version: 4,
+		});
+		const current = await settings.get("old-fan");
+		await settings.upsert("old-fan", {
+			...current!,
+			statsProvider: "savant",
+			version: 5,
+		});
+		expect((await settings.get("old-fan"))?.statsProvider).toBe("savant");
+	});
+
+	it("S209 AC 9: a qualifying tier stored before S209 reads statsProviderChoice true, a lower tier false, with no column added", async () =>
+	{
+		const old = await beforeS209();
+		const users = new PostgresUserRepository(old);
+		expect((await users.getByUid("old-backer"))?.entitlements.statsProviderChoice).toBe(true);
+		expect((await users.getByUid("old-pro"))?.entitlements.statsProviderChoice).toBe(true);
+		expect((await users.getByUid("old-member"))?.entitlements.statsProviderChoice).toBe(false);
+		const columns = await old.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'entitlements'`) as unknown as { rows: { column_name: string }[] };
+		expect(columns.rows.map((row) => row.column_name)).not.toContain("stats_provider_choice");
 	});
 });

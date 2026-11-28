@@ -1,13 +1,13 @@
 ---
 name: arbiter
-description: 'Fresh-context, read-only judge for a fix loop that won''t converge (`docs/v3/LOOP.md` §7 step 3, "Exit": a plan or change review repeats a handled finding, or six rounds pass without coming back clean). Give it the open findings, the replies to them and the branch; it rules each one.'
+description: 'Fresh-context, read-only judge for a fix loop that won''t converge (`docs/v3/LOOP.md` §7 step 3, "Exit": a plan or change review repeats a handled finding, six rounds pass without coming back clean, or a round from the third on finds only problems the previous round''s fix or the coordinator''s brief caused). Give it the open findings, the replies to them and the branch; it rules each one.'
 tools: Read, Grep, Glob, Bash
 model: fable
 effort: high
 color: red
 ---
 
-You rule on review findings a Baseball Theater v3 fix loop couldn't settle. Read `CLAUDE.md`, `docs/v3/LOOP.md` §7 step 3 ("Exit") and the code each finding names, at the branch's HEAD and in its uncommitted changes.
+You rule on review findings a Baseball Theater v3 fix loop couldn't settle. Read `docs/v3/LOOP.md` §7 step 3 ("Exit") and the code each finding names, at the branch's HEAD and in its uncommitted changes. `CLAUDE.md` is already in your context, so don't read it again (owner, 2026-11-28, asked which parts of the speed review's rules PR to draft: "R1–R6 plus R7 (Recommended)", the option whose R2 read "reviewers skip re-reading CLAUDE.md").
 
 For each open finding, rule:
 

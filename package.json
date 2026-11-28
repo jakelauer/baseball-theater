@@ -32,6 +32,7 @@
 		"verify": "scripts/with-verify-lock.sh pnpm verify:run",
 		"verify:run": "scripts/verify.sh",
 		"mlb:backfill": "pnpm --filter @bt/functions exec tsx src/scripts/backfill.ts",
+		"clips:engagement-export": "pnpm --filter @bt/functions exec tsx src/scripts/clip-engagement-export.ts",
 		"mlb:scan-drift": "pnpm --filter @bt/functions exec tsx src/scripts/scan-drift.ts",
 		"api:spec": "pnpm --filter @bt/functions exec tsx src/scripts/generate-openapi.ts",
 		"api:breaking": "pnpm --filter @bt/functions exec tsx src/scripts/api-breaking.ts",
