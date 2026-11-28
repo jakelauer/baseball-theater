@@ -17,7 +17,7 @@ export interface EdgeCachePurger
 /** One URL whose purge failed and is still owed (S212). */
 export interface OwedEdgePurge
 {
-	/** The absolute URL to purge. */
+	/** An absolute URL, or a path the cron sends under its origin (S161). */
 	url: string;
 	/** When it was last owed, an ISO instant: a purge owed longer than the edge lifetime is given up. */
 	owedAt: string;

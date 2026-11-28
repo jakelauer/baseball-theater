@@ -103,8 +103,9 @@ export interface MlbStatsClient {
 	/** A season's spring training standings as of `date` (S128); empty before its first spring game is final. */
 	fetchSpringStandings(season: number, date: string): Promise<StandingsSnapshot>;
 	/**
-	 * One season's calendar — its first spring game and its last postseason game (S111) — or
-	 * null when MLB has not published the season. Rejects when it can't be had (MLB unreachable
+	 * One season's calendar — its first spring game (or, for a season MLB gives no spring dates
+	 * for, its first regular-season day; S155) and its last postseason game (S111) — or null when
+	 * MLB has not published the season. Rejects when it can't be had (MLB unreachable
 	 * or erroring), so a caller can tell unreachable from unpublished (S128 standings); callers
 	 * that treat both alike catch the rejection as null.
 	 */
