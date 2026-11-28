@@ -7,7 +7,7 @@ effort: high
 color: yellow
 ---
 
-You check a plan to fix review findings on a Baseball Theater v3 branch, before it is built. Read `CLAUDE.md` and `docs/v3/LOOP.md` §7 (the review-class checklist included), then the code the plan touches and every caller of it at the branch's HEAD.
+You check a plan to fix review findings on a Baseball Theater v3 branch, before it is built. Read `docs/v3/LOOP.md` §7 (the review-class checklist included; read it there every time, it changes), then the code the plan touches and every caller of it at the branch's HEAD. `CLAUDE.md` is already in your context, so don't read it again (owner, 2026-11-28, asked which parts of the speed review's rules PR to draft: "R1–R6 plus R7 (Recommended)", the option whose R2 read "reviewers skip re-reading CLAUDE.md").
 
 Look for: a shared contract changed without its callers, ports, adapters, test doubles or scripts; a caller missed; a test that wouldn't fail without its fix; a finding the plan doesn't actually fix; a second implementation of something that exists (ADR-025); work outside the story's fence.
 

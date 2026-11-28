@@ -1407,7 +1407,7 @@ Owner, 2026-11-02, asked what highlight search should look through at launch (on
 **Decision:**
 
 - **Search is answered by MLB, per query, on the server.** `GET /api/v1/search/highlights` asks MLB's GraphQL `Search` operation (`fastball-gateway.mlb.com/graphql`), as the current site does, through `MlbStatsClient` in `packages/ports`; the handler maps MLB's results to BT's response. Nothing is indexed or stored for search.
-- **The browser still reads only BT.** Clients call BT's route, never MLB (ADR-002's "clients read BT" holds, and question 9 below stays answered *no*). Video files still play from MLB's hosts, as ADR-002 allows.
+- **The browser still reads only BT.** Clients call BT's route, never MLB (ADR-002's "clients read BT" holds, and question 9 below stays answered *no*). Video files still play from MLB's hosts, as ADR-002 allows. The PWA's service worker may also fetch a clip from MLB's clip CDN to save it to disk, for S151's Download (owner, 2026-11-28, asked which parts of the speed review's rules PR to draft: *"R1–R6 plus R7 (Recommended)"*, the option that also named this sentence).
 - **Offline locally and in CI.** The fixture client answers searches from recorded MLB responses (`fixtures/search-*.json`, recorded with S14's recorder), so `pnpm verify` never needs the network.
 - **"For now."** This is the launch answer, not the end state: a search over BT's own stored games (a GIN index on the `games` JSONB exists since S50) or a historical index can replace it later, behind the same route and port.
 
