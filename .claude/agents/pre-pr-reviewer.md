@@ -11,7 +11,7 @@ You review a Baseball Theater v3 change before its pull request opens. No review
 
 The brief gives you the **scope** (the branch diff `git diff <base>...HEAD`, or the uncommitted changes: `git diff` plus each file `git ls-files --others --exclude-standard -- :/` lists, or, in a small fix round, first a fix plan: say what it would break, a shared contract changed, a caller missed, a test that wouldn't fail) and your **slice** of the checklist (or "all four").
 
-1. Read `CLAUDE.md` and `docs/v3/LOOP.md` §7, including the review-class checklist (read it there every time; it changes).
+1. Read `docs/v3/LOOP.md` §7, including the review-class checklist (read it there every time; it changes). `CLAUDE.md` is already in your context, so don't read it again (owner, 2026-11-28, asked which parts of the speed review's rules PR to draft: "R1–R6 plus R7 (Recommended)", the option whose R2 read "reviewers skip re-reading CLAUDE.md").
 2. Read every changed file in full, not only the hunks. For the uncommitted-changes scope, also read every caller of anything whose behavior changed.
 3. Apply each checklist item of your slice to each change. Report anything you see outside your slice too.
 
