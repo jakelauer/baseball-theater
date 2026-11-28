@@ -17,7 +17,7 @@ check 3 "every row's BT already has cell names what BT already gets (a field or 
 check 4 "the catalogue opens with S103's Terms of Use finding (linked from docs/v3/SAVANT-DATA.md) and says this story fetched nothing by code; each of SAVANT-DATA's seven player-season ideas is a row; SAVANT-DATA.md links the catalogue"
 check 5 "S104's own changes touch only docs/v3/SAVANT-CATALOGUE.md, docs/v3/SAVANT-DATA.md, docs/v3/backlog/, docs/v3/audit/, changelog.d/ (and create scripts/verify-S104.sh)"
 check 6 "the catalogue ends with an Owner question section: 1 to 3 numbered options, the first marked (Recommended), each naming catalogue rows by Data set name and what BT could show"
-check 7 "changelog.d/S104.md exists, and S104's snapshot records Status done (only after the owner answers the Owner question)"
+check 7 "changelog.d/S104.md exists, S104's snapshot records Status done (only after the owner answers the Owner question), and the Owner question section holds a '### The owner's answer' heading quoting the owner's words"
 
 # The commit S104's own changes start from (origin/stage when the story started, 2026-11-27). The fence
 # (check 5) reads only S104's own commits from here through story_own_changed_files (scripts/lib/checks.sh).
@@ -27,7 +27,7 @@ DATA=docs/v3/SAVANT-DATA.md
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Checks 1–4 and 6 read the catalogue through one parser: the first Markdown table after the opening, its cells
+# Checks 1–4, 6 and 7's owner's-answer clause read the catalogue through one parser: the first Markdown table after the opening, its cells
 # split on unescaped pipes (a cell writes a literal pipe as \| or %7C). It prints "FAIL <check> <reason>" lines.
 # "Pitcher-only by construction" (AC 1, the owner's "shouldn't be specific to pitchers") is read from each row's
 # Grain cell, which names who the row covers: a row naming pitchers and no other kind of player (batters, hitters,
@@ -96,7 +96,11 @@ if (!/\]\(\.\/SAVANT-CATALOGUE\.md[^)]*\)/.test(readFileSync(data, "utf8"))) bad
 // AC 6: the last ## section is the Owner question.
 const h2 = lines.map((l, i) => [l, i]).filter(([l]) => /^## /.test(l));
 const last = h2.at(-1);
-if (!last || !/^## Owner question\s*$/.test(last[0])) bad(6, "the catalogue's last ## section is not '## Owner question'");
+if (!last || !/^## Owner question\s*$/.test(last[0]))
+{
+	bad(6, "the catalogue's last ## section is not '## Owner question'");
+	bad(7, "no '### The owner's answer' heading under '## Owner question' (no such last section)");
+}
 else
 {
 	const body = lines.slice(last[1] + 1);
@@ -113,12 +117,23 @@ else
 			if (!names.includes(n)) bad(6, `option ${i + 1} names '${n}', which is no row's Data set`);
 		if (!/BT could show:\s*\S/.test(o)) bad(6, `option ${i + 1} does not say what BT could show`);
 	});
+	// AC 7: done only after the owner answers, so the answer is recorded under the question, in the owner's words:
+	// a "### The owner's answer" heading whose text (up to the next heading) quotes the owner, as _"…"_ or *"…"*
+	// or a > blockquote.
+	const ans = body.findIndex((l) => /^### The owner's answer\b/.test(l));
+	if (ans < 0) bad(7, "no '### The owner's answer' heading under '## Owner question'");
+	else
+	{
+		const next = body.findIndex((l, i) => i > ans && /^#{1,6} /.test(l));
+		const said = body.slice(ans + 1, next < 0 ? body.length : next).join("\n");
+		if (!/[_*]"[^"]*\w[^"]*"[_*]|^> *\S/m.test(said)) bad(7, "the owner's answer quotes no words of the owner's");
+	}
 }
 console.log(out.join("\n"));
 EOF
 
 if [ ! -f "$CAT" ]; then
-  for id in 1 2 3 4 6; do bad "$id" "$CAT does not exist"; done
+  for id in 1 2 3 4 6 7; do bad "$id" "$CAT does not exist"; done
 else
   node "$TMP/parse.mjs" "$CAT" "$DATA" "$(date -u +%F)" >"$TMP/parse.txt" 2>&1 || echo "FAIL 1 the catalogue parser crashed: $(tail -3 "$TMP/parse.txt")" >>"$TMP/parse.txt"
   while read -r tag id why; do
