@@ -34,7 +34,7 @@ Checked 2026-11-27 by S103 (AC 7). No Savant terms of its own were found: its pa
 
 All about a player over a season, not a game. BT has no place that shows a player yet (no player card, no comparison view). Ideas raised on 2026-10-30, none chosen: a player card opened from Live, Plays or Box; matchup context in Live (the batter's zones against the pitcher's locations); season context on a play ("his hardest-hit ball this year", "a top-5% sprint"). It changes at most once a day.
 
-S104 catalogues these seven with every other player data set Savant publishes, batters and pitchers alike, in [SAVANT-CATALOGUE](./SAVANT-CATALOGUE.md), and asks the owner which to ingest.
+S104 catalogues these seven with every other player data set Savant publishes, batters and pitchers alike, in [SAVANT-CATALOGUE](./SAVANT-CATALOGUE.md), and asks the owner which to ingest; the owner's answer (2026-11-28) is recorded at the end of its Owner question section.
 
 ### Leverage and drama index
 
