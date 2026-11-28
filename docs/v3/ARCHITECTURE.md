@@ -1387,14 +1387,14 @@ Owner, 2026-10-23: *"I need tools to allow a user to delete all of their data, a
 | BT database: settings | favorites, preferences | `deleteFor` | Same |
 | BT database: Patreon link (later) | encrypted refresh token | `deleteFor`, after revoking | Same |
 | Cloud storage: data downloads | the user's export files and their download-request times | `deleteFor` | 14-day R2 lifecycle rule |
-| BT database: game chat (S184) | a fan's questions about a game, BT's answers and their check rounds, and the account's daily question counts (owner, 2026-11-23, asked whether this list should gain a row for BT's store of a fan's chat questions and answers and one for the AI provider that receives each question: *"Yes, add both rows (Recommended)"*, the option reading *"Both rows go in; the provider row's retention is filled from the chosen provider's terms when S177 picks it."*) | `deleteFor` | Backups: the Neon restore window |
-| AI provider: game chat (S184) | each question a fan asks, sent with the game's data (same answer as the row above) | — | From the provider S177 picks: its terms, filled in when S177 chooses it |
 | Logto | account, email | `IdentityAdmin.deleteAccount` | Logto's own logs |
 | Cloudflare Email | the address a download-ready email went to | — | Cloudflare's retention; labeled in the manifest when its adapter lands |
 | Patreon | membership, pledge | BT deletes its copy and revokes access | Patreon's records are Patreon's |
 | Browser | session token, cached settings, offline caches; while a sign-in is under way, Logto's in-flight sign-in keys (`logto.*`) and the page to return to after sign-in (`bt.signInReturnTo`), kept in the tab's own storage (S116, S120; owner, 2026-11-07: "2 and 3 - change both") | `web/src/storage/` on sign-out and deletion | — |
 | Push subscriptions (Later) | endpoint | `deleteFor` | — |
 | Server and email logs | must not carry personal fields | — | Provider retention |
+
+Game chat's two rows (S184) are gone with chat (owner, 2026-11-28, asked "You dropped game chat. ADR-028's personal-data inventory still lists two places chat would have kept fans' questions: 'BT database: game chat (S184)' and 'AI provider: game chat (S184)'. Inventory rows are yours to change. Remove them?": *"Remove both rows (Recommended)"*).
 
 **Why:** stores multiply (database, Logto, Patreon, browser, push), and a store added without a deletion path is invisible until someone asks to be deleted. Making the inventory the only way to reach data, and the build fail without it, keeps "delete everything" true as the system grows.
 
