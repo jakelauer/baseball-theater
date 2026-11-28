@@ -528,10 +528,21 @@ export type ScheduleDay = {
 export type PatronTier =
   "none" | "Backer" | "Pro Backer" | "Star Backer" | "Premium Sponsor";
 
+/**
+ * What an account may use, handed out in its session and by `GET /api/v1/me`. `fasterLiveRefresh` and
+ * `savantLinks` are free for every fan whatever the tier (S250, `FREE_FOR_EVERY_FAN` in
+ * `entitlements.ts`): both are built on MLB's data or video, which BT doesn't sell. The other flags
+ * still come from the tier (`entitlementsForTier`).
+ */
 export type Entitlements = {
 	tier: PatronTier;
+	/**
+	 * `true` for every fan since S250, and kept for compatibility (ADR-015). It names no separate
+	 * refresh: live games push every update to every fan over the live connection (S149, ADR-020).
+	 */
 	fasterLiveRefresh: boolean;
 	cloudSyncedSettings: boolean;
+	/** Savant's play and pitch video links: `true` for every fan since S250, and kept for compatibility (ADR-015). */
 	savantLinks: boolean;
 	/**
 	 * May pick a stats site other than MLB.com for player links (S209; owner, 2026-11-24: "Every patron,

@@ -87,11 +87,44 @@ describe("GET /api/v1/me", () =>
 				role: "member",
 				entitlements: {
 					tier: "none",
-					fasterLiveRefresh: false,
+					fasterLiveRefresh: true,
 					cloudSyncedSettings: false,
-					savantLinks: false,
+					savantLinks: true,
 					statsProviderChoice: false,
 				},
+			});
+		});
+	});
+
+	it("S250 AC 2: an account stored with fasterLiveRefresh and savantLinks false is answered true for both", async () =>
+	{
+		await withServer(async (base, ctx) =>
+		{
+			const me = () => fetch(`${base}/api/v1/me`, {
+				headers: {
+					Authorization: "Bearer dev:test-user",
+				},
+			});
+			expect((await me()).status).toBe(200);
+			// A row as stored before S250, below the old tiers.
+			const stored = {
+				tier: "none",
+				fasterLiveRefresh: false,
+				cloudSyncedSettings: false,
+				savantLinks: false,
+				statsProviderChoice: false,
+			} as const;
+			await ctx.auth.users.setEntitlements("test-user", stored);
+			expect((await ctx.auth.users.getByUid("test-user"))?.entitlements).toMatchObject({
+				fasterLiveRefresh: false,
+				savantLinks: false,
+			});
+			const res = await me();
+			expect(res.status).toBe(200);
+			expect(((await res.json()) as { entitlements: unknown }).entitlements).toEqual({
+				...stored,
+				fasterLiveRefresh: true,
+				savantLinks: true,
 			});
 		});
 	});

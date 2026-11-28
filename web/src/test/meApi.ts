@@ -2,16 +2,19 @@ import { vi } from "vitest";
 import { DEV_SIGN_IN_TOKEN } from "../session/session.js";
 import { jsonResponse } from "./jsonResponse.js";
 
-/** What the API's `/api/v1/me` returns for the local `dev:test-user` session (S8). */
+/**
+ * What the API's `/api/v1/me` returns for the local `dev:test-user` session (S8): tier `none`, with
+ * the two MLB-built flags every fan has since S250 (`FREE_FOR_EVERY_FAN` in `@bt/domain`).
+ */
 export const DEV_ACCOUNT = {
 	uid: "test-user",
 	email: "dev@local.test",
 	role: "member",
 	entitlements: {
 		tier: "none",
-		fasterLiveRefresh: false,
+		fasterLiveRefresh: true,
 		cloudSyncedSettings: false,
-		savantLinks: false,
+		savantLinks: true,
 		statsProviderChoice: false,
 	},
 };
