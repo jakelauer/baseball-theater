@@ -6,7 +6,7 @@
  */
 import { MantineProvider } from "@mantine/core";
 import {
-	cleanup, fireEvent, render, screen, waitFor, within,
+	act, cleanup, fireEvent, render, screen, waitFor, within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -59,31 +59,43 @@ afterEach(() =>
 {
 	cleanup();
 	vi.restoreAllMocks();
+	vi.useRealTimers();
 });
 
 describe("PlayerDialog opening (#423)", () =>
 {
-	it("opens with a brief fade, and the clip starts only once it has finished opening (#423)", async () =>
+	it("opens with a brief fade, and the clip starts only once it has finished opening (#423)", () =>
 	{
+		// The frames and the fade's timer run on a fake clock, stepped by hand (#730): on real time the
+		// dialog is faded out for one animation frame, and a slow runner's `await` on finding it came
+		// back after that frame had passed, so the test read it already fading in.
+		vi.useFakeTimers({
+			toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "requestAnimationFrame", "cancelAnimationFrame"],
+		});
 		reducedMotion(false);
 		const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
 		renderDialog();
-		const dialog = await screen.findByRole("dialog");
-		// Caught as it appears: still faded out, part way into its transition, and the clip isn't set to play.
+		// It mounts closed and opens a frame later; Mantine's next frame draws it, still faded out.
+		act(() => vi.advanceTimersToNextFrame());
+		act(() => vi.advanceTimersToNextFrame());
+		const dialog = screen.getByRole("dialog");
 		expect(dialog.style.opacity).toBe("0");
 		expect(dialog.style.transitionDuration).not.toBe("0ms");
 		const opening = screen.getByTestId("video-player").querySelector("video")!;
 		expect(opening.autoplay).toBe(false);
+		// The frame after, the fade runs, and the clip still waits for it to end.
+		act(() => vi.advanceTimersToNextFrame());
+		expect(screen.getByRole("dialog").style.opacity).not.toBe("0");
+		expect(opening.autoplay).toBe(false);
 		expect(play).not.toHaveBeenCalled();
 		// Once open, the clip plays.
-		await waitFor(() => expect(screen.getByTestId("video-player").querySelector("video")!.autoplay).toBe(true));
+		act(() => vi.runOnlyPendingTimers());
+		expect(screen.getByTestId("video-player").querySelector("video")!.autoplay).toBe(true);
 		expect(screen.getByRole("dialog").style.opacity).not.toBe("0");
 		// The same element plays: opening doesn't replace it, so nothing reloads and a playing clip
 		// survives (GamePage.live's update test holds the element it found as the dialog appeared).
 		expect(screen.getByTestId("video-player").querySelector("video")).toBe(opening);
-		// The player's effect plays it after React commits `autoplay`, and a slow run can let a check
-		// in between, so wait for the play itself rather than assume it follows at once (#559).
-		await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
+		expect(play).toHaveBeenCalledTimes(1);
 	});
 
 	it("with reduced motion, opens at once and plays at once (#423)", async () =>
