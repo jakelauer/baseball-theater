@@ -48,7 +48,7 @@ import {
 	parseStandingsResponse,
 } from "@bt/mlb-api";
 import type {
-	GameEditorial, MlbGameSources, MlbStatsClient, PlayerXrefSource, ResolvedPlayerIds,
+	FetchGameOptions, GameEditorial, MlbGameSources, MlbStatsClient, PlayerXrefSource, ResolvedPlayerIds,
 } from "@bt/ports";
 import { inPool } from "../in-pool.js";
 import { mapContentHighlights, mapRecap } from "../../mappers/content.js";
@@ -385,13 +385,16 @@ export class HttpMlbStatsClient implements MlbStatsClient, MlbGameSources, Playe
 	 * S99: beside the game, `playerOfTheGameDue` from the feed's game type and season (`playerOfTheGameExpected`); the
 	 * pick itself is never asked here, so a fetch costs no extra request: the ingest paths ask it
 	 * (`withAskedPlayerOfTheGame`) only while a due game's stored pick lacks a side.
+	 *
+	 * B577: with `skipPlayMetrics` the playMetrics are never asked, so the game is the feed with its content and GraphQL
+	 * content alone and the caller asks them after its answer (a digest's batch).
 	 */
-	async fetchGame(gamePk: number): Promise<FetchedGame>
+	async fetchGame(gamePk: number, options?: FetchGameOptions): Promise<FetchedGame>
 	{
 		const {
 			game: feed, feedTime, playerOfTheGameDue,
 		} = await this.fetchGameFeed(gamePk);
-		const playMetrics = this.fetchPlayMetrics(gamePk);
+		const playMetrics = options?.skipPlayMetrics ? Promise.resolve(null) : this.fetchPlayMetrics(gamePk);
 		let arrived: { value: GamePlayMetrics | null } | undefined;
 		void playMetrics.then((value) =>
 		{

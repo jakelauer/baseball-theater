@@ -3,7 +3,7 @@ import type {
 } from "@bt/domain";
 import {
 	addDays, cacheLifetimeMs, DEFAULT_CADENCE, gameStateFromGame, gameStateFromSummary, isFinalStatus, isGameInActiveWindow, isPastFinishedDay, isPastFinishedGame,
-	isScheduleDaySettled, keepStoredExtras, mlbToday, normalizeStatusCode, playerOfTheGameComplete, projectGame, scheduleWindowMode, scoreboardWinProbability,
+	isScheduleDaySettled, keepStoredExtras, lastMeasuredAtBat, mlbToday, normalizeStatusCode, playerOfTheGameComplete, projectGame, scheduleWindowMode, scoreboardWinProbability,
 	stampVersion, suspendedSince, toStoredScheduleDay,
 	wholeFetchedGame,
 } from "@bt/domain";
@@ -12,9 +12,9 @@ import type {
 	ScheduleRepository, VenueFieldRepository,
 } from "@bt/ports";
 import { withLatePlayMetrics } from "../mappers/game-extras.js";
-import type { ExtraAsker } from "./player-of-the-game.js";
+import type { AskLimit, ExtraAsker } from "./player-of-the-game.js";
 import {
-	askDueExtras, askPlayerOfTheGame, startExtraAsks, withAskedExtras, withAskedPlayerOfTheGame,
+	askDueExtras, askPlayerOfTheGame, askPlayMetrics, LATE_ASK_LIMIT_MS, startExtraAsks, withAskedExtras, withAskedPlayerOfTheGame,
 } from "./player-of-the-game.js";
 import type { DayHubNotifier } from "./day-hubs.js";
 import { DayHubCalls } from "./day-hubs.js";
@@ -64,7 +64,7 @@ export type IngestDeps = {
 	edgePurge?: EdgePurge;
 	/**
 	 * Where an on-read refresh hands the writes that carry no version of its answer (S216 AC 3: the projections, the
-	 * request's one edge purge, a late playMetrics write), to run after the response. Absent (tests, the seed paths), they
+	 * request's one edge purge, the late answers' writes: S216's playMetrics, B577's digest asks), to run after the response. Absent (tests, the seed paths), they
 	 * run before the read returns, in the same order.
 	 */
 	background?: BackgroundWork;
@@ -111,7 +111,7 @@ export function runRefresh<T>(
 
 /**
  * What a request's writes leave to do once the writes that carry its answer's version are stored (S216 AC 3): the
- * projections, the edge-purge judgement with its one purge request, and a late playMetrics write. An on-read refresh
+ * projections, the edge-purge judgement with its one purge request, and the late answers' writes. An on-read refresh
  * hands them to `BackgroundWork` after the response (`handOff`); every other writer runs them at once after its writes
  * (`runAfterWrites`), so its purge still follows its write as S212 shipped it.
  *
@@ -135,7 +135,7 @@ class AfterWrites
 	 */
 	readonly dayChecks: { date: string;
 		judge: () => Promise<boolean>; }[] = [];
-	/** Late playMetrics writes (S216 AC 5), each after the rest. */
+	/** Late answers' writes (S216 AC 5's playMetrics, B577's digest asks: `storeLateAnswers`), each after the rest. */
 	readonly followUps: (() => Promise<void>)[] = [];
 	/** The venues of the games this request stored for the first time (S105): their field drawings are kept, last. */
 	readonly venues = new Set<number>();
@@ -172,7 +172,7 @@ class AfterWrites
 /**
  * Runs what {@link AfterWrites} holds, in order: the projections in one write (a projection a newer stored version
  * refuses is logged and dropped, never written over it), the purge judgement and its one `purgeGameEdge` request for
- * every game and day the request stored, then the late playMetrics writes, then the field drawings of the venues of the
+ * every game and day the request stored, then the late answers' writes, then the field drawings of the venues of the
  * games stored for the first time (S105, `keepVenueFields`, with `venueFields` composed). Each step runs whether or not an earlier
  * one failed (S216 review), so a failed projection write or day verdict never costs the purge or a follow-up; when the
  * judgement's snapshot read or the purge's listing read fails, the candidates' own URLs are purged without it (or owed,
@@ -322,12 +322,16 @@ async function handOff(deps: IngestDeps, after: AfterWrites): Promise<void>
 
 /**
  * What {@link storeGames} stored for one game: the snapshot now stored, its state row, and whether the switch stored a
- * new state version for it (S149 AC 2: a mend, a changed row under an unchanged snapshot, is published too).
+ * new state version for it (S149 AC 2: a mend, a changed row under an unchanged snapshot, is published too). `ours`
+ * (B577 review) says whether `snapshot` holds this write's own content: true when it stored it or the store already held
+ * the same content (`stampVersion`'s one rule); false when another writer's newer version refused it, or the stored copy
+ * was kept over a feed the switch skipped as stale. A late write over a snapshot that isn't ours only adds what it lacks.
  */
 type StoredGame = {
 	snapshot: GameSnapshot;
 	state: GameStateRow | null;
 	stateChanged: boolean;
+	ours: boolean;
 };
 
 /** One fetched game to store, with the snapshot its caller read (null: none stored), and its feed time. */
@@ -429,7 +433,10 @@ async function storeGames(
 		const gamePk = formed.gamePk;
 		const state = outcome?.row ?? null;
 		const written = formed !== write.stored && taken.has(gamePk);
-		const snapshot = storedFirst.get(gamePk) ?? formed;
+		const first = storedFirst.get(gamePk);
+		const snapshot = first ?? formed;
+		const kept = write.stored !== null && outcome?.staleFeed === true;
+		const ours = !kept && (!first || stampVersion<GameSnapshot>(first, unversionedGame(formed), at.toISOString()).version === first.version);
 		after.held.set(gamePk, snapshot);
 		if (written) after.projections.push(projectGame(snapshot));
 		// S105: a game stored for the first time asks for its venue's field drawing, if none is kept.
@@ -443,6 +450,7 @@ async function storeGames(
 			snapshot,
 			state,
 			stateChanged: outcome?.stateChanged ?? false,
+			ours,
 		});
 	}
 	return stored;
@@ -929,7 +937,7 @@ export async function getOrRefreshGame(
 {
 	const now = deps.now?.() ?? new Date();
 	const after = new AfterWrites(now);
-	const [game] = await readGames(deps, [gamePk], undefined, now, opts?.force ?? false, after);
+	const [game] = await readGames(deps, [gamePk], undefined, now, opts?.force ?? false, after, false);
 	await handOff(deps, after);
 	return game ?? null;
 }
@@ -940,13 +948,21 @@ export async function getOrRefreshGame(
  * the stale or missing ones fetched and stored in one batch, their feed switch deciding from the rows the day's switch
  * read and wrote). Every write's after-work goes to `BackgroundWork` together, after the response: one projection
  * write and one edge purge for the whole request. Games come back in the day's order, null for one that couldn't be read.
+ *
+ * B577: a game it fetches is asked only what the digest ranks with (`dayDigest`: the feed, its content and GraphQL
+ * content), and its playMetrics, uniforms, rule settings and player of the game after the response (`readGames`'
+ * `askAfter`), since a Worker queues every request past six open connections and a day's asks held its answer for
+ * seconds. A cold game's answer ranks without the playMetrics (a stale stored one keeps its stored ones meanwhile);
+ * for a past, finished game their late write purges the day's digest URL at the edge, so the next read re-ranks with
+ * them (`storeLateAnswers`); any other day's digest holds only its shorter graduated edge lifetime (ADR-021), so a
+ * later read re-ranks with them.
  */
 export async function readDayAndGames(deps: IngestDeps, date: string): Promise<ScheduleRead & { games: (GameSnapshot | null)[] }>
 {
 	const now = deps.now?.() ?? new Date();
 	const after = new AfterWrites(now);
 	const read = await readSchedule(deps, date, now, false, after);
-	const games = await readGames(deps, read.day.games.map((game) => game.gamePk), read.rows, now, false, after);
+	const games = await readGames(deps, read.day.games.map((game) => game.gamePk), read.rows, now, false, after, true);
 	await handOff(deps, after);
 	return {
 		...read,
@@ -959,7 +975,16 @@ export async function readDayAndGames(deps: IngestDeps, date: string): Promise<S
  * snapshots in one `games.getMany`, the rows of the stored ones the caller doesn't already hold (`known`) in one
  * `gameStates.getMany`, each stale or missing game asked of MLB (all at once, each single-flighted by the coordinator),
  * and every fetched game stored in one {@link storeGames} batch. Returns the served games in `gamePks`' order, null for
- * one neither stored nor fetched. The writes' after-work (projections, purges, late playMetrics) goes to `after`.
+ * one neither stored nor fetched. The writes' after-work (projections, purges, late answers) goes to `after`.
+ *
+ * `askAfter` (B577, the digest's batch): each fetched game is asked only its feed, content and GraphQL content before
+ * the answer, its feed first, and keeps its stored playMetrics meanwhile; its playMetrics, uniforms, rule settings and
+ * player of the game are asked after the response, each within `LATE_ASK_LIMIT_MS`, by the request that ran its fetch
+ * alone, and written as its next version (`askAfterResponse`, `storeLateAnswers`). Without it (the game read) the game
+ * is answered with them, as S99, S100, S101 and S216 shipped it. Not repaired here: when the after-response work is cut
+ * off (the Worker evicted before it ends), a past, finished game stays stored without what it hadn't stored yet, since
+ * such a game is served from the store and never asked again; telling that apart from a game MLB has no playMetrics
+ * for needs a stored mark, so it is left to its own change (#577's review).
  */
 async function readGames(
 	deps: IngestDeps,
@@ -968,6 +993,7 @@ async function readGames(
 	now: Date,
 	force: boolean,
 	after: AfterWrites,
+	askAfter: boolean,
 ): Promise<(GameSnapshot | null)[]>
 {
 	const unique = [...new Set(gamePks)];
@@ -999,11 +1025,16 @@ async function readGames(
 		due.push(gamePk);
 	}
 
-	// S99: a stored game with one pick side (so MLB picks for it) missing the other has it asked beside the fetch, so the
-	// two run at once; any other game is asked after the fetch only if the fetch says it is due (one bounded wait, on its
-	// first reads after it ends) and never once both sides are stored.
-	const fetchWithPick = async (gamePk: number) =>
+	// The game read's fetch (a digest's batch returns at once, below). S99: a stored game with one pick side (so MLB picks
+	// for it) missing the other has it asked beside the fetch, so the two run at once; any other game is asked after the
+	// fetch only if the fetch says it is due (one bounded wait, on its first reads after it ends) and never once both
+	// sides are stored.
+	const fetchWithPick = async (gamePk: number): Promise<FetchedGame> =>
 	{
+		// B577: a digest's batch asks the feed, content and GraphQL content alone (the feed first); the rest after its answer.
+		if (askAfter) return deps.mlb.fetchGame(gamePk, {
+			skipPlayMetrics: true,
+		});
 		const snapshot = stored.get(gamePk);
 		const pick = snapshot?.playerOfTheGame;
 		const early = pick && !playerOfTheGameComplete(pick) ? askPlayerOfTheGame(deps.mlb, gamePk) : undefined;
@@ -1024,13 +1055,26 @@ async function readGames(
 			},
 		};
 	};
-	const fetched = await Promise.all(due.map((gamePk) => runRefresh(deps, `game:${gamePk}`, () => fetchWithPick(gamePk)).then(
+	// B577 review: the games whose fetch this request ran itself. A request that joined another's in-flight fetch of the
+	// same game (the coordinator's single-flight) leaves the late work to the one that ran it, so a game's late asks and
+	// write happen once however many viewers read it at once (ADR-002). So a game read that joins a digest's fetch answers
+	// the game without its playMetrics and extras until that digest's late write stores them, seconds later; and when the
+	// request that ran it never gets to its late work (its store failed, or its Worker was cancelled or evicted first),
+	// the extras wait for the next read that finds the game stale and fetches it (a past, finished one: see above).
+	const ran = new Set<number>();
+	const fetched = await Promise.all(due.map((gamePk) => runRefresh(deps, `game:${gamePk}`, () =>
+	{
+		ran.add(gamePk);
+		return fetchWithPick(gamePk);
+	}).then(
 		(game) => game ?? "cooldown" as const,
 		// MLB failed: the stored game, if any, is served as it is.
 		() => "failed" as const,
 	)));
 	const at = deps.now?.() ?? new Date();
-	const writes: (GameWrite & { late?: FetchedGame["playMetricsLate"] })[] = [];
+	const writes: (GameWrite & { late?: FetchedGame["playMetricsLate"];
+		playerOfTheGameDue?: boolean;
+		needsPlayMetrics?: boolean; })[] = [];
 	for (const [i, gamePk] of due.entries())
 	{
 		const answer = fetched[i]!;
@@ -1042,9 +1086,13 @@ async function readGames(
 			answers.set(gamePk, snapshot ? servedGame(snapshot, rows.get(gamePk) ?? null, now) : answer === "cooldown" ? await readServedGame(deps, gamePk, now).catch(() => null) : null);
 			continue;
 		}
+		// B577 review: a digest's game that came without playMetrics of its own keeps the stored ones until its late write
+		// brings fresh ones (`withLatePlayMetrics`, matched by at-bat), so neither its answer nor its store loses them.
+		const needsPlayMetrics = askAfter && !answer.game.playMetrics;
+		const game = needsPlayMetrics && snapshot?.playMetrics ? withLatePlayMetrics(answer.game, snapshot.playMetrics) : answer.game;
 		writes.push({
 			fetched: {
-				...answer.game,
+				...game,
 				fetchedAt: at.toISOString(),
 				windowMode: "cache",
 			},
@@ -1055,9 +1103,16 @@ async function readGames(
 			...answer.playMetricsLate && {
 				late: answer.playMetricsLate,
 			},
+			...answer.playerOfTheGameDue && {
+				playerOfTheGameDue: true,
+			},
+			...needsPlayMetrics && {
+				needsPlayMetrics,
+			},
 		});
 	}
 	const written = await storeBatchOrEach(deps, writes, at, after, rows);
+	const lates: ((purge: GameSnapshot[]) => Promise<void>)[] = [];
 	for (const write of writes)
 	{
 		const result = written.get(write.fetched.gamePk);
@@ -1068,10 +1123,69 @@ async function readGames(
 			continue;
 		}
 		answers.set(write.fetched.gamePk, servedGame(result.snapshot, result.state, now));
+		if (!ran.has(write.fetched.gamePk)) continue;
+		const {
+			snapshot, state, ours,
+		} = result;
 		const late = write.late;
-		if (late) after.followUps.push(() => storeLatePlayMetrics(deps, result.snapshot, result.state, late, at));
+		if (late) lates.push((purge) => storeLateAnswers(deps, snapshot, ours, state, late, at, purge));
+		// B577: asked only now, inside the follow-up, so after the response. The playMetrics are asked unless another
+		// writer's newer version, which this read answered, already has its own (review).
+		else if (askAfter) lates.push((purge) => storeLateAnswers(deps, snapshot, ours, state, askAfterResponse(deps.mlb, snapshot, write.stored, {
+			playerOfTheGameDue: write.playerOfTheGameDue ?? false,
+			playMetrics: (write.needsPlayMetrics ?? false) && (ours || !snapshot.playMetrics),
+		}), at, purge));
 	}
+	// Every game's late write at once (B577: a day's asks run together, not one game after another), then one edge purge
+	// for every past, finished game they stored (B577 review), sent before any failure is reported, each failure kept.
+	if (lates.length > 0) after.followUps.push(async () =>
+	{
+		const purge: GameSnapshot[] = [];
+		const failed = (await Promise.allSettled(lates.map((late) => late(purge)))).filter((result) => result.status === "rejected").map((result) => result.reason as unknown);
+		if (purge.length > 0) await purgeGameAndDayEdge(deps, purge, at);
+		if (failed.length > 0) throw new AggregateError(failed, `late writes of ${failed.length} games failed`);
+	});
 	return gamePks.map((gamePk) => answers.get(gamePk) ?? null);
+}
+
+/** The after-response asks' limit and log name (B577). */
+const LATE_ASK: AskLimit = {
+	ms: LATE_ASK_LIMIT_MS,
+	name: "late answers",
+};
+
+/**
+ * B577: what a digest's batch left off a game's answer, asked of MLB after the response, all at once, each within
+ * {@link LATE_ASK_LIMIT_MS} (counted with its wait in the Worker's connection queue; an ask that runs out is logged and
+ * left out, and a failed one too, never costing the game's other answers): its playMetrics when `asks.playMetrics` (its
+ * fetch got none of its own; stored ones carried over are replaced), the uniforms and rule settings it is due
+ * (`askDueExtras`, judged against `stored`, the snapshot the read began with, as the game read judges them) and its
+ * player of the game when it is due one (`withAskedPlayerOfTheGame`). Returns the answered game with whatever came, or
+ * null when nothing did.
+ */
+async function askAfterResponse(
+	mlb: MlbStatsClient,
+	answered: GameSnapshot,
+	stored: GameSnapshot | null,
+	asks: { playerOfTheGameDue: boolean;
+		playMetrics: boolean; },
+): Promise<Unversioned<GameSnapshot> | null>
+{
+	const game = unversionedGame(answered);
+	const [playMetrics, extras, picked] = await Promise.all([
+		asks.playMetrics ? askPlayMetrics(mlb, game.gamePk, LATE_ASK) : null,
+		askDueExtras(mlb, game, stored, undefined, LATE_ASK),
+		withAskedPlayerOfTheGame(mlb, {
+			game,
+			playerOfTheGameDue: asks.playerOfTheGameDue,
+		}, answered.playerOfTheGame, undefined, LATE_ASK),
+	]);
+	if (!playMetrics && Object.keys(extras).length === 0 && picked.game === game) return null;
+	const whole = {
+		...picked.game,
+		...extras,
+	};
+	return playMetrics ? withLatePlayMetrics(whole, playMetrics) : whole;
 }
 
 /**
@@ -1086,8 +1200,7 @@ async function storeBatchOrEach(
 	at: Date,
 	after: AfterWrites,
 	known: ReadonlyMap<number, GameStateRow | null>,
-): Promise<Map<number, { snapshot: GameSnapshot;
-	state: GameStateRow | null; }>>
+): Promise<Map<number, Pick<StoredGame, "snapshot" | "state" | "ours">>>
 {
 	try
 	{
@@ -1097,8 +1210,7 @@ async function storeBatchOrEach(
 	{
 		console.warn(`storing ${writes.length} games in one batch failed; storing each on its own`, error);
 	}
-	const stored = new Map<number, { snapshot: GameSnapshot;
-		state: GameStateRow | null; }>();
+	const stored = new Map<number, Pick<StoredGame, "snapshot" | "state" | "ours">>();
 	for (const write of writes)
 	{
 		try
@@ -1114,31 +1226,37 @@ async function storeBatchOrEach(
 }
 
 /**
- * Stores a game's late playMetrics once they arrive (S216 AC 5), after the response: the game as answered (`answered`,
- * what the read stored without them) becomes the fetched game with them, as its next version (ADR-022), and its
- * projection with it. If a newer stored version refuses that write, it retries once: it reads the newer stored snapshot
- * and, when that still lacks playMetrics, writes it with them (`withLatePlayMetrics`) as the next version; a second
- * refusal is logged and dropped, never written over. Once stored, the game's row gets the win-probability line the
- * playMetrics give (S161, a line-only switch write). Then a past, finished game's URL and its day's schedule and
- * digest URLs are purged (`purgeGameAndDayEdge`), since the answer without them may hold S212's long edge lifetime; past
- * and finished is judged of the game as served, over `row`, the state row its read stored.
+ * Stores what a read's game got after its response, once it arrives: its late playMetrics (S216 AC 5), and for a
+ * digest's batch (B577, `askAfterResponse`) its uniforms, rule settings and player of the game too. `late` is the game
+ * with them (null: nothing came). When the game as answered (`answered`) is this read's own content (`ours`), it becomes
+ * that game, its extras kept (`keepStoredExtras`), as its next version (ADR-022), and its projection with it; when it is
+ * another writer's newer version (B577 review), or a newer stored version refuses the first write (one retry, over the
+ * newer stored snapshot), only what that snapshot lacks is added ({@link lateAdditions}), so a newer feed is never
+ * written over by this read's older one; when it lacks nothing, or on a second refusal (logged), nothing is written.
+ * Once stored, the game's row gets the win-probability line the playMetrics give (S161, a line-only switch write). A
+ * past, finished game is then added to `purge` (B577 review: the caller sends one purge of its game's URL and its day's
+ * schedule and digest URLs for every late write, `purgeGameAndDayEdge`), since the answer without them may hold S212's
+ * long edge lifetime; it is added once the snapshot is stored, even when the projection or line write after it fails.
+ * Past and finished is judged of the game as served, over the state row the line write stored, else `row`, the one its
+ * read stored.
  */
-async function storeLatePlayMetrics(
-	deps: Pick<IngestDeps, "games" | "projections" | "edgePurge" | "gameStates">,
+async function storeLateAnswers(
+	deps: Pick<IngestDeps, "games" | "projections" | "gameStates">,
 	answered: GameSnapshot,
+	ours: boolean,
 	row: GameStateRow | null,
-	late: NonNullable<FetchedGame["playMetricsLate"]>,
+	late: Promise<Unversioned<GameSnapshot> | null>,
 	at: Date,
+	purge: GameSnapshot[],
 ): Promise<void>
 {
 	const whole = await late;
-	if (!whole?.playMetrics) return;
+	if (!whole) return;
 	let base = answered;
 	for (let attempt = 0; attempt < 2; attempt++)
 	{
-		if (base.playMetrics) return;
-		// S99, S101: the late game is built without the extras asked off the fetch, so the answered game's are kept (`keepStoredExtras`).
-		const content: Unversioned<GameSnapshot> = attempt === 0
+		// S99, S101: a late game built without the extras asked off the fetch keeps the answered game's (`keepStoredExtras`).
+		const content: Unversioned<GameSnapshot> = attempt === 0 && ours
 			? keepStoredExtras(answered, {
 				...whole,
 				fetchedAt: answered.fetchedAt,
@@ -1147,32 +1265,54 @@ async function storeLatePlayMetrics(
 					suspendedAt: answered.suspendedAt,
 				},
 			})
-			: withLatePlayMetrics(unversionedGame(base), whole.playMetrics);
-		// The content differs from `base` (it adds the playMetrics `base` lacks), so this is always its next version.
+			: lateAdditions(base, whole);
 		const next = stampVersion<GameSnapshot>(base, content, at.toISOString());
+		// Nothing `base` lacks: it is left as it is.
+		if (next.version === base.version) return;
 		if ((await deps.games.upsertMany([next])).includes(next.gamePk))
 		{
-			await writeProjections(deps, [projectGame(next)]);
-			// S161: the line the answered write couldn't work out without them, set on the game's row alone.
-			const line = scoreboardWinProbability(next);
-			const lined = line ? (await switchGameState(deps, [{
-				gamePk: next.gamePk,
-				source: "feed",
-				winProbability: line,
-			}], at)).get(next.gamePk)?.row ?? row : row;
-			// Judged as served, its status from the game's stored state row (S150), as every other purge is.
-			if (isPastFinishedGame(servedGame(next, lined, at), at)) await purgeGameAndDayEdge(deps, [next], at);
+			let lined = row;
+			try
+			{
+				await writeProjections(deps, [projectGame(next)]);
+				// S161: the line the answered write couldn't work out without them, set on the game's row alone.
+				const line = scoreboardWinProbability(next);
+				if (line) lined = (await switchGameState(deps, [{
+					gamePk: next.gamePk,
+					source: "feed",
+					winProbability: line,
+				}], at)).get(next.gamePk)?.row ?? row;
+			}
+			finally
+			{
+				// Judged as served, its status from the game's stored state row (S150), as every other purge is.
+				if (isPastFinishedGame(servedGame(next, lined, at), at)) purge.push(next);
+			}
 			return;
 		}
 		if (attempt === 1)
 		{
-			console.warn(`late playMetrics: game ${next.gamePk} refused twice by newer stored versions; dropped`);
+			console.warn(`late answers: game ${next.gamePk} refused twice by newer stored versions; dropped`);
 			return;
 		}
 		const stored = (await deps.games.getMany([next.gamePk]))[0];
 		if (!stored) return;
 		base = stored;
 	}
+}
+
+/**
+ * B577 review: what a late game (`whole`) adds over a stored snapshot that isn't the read's own (`base`): the extras
+ * `base` lacks (`keepStoredExtras`, the pick side by side), and `whole`'s playMetrics when `base` has none or they reach
+ * a later at-bat than `base`'s (`lastMeasuredAtBat`: a set a digest read carried over a newer feed), never a set that
+ * reaches fewer. A set reaching the same at-bat whose figures differ doesn't replace `base`'s either, on purpose: the
+ * other writer's are as new, and swapping one for the other would only make versions with no news in them.
+ */
+function lateAdditions(base: GameSnapshot, whole: Unversioned<GameSnapshot>): Unversioned<GameSnapshot>
+{
+	const content = unversionedGame(base);
+	const fresher = whole.playMetrics && (!base.playMetrics || lastMeasuredAtBat(whole.playMetrics) > lastMeasuredAtBat(base.playMetrics)) ? whole.playMetrics : undefined;
+	return keepStoredExtras(whole, fresher ? withLatePlayMetrics(content, fresher) : content);
 }
 
 /** A stored snapshot without its version stamps: the content a re-stamp starts from. */

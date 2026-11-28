@@ -568,6 +568,22 @@ describe("HttpMlbStatsClient player of the game (S99)", () =>
 	});
 });
 
+describe("HttpMlbStatsClient fetchGame skipPlayMetrics (B577)", () =>
+{
+	it("B577: with skipPlayMetrics no playMetrics request is sent, and the game comes without them and with no late promise", async () =>
+	{
+		const { mlb, asked } = recordedClient();
+		const fetched = await mlb.fetchGame(823823, {
+			skipPlayMetrics: true,
+		});
+		expect(asked.some((url) => url.includes("/bdfed/playMetrics/"))).toBe(false);
+		expect(fetched.game.playMetrics).toBeUndefined();
+		expect(fetched.playMetricsLate).toBeUndefined();
+		expect(fetched.game.highlights.length).toBeGreaterThan(0);
+		expect((await mlb.fetchGame(823823)).game.playMetrics?.atBats).toHaveLength(85);
+	});
+});
+
 describe("HttpMlbStatsClient game uniforms (S101)", () =>
 {
 	const UNIFORMS_URL = "https://statsapi.mlb.com/api/v1/uniforms/game?gamePks=823823";

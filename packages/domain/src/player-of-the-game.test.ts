@@ -1,10 +1,10 @@
 import {
 	describe, expect, it,
 } from "vitest";
-import type { PlayerOfTheGame } from "./types.js";
+import type { AtBatMetrics, PlayerOfTheGame } from "./types.js";
 import type { StoredExtras } from "./player-of-the-game.js";
 import {
-	keepPlayerOfTheGame, keepStoredExtras, playerOfTheGameComplete, playerOfTheGameExpected, askedExtraDue,
+	keepPlayerOfTheGame, keepStoredExtras, lastMeasuredAtBat, playerOfTheGameComplete, playerOfTheGameExpected, askedExtraDue,
 } from "./player-of-the-game.js";
 
 describe("playerOfTheGameExpected (S99)", () =>
@@ -291,5 +291,22 @@ describe("keepStoredExtras and askedExtraDue (S101, S100)", () =>
 				codedGameState: "I",
 			},
 		}, "I")).toBe(false);
+	});
+});
+
+describe("lastMeasuredAtBat (B577 review)", () =>
+{
+	it("is the last entry's at-bat index, -1 for no at-bats", () =>
+	{
+		// Only the index is read.
+		const metric = (atBatIndex: number) => ({
+			atBatIndex,
+		}) as AtBatMetrics;
+		expect(lastMeasuredAtBat({
+			atBats: [metric(0), metric(1), metric(41)],
+		})).toBe(41);
+		expect(lastMeasuredAtBat({
+			atBats: [],
+		})).toBe(-1);
 	});
 });

@@ -3,7 +3,8 @@
  * writers reach {@link purgeGameEdge} through `ingest.ts`'s after-write step (`runAfterWrites`, after `storeGames` and
  * `storeScheduleDay`, so every path that writes a change reaches it): one request for every game and day a request
  * stored (S216), at once after the writes on the cron's and ingest's paths, after the response on a read's own refresh.
- * A late playMetrics write purges its game's and day's URLs with {@link purgeGameAndDayEdge}. The URLs are built from
+ * A read's late answers' writes (S216's playMetrics, B577's digest asks) purge their games' and days' URLs with one
+ * {@link purgeGameAndDayEdge}. The URLs are built from
  * the app's origin exactly as the web client asks for them. A purge that fails never fails the write: its URLs are recorded as owed and the cron retries them
  * ({@link retryOwedEdgePurges}, S212 review), so a Cloudflare outage delays a correction rather than pinning it at the
  * edge for its 30 days.
@@ -106,8 +107,8 @@ export async function gameEdgePaths(schedules: Pick<ScheduleRepository, "listGam
 
 /**
  * Purges each game's URL and its official date's schedule and digest URLs, plus `dates`' day URLs, in one request,
- * reading nothing (S216): what a late playMetrics write asks for once it is stored (S216 AC 5), since the answer it
- * follows may have been given S212's long edge lifetime without them, and the after-write step's fallback when the
+ * reading nothing (S216): what a read's late answers' writes ask for once they are stored (S216 AC 5, B577: one request
+ * for all of them), since the answer they follow may have been given S212's long edge lifetime without them, and the after-write step's fallback when the
  * reads {@link purgeGameEdge} or its judgement need fail (S216 review: over-purging is cheap, under-purging isn't).
  * Never rejects: a failed purge is logged and its URLs owed.
  */

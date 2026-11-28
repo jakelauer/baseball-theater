@@ -27,7 +27,7 @@ import {
 	parseSeasonsResponse, parseStandingsResponse,
 } from "@bt/mlb-api";
 import type {
-	GameEditorial, MlbGameSources, MlbStatsClient,
+	FetchGameOptions, GameEditorial, MlbGameSources, MlbStatsClient,
 } from "@bt/ports";
 import { assembleGame } from "../../mappers/game-extras.js";
 import { mapGraphContent } from "../../mappers/graph-content.js";
@@ -140,11 +140,12 @@ export class FixtureClient implements MlbStatsClient, MlbGameSources
 	 * `fixtures/raw/potg-<gamePk>.json`, since a game file keeps no game type or season and only a game MLB picks for has
 	 * a recording.
 	 */
-	async fetchGame(gamePk: number): Promise<FetchedGame>
+	async fetchGame(gamePk: number, options?: FetchGameOptions): Promise<FetchedGame>
 	{
 		const { game: feed, playerOfTheGameDue } = await this.fetchGameFeed(gamePk);
 		const editorial = await this.fetchGameEditorial(gamePk);
-		const playMetrics = await this.fetchPlayMetrics(gamePk);
+		// B577: not asked when the caller asks them itself, as the live client does (a game file holding its own keeps them).
+		const playMetrics = options?.skipPlayMetrics ? null : await this.fetchPlayMetrics(gamePk);
 		const graph = await this.fetchGameGraphContent(gamePk);
 		return {
 			game: assembleGame(feed, editorial, playMetrics, graph),

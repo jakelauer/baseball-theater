@@ -18,6 +18,16 @@ import type {
 } from "@bt/domain";
 import type { GameDiffPatchResponse } from "@bt/mlb-api";
 
+/** How a caller asks {@link MlbStatsClient.fetchGame} for a game (B577). */
+export type FetchGameOptions = {
+	/**
+	 * Don't ask the playMetrics (no `playMetricsLate` either): the caller asks them after its answer (`fetchPlayMetrics`),
+	 * as a digest's batch does, so they don't queue ahead of the requests its answer needs. A source whose game already
+	 * holds them (the fixture files' stored games) still answers them; the caller then doesn't ask.
+	 */
+	skipPlayMetrics?: boolean;
+};
+
 /**
  * Upstream MLB Stats API–shaped client. Implementations: live HTTP or fixtures.
  * Schedules and games come back unversioned: ingest stamps them against the
@@ -35,9 +45,10 @@ export interface MlbStatsClient {
 	fetchScheduleRange(startDate: string, endDate: string): Promise<Unversioned<ScheduleDay>[]>;
 	/**
 	 * The game, with the feed's own time beside it (S150 AC 2, `FetchedGame`): ingest hands that time to the game-state
-	 * switch and stores the game without it.
+	 * switch and stores the game without it. `options.skipPlayMetrics` (B577) doesn't ask the playMetrics, for a
+	 * caller that asks them itself after its answer (a digest's batch, so they hold none of a Worker's connections first).
 	 */
-	fetchGame(gamePk: number): Promise<FetchedGame>;
+	fetchGame(gamePk: number, options?: FetchGameOptions): Promise<FetchedGame>;
 	/** Highlights + editorial for one game; the only payload with playback URLs. */
 	fetchGameContent(gamePk: number): Promise<MediaHighlight[]>;
 	/**
