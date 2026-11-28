@@ -11,6 +11,9 @@
  * - precaches the built shell and answers navigations with the page, except under `/api/`;
  * - keeps the last answer to each `/api/v1/*` GET but `/api/v1/me` and below, network first
  *   (`RUNTIME_CACHED`, `apiStrategy`);
+ * - (S151) answers `/download/clip` by streaming MLB's MP4 through as an attachment, only for
+ *   MLB's clip MP4s, and answers the page's ping for that route (`download.ts`), so the player shows
+ *   Download only while this worker is the one in control;
  * and, new with S74, answers Periodic Background Sync (`registerPeriodicSync`, `prefetch.ts`):
  * when the browser wakes the installed app with `bt-prefetch`, it asks BT for the scoreboard's
  * default day (S111) and that day's schedule through the same strategy, so today's scoreboard
@@ -23,6 +26,9 @@ import { CLEAR_PERSONAL_MESSAGE } from "../storage/storage.js";
 import {
 	apiStrategy, forgetPersonalCopies, precacheShell,
 } from "../storage/workerCaches.js";
+import {
+	answerDownloadPing, DOWNLOAD_PATH, downloadResponse,
+} from "./download.js";
 import { RUNTIME_CACHED } from "./options.js";
 
 /** A worker event that can hold the worker open (`ExtendableEvent`; the web tsconfig has the DOM lib, not WebWorker's). */
@@ -58,10 +64,19 @@ self.addEventListener("message", (event) =>
 	if (type === "SKIP_WAITING") void self.skipWaiting();
 	// Sign-out (S74, `clearPersonalData`): forget the personal copies, answers still on their way included.
 	if (type === CLEAR_PERSONAL_MESSAGE.type) event.waitUntil(forgetPersonalCopies().catch(() => undefined));
+	// S151: the page asks whether this worker answers the download route before it shows Download.
+	answerDownloadPing(event.data, event.ports);
 });
 
+// S151: the download route, registered before the navigation fallback (workbox takes the first match),
+// which also denies it, so a link to it is never answered with the page.
+registerRoute(({ url, sameOrigin }) => sameOrigin && url.pathname === DOWNLOAD_PATH, ({ request }) => downloadResponse(request.url, fetch));
+
+/** The paths a navigation never gets the page for: BT's API (S73) and the download route (S151). */
+const NAVIGATION_DENYLIST = [/^\/api\//, new RegExp(`^${DOWNLOAD_PATH}(?:[/?#]|$)`)];
+
 registerRoute(new NavigationRoute(precacheShell(self.__WB_MANIFEST), {
-	denylist: [/^\/api\//],
+	denylist: NAVIGATION_DENYLIST,
 }));
 
 const api = apiStrategy();

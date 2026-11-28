@@ -127,7 +127,7 @@ function togglePlayer(element: HTMLVideoElement | null, reloading: boolean, want
  * Under the clip sit the quality picker (`QualityPicker`, the clip's
  * `videoQualities` this browser can play, HLS natively or through hls.js, starting on the quality the reader last
  * chose, else the nearest one the clip has, else `playbackUrl`'s: `rememberedVideoQuality`, #416) and the palette of
- * actions (`PlayerActions`: copy link, direct link, share; Download waits for S151), both on the quality
+ * actions (`PlayerActions`: copy link, direct link, download (S151), share), both on the quality
  * being played. Switching quality records it as the reader's choice (`setVideoQuality`; a fallback
  * never does), keeps the place in the clip, and plays on only if the
  * reader wants it playing (`wantsPlay`); only the first source autoplays.

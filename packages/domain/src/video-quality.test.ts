@@ -2,7 +2,7 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	defaultVideoQuality, fileQuality, rememberedVideoQuality, videoQualities,
+	defaultVideoQuality, fileQuality, isMlbClipMp4, MLB_CLIP_HOSTS, rememberedVideoQuality, videoQualities,
 } from "./video-quality.js";
 
 const BASE = "https://mlb-cuts-diamond.mlb.com/FORGE/2026/2026-09/05/68e1ef46-6669f6b0-5b1ac736-csvm-diamondgcp-asset";
@@ -244,5 +244,39 @@ describe("rememberedVideoQuality (#416)", () =>
 		expect(pick(landscape, "default")).toBe("mp4Avc");
 		expect(pick(landscape, "trickplay")).toBe("mp4Avc");
 		expect(rememberedVideoQuality([], "highBit", MP4)).toBeUndefined();
+	});
+});
+
+describe("isMlbClipMp4 (S151)", () =>
+{
+	const UUID = "4b03089e-85b8-45bb-b5bd-940b0201ade3";
+
+	it("S151 AC 2: each of MLB's clip hosts, in its real shape, is an MLB clip MP4", () =>
+	{
+		for (const url of [MP4, HIGH, `https://bdata-producedclips.mlb.com/${UUID}.mp4`, `https://darkroom-clips.mlb.com/${UUID}.mp4`])
+		{
+			expect(isMlbClipMp4(url), url).toBe(true);
+		}
+		expect(MLB_CLIP_HOSTS).toEqual(["mlb-cuts-diamond.mlb.com", "bdata-producedclips.mlb.com", "darkroom-clips.mlb.com"]);
+	});
+
+	it("S151 AC 2: decided on the parsed URL: a look-alike host, a host in the path or the user part, credentials, http, a port, a stream or a malformed URL is not one", () =>
+	{
+		for (const url of [
+			`https://mlb-cuts-diamond.mlb.com.evil.example/${UUID}.mp4`,
+			`https://evil.example/mlb-cuts-diamond.mlb.com/${UUID}.mp4`,
+			`https://mlb-cuts-diamond.mlb.com@evil.example/${UUID}.mp4`,
+			`https://user:pw@mlb-cuts-diamond.mlb.com/${UUID}.mp4`,
+			`http://mlb-cuts-diamond.mlb.com/${UUID}.mp4`,
+			`https://mlb-cuts-diamond.mlb.com:8443/${UUID}.mp4`,
+			`https://mlb-cuts-diamond.mlb.com/${UUID}.m3u8?x=.mp4`,
+			HLS,
+			`https://fastball-clips.mlb.com/849838/network/${UUID}.mp4`,
+			"not a url",
+			"",
+		])
+		{
+			expect(isMlbClipMp4(url), url).toBe(false);
+		}
 	});
 });
