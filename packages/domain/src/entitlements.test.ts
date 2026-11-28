@@ -2,8 +2,9 @@ import {
 	describe, expect, it,
 } from "vitest";
 import {
-	effectiveEntitlements, entitlementsForTier, hasMinimumTier, isPatronTier, parsePatronTier, PATRON_TIERS,
+	effectiveEntitlements, entitlementsForTier, FREE_FOR_EVERY_FAN, hasMinimumTier, isPatronTier, parsePatronTier, PATRON_TIERS,
 } from "./entitlements.js";
+import type { Entitlements } from "./types.js";
 
 describe("entitlements", () =>
 {
@@ -14,12 +15,49 @@ describe("entitlements", () =>
 		expect(parsePatronTier(null)).toBe("none");
 	});
 
-	it("maps tier to capabilities", () =>
+	it("S250 AC 1: every tier, none included, has both MLB-built flags; the others still come from the tier", () =>
 	{
-		expect(entitlementsForTier("none").savantLinks).toBe(false);
-		expect(entitlementsForTier("Backer").fasterLiveRefresh).toBe(true);
-		expect(entitlementsForTier("Backer").savantLinks).toBe(false);
-		expect(entitlementsForTier("Pro Backer").savantLinks).toBe(true);
+		expect(PATRON_TIERS.map((tier) => entitlementsForTier(tier))).toEqual([
+			{
+				tier: "none",
+				fasterLiveRefresh: true,
+				cloudSyncedSettings: false,
+				savantLinks: true,
+				statsProviderChoice: false,
+			},
+			{
+				tier: "Backer",
+				fasterLiveRefresh: true,
+				cloudSyncedSettings: true,
+				savantLinks: true,
+				statsProviderChoice: true,
+			},
+			{
+				tier: "Pro Backer",
+				fasterLiveRefresh: true,
+				cloudSyncedSettings: true,
+				savantLinks: true,
+				statsProviderChoice: true,
+			},
+			{
+				tier: "Star Backer",
+				fasterLiveRefresh: true,
+				cloudSyncedSettings: true,
+				savantLinks: true,
+				statsProviderChoice: true,
+			},
+			{
+				tier: "Premium Sponsor",
+				fasterLiveRefresh: true,
+				cloudSyncedSettings: true,
+				savantLinks: true,
+				statsProviderChoice: true,
+			},
+		]);
+		expect(FREE_FOR_EVERY_FAN).toEqual({
+			fasterLiveRefresh: true,
+			savantLinks: true,
+		});
 	});
 
 	it("compares minimum tiers", () =>
@@ -44,16 +82,38 @@ describe("effectiveEntitlements (S215)", () =>
 
 	it("S215 AC 1: a null override gives the real tier", () =>
 	{
-		expect(effectiveEntitlements(real, null, true)).toBe(real);
-		expect(effectiveEntitlements(real, null, false)).toBe(real);
+		expect(effectiveEntitlements(real, null, true)).toEqual(real);
+		expect(effectiveEntitlements(real, null, false)).toEqual(real);
 	});
 
 	it("S215 AC 1: any override when not allowed gives the real tier", () =>
 	{
 		for (const tier of PATRON_TIERS)
 		{
-			expect(effectiveEntitlements(real, tier, false)).toBe(real);
+			expect(effectiveEntitlements(real, tier, false)).toEqual(real);
 		}
+	});
+
+	it("S250 AC 2: a stored row of false for both flags is handed true, override allowed or not, and is left as stored", () =>
+	{
+		const stored: Entitlements = {
+			tier: "Pro Backer",
+			fasterLiveRefresh: false,
+			cloudSyncedSettings: true,
+			savantLinks: false,
+			statsProviderChoice: true,
+		};
+		const handed = {
+			...stored,
+			fasterLiveRefresh: true,
+			savantLinks: true,
+		};
+		expect(effectiveEntitlements(stored, null, false)).toEqual(handed);
+		expect(effectiveEntitlements(stored, "none", false)).toEqual(handed);
+		expect(effectiveEntitlements(stored, null, true)).toEqual(handed);
+		expect(effectiveEntitlements(stored, "none", true)).toEqual(entitlementsForTier("none"));
+		expect(stored.fasterLiveRefresh).toBe(false);
+		expect(stored.savantLinks).toBe(false);
 	});
 
 	it("S215 AC 4: isPatronTier accepts the five tiers exactly", () =>

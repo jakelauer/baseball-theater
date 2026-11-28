@@ -545,9 +545,12 @@ export interface components {
             inning: number;
             playId: string;
         };
+        /** @description What an account may use, handed out in its session and by `GET /api/v1/me`. `fasterLiveRefresh` and `savantLinks` are free for every fan whatever the tier (S250, `FREE_FOR_EVERY_FAN` in `entitlements.ts`): both are built on MLB's data or video, which BT doesn't sell. The other flags still come from the tier (`entitlementsForTier`). */
         Entitlements: {
             cloudSyncedSettings: boolean;
+            /** @description `true` for every fan since S250, and kept for compatibility (ADR-015). It names no separate refresh: live games push every update to every fan over the live connection (S149, ADR-020). */
             fasterLiveRefresh: boolean;
+            /** @description Savant's play and pitch video links: `true` for every fan since S250, and kept for compatibility (ADR-015). */
             savantLinks: boolean;
             /** @description May pick a stats site other than MLB.com for player links (S209; owner, 2026-11-24: "Every patron, Backer and up (Recommended)"). Never stored: `entitlementsForTier` derives it from the tier wherever entitlements are read, so a row or a session signed before S209 can't lack it where it matters. */
             statsProviderChoice: boolean;
