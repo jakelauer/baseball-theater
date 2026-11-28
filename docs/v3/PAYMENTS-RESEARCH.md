@@ -9,32 +9,32 @@ The owner asked for this comparison in these words: *"Compare the cut taken by p
 ## Summary
 
 - **Patreon** (the baseline) takes a platform fee on top of card processing and handles sales tax and VAT on memberships itself. Its pricing page could not be read on 2026-11-28 (it answered every request with a bot check), so its row is the agent's estimate, to be checked; BT's plan is the owner's to name.
-- **Plain Stripe** (Billing for subscriptions, Stripe Tax to calculate tax) is the cheapest per payment, but BT is the merchant of record: it registers for, collects and files sales tax and VAT itself, and owes EU VAT from its first sale to an EU consumer.
-- **Merchant-of-record services** (Paddle, Polar, Stripe Managed Payments) sell on BT's behalf and handle that tax, for a larger cut. At $3–$10 a payment their fixed fee dominates; annual billing roughly halves the share.
+- **Plain Stripe** (Billing for subscriptions, Stripe Tax to calculate tax) is, on a US card, the cheapest per payment at every price point but one (Patreon's legacy Lite plan, estimated, is a cent less at monthly $3); on an EU card, Paddle is cheaper on every annual price (by 2¢, 16¢ and 52¢ at $36, $60 and $120) and Lite at monthly $3. But BT is the merchant of record: it registers for, collects and files sales tax and VAT itself, and owes EU VAT from its first sale to an EU consumer.
+- **Merchant-of-record services** (Paddle, Polar, Stripe Managed Payments) sell on BT's behalf and handle that tax, for a larger cut. Paddle's and Polar's 50¢ fixed fee is most of their cut at $3 and $5 and 43–50% of it at $10, so annual billing cuts their share most at the low prices (Paddle: 21.7% at monthly $3 to 6.4% at annual $36; 10.0% to 5.4% at $10). Stripe Managed Payments' cut leans more on its percentage (7.1% + 30¢ on a US-card subscription), so annual billing saves it less (US card: 17.1% to 7.9% at $3; 10.1% to 7.4% at $10).
 - **Link** is Stripe's saved-payment checkout, not a provider of its own; **Lemon Squeezy** now sells through Link, LLC, takes no new sign-ups and shuts down on March 31, 2027, pointing sellers to Stripe Managed Payments.
 
 ## Fees
 
-What a supporter's payment costs BT, in US dollars, as the fee and as a share of the payment, for a US card and an EU card. Assumptions: BT charges in US dollars, so no provider converts currency (an EU card's bank converts, at the supporter's cost); tax is added on top of the price where it applies, so fees are shown on the price itself; one payment a period (a monthly $5 is twelve payments a year, an annual $60 one). Patreon's rows are one per plan: BT's plan is not recorded anywhere in the repository and is asked of the owner (Question for the owner, and SUPPORT-MODEL's park).
+What a supporter's payment costs BT, in US dollars, as the fee and as a share of the payment, for a US card and an EU card. Assumptions: BT charges in US dollars, so no provider converts currency (an EU card's bank converts, at the supporter's cost); tax is added on top of the price where it applies, so fees are shown on the price itself; one payment a period (a monthly $5 is twelve payments a year, an annual $60 one). Fees are rounded to the cent and shares to a tenth of a per cent, both half up from the unrounded fee. Patreon's rows are one per plan: BT's plan is not recorded anywhere in the repository, so it is asked of the owner separately, at the same pause as SUPPORT-MODEL's question, and recorded on the story's own `**Owner answer (Patreon plan):**` line.
 
 | Candidate | Card | One-off $3 | One-off $5 | One-off $10 | Monthly $3 | Monthly $5 | Monthly $10 | Annual $36 | Annual $60 | Annual $120 | Source | Read |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Patreon, current pricing (10%) | US | n/a | n/a | n/a | $0.55 (18.3%) | $0.94 (18.9%) | $1.59 (15.9%) | $4.94 (13.7%) | $8.04 (13.4%) | $15.78 (13.2%) | https://www.patreon.com/pricing | Estimate: the page answered with a bot check when tried on 2026-11-28; figures from the agent's knowledge, to be checked |
-| Patreon, current pricing (10%) | EU | n/a | n/a | n/a | $0.55 (18.3%) | $0.94 (18.9%) | $1.59 (15.9%) | $4.94 (13.7%) | $8.04 (13.4%) | $15.78 (13.2%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28); a currency conversion fee may apply, not counted |
-| Patreon, Lite (legacy, 5%) | US | n/a | n/a | n/a | $0.40 (13.3%) | $0.69 (13.9%) | $1.09 (10.9%) | $3.14 (8.7%) | $5.04 (8.4%) | $9.78 (8.1%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
-| Patreon, Lite (legacy, 5%) | EU | n/a | n/a | n/a | $0.40 (13.3%) | $0.69 (13.9%) | $1.09 (10.9%) | $3.14 (8.7%) | $5.04 (8.4%) | $9.78 (8.1%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
-| Patreon, Pro (legacy, 8%) | US | n/a | n/a | n/a | $0.49 (16.3%) | $0.84 (16.9%) | $1.39 (13.9%) | $4.22 (11.7%) | $6.84 (11.4%) | $13.38 (11.1%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
-| Patreon, Pro (legacy, 8%) | EU | n/a | n/a | n/a | $0.49 (16.3%) | $0.84 (16.9%) | $1.39 (13.9%) | $4.22 (11.7%) | $6.84 (11.4%) | $13.38 (11.1%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
-| Patreon, Premium (legacy, 12%) | US | n/a | n/a | n/a | $0.61 (20.3%) | $1.04 (20.9%) | $1.79 (17.9%) | $5.66 (15.7%) | $9.24 (15.4%) | $18.18 (15.2%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
-| Patreon, Premium (legacy, 12%) | EU | n/a | n/a | n/a | $0.61 (20.3%) | $1.04 (20.9%) | $1.79 (17.9%) | $5.66 (15.7%) | $9.24 (15.4%) | $18.18 (15.2%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
-| Stripe Billing + Stripe Tax | US | $0.39 (12.9%) | $0.44 (8.9%) | $0.59 (5.9%) | $0.41 (13.6%) | $0.48 (9.6%) | $0.66 (6.6%) | $1.60 (4.4%) | $2.46 (4.1%) | $4.62 (3.9%) | https://stripe.com/pricing | 2026-11-28 |
-| Stripe Billing + Stripe Tax | EU | $0.45 (14.9%) | $0.55 (10.9%) | $0.79 (7.9%) | $0.47 (15.6%) | $0.58 (11.6%) | $0.86 (8.6%) | $2.32 (6.4%) | $3.66 (6.1%) | $7.02 (5.8%) | https://stripe.com/pricing | 2026-11-28 |
-| Stripe Managed Payments | US | $0.49 (16.4%) | $0.62 (12.4%) | $0.94 (9.4%) | $0.51 (17.1%) | $0.66 (13.1%) | $1.01 (10.1%) | $2.86 (7.9%) | $4.56 (7.6%) | $8.82 (7.3%) | https://stripe.com/pricing | 2026-11-28 |
+| Patreon, current pricing (10%) | US | n/a | n/a | n/a | $0.55 (18.3%) | $0.95 (18.9%) | $1.59 (15.9%) | $4.94 (13.7%) | $8.04 (13.4%) | $15.78 (13.2%) | https://www.patreon.com/pricing | Estimate: the page answered with a bot check when tried on 2026-11-28; figures from the agent's knowledge, to be checked |
+| Patreon, current pricing (10%) | EU | n/a | n/a | n/a | $0.55 (18.3%) | $0.95 (18.9%) | $1.59 (15.9%) | $4.94 (13.7%) | $8.04 (13.4%) | $15.78 (13.2%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28); a currency conversion fee may apply, not counted |
+| Patreon, Lite (legacy, 5%) | US | n/a | n/a | n/a | $0.40 (13.3%) | $0.70 (13.9%) | $1.09 (10.9%) | $3.14 (8.7%) | $5.04 (8.4%) | $9.78 (8.2%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
+| Patreon, Lite (legacy, 5%) | EU | n/a | n/a | n/a | $0.40 (13.3%) | $0.70 (13.9%) | $1.09 (10.9%) | $3.14 (8.7%) | $5.04 (8.4%) | $9.78 (8.2%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
+| Patreon, Pro (legacy, 8%) | US | n/a | n/a | n/a | $0.49 (16.3%) | $0.85 (16.9%) | $1.39 (13.9%) | $4.22 (11.7%) | $6.84 (11.4%) | $13.38 (11.2%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
+| Patreon, Pro (legacy, 8%) | EU | n/a | n/a | n/a | $0.49 (16.3%) | $0.85 (16.9%) | $1.39 (13.9%) | $4.22 (11.7%) | $6.84 (11.4%) | $13.38 (11.2%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
+| Patreon, Premium (legacy, 12%) | US | n/a | n/a | n/a | $0.61 (20.3%) | $1.05 (20.9%) | $1.79 (17.9%) | $5.66 (15.7%) | $9.24 (15.4%) | $18.18 (15.2%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
+| Patreon, Premium (legacy, 12%) | EU | n/a | n/a | n/a | $0.61 (20.3%) | $1.05 (20.9%) | $1.79 (17.9%) | $5.66 (15.7%) | $9.24 (15.4%) | $18.18 (15.2%) | https://www.patreon.com/pricing | Estimate, as above (2026-11-28) |
+| Stripe Billing + Stripe Tax | US | $0.39 (12.9%) | $0.45 (8.9%) | $0.59 (5.9%) | $0.41 (13.6%) | $0.48 (9.6%) | $0.66 (6.6%) | $1.60 (4.4%) | $2.46 (4.1%) | $4.62 (3.9%) | https://stripe.com/pricing | 2026-11-28 |
+| Stripe Billing + Stripe Tax | EU | $0.45 (14.9%) | $0.55 (10.9%) | $0.79 (7.9%) | $0.47 (15.6%) | $0.58 (11.6%) | $0.86 (8.6%) | $2.32 (6.4%) | $3.66 (6.1%) | $7.02 (5.9%) | https://stripe.com/pricing | 2026-11-28 |
+| Stripe Managed Payments | US | $0.49 (16.4%) | $0.62 (12.4%) | $0.94 (9.4%) | $0.51 (17.1%) | $0.66 (13.1%) | $1.01 (10.1%) | $2.86 (7.9%) | $4.56 (7.6%) | $8.82 (7.4%) | https://stripe.com/pricing | 2026-11-28 |
 | Stripe Managed Payments | EU | $0.54 (17.9%) | $0.70 (13.9%) | $1.09 (10.9%) | $0.56 (18.6%) | $0.73 (14.6%) | $1.16 (11.6%) | $3.40 (9.4%) | $5.46 (9.1%) | $10.62 (8.9%) | https://stripe.com/pricing | 2026-11-28 |
 | Paddle | US | $0.65 (21.7%) | $0.75 (15.0%) | $1.00 (10.0%) | $0.65 (21.7%) | $0.75 (15.0%) | $1.00 (10.0%) | $2.30 (6.4%) | $3.50 (5.8%) | $6.50 (5.4%) | https://www.paddle.com/pricing | 2026-11-28 |
 | Paddle | EU | $0.65 (21.7%) | $0.75 (15.0%) | $1.00 (10.0%) | $0.65 (21.7%) | $0.75 (15.0%) | $1.00 (10.0%) | $2.30 (6.4%) | $3.50 (5.8%) | $6.50 (5.4%) | https://www.paddle.com/pricing | 2026-11-28 |
 | Polar (Starter) | US | $0.65 (21.7%) | $0.75 (15.0%) | $1.00 (10.0%) | $0.65 (21.7%) | $0.75 (15.0%) | $1.00 (10.0%) | $2.30 (6.4%) | $3.50 (5.8%) | $6.50 (5.4%) | https://polar.sh/resources/pricing | 2026-11-28 |
-| Polar (Starter) | EU | $0.70 (23.2%) | $0.82 (16.5%) | $1.15 (11.5%) | $0.70 (23.2%) | $0.82 (16.5%) | $1.15 (11.5%) | $2.84 (7.9%) | $4.40 (7.3%) | $8.30 (6.9%) | https://polar.sh/resources/pricing | 2026-11-28 |
+| Polar (Starter) | EU | $0.70 (23.2%) | $0.83 (16.5%) | $1.15 (11.5%) | $0.70 (23.2%) | $0.83 (16.5%) | $1.15 (11.5%) | $2.84 (7.9%) | $4.40 (7.3%) | $8.30 (6.9%) | https://polar.sh/resources/pricing | 2026-11-28 |
 
 How each row is worked out:
 
@@ -119,7 +119,7 @@ What each provider would mean for BT's servers and records. Under every provider
 
 **Workers fit:** BT would call Patreon's HTTP API with `fetch` (OAuth tokens per ADR-004); there is no SDK to run.
 
-**Webhooks:** Patreon signs its webhooks with HMAC-MD5 (`X-Patreon-Signature`, the agent's understanding, to be checked); Web Crypto's `crypto.subtle` has no MD5, so a Worker would verify it with `node:crypto` under Workers' Node compatibility or a small MD5 of BT's own.
+**Webhooks:** Patreon signs its webhooks with HMAC-MD5 (`X-Patreon-Signature`, the agent's understanding, to be checked); standard Web Crypto has no MD5, but Workers' `crypto.subtle` adds MD5 as a digest, and BT's Worker already runs with `nodejs_compat` (`wrangler.jsonc`), so `node:crypto`'s `createHmac("md5", …)` can verify it; whether Workers' `crypto.subtle` also takes MD5 as an HMAC hash is to be checked.
 
 **Event order:** No order promised (the agent's understanding); applied as the section's opening says (ADR-022).
 
@@ -217,7 +217,9 @@ Which candidates fit each of SUPPORT-MODEL's three models. Which model the owner
 
 ## Recommendation
 
-Drafted before the owner's model answer; it is settled only once that answer is recorded. If the owner chooses Model B or C, **Stripe Managed Payments**: it does the tax work the owner asked about (Stripe is the seller of record, filing sales tax and VAT in more than 80 countries), costs less than Paddle and Polar on a US card at every price point above, is the same Stripe account and API as plain Stripe (so a later move to Stripe Billing + Stripe Tax is a setting and a tax registration, not a new integration), and its webhooks verify with Web Crypto in a Worker. Annual billing roughly halves its share at these prices. If the owner chooses Model A, **plain Stripe** (Checkout for one-off and recurring support, Billing for the recurring), since a merchant of record may not take a gift and BT sells nothing to tax.
+Drafted before the owner's model answer; it is settled only once that answer is recorded. If the owner chooses Model B or C, **Stripe Managed Payments**: it does the tax work the owner asked about (Stripe is the seller of record, filing sales tax and VAT in more than 80 countries), is the same Stripe account and API as plain Stripe (so a later move to Stripe Billing + Stripe Tax is a setting and a tax registration, not a new integration), and its webhooks verify with Web Crypto in a Worker. On cost it is cheaper only at small monthly prices: on a US card it costs less than Paddle and Polar on a one-off payment and on a monthly $3 or $5, about the same on a monthly $10 ($1.01 against $1.00), and more on every annual price ($2.86, $4.56 and $8.82 against Paddle's and Polar's $2.30, $3.50 and $6.50); on an EU card it costs less than Paddle only below $10 (and less than Polar on a one-off $10 too, $1.09 against $1.15). Its cut leans more on its percentage than theirs do, so annual billing saves it less (US card: 10.1% at monthly $10 to 7.4% at annual $120, against Paddle's 10.0% to 5.4%). So if most members would pay yearly, Paddle is the cheaper merchant of record, at the cost of a second company beside Stripe. If the owner chooses Model A, **plain Stripe** (Checkout for one-off and recurring support, Billing for the recurring), since a merchant of record may not take a gift and BT sells nothing to tax.
+
+Whatever the owner chooses, accepted architecture may have to change with it. Moving payments off Patreon departs from ADR-004 (payments *"Remain on Patreon"*) and ADR-019 (*"payments stay on Patreon"*) and changes ADR-022's *"Patreon webhooks"* dedupe line; retiring or reshaping v2's four tiers (Model A, Model B, or Model C with new tiers) departs from ADR-004's product gates that *"carry v2"* (Backer → Pro → Star → Premium). Either needs the proposed ADR-019 amendment this story drafts after the provider answer (AC 12), which names the ADR-022 line it changes; accepting it is the owner's decision. Staying on Patreon with v2's four tiers as they are departs from none of them.
 
 ## Question for the owner
 
@@ -225,8 +227,8 @@ Asked after SUPPORT-MODEL's question is answered.
 
 **Which payment provider should take supporters' money?**
 
-1. **Stripe Managed Payments (Recommended).** Stripe sells on BT's behalf and files sales tax and VAT; about 10% of a monthly $10 on a US card, 7% of an annual $120.
-2. **Stripe Billing + Stripe Tax.** The lowest fees (about 7% of a monthly $10, 4% of an annual $120), but BT registers for EU VAT before its first EU sale and files every return itself.
-3. **Paddle.** Seller of record; 5% + 50¢ per payment (10% of a $10 payment), bespoke pricing under $10.
-4. **Polar.** Seller of record; 5% + 50¢ plus 1.5% on a non-US card, and payout fees through Stripe.
-5. **Stay on Patreon.** No migration; its cut is the highest here (estimated), and it handles the tax.
+1. **Stripe Managed Payments (Recommended).** Stripe sells on BT's behalf and files sales tax and VAT. On a US card, about 10% of a monthly $10 and 7% of an annual $120: cheaper than Paddle and Polar below $10 a month, dearer on every annual price.
+2. **Stripe Billing + Stripe Tax.** On a US card the lowest fees (about 7% of a monthly $10, 4% of an annual $120), but BT registers for EU VAT before its first EU sale and files every return itself.
+3. **Paddle.** Seller of record; 5% + 50¢ per payment on any card (10% of a monthly $10, 5% of an annual $120), the cheapest merchant of record on annual prices (tied with Polar on a US card); bespoke pricing under $10.
+4. **Polar.** Seller of record; on a US card the same as Paddle, on an EU card 1.5% more (11.5% of a monthly $10, 6.9% of an annual $120), and payout fees through Stripe.
+5. **Stay on Patreon.** No migration, and it handles the tax. On its current 10% plan (estimated) its cut is the highest of the current-plan rows here (Patreon's legacy Premium plan, at 12%, takes more still) at monthly $5 and $10 and on every annual price, though Paddle and Polar take more at monthly $3; its legacy Lite plan costs less than Paddle and Polar at monthly $3 and $5, and Pro at $3 (all estimated; which plan is BT's is asked separately).

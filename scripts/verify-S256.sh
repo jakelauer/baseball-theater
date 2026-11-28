@@ -46,9 +46,13 @@ trap 'rm -rf "$TMP"' EXIT
 { story_snapshot S256 2>/dev/null || node scripts/backlog-vault/text-records.ts newest S256 2>/dev/null; } >"$TMP/story"
 
 # answer_of <label> — the owner's quoted answer on the story's "**Owner answer (<label>):**" line: the
-# last *"…"* on it (the question is quoted before it). Empty when there is no such line.
+# first *"…"* after "chose" or "answered" (the question is quoted before it, and the chosen option's
+# description may follow it, as in `chose *"X"*, the option reading *"…"*` or `chose *"X"* (*"…"*)`).
+# Only a line that starts with the label (or a "- " bullet holding it) counts: the story's own AC lines
+# name the label mid-line. Empty when there is no such line.
 answer_of() {
-	grep -m1 -F "**Owner answer ($1):**" "$TMP/story" | grep -oE '\*"[^"]+"\*' | tail -1 | sed -E 's/^\*"//; s/"\*$//'
+	awk -v p="**Owner answer ($1):**" '{ s = $0; sub(/^[-*] +/, "", s) } index(s, p) == 1 { print; exit }' "$TMP/story" |
+		grep -oE '(chose|answered:?) +\*"[^"]+"\*' | head -1 | sed -E 's/^[^*]*\*"//; s/"\*$//'
 }
 
 # h2 <file> <title> — the lines of the "## <title>" section (to the next "## ").
@@ -63,7 +67,8 @@ h2_titles() {
 
 # labels <file> <heading prefix> <label>… — prints "missing-heading" when no "### <prefix>…" heading
 # exists, else one "empty <label>" line per label with no text in that section (from the heading to
-# the next ## or ### heading), the text running from "**<label>:**" to the next listed label.
+# the next ## or ### heading), the text running from "**<label>:**" to the next listed label. A body that
+# is only a placeholder (TBD, TODO, a dash, "?", "…") counts as empty.
 labels() {
 	node -e '
 		const [file, prefix, ...labels] = process.argv.slice(1);
@@ -80,7 +85,7 @@ labels() {
 			if (!m) { console.log("empty " + l); continue; }
 			const next = marks.find((x) => x.i > m.i);
 			const body = text.slice(m.i + l.length + 5, next ? next.i : text.length).trim();
-			if (!body) console.log("empty " + l);
+			if (!body || /^(TBD|TODO|—|–|-|\?|…)$/i.test(body)) console.log("empty " + l);
 		}
 	' "$@" 2>/dev/null
 }
@@ -88,6 +93,12 @@ labels() {
 # table_rows <text on stdin> — the data rows of the first markdown table (header and rule left out).
 table_rows() {
 	awk '/^\|/{n++; if (n>2) print; next} n>0{exit}'
+}
+
+# placeholder_cell <row> — succeeds when a cell of the table row is empty or only a placeholder (TBD,
+# TODO, a dash, "?", "…"), which says nothing.
+placeholder_cell() {
+	! awk -F'|' '{ for (i = 2; i < NF; i++) { c = $i; gsub(/^[[:space:]]+|[[:space:]]+$/, "", c); if (c == "" || toupper(c) ~ /^(TBD|TODO|—|–|-|\?|…)$/) exit 1 } }' <<<"$1"
 }
 
 CANDIDATES=("Patreon" "Stripe Billing" "Paddle" "Polar" "Stripe Managed Payments")
@@ -112,7 +123,16 @@ else
 		fi
 	done
 	grep -qE 'git grep' <<<"$inv" || bad 1 "the inventory does not record its grep command"
-	grep -qE '\b[0-9a-f]{7,40}\b' <<<"$inv" || bad 1 "the inventory does not record the commit its grep ran on"
+	while IFS= read -r r; do
+		[ -z "$r" ] && continue
+		placeholder_cell "$r" && bad 1 "an inventory row has an empty or placeholder cell: $(cut -c1-60 <<<"$r")"
+	done <<<"$rows"
+	# The commit the grep ran on: a hex word that names a real commit (a bare number such as 1000000 doesn't).
+	commit_ok=
+	for h in $(grep -oE '\b[0-9a-f]{7,40}\b' <<<"$inv"); do
+		git cat-file -e "$h^{commit}" 2>/dev/null && commit_ok=1 && break
+	done
+	[ -n "$commit_ok" ] || bad 1 "the inventory does not record the commit its grep ran on"
 	grep -qF 'pnpm backlog:search' <<<"$inv" || bad 1 "the inventory does not record its pnpm backlog:search"
 	for want in S215 S209 S190 S91 S92 S178 S179 S180 S181 S182 "AI game companion" "Push notifications"; do
 		grep -qE "(^|[^0-9A-Za-z])$want([^0-9]|$)" <<<"$rows" || bad 1 "the inventory table does not name $want"
@@ -140,14 +160,16 @@ else
 		grep -qiF "$col" <<<"$head" || bad 3 "the Candidate perks table has no '$col' column"
 	done
 	prow="$(table_rows <<<"$cp")"
+	# A perk is named by its row's first cell, never by a word in another row's cells.
+	pnames="$(awk -F'|' '{print $2}' <<<"$prow")"
 	for want in "AI companion" "next-pitch" "push" "badge" "early access"; do
-		grep -qiF "$want" <<<"$prow" || bad 3 "the Candidate perks table has no '$want' row"
+		grep -qiF "$want" <<<"$pnames" || bad 3 "the Candidate perks table has no '$want' row"
 	done
 	ncol="$(awk -F'|' '{print NF}' <<<"$head")"
 	while IFS= read -r r; do
 		[ -z "$r" ] && continue
 		[ "$(awk -F'|' '{print NF}' <<<"$r")" = "$ncol" ] || bad 3 "a perk row has the wrong number of cells: $(cut -c1-60 <<<"$r")"
-		awk -F'|' '{for (i=2;i<NF;i++) if ($i ~ /^[[:space:]]*$/) exit 1}' <<<"$r" || bad 3 "a perk row has an empty cell: $(cut -c1-60 <<<"$r")"
+		placeholder_cell "$r" && bad 3 "a perk row has an empty or placeholder cell: $(cut -c1-60 <<<"$r")"
 	done <<<"$prow"
 	grep -qF '$100' <<<"$cp" || bad 3 "the perks do not use S176's \$100 monthly AI cap"
 	grep -qiE 'estimate' <<<"$cp" || bad 3 "no perk cost is marked as an estimate"
@@ -216,8 +238,26 @@ else
 	head -1 <<<"$frows" | grep -qE '^\| \*?\*?Patreon' || bad 7 "the fee table's first row is not Patreon"
 	while IFS= read -r r; do
 		[ -z "$r" ] && continue
-		grep -qE 'https://' <<<"$r" || bad 7 "a fee row cites no https source: $(cut -c1-60 <<<"$r")"
-		grep -qE '20[0-9]{2}-[0-9]{2}-[0-9]{2}' <<<"$r" || bad 7 "a fee row has no read date: $(cut -c1-60 <<<"$r")"
+		# The source is the vendor's own page: a URL on the row's own vendor's domain.
+		case "$(awk -F'|' '{print $2}' <<<"$r")" in
+			*Patreon*) dom='patreon\.com' ;;
+			*Stripe*) dom='stripe\.com' ;;
+			*Paddle*) dom='paddle\.com' ;;
+			*Polar*) dom='polar\.sh' ;;
+			*) dom= ;;
+		esac
+		if [ -z "$dom" ]; then
+			bad 7 "a fee row names no known candidate: $(cut -c1-60 <<<"$r")"
+		else
+			grep -qE "https://([a-z0-9-]+\.)*$dom(/|[[:space:]]|\||$)" <<<"$r" || bad 7 "a fee row cites no https page of its own vendor: $(cut -c1-60 <<<"$r")"
+		fi
+		dates="$(grep -oE '20[0-9]{2}-[0-9]{2}-[0-9]{2}' <<<"$r")"
+		if [ -z "$dates" ]; then
+			bad 7 "a fee row has no read date: $(cut -c1-60 <<<"$r")"
+		else
+			node -e 'for (const d of process.argv.slice(1)) { const t = new Date(d + "T00:00:00Z"); if (isNaN(t) || t.toISOString().slice(0, 10) !== d) process.exit(1); }' $dates ||
+				bad 7 "a fee row's read date is not a real date: $(cut -c1-60 <<<"$r")"
+		fi
 	done <<<"$frows"
 	for c in "${CANDIDATES[@]}"; do
 		for card in US EU; do
@@ -302,7 +342,10 @@ else
 	htxt="${amend_head#*:}"
 	grep -qE '20[0-9]{2}-[0-9]{2}-[0-9]{2}' <<<"$htxt" || bad 12 "the amendment's heading is not dated"
 	grep -qiE 'accepted' <<<"$htxt" && bad 12 "the amendment's heading marks it accepted"
-	body="$(awk -v s="$ln" 'NR>s && /^#{1,4} /{exit} NR>s' "$ARCH")"
+	# The body runs to the next heading at the amendment's own level or above, so a subheading inside it
+	# (such as "#### Status" under a "###" amendment) stays in the body.
+	lvl="$(grep -oE '^#+' <<<"$htxt")"
+	body="$(awk -v s="$ln" -v l="${#lvl}" 'NR>s && match($0, /^#+ /) && RLENGTH - 1 <= l {exit} NR>s' "$ARCH")"
 	for w in S256 ADR-004 "merchant of record" "entitlements" S259; do
 		grep -qiF "$w" <<<"$body" || bad 12 "the amendment does not name $w"
 	done
